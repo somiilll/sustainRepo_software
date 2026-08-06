@@ -108,6 +108,8 @@ export function buildDecisionContext(data, ctx) {
     selectedFuel,
     biogenicScopeSelection,
     buildDecisionInputs,
+    useCustomFuel,
+    customFuelName,
   } = ctx;
 
   // For Scope 1/2: no scope3 fields; biogenic-scope1 keeps scope='biogenic' in record but
@@ -118,12 +120,13 @@ export function buildDecisionContext(data, ctx) {
   const decisionInputs = buildDecisionInputs(data);
 
   const context = {
-    fuel_name: selectedFuel?.fuel_name,
-    fuel_id: fuelId,
+    fuel_name: useCustomFuel ? customFuelName : selectedFuel?.fuel_name,
+    fuel_id: useCustomFuel ? null : fuelId,
     scope: effectiveScope,
     category,
     facility_id: facilityId,
     reporting_period: reportingPeriod,
+    is_custom_fuel: useCustomFuel || false,
   };
 
   return { decisionInputs, context, effectiveScope };
@@ -162,12 +165,15 @@ export function validateCreateSubmission(ctx) {
     return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
   }
 
-  // Fuel selection
-  if (!fuelId && !useCustomFuel) {
-    return { valid: false, errorMessage: 'Please select a fuel from the database' };
-  }
-  if (useCustomFuel && !customFuelName?.trim()) {
-    return { valid: false, errorMessage: 'Please enter a custom fuel name' };
+  // Fuel selection — Process Emissions don't require fuel
+  const isProcessEmissions = ctx.category?.toLowerCase().includes('process');
+  if (!isProcessEmissions) {
+    if (!fuelId && !useCustomFuel) {
+      return { valid: false, errorMessage: 'Please select a fuel from the database' };
+    }
+    if (useCustomFuel && !customFuelName?.trim()) {
+      return { valid: false, errorMessage: 'Please enter a custom fuel name' };
+    }
   }
 
   // Override justification (Scope 1/2 only)
@@ -247,6 +253,8 @@ export function buildCreatePayload(monthData, ctx) {
     sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
     fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
     fuel_database_id: useCustomFuel ? null : fuelId,
+    is_custom_fuel: useCustomFuel || false,
+    custom_fuel_name: useCustomFuel ? customFuelName : null,
 
     formula_id: resolvedFormulaId,
 

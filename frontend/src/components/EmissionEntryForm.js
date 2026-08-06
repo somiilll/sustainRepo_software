@@ -1338,103 +1338,44 @@ export default function EmissionEntryForm({
     const formulaId = matchedFormula?.id || null;
     
     // Filter input field mappings that apply to this category and scope
+    // Uses formula-driven filtering: only show fields that the resolved formula needs.
+    // Fallback to category/scope filtering when no formula matched.
     const applicableMappings = formConfig.input_field_mappings.filter(m => {
       const appliesToCategory = !m.applies_to_categories?.length || 
                                 m.applies_to_categories.includes(categoryId);
       const appliesToScope = !m.applies_to_scopes?.length || 
                              m.applies_to_scopes.includes(scopeId);
+      if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
       
-      // HARDCODED FIX: Show cv and density for Scope 1/2 Stationary/Mobile Combustion
-      // BUT only when using NCV methodology (not carbon composition) AND not using custom fuel
+      // Custom fuel: never show density (mass-based units only)
+      if (useCustomFuel && m.maps_to_variable === 'density') return false;
+      
+      // Formula-driven filtering — unified for all scopes
+      if (matchedFormula && requiredInputVars?.length) {
+        if (m.is_override) {
+          // Scope 3: strict — only show overrides declared as formula properties
+          if (isScope3Like) {
+            const formulaProperties = matchedFormula.properties || [];
+            return formulaProperties.some(
+              prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
+            );
+          }
+          // Scope 1/2/Biogenic: permissive — show overrides if they apply to this category
+          // (e.g. cv, density for Stationary/Mobile; hidden for Process Emissions by category filter)
+          return true;
+        }
+        // Regular input fields: show only if the formula declares them as an input
+        return requiredInputVars.includes(m.maps_to_variable);
+      }
+      
+      // Fallback: no formula resolved (e.g. no process_type selected yet) — hide all
       const currentCategoryName = (category || '').toLowerCase();
-      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
       const isProcessEmissions = currentCategoryName.includes('process');
-      const calcMethod = decisionFieldValues.calculation_methodology || 'using_ncv';
-      const processType = decisionFieldValues.process_type || '';
-      
-      // HARDCODED: Process Emissions field visibility based on process_type
       if ((scope === 'scope1' || scope === 'scope2') && isProcessEmissions) {
-        const variable = m.maps_to_variable;
-        
-        if (processType === 'venting') {
-          // Venting + NCV: show qty, cv, ef_quantity only
-          const ventingNcvFields = ['qty', 'cv', 'ef_quantity'];
-          if (!ventingNcvFields.includes(variable)) {
-            return false;
-          }
-        } else if (processType === 'n2o_overall_combustion') {
-          // N2O: show n2o_percentage, stationary_combustion_emissions, mobile_combustion_emissions
-          const n2oFields = ['n2o_percentage', 'stationary_combustion_emissions', 'mobile_combustion_emissions'];
-          if (!n2oFields.includes(variable)) {
-            return false;
-          }
-        } else if (processType === 'ch4_overall_combustion') {
-          // CH4: show ch4_percentage, stationary_combustion_emissions, mobile_combustion_emissions
-          const ch4Fields = ['ch4_percentage', 'stationary_combustion_emissions', 'mobile_combustion_emissions'];
-          if (!ch4Fields.includes(variable)) {
-            return false;
-          }
-        } else {
-          // No process type selected - hide all dynamic fields
-          return false;
-        }
-      }
-      
-      if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv' && !useCustomFuel) {
-        if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
-          return appliesToCategory && m.is_active !== false;
-        }
-      }
-      
-      // HARDCODED: Hide density for custom fuel (custom fuel uses mass-based units only)
-      if (useCustomFuel && m.maps_to_variable === 'density') {
         return false;
       }
       
-      // HARDCODED: Hide fields based on calculation methodology for Stationary/Mobile
-      // TODO P0: Replace with proper formula-input-based logic
-      if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile) {
-        // Carbon Composition method: hide Emission Factor field
-        if (calcMethod === 'using_carbon_composition' && m.maps_to_variable === 'ef_quantity') {
-          return false;
-        }
-        // NCV method: hide Carbon Content and Oxidation Factor fields
-        if (calcMethod === 'using_ncv' && (m.maps_to_variable === 'carbon_content' || m.maps_to_variable === 'oxidation_factor')) {
-          return false;
-        }
-      }
-      
-      // For Scope 3 with a selected method, strictly filter by formula inputs/properties
-      if (isScope3Like && requiredInputVars && matchedFormula) {
-        if (m.is_override) {
-          // Override fields (like PPP, inflation_rate) should only show if they are 
-          // explicitly listed in the matched formula's properties array
-          const formulaProperties = matchedFormula.properties || [];
-          const isPropertyOfFormula = formulaProperties.some(
-            prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
-          );
-          if (!isPropertyOfFormula) return false;
-        } else {
-          // Regular input fields must be in the formula's inputs
-          const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
-          if (!isRequiredForFormula) return false;
-        }
-      }
-      // For Scope 1/2/Biogenic Scope 1: only filter override fields by formula properties
-      // Non-override fields (like ef_quantity, qty) are decision fields - they determine which formula to use
-      // so they should always show based on scope/category applicability
-      else if ((isBiogenicScope1 || scope === 'scope1' || scope === 'scope2') && matchedFormula) {
-        if (m.is_override) {
-          const formulaProperties = matchedFormula.properties || [];
-          const isPropertyOfFormula = formulaProperties.some(
-            prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
-          );
-          if (!isPropertyOfFormula) return false;
-        }
-        // Non-override fields: rely on scope/category filtering only (no formula input check)
-      }
-      
-      return appliesToCategory && appliesToScope && m.is_active !== false;
+      return true;
     });
     
     // Sort by display_order

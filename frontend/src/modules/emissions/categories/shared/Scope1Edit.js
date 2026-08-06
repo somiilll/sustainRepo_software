@@ -109,8 +109,6 @@ export function validateEditSubmission(ctx) {
     editCustomFuelName,
   } = ctx;
 
-  console.log("here", formData)
-  console.log("overrideEmissionFactorHeat", overrideEmissionFactorHeat)
   // 1. Override CV/density justifications (DOM-read)
   if (isOverrideCV && !formData.calorific_value_justification?.trim()) {
     return { valid: false, errorMessage: 'Justification is required when overriding Calorific Value' };
@@ -138,7 +136,6 @@ export function validateEditSubmission(ctx) {
         const value = dynamicFieldValues[field.variable];
         const numValue = parseFloat(value);
         if (!value || isNaN(numValue) || numValue <= 0) {
-        console.log("here is the issue", field.label)
           return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
         }
       }
@@ -155,12 +152,15 @@ export function validateEditSubmission(ctx) {
     return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
   }
 
-  // 5. Fuel selection (skip for custom fuel)
-  if (!editUseCustomFuel && !formData.fuel_id) {
-    return { valid: false, errorMessage: 'Please select a fuel from the database' };
-  }
-  if (editUseCustomFuel && !editCustomFuelName?.trim()) {
-    return { valid: false, errorMessage: 'Please enter custom fuel name' };
+  // 5. Fuel selection — Process Emissions don't require fuel
+  const isProcessEmissions = formData.category?.toLowerCase().includes('process');
+  if (!isProcessEmissions) {
+    if (!editUseCustomFuel && !formData.fuel_id) {
+      return { valid: false, errorMessage: 'Please select a fuel from the database' };
+    }
+    if (editUseCustomFuel && !editCustomFuelName?.trim()) {
+      return { valid: false, errorMessage: 'Please enter custom fuel name' };
+    }
   }
 
   // 6. Calc engine must have produced a result

@@ -480,6 +480,7 @@ class CalcEngine:
 
         # 2. Resolve properties
         applied_factors = {}  # Track all resolved property values (emission factors, etc.)
+        is_custom_fuel = context.get("is_custom_fuel", False)
         for prop_decl in formula.get("properties", []):
             var = prop_decl["variable"]
             expected_unit = prop_decl.get("expected_unit")
@@ -490,9 +491,22 @@ class CalcEngine:
                 if var_def:
                     expected_unit = var_def.get("default_unit")
             
-            value, unit, res_audit = await resolve_property(
-                self.db, var, context, user_overrides, org_id=org_id,
-            )
+            try:
+                value, unit, res_audit = await resolve_property(
+                    self.db, var, context, user_overrides, org_id=org_id,
+                )
+            except ValueError:
+                # For custom fuel, skip unresolvable properties (no fuel DB entry)
+                # The formula may still succeed if user_overrides cover the needed values
+                if is_custom_fuel:
+                    audit.add({
+                        "step": "resolve_property",
+                        "property": var,
+                        "source": "skipped_custom_fuel",
+                        "note": f"Property '{var}' skipped — custom fuel has no DB entry",
+                    })
+                    continue
+                raise
             audit.add(res_audit)
             
             # Store the applied factor for response

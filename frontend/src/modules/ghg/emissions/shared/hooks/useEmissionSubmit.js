@@ -634,14 +634,20 @@ export function useEmissionSubmit(ctx) {
           const effectiveScopeForLookup = isScope3Like ? 'scope3' : scope;
           const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScopeForLookup);
 
-          if (categoryObj?.id && !useCustomFuel) {
+          if (categoryObj?.id) {
             try {
+              // For custom fuel, merge ef_quantity into user_overrides for the backend
+              const effectiveOverrides = { ...userOverrides };
+              if (useCustomFuel && inputs.ef_quantity) {
+                effectiveOverrides.ef_quantity = inputs.ef_quantity;
+                effectiveOverrides.emission_factor = inputs.ef_quantity;
+              }
               const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
                 category_id: categoryObj.id,
                 decision_inputs: decisionInputs,
                 inputs,
                 context,
-                user_overrides: userOverrides,
+                user_overrides: effectiveOverrides,
                 dry_run: false,
                 ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
               }, { headers: getAuthHeader() });
@@ -654,13 +660,15 @@ export function useEmissionSubmit(ctx) {
                 resolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
               }
             } catch (e) {
-              // Fall through with zeros — record persisted, can be recalculated later
+              // Fallback for custom fuel: simple qty * EF
+              if (useCustomFuel) {
+                const customEF = parseFloat(customEmissionFactor) || 0;
+                const primaryQty = parseFloat(data[dynamicInputFields[0]?.variable] || 0);
+                calculatedCO2 = primaryQty * customEF;
+                calculatedCO2e = calculatedCO2;
+              }
+              // For standard fuel: Fall through with zeros — record persisted, can be recalculated later
             }
-          } else if (useCustomFuel) {
-            const customEF = parseFloat(customEmissionFactor) || 0;
-            const primaryQty = parseFloat(data[dynamicInputFields[0]?.variable] || 0);
-            calculatedCO2 = primaryQty * customEF;
-            calculatedCO2e = calculatedCO2;
           }
 
           const payload = dispatchActiveModule.buildCreatePayload(data, {
