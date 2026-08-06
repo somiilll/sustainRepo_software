@@ -595,6 +595,19 @@ export default function Emissions() {
           }
         }
         
+        // HARDCODED: Hide fields based on calculation methodology for Stationary/Mobile
+        // TODO P0: Replace with proper formula-input-based logic
+        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && isStationaryOrMobile) {
+          // Carbon Composition method: hide Emission Factor field
+          if (calcMethod === 'using_carbon_composition' && m.maps_to_variable === 'ef_quantity') {
+            return false;
+          }
+          // NCV method: hide Carbon Content and Oxidation Factor fields
+          if (calcMethod === 'using_ncv' && (m.maps_to_variable === 'carbon_content' || m.maps_to_variable === 'oxidation_factor')) {
+            return false;
+          }
+        }
+        
         // For Scope 3 with a selected method, strictly filter by formula inputs/properties
         if (isScope3Like && requiredInputVars && matchedFormula) {
           if (m.is_override) {
