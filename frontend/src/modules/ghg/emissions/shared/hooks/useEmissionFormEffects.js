@@ -75,12 +75,13 @@ export function useEmissionFormEffects({
     const isProcess = category === 'Process Emissions';
     const biogenicReady = scope !== 'biogenic' || biogenicScopeSelection;
 
-    if (scope && category && !isProcess && !useCustomFuel && biogenicReady) {
+    // Fetch formConfig even for custom fuel - needed for methodology-based dynamic fields
+    if (scope && category && !isProcess && biogenicReady) {
       fetchFormConfig();
     } else {
       setFormConfig(null);
     }
-  }, [scope, category, dynamicCategories, getAuthHeader, useCustomFuel, biogenicScopeSelection, setFormConfig, setLoadingFormConfig, setCalcEngineResult]);
+  }, [scope, category, dynamicCategories, getAuthHeader, biogenicScopeSelection, setFormConfig, setLoadingFormConfig, setCalcEngineResult]);
 
   // ============================================================================
   // Fetch fugitive emissions data from fuel_database

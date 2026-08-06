@@ -789,58 +789,12 @@ export const Step1BasicSelection = ({
                   onChange={(e) => setCustomFuelName(e.target.value)}
                   placeholder="Enter fuel name"
                   className="bg-white"
+                  data-testid="custom-fuel-name-input"
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Emission Factor <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={customEmissionFactor}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '' || parseFloat(val) >= 0) {
-                        setCustomEmissionFactor(val);
-                      }
-                    }}
-                    onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                    placeholder="e.g., 2.5"
-                    className="bg-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>EF Unit <span className="text-red-500">*</span></Label>
-                  <select
-                    value={customEmissionFactorUnit}
-                    onChange={(e) => setCustomEmissionFactorUnit(e.target.value)}
-                    className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                    data-testid="custom-fuel-ef-unit-select"
-                  >
-                    {getAvailableEFUnits(scope, true).map(unit => (
-                      <option key={unit.value} value={unit.value}>
-                        {unit.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-amber-700">
-                    Quantity unit will be: <strong>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</strong>
-                  </p>
-                  <p className="text-xs text-stone-500">
-                    Units restricted to mass-based (kg, g, t)
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Source <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={customSource}
-                    onChange={(e) => setCustomSource(e.target.value)}
-                    placeholder="Source of info"
-                    className="bg-white"
-                  />
-                </div>
-              </div>
+              <p className="text-xs text-stone-600">
+                Formula inputs (Quantity, EF/NCV, Carbon Content, etc.) will be entered in Step 3 based on the selected calculation methodology.
+              </p>
             </div>
           )}
 
