@@ -633,9 +633,53 @@ export const Step1BasicSelection = ({
           )}
         </div>
       )}
+      
+      {/* Process Type - Only for Process Emissions (Scope 1) */}
+      {category && category.toLowerCase().includes('process') && 
+       (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+        <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="process-type-section">
+          <Label>Process Type <span className="text-red-500">*</span></Label>
+          <Select
+            value={decisionFieldValues.process_type || ''}
+            onValueChange={(v) => setDecisionFieldValues(prev => ({ ...prev, process_type: v, calculation_methodology: '' }))}
+          >
+            <SelectTrigger className="bg-stone-50 h-10" data-testid="process-type-select">
+              <SelectValue placeholder="Select process type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="venting">Venting</SelectItem>
+              <SelectItem value="flaring">Flaring</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
-      {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3 */}
-      {category && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
+      {/* Calculation Methodology - For Stationary/Flaring OR Process Emissions with venting */}
+      {category && (
+        (category.toLowerCase().includes('stationary') || category.toLowerCase().includes('flaring')) ||
+        (category.toLowerCase().includes('process') && decisionFieldValues.process_type === 'venting')
+      ) && 
+       (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+        <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="calculation-methodology-section">
+          <Label>Calculation Methodology</Label>
+          <Select
+            value={decisionFieldValues.calculation_methodology || 'using_ncv'}
+            onValueChange={(v) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: v }))}
+          >
+            <SelectTrigger className="bg-stone-50 h-10" data-testid="calculation-methodology-select">
+              <SelectValue placeholder="Select methodology" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="using_ncv">Using NCV (Net Calorific Value)</SelectItem>
+              <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3, non-Process Emissions */}
+      {category && !category.toLowerCase().includes('process') && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
         <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
           <div className="flex items-center justify-between">
             <Label>Fuel Type <span className="text-red-500">*</span></Label>
@@ -733,26 +777,6 @@ export const Step1BasicSelection = ({
               <p><strong>Selected:</strong> {selectedFuel.fuel_name}</p>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Calculation Methodology - For Stationary Combustion and Flaring (Scope 1 / Biogenic Scope 1) */}
-      {category && (category.toLowerCase().includes('stationary') || category.toLowerCase().includes('flaring')) && 
-       (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
-        <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="calculation-methodology-section">
-          <Label>Calculation Methodology</Label>
-          <Select
-            value={decisionFieldValues.calculation_methodology || 'using_ncv'}
-            onValueChange={(v) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: v }))}
-          >
-            <SelectTrigger className="bg-stone-50 h-10" data-testid="calculation-methodology-select">
-              <SelectValue placeholder="Select methodology" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="using_ncv">Using NCV (Net Calorific Value)</SelectItem>
-              <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       )}
 
