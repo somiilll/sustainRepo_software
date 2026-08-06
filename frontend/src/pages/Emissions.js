@@ -584,7 +584,8 @@ export default function Emissions() {
     
     // Filter and sort by display_order
     // Uses formula-driven filtering: only show fields that the resolved formula needs.
-    // Fallback to category/scope filtering when no formula matched.
+    // Decision fields (maps_to_context in decision tree) always shown so users can toggle tree paths.
+    const decisionFieldNames = (editFormConfig.decision_fields || []).map(d => d.field_name);
     const mappings = [...editFormConfig.input_field_mappings]
       .filter(m => {
         if (m.is_active === false) return false;
@@ -592,27 +593,29 @@ export default function Emissions() {
         // Custom fuel: never show density (mass-based units only)
         if (editUseCustomFuel && m.maps_to_variable === 'density') return false;
         
-        // Formula-driven filtering — unified for all scopes
+        // Formula-driven filtering when a formula is resolved
         if (matchedFormula && requiredInputVars?.length) {
           if (m.is_override) {
-            // Scope 3: strict — only show overrides declared as formula properties
-            if (isScope3Like) {
-              const formulaProperties = matchedFormula.properties || [];
-              return formulaProperties.some(
-                prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
-              );
+            // Override fields: show if declared as formula property
+            const formulaProperties = matchedFormula.properties || [];
+            if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
+              return true;
             }
-            // Scope 1/2/Biogenic: permissive — show overrides if they apply to this category
-            return true;
+            // Density: show when formula input supports dimension conversion (volume→mass)
+            if (m.maps_to_variable === 'density') {
+              return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
+            }
+            return false;
           }
-          // Regular input fields: show only if the formula declares them as an input
-          return requiredInputVars.includes(m.maps_to_variable);
+          // Regular input fields: in formula inputs OR is a decision field in the tree
+          if (requiredInputVars.includes(m.maps_to_variable)) return true;
+          if (m.maps_to_context && decisionFieldNames.includes(m.maps_to_context)) return true;
+          return false;
         }
         
         // Fallback: no formula resolved (e.g. no process_type selected yet) — hide all for Process
         const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
-        const isProcessEmissions = currentCategoryName.includes('process');
-        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && isProcessEmissions) {
+        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && currentCategoryName.includes('process')) {
           return false;
         }
         
