@@ -1367,14 +1367,19 @@ export default function EmissionEntryForm({
                              m.applies_to_scopes.includes(scopeId);
       
       // HARDCODED FIX: Show cv and density for Scope 1/2 Stationary/Mobile Combustion
-      // BUT only when using NCV methodology (not carbon composition)
+      // BUT only when using NCV methodology (not carbon composition) AND not using custom fuel
       const currentCategoryName = (category || '').toLowerCase();
       const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
       const calcMethod = decisionFieldValues.calculation_methodology || 'using_ncv';
-      if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv') {
+      if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv' && !useCustomFuel) {
         if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
           return appliesToCategory && m.is_active !== false;
         }
+      }
+      
+      // HARDCODED: Hide density for custom fuel (custom fuel uses mass-based units only)
+      if (useCustomFuel && m.maps_to_variable === 'density') {
+        return false;
       }
       
       // HARDCODED: Hide fields based on calculation methodology for Stationary/Mobile
@@ -2674,6 +2679,7 @@ export default function EmissionEntryForm({
       filteredScope3Activities={filteredScope3Activities}
       centralizedUnits={centralizedUnits}
       biogenicScopeSelection={biogenicScopeSelection}
+      useCustomFuel={useCustomFuel}
       compoundSuffix={computeCompoundSuffix(field, data)}
     />
   );
@@ -2690,6 +2696,7 @@ export default function EmissionEntryForm({
       filteredScope3Activities,
       centralizedUnits,
       biogenicScopeSelection,
+      useCustomFuel,
     });
     const suffix = computeCompoundSuffix(field, yearlyData);
     if (!suffix) return base;

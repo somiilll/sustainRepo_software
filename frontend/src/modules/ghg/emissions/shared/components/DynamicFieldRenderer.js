@@ -47,6 +47,7 @@ export const getFieldUnits = ({
   filteredScope3Activities,
   centralizedUnits,
   biogenicScopeSelection,
+  useCustomFuel = false,
 }) => {
   const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
   let fieldUnits = [];
@@ -55,6 +56,19 @@ export const getFieldUnits = ({
   // renderer level, not via a units list.
   if (field.unitSource === 'none' || field.unitSource === 'text') {
     return [];
+  }
+
+  // Custom fuel: restrict units based on field type
+  if (useCustomFuel) {
+    // Quantity field: only mass-based units (kg, g, t)
+    if (field.variable === 'qty' || field.variable === 'qty_energy') {
+      return ['kg', 'g', 't'];
+    }
+    // Emission factor field: only kgCO2e/kg (mass-based)
+    if (field.variable === 'ef_quantity') {
+      return ['kgCO2e/kg'];
+    }
+    // Other fields: use default behavior
   }
 
   if (field.unitSource === 'fuel') {
@@ -106,6 +120,7 @@ export const DynamicFieldRenderer = ({
   filteredScope3Activities,
   centralizedUnits,
   biogenicScopeSelection,
+  useCustomFuel = false,
   // Compound unit support — when set, dropdown options are suffixed with
   // "/<compoundSuffix>". Computed by the parent from the linked field's unit.
   compoundSuffix = '',
@@ -127,6 +142,7 @@ export const DynamicFieldRenderer = ({
     filteredScope3Activities,
     centralizedUnits,
     biogenicScopeSelection,
+    useCustomFuel,
   });
 
   // If this field is configured as compound, suffix every option.
