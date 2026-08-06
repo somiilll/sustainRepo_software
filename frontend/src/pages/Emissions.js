@@ -131,6 +131,8 @@ export default function Emissions() {
   const [editCalcMethodology, setEditCalcMethodology] = useState('using_ncv'); // Stationary Combustion methodology
   const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
+  const [editUseCustomFuel, setEditUseCustomFuel] = useState(false); // Toggle for custom fuel in edit mode
+  const [editCustomFuelName, setEditCustomFuelName] = useState(''); // Custom fuel name in edit mode
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   const [activitySearchTerm, setActivitySearchTerm] = useState(''); // Search filter for activities in edit dialog
@@ -585,14 +587,19 @@ export default function Emissions() {
         if (m.is_active === false) return false;
         
         // HARDCODED FIX: Show cv and density for Scope 1/2 Stationary/Mobile Combustion
-        // BUT only when using NCV methodology (not carbon composition)
+        // BUT only when using NCV methodology (not carbon composition) AND not using custom fuel
         const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
         const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
         const calcMethod = editCalcMethodology || 'using_ncv';
-        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv') {
+        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv' && !editUseCustomFuel) {
           if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
             return true; // Show cv/density for Stationary/Mobile only with NCV methodology
           }
+        }
+        
+        // HARDCODED: Hide density for custom fuel (custom fuel uses mass-based units only)
+        if (editUseCustomFuel && m.maps_to_variable === 'density') {
+          return false;
         }
         
         // HARDCODED: Hide fields based on calculation methodology for Stationary/Mobile
@@ -665,7 +672,7 @@ export default function Emissions() {
       defaultValue: m.default_value,
       validationRules: m.validation_rules || {},
     }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory]);
+  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel]);
 
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
@@ -3265,6 +3272,8 @@ export default function Emissions() {
                   typeOfProduct={typeOfProduct}
                   editCalcMethodology={editCalcMethodology}
                   setEditCalcMethodology={setEditCalcMethodology}
+                  editUseCustomFuel={editUseCustomFuel}
+                  editCustomFuelName={editCustomFuelName}
                   activitySearchTerm={activitySearchTerm}
                   loadingScope3EF={loadingScope3EF}
                   loadingBiogenicCategories={loadingBiogenicCategories}
@@ -3293,6 +3302,8 @@ export default function Emissions() {
                   setScope3Subcategory={setScope3Subcategory}
                   setScope3CustomActivity={setScope3CustomActivity}
                   setUseCustomActivity={setUseCustomActivity}
+                  setEditUseCustomFuel={setEditUseCustomFuel}
+                  setEditCustomFuelName={setEditCustomFuelName}
                   setTypeOfProduct={setTypeOfProduct}
                   setActivitySearchTerm={setActivitySearchTerm}
                   setDynamicFieldValues={setDynamicFieldValues}

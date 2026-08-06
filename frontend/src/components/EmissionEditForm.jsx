@@ -78,6 +78,8 @@ export default function EmissionEditForm(props) {
     typeOfProduct,
     editCalcMethodology,
     setEditCalcMethodology,
+    editUseCustomFuel,
+    editCustomFuelName,
     activitySearchTerm,
     loadingScope3EF,
     loadingBiogenicCategories,
@@ -107,6 +109,8 @@ export default function EmissionEditForm(props) {
     setScope3Subcategory,
     setScope3CustomActivity,
     setUseCustomActivity,
+    setEditUseCustomFuel,
+    setEditCustomFuelName,
     setTypeOfProduct,
     setActivitySearchTerm,
     setDynamicFieldValues,
@@ -450,30 +454,83 @@ export default function EmissionEditForm(props) {
                             </div>
                           </>
                         ) : (
-                          <div className="space-y-1.5">
-                            <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
-                            <select
-                              id="fuel_select"
-                              value={formData.fuel_id}
-                              onChange={(e) => handleFuelSelect(e.target.value)}
-                              required
-                              disabled={!selectedCategory}
-                              className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              data-testid="fuel-select"
-                            >
-                              <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
-                              {getFuelsForCategory.map(fuel => (
-                                <option key={fuel.id} value={fuel.id}>
-                                  {fuel.fuel_name}
-                                </option>
-                              ))}
-                            </select>
+                          <div className="space-y-3">
+                            {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
+                            {(selectedCategory?.toLowerCase().includes('stationary') || 
+                              selectedCategory?.toLowerCase().includes('mobile') || 
+                              selectedCategory?.toLowerCase().includes('fugitive') ||
+                              selectedCategory?.toLowerCase().includes('flaring')) && (
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={editUseCustomFuel}
+                                    onChange={(e) => {
+                                      setEditUseCustomFuel(e.target.checked);
+                                      if (e.target.checked) {
+                                        setFormData(prev => ({ ...prev, fuel_id: '' }));
+                                      } else {
+                                        setEditCustomFuelName('');
+                                      }
+                                      markFormDirty();
+                                    }}
+                                    className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                    data-testid="edit-use-custom-fuel-toggle"
+                                  />
+                                  <span className="text-sm text-amber-700 font-medium">Use Custom Fuel</span>
+                                </label>
+                              </div>
+                            )}
+                            
+                            {!editUseCustomFuel ? (
+                              <div className="space-y-1.5">
+                                {!(selectedCategory?.toLowerCase().includes('stationary') || 
+                                  selectedCategory?.toLowerCase().includes('mobile') || 
+                                  selectedCategory?.toLowerCase().includes('fugitive') ||
+                                  selectedCategory?.toLowerCase().includes('flaring')) && (
+                                  <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
+                                )}
+                                <select
+                                  id="fuel_select"
+                                  value={formData.fuel_id}
+                                  onChange={(e) => handleFuelSelect(e.target.value)}
+                                  required
+                                  disabled={!selectedCategory}
+                                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  data-testid="fuel-select"
+                                >
+                                  <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
+                                  {getFuelsForCategory.map(fuel => (
+                                    <option key={fuel.id} value={fuel.id}>
+                                      {fuel.fuel_name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            ) : (
+                              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                <div className="space-y-2">
+                                  <Label>Custom Fuel Name <span className="text-red-500">*</span></Label>
+                                  <Input
+                                    value={editCustomFuelName}
+                                    onChange={(e) => {
+                                      setEditCustomFuelName(e.target.value);
+                                      markFormDirty();
+                                    }}
+                                    placeholder="Enter fuel name"
+                                    className="bg-white"
+                                    data-testid="edit-custom-fuel-name-input"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
                       
-                      {/* Calculation Methodology - Only for Stationary Combustion */}
-                      {selectedCategory && selectedCategory.toLowerCase().includes('stationary') &&
+                      {/* Calculation Methodology - For Stationary Combustion and Flaring */}
+                      {selectedCategory && (selectedCategory.toLowerCase().includes('stationary') || selectedCategory.toLowerCase().includes('flaring')) &&
                        (formData.scope === 'scope1' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
                         <div className="space-y-1.5" data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
