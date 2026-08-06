@@ -636,6 +636,11 @@ Raw Response → Question Score (0-100)
 3. SuperAdmin Config UI for Modules
 4. Supplier and Customer Org Onboarding Wizards
 5. Word document download option for BRSR
+6. **MIS Reports & Automation Module (P1)** — Admin-only module for generating predefined reports:
+   - **Report Types**: GHG Emissions Summary, Energy Consumption, Water Consumption, Waste Management, ESG Dashboard Summary, Supplier Assessment Summary, Task Status Summary
+   - **Features**: Dynamic filters (Year, Month, Facility, Scope, Category), KPI Cards + Summary Tables + Charts, PDF/Excel export
+   - **Advanced**: Save report configurations, Schedule reports (Weekly/Monthly/Quarterly), Email to recipients, Report History with downloads
+   - **Architecture**: Reuse existing dashboard APIs, chart components, PDF generators, email infrastructure, and scheduler patterns
 
 ### Internal Data AI — Expanded Data Sources (Feb 2026)
 - **New Service Files Created**:
