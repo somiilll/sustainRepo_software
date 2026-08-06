@@ -1787,7 +1787,8 @@ export default function EmissionEntryForm({
         if (!scope3ActivityId) return null;
       }
     } else {
-      if (!selectedFuel || !fuelId) {
+      // Standard fuel requires selection; custom fuel bypasses this
+      if (!useCustomFuel && (!selectedFuel || !fuelId)) {
         return null;
       }
     }
@@ -1854,7 +1855,7 @@ export default function EmissionEntryForm({
       // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
       // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
       // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
-      let fuelNameForContext = selectedFuel?.fuel_name || '';
+      let fuelNameForContext = useCustomFuel ? customFuelName : (selectedFuel?.fuel_name || '');
       if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFEntry?.activity) {
         fuelNameForContext = matchedEFEntry.activity;
       }
@@ -1865,11 +1866,12 @@ export default function EmissionEntryForm({
       
       const context = {
         fuel_name: fuelNameForContext,
-        fuel_id: fuelId || '',
+        fuel_id: useCustomFuel ? null : (fuelId || ''),
         scope: effectiveScope, // Use effective scope for context
         category: category,
         facility_id: facilityId,
         reporting_period: monthReportingPeriod, // For currency conversion year lookup
+        is_custom_fuel: useCustomFuel || false,
         // Scope 3 specific context (also applies to biogenic scope3)
         ...(isScope3Like && {
           calculation_method_scope3: scope3Method,
@@ -1924,7 +1926,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalcEngineCalculating(false);
     }
-  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection]);
+  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, useCustomFuel, customFuelName]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {
@@ -1943,7 +1945,7 @@ export default function EmissionEntryForm({
         if (!scope3ActivityId) return null;
       }
     } else {
-      if (!selectedFuel || !fuelId) return null;
+      if (!useCustomFuel && (!selectedFuel || !fuelId)) return null;
     }
     
     const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
@@ -2007,7 +2009,7 @@ export default function EmissionEntryForm({
       // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
       // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
       // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
-      let fuelNameForContext = selectedFuel?.fuel_name || '';
+      let fuelNameForContext = useCustomFuel ? customFuelName : (selectedFuel?.fuel_name || '');
       if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
         fuelNameForContext = matchedEFForContext.activity;
       }
@@ -2019,11 +2021,12 @@ export default function EmissionEntryForm({
       
       const context = {
         fuel_name: fuelNameForContext,
-        fuel_id: fuelId || '',
+        fuel_id: useCustomFuel ? null : (fuelId || ''),
         scope: effectiveScope,
         category: category,
         facility_id: facilityId,
         reporting_period: yearlyReportingPeriodForCalc, // For currency conversion year lookup
+        is_custom_fuel: useCustomFuel || false,
         ...(isScope3Like && {
           calculation_method_scope3: scope3Method,
           scope3_ef_id: scope3ActivityId,
