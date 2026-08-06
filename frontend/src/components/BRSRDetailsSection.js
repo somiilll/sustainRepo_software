@@ -537,15 +537,15 @@ export default function BRSRDetailsSection({
     const isSaving = savingQuestion === questionKey;
     
     if (!isEditing) return null;
-    if (!isDirty && !isSaving) return null;
     
+    // Always show button in edit mode, but disable when not dirty
     return (
       <Button
         variant="outline"
         size="sm"
-        className="h-7 px-2 text-xs"
+        className={`h-7 px-2 text-xs ${!isDirty && !isSaving ? 'opacity-50' : ''}`}
         onClick={() => saveQuestion(questionKey, getValue())}
-        disabled={isSaving}
+        disabled={isSaving || !isDirty}
       >
         {isSaving ? (
           <Loader2 className="h-3 w-3 animate-spin" />
@@ -877,7 +877,15 @@ export default function BRSRDetailsSection({
               {/* Q4: Registered Office Address - Grouped Box */}
               {(isAdmin || canSeeQuestion('brsr_a_registered_address')) && (
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
-                <h5 className="text-sm font-medium text-text-primary mb-3">Registered Office Address</h5>
+                <div className="mb-3">
+                  {renderQuestionHeader('Registered Office Address', 'brsr_a_registered_address', () => ({
+                    address: formData.registered_address,
+                    city: formData.registered_city,
+                    state: formData.registered_state,
+                    country: formData.registered_country,
+                    pincode: formData.registered_pincode,
+                  }), true)}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2 lg:col-span-2">
                     <Label>Address *</Label>
@@ -963,7 +971,15 @@ export default function BRSRDetailsSection({
               {/* Q5: Corporate Address - Grouped Box */}
               {(isAdmin || canSeeQuestion('brsr_a_corporate_address')) && (
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
-                <h5 className="text-sm font-medium text-text-primary mb-3">Corporate Address</h5>
+                <div className="mb-3">
+                  {renderQuestionHeader('Corporate Address', 'brsr_a_corporate_address', () => ({
+                    address: formData.corporate_address,
+                    city: formData.corporate_city,
+                    state: formData.corporate_state,
+                    country: formData.corporate_country,
+                    pincode: formData.corporate_pincode,
+                  }), false)}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2 lg:col-span-2">
                     <Label>Address</Label>
@@ -1084,7 +1100,7 @@ export default function BRSRDetailsSection({
               {/* Website */}
               {(isAdmin || canSeeQuestion('brsr_a_website')) && (
               <div className="space-y-2">
-                <Label>Website *</Label>
+                {renderQuestionHeader('Website', 'brsr_a_website', () => formData.website, true)}
                 {isEditing && canEditQuestion('brsr_a_website') ? (
                   <Input
                     value={formData.website}
@@ -1101,7 +1117,7 @@ export default function BRSRDetailsSection({
               {/* Paid-up Capital */}
               {(isAdmin || canSeeQuestion('brsr_a_paid_up_capital')) && (
               <div className="space-y-2">
-                <Label>Paid-up Capital (INR) *</Label>
+                {renderQuestionHeader('Paid-up Capital (INR)', 'brsr_a_paid_up_capital', () => formData.paid_up_capital, true)}
                 {isEditing && canEditQuestion('brsr_a_paid_up_capital') ? (
                   <Input
                     type="number"
@@ -1122,7 +1138,7 @@ export default function BRSRDetailsSection({
               {/* Assurance Provider */}
               {(isAdmin || canSeeQuestion('brsr_a_assurance_provider')) && (
               <div className="space-y-2">
-                <Label>Name of Assurance Provider *</Label>
+                {renderQuestionHeader('Name of Assurance Provider', 'brsr_a_assurance_provider', () => formData.assurance_provider, true)}
                 {isEditing && canEditQuestion('brsr_a_assurance_provider') ? (
                   <Input
                     value={formData.assurance_provider}
@@ -1139,7 +1155,7 @@ export default function BRSRDetailsSection({
               {/* Assurance Type */}
               {(isAdmin || canSeeQuestion('brsr_a_assurance_type')) && (
               <div className="space-y-2">
-                <Label>Type of Assurance Obtained *</Label>
+                {renderQuestionHeader('Type of Assurance Obtained', 'brsr_a_assurance_type', () => formData.assurance_type, true)}
                 {isEditing && canEditQuestion('brsr_a_assurance_type') ? (
                   <Input
                     value={formData.assurance_type}
@@ -1201,9 +1217,13 @@ export default function BRSRDetailsSection({
           {/* BRSR Contact Person Section */}
           {(isAdmin || canSeeQuestion('brsr_a_contact_person')) && (
           <div>
-            <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
-              BRSR Report Contact Person
-            </h4>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b">
+              {renderQuestionHeader('BRSR Report Contact Person', 'brsr_a_contact_person', () => ({
+                name: formData.brsr_contact_name,
+                telephone: formData.brsr_contact_telephone,
+                email: formData.brsr_contact_email,
+              }), true)}
+            </div>
             <p className="text-xs text-text-muted mb-4">
               Name and contact details (telephone, email address) of the person who may be contacted in case of any queries on the BRSR report
             </p>
@@ -1263,7 +1283,7 @@ export default function BRSRDetailsSection({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {(isAdmin || canSeeQuestion('brsr_a_stock_exchange')) && (
               <div className="space-y-3">
-                <Label>Stock Exchange(s) where shares are listed *</Label>
+                {renderQuestionHeader('Stock Exchange(s) where shares are listed', 'brsr_a_stock_exchange', () => formData.stock_exchange, true)}
                 {isEditing && canEditQuestion('brsr_a_stock_exchange') ? (
                   <RadioGroup
                     value={formData.stock_exchange}
@@ -1291,7 +1311,7 @@ export default function BRSRDetailsSection({
               
               {(isAdmin || canSeeQuestion('brsr_a_reporting_boundary')) && (
               <div className="space-y-3">
-                <Label>Reporting Boundary *</Label>
+                {renderQuestionHeader('Reporting Boundary', 'brsr_a_reporting_boundary', () => formData.reporting_boundary, true)}
                 {isEditing && canEditQuestion('brsr_a_reporting_boundary') ? (
                   <RadioGroup
                     value={formData.reporting_boundary}
@@ -1322,9 +1342,7 @@ export default function BRSRDetailsSection({
             {(isAdmin || canSeeQuestion('brsr_a_business_activities')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-text-primary">
-                  Business Activities Accounting for 90% of Turnover *
-                </h4>
+                {renderQuestionHeader('Business Activities Accounting for 90% of Turnover', 'brsr_a_business_activities', () => formData.business_activities, true)}
                 {isEditing && canEditQuestion('brsr_a_business_activities') && (
                   <Button
                     type="button"
@@ -1414,9 +1432,7 @@ export default function BRSRDetailsSection({
             {(isAdmin || canSeeQuestion('brsr_a_products_services')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-text-primary">
-                  Products/Services Accounting for 90% of Turnover *
-                </h4>
+                {renderQuestionHeader('Products/Services Accounting for 90% of Turnover', 'brsr_a_products_services', () => formData.products_services, true)}
                 {isEditing && canEditQuestion('brsr_a_products_services') && (
                   <Button
                     type="button"
@@ -1506,9 +1522,7 @@ export default function BRSRDetailsSection({
             {(isAdmin || canSeeQuestion('brsr_a_plants_offices')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-text-primary">
-                  Plants and Offices Operated *
-                </h4>
+                {renderQuestionHeader('Plants and Offices Operated', 'brsr_a_plants_offices', () => formData.plants_offices, true)}
                 {isEditing && canEditQuestion('brsr_a_plants_offices') && (
                   <Button
                     type="button"
@@ -1605,9 +1619,11 @@ export default function BRSRDetailsSection({
             {(isAdmin || canSeeQuestion('brsr_a_markets_served')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-text-primary">
-                  Markets Served by Entity *
-                </h4>
+                {renderQuestionHeader('Markets Served by Entity', 'brsr_a_markets_served', () => ({
+                  locations: formData.markets_served,
+                  export_contribution_percentage: formData.export_contribution_percentage,
+                  customer_types_brief: formData.customer_types_brief,
+                }), true)}
                 {isEditing && canEditQuestion('brsr_a_markets_served') && (
                   <Button
                     type="button"
