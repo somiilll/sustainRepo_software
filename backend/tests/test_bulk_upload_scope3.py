@@ -5,7 +5,7 @@ import pytest
 import requests
 from openpyxl import load_workbook, Workbook
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://brsr-unified-db.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ocr-temp-cleanup.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "goyalsomil2@hotmail.com"
 ADMIN_PASSWORD = "Test123!"
 
