@@ -105,8 +105,11 @@ export function useCalcEngine(getAuthHeader) {
     gwpConfig,
     dryRun = true,
     calculationMethodology,
+    useCustomFuel = false,
+    customFuelName = '',
   }) => {
-    if (!quantity || !fuel || !category) {
+    // For custom fuel, we don't need fuel object but we need quantity and category
+    if (!quantity || (!fuel && !useCustomFuel) || !category) {
       return null;
     }
 

@@ -1736,7 +1736,15 @@ export default function Emissions() {
         cats.add(f.category);
       }
     });
-    return Array.from(cats).sort();
+    
+    let result = Array.from(cats);
+    
+    // Filter out Process Emissions from Scope 1 (removed per user request)
+    if (formData.scope === 'scope1') {
+      result = result.filter(c => c !== 'Process Emissions');
+    }
+    
+    return result.sort();
   }, [formData.scope, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
 
   // Get fuels for selected category

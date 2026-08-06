@@ -1172,6 +1172,11 @@ export default function EmissionEntryForm({
 
     let result = Array.from(cats);
     
+    // Filter out Process Emissions from Scope 1 (removed per user request)
+    if (effectiveScopeForCategories === 'scope1') {
+      result = result.filter(c => c !== 'Process Emissions');
+    }
+    
     // For Scope 3, sort by category number (C1, C2, ... C15)
     if (effectiveScopeForCategories === 'scope3') {
       result.sort((a, b) => {
@@ -1182,10 +1187,6 @@ export default function EmissionEntryForm({
     } else {
       result.sort();
     }
-    
-    // NOTE: Process Emissions category is now managed through the dynamic category system
-    // It should be added via the formula builder/category management, not hardcoded here
-    // The old hardcoded injection has been removed to respect user's category configuration
     
     return result;
   }, [fuelDatabase, scope, processTemplates, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
