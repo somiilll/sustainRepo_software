@@ -1348,7 +1348,38 @@ export default function EmissionEntryForm({
       // BUT only when using NCV methodology (not carbon composition) AND not using custom fuel
       const currentCategoryName = (category || '').toLowerCase();
       const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
+      const isProcessEmissions = currentCategoryName.includes('process');
       const calcMethod = decisionFieldValues.calculation_methodology || 'using_ncv';
+      const processType = decisionFieldValues.process_type || '';
+      
+      // HARDCODED: Process Emissions field visibility based on process_type
+      if ((scope === 'scope1' || scope === 'scope2') && isProcessEmissions) {
+        const variable = m.maps_to_variable;
+        
+        if (processType === 'venting') {
+          // Venting + NCV: show qty, cv, ef_quantity only
+          const ventingNcvFields = ['qty', 'cv', 'ef_quantity'];
+          if (!ventingNcvFields.includes(variable)) {
+            return false;
+          }
+        } else if (processType === 'n2o_overall_combustion') {
+          // N2O: show n2o_percentage, stationary_combustion_emissions, mobile_combustion_emissions
+          const n2oFields = ['n2o_percentage', 'stationary_combustion_emissions', 'mobile_combustion_emissions'];
+          if (!n2oFields.includes(variable)) {
+            return false;
+          }
+        } else if (processType === 'ch4_overall_combustion') {
+          // CH4: show ch4_percentage, stationary_combustion_emissions, mobile_combustion_emissions
+          const ch4Fields = ['ch4_percentage', 'stationary_combustion_emissions', 'mobile_combustion_emissions'];
+          if (!ch4Fields.includes(variable)) {
+            return false;
+          }
+        } else {
+          // No process type selected - hide all dynamic fields
+          return false;
+        }
+      }
+      
       if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv' && !useCustomFuel) {
         if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
           return appliesToCategory && m.is_active !== false;
