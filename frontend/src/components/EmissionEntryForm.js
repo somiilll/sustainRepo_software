@@ -3117,9 +3117,6 @@ export default function EmissionEntryForm({
           setUseCustomFuel={setUseCustomFuel}
           setBiogenicScopeSelection={setBiogenicScopeSelection}
           setScope3Subcategory={setScope3Subcategory}
-          setSelectedSubIndustry={setSelectedSubIndustry}
-          setSelectedTemplate={setSelectedTemplate}
-          setTemplateInputValues={setTemplateInputValues}
           biogenicScopeSelection={biogenicScopeSelection}
           loadingBiogenicCategories={loadingBiogenicCategories}
           category={category}
