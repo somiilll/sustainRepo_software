@@ -2795,6 +2795,7 @@ class ESGQuestionnaireService:
         - No approval workflow → approval_status = None (not required)  
         - Approval workflow with approver assigned → approval_status = "pending_approval"
         - Previously approved value changed → approval_status = "pending_approval"
+        - Stores last_approved_value for rejection revert (same as Section B/C)
         """
         for question_key, new_value in responses.items():
             # Get existing response for this question (flat format)
@@ -2808,6 +2809,12 @@ class ESGQuestionnaireService:
             previous_approval_status = existing.get("approval_status") if existing else None
             value_changed = old_value != new_value
             has_value = self._response_has_value(new_value)
+            
+            # Check if previously approved
+            was_approved = previous_approval_status == "approved"
+            
+            # Store previous approved value for rejection revert (same as Section B/C)
+            previous_approved_value = old_value if was_approved and value_changed else None
             
             # Determine approval status using same logic as Section B/C
             # Use _should_use_direct_save to check if approval workflow applies
@@ -2826,7 +2833,6 @@ class ESGQuestionnaireService:
             elif has_value and use_direct_save:
                 # Direct save (no approval workflow or admin)
                 # Check if previously approved value was changed
-                was_approved = previous_approval_status == "approved"
                 if was_approved and value_changed:
                     # Re-editing an approved answer should go back to pending
                     # But only if there's an approval workflow (not admin override)
@@ -2849,6 +2855,7 @@ class ESGQuestionnaireService:
                 changed_by_user_id=changed_by_user_id,
                 changed_by_user_name=changed_by_user_name,
                 now_iso=now,
+                previous_approved_value=previous_approved_value,  # For rejection revert
             )
             
             # Log audit if value changed

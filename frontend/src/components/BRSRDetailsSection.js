@@ -284,12 +284,25 @@ export default function BRSRDetailsSection({
       mapped.brsr_contact_email = contact.email || '';
     }
     
-    // Markets served composite
+    // Markets served - now separate question keys
     if (responses.brsr_a_markets_served) {
+      // Handle both old nested format and new flat format
       const markets = responses.brsr_a_markets_served;
-      if (markets.locations) mapped.markets_served = markets.locations;
-      if (markets.export_contribution_percentage !== undefined) mapped.export_contribution_percentage = markets.export_contribution_percentage;
-      if (markets.customer_types_brief) mapped.customer_types_brief = markets.customer_types_brief;
+      if (Array.isArray(markets)) {
+        // New flat format - just the locations array
+        mapped.markets_served = markets;
+      } else if (markets.locations) {
+        // Old nested format - extract locations
+        mapped.markets_served = markets.locations;
+      }
+    }
+    
+    // Separate question keys for export contribution and customer types
+    if (responses.brsr_a_export_contribution !== undefined) {
+      mapped.export_contribution_percentage = responses.brsr_a_export_contribution;
+    }
+    if (responses.brsr_a_customer_types !== undefined) {
+      mapped.customer_types_brief = responses.brsr_a_customer_types;
     }
     
     // Dynamic tables
@@ -342,11 +355,9 @@ export default function BRSRDetailsSection({
       brsr_a_business_activities: formData.business_activities,
       brsr_a_products_services: formData.products_services,
       brsr_a_plants_offices: formData.plants_offices,
-      brsr_a_markets_served: {
-        locations: formData.markets_served,
-        export_contribution_percentage: formData.export_contribution_percentage,
-        customer_types_brief: formData.customer_types_brief,
-      },
+      brsr_a_markets_served: formData.markets_served,  // Only locations table
+      brsr_a_export_contribution: formData.export_contribution_percentage,  // Separate question
+      brsr_a_customer_types: formData.customer_types_brief,  // Separate question
     };
   };
 
@@ -711,11 +722,9 @@ export default function BRSRDetailsSection({
       brsr_a_business_activities: formData.business_activities,
       brsr_a_products_services: formData.products_services,
       brsr_a_plants_offices: formData.plants_offices,
-      brsr_a_markets_served: {
-        locations: formData.markets_served,
-        export_contribution_percentage: formData.export_contribution_percentage,
-        customer_types_brief: formData.customer_types_brief,
-      },
+      brsr_a_markets_served: formData.markets_served,  // Only locations table
+      brsr_a_export_contribution: formData.export_contribution_percentage,  // Separate question
+      brsr_a_customer_types: formData.customer_types_brief,  // Separate question
     };
     
     // Compare with original data and only return changed fields
@@ -1169,15 +1178,15 @@ export default function BRSRDetailsSection({
               </div>
               )}
               
-              {/* Export Contribution - part of markets_served */}
-              {(isAdmin || canSeeQuestion('brsr_a_markets_served')) && (
+              {/* Export Contribution - separate question key */}
+              {(isAdmin || canSeeQuestion('brsr_a_export_contribution')) && (
               <div className="space-y-2">
-                <Label>Export Contribution (% of Turnover) *</Label>
-                {isEditing && canEditQuestion('brsr_a_markets_served') ? (
+                {renderQuestionHeader('Export Contribution (% of Turnover)', 'brsr_a_export_contribution', () => formData.export_contribution_percentage, true)}
+                {isEditing && canEditQuestion('brsr_a_export_contribution') ? (
                   <Input
                     type="number"
                     value={formData.export_contribution_percentage}
-                    onChange={(e) => handleInputChange('export_contribution_percentage', parseFloat(e.target.value) || 0, 'brsr_a_markets_served')}
+                    onChange={(e) => handleInputChange('export_contribution_percentage', parseFloat(e.target.value) || 0, 'brsr_a_export_contribution')}
                     placeholder="Enter percentage"
                     min="0"
                     max="100"
@@ -1191,14 +1200,14 @@ export default function BRSRDetailsSection({
               </div>
               )}
               
-              {/* Customer Types Brief - part of markets_served */}
-              {(isAdmin || canSeeQuestion('brsr_a_markets_served')) && (
+              {/* Customer Types Brief - separate question key */}
+              {(isAdmin || canSeeQuestion('brsr_a_customer_types')) && (
               <div className="space-y-2 md:col-span-2 lg:col-span-3">
-                <Label>Brief on Types of Customers *</Label>
-                {isEditing && canEditQuestion('brsr_a_markets_served') ? (
+                {renderQuestionHeader('Brief on Types of Customers', 'brsr_a_customer_types', () => formData.customer_types_brief, true)}
+                {isEditing && canEditQuestion('brsr_a_customer_types') ? (
                   <Textarea
                     value={formData.customer_types_brief}
-                    onChange={(e) => handleInputChange('customer_types_brief', e.target.value, 'brsr_a_markets_served')}
+                    onChange={(e) => handleInputChange('customer_types_brief', e.target.value, 'brsr_a_customer_types')}
                     placeholder="Describe the types of customers..."
                     rows={3}
                     data-testid="brsr-customer-types"
@@ -1619,11 +1628,7 @@ export default function BRSRDetailsSection({
             {(isAdmin || canSeeQuestion('brsr_a_markets_served')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                {renderQuestionHeader('Markets Served by Entity', 'brsr_a_markets_served', () => ({
-                  locations: formData.markets_served,
-                  export_contribution_percentage: formData.export_contribution_percentage,
-                  customer_types_brief: formData.customer_types_brief,
-                }), true)}
+                {renderQuestionHeader('Markets Served by Entity', 'brsr_a_markets_served', () => formData.markets_served, true)}
                 {isEditing && canEditQuestion('brsr_a_markets_served') && (
                   <Button
                     type="button"
