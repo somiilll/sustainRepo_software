@@ -642,8 +642,8 @@ export const Step1BasicSelection = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="venting">Venting</SelectItem>
-              <SelectItem value="flaring">Flaring</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
+              <SelectItem value="n2o_overall_combustion">N2O from Overall Combustion</SelectItem>
+              <SelectItem value="ch4_overall_combustion">CH4 from Overall Combustion</SelectItem>
             </SelectContent>
           </Select>
         </div>
