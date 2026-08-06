@@ -313,6 +313,13 @@ export default function EmissionEntryForm({
         }
       }
       
+      // Hydrate calculation methodology from dynamic_field_values
+      // If record has carbon_content/composition_of_carbon, it was carbon composition method
+      const dfvKeys = Object.keys(editingEmission.dynamic_field_values || {});
+      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
+        setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: 'using_carbon_composition' }));
+      }
+      
       // Hydrate monthly data for monthly frequency
       if (editingEmission.frequency_type === 'monthly' || !editingEmission.frequency_type) {
         const dfv = editingEmission.dynamic_field_values || editingEmission.inputs || {};
@@ -1195,44 +1202,22 @@ export default function EmissionEntryForm({
     let requiredInputVars = null;
     let matchedFormula = null;
     
+    // Helper function to traverse decision tree and find formula_id
+    const traverseDecisionTree = (node, fieldValues) => {
+      if (!node) return null;
+      if (node.formula_id) return node.formula_id;
+      const fieldName = node.field_name;
+      if (!fieldName) return null;
+      const selectedValue = fieldValues[fieldName];
+      if (!selectedValue) return null;
+      const selectedOption = (node.options || {})[selectedValue];
+      if (!selectedOption) return null;
+      if (selectedOption.formula_id) return selectedOption.formula_id;
+      if (selectedOption.next) return traverseDecisionTree(selectedOption.next, fieldValues);
+      return null;
+    };
+
     if (isScope3Like && scope3Method && formConfig?.formulas?.length) {
-      
-      // Helper function to traverse decision tree and find formula_id
-      const traverseDecisionTree = (node, fieldValues) => {
-        if (!node) return null;
-        
-        // If this node has a formula_id, return it
-        if (node.formula_id) {
-          return node.formula_id;
-        }
-        
-        // Get the field name at this node
-        const fieldName = node.field_name;
-        if (!fieldName) return null;
-        
-        // Get the user's selection for this field
-        const selectedValue = fieldValues[fieldName];
-        if (!selectedValue) return null;
-        
-        // Find the option matching the user's selection
-        const options = node.options || {};
-        const selectedOption = options[selectedValue];
-        
-        if (!selectedOption) return null;
-        
-        // If the selected option has a formula_id, return it
-        if (selectedOption.formula_id) {
-          return selectedOption.formula_id;
-        }
-        
-        // If the selected option has a "next" node, recurse into it
-        if (selectedOption.next) {
-          return traverseDecisionTree(selectedOption.next, fieldValues);
-        }
-        
-        return null;
-      };
-      
       // Try to find formula using decision tree traversal
       if (formConfig.decision_tree) {
         const decisionValues = {
@@ -1297,53 +1282,56 @@ export default function EmissionEntryForm({
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
       }
     }
-    // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula based on decision tree or name
+    // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula via decision tree first, then fallback to name
     else if ((scope === 'scope1' || scope === 'scope2' || isBiogenicScope1) && formConfig?.formulas?.length) {
-      // For Biogenic Scope 1, prioritize formulas with "Biogenic" in the name
-      if (isBiogenicScope1) {
-        // First try to find a formula with "Biogenic" in the name
-        matchedFormula = formConfig.formulas.find(f => 
-          f.name?.toLowerCase().includes('biogenic')
-        );
-        // Fallback to first formula if no biogenic-specific formula found
-        if (!matchedFormula && formConfig.formulas.length > 0) {
-          matchedFormula = formConfig.formulas[0];
+      // Priority 0: Try decision tree traversal (handles calculation_methodology + ef_quantity_provided)
+      if (formConfig.decision_tree) {
+        const calcMethodology = decisionFieldValues.calculation_methodology || 'using_ncv';
+        const scope1DecisionValues = {
+          calculation_methodology: calcMethodology,
+          ef_quantity_provided: 'false', // default to heat-basis
+          ...decisionFieldValues,
+        };
+        const formulaId = traverseDecisionTree(formConfig.decision_tree, scope1DecisionValues);
+        if (formulaId) {
+          matchedFormula = formConfig.formulas.find(f => f.id === formulaId);
         }
       }
-      // For regular Scope 1/2 - prioritize formulas with properties (cv, density) for Stationary/Mobile Combustion
-      else {
-        // Check if category is Stationary or Mobile Combustion (needs property overrides like cv, density)
-        // Use the category prop/variable which is the category name from dynamicCategories
-        const currentCategoryName = (category || categoryObj?.name || '').toLowerCase();
-        const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
-        
-        // Priority 1: For Stationary/Mobile Combustion, prefer "Heat Basis" formulas (which have cv, density properties)
-        if (isStationaryOrMobile) {
+
+      // Fallback: name-based matching if tree didn't resolve
+      if (!matchedFormula) {
+        if (isBiogenicScope1) {
           matchedFormula = formConfig.formulas.find(f => 
-            f.name?.toLowerCase().includes('heat basis') || f.name?.toLowerCase().includes('heat-basis')
+            f.name?.toLowerCase().includes('biogenic')
           );
-        }
-        
-        // Priority 2: If not found, prefer formula that has properties (for override fields)
-        if (!matchedFormula) {
-          matchedFormula = formConfig.formulas.find(f => 
-            f.properties?.length > 0 && f.properties.some(p => 
-              ['cv', 'density'].includes(p.variable?.toLowerCase() || p.key?.toLowerCase())
-            )
-          );
-        }
-        
-        // Priority 3: For non-combustion categories or if no formula with cv/density, fallback to Quantity Based
-        if (!matchedFormula) {
-          matchedFormula = formConfig.formulas.find(f => 
-            f.name?.toLowerCase().includes('quantity') || 
-            f.name?.toLowerCase().includes('activity')
-          );
-        }
-        
-        // Priority 4: Fallback to first formula
-        if (!matchedFormula && formConfig.formulas.length > 0) {
-          matchedFormula = formConfig.formulas[0];
+          if (!matchedFormula && formConfig.formulas.length > 0) {
+            matchedFormula = formConfig.formulas[0];
+          }
+        } else {
+          const currentCategoryName = (category || categoryObj?.name || '').toLowerCase();
+          const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
+          
+          if (isStationaryOrMobile) {
+            matchedFormula = formConfig.formulas.find(f => 
+              f.name?.toLowerCase().includes('heat basis') || f.name?.toLowerCase().includes('heat-basis')
+            );
+          }
+          if (!matchedFormula) {
+            matchedFormula = formConfig.formulas.find(f => 
+              f.properties?.length > 0 && f.properties.some(p => 
+                ['cv', 'density'].includes(p.variable?.toLowerCase() || p.key?.toLowerCase())
+              )
+            );
+          }
+          if (!matchedFormula) {
+            matchedFormula = formConfig.formulas.find(f => 
+              f.name?.toLowerCase().includes('quantity') || 
+              f.name?.toLowerCase().includes('activity')
+            );
+          }
+          if (!matchedFormula && formConfig.formulas.length > 0) {
+            matchedFormula = formConfig.formulas[0];
+          }
         }
       }
       
@@ -1432,7 +1420,7 @@ export default function EmissionEntryForm({
     
     // Return both fields and the matched formula ID
     return { fields, formulaId };
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection]);
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, decisionFieldValues]);
   
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
@@ -1778,6 +1766,12 @@ export default function EmissionEntryForm({
       }
     }
     
+    // For Scope 1/Biogenic Scope 1 Stationary Combustion: default calculation_methodology to 'using_ncv'
+    const isBiogenicScope1 = scope === 'biogenic' && biogenicScopeSelection === 'scope1';
+    if ((scope === 'scope1' || isBiogenicScope1) && !decisionInputs['calculation_methodology']) {
+      decisionInputs['calculation_methodology'] = 'using_ncv';
+    }
+
     return decisionInputs;
   }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, category]);
 
@@ -3199,6 +3193,9 @@ export default function EmissionEntryForm({
           kpiAllowedScopes={kpiAllowedScopes}
           filterFacilitiesByScope={filterFacilitiesByScope}
           hasFullKPIAccess={hasFullKPIAccess}
+          // Decision field values (for calculation_methodology etc.)
+          decisionFieldValues={decisionFieldValues}
+          setDecisionFieldValues={setDecisionFieldValues}
         />
       )}
 

@@ -118,6 +118,10 @@ export const Step1BasicSelection = ({
   kpiAllowedScopes = null,
   filterFacilitiesByScope = null,
   hasFullKPIAccess = true,
+  
+  // Decision field values (for calculation_methodology)
+  decisionFieldValues = {},
+  setDecisionFieldValues,
 }) => {
   // Activity type display labels
   const activityTypeLabels = {
@@ -816,6 +820,31 @@ export const Step1BasicSelection = ({
               <p><strong>Selected:</strong> {selectedFuel.fuel_name}</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Calculation Methodology - Only for Stationary Combustion (Scope 1 / Biogenic Scope 1) */}
+      {category && (category.toLowerCase().includes('stationary')) && 
+       (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+        <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="calculation-methodology-section">
+          <Label>Calculation Methodology</Label>
+          <Select
+            value={decisionFieldValues.calculation_methodology || 'using_ncv'}
+            onValueChange={(v) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: v }))}
+          >
+            <SelectTrigger className="bg-stone-50 h-10" data-testid="calculation-methodology-select">
+              <SelectValue placeholder="Select methodology" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="using_ncv">Using NCV (Net Calorific Value)</SelectItem>
+              <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-stone-500">
+            {(decisionFieldValues.calculation_methodology || 'using_ncv') === 'using_ncv'
+              ? 'Quantity × NCV × Emission Factor'
+              : 'Quantity × Carbon Content (%) × Oxidation Factor × (44/12)'}
+          </p>
         </div>
       )}
 

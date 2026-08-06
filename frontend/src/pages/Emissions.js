@@ -2059,6 +2059,11 @@ export default function Emissions() {
     };
     
     // Call the backend calc engine (uses its own debouncing)
+    // Infer calculation methodology from dynamic field values (for edit mode)
+    const editDfv = editingEmission?.dynamic_field_values || {};
+    const editCalcMethodology = (editDfv.carbon_content || editDfv.composition_of_carbon)
+      ? 'using_carbon_composition' : 'using_ncv';
+    
     executeBackendCalc({
       scope: formData.scope,
       category: formData.category || selectedCategory,
@@ -2067,7 +2072,8 @@ export default function Emissions() {
       unit: formData.quantity_unit || 'kg',
       overrides: overrides,
       gwpConfig: gwpConfig,
-      dryRun: true
+      dryRun: true,
+      calculationMethodology: editCalcMethodology,
     }).then(result => {
       if (result) {
         setBackendCalcResult(result);

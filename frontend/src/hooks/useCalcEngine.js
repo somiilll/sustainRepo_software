@@ -103,7 +103,8 @@ export function useCalcEngine(getAuthHeader) {
     unit,
     overrides = {},
     gwpConfig,
-    dryRun = true
+    dryRun = true,
+    calculationMethodology,
   }) => {
     if (!quantity || !fuel || !category) {
       return null;
@@ -196,11 +197,13 @@ export function useCalcEngine(getAuthHeader) {
       }
 
       // Determine decision inputs for the tree traversal
-      // The decision tree may branch on "ef_quantity_provided" which determines heat-based vs quantity-based
+      // The decision tree may branch on "calculation_methodology" then "ef_quantity_provided"
       const decisionInputs = {
         scope: scope,
         fuel_type: fuel.fuel_name,
         category: category,
+        // Default to using_ncv for backward compatibility
+        calculation_methodology: calculationMethodology || 'using_ncv',
         // Default to heat-based calculation (ef_quantity_provided = false) unless we're forcing quantity-based
         ef_quantity_provided: 'false'
       };
