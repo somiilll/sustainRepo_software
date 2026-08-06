@@ -2328,6 +2328,9 @@ export default function Emissions() {
         overrideDensity,
         overrideEmissionFactorHeat,
         overrideJustification,
+        // Custom fuel props
+        editUseCustomFuel,
+        editCustomFuelName,
       });
       if (!validation.valid) {
         toast.error(validation.errorMessage);
@@ -2359,6 +2362,9 @@ export default function Emissions() {
           isOverrideDensity,
           overrideEmissionFactorHeat,
           overrideJustification,
+          // Custom fuel props
+          editUseCustomFuel,
+          editCustomFuelName,
         });
 
         setIsSaving(true);
@@ -2406,6 +2412,7 @@ export default function Emissions() {
     setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
     setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
     setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
+    setEditUseCustomFuel, setEditCustomFuelName,
     // Helpers
     getAuthHeader,
   });

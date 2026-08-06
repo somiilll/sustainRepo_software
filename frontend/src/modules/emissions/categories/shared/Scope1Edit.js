@@ -105,6 +105,8 @@ export function validateEditSubmission(ctx) {
     overrideDensity,
     overrideEmissionFactorHeat,
     overrideJustification,
+    editUseCustomFuel,
+    editCustomFuelName,
   } = ctx;
 
   console.log("here", formData)
@@ -153,9 +155,12 @@ export function validateEditSubmission(ctx) {
     return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
   }
 
-  // 5. Fuel selection
-  if (!formData.fuel_id) {
+  // 5. Fuel selection (skip for custom fuel)
+  if (!editUseCustomFuel && !formData.fuel_id) {
     return { valid: false, errorMessage: 'Please select a fuel from the database' };
+  }
+  if (editUseCustomFuel && !editCustomFuelName?.trim()) {
+    return { valid: false, errorMessage: 'Please enter custom fuel name' };
   }
 
   // 6. Calc engine must have produced a result
@@ -230,6 +235,8 @@ export function buildEditPayload(ctx) {
     isOverrideDensity,
     overrideEmissionFactorHeat,
     overrideJustification,
+    editUseCustomFuel,
+    editCustomFuelName,
   } = ctx;
 
   const reportingPeriod =
@@ -256,8 +263,10 @@ export function buildEditPayload(ctx) {
     scope: formData.scope,
     category: formData.category,
     sub_category: formData.sub_category,
-    fuel_type: formData.fuel_type,
-    fuel_database_id: formData.fuel_id,
+    fuel_type: editUseCustomFuel ? editCustomFuelName : formData.fuel_type,
+    fuel_database_id: editUseCustomFuel ? null : formData.fuel_id,
+    is_custom_fuel: editUseCustomFuel || false,
+    custom_fuel_name: editUseCustomFuel ? editCustomFuelName : null,
 
     formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
 
