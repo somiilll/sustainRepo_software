@@ -139,10 +139,43 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     if current["facility_breakdown"]:
         top = current["facility_breakdown"][0]
         insights.append(f"{top['facility']} is the highest-emitting facility at {top['emissions']:.2f} {current['unit']}.")
-    if pending: actions.append({"type": "Pending approvals", "count": pending, "priority": "medium"})
-    if rejected: actions.append({"type": "Rejected entries requiring correction", "count": rejected, "priority": "high"})
-    if total_esg_records and evidence_count < total_esg_records: actions.append({"type": "Records without attached evidence", "count": total_esg_records - evidence_count, "priority": "medium"})
-    return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": dashboard.get("energy", {}), "water": dashboard.get("water", {}), "waste": dashboard.get("waste", {}), "data_collection": {"total_records": total_esg_records, "pending_approval": pending, "rejected": rejected}, "actions": actions, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "data_quality": {"source_records": current["record_count"], "facilities_reporting": len(current["facility_breakdown"]), "evidence_attached": evidence_count}, "insights": insights, "monthly_trend": current["period_breakdown"]}
+    energy = dashboard.get("energy", {})
+    energy_total = energy.get("total", 0) or 0
+    renewable_total = energy.get("renewable_total", 0) or 0
+    energy["renewable_pct"] = round((renewable_total / energy_total * 100) if energy_total else 0, 2)
+    water = dashboard.get("water", {})
+    water_input = water.get("totalinput", 0) or 0
+    water["recycle_pct"] = round((water.get("recycled", 0) / water_input * 100) if water_input else 0, 2)
+    incidents = await db.governance_records.count_documents({"org_id": organization_id, "category": {"$regex": "Safety Incidents", "$options": "i"}, "is_current": {"$ne": False}, "status": {"$ne": "draft"}})
+    operational = await get_operational_kpis(organization_id, current["total_emissions"], energy_total, incidents)
+    return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": energy, "water": water, "waste": dashboard.get("waste", {}), "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "insights": insights, "monthly_trend": current["period_breakdown"]}
+
+
+async def get_operational_kpis(organization_id: str, emissions_total: float, energy_total: float, incidents: int) -> Dict[str, Any]:
+    """Use recorded operational data only; missing source metrics remain unavailable."""
+    records = []
+    for collection in (db.environment_records, db.social_records, db.governance_records):
+        records.extend(await collection.find({"org_id": organization_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}}, {"_id": 0, "field_values": 1}).to_list(10000))
+    values: Dict[str, float] = {}
+    key_groups = {
+        "ltifr": ["ltifr", "lost_time_injury_frequency_rate"],
+        "account_payable_days": ["account_payable_days", "accounts_payable_days", "payable_days"],
+        "production": ["production_output", "production_volume", "units_produced", "total_production"],
+    }
+    for name, keys in key_groups.items():
+        for record in records:
+            field_values = record.get("field_values") or {}
+            for key in keys:
+                try:
+                    if field_values.get(key) not in (None, ""):
+                        values[name] = float(field_values[key])
+                        break
+                except (TypeError, ValueError):
+                    continue
+            if name in values:
+                break
+    production = values.get("production")
+    return {"ltifr": values.get("ltifr"), "account_payable_days": values.get("account_payable_days"), "incident_count": incidents, "ghg_intensity": round(emissions_total / production, 4) if production else None, "energy_intensity": round(energy_total / production, 4) if production else None}
 
 
 async def save_report_run(filters: Dict[str, Any], summary: Dict[str, Any], current_user: dict, status: str = "generated") -> Dict[str, Any]:
