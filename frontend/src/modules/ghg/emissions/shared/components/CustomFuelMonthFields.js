@@ -128,7 +128,7 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
   }
 
   if (calculationMethodology === 'using_qty_basis_ef') {
-    const efUnit = data.custom_ef_unit || 'tCO2/kg';
+    const efUnit = data.custom_ef_unit || 'kgCO2/kg';
     const efDenom = efUnit.split('/')[1] || 'kg';
     const needsDensity = isDensityRequiredForQtyBasis(efUnit, [qtyUnit]);
     return (
@@ -148,12 +148,12 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
           <div className="space-y-1">
             <Label className="text-xs">EF Unit <span className="text-red-500">*</span></Label>
             <select
-              value={data.custom_ef_unit || 'tCO2/kg'}
+              value={data.custom_ef_unit || 'kgCO2/kg'}
               onChange={(e) => updateMonthData(monthKey, 'custom_ef_unit', e.target.value)}
               className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
               data-testid={`month-${monthKey}-custom-ef-unit`}
             >
-              {ALL_QTY_UNITS.map(u => <option key={u} value={`tCO2/${u}`}>tCO2/{u}</option>)}
+              {ALL_QTY_UNITS.map(u => <option key={u} value={`kgCO2/${u}`}>kgCO2/{u}</option>)}
             </select>
           </div>
         </div>

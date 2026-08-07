@@ -13,6 +13,8 @@
  * Calc-engine invocation stays in the host page.
  */
 
+import { buildCustomFuelCalculationPayload } from '../../../../pages/emissions/utils/customFuelCalcAdapter';
+
 // ---------- field unit resolver (Scope 1/2: no scope3_ef branch) ----------
 
 function resolveFieldUnit(field, data, ctx) {
@@ -32,6 +34,20 @@ function resolveFieldUnit(field, data, ctx) {
 // ---------- input + override extraction ----------
 
 export function extractInputsForCalcEngine(data, ctx) {
+  if (ctx.useCustomFuel) {
+    const customFuelCalculation = buildCustomFuelCalculationPayload({
+      dynamicFieldValues: data,
+      calculationMethodology: ctx.buildDecisionInputs?.(data)?.calculation_methodology,
+    });
+    const quantity = customFuelCalculation.inputs.qty;
+    return {
+      inputs: customFuelCalculation.inputs,
+      userOverrides: customFuelCalculation.userOverrides,
+      primaryQuantity: quantity?.value || 0,
+      primaryUnit: quantity?.unit || ctx.defaultUnit || '',
+      isCustomFuelReady: customFuelCalculation.isReady,
+    };
+  }
   const { dynamicInputFields } = ctx;
   const inputs = {};
   const userOverrides = {};
