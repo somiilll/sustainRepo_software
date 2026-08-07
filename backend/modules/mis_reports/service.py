@@ -124,6 +124,7 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
     from modules.kpi_engine import kpi_calculator
     from modules.esg_targets.router import (
         _calculate_progress,
+        _get_denominator_for_intensity,
         _get_period_for_target,
         _resolve_target_value,
     )
@@ -156,6 +157,26 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
                 actual_value = calculation.get("value")
                 target_value = _resolve_target_value(t, period)
                 goal_type = t.get("goal_type", "upper_limit")
+
+                # Intensity targets: divide actual by revenue/production denominator
+                if t.get("target_type") in ("intensity_revenue", "intensity_production"):
+                    denom = await _get_denominator_for_intensity(t, organization_id, period)
+                    if denom.get("error") or not denom.get("value"):
+                        actual_value = None
+                    elif actual_value is not None:
+                        actual_value = round(actual_value / denom["value"], 6)
+
+                # Percentage targets: recalculate absolute target from baseline × percentage
+                if t.get("target_type") == "percentage" and t.get("percentage_amount"):
+                    baseline = t.get("baseline") or {}
+                    bv = float(baseline.get("value", 0)) if baseline else 0
+                    pct = float(t.get("percentage_amount", 0))
+                    if bv and pct:
+                        direction = t.get("percentage_direction", "decrease")
+                        new_tv = bv * (1 + pct / 100) if direction == "increase" else bv * (1 - pct / 100)
+                        if target_value is None or abs((target_value or 0) - new_tv) > 0.01:
+                            target_value = new_tv
+
                 progress = _calculate_progress(actual_value, target_value, goal_type, t)
                 entry["actual_value"] = actual_value
                 entry["progress_pct"] = round(progress["percentage"], 1) if progress["percentage"] is not None else None
