@@ -82,6 +82,7 @@ from modules.dashboards.ws_router import router as dashboards_ws_router
 # Phase B8: reports router (5 routes — /reports/facility, /reports/combined,
 # /reports/ghg-inventory, /reports/download/{token}, /reports/ai-summary).
 from modules.reports.router import router as reports_router
+from modules.mis_reports.router import router as mis_reports_router
 # Phase B9: super-admin / platform config router (~91 routes).
 from modules.superadmin.router import router as superadmin_router
 # Phase B9: Pydantic models moved to modules/superadmin/contracts.py.
@@ -142,6 +143,8 @@ api_router.include_router(dashboards_router)
 api_router.include_router(dashboards_ws_router)
 # Phase B8 router (Reports — 5 routes)
 api_router.include_router(reports_router)
+# MIS Reports V1 module (catalog, shared filters, and run history).
+api_router.include_router(mis_reports_router)
 # Phase B9 router (Super-admin / Platform Config — ~91 routes)
 api_router.include_router(superadmin_router)
 

@@ -49,6 +49,10 @@ export function useModuleAccess() {
     if (user?.role === 'super_admin') return true;
     // If no access config → all visible (backwards compatible)
     if (!moduleAccess || Object.keys(moduleAccess).length === 0) return true;
+    // MIS Reports succeeds the legacy Reports sidebar module key.
+    if (key === 'mis_reports' && 'reports' in moduleAccess && !('mis_reports' in moduleAccess)) {
+      return moduleAccess.reports;
+    }
     // Exact key match
     if (key in moduleAccess) return moduleAccess[key];
     // Check parent key: "environment.ghg" → "environment"

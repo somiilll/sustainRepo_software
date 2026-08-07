@@ -9,7 +9,7 @@ import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
-import MISReportsFoundation from '../modules/reports/MISReportsFoundation';
+import MISReportsFoundation from '../modules/mis-reports/MISReportsFoundation';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;

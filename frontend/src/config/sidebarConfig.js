@@ -130,10 +130,10 @@ const sidebarConfig = [
     ],
   },
   {
-    key: 'reports',
-    label: 'Reports',
+    key: 'mis_reports',
+    label: 'MIS Reports',
     icon: 'FileBarChart',
-    path: '/reports',
+    path: '/mis-reports',
   },
   {
     key: 'peer_benchmarking',

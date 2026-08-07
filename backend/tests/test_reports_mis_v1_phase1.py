@@ -40,11 +40,11 @@ def login_and_get_token(api_client, email: str, password: str) -> str:
     return token
 
 
-def test_reports_catalog_admin_permission_aware(api_client):
+def test_mis_reports_catalog_admin_permission_aware(api_client):
     """Catalog endpoint returns six templates and ready entries for admin."""
     token = login_and_get_token(api_client, ADMIN_EMAIL, PASSWORD)
     response = api_client.get(
-        f"{BASE_URL}/api/reports/catalog",
+        f"{BASE_URL}/api/mis-reports/catalog",
         headers={"Authorization": f"Bearer {token}"},
         timeout=30,
     )
@@ -64,11 +64,11 @@ def test_reports_catalog_admin_permission_aware(api_client):
     assert template_map["ai_executive_summary"]["action_label"] == "Configure report"
 
 
-def test_reports_filter_schema_admin_active_facilities(api_client):
+def test_mis_reports_filter_schema_admin_active_facilities(api_client):
     """Filter schema returns active facility metadata and standard scope filters for admin."""
     token = login_and_get_token(api_client, ADMIN_EMAIL, PASSWORD)
     response = api_client.get(
-        f"{BASE_URL}/api/reports/filter-schema",
+        f"{BASE_URL}/api/mis-reports/filter-schema",
         headers={"Authorization": f"Bearer {token}"},
         timeout=30,
     )
@@ -87,11 +87,11 @@ def test_reports_filter_schema_admin_active_facilities(api_client):
     assert data.get("available_scopes") == ["scope1", "scope2", "scope3", "biogenic"]
 
 
-def test_reports_history_admin_valid_org_response(api_client):
+def test_mis_reports_history_admin_valid_org_response(api_client):
     """History endpoint returns valid organization-scoped structure for admin."""
     token = login_and_get_token(api_client, ADMIN_EMAIL, PASSWORD)
     response = api_client.get(
-        f"{BASE_URL}/api/reports/history",
+        f"{BASE_URL}/api/mis-reports/history",
         headers={"Authorization": f"Bearer {token}"},
         timeout=30,
     )
@@ -108,11 +108,11 @@ def test_reports_history_admin_valid_org_response(api_client):
         assert isinstance(first_item.get("template_name"), str)
 
 
-def test_reports_catalog_non_admin_permission_restriction(api_client):
+def test_mis_reports_catalog_non_admin_permission_restriction(api_client):
     """Catalog is visible to user, but report generation actions are disabled for non-admin."""
     token = login_and_get_token(api_client, USER_EMAIL, PASSWORD)
     response = api_client.get(
-        f"{BASE_URL}/api/reports/catalog",
+        f"{BASE_URL}/api/mis-reports/catalog",
         headers={"Authorization": f"Bearer {token}"},
         timeout=30,
     )
@@ -126,26 +126,26 @@ def test_reports_catalog_non_admin_permission_restriction(api_client):
     assert all(template.get("action_label") is None for template in data["templates"])
 
 
-def test_reports_filter_and_history_reject_non_admin(api_client):
+def test_mis_reports_filter_and_history_reject_non_admin(api_client):
     """Filter schema and history endpoints reject non-admin access."""
     token = login_and_get_token(api_client, USER_EMAIL, PASSWORD)
     headers = {"Authorization": f"Bearer {token}"}
 
-    filter_response = api_client.get(f"{BASE_URL}/api/reports/filter-schema", headers=headers, timeout=30)
-    history_response = api_client.get(f"{BASE_URL}/api/reports/history", headers=headers, timeout=30)
+    filter_response = api_client.get(f"{BASE_URL}/api/mis-reports/filter-schema", headers=headers, timeout=30)
+    history_response = api_client.get(f"{BASE_URL}/api/mis-reports/history", headers=headers, timeout=30)
 
     assert filter_response.status_code == 403
-    assert "Reports are only accessible to admins" in filter_response.json().get("detail", "")
+    assert "MIS Reports are only accessible to admins" in filter_response.json().get("detail", "")
     assert history_response.status_code == 403
-    assert "Reports are only accessible to admins" in history_response.json().get("detail", "")
+    assert "MIS Reports are only accessible to admins" in history_response.json().get("detail", "")
 
 
-def test_reports_filter_schema_matches_supplier_org_facilities(api_client):
+def test_mis_reports_filter_schema_matches_supplier_org_facilities(api_client):
     """Supplier admin sees filter facilities scoped to its own organization."""
     token = login_and_get_token(api_client, SUPPLIER_ADMIN_EMAIL, PASSWORD)
     headers = {"Authorization": f"Bearer {token}"}
 
-    filter_response = api_client.get(f"{BASE_URL}/api/reports/filter-schema", headers=headers, timeout=30)
+    filter_response = api_client.get(f"{BASE_URL}/api/mis-reports/filter-schema", headers=headers, timeout=30)
     facilities_response = api_client.get(f"{BASE_URL}/api/facilities", headers=headers, timeout=30)
 
     assert filter_response.status_code == 200
