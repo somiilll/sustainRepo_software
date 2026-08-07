@@ -2,7 +2,7 @@
 import io
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from dateutil.relativedelta import relativedelta
 
@@ -46,15 +46,22 @@ async def organization_facility_ids(current_user: dict) -> List[str]:
 
 
 async def aggregate_emissions(filters: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
+    from shared.utils.period_utils import period_variants
+
     allowed_facilities = await organization_facility_ids(current_user)
     requested_facilities = filters.get("facility_ids") or allowed_facilities
     facility_ids = [facility_id for facility_id in requested_facilities if facility_id in allowed_facilities]
     scopes = filters.get("scopes") or ALL_SCOPES
     categories = filters.get("categories") or []
+    report_year = int(filters["reporting_period_start"][:4])
+    fiscal_periods = period_variants(report_year, "FY")
     query: Dict[str, Any] = {
         "facility_id": {"$in": facility_ids},
         "scope": {"$in": scopes},
-        "reporting_period": {"$gte": filters["reporting_period_start"], "$lte": filters["reporting_period_end"]},
+        "$or": [
+            {"reporting_period": {"$gte": filters["reporting_period_start"], "$lte": filters["reporting_period_end"]}},
+            {"reporting_period": {"$in": fiscal_periods}},
+        ],
     }
     if categories:
         query["category"] = {"$in": categories}
@@ -120,10 +127,13 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     organization_id = current_user.get("organization_id")
     facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
     # Use the selected reporting period with the dashboard metric services.
+    all_facilities = await organization_facility_ids(current_user)
+    is_all_facilities = set(facility_ids) == set(all_facilities)
+    esg_facility_filter = None if is_all_facilities else facility_ids
     dashboard = await get_dashboard_metrics_service(db).get_dashboard_metrics(
-        organization_id, facility_ids, start_date=filters["reporting_period_start"], end_date=filters["reporting_period_end"]
+        organization_id, esg_facility_filter, start_date=filters["reporting_period_start"], end_date=filters["reporting_period_end"]
     )
-    environment_detail = await get_environment_detail(db, organization_id, filters["reporting_period_start"], filters["reporting_period_end"], facility_ids)
+    environment_detail = await get_environment_detail(db, organization_id, filters["reporting_period_start"], filters["reporting_period_end"], esg_facility_filter)
     evidence_count = await db.environment_records.count_documents({"org_id": organization_id, "evidence_files.0": {"$exists": True}, "is_current": {"$ne": False}})
     pending = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "pending_approval", "is_current": {"$ne": False}})
     rejected = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "rejected", "is_current": {"$ne": False}})
@@ -154,7 +164,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     water["withdrawal"] = round(sum(row["value"] for row in environment_detail.get("water_sources", [])), 2)
     water["discharge"] = round(sum(row["value"] for row in environment_detail.get("water_discharge_sources", [])), 2)
     water["consumption"] = round(sum(row["value"] for row in environment_detail.get("water_consumption_sources", [])), 2)
-    water["recycled"] = await dashboard_recycled_water(organization_id, facility_ids)
+    water["recycled"] = await dashboard_recycled_water(organization_id, esg_facility_filter)
     water["totalinput"] = water["withdrawal"] + water["consumption"]
     water_input = water.get("totalinput", 0) or 0
     water["recycle_pct"] = round((water.get("recycled", 0) / water_input * 100) if water_input else 0, 2)
@@ -181,7 +191,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "insights": insights, "monthly_trend": current["period_breakdown"]}
 
 
-async def dashboard_recycled_water(organization_id: str, facility_ids: List[str]) -> float:
+async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[List[str]]) -> float:
     """Apply the Environment dashboard's approved-record scope to Water Recycle."""
     query: Dict[str, Any] = {"org_id": organization_id, "category": "Water", "subcategory": "Recycle", "approval_status": {"$in": ["approved", "not_required", None]}}
     if facility_ids:
