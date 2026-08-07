@@ -10,6 +10,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from shared.database.mongo import db
 from shared.helpers.email import send_email_with_attachments
@@ -138,7 +142,8 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     pending = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "pending_approval", "is_current": {"$ne": False}})
     rejected = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "rejected", "is_current": {"$ne": False}})
     total_esg_records = dashboard.get("total_records", 0)
-    relationships = await db.supplier_relationships.find({"customer_org_id": organization_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0, "overall_score": 1, "invitation_status": 1}).to_list(1000)
+    relationships = await db.supplier_relationships.find({"customer_org_id": organization_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0, "supplier_name": 1, "supplier_org_name": 1, "overall_score": 1, "invitation_status": 1}).to_list(1000)
+    targets = await db.esg_targets.find({"organization_id": organization_id, "is_deleted": {"$ne": True}}, {"_id": 0, "name": 1, "target_value": 1, "current_value": 1, "unit": 1}).to_list(100)
     frameworks = await db.organization_esg_responses.find({"organization_id": organization_id}, {"_id": 0, "framework": 1, "approval_status": 1}).to_list(10000)
     compliance: Dict[str, Dict[str, int]] = {}
     for item in frameworks:
@@ -188,7 +193,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
         ],
     })
     operational = await get_operational_kpis(organization_id, current_scopes.get("scope1", 0) + current_scopes.get("scope2", 0), energy_total, incidents, filters)
-    return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "insights": insights, "monthly_trend": current["period_breakdown"]}
+    return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "insights": insights, "monthly_trend": current["period_breakdown"]}
 
 
 async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[List[str]]) -> float:
@@ -260,7 +265,8 @@ def build_summary_email(schedule_name: str, summary: Dict[str, Any], filters: Di
 async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
     summary = await aggregate_emissions(schedule["filters"], current_user)
     sent_at = now_iso()
-    attachments = [("SustainRepo_ESG_MIS_Report.xlsx", build_excel(summary)), ("SustainRepo_ESG_MIS_Report.pdf", build_pdf(summary))]
+    executive = await build_executive_mis_report(schedule["filters"], current_user)
+    attachments = [("SustainRepo_ESG_MIS_Report.xlsx", build_executive_excel(executive)), ("SustainRepo_ESG_MIS_Report.pdf", build_executive_pdf(executive, "SustainRepo Organization", current_user.get("email")))]
     for recipient_email in schedule["recipient_emails"]:
         success = await send_email_with_attachments(recipient_email, f"ESG MIS Report – {schedule['filters']['reporting_period_end']}", build_summary_email(schedule["name"], summary, schedule["filters"]), attachments)
         delivery = {"id": str(uuid.uuid4()), "schedule_id": schedule["id"], "organization_id": schedule.get("organization_id"), "recipient_email": recipient_email, "status": "sent" if success else "failed", "sent_at": sent_at, "error": None if success else "Resend delivery failed"}
@@ -319,3 +325,30 @@ def build_pdf(summary: Dict[str, Any]) -> bytes:
     for row in summary["scope_breakdown"]:
         y -= 20; pdf.drawString(48, y, row["scope"]); pdf.drawRightString(width - 48, y, f"{row['emissions']:,.2f}")
     pdf.save(); return buffer.getvalue()
+
+
+def build_executive_excel(report: Dict[str, Any]) -> bytes:
+    workbook = Workbook(); workbook.remove(workbook.active)
+    def sheet(name, rows):
+        ws = workbook.create_sheet(name); ws.append(["SustainRepo ESG MIS Report"]); ws.append([])
+        for row in rows: ws.append(row)
+        for cell in ws[1]: cell.font = Font(bold=True, color="FFFFFF"); cell.fill = PatternFill("solid", fgColor="166534")
+        ws.column_dimensions["A"].width = 34; ws.column_dimensions["B"].width = 22; ws.column_dimensions["C"].width = 22
+    sheet("Executive Summary", [["KPI", "Current", "Previous", "Change %"]] + [[k["label"], k["value"], k["previous"], k["change_pct"]] for k in report["kpis"]])
+    sheet("Emissions Overview", [["Scope", "tCO2e"]] + [[r["scope"], r["emissions"]] for r in report["current"]["scope_breakdown"]] + [[]] + [["Category", "tCO2e"]] + [[r["category"], r["emissions"]] for r in report["current"]["category_breakdown"]])
+    sheet("Facility Performance", [["Facility", "tCO2e"]] + [[r["facility"], r["emissions"]] for r in report["current"]["facility_breakdown"]])
+    sheet("Operations", [["Energy", report["energy"].get("total"), "MWh"], ["Renewable share", report["energy"].get("renewable_pct"), "%"], ["Water recycled", report["water"].get("recycled"), "KL"], ["Waste recovered", report["waste"].get("recovered"), ""], ["LTIFR", report["operational_kpis"].get("ltifr"), ""], ["Account payable days", report["operational_kpis"].get("account_payable_days"), "days"]])
+    sheet("Suppliers & Targets", [["Supplier", "ESG Score"]] + [[r.get("supplier_name") or r.get("supplier_org_name") or "Supplier", r.get("overall_score")] for r in report.get("supplier_scores", [])] + [[]] + [["Target", "Target value", "Current value"]] + [[r.get("name"), r.get("target_value"), r.get("current_value")] for r in report.get("targets", [])])
+    buffer = io.BytesIO(); workbook.save(buffer); return buffer.getvalue()
+
+
+def build_executive_pdf(report: Dict[str, Any], organization_name: str, generated_by: str) -> bytes:
+    buffer = io.BytesIO(); styles = getSampleStyleSheet(); doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=42, bottomMargin=42); story = []
+    def title(text): story.extend([Paragraph(text, styles["Heading1"]), Spacer(1, 10)])
+    def table(headers, rows):
+        data = [headers] + rows; t = Table(data, repeatRows=1, hAlign="LEFT"); t.setStyle(TableStyle([("BACKGROUND", (0,0), (-1,0), colors.HexColor("#166534")), ("TEXTCOLOR", (0,0), (-1,0), colors.white), ("GRID", (0,0), (-1,-1), .25, colors.HexColor("#d1d5db")), ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"), ("PADDING", (0,0), (-1,-1), 6)])); story.extend([t, Spacer(1, 14)])
+    story.extend([Spacer(1, 1.6*inch), Paragraph("SustainRepo ESG MIS Report", styles["Title"]), Spacer(1, 16), Paragraph(organization_name or "Organization", styles["Heading2"]), Paragraph(f"Reporting period: {report['filters']['reporting_period_start']} to {report['filters']['reporting_period_end']}", styles["Normal"]), Paragraph(f"Generated on: {now_iso()[:10]} · Generated by: {generated_by or 'SustainRepo'}", styles["Normal"]), PageBreak()])
+    title("1. Executive Summary"); table(["KPI", "Current", "Previous", "Change"], [[k["label"], f"{k['value']:,.2f} {k['unit']}", f"{k['previous']:,.2f}", "—" if k["change_pct"] is None else f"{k['change_pct']:+.1f}%"] for k in report["kpis"]])
+    title("2. Emissions Overview"); table(["Scope", "tCO2e"], [[r["scope"], f"{r['emissions']:,.2f}"] for r in report["current"]["scope_breakdown"]]); table(["Category", "tCO2e"], [[r["category"], f"{r['emissions']:,.2f}"] for r in report["current"]["category_breakdown"]]); title("3. Facility Performance"); table(["Facility", "tCO2e"], [[r["facility"], f"{r['emissions']:,.2f}"] for r in report["current"]["facility_breakdown"]]); story.append(PageBreak())
+    title("4. Energy, Water & Waste Performance"); table(["Metric", "Value"], [["Total Energy", f"{report['energy'].get('total', 0):,.2f} MWh"], ["Renewable share", f"{report['energy'].get('renewable_pct', 0):,.2f}%"], ["Water recycled", f"{report['water'].get('recycled', 0):,.2f} KL"], ["Waste recovered", f"{report['waste'].get('recovered', 0):,.2f}"], ["LTIFR", report['operational_kpis'].get('ltifr') or "Not reported"], ["Account payable days", report['operational_kpis'].get('account_payable_days') or "Not reported"], ["Incidents", report['operational_kpis'].get('incident_count', 0)]])
+    title("5. Suppliers, Targets & Insights"); table(["Supplier", "ESG Score"], [[r.get("supplier_name") or r.get("supplier_org_name") or "Supplier", r.get("overall_score") or "Not assessed"] for r in report.get("supplier_scores", [])] or [["No active suppliers", "—"]]); table(["Factual insights"], [[insight] for insight in report.get("insights", [])] or [["No material comparison insight available."]]); doc.build(story); return buffer.getvalue()

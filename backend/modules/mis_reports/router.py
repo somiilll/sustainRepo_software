@@ -20,7 +20,7 @@ from modules.mis_reports.contracts import (
     MISReportHistoryResponse,
 )
 from shared.database.mongo import db
-from modules.mis_reports.service import aggregate_emissions, build_excel, build_executive_mis_report, build_pdf, next_run_at, now_iso, send_schedule
+from modules.mis_reports.service import aggregate_emissions, build_executive_excel, build_executive_mis_report, build_executive_pdf, next_run_at, now_iso, send_schedule
 
 
 router = APIRouter()
@@ -127,8 +127,9 @@ async def export_emissions_summary(output_format: str, request: EmissionsSummary
     await require_mis_admin(current_user)
     if output_format not in {"xlsx", "pdf"}:
         raise HTTPException(status_code=400, detail="Export format must be xlsx or pdf")
-    summary = await aggregate_emissions(request.model_dump(), current_user)
-    report_bytes = build_excel(summary) if output_format == "xlsx" else build_pdf(summary)
+    report = await build_executive_mis_report(request.model_dump(), current_user)
+    organization, _ = await get_mis_reporting_context(current_user)
+    report_bytes = build_executive_excel(report) if output_format == "xlsx" else build_executive_pdf(report, (organization or {}).get("name", "SustainRepo Organization"), current_user.get("email"))
     media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if output_format == "xlsx" else "application/pdf"
     filename = f"MIS_Emissions_Summary_{request.reporting_period_start}_{request.reporting_period_end}.{output_format}"
     return StreamingResponse(io.BytesIO(report_bytes), media_type=media_type, headers={"Content-Disposition": f"attachment; filename={filename}"})
