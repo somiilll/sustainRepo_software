@@ -649,9 +649,9 @@ export const Step1BasicSelection = ({
         </div>
       )}
 
-      {/* Calculation Methodology - For Stationary/Flaring OR Process Emissions with venting */}
+      {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
       {category && (
-        (category.toLowerCase().includes('stationary') || category.toLowerCase().includes('flaring')) ||
+        (category.toLowerCase().includes('stationary') || category.toLowerCase().includes('mobile') || category.toLowerCase().includes('flaring')) ||
         (category.toLowerCase().includes('process') && decisionFieldValues.process_type === 'venting')
       ) && 
        (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (

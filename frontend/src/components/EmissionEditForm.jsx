@@ -555,9 +555,9 @@ export default function EmissionEditForm(props) {
                         </div>
                       )}
 
-                      {/* Calculation Methodology - For Stationary/Flaring OR Process Emissions with venting */}
+                      {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
                       {selectedCategory && (
-                        (selectedCategory.toLowerCase().includes('stationary') || selectedCategory.toLowerCase().includes('flaring')) ||
+                        (selectedCategory.toLowerCase().includes('stationary') || selectedCategory.toLowerCase().includes('mobile') || selectedCategory.toLowerCase().includes('flaring')) ||
                         (selectedCategory.toLowerCase().includes('process') && editProcessType === 'venting')
                       ) &&
                        (formData.scope === 'scope1' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
