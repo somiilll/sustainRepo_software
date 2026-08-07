@@ -1,193 +1,102 @@
 {
-  "identity": {
-    "name": "E1",
-    "role": "Creative Designer (Top 1%)",
-    "principles": [
-      "Fusion over Imitation",
-      "Emotion First",
-      "Content is King",
-      "Zoom In",
-      "Negative Space",
-      "Contrast"
+  "theme": "light",
+  "archetype": "ORGANIC & EARTHY",
+  "typography": {
+    "strategy": "The 'Soft Utility' (Dashboard / Apps)",
+    "fonts": {
+      "headings": "Manrope",
+      "body": "IBM Plex Sans",
+      "mono": "JetBrains Mono"
+    },
+    "hierarchy": {
+      "h1": "text-4xl tracking-tight font-light",
+      "h2": "text-2xl tracking-tight font-medium",
+      "h3": "text-xl font-medium",
+      "body": "text-sm leading-relaxed",
+      "labels": "text-xs uppercase tracking-[0.2em] font-bold"
+    }
+  },
+  "colors": {
+    "palette": {
+      "base_bg": "bg-[#F9FAFB]",
+      "surface": "bg-white",
+      "primary": "bg-[#064E3B] text-white",
+      "accent": "bg-[#166534] text-white",
+      "border": "border-[#E5E7EB]",
+      "text_primary": "text-[#111827]",
+      "text_secondary": "text-[#4B5563]"
+    },
+    "rules": [
+      "Use 'Tinted Grey' rule: neutral greys must have a tiny green/blue tint (e.g., slate).",
+      "No teal green or teal blue (#1B93A4) as per forbidden rules.",
+      "High contrast for tables and data points."
     ]
   },
-  "project_context": {
-    "app_name": "EcoTrack GHG Platform",
-    "app_type": "SaaS Dashboard",
-    "theme": "Light Mode (Organic & Earthy)",
-    "target_audience": "Environmental compliance officers, Sustainability managers",
-    "emotional_tone": "Professional, Trustworthy, Clean, Organic, Data-driven"
+  "visual_enhancers": {
+    "surfaces": "Neumorphism (The 'Tactile' Variant) for widgets: 1px crisp borders (border-black/5), flat backgrounds matching parent, subtle shadows.",
+    "icons": "Use @phosphor-icons/react for dense dashboard metrics and clear metaphors. Run: yarn add @phosphor-icons/react"
   },
-  "design_system": {
-    "colors": {
-      "palette_name": "Organic & Earthy (Archetype 1)",
-      "primary": {
-        "DEFAULT": "#1A4D2E",
-        "foreground": "#FFFFFF",
-        "description": "Deep Forest Green - Trust, Nature, Authority"
-      },
-      "secondary": {
-        "DEFAULT": "#4F6F52",
-        "foreground": "#FFFFFF",
-        "description": "Sage Green - Soft, approachable, secondary actions"
-      },
-      "accent": {
-        "DEFAULT": "#E85C0D",
-        "foreground": "#FFFFFF",
-        "description": "Earthy Terracotta - Alerts, High-priority actions"
-      },
-      "background": {
-        "DEFAULT": "#F5F7F5",
-        "description": "Off-white/Bone - Avoid pure white, feels like recycled paper"
-      },
-      "surface": {
-        "DEFAULT": "#FFFFFF",
-        "description": "Pure white for cards to create lift"
-      },
-      "text": {
-        "primary": "#1A1A1A",
-        "secondary": "#4A4A4A",
-        "muted": "#71717A"
-      },
-      "chart_colors": [
-        "#1A4D2E",
-        "#4F6F52",
-        "#E85C0D",
-        "#F5A623",
-        "#8D6F64"
-      ]
+  "components_and_paths": {
+    "cards": "frontend/src/components/ui/card.jsx (Override to use flat layout with 1px border, no large drop shadows)",
+    "tables": "frontend/src/components/ui/table.jsx",
+    "modals": "frontend/src/components/ui/dialog.jsx (For Custom Fuel Type slides/modals)",
+    "toasts": "frontend/src/components/ui/sonner.jsx (For Save actions & Bug Fix confirmations)",
+    "forms": "frontend/src/components/ui/form.jsx (Input, Select for filters)",
+    "custom_nodes": "frontend/src/components/ui/node.jsx (To be created for Decision Tree 'Wrap Node')"
+  },
+  "grids": {
+    "dashboard_grid": "MODE B: High Density Grid. grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-6.",
+    "spacing_scale": "p-6 for cards, p-8 for main sections. Ensure padding prevents border collision."
+  },
+  "layouts": {
+    "MIS_Reports_Module": {
+      "navigation": "Sticky left sidebar or top secondary nav (Crystal Glass if sticky, solid if fixed).",
+      "catalog": "Bento Grid layout for predefined report templates. Clear category separation.",
+      "filters": "Inline dense filter schema at top of the reports view."
     },
-    "typography": {
-      "strategy": "The Soft Utility",
-      "headings": {
-        "font_family": "Manrope, sans-serif",
-        "weights": ["600", "700", "800"],
-        "description": "Modern, clean, semi-geometric but friendly. Good for data and headers."
-      },
-      "body": {
-        "font_family": "Inter, sans-serif",
-        "weights": ["400", "500"],
-        "description": "Standard, highly legible for dense data tables."
-      },
-      "mono": {
-        "font_family": "JetBrains Mono, monospace",
-        "description": "For specific data values or IDs."
-      }
-    },
-    "spacing": {
-      "scale": "Tailwind Scale (p-1 to p-64)",
-      "philosophy": "Generous. Use p-6 or p-8 for card padding. p-12 for section gaps.",
-      "grid_gap": "gap-6 for dashboard, gap-12 for landing"
-    },
-    "visual_enhancers": {
-      "glassmorphism": {
-        "use_case": "Sidebar, Floating Headers, Toasts",
-        "classes": "bg-white/70 backdrop-blur-xl border border-white/20 shadow-sm"
-      },
-      "texture": {
-        "use_case": "Main Background",
-        "description": "Subtle noise overlay to reduce digital flatness (optional)"
-      },
-      "borders": {
-        "style": "Subtle, organic",
-        "radius": "rounded-xl",
-        "color": "border-stone-200"
-      },
-      "shadows": {
-        "card": "shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
-        "hover": "shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
-      }
+    "Decision_Tree_Builder": {
+      "wrap_node": "Absolute positioned UI overlay or React Flow custom node with wrapping dashed border."
     }
   },
-  "layout_strategies": {
-    "dashboard": {
-      "type": "High Density Grid (Mode B)",
-      "grid_cols": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
-      "gap": "gap-6",
-      "rules": [
-        "Summary cards: col-span-1",
-        "Main Chart: col-span-2 row-span-2 or col-span-3",
-        "Feed/List: col-span-1 row-span-2",
-        "Fill height: h-full for all children"
-      ]
-    },
-    "landing_page": {
-      "type": "Tetris Grid (Mode A)",
-      "grid_cols": "grid-cols-1 md:grid-cols-12",
-      "gap": "gap-8",
-      "rules": [
-        "Hero: col-span-full md:col-span-8",
-        "Feature: col-span-4",
-        "Asymmetry is key"
-      ]
+  "motion": {
+    "interactions": "Hover states must explicitly set text color (hover:bg-slate-100 hover:text-slate-900). Focus rings required (focus:ring-2 focus:ring-[#064E3B]).",
+    "transitions": "Use specific properties like 'transition-transform duration-200 ease-out' rather than 'transition-all'."
+  },
+  "accessibility": {
+    "data_testid": "MANDATORY. Add data-testid to every interactive element (e.g., data-testid='mis-report-generate-btn', data-testid='custom-fuel-save-btn').",
+    "contrast": "Ensure minimum 4.5:1 ratio for text. Data tables must be clear."
+  },
+  "media": {
+    "charts": "Recharts or Shadcn Charts for report generation previews."
+  },
+  "3d_libraries": {
+    "recommendation": "Not applicable for Phase 1 V1 reporting context. Keep it 2D and highly legible."
+  },
+  "image_urls": {
+    "reports_catalog": {
+      "description": "Dashboard requires vector icons rather than heavy photography for high density.",
+      "category": "empty_state",
+      "url": "none_required_use_phosphor_icons"
     }
   },
-  "components": {
-    "buttons": {
-      "style": "Pill-shaped or Rounded-lg",
-      "animation": "transform transition-all active:scale-95 hover:shadow-md",
-      "primary_class": "bg-[#1A4D2E] hover:bg-[#143D24] text-white rounded-full px-8"
-    },
-    "cards": {
-      "style": "Flat with subtle border, no heavy shadow by default",
-      "class": "bg-white border border-stone-200 rounded-xl p-6"
-    },
-    "inputs": {
-      "style": "Shadcn default but with 'focus:ring-[#1A4D2E]' and 'bg-[#F5F7F5]'",
-      "class": "h-12 rounded-lg border-stone-200 bg-stone-50"
-    },
-    "charts": {
-      "library": "Recharts (via Shadcn)",
-      "style": "Minimalist, thin lines, custom tooltips",
-      "colors": "Use palette chart_colors"
-    }
+  "instructions_to_main_agent": {
+    "V1_Scope": "Focus strictly on V1 Phase 1. Implement Stationary Combustion Composition of Carbon calc alongside NCV/Heat-basis, Custom Fuel form for all scopes, Wrap Node for decision tree, and standard MIS Reporting foundation.",
+    "File_Types": "Create only .js or .jsx files. DO NOT create .tsx or .ts files.",
+    "Bug_Fixes": "Fix Custom Fuel form missing live calculations / save issues. Add explicit inline validation for missing process types in Process Emissions. Fix Emissions Ledger status rendering for Admins."
   },
-  "assets": {
-    "images": [
-      {
-        "category": "Hero/Login Background",
-        "url": "https://images.unsplash.com/photo-1748966006043-3df544d90770?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHx3aW5kJTIwdHVyYmluZXMlMjBncmVlbiUyMGdyYXNzfGVufDB8fHx8MTc3MDg3OTU0Mnww&ixlib=rb-4.1.0&q=85",
-        "description": "Wind turbines on green grass - Clean energy vibe"
-      },
-      {
-        "category": "Facility Placeholder",
-        "url": "https://images.unsplash.com/photo-1766246719951-0d21674dd9b2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBlY28lMjBmcmllbmRseSUyMGZhY3RvcnklMjBidWlsZGluZ3xlbnwwfHx8fDE3NzA4Nzk1NDZ8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Industrial plant - Use for facility thumbnails"
-      }
-    ],
-    "icons": {
-      "library": "Lucide React (Default)",
-      "style": "Stroke width 1.5px (Thin/Elegant)"
-    }
-  },
-  "instructions_to_main_agent": [
-    "Implement the 'Organic & Earthy' color palette immediately in tailwind.config.js.",
-    "Use 'Manrope' for all headings. Import it from Google Fonts.",
-    "For the Dashboard, strictly follow the 'High Density Grid' layout.",
-    "Use the provided image URLs for the Login page background and Facility placeholders.",
-    "Ensure all charts use the custom green/earth tone colors, NOT the default blue/red.",
-    "Add 'data-testid' to all interactive elements.",
-    "Do NOT use gradients for backgrounds. Use solid colors or subtle noise textures.",
-    "Use 'sonner' for toasts."
-  ],
-  "universal_guidelines": [
-    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients",
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
     "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
-    "Create depth through layered design elements with z-index hierarchy",
-    "Use glass-morphism effects with backdrop filters (12-24px blur)",
-    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms",
-    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file. This disrupts the human natural reading flow of text",
-    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style",
-    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
-    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) where appropriate.",
+    "You MUST NOT apply universal transition. Eg: transition: all.",
+    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations.",
     "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
-    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
-    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN",
-    "Prioritize using pre-existing components from src/components/ui when applicable",
-    "Create new components that match the style and conventions of existing components when needed",
-    "Examine existing components to understand the project's component patterns before creating new ones",
-    "Components MUST use named exports (export const ComponentName = ...)",
-    "Pages MUST use default exports (export default function PageName() {...})",
-    "Use sonner for toasts. Sonner component are located in /app/src/components/ui/sonner.tsx"
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Use sonner for toasts located in frontend/src/components/ui/sonner.jsx."
   ]
 }
