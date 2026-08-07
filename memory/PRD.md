@@ -124,10 +124,19 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
   - Scope 1 → Flaring (`98b9822d`): same flattening
   - Scope 1 → Process Emissions (`d39293e1`): venting sub-tree flattened to 3 options
   - Biogenic → Stationary Combustion (`80dbef24`): added `calculation_methodology` level (was only `ef_quantity_provided`)
+- **2 Mobile Combustion Trees updated**: Scope 1 (`afaed9c6`) + Biogenic (`158e8396`) — same 3-way methodology
 - **5 Frontend files updated**: Step1BasicSelection.js, EmissionEntryForm.js, EmissionEditForm.jsx, Emissions.js, useCalcEngine.js
 - Removed all `ef_quantity_provided` references from frontend
 - Added `using_qty_basis_ef` detection in edit hydration (checks for `ef_quantity` in saved dynamic_field_values)
-- **Status**: ✅ Implemented, backend + frontend verified
+
+### Qty Basis EF Density Requirement (P1)
+- When methodology is `using_qty_basis_ef`, density field is shown for Stationary and Mobile Combustion
+- Density dynamically marked as required (red asterisk) when EF unit denominator dimension mismatches fuel qty unit dimension
+- Example: EF = kgCO2/L (volume denom) but fuel qty = kg,g,t (mass only) → density required
+- Helper: `isDensityRequiredForQtyBasis()` in `unitHelpers.js` — pure function, shared across components
+- DynamicFieldRenderer auto-enables density override checkbox when density becomes required
+- Backend calc engine enforces: returns clear error when density needed but not provided
+- **Status**: ✅ Implemented
 
 ## Upcoming Tasks (P1)
 - Custom Fuel 3-Methodology Support (Heat Basis, Qty Basis, Carbon Composition with proper unit handling + density logic)

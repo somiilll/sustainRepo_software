@@ -19,6 +19,7 @@ import {
 } from '../../../../../components/ui/tooltip';
 import { Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { isDensityRequiredForQtyBasis } from '../utils/unitHelpers';
 
 // Field-level help text shown on hover next to the label as an "i" icon.
 // Keyed by `field.variable` so it works whether the label is "Inflation
@@ -179,7 +180,14 @@ export const DynamicFieldRenderer = ({
         updateMonthData(monthKey, field.variable, field.defaultValue);
       }
     }
-  }, [field.variable, field.defaultValue, monthKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [field.variable, field.defaultValue, monthKey, data, updateMonthData]);
+
+  // Auto-enable density override when it becomes required (dimension mismatch)
+  useEffect(() => {
+    if (densityRequired && !data[`override_${field.variable}`]) {
+      updateMonthData(monthKey, `override_${field.variable}`, true);
+    }
+  }, [densityRequired, data, field.variable, monthKey, updateMonthData]);
 
   const handleValueChange = (e) => {
     const val = e.target.value;
@@ -221,12 +229,18 @@ export const DynamicFieldRenderer = ({
 
   const isDisabled = showOverrideCheckbox && !data[`override_${field.variable}`];
 
+  // For Qty Basis EF: density is dynamically required when EF unit denominator
+  // dimension mismatches the fuel's quantity unit dimension for this month
+  const densityRequired = field.densityQtyBasisCheck &&
+    isDensityRequiredForQtyBasis(data.ef_quantity_unit, field.fuelQtyUnits);
+  const isFieldRequired = field.required || densityRequired;
+
   return (
     <div key={field.id || field.variable} className="space-y-3">
       <div className="flex items-center justify-between">
         <Label className="font-medium flex items-center gap-1.5">
           {field.label}
-          {field.required && <span className="text-red-500 ml-1">*</span>}
+          {isFieldRequired && <span className="text-red-500 ml-1">*</span>}
           {FIELD_HELP[field.variable] && (
             <TooltipProvider delayDuration={150}>
               <Tooltip>

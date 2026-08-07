@@ -39,6 +39,32 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
   return unitDef?.unit_type === 'volume';
 };
 
+// Unit dimension classification for density requirement checks
+const VOLUME_UNITS = new Set(['l', 'ml', 'kl', 'm3', 'cm3']);
+const MASS_UNITS = new Set(['kg', 'g', 't']);
+
+/**
+ * For Qty Basis EF: density is required when the EF unit's denominator dimension
+ * differs from the fuel's quantity unit dimension.
+ * e.g. EF = kgCO2/L (volume denom) but fuel only allows kg,g,t (mass qty) → need density.
+ *
+ * @param {string} efUnit - Selected EF unit like "kgCO2/L" or "kgCO2/kg"
+ * @param {string[]} qtyAllowedUnits - Fuel's allowed quantity units like ["L","ml","kl"] or ["kg","g","t"]
+ * @returns {boolean}
+ */
+const isDensityRequiredForQtyBasis = (efUnit, qtyAllowedUnits) => {
+  if (!efUnit || !qtyAllowedUnits?.length) return false;
+  const denominator = efUnit.split('/')[1]?.toLowerCase();
+  if (!denominator) return false;
+  const efDenomIsVolume = VOLUME_UNITS.has(denominator);
+  const efDenomIsMass = MASS_UNITS.has(denominator);
+  if (!efDenomIsVolume && !efDenomIsMass) return false;
+  const qtyUnitsLower = qtyAllowedUnits.map(u => u.toLowerCase());
+  const qtyAllMass = qtyUnitsLower.every(u => MASS_UNITS.has(u));
+  const qtyAllVolume = qtyUnitsLower.every(u => VOLUME_UNITS.has(u));
+  return (efDenomIsVolume && qtyAllMass) || (efDenomIsMass && qtyAllVolume);
+};
+
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
   const now = new Date();
@@ -1360,8 +1386,11 @@ export default function EmissionEntryForm({
           if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
             return true;
           }
-          // Density: show when formula input supports dimension conversion (volume→mass)
+          // Density: show when formula supports dimension conversion,
+          // OR when using Qty Basis EF (may need density if EF/qty dimensions mismatch)
           if (m.maps_to_variable === 'density') {
+            const calcMethod = decisionFieldValues.calculation_methodology;
+            if (calcMethod === 'using_qty_basis_ef') return true;
             return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
           }
           return false;
@@ -1385,31 +1414,42 @@ export default function EmissionEntryForm({
     applicableMappings.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
     // Map to field objects for rendering
-    const fields = applicableMappings.map(m => ({
-      id: m.id,
-      variable: m.maps_to_variable,
-      fieldKey: m.field_key,
-      label: m.field_label,  // Use exact label from mapping
-      expectedUnit: m.default_unit,
-      required: m.is_required,
-      isOverride: m.is_override || false,
-      fieldType: m.field_type || 'number',
-      allowedUnits: m.allowed_units || [],
-      unitSource: m.unit_source || 'static',
-      compoundWithVariable: m.compound_with_variable || null,
-      placeholder: m.placeholder || `Enter ${m.field_label}`,
-      helpText: m.help_text || '',
-      mapsToContext: m.maps_to_context,
-      mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',  // Flexible value when filled
-      mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
-      options: m.options || [],  // For select field_type
-      validationRules: m.validation_rules || {},
-      defaultValue: m.default_value,
-    }));
+    const isQtyBasis = decisionFieldValues.calculation_methodology === 'using_qty_basis_ef';
+    const fuelQtyUnits = selectedFuel?.allowed_units || [];
+    const fields = applicableMappings.map(m => {
+      const field = {
+        id: m.id,
+        variable: m.maps_to_variable,
+        fieldKey: m.field_key,
+        label: m.field_label,
+        expectedUnit: m.default_unit,
+        required: m.is_required,
+        isOverride: m.is_override || false,
+        fieldType: m.field_type || 'number',
+        allowedUnits: m.allowed_units || [],
+        unitSource: m.unit_source || 'static',
+        compoundWithVariable: m.compound_with_variable || null,
+        placeholder: m.placeholder || `Enter ${m.field_label}`,
+        helpText: m.help_text || '',
+        mapsToContext: m.maps_to_context,
+        mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
+        mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
+        options: m.options || [],
+        validationRules: m.validation_rules || {},
+        defaultValue: m.default_value,
+      };
+      // For Qty Basis EF: attach fuel qty units on density so renderer can
+      // dynamically check if density is required based on selected EF unit
+      if (isQtyBasis && m.maps_to_variable === 'density') {
+        field.densityQtyBasisCheck = true;
+        field.fuelQtyUnits = fuelQtyUnits;
+      }
+      return field;
+    });
     
     // Return both fields and the matched formula ID
     return { fields, formulaId };
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, decisionFieldValues, useCustomFuel]);
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, decisionFieldValues, useCustomFuel, selectedFuel]);
   
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
