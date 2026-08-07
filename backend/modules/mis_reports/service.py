@@ -12,7 +12,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from shared.database.mongo import db
-from shared.helpers.email import send_email
+from shared.helpers.email import send_email_with_attachments
 from modules.esg_records.services.dashboard.dashboard_metrics_service import get_dashboard_metrics_service
 from modules.dashboards.environment_detail_service import get_environment_detail
 from modules.esg_records.services.dashboard.unit_utils import to_kilolitres
@@ -86,11 +86,11 @@ async def aggregate_emissions(filters: Dict[str, Any], current_user: dict) -> Di
             grouped[key][name] = grouped[key].get(name, 0) + value
 
     def breakdown(items: Dict[str, float], field: str) -> List[Dict[str, Any]]:
-        return [{field: name, "emissions": round(value, 4)} for name, value in sorted(items.items(), key=lambda item: item[1], reverse=True)]
+        return [{field: name, "emissions": round(value / 1000, 4)} for name, value in sorted(items.items(), key=lambda item: item[1], reverse=True)]
 
     return {
-        "total_emissions": round(total, 4),
-        "unit": "kg CO2e",
+        "total_emissions": round(total / 1000, 4),
+        "unit": "tCO2e",
         "record_count": len(records),
         "scope_breakdown": breakdown(grouped["scope"], "scope"),
         "category_breakdown": breakdown(grouped["category"], "category"),
@@ -253,16 +253,17 @@ def next_run_at(frequency: str) -> str:
 
 
 def build_summary_email(schedule_name: str, summary: Dict[str, Any], filters: Dict[str, Any]) -> str:
-    rows = "".join(f"<tr><td style='padding:8px;border-bottom:1px solid #e5e7eb'>{row['scope']}</td><td style='padding:8px;border-bottom:1px solid #e5e7eb;text-align:right'>{row['emissions']:,.2f}</td></tr>" for row in summary["scope_breakdown"])
-    return f"<div style='font-family:Arial,sans-serif;color:#17211d;max-width:640px'><h2 style='margin:0 0 8px'>SustainRepo MIS Report</h2><p style='margin:0 0 18px'>{schedule_name}</p><div style='background:#edf7ef;padding:16px'><strong>Total emissions</strong><div style='font-size:28px;margin-top:4px'>{summary['total_emissions']:,.2f} {summary['unit']}</div><div style='margin-top:6px'>{summary['record_count']} source records · {filters['reporting_period_start']} to {filters['reporting_period_end']}</div></div><h3>Breakdown by scope</h3><table style='width:100%;border-collapse:collapse'><tbody>{rows}</tbody></table></div>"
+    scopes = {row["scope"]: row["emissions"] for row in summary["scope_breakdown"]}
+    return f"<div style='font-family:Arial,sans-serif;color:#17211d;max-width:640px'><p>Hello,</p><p>Your ESG MIS Report for <strong>{filters['reporting_period_start']} to {filters['reporting_period_end']}</strong> has been generated successfully.</p><h3>Quick Summary</h3><table style='border-collapse:collapse;width:100%'><tr><td>Total Emissions</td><td style='text-align:right'>{summary['total_emissions']:,.2f} {summary['unit']}</td></tr><tr><td>Scope 1</td><td style='text-align:right'>{scopes.get('scope1', 0):,.2f} {summary['unit']}</td></tr><tr><td>Scope 2</td><td style='text-align:right'>{scopes.get('scope2', 0):,.2f} {summary['unit']}</td></tr><tr><td>Scope 3</td><td style='text-align:right'>{scopes.get('scope3', 0):,.2f} {summary['unit']}</td></tr><tr><td>Biogenic</td><td style='text-align:right'>{scopes.get('biogenic', 0):,.2f} {summary['unit']}</td></tr><tr><td>Source Records Processed</td><td style='text-align:right'>{summary['record_count']}</td></tr></table><p>Please find the detailed PDF and Excel reports attached.</p><p>Regards,<br/>SustainRepo</p></div>"
 
 
 async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
     summary = await aggregate_emissions(schedule["filters"], current_user)
     report_run = await save_report_run(schedule["filters"], summary, current_user, status="emailed")
     sent_at = now_iso()
+    attachments = [("SustainRepo_ESG_MIS_Report.xlsx", build_excel(summary)), ("SustainRepo_ESG_MIS_Report.pdf", build_pdf(summary))]
     for recipient_email in schedule["recipient_emails"]:
-        success = await send_email(recipient_email, f"MIS Report: {schedule['name']}", build_summary_email(schedule["name"], summary, schedule["filters"]))
+        success = await send_email_with_attachments(recipient_email, f"ESG MIS Report – {schedule['filters']['reporting_period_end']}", build_summary_email(schedule["name"], summary, schedule["filters"]), attachments)
         delivery = {"id": str(uuid.uuid4()), "schedule_id": schedule["id"], "organization_id": schedule.get("organization_id"), "recipient_email": recipient_email, "status": "sent" if success else "failed", "sent_at": sent_at, "error": None if success else "Resend delivery failed"}
         await db.mis_report_deliveries.insert_one(delivery.copy())
     return report_run
