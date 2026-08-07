@@ -80,7 +80,8 @@ async def get_mis_report_filter_schema(current_user: dict = Depends(get_current_
     if not can_generate_reports:
         raise HTTPException(status_code=403, detail="MIS Reports are only accessible to admins")
 
-    facility_query = {"is_active": {"$ne": False}}
+    # Dashboard calculations include the organization's historical facilities too.
+    facility_query = {}
     if organization:
         facility_query["organization_id"] = current_user.get("organization_id")
 

@@ -36,10 +36,10 @@ def numeric_emissions(record: Dict[str, Any]) -> float:
 
 async def organization_facility_ids(current_user: dict) -> List[str]:
     if current_user.get("role") == "super_admin":
-        facilities = await db.facilities.find({"is_active": {"$ne": False}}, {"_id": 0, "id": 1}).to_list(5000)
+        facilities = await db.facilities.find({}, {"_id": 0, "id": 1}).to_list(5000)
     else:
         facilities = await db.facilities.find(
-            {"organization_id": current_user.get("organization_id"), "is_active": {"$ne": False}},
+            {"organization_id": current_user.get("organization_id")},
             {"_id": 0, "id": 1},
         ).to_list(5000)
     return [facility["id"] for facility in facilities]
@@ -119,9 +119,10 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
 
     organization_id = current_user.get("organization_id")
     facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
-    # Use the same all-time ESG metric aggregation shown on the Environment dashboard.
-    # Emissions remain period-filtered above; operational sources follow dashboard semantics.
-    dashboard = await get_dashboard_metrics_service(db).get_dashboard_metrics(organization_id, facility_ids)
+    # Use the selected reporting period with the dashboard metric services.
+    dashboard = await get_dashboard_metrics_service(db).get_dashboard_metrics(
+        organization_id, facility_ids, start_date=filters["reporting_period_start"], end_date=filters["reporting_period_end"]
+    )
     environment_detail = await get_environment_detail(db, organization_id, filters["reporting_period_start"], filters["reporting_period_end"], facility_ids)
     evidence_count = await db.environment_records.count_documents({"org_id": organization_id, "evidence_files.0": {"$exists": True}, "is_current": {"$ne": False}})
     pending = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "pending_approval", "is_current": {"$ne": False}})
@@ -165,7 +166,17 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
         "recovered": round(hazardous_waste.get("recovered", 0) + non_hazardous_waste.get("recovered", 0), 2),
     }
     waste["recovery_pct"] = round((waste["recovered"] / waste["generated"] * 100) if waste["generated"] else 0, 2)
-    incidents = await db.governance_records.count_documents({"org_id": organization_id, "subcategory": "Health & Safety Incidents", "approval_status": {"$in": ["approved", "not_required", None]}})
+    incidents = await db.governance_records.count_documents({
+        "org_id": organization_id,
+        "approval_status": {"$in": ["approved", "not_required", None]},
+        "$or": [
+            {"subcategory": "Health & Safety Incidents"},
+            {"category": {"$regex": "data breach", "$options": "i"}},
+            {"subcategory": {"$regex": "data breach", "$options": "i"}},
+            {"category": {"$regex": "violation", "$options": "i"}},
+            {"subcategory": {"$regex": "violation", "$options": "i"}},
+        ],
+    })
     operational = await get_operational_kpis(organization_id, current_scopes.get("scope1", 0) + current_scopes.get("scope2", 0), energy_total, incidents, filters)
     return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "insights": insights, "monthly_trend": current["period_breakdown"]}
 
