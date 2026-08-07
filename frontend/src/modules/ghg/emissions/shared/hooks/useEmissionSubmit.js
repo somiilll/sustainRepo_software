@@ -46,6 +46,7 @@ export function useEmissionSubmit(ctx) {
       dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
       onSuccess, getActualYearForMonth, evaluateFormula,
       buildDecisionInputs, editingEmission,
+      decisionFieldValues,
       // Optional supplier context
       supplierContext = null,
       // OCR context for finalize-import
@@ -78,6 +79,32 @@ export function useEmissionSubmit(ctx) {
     const apiBase = supplierContext 
       ? `${API}/supplier-assessment/my-assessment/emissions`
       : `${API}/emissions`;
+
+    /**
+     * Compute custom fuel emissions from per-month data.
+     * Returns { co2e } based on the selected calculation methodology.
+     */
+    const computeCustomFuelEmissions = (monthData) => {
+      const calcMethod = decisionFieldValues?.calculation_methodology || 'using_heat_basis_ncv';
+      const qty = parseFloat(monthData.quantity || monthData.qty || 0);
+      if (!qty) return { co2e: 0 };
+
+      if (calcMethod === 'using_heat_basis_ncv') {
+        const ef = parseFloat(monthData.custom_ef || 0);
+        const cv = parseFloat(monthData.custom_cv || 0);
+        return { co2e: qty * cv * ef };
+      }
+      if (calcMethod === 'using_qty_basis_ef') {
+        const ef = parseFloat(monthData.custom_ef || 0);
+        return { co2e: qty * ef };
+      }
+      if (calcMethod === 'using_carbon_composition') {
+        const cc = parseFloat(monthData.custom_carbon_content || 0);
+        const ox = parseFloat(monthData.custom_oxidation_factor || 0);
+        return { co2e: (qty * cc / 100 * ox) / 1000 };
+      }
+      return { co2e: 0 };
+    };
 
     // Prevent duplicate submissions
     if (isSaving) return;
@@ -405,10 +432,9 @@ export function useEmissionSubmit(ctx) {
                 // Fall through with zeros — record persisted, can be recalculated later
               }
             } else if (useCustomFuel) {
-              const customEF = parseFloat(customEmissionFactor) || 0;
-              const primaryQty = parseFloat(yearlyData[dynamicInputFields[0]?.variable] || 0);
-              yCalcCO2 = primaryQty * customEF;
-              yCalcCO2e = yCalcCO2;
+              const result = computeCustomFuelEmissions(yearlyData);
+              yCalcCO2e = result.co2e;
+              yCalcCO2 = result.co2e;
             }
 
             const yPayload = {
@@ -569,6 +595,79 @@ export function useEmissionSubmit(ctx) {
       //   - category is NOT C7 (multi-employee — has its own dedicated branch)
       const dispatchActiveModule = frequencyType === 'monthly' ? resolveDispatchModule() : null;
 
+      // ===========================================
+      // CUSTOM FUEL DIRECT SAVE (no module needed)
+      // ===========================================
+      // Scope 1 / Biogenic Scope 1 custom fuel: compute emissions client-side
+      // and save directly, since no category module is registered.
+      if (!dispatchActiveModule && useCustomFuel && frequencyType === 'monthly') {
+        const monthsWithData = Object.entries(monthlyData).filter(([, d]) => {
+          const qty = parseFloat(d.quantity || d.qty || 0);
+          return qty > 0;
+        });
+        if (monthsWithData.length === 0) {
+          toast.error('Please enter quantity for at least one month.');
+          setIsSaving(false);
+          return;
+        }
+        const validProcesses = (processNames || []).filter(p => p.name?.trim());
+        let successCount = 0;
+        const errors = [];
+        for (const [monthKey, data] of monthsWithData) {
+          const actualYear = getActualYearForMonth(monthKey);
+          const reportingPeriod = `${actualYear}-${monthKey}`;
+          const result = computeCustomFuelEmissions(data);
+          const qtyUnit = data.custom_qty_unit || data.unit || 'kg';
+          const payload = {
+            facility_id: facilityId,
+            scope,
+            category,
+            fuel_name: customFuelName,
+            fuel_id: null,
+            is_custom_fuel: true,
+            is_custom_factor: true,
+            reporting_period: reportingPeriod,
+            quantity: parseFloat(data.quantity || data.qty || 0),
+            unit: qtyUnit,
+            calculated_co2: result.co2e,
+            calculated_ch4: 0,
+            calculated_n2o: 0,
+            calculated_co2e: result.co2e,
+            co2e_total: result.co2e,
+            notes,
+            record_source: recordSource || 'manual',
+            responsible_person: responsiblePerson,
+            responsible_person_designation: responsiblePersonDesignation,
+            responsible_person_contact: responsiblePersonContact,
+            process_names: validProcesses.map(p => p.name),
+            process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
+            biogenic_scope_selection: biogenicScopeSelection || null,
+            calculation_methodology: decisionFieldValues?.calculation_methodology || 'using_heat_basis_ncv',
+            custom_source: customSource || '',
+            dynamic_field_values: {
+              qty: { value: parseFloat(data.quantity || data.qty || 0), unit: qtyUnit },
+              ...(data.custom_ef ? { custom_ef: { value: parseFloat(data.custom_ef), unit: data.custom_ef_unit || '' } } : {}),
+              ...(data.custom_cv ? { custom_cv: { value: parseFloat(data.custom_cv), unit: data.custom_cv_unit || '' } } : {}),
+              ...(data.custom_carbon_content ? { custom_carbon_content: { value: parseFloat(data.custom_carbon_content), unit: '%' } } : {}),
+              ...(data.custom_oxidation_factor ? { custom_oxidation_factor: { value: parseFloat(data.custom_oxidation_factor), unit: '' } } : {}),
+              ...(data.density ? { density: { value: parseFloat(data.density), unit: data.density_unit || 'kg/L' } } : {}),
+              calculation_methodology: { value: decisionFieldValues?.calculation_methodology || 'using_heat_basis_ncv', unit: '' },
+            },
+          };
+          try {
+            await axios.post(apiBase, payload, { headers: getAuthHeader() });
+            successCount++;
+          } catch (err) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${err.response?.data?.detail || 'Failed'}`);
+          }
+        }
+        if (successCount > 0) toast.success(`Created ${successCount} custom fuel emission record(s)`);
+        if (errors.length > 0) toast.error(`Failed: ${errors.join(', ')}`);
+        if (successCount > 0) onSuccess?.();
+        setIsSaving(false);
+        return;
+      }
+
       if (dispatchActiveModule) {
         // 1. Module-owned validation
         // Note: per-month override flags (CV/density/EFH) live in monthlyData[m]
@@ -664,12 +763,11 @@ export function useEmissionSubmit(ctx) {
                 resolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
               }
             } catch (e) {
-              // Fallback for custom fuel: simple qty * EF
+              // Fallback for custom fuel: compute from per-month fields
               if (useCustomFuel) {
-                const customEF = parseFloat(customEmissionFactor) || 0;
-                const primaryQty = parseFloat(data[dynamicInputFields[0]?.variable] || 0);
-                calculatedCO2 = primaryQty * customEF;
-                calculatedCO2e = calculatedCO2;
+                const result = computeCustomFuelEmissions(data);
+                calculatedCO2 = result.co2e;
+                calculatedCO2e = result.co2e;
               }
               // For standard fuel: Fall through with zeros — record persisted, can be recalculated later
             }

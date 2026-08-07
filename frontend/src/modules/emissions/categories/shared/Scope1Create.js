@@ -95,6 +95,37 @@ export function buildDynamicFieldValues(data, ctx) {
     }
   });
 
+  if (ctx.useCustomFuel) {
+    const hasValue = (value) => value !== undefined && value !== null && value !== '';
+    const parseValue = (value) => (hasValue(value) ? parseFloat(value) : null);
+    const quantity = hasValue(data.qty) ? data.qty : data.quantity;
+    const quantityUnit = data.custom_qty_unit || data.qty_unit || data.quantity_unit || data.unit || ctx.defaultUnit || 'kg';
+    const decisionInputs = ctx.buildDecisionInputs?.(data) || {};
+    const calculationMethodology = data.calculation_methodology
+      || decisionInputs.calculation_methodology
+      || 'using_heat_basis_ncv';
+
+    // CustomFuelMonthFields owns these per-period inputs, so they must not
+    // depend on the standard dynamic field list for persistence.
+    out.qty = { value: parseValue(quantity), unit: quantityUnit };
+    if (hasValue(data.custom_ef)) {
+      out.custom_ef = { value: parseValue(data.custom_ef), unit: data.custom_ef_unit || '' };
+    }
+    if (hasValue(data.custom_cv)) {
+      out.custom_cv = { value: parseValue(data.custom_cv), unit: data.custom_cv_unit || '' };
+    }
+    if (hasValue(data.custom_carbon_content)) {
+      out.custom_carbon_content = { value: parseValue(data.custom_carbon_content), unit: '%' };
+    }
+    if (hasValue(data.custom_oxidation_factor)) {
+      out.custom_oxidation_factor = { value: parseValue(data.custom_oxidation_factor), unit: '' };
+    }
+    if (hasValue(data.density)) {
+      out.density = { value: parseValue(data.density), unit: data.density_unit || 'kg/L' };
+    }
+    out.calculation_methodology = { value: calculationMethodology, unit: '' };
+  }
+
   return out;
 }
 

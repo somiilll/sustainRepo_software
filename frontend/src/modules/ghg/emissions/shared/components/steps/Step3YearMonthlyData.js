@@ -17,6 +17,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../
 import { Info, Check, Upload, Eye, Download, X, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Import CustomFuelMonthFields for per-month custom fuel inputs
+import CustomFuelMonthFields from '../CustomFuelMonthFields';
+
 // Import MultiEmployeeInput for C7
 import MultiEmployeeInput from '../../../../../../components/MultiEmployeeInput';
 
@@ -34,6 +37,7 @@ const FIELD_HELP = {
 
 // Import volume unit helper
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
+import { isQuantityField } from '../../utils/unitHelpers';
 
 /**
  * Step 3 Year & Monthly Data Component
@@ -112,6 +116,8 @@ export const Step3YearMonthlyData = ({
   defaultUnit,
   allowedUnits,
   customEmissionFactorUnit,
+  customFuelQtyUnit,
+  calculationMethodology,
   getQuantityUnitFromEFUnit,
   
   // Evidence handling
@@ -398,10 +404,17 @@ export const Step3YearMonthlyData = ({
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label>Unit <span className="text-xs text-emerald-600">(fixed)</span></Label>
-                                <div className="flex items-center h-10 bg-emerald-50 border border-emerald-200 rounded-lg px-3 text-emerald-700">
-                                  <span>{field.unit || 'unit'}</span>
-                                </div>
+                                <Label>Unit</Label>
+                                <select
+                                  value={data[`${field.key}_unit`] || field.unit || 'kg'}
+                                  onChange={(e) => updateMonthData(monthKey, `${field.key}_unit`, e.target.value)}
+                                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                  data-testid={`month-${monthKey}-${field.key}-unit`}
+                                >
+                                  {['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3'].map(u => (
+                                    <option key={u} value={u}>{u}</option>
+                                  ))}
+                                </select>
                               </div>
                             </div>
                           ))}
@@ -440,7 +453,7 @@ export const Step3YearMonthlyData = ({
                         </div>
                       ) : (
                         /* Fallback: Simple Quantity and Unit (legacy) */
-                        <div className="grid grid-cols-2 gap-4 items-end">
+                        <div className={useCustomFuel ? "" : "grid grid-cols-2 gap-4 items-end"}>
                           <div className="space-y-2">
                             <Label>Quantity</Label>
                             <Input
@@ -459,26 +472,31 @@ export const Step3YearMonthlyData = ({
                               className="bg-stone-50"
                             />
                           </div>
+                          {!useCustomFuel && (
                           <div className="space-y-2">
-                            <Label>Unit {useCustomFuel && <span className="text-xs text-amber-600">(locked)</span>}</Label>
-                            {useCustomFuel ? (
-                              <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
-                                <span>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</span>
-                                <span className="ml-auto text-xs text-amber-600">Based on EF unit</span>
-                              </div>
-                            ) : (
-                              <select
-                                value={data.unit || defaultUnit}
-                                onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                              >
-                                {allowedUnits.map(unit => (
-                                  <option key={unit} value={unit}>{unit}</option>
-                                ))}
-                              </select>
-                            )}
+                            <Label>Unit</Label>
+                            <select
+                              value={data.unit || defaultUnit}
+                              onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
+                              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                            >
+                              {allowedUnits.map(unit => (
+                                <option key={unit} value={unit}>{unit}</option>
+                              ))}
+                            </select>
                           </div>
+                          )}
                         </div>
+                      )}
+
+                      {/* Per-month custom fuel fields (EF, CV, carbon content etc.) */}
+                      {useCustomFuel && (
+                        <CustomFuelMonthFields
+                          monthKey={monthKey}
+                          data={data}
+                          updateMonthData={updateMonthData}
+                          calculationMethodology={calculationMethodology}
+                        />
                       )}
 
                       {/* Evidence Upload */}
@@ -729,6 +747,8 @@ export const Step3YearMonthlyData = ({
           centralizedUnits={centralizedUnits}
           defaultUnit={defaultUnit}
           isVolumeUnit={isVolumeUnit}
+          useCustomFuel={useCustomFuel}
+          calculationMethodology={calculationMethodology}
         />
       )}
     </div>
@@ -753,6 +773,8 @@ const YearlyDataEntry = ({
   centralizedUnits,
   defaultUnit,
   isVolumeUnit,
+  useCustomFuel,
+  calculationMethodology,
 }) => {
   return (
     <div className="space-y-4">
@@ -784,10 +806,17 @@ const YearlyDataEntry = ({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Unit <span className="text-xs text-emerald-600">(fixed)</span></Label>
-                  <div className="flex items-center h-10 bg-emerald-50 border border-emerald-200 rounded-lg px-3 text-emerald-700">
-                    <span>{field.unit || 'unit'}</span>
-                  </div>
+                  <Label>Unit</Label>
+                  <select
+                    value={yearlyData[`${field.key}_unit`] || field.unit || 'kg'}
+                    onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.key}_unit`]: e.target.value }))}
+                    className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                    data-testid={`yearly-${field.key}-unit`}
+                  >
+                    {['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3'].map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             ))}
@@ -809,12 +838,13 @@ const YearlyDataEntry = ({
               <div className="space-y-4">
                 {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
+                  const hideStandardQuantityUnit = useCustomFuel && isQuantityField(field);
                   const isSupplierBasis = scope3Method === 'supplier_basis';
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
                   const isUnitlessCountField = isNoUnitField;
-                  const showUnitSelector = !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
-                  const showUnitTextInput = !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
+                  const showUnitSelector = !hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
+                  const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   
                   return (
                     <div key={field.variable} className="space-y-2">
@@ -898,12 +928,13 @@ const YearlyDataEntry = ({
               <div className="space-y-4">
                 {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
+                  const hideStandardQuantityUnit = useCustomFuel && isQuantityField(field);
                   const isSupplierBasis = scope3Method === 'supplier_basis';
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
                   const isUnitlessCountField = isNoUnitField;
-                  const showUnitSelector = !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
-                  const showUnitTextInput = !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
+                  const showUnitSelector = !hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
+                  const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   const overrideKey = `override_${field.variable}`;
                   const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                   
@@ -1003,6 +1034,16 @@ const YearlyDataEntry = ({
                 })}
               </div>
             )}
+
+            {/* Per-year custom fuel fields (EF, CV, carbon content etc.) */}
+            {useCustomFuel && (
+              <CustomFuelMonthFields
+                monthKey="yearly"
+                data={yearlyData}
+                updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
+                calculationMethodology={calculationMethodology}
+              />
+            )}
             
             {/* Override Properties Section for Yearly */}
             {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
@@ -1011,6 +1052,7 @@ const YearlyDataEntry = ({
                   const overrideKey = `override_${field.variable}`;
                   const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                   const fieldUnits = getFieldUnitsForYearly(field);
+                  const showStandardExpectedUnit = field.expectedUnit && !(useCustomFuel && isQuantityField(field));
                   
                   return (
                     <div key={field.variable} className="space-y-3">
@@ -1052,7 +1094,7 @@ const YearlyDataEntry = ({
                         </label>
                       </div>
                       
-                      <div className={field.expectedUnit ? "grid grid-cols-3 gap-2" : ""}>
+                      <div className={showStandardExpectedUnit ? "grid grid-cols-3 gap-2" : ""}>
                         <Input
                           type="number"
                           step="any"
@@ -1066,9 +1108,9 @@ const YearlyDataEntry = ({
                               setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                             }
                           }}
-                          className={`${field.expectedUnit ? 'col-span-2' : ''} bg-white ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                          className={`${showStandardExpectedUnit ? 'col-span-2' : ''} bg-white ${!isOverrideEnabled ? 'opacity-50' : ''}`}
                         />
-                        {field.expectedUnit && (
+                        {showStandardExpectedUnit && (
                           fieldUnits.length > 1 ? (
                             <select
                               value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
@@ -1096,7 +1138,7 @@ const YearlyDataEntry = ({
         ) : (
           /* Legacy mode: Simple quantity/unit input for yearly */
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className={useCustomFuel ? "" : "grid grid-cols-2 gap-4"}>
               <div className="space-y-2">
                 <Label>Annual Quantity <span className="text-red-500">*</span></Label>
                 <Input
@@ -1115,6 +1157,7 @@ const YearlyDataEntry = ({
                   data-testid="yearly-quantity"
                 />
               </div>
+              {!useCustomFuel && (
               <div className="space-y-2">
                 <Label>Unit</Label>
                 <select
@@ -1128,10 +1171,20 @@ const YearlyDataEntry = ({
                   ))}
                 </select>
               </div>
+              )}
             </div>
 
+            {useCustomFuel && (
+              <CustomFuelMonthFields
+                monthKey="yearly"
+                data={yearlyData}
+                updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
+                calculationMethodology={calculationMethodology}
+              />
+            )}
+
             {/* Show density input if volume unit */}
-            {isVolumeUnit(yearlyData.unit || defaultUnit, centralizedUnits) && (
+            {!useCustomFuel && isVolumeUnit(yearlyData.unit || defaultUnit, centralizedUnits) && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Density (kg/L) <span className="text-red-500">*</span></Label>

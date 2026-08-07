@@ -19,6 +19,7 @@ import {
 } from '../../../../../components/ui/tooltip';
 import { Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { isDensityRequiredForQtyBasis, isQuantityField } from '../utils/unitHelpers';
 
 // Field-level help text shown on hover next to the label as an "i" icon.
 // Keyed by `field.variable` so it works whether the label is "Inflation
@@ -125,7 +126,8 @@ export const DynamicFieldRenderer = ({
   // "/<compoundSuffix>". Computed by the parent from the linked field's unit.
   compoundSuffix = '',
 }) => {
-  const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
+  const isQtyField = isQuantityField(field);
+  const hideStandardQuantityUnit = useCustomFuel && isQtyField;
 
   // Per-field flags driven by the input-field-mapping admin config.
   const isNoUnitField = field.unitSource === 'none';
@@ -154,13 +156,13 @@ export const DynamicFieldRenderer = ({
   const isSupplierBasisField = scope3Method === 'supplier_basis' && 
     (field.variable?.includes('supplier') || field.variable?.includes('Supplier'));
   
-  const showUnitSelector = !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasisField &&
+  const showUnitSelector = !hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasisField &&
     (!field.isOverride || (field.isOverride && field.expectedUnit));
   
-  const showFixedUnit = !isNoUnitField && !isTextUnitField && field.isOverride && field.expectedUnit && fieldUnits.length <= 1;
-  const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
+  const showFixedUnit = !hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && field.isOverride && field.expectedUnit && fieldUnits.length <= 1;
+  const showSupplierUnitInput = !hideStandardQuantityUnit && isSupplierBasisField && !field.variable?.endsWith('_unit');
   // Freeform text unit input driven by admin config (independent of supplier basis).
-  const showTextUnitInput = isTextUnitField && !field.variable?.endsWith('_unit');
+  const showTextUnitInput = !hideStandardQuantityUnit && isTextUnitField && !field.variable?.endsWith('_unit');
   const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
   // Only enforce integer validation for pure count fields (e.g., "No. of rooms", "No. of days")
   // Fields with validation_rules.max <= 1 or percentage fields are NOT count fields
@@ -169,6 +171,12 @@ export const DynamicFieldRenderer = ({
     !field.variable?.includes('factor') && 
     !field.variable?.includes('carbon') &&
     !field.variable?.includes('composition');
+
+  // For Qty Basis EF: density is dynamically required when EF unit denominator
+  // dimension mismatches the fuel's quantity unit dimension for this month
+  const densityRequired = field.densityQtyBasisCheck &&
+    isDensityRequiredForQtyBasis(data.ef_quantity_unit, field.fuelQtyUnits);
+  const isFieldRequired = field.required || densityRequired;
 
   // Apply default value when field is first rendered and has no current value
   useEffect(() => {
@@ -179,7 +187,14 @@ export const DynamicFieldRenderer = ({
         updateMonthData(monthKey, field.variable, field.defaultValue);
       }
     }
-  }, [field.variable, field.defaultValue, monthKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [field.variable, field.defaultValue, monthKey, data, updateMonthData]);
+
+  // Auto-enable density override when it becomes required (dimension mismatch)
+  useEffect(() => {
+    if (densityRequired && !data[`override_${field.variable}`]) {
+      updateMonthData(monthKey, `override_${field.variable}`, true);
+    }
+  }, [densityRequired, data, field.variable, monthKey, updateMonthData]);
 
   const handleValueChange = (e) => {
     const val = e.target.value;
@@ -226,7 +241,7 @@ export const DynamicFieldRenderer = ({
       <div className="flex items-center justify-between">
         <Label className="font-medium flex items-center gap-1.5">
           {field.label}
-          {field.required && <span className="text-red-500 ml-1">*</span>}
+          {isFieldRequired && <span className="text-red-500 ml-1">*</span>}
           {FIELD_HELP[field.variable] && (
             <TooltipProvider delayDuration={150}>
               <Tooltip>

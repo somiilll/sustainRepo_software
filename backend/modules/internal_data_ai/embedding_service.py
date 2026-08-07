@@ -39,36 +39,51 @@ def embed_single(text: str) -> List[float]:
 
 
 async def find_similar_entities(query: str, org_id: str, db, top_k: int = 5) -> dict:
-    """Find entities most similar to the user query using pre-computed embeddings."""
+    """Find entities most similar to the user query using pre-computed embeddings.
+
+    Uses a streaming min-heap to avoid loading all embeddings into memory.
+    Only top_k results are kept at any time — peak memory is O(top_k), not O(N).
+    """
+    import heapq
+
     query_embedding = embed_single(query)
     if not query_embedding:
         return {"matches": []}
 
-    # Check if we have pre-computed embeddings
     cursor = db.internal_ai_embeddings.find(
         {"organization_id": {"$in": [org_id, "__global__"]}},
         {"_id": 0}
     )
-    candidates = await cursor.to_list(5000)
 
-    if not candidates:
+    # Min-heap of (score, index, match_data) — keeps only top_k best
+    heap: list = []
+    idx = 0
+    has_any = False
+
+    async for c in cursor:
+        has_any = True
+        emb = c.get("embedding")
+        if not emb:
+            continue
+        score = _cosine_sim(query_embedding, emb)
+        item = (score, idx, {
+            "text": c.get("text"),
+            "entity_type": c.get("entity_type"),
+            "entity_id": c.get("entity_id"),
+            "metadata": c.get("metadata"),
+        })
+        if len(heap) < top_k:
+            heapq.heappush(heap, item)
+        elif score > heap[0][0]:
+            heapq.heapreplace(heap, item)
+        idx += 1
+
+    if not has_any:
         return {"matches": [], "note": "No pre-computed embeddings. Run /api/internal-ai/embed to initialize."}
 
-    scored = []
-    for c in candidates:
-        emb = c.get("embedding")
-        if emb:
-            score = _cosine_sim(query_embedding, emb)
-            scored.append({
-                "text": c.get("text"),
-                "entity_type": c.get("entity_type"),
-                "entity_id": c.get("entity_id"),
-                "metadata": c.get("metadata"),
-                "score": round(score, 4),
-            })
-
-    scored.sort(key=lambda x: -x["score"])
-    return {"matches": scored[:top_k]}
+    # Sort descending by score, add rounded score to output
+    top = sorted(heap, key=lambda x: x[0], reverse=True)
+    return {"matches": [{**m, "score": round(s, 4)} for s, _, m in top]}
 
 
 async def precompute_embeddings(org_id: str, db) -> dict:

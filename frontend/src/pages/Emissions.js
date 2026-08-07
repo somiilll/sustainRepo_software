@@ -29,6 +29,7 @@ import useEvidenceManagement from './emissions/useEvidenceManagement';
 import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/utils/persistCalcAuditLog';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
 import { categoryRegistry } from '../modules/emissions';
+import { isDensityRequiredForQtyBasis } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
@@ -128,7 +129,7 @@ export default function Emissions() {
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
   const [typeOfProduct, setTypeOfProduct] = useState(''); // C11 only — continuous_usage / one_time_use
-  const [editCalcMethodology, setEditCalcMethodology] = useState('using_ncv'); // Stationary Combustion methodology
+  const [editCalcMethodology, setEditCalcMethodology] = useState('using_heat_basis_ncv'); // Stationary Combustion methodology
   const [editProcessType, setEditProcessType] = useState(''); // Process Emissions type (venting/n2o/ch4)
   const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
@@ -534,8 +535,7 @@ export default function Emissions() {
       // Pass all available decision field values so the tree can resolve
       if (editFormConfig.decision_tree) {
         const decisionValues = {
-          calculation_methodology: editCalcMethodology || 'using_ncv',
-          ef_quantity_provided: editUseCustomFuel ? 'true' : 'false',
+          calculation_methodology: editCalcMethodology || 'using_heat_basis_ncv',
           ...(editProcessType && { process_type: editProcessType }),
         };
         const formulaId = traverseDecisionTreeEdit(editFormConfig.decision_tree, decisionValues);
@@ -589,8 +589,11 @@ export default function Emissions() {
       .filter(m => {
         if (m.is_active === false) return false;
         
-        // Custom fuel: never show density (mass-based units only)
-        if (editUseCustomFuel && m.maps_to_variable === 'density') return false;
+        // Custom fuel: suppress fields that CustomFuelMonthFields handles per-month
+        if (editUseCustomFuel) {
+          const handledByCustomFuel = ['density', 'cv', 'ef_quantity', 'carbon_content', 'oxidation_factor'];
+          if (handledByCustomFuel.includes(m.maps_to_variable)) return false;
+        }
         
         // Formula-driven filtering when a formula is resolved
         if (matchedFormula && requiredInputVars?.length) {
@@ -600,8 +603,18 @@ export default function Emissions() {
             if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
               return true;
             }
-            // Density: show when formula input supports dimension conversion (volume→mass)
+            // Density: show when formula supports dimension conversion,
+            // OR when using Qty Basis EF and fuel's qty units could mismatch EF denominators
             if (m.maps_to_variable === 'density') {
+              if (editCalcMethodology === 'using_qty_basis_ef') {
+                const editSelectedFuelForDensity = formData.fuel_id ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
+                const fuelHasDensity = editSelectedFuelForDensity?.density != null && editSelectedFuelForDensity.density > 0;
+                if (fuelHasDensity) return false;
+                const efMapping = editFormConfig.input_field_mappings.find(fm => fm.maps_to_variable === 'ef_quantity');
+                const efAllowedUnits = efMapping?.allowed_units || [];
+                const qtyUnits = editSelectedFuelForDensity?.allowed_units || [];
+                return efAllowedUnits.some(eu => isDensityRequiredForQtyBasis(eu, qtyUnits));
+              }
               return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
             }
             return false;
@@ -622,29 +635,39 @@ export default function Emissions() {
       })
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
-    return mappings.map(m => ({
-      id: m.id,
-      variable: m.maps_to_variable,
-      fieldKey: m.field_key,
-      label: m.field_label,
-      expectedUnit: m.default_unit,
-      required: m.is_required === true,  // Explicitly check for true
-      isOverride: m.is_override === true, // Explicitly check for true (null/undefined/false all become false)
-      isOverrideExplicitlyFalse: m.is_override === false, // Track if explicitly set to false (required input)
-      fieldType: m.field_type || 'number',
-      allowedUnits: m.allowed_units || [],
-      unitSource: m.unit_source || 'static',
-      compoundWithVariable: m.compound_with_variable || null,
-      placeholder: m.placeholder || `Enter ${m.field_label}`,
-      helpText: m.help_text || '',
-      mapsToContext: m.maps_to_context,
-      mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
-      mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
-      options: m.options || [],
-      defaultValue: m.default_value,
-      validationRules: m.validation_rules || {},
-    }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel, editProcessType]);
+    const isQtyBasis = editCalcMethodology === 'using_qty_basis_ef';
+    const editSelectedFuel = formData.fuel_id ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
+    const editFuelQtyUnits = editSelectedFuel?.allowed_units || [];
+    return mappings.map(m => {
+      const field = {
+        id: m.id,
+        variable: m.maps_to_variable,
+        fieldKey: m.field_key,
+        label: m.field_label,
+        expectedUnit: m.default_unit,
+        required: m.is_required === true,
+        isOverride: m.is_override === true,
+        isOverrideExplicitlyFalse: m.is_override === false,
+        fieldType: m.field_type || 'number',
+        allowedUnits: m.allowed_units || [],
+        unitSource: m.unit_source || 'static',
+        compoundWithVariable: m.compound_with_variable || null,
+        placeholder: m.placeholder || `Enter ${m.field_label}`,
+        helpText: m.help_text || '',
+        mapsToContext: m.maps_to_context,
+        mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
+        mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
+        options: m.options || [],
+        defaultValue: m.default_value,
+        validationRules: m.validation_rules || {},
+      };
+      if (isQtyBasis && m.maps_to_variable === 'density') {
+        field.densityQtyBasisCheck = true;
+        field.fuelQtyUnits = editFuelQtyUnits;
+      }
+      return field;
+    });
+  }, [editFormConfig, formData.scope, formData.fuel_id, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel, editProcessType, fuelDatabase]);
 
   // Older Process Emissions records did not persist process_type. Once the
   // form config arrives, recover it from the saved formula's decision-tree
@@ -742,7 +765,7 @@ export default function Emissions() {
     // For Scope 1 / Biogenic Scope 1: add calculation_methodology and process_type
     const isBiogenicScope1 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1';
     if (formData.scope === 'scope1' || isBiogenicScope1) {
-      decisionInputs['calculation_methodology'] = editCalcMethodology || 'using_ncv';
+      decisionInputs['calculation_methodology'] = editCalcMethodology || 'using_heat_basis_ncv';
       if (editProcessType) {
         decisionInputs['process_type'] = editProcessType;
       }
@@ -777,12 +800,21 @@ export default function Emissions() {
       // PRIMARY: Read from emission.dynamic_field_values (new structure)
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
       
-      // Hydrate calculation methodology from saved fields
+      // Hydrate calculation methodology from its explicit saved value first.
+      // Legacy records fall back to inferring the method from their saved fields.
+      const savedMethod = savedDynamicValues.calculation_methodology;
+      const savedCalculationMethodology = typeof savedMethod === 'object'
+        ? savedMethod?.value
+        : savedMethod;
       const dfvKeys = Object.keys(savedDynamicValues);
-      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
+      if (savedCalculationMethodology) {
+        setEditCalcMethodology(savedCalculationMethodology);
+      } else if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon') || dfvKeys.includes('custom_carbon_content')) {
         setEditCalcMethodology('using_carbon_composition');
+      } else if (dfvKeys.includes('ef_quantity') || (dfvKeys.includes('custom_ef') && !dfvKeys.includes('custom_cv'))) {
+        setEditCalcMethodology('using_qty_basis_ef');
       } else {
-        setEditCalcMethodology('using_ncv');
+        setEditCalcMethodology('using_heat_basis_ncv');
       }
       
       // Hydrate process type from saved fields
@@ -873,6 +905,32 @@ export default function Emissions() {
         });
         
         setDynamicFieldValues(values);
+
+        // Hydrate custom fuel per-month fields from saved dynamic_field_values
+        if (editingEmission.is_custom_fuel || editingEmission.is_custom_factor) {
+          const customKeys = ['custom_ef', 'custom_cv', 'custom_carbon_content', 'custom_oxidation_factor'];
+          customKeys.forEach(key => {
+            const saved = savedDynamicValues[key];
+            if (saved) {
+              values[key] = saved.value !== null && saved.value !== undefined ? saved.value.toString() : '';
+              if (saved.unit) values[`${key}_unit`] = saved.unit;
+            }
+          });
+          // Custom fuel quantity unit is persisted on dynamic_field_values.qty.
+          // Top-level fields are retained only for records saved before that contract.
+          const savedQty = savedDynamicValues.qty;
+          const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
+          values.custom_qty_unit = savedQtyUnit
+            || editingEmission.unit
+            || editingEmission.quantity_unit
+            || 'kg';
+          // Density from dynamic_field_values
+          if (savedDynamicValues.density) {
+            values.density = savedDynamicValues.density.value?.toString() || '';
+            values.density_unit = savedDynamicValues.density.unit || 'kg/L';
+          }
+          setDynamicFieldValues({ ...values });
+        }
         
         // Also try to fetch audit log for display purposes
         try {
@@ -2197,7 +2255,16 @@ export default function Emissions() {
     // show partial result with the audit log
     if (editingEmission && emissionAuditLog.length > 0) {
       return {
-        auditLog: emissionAuditLog
+        auditLog: emissionAuditLog,
+        co2Emissions: editingEmission.co2_emissions,
+        ch4Emissions: editingEmission.ch4_emissions,
+        n2oEmissions: editingEmission.n2o_emissions,
+        co2eEmissions: editingEmission.co2e_emissions,
+        co2OutputUnit: 'tCO₂',
+        ch4OutputUnit: 'tCH₄',
+        n2oOutputUnit: 'tN₂O',
+        co2eOutputUnit: 'tCO₂e',
+        appliedFormulaName: editingEmission.formula_name,
       };
     }
     
@@ -2384,6 +2451,7 @@ export default function Emissions() {
           // Custom fuel props
           editUseCustomFuel,
           editCustomFuelName,
+          editCalcMethodology,
           editProcessType,
         });
 

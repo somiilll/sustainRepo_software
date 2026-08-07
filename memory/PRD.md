@@ -14,11 +14,13 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 
 ### GHG Calculation Engine Architecture
 - **17 active formulas** in `ce_formulas` — each with stable UUID, versioned via `ce_formula_versions`
-- **20 active decision trees** in `ce_decision_trees` — one per category_id, resolved at runtime
+- **22 active decision trees** in `ce_decision_trees` — one per category_id, resolved at runtime
 - **Decision tree IDs NOT stored in emission records** — trees looked up by `category_id` every calculation
 - **502 fuels** in `fuel_database` — properties resolved via `ce_property_source_mappings`
-- **Stationary Combustion Scope 1** tree now branches on `calculation_methodology` → `using_ncv` → `ef_quantity_provided`, or `using_carbon_composition` → Carbon Composition formula
-- **Key formula IDs**: `b52e732f` (heat-basis), `f863ca67` (quantity-based), `ed2819e3` (fugitives), `d10c79f4` (carbon composition)
+- **Stationary Combustion** trees (Scope 1, Biogenic, Flaring) now branch on `calculation_methodology` with 3 flat options: `using_heat_basis_ncv`, `using_qty_basis_ef`, `using_carbon_composition`
+- **Process Emissions** venting sub-tree also uses the same 3 methodology options
+- `ef_quantity_provided` decision field removed — replaced by explicit methodology choice
+- **Key formula IDs**: `b52e732f` (heat-basis Scope 1), `d5c88230` (heat-basis Biogenic), `f863ca67` (quantity-based), `ed2819e3` (fugitives), `d10c79f4` (carbon composition)
 
 ## Completed Work (Dec 2025)
 
@@ -32,11 +34,14 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ### Calculation Methodology Dropdown (P1)
 - **Files changed**:
   - `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step1BasicSelection.js` — Rendered dropdown (Stationary/Flaring categories)
-  - `/app/frontend/src/components/EmissionEntryForm.js` — Decision tree traversal for Scope 1, default `using_ncv` in `buildDecisionInputs`, edit hydration inference
+  - `/app/frontend/src/components/EmissionEntryForm.js` — Decision tree traversal for Scope 1, default `using_heat_basis_ncv` in `buildDecisionInputs`, edit hydration inference
   - `/app/frontend/src/hooks/useCalcEngine.js` — Accepts `calculationMethodology` param, passes in `decision_inputs`
   - `/app/frontend/src/pages/Emissions.js` — Edit flow passes inferred methodology to calc engine
-- Backward compatible: existing records default to `using_ncv`
-- **Status**: ✅ Implemented
+  - `/app/frontend/src/components/EmissionEditForm.jsx` — Edit dialog methodology selector
+- **3 options**: Using Heat Basis (NCV), Using Qty Basis EF, Using Composition of Carbon
+- `ef_quantity_provided` implicit fork removed — replaced with explicit 3-way choice
+- Backward compatible: existing records infer methodology from saved `dynamic_field_values` keys
+- **Status**: ✅ Implemented (Updated Aug 2026)
 
 ### Field Toggling by Methodology (P1)
 - **Files**: `EmissionEntryForm.js`, `Emissions.js`
@@ -105,9 +110,67 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - New KPI calculators in `energy_adapter.py`, registered in `calculator.py` dispatch
 - Available at `/esg-targets/lookup/categories?section=environment`
 
+### Memory Optimization — Streaming Heap for Embedding Queries (P1)
+- **Files**: `modules/repo_pilot/vector_store.py`, `modules/internal_data_ai/embedding_service.py`
+- Replaced `to_list(50000)` / `to_list(5000)` bulk loads with `async for` streaming + min-heap of size `top_k`
+- Peak memory per query: Repo Pilot ~600MB → ~12MB, Internal AI ~60MB → ~2MB
+- Same API, same results, zero new dependencies
+
+## Completed Work (Aug 2026) — Decision Tree Flattening
+
+### Stationary Combustion 3-Way Methodology (P1)
+- **4 Decision Trees updated** in MongoDB:
+  - Scope 1 → Stationary Combustion (`9fa2ca12`): flattened from `using_ncv → ef_quantity_provided` sub-tree to 3 flat options
+  - Scope 1 → Flaring (`98b9822d`): same flattening
+  - Scope 1 → Process Emissions (`d39293e1`): venting sub-tree flattened to 3 options
+  - Biogenic → Stationary Combustion (`80dbef24`): added `calculation_methodology` level (was only `ef_quantity_provided`)
+- **2 Mobile Combustion Trees updated**: Scope 1 (`afaed9c6`) + Biogenic (`158e8396`) — same 3-way methodology
+- **5 Frontend files updated**: Step1BasicSelection.js, EmissionEntryForm.js, EmissionEditForm.jsx, Emissions.js, useCalcEngine.js
+- Removed all `ef_quantity_provided` references from frontend
+- Added `using_qty_basis_ef` detection in edit hydration (checks for `ef_quantity` in saved dynamic_field_values)
+
+### Qty Basis EF Density Requirement (P1)
+- When methodology is `using_qty_basis_ef`, density field shown **only** when fuel's allowed units could actually mismatch EF denominators
+- Example: fuel has only mass units (kg,g,t), EF mapping has `kgCO2/L` option → density shown
+- Example: fuel has volume units (L,ml,kl), EF mapping has `kgCO2/L` → density NOT shown (no mismatch)
+- DynamicFieldRenderer checks per-month selected EF unit for required indicator
+- Edit form (Emissions.js) has the same conditional density check
+- **Status**: ✅ Implemented
+
+### Heat Basis / Carbon Composition Density Checks (P1)
+- `isDensityRequiredForHeatBasis(cvUnit, qtyUnit)`: compares CV denominator dimension vs qty unit dimension
+- `isDensityRequiredForCarbonComposition(qtyUnit)`: density needed when qty unit is volume-based
+- Custom fuel density shown only on actual dimension mismatch per methodology
+- All helpers in shared `unitHelpers.js` — clean, reusable, unit-testable
+- **Status**: ✅ Implemented
+
+### Process Emissions Qty Unit Dropdown (P1)
+- Replaced fixed "(fixed)" unit label with selectable dropdown (kg, g, t, L, kL, ml, m3, cm3)
+- Applied to both monthly and yearly views in Step3YearMonthlyData.js
+- Unit stored as `{field.key}_unit` in monthlyData/yearlyData
+- **Status**: ✅ Implemented
+
+### Custom Fuel 3-Methodology Support (P1)
+- Step 1: Name + Source only (slim). All calculation inputs entered per-month in Step 3.
+- `CustomFuelMonthFields.js`: per-methodology fields + Qty Unit + Density (shown on dimension mismatch)
+  - Heat Basis: EF + EF unit + CV + CV unit + Qty unit + Density (when CV denom ≠ qty dimension)
+  - Qty Basis: EF + EF unit + Qty unit + Density (when EF denom ≠ qty dimension)
+  - Carbon Composition: Carbon Content + Oxidation Factor + Qty unit + Density (when qty is volume)
+- Standard dynamic fields suppressed for custom fuel (`cv`, `ef_quantity`, `carbon_content`, `oxidation_factor`, `density`)
+- Custom fuel direct-save path in `useEmissionSubmit.js` for scope1/biogenic (no module needed)
+- Per-month custom fuel data saved in `dynamic_field_values` for persistence
+- Edit form hydrates custom fuel fields from saved `dynamic_field_values`
+- Edit form renders `CustomFuelMonthFields` when `editUseCustomFuel` is true
+- **Status**: ✅ Implemented
+
+### Standard Fuel Density Override (P1)
+- Density for `using_qty_basis_ef` shown only when dimension mismatch AND fuel has no density in DB
+- If fuel has density in DB (e.g. Diesel density=0.84), calc engine uses it automatically — no override needed
+- **Status**: ✅ Implemented
+
 ## Upcoming Tasks (P1)
-- Biogenic Stationary Combustion Tree Update (apply `calculation_methodology` wrapping to tree `80dbef24`)
 - GHG Form Logic & Custom Fuels E2E Testing
+- Custom Fuel Backend Calculation Integration (wire custom fuel inputs through calc engine for all 3 methodologies)
 - Hash-based Integrity Verification for Evidence Files
 - Smart Follow-ups (Internal Data AI)
 - SuperAdmin Config UI for Modules

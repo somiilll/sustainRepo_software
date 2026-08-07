@@ -39,6 +39,13 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
   return unitDef?.unit_type === 'volume';
 };
 
+// Density dimension-mismatch helpers (canonical source: shared/utils/unitHelpers.js)
+import {
+  isDensityRequiredForQtyBasis,
+  isDensityRequiredForHeatBasis,
+  isDensityRequiredForCarbonComposition,
+} from '../modules/ghg/emissions/shared/utils/unitHelpers';
+
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
   const now = new Date();
@@ -311,9 +318,19 @@ export default function EmissionEntryForm({
       
       // Hydrate calculation methodology from dynamic_field_values
       // If record has carbon_content/composition_of_carbon, it was carbon composition method
-      const dfvKeys = Object.keys(editingEmission.dynamic_field_values || {});
-      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
+      // If record has ef_quantity, it was qty basis method
+      const savedDynamicValues = editingEmission.dynamic_field_values || {};
+      const savedCalculationMethodology = savedDynamicValues.calculation_methodology;
+      const calculationMethodology = typeof savedCalculationMethodology === 'object'
+        ? savedCalculationMethodology?.value
+        : savedCalculationMethodology;
+      const dfvKeys = Object.keys(savedDynamicValues);
+      if (calculationMethodology) {
+        setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: calculationMethodology }));
+      } else if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
         setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: 'using_carbon_composition' }));
+      } else if (dfvKeys.includes('ef_quantity')) {
+        setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: 'using_qty_basis_ef' }));
       }
       
       // Hydrate monthly data for monthly frequency
@@ -333,6 +350,14 @@ export default function EmissionEntryForm({
               monthData[key] = val;
             }
           });
+          if (editingEmission.is_custom_fuel) {
+            const savedQty = dfv.qty;
+            const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
+            monthData.custom_qty_unit = savedQtyUnit
+              || editingEmission.unit
+              || editingEmission.quantity_unit
+              || 'kg';
+          }
           
           // Also include calculated values if they exist
           if (editingEmission.co2e_emissions !== undefined) {
@@ -363,6 +388,14 @@ export default function EmissionEntryForm({
             yearData[key] = val;
           }
         });
+        if (editingEmission.is_custom_fuel) {
+          const savedQty = dfv.qty;
+          const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
+          yearData.custom_qty_unit = savedQtyUnit
+            || editingEmission.unit
+            || editingEmission.quantity_unit
+            || 'kg';
+        }
         
         // Also include calculated values
         if (editingEmission.co2e_emissions !== undefined) {
@@ -1065,6 +1098,17 @@ export default function EmissionEntryForm({
     return mapping?.quantityUnit || 'kg';
   };
 
+  // Resolve the quantity unit for custom fuels based on selected methodology
+  const customFuelQtyUnit = useMemo(() => {
+    if (!useCustomFuel) return null;
+    const calcMethod = decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv';
+    if (calcMethod === 'using_qty_basis_ef') {
+      return getQuantityUnitFromEFUnit(customEmissionFactorUnit);
+    }
+    // Heat Basis and Carbon Composition: qty unit selected independently
+    return decisionFieldValues._customQtyUnit || 'kg';
+  }, [useCustomFuel, decisionFieldValues, customEmissionFactorUnit, getQuantityUnitFromEFUnit]);
+
   // Step 2 + Step 3 form state moved to useEmissionFormState (F2 integration).
   // The hook also owns the reporting-year-type org-pref sync useEffect and the
   // editingEmission frequency_type/yearlyData hydration useEffect.
@@ -1278,13 +1322,10 @@ export default function EmissionEntryForm({
     }
     // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula via decision tree first, then fallback to name
     else if ((scope === 'scope1' || scope === 'scope2' || isBiogenicScope1) && formConfig?.formulas?.length) {
-      // Priority 0: Try decision tree traversal (handles calculation_methodology + ef_quantity_provided)
+      // Priority 0: Try decision tree traversal (handles calculation_methodology)
       if (formConfig.decision_tree) {
-        const calcMethodology = decisionFieldValues.calculation_methodology || 'using_ncv';
         const scope1DecisionValues = {
-          calculation_methodology: calcMethodology,
-          // Custom fuel must use Quantity Based formula (user provides EF manually)
-          ef_quantity_provided: useCustomFuel ? 'true' : 'false',
+          calculation_methodology: decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv',
           ...decisionFieldValues,
         };
         const formulaId = traverseDecisionTree(formConfig.decision_tree, scope1DecisionValues);
@@ -1349,8 +1390,12 @@ export default function EmissionEntryForm({
                              m.applies_to_scopes.includes(scopeId);
       if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
       
-      // Custom fuel: never show density (mass-based units only)
-      if (useCustomFuel && m.maps_to_variable === 'density') return false;
+      // Custom fuel: suppress fields that CustomFuelMonthFields handles per-month.
+      // Only keep 'qty' (quantity input) from standard fields.
+      if (useCustomFuel) {
+        const handledByCustomFuel = ['density', 'cv', 'ef_quantity', 'carbon_content', 'oxidation_factor'];
+        if (handledByCustomFuel.includes(m.maps_to_variable)) return false;
+      }
       
       // Formula-driven filtering when a formula is resolved
       if (matchedFormula && requiredInputVars?.length) {
@@ -1360,8 +1405,19 @@ export default function EmissionEntryForm({
           if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
             return true;
           }
-          // Density: show when formula input supports dimension conversion (volume→mass)
+          // Density: show when formula supports dimension conversion,
+          // OR when using Qty Basis EF and fuel's qty units could mismatch EF denominators
           if (m.maps_to_variable === 'density') {
+            const calcMethod = decisionFieldValues.calculation_methodology;
+            if (calcMethod === 'using_qty_basis_ef') {
+              // Only show if dimension mismatch possible AND fuel has no density in DB
+              const fuelHasDensity = selectedFuel?.density != null && selectedFuel.density > 0;
+              if (fuelHasDensity) return false; // Calc engine uses fuel DB density
+              const efMapping = formConfig.input_field_mappings.find(fm => fm.maps_to_variable === 'ef_quantity');
+              const efAllowedUnits = efMapping?.allowed_units || [];
+              const qtyUnits = selectedFuel?.allowed_units || [];
+              return efAllowedUnits.some(eu => isDensityRequiredForQtyBasis(eu, qtyUnits));
+            }
             return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
           }
           return false;
@@ -1385,31 +1441,42 @@ export default function EmissionEntryForm({
     applicableMappings.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
     // Map to field objects for rendering
-    const fields = applicableMappings.map(m => ({
-      id: m.id,
-      variable: m.maps_to_variable,
-      fieldKey: m.field_key,
-      label: m.field_label,  // Use exact label from mapping
-      expectedUnit: m.default_unit,
-      required: m.is_required,
-      isOverride: m.is_override || false,
-      fieldType: m.field_type || 'number',
-      allowedUnits: m.allowed_units || [],
-      unitSource: m.unit_source || 'static',
-      compoundWithVariable: m.compound_with_variable || null,
-      placeholder: m.placeholder || `Enter ${m.field_label}`,
-      helpText: m.help_text || '',
-      mapsToContext: m.maps_to_context,
-      mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',  // Flexible value when filled
-      mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
-      options: m.options || [],  // For select field_type
-      validationRules: m.validation_rules || {},
-      defaultValue: m.default_value,
-    }));
+    const isQtyBasis = decisionFieldValues.calculation_methodology === 'using_qty_basis_ef';
+    const fuelQtyUnits = selectedFuel?.allowed_units || [];
+    const fields = applicableMappings.map(m => {
+      const field = {
+        id: m.id,
+        variable: m.maps_to_variable,
+        fieldKey: m.field_key,
+        label: m.field_label,
+        expectedUnit: m.default_unit,
+        required: m.is_required,
+        isOverride: m.is_override || false,
+        fieldType: m.field_type || 'number',
+        allowedUnits: m.allowed_units || [],
+        unitSource: m.unit_source || 'static',
+        compoundWithVariable: m.compound_with_variable || null,
+        placeholder: m.placeholder || `Enter ${m.field_label}`,
+        helpText: m.help_text || '',
+        mapsToContext: m.maps_to_context,
+        mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
+        mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
+        options: m.options || [],
+        validationRules: m.validation_rules || {},
+        defaultValue: m.default_value,
+      };
+      // For Qty Basis EF: attach fuel qty units on density so renderer can
+      // dynamically check if density is required based on selected EF unit
+      if (isQtyBasis && m.maps_to_variable === 'density') {
+        field.densityQtyBasisCheck = true;
+        field.fuelQtyUnits = fuelQtyUnits;
+      }
+      return field;
+    });
     
     // Return both fields and the matched formula ID
     return { fields, formulaId };
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, decisionFieldValues, useCustomFuel]);
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, decisionFieldValues, useCustomFuel, selectedFuel]);
   
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
@@ -1755,10 +1822,10 @@ export default function EmissionEntryForm({
       }
     }
     
-    // For Scope 1/Biogenic Scope 1 Stationary Combustion: default calculation_methodology to 'using_ncv'
+    // For Scope 1/Biogenic Scope 1 Stationary Combustion: default calculation_methodology
     const isBiogenicScope1 = scope === 'biogenic' && biogenicScopeSelection === 'scope1';
     if ((scope === 'scope1' || isBiogenicScope1) && !decisionInputs['calculation_methodology']) {
-      decisionInputs['calculation_methodology'] = 'using_ncv';
+      decisionInputs['calculation_methodology'] = 'using_heat_basis_ncv';
     }
 
     return decisionInputs;
@@ -3014,6 +3081,8 @@ export default function EmissionEntryForm({
     // Helpers
     canProceedToStep, getAuthHeader, onSuccess, getActualYearForMonth,
     evaluateFormula, buildDecisionInputs,
+    // Decision state for custom fuel methodology
+    decisionFieldValues,
     // Editing
     editingEmission,
     // Supplier context (optional)
@@ -3256,6 +3325,8 @@ export default function EmissionEntryForm({
           defaultUnit={defaultUnit}
           allowedUnits={allowedUnits}
           customEmissionFactorUnit={customEmissionFactorUnit}
+          customFuelQtyUnit={customFuelQtyUnit}
+          calculationMethodology={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
