@@ -17,6 +17,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../
 import { Info, Check, Upload, Eye, Download, X, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Import CustomFuelMonthFields for per-month custom fuel inputs
+import CustomFuelMonthFields from '../CustomFuelMonthFields';
+
 // Import MultiEmployeeInput for C7
 import MultiEmployeeInput from '../../../../../../components/MultiEmployeeInput';
 
@@ -113,6 +116,7 @@ export const Step3YearMonthlyData = ({
   allowedUnits,
   customEmissionFactorUnit,
   customFuelQtyUnit,
+  calculationMethodology,
   getQuantityUnitFromEFUnit,
   
   // Evidence handling
@@ -468,12 +472,18 @@ export const Step3YearMonthlyData = ({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Unit {useCustomFuel && <span className="text-xs text-amber-600">(locked)</span>}</Label>
+                            <Label>Unit</Label>
                             {useCustomFuel ? (
-                              <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
-                                <span>{customFuelQtyUnit || getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</span>
-                                <span className="ml-auto text-xs text-amber-600">Set in Step 1</span>
-                              </div>
+                              <select
+                                value={data.custom_qty_unit || 'kg'}
+                                onChange={(e) => updateMonthData(monthKey, 'custom_qty_unit', e.target.value)}
+                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                data-testid={`month-${monthKey}-qty-unit`}
+                              >
+                                {['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3'].map(u => (
+                                  <option key={u} value={u}>{u}</option>
+                                ))}
+                              </select>
                             ) : (
                               <select
                                 value={data.unit || defaultUnit}
@@ -487,6 +497,16 @@ export const Step3YearMonthlyData = ({
                             )}
                           </div>
                         </div>
+                      )}
+
+                      {/* Per-month custom fuel fields (EF, CV, carbon content etc.) */}
+                      {useCustomFuel && (
+                        <CustomFuelMonthFields
+                          monthKey={monthKey}
+                          data={data}
+                          updateMonthData={updateMonthData}
+                          calculationMethodology={calculationMethodology}
+                        />
                       )}
 
                       {/* Evidence Upload */}
@@ -737,6 +757,8 @@ export const Step3YearMonthlyData = ({
           centralizedUnits={centralizedUnits}
           defaultUnit={defaultUnit}
           isVolumeUnit={isVolumeUnit}
+          useCustomFuel={useCustomFuel}
+          calculationMethodology={calculationMethodology}
         />
       )}
     </div>
@@ -761,6 +783,8 @@ const YearlyDataEntry = ({
   centralizedUnits,
   defaultUnit,
   isVolumeUnit,
+  useCustomFuel,
+  calculationMethodology,
 }) => {
   return (
     <div className="space-y-4">
@@ -1017,6 +1041,16 @@ const YearlyDataEntry = ({
                   );
                 })}
               </div>
+            )}
+
+            {/* Per-year custom fuel fields (EF, CV, carbon content etc.) */}
+            {useCustomFuel && (
+              <CustomFuelMonthFields
+                monthKey="yearly"
+                data={yearlyData}
+                updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
+                calculationMethodology={calculationMethodology}
+              />
             )}
             
             {/* Override Properties Section for Yearly */}

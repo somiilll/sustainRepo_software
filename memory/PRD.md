@@ -151,13 +151,14 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Status**: ✅ Implemented
 
 ### Custom Fuel 3-Methodology Support (P1)
-- Custom fuel panel on Step 1 now shows methodology-specific input fields:
-  - **Heat Basis (NCV)**: EF value + EF unit (tCO2/TJ, tCO2/MJ) + CV value + CV unit ({TJ,MJ}/{all qty units}) + Qty unit + Source
-  - **Qty Basis EF**: EF value + EF unit (tCO2/{all qty units}) + Qty unit + Source
-  - **Carbon Composition**: Carbon Content (%) + Oxidation Factor + Qty unit + Source
-- Custom fuel no longer always hides density — density visibility follows methodology rules
-- Step 3 qty unit display uses `customFuelQtyUnit` computed from the methodology
-- Files: `Step1BasicSelection.js` (custom fuel fields per methodology), `EmissionEntryForm.js` (density logic + customFuelQtyUnit), `Step3YearMonthlyData.js` (qty unit display), `Emissions.js` (edit form density)
+- Step 1 custom fuel panel: Name + Source only (slim). Helper text: "EF, CV, quantity unit and other calculation inputs are entered per-month in Step 3."
+- New shared component: `CustomFuelMonthFields.js` renders per-methodology fields inside each month accordion:
+  - **Heat Basis (NCV)**: EF + EF unit (tCO2/TJ, tCO2/MJ) + CV + CV unit ({TJ,MJ}/{qty units}) + Qty unit
+  - **Qty Basis EF**: EF + EF unit (tCO2/{all qty units}) + Qty unit
+  - **Carbon Composition**: Carbon Content (%) + Oxidation Factor + Qty unit
+- All custom fuel inputs stored per-month in `monthlyData[monthKey]`: `custom_ef`, `custom_ef_unit`, `custom_cv`, `custom_cv_unit`, `custom_carbon_content`, `custom_oxidation_factor`, `custom_qty_unit`
+- Step 3 qty unit for custom fuel: selectable per-month dropdown (not locked from Step 1)
+- Yearly view also renders `CustomFuelMonthFields` for yearly data entry
 - **Status**: ✅ Implemented
 
 ## Upcoming Tasks (P1)

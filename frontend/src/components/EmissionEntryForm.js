@@ -44,7 +44,7 @@ import {
   isDensityRequiredForQtyBasis,
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
-} from './modules/ghg/emissions/shared/utils/unitHelpers';
+} from '../modules/ghg/emissions/shared/utils/unitHelpers';
 
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
@@ -3311,6 +3311,7 @@ export default function EmissionEntryForm({
           allowedUnits={allowedUnits}
           customEmissionFactorUnit={customEmissionFactorUnit}
           customFuelQtyUnit={customFuelQtyUnit}
+          calculationMethodology={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
