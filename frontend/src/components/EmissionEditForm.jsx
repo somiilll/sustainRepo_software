@@ -17,6 +17,7 @@ import {
   SubmitButtonSection,
 } from '../pages/emissions/EditFormSections';
 import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/CustomFuelMonthFields';
+import EmissionCalculationTrace from './EmissionCalculationTrace';
 import {
   Plus,
   Trash2,
@@ -25,7 +26,6 @@ import {
   Download,
   Search,
   AlertTriangle,
-  Calculator,
   X,
   Info,
   FileText,
@@ -1718,186 +1718,11 @@ export default function EmissionEditForm(props) {
                   </div>
                 )}
 
-                {/* Calculated Emissions Display - Shows only final values */}
-                {effectiveCalculatedEmissions && true && (
-                  <div className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg border border-primary/20">
-                    {/* Header */}
-                    <div className="flex items-center gap-2 mb-3">
-                      <Calculator className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium text-text-secondary">Calculated Emissions</span>
-                      {isCalculating && (
-                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Updating...
-                        </span>
-                      )}
-                      <span className="text-xs text-stone-400 ml-auto">(Values rounded to 4 decimal places)</span>
-                    </div>
-                    
-                    {/* For Scope 3 and Biogenic Scope 3, show full-width CO2e Summary Banner (#18) */}
-                    {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
-                      <div className="w-full p-4 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border border-primary/20">
-                        <div className="flex items-center justify-between flex-wrap gap-4">
-                          {/* Main Emission Value */}
-                          <div className="flex items-center gap-6">
-                            <div>
-                              <p className="text-xs font-medium text-primary/70 uppercase tracking-wide mb-1">Total CO₂e Emissions</p>
-                              <p className="text-3xl font-bold text-primary">
-                                {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(4)}
-                                <span className="text-lg font-normal ml-2 text-primary/80">
-                                  {effectiveCalculatedEmissions.co2eOutputUnit || 'tCO₂e'}
-                                </span>
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-4 gap-3">
-                        {/* CO2 Emissions */}
-                        <div className="bg-white/70 p-3 rounded-lg border border-red-100">
-                          <p className="text-xs text-red-600 font-medium mb-1">CO₂ Emissions</p>
-                          <p className="text-lg font-bold text-red-700">
-                            {(effectiveCalculatedEmissions.co2Emissions ?? 0).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-red-500">{effectiveCalculatedEmissions.co2OutputUnit || 'tCO2'}</p>
-                        </div>
-                        
-                        {/* CH4 Emissions */}
-                        <div className="bg-white/70 p-3 rounded-lg border border-orange-100">
-                          <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
-                          <p className="text-lg font-bold text-orange-700">
-                            {(effectiveCalculatedEmissions.ch4Emissions ?? 0).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-orange-500">{effectiveCalculatedEmissions.ch4OutputUnit || 'tCH4'}</p>
-                        </div>
-                        
-                        {/* N2O Emissions */}
-                        <div className="bg-white/70 p-3 rounded-lg border border-amber-100">
-                          <p className="text-xs text-amber-600 font-medium mb-1">N₂O Emissions</p>
-                          <p className="text-lg font-bold text-amber-700">
-                            {(effectiveCalculatedEmissions.n2oEmissions ?? 0).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-amber-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
-                        </div>
-                        
-                        {/* CO2e Total */}
-                        <div className="p-3 rounded-lg border bg-primary/10 border-primary/30">
-                          <p className="text-xs font-medium mb-1 text-primary">CO₂e Total</p>
-                          <p className="text-lg font-bold text-primary">
-                            {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit || 'tCO2e'}</p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Detailed Formula Breakdown */}
-                    {effectiveCalculatedEmissions && (
-                      <div className="mt-4 pt-4 border-t border-primary/20">
-                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
-                        
-                        {/* Backend Calc Engine Audit Log (new format with labels) */}
-                        {effectiveCalculatedEmissions.auditLog && effectiveCalculatedEmissions.auditLog.length > 0 ? (
-                          <div className="bg-white/50 p-3 rounded text-xs space-y-2">
-                            {effectiveCalculatedEmissions.auditLog.map((entry, i) => {
-                              if (entry.step === 'input') {
-                                // Only show conversion for quantity fields (qty, qty_energy), not for emission factors
-                                const isQuantityInput = entry.variable === 'qty' || entry.variable === 'qty_energy';
-                                let hasTransformation = false;
-                                let finalConvert = null;
-                                
-                                if (isQuantityInput) {
-                                  // Find the final converted value - look for the last convert step that outputs to kg
-                                  const convertEntries = effectiveCalculatedEmissions.auditLog.filter(e => e.step === 'convert');
-                                  // Find the convert step that has the final mass value (in kg)
-                                  finalConvert = convertEntries.find(e => 
-                                    e.output?.unit === 'kg' && e.output?.value !== entry.value
-                                  );
-                                  hasTransformation = finalConvert && 
-                                    (finalConvert.output.value !== entry.value || finalConvert.output.unit !== entry.unit);
-                                }
-                                
-                                return (
-                                  <div key={i} className="p-2 bg-stone-50 rounded border border-stone-200">
-                                    <span className="font-medium text-stone-700">Input:</span>{' '}
-                                    <span className="text-blue-700">{entry.variable_label || entry.variable}</span>
-                                    {' = '}{entry.value}{(() => {
-                                      const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
-                                        'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
-                                        'units_produced', 'products_expected_usage', 'no_of_employees'].includes(entry.variable);
-                                      const displayUnit = isUnitlessCountField ? '' : (entry.unit || '');
-                                      return displayUnit ? ` ${displayUnit}` : '';
-                                    })()}
-                                    {hasTransformation && finalConvert && (
-                                      <span className="text-emerald-600 ml-2">
-                                        → {finalConvert.output.value.toFixed(2)} {finalConvert.output.unit}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              if (entry.step === 'resolve_property') {
-                                // Hide unit "1" for unitless properties (like GWP)
-                                const displayUnit = entry.unit === '1' ? '' : entry.unit;
-                                const sourceName = entry.source_name || entry.source || '';
-                                return (
-                                  <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200 flex justify-between items-center">
-                                    <span>
-                                      <span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span>
-                                      {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value}{displayUnit && ` ${displayUnit}`}
-                                    </span>
-                                    {sourceName && (
-                                      <span className="text-amber-600 text-xs ml-4 whitespace-nowrap">(Source - {sourceName})</span>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              // Skip transformation.apply, convert, and validate_formula steps - they're internal details
-                              if (entry.step === 'transformation.apply' || entry.step === 'convert' || entry.step === 'validate_formula') {
-                                return null;
-                              }
-                              if (entry.step === 'formula_step') {
-                                const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());
-                                return (
-                                  <div key={i} className={`p-2 rounded border ${isOutput ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'}`}>
-                                    <span className={`font-medium ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>
-                                      {entry.name?.toUpperCase()}:
-                                    </span>{' '}
-                                    <span className={isOutput ? 'text-emerald-800' : 'text-blue-800'}>
-                                      {entry.expression_readable || entry.expression}
-                                    </span>
-                                    <div className={`font-semibold mt-1 ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>
-                                      = {typeof entry.output === 'number' ? entry.output.toFixed(6) : entry.output}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              if (entry.step === 'outputs') {
-                                return (
-                                  <div key={i} className="p-2 bg-emerald-100 rounded border border-emerald-300">
-                                    <span className="font-bold text-emerald-800">Final Outputs:</span>
-                                    <div className="grid grid-cols-2 gap-2 mt-1">
-                                      {Object.entries(entry.outputs || {}).map(([key, val]) => (
-                                        <div key={key} className="text-emerald-700">
-                                          <span className="font-medium">{key.toUpperCase()}:</span>{' '}
-                                          {val.value?.toFixed(6)} {val.unit}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
+                {effectiveCalculatedEmissions && (
+                  <EmissionCalculationTrace
+                    calculation={effectiveCalculatedEmissions}
+                    isCalculating={isCalculating}
+                  />
                 )}
 
                 {/* Evidence Management Section */}

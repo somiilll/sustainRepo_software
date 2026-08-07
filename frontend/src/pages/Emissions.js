@@ -2255,7 +2255,16 @@ export default function Emissions() {
     // show partial result with the audit log
     if (editingEmission && emissionAuditLog.length > 0) {
       return {
-        auditLog: emissionAuditLog
+        auditLog: emissionAuditLog,
+        co2Emissions: editingEmission.co2_emissions,
+        ch4Emissions: editingEmission.ch4_emissions,
+        n2oEmissions: editingEmission.n2o_emissions,
+        co2eEmissions: editingEmission.co2e_emissions,
+        co2OutputUnit: 'tCO₂',
+        ch4OutputUnit: 'tCH₄',
+        n2oOutputUnit: 'tN₂O',
+        co2eOutputUnit: 'tCO₂e',
+        appliedFormulaName: editingEmission.formula_name,
       };
     }
     
