@@ -151,14 +151,21 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Status**: ✅ Implemented
 
 ### Custom Fuel 3-Methodology Support (P1)
-- Step 1 custom fuel panel: Name + Source only (slim). Helper text: "EF, CV, quantity unit and other calculation inputs are entered per-month in Step 3."
-- New shared component: `CustomFuelMonthFields.js` renders per-methodology fields inside each month accordion:
-  - **Heat Basis (NCV)**: EF + EF unit (tCO2/TJ, tCO2/MJ) + CV + CV unit ({TJ,MJ}/{qty units}) + Qty unit
-  - **Qty Basis EF**: EF + EF unit (tCO2/{all qty units}) + Qty unit
-  - **Carbon Composition**: Carbon Content (%) + Oxidation Factor + Qty unit
-- All custom fuel inputs stored per-month in `monthlyData[monthKey]`: `custom_ef`, `custom_ef_unit`, `custom_cv`, `custom_cv_unit`, `custom_carbon_content`, `custom_oxidation_factor`, `custom_qty_unit`
-- Step 3 qty unit for custom fuel: selectable per-month dropdown (not locked from Step 1)
-- Yearly view also renders `CustomFuelMonthFields` for yearly data entry
+- Step 1: Name + Source only (slim). All calculation inputs entered per-month in Step 3.
+- `CustomFuelMonthFields.js`: per-methodology fields + Qty Unit + Density (shown on dimension mismatch)
+  - Heat Basis: EF + EF unit + CV + CV unit + Qty unit + Density (when CV denom ≠ qty dimension)
+  - Qty Basis: EF + EF unit + Qty unit + Density (when EF denom ≠ qty dimension)
+  - Carbon Composition: Carbon Content + Oxidation Factor + Qty unit + Density (when qty is volume)
+- Standard dynamic fields suppressed for custom fuel (`cv`, `ef_quantity`, `carbon_content`, `oxidation_factor`, `density`)
+- Custom fuel direct-save path in `useEmissionSubmit.js` for scope1/biogenic (no module needed)
+- Per-month custom fuel data saved in `dynamic_field_values` for persistence
+- Edit form hydrates custom fuel fields from saved `dynamic_field_values`
+- Edit form renders `CustomFuelMonthFields` when `editUseCustomFuel` is true
+- **Status**: ✅ Implemented
+
+### Standard Fuel Density Override (P1)
+- Density for `using_qty_basis_ef` shown only when dimension mismatch AND fuel has no density in DB
+- If fuel has density in DB (e.g. Diesel density=0.84), calc engine uses it automatically — no override needed
 - **Status**: ✅ Implemented
 
 ## Upcoming Tasks (P1)

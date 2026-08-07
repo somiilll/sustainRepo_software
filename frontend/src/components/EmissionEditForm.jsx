@@ -16,6 +16,7 @@ import {
   NotesSection,
   SubmitButtonSection,
 } from '../pages/emissions/EditFormSections';
+import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/CustomFuelMonthFields';
 import {
   Plus,
   Trash2,
@@ -1500,6 +1501,19 @@ export default function EmissionEditForm(props) {
                   </div>
                 </div>
                 ) : null}
+
+                {/* Custom fuel per-month fields in edit mode */}
+                {editUseCustomFuel && (
+                  <CustomFuelMonthFields
+                    monthKey="edit"
+                    data={dynamicFieldValues}
+                    updateMonthData={(_, field, value) => {
+                      setDynamicFieldValues(prev => ({ ...prev, [field]: value }));
+                      markFormDirty?.();
+                    }}
+                    calculationMethodology={editCalcMethodology || 'using_heat_basis_ncv'}
+                  />
+                )}
 
                 {/* Record Source (Optional) — legacy edit branch only.
                     Dynamic branch (above) already renders its own field, so

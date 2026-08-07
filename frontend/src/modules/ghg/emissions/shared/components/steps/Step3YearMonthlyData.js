@@ -473,28 +473,15 @@ export const Step3YearMonthlyData = ({
                           </div>
                           <div className="space-y-2">
                             <Label>Unit</Label>
-                            {useCustomFuel ? (
-                              <select
-                                value={data.custom_qty_unit || 'kg'}
-                                onChange={(e) => updateMonthData(monthKey, 'custom_qty_unit', e.target.value)}
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                                data-testid={`month-${monthKey}-qty-unit`}
-                              >
-                                {['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3'].map(u => (
-                                  <option key={u} value={u}>{u}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <select
-                                value={data.unit || defaultUnit}
-                                onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                              >
-                                {allowedUnits.map(unit => (
-                                  <option key={unit} value={unit}>{unit}</option>
-                                ))}
-                              </select>
-                            )}
+                            <select
+                              value={data.unit || defaultUnit}
+                              onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
+                              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                            >
+                              {allowedUnits.map(unit => (
+                                <option key={unit} value={unit}>{unit}</option>
+                              ))}
+                            </select>
                           </div>
                         </div>
                       )}

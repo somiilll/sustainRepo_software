@@ -1387,12 +1387,12 @@ export default function EmissionEntryForm({
           if (m.maps_to_variable === 'density') {
             const calcMethod = decisionFieldValues.calculation_methodology;
             if (calcMethod === 'using_qty_basis_ef') {
-              // Only show if the fuel's units are all one dimension but the EF mapping
-              // has denominators of the other dimension (i.e. mismatch is possible)
+              // Only show if dimension mismatch possible AND fuel has no density in DB
+              const fuelHasDensity = selectedFuel?.density != null && selectedFuel.density > 0;
+              if (fuelHasDensity) return false; // Calc engine uses fuel DB density
               const efMapping = formConfig.input_field_mappings.find(fm => fm.maps_to_variable === 'ef_quantity');
               const efAllowedUnits = efMapping?.allowed_units || [];
               const qtyUnits = selectedFuel?.allowed_units || [];
-              // Check if any EF unit denominator could mismatch fuel qty units
               return efAllowedUnits.some(eu => isDensityRequiredForQtyBasis(eu, qtyUnits));
             }
             return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
@@ -3058,6 +3058,8 @@ export default function EmissionEntryForm({
     // Helpers
     canProceedToStep, getAuthHeader, onSuccess, getActualYearForMonth,
     evaluateFormula, buildDecisionInputs,
+    // Decision state for custom fuel methodology
+    decisionFieldValues,
     // Editing
     editingEmission,
     // Supplier context (optional)

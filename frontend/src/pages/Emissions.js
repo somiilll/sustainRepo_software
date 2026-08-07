@@ -589,10 +589,10 @@ export default function Emissions() {
       .filter(m => {
         if (m.is_active === false) return false;
         
-        // Custom fuel density: show only when dimension mismatch per methodology
-        if (editUseCustomFuel && m.maps_to_variable === 'density') {
-          if (editCalcMethodology === 'using_qty_basis_ef' || editCalcMethodology === 'using_heat_basis_ncv') return true;
-          return false;
+        // Custom fuel: suppress fields that CustomFuelMonthFields handles per-month
+        if (editUseCustomFuel) {
+          const handledByCustomFuel = ['density', 'cv', 'ef_quantity', 'carbon_content', 'oxidation_factor'];
+          if (handledByCustomFuel.includes(m.maps_to_variable)) return false;
         }
         
         // Formula-driven filtering when a formula is resolved
@@ -607,9 +607,11 @@ export default function Emissions() {
             // OR when using Qty Basis EF and fuel's qty units could mismatch EF denominators
             if (m.maps_to_variable === 'density') {
               if (editCalcMethodology === 'using_qty_basis_ef') {
+                const editSelectedFuelForDensity = formData.fuel_id ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
+                const fuelHasDensity = editSelectedFuelForDensity?.density != null && editSelectedFuelForDensity.density > 0;
+                if (fuelHasDensity) return false;
                 const efMapping = editFormConfig.input_field_mappings.find(fm => fm.maps_to_variable === 'ef_quantity');
                 const efAllowedUnits = efMapping?.allowed_units || [];
-                const editSelectedFuelForDensity = formData.fuel_id ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
                 const qtyUnits = editSelectedFuelForDensity?.allowed_units || [];
                 return efAllowedUnits.some(eu => isDensityRequiredForQtyBasis(eu, qtyUnits));
               }
@@ -800,9 +802,9 @@ export default function Emissions() {
       
       // Hydrate calculation methodology from saved fields
       const dfvKeys = Object.keys(savedDynamicValues);
-      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
+      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon') || dfvKeys.includes('custom_carbon_content')) {
         setEditCalcMethodology('using_carbon_composition');
-      } else if (dfvKeys.includes('ef_quantity')) {
+      } else if (dfvKeys.includes('ef_quantity') || (dfvKeys.includes('custom_ef') && !dfvKeys.includes('custom_cv'))) {
         setEditCalcMethodology('using_qty_basis_ef');
       } else {
         setEditCalcMethodology('using_heat_basis_ncv');
@@ -896,6 +898,23 @@ export default function Emissions() {
         });
         
         setDynamicFieldValues(values);
+
+        // Hydrate custom fuel per-month fields from saved dynamic_field_values
+        if (editingEmission.is_custom_fuel || editingEmission.is_custom_factor) {
+          const customKeys = ['custom_ef', 'custom_cv', 'custom_carbon_content', 'custom_oxidation_factor', 'custom_qty_unit'];
+          customKeys.forEach(key => {
+            const saved = savedDynamicValues[key];
+            if (saved) {
+              values[key] = saved.value !== null && saved.value !== undefined ? saved.value.toString() : '';
+              if (saved.unit) values[`${key}_unit`] = saved.unit;
+            }
+          });
+          if (savedDynamicValues.density) {
+            values.density = savedDynamicValues.density.value?.toString() || '';
+            values.density_unit = savedDynamicValues.density.unit || 'kg/L';
+          }
+          setDynamicFieldValues({ ...values });
+        }
         
         // Also try to fetch audit log for display purposes
         try {
