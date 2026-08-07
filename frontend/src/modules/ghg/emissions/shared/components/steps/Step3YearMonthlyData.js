@@ -452,7 +452,7 @@ export const Step3YearMonthlyData = ({
                         </div>
                       ) : (
                         /* Fallback: Simple Quantity and Unit (legacy) */
-                        <div className="grid grid-cols-2 gap-4 items-end">
+                        <div className={useCustomFuel ? "" : "grid grid-cols-2 gap-4 items-end"}>
                           <div className="space-y-2">
                             <Label>Quantity</Label>
                             <Input
@@ -471,6 +471,7 @@ export const Step3YearMonthlyData = ({
                               className="bg-stone-50"
                             />
                           </div>
+                          {!useCustomFuel && (
                           <div className="space-y-2">
                             <Label>Unit</Label>
                             <select
@@ -483,6 +484,7 @@ export const Step3YearMonthlyData = ({
                               ))}
                             </select>
                           </div>
+                          )}
                         </div>
                       )}
 

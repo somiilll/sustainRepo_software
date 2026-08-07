@@ -901,7 +901,7 @@ export default function Emissions() {
 
         // Hydrate custom fuel per-month fields from saved dynamic_field_values
         if (editingEmission.is_custom_fuel || editingEmission.is_custom_factor) {
-          const customKeys = ['custom_ef', 'custom_cv', 'custom_carbon_content', 'custom_oxidation_factor', 'custom_qty_unit'];
+          const customKeys = ['custom_ef', 'custom_cv', 'custom_carbon_content', 'custom_oxidation_factor'];
           customKeys.forEach(key => {
             const saved = savedDynamicValues[key];
             if (saved) {
@@ -909,6 +909,11 @@ export default function Emissions() {
               if (saved.unit) values[`${key}_unit`] = saved.unit;
             }
           });
+          // Qty unit: stored at top-level emission.unit, map to custom_qty_unit
+          if (editingEmission.unit) {
+            values.custom_qty_unit = editingEmission.unit;
+          }
+          // Density from dynamic_field_values
           if (savedDynamicValues.density) {
             values.density = savedDynamicValues.density.value?.toString() || '';
             values.density_unit = savedDynamicValues.density.unit || 'kg/L';

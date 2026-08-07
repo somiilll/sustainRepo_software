@@ -1182,7 +1182,8 @@ export default function EmissionEditForm(props) {
                         // Unitless count fields - admin-driven via unit_source === 'none'.
                         const isUnitlessCountField = field.unitSource === 'none';
 
-                        const showUnitSelector = !isUnitlessCountField && field.unitSource !== 'text' && fieldUnits.length > 0;
+                        const showUnitSelector = !isUnitlessCountField && field.unitSource !== 'text' && fieldUnits.length > 0
+                          && !(editUseCustomFuel && isQtyField); // Custom fuel qty unit is in CustomFuelMonthFields
                         // Freeform text unit input — admin set unit_source = 'text'
                         const showUnitTextInput = !isUnitlessCountField && field.unitSource === 'text' && !field.variable?.endsWith('_unit');
                         
