@@ -13,7 +13,7 @@ import requests
 import os
 import io
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://custom-fuel-builder.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://emission-ledger-fix.preview.emergentagent.com')
 
 # Test credentials
 SUPER_ADMIN_EMAIL = "superadmin@ecotrack.com"
