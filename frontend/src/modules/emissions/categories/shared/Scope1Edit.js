@@ -42,7 +42,11 @@ const getFieldUnitForSave = (field, ctx) => {
 
 export function buildDynamicValues(ctx) {
   const { dynamicInputFields, dynamicFieldValues } = ctx;
-  const dynamicValues = {};
+  // Retain historic fields that are intentionally hidden by the Custom Fuel UI.
+  // The API replaces this object on PUT, so omitting them would erase old inputs.
+  const dynamicValues = ctx.editUseCustomFuel
+    ? { ...(ctx.editingEmission?.dynamic_field_values || {}) }
+    : {};
 
   (dynamicInputFields || []).forEach((field) => {
     const variable = field.variable;

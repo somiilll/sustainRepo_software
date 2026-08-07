@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Input } from '../../../../../components/ui/input';
 import { Label } from '../../../../../components/ui/label';
 import {
@@ -64,34 +64,6 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
     );
   };
 
-  // Live CO2e computation
-  const qty = parseFloat(data.quantity || data.qty || 0);
-  const liveCO2e = useMemo(() => {
-    if (!qty) return null;
-    if (calculationMethodology === 'using_heat_basis_ncv') {
-      const ef = parseFloat(data.custom_ef || 0);
-      const cv = parseFloat(data.custom_cv || 0);
-      return ef && cv ? qty * cv * ef : null;
-    }
-    if (calculationMethodology === 'using_qty_basis_ef') {
-      const ef = parseFloat(data.custom_ef || 0);
-      return ef ? qty * ef : null;
-    }
-    if (calculationMethodology === 'using_carbon_composition') {
-      const cc = parseFloat(data.custom_carbon_content || 0);
-      const ox = parseFloat(data.custom_oxidation_factor || 0);
-      return cc && ox ? (qty * cc / 100 * ox) / 1000 : null;
-    }
-    return null;
-  }, [qty, data.custom_ef, data.custom_cv, data.custom_carbon_content, data.custom_oxidation_factor, calculationMethodology]);
-
-  const co2eDisplay = liveCO2e !== null ? (
-    <div className="flex items-center justify-between p-2 bg-emerald-50 border border-emerald-200 rounded-lg" data-testid={`month-${monthKey}-live-co2e`}>
-      <span className="text-xs text-emerald-700 font-medium">Calculated CO₂e</span>
-      <span className="text-sm font-semibold text-emerald-800">{liveCO2e.toFixed(6)} tCO₂e</span>
-    </div>
-  ) : null;
-
   if (calculationMethodology === 'using_heat_basis_ncv') {
     const cvUnit = data.custom_cv_unit || 'TJ/kg';
     const cvDenom = cvUnit.split('/')[1] || 'kg';
@@ -151,7 +123,6 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
         </div>
         {qtyUnitSelector}
         {renderDensity(needsDensity, `kg/${cvDenom}`)}
-        {co2eDisplay}
       </div>
     );
   }
@@ -188,7 +159,6 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
         </div>
         {qtyUnitSelector}
         {renderDensity(needsDensity, `kg/${efDenom}`)}
-        {co2eDisplay}
       </div>
     );
   }
@@ -222,7 +192,6 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
         </div>
         {qtyUnitSelector}
         {renderDensity(needsDensity, 'kg/L')}
-        {co2eDisplay}
       </div>
     );
   }
