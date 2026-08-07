@@ -12,7 +12,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://admin-report-pack.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ghg-calc-engine-3.preview.emergentagent.com')
 
 class TestBackendAPIs:
     """Backend API tests for iteration 16 features"""
