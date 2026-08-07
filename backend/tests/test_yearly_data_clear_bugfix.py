@@ -8,7 +8,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://esg-executive-pack.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://admin-report-pack.preview.emergentagent.com").rstrip("/")
 TEST_EMAIL = "goyalsomil2001@gmail.com"
 TEST_PASSWORD = "TestUser123!"
 ORG_ID = "9067d872-8a3a-4ed9-8494-e3ef04952f7c"
