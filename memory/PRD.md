@@ -168,6 +168,14 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - If fuel has density in DB (e.g. Diesel density=0.84), calc engine uses it automatically — no override needed
 - **Status**: ✅ Implemented
 
+## Operational Maintenance (Aug 2026)
+
+### Staging Database Replacement
+- Replaced `sustainrepo_staging` contents with the current `test_database` source after explicit user confirmation.
+- Copied 99 collections and 17,772 documents; recreated 53 non-default indexes and all empty source collections.
+- Verified matching collection names, document counts, and index names. UUID handling used MongoDB standard representation.
+- No Decision Tree, formula, variable, or calc-engine database configuration was changed.
+
 ## Upcoming Tasks (P1)
 - GHG Form Logic & Custom Fuels E2E Testing
 - Custom Fuel Backend Calculation Integration (wire custom fuel inputs through calc engine for all 3 methodologies)

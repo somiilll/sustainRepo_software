@@ -13,6 +13,7 @@
  * caller stay on a single audit-log code path.
  */
 import axios from 'axios';
+import { buildCustomFuelCalculationPayload } from './customFuelCalcAdapter';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -34,6 +35,9 @@ export async function persistCalcAuditLog(emissionId, ctx) {
     scope3CustomActivity,
     requiresSubcategory,
     selectedFuel,
+    editUseCustomFuel,
+    editCustomFuelName,
+    editCalcMethodology,
     getAuthHeader,
   } = ctx;
 
@@ -77,6 +81,19 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       }
     });
 
+    const customFuelCalculation = editUseCustomFuel
+      ? buildCustomFuelCalculationPayload({
+        dynamicFieldValues,
+        formData,
+        calculationMethodology: editCalcMethodology,
+      })
+      : null;
+    if (customFuelCalculation) {
+      Object.assign(inputs, customFuelCalculation.inputs);
+      Object.assign(userOverrides, customFuelCalculation.userOverrides);
+      if (!customFuelCalculation.isReady) return;
+    }
+
     const decisionInputs = buildEditDecisionInputs();
 
     const matchedEFForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
@@ -89,7 +106,7 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       scope3_ef_default_unit: matchedEFForSave?.default_unit || '',
     } : {};
 
-    let fuelNameForContext = selectedFuel?.fuel_name;
+    let fuelNameForContext = editUseCustomFuel ? editCustomFuelName : selectedFuel?.fuel_name;
     if (formData.scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForSave?.activity) {
       fuelNameForContext = matchedEFForSave.activity;
     }
@@ -100,10 +117,11 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       inputs,
       context: {
         fuel_name: fuelNameForContext,
-        fuel_id: selectedFuel?.id,
+        fuel_id: editUseCustomFuel ? null : selectedFuel?.id,
         scope: formData.scope,
         category: formData.category || selectedCategory,
         reporting_period: formData.reporting_period_start,
+        is_custom_fuel: editUseCustomFuel || false,
         ...scope3Context,
       },
       user_overrides: userOverrides,

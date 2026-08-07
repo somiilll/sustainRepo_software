@@ -27,6 +27,7 @@ import {
 } from './emissions/utils/units';
 import useEvidenceManagement from './emissions/useEvidenceManagement';
 import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/utils/persistCalcAuditLog';
+import { buildCustomFuelCalculationPayload } from './emissions/utils/customFuelCalcAdapter';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
 import { categoryRegistry } from '../modules/emissions';
 import { isDensityRequiredForQtyBasis } from '../modules/ghg/emissions/shared/utils/unitHelpers';
@@ -908,9 +909,14 @@ export default function Emissions() {
 
         // Hydrate custom fuel per-month fields from saved dynamic_field_values
         if (editingEmission.is_custom_fuel || editingEmission.is_custom_factor) {
-          const customKeys = ['custom_ef', 'custom_cv', 'custom_carbon_content', 'custom_oxidation_factor'];
-          customKeys.forEach(key => {
-            const saved = savedDynamicValues[key];
+          const customKeyMap = {
+            custom_ef: ['custom_ef', 'ef_quantity', 'ef', 'emission_factor'],
+            custom_cv: ['custom_cv', 'cv', 'ncv', 'calorific_value'],
+            custom_carbon_content: ['custom_carbon_content', 'carbon_content', 'composition_of_carbon'],
+            custom_oxidation_factor: ['custom_oxidation_factor', 'oxidation_factor'],
+          };
+          Object.entries(customKeyMap).forEach(([key, aliases]) => {
+            const saved = aliases.map(alias => savedDynamicValues[alias]).find(Boolean);
             if (saved) {
               values[key] = saved.value !== null && saved.value !== undefined ? saved.value.toString() : '';
               if (saved.unit) values[`${key}_unit`] = saved.unit;
@@ -2080,6 +2086,17 @@ export default function Emissions() {
         
         inputs[field.variable] = { value: numValue, unit: finalUnit };
       });
+
+      const customFuelCalculation = editUseCustomFuel
+        ? buildCustomFuelCalculationPayload({
+          dynamicFieldValues,
+          formData,
+          calculationMethodology: editCalcMethodology,
+        })
+        : null;
+      if (customFuelCalculation) {
+        Object.assign(inputs, customFuelCalculation.inputs);
+      }
       
       // Determine if this is a scope3-like flow for calculation checks
       const isBiogenicScope3Calc = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
@@ -2093,7 +2110,7 @@ export default function Emissions() {
             (scope3Method === 'supplier_basis' && !useCustomActivity && scope3ActivityId && hasValidInput) ||
             (scope3Method !== 'supplier_basis' && scope3ActivityId && hasValidInput)
           ))
-        : hasValidInput;
+        : editUseCustomFuel ? customFuelCalculation?.isReady : hasValidInput;
       
       if (!canCalculate) {
         // Don't reset to null here - keep previous result visible
@@ -2112,6 +2129,9 @@ export default function Emissions() {
           }
         }
       });
+      if (customFuelCalculation) {
+        Object.assign(userOverrides, customFuelCalculation.userOverrides);
+      }
       
       // Build decision inputs from maps_to_context
       const decisionInputs = buildEditDecisionInputs();
@@ -2311,6 +2331,9 @@ export default function Emissions() {
       scope3CustomActivity,
       requiresSubcategory,
       selectedFuel,
+      editUseCustomFuel,
+      editCustomFuelName,
+      editCalcMethodology,
       getAuthHeader,
     });
     
