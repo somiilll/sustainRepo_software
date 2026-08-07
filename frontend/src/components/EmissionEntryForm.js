@@ -1367,21 +1367,11 @@ export default function EmissionEntryForm({
                              m.applies_to_scopes.includes(scopeId);
       if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
       
-      // Custom fuel density: show only when dimension mismatch per methodology
-      if (useCustomFuel && m.maps_to_variable === 'density') {
-        const calcMethod = decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv';
-        const qtyUnit = decisionFieldValues._customQtyUnit || 'kg';
-        if (calcMethod === 'using_carbon_composition') {
-          return isDensityRequiredForCarbonComposition(qtyUnit);
-        }
-        if (calcMethod === 'using_heat_basis_ncv') {
-          const cvUnit = decisionFieldValues._customCVUnit || 'TJ/kg';
-          return isDensityRequiredForHeatBasis(cvUnit, qtyUnit);
-        }
-        if (calcMethod === 'using_qty_basis_ef') {
-          return isDensityRequiredForQtyBasis(customEmissionFactorUnit, [qtyUnit]);
-        }
-        return false;
+      // Custom fuel: suppress fields that CustomFuelMonthFields handles per-month.
+      // Only keep 'qty' (quantity input) from standard fields.
+      if (useCustomFuel) {
+        const handledByCustomFuel = ['density', 'cv', 'ef_quantity', 'carbon_content', 'oxidation_factor'];
+        if (handledByCustomFuel.includes(m.maps_to_variable)) return false;
       }
       
       // Formula-driven filtering when a formula is resolved

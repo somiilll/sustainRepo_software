@@ -767,7 +767,6 @@ export const Step1BasicSelection = ({
                 <Label className="text-xs">Source</Label>
                 <Input value={customSource} onChange={(e) => setCustomSource(e.target.value)} placeholder="Source of information" className="bg-white" />
               </div>
-              <p className="text-xs text-amber-600">EF, CV, quantity unit and other calculation inputs are entered per-month in Step 3.</p>
             </div>
           )}
 
