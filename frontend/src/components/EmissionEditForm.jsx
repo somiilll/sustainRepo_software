@@ -31,6 +31,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { isVolumeUnit as isVolumeUnitShared } from '../pages/emissions/utils/units';
+import { isQuantityField } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -1111,7 +1112,8 @@ export default function EmissionEditForm(props) {
                     
                     <div className="grid grid-cols-2 gap-4">
                       {dynamicInputFields.map(field => {
-                        const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
+                        const isQtyField = isQuantityField(field);
+                        const hideStandardQuantityUnit = editUseCustomFuel && isQtyField;
                         
                         // Get the currently saved unit for this field
                         const savedUnit = dynamicFieldValues[`${field.variable}_unit`] || '';
@@ -1182,10 +1184,9 @@ export default function EmissionEditForm(props) {
                         // Unitless count fields - admin-driven via unit_source === 'none'.
                         const isUnitlessCountField = field.unitSource === 'none';
 
-                        const showUnitSelector = !isUnitlessCountField && field.unitSource !== 'text' && fieldUnits.length > 0
-                          && !(editUseCustomFuel && isQtyField); // Custom fuel qty unit is in CustomFuelMonthFields
+                        const showUnitSelector = !hideStandardQuantityUnit && !isUnitlessCountField && field.unitSource !== 'text' && fieldUnits.length > 0;
                         // Freeform text unit input — admin set unit_source = 'text'
-                        const showUnitTextInput = !isUnitlessCountField && field.unitSource === 'text' && !field.variable?.endsWith('_unit');
+                        const showUnitTextInput = !hideStandardQuantityUnit && !isUnitlessCountField && field.unitSource === 'text' && !field.variable?.endsWith('_unit');
                         
                         // For supplier_basis method with supplier-based fields, use text input for units
                         const isSupplierBasisUnitField = scope3Method === 'supplier_basis' && 
@@ -1200,7 +1201,7 @@ export default function EmissionEditForm(props) {
                               <Label className="font-medium flex items-center gap-1.5">
                                 {field.label}
                                 {field.required && <span className="text-red-500 ml-1">*</span>}
-                                {!showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
+                                {!hideStandardQuantityUnit && !showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
                                   <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
                                 )}
                                 {FIELD_HELP[field.variable] && (
@@ -1442,7 +1443,7 @@ export default function EmissionEditForm(props) {
                         <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 w-40 text-stone-600">
                           <span>{getQuantityUnitFromEFUnit(formData.emission_factor_unit)}</span>
                         </div>
-                      ) : (
+                      ) : !editUseCustomFuel ? (
                         <select
                           value={formData.quantity_unit}
                           onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
@@ -1453,7 +1454,7 @@ export default function EmissionEditForm(props) {
                             <option key={unit.value} value={unit.value}>{unit.label}</option>
                           ))}
                         </select>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                   <div className="space-y-2">

@@ -40,12 +40,11 @@ const getFieldUnitForSave = (field, ctx) => {
   return fieldUnits[0] || field.expectedUnit || '';
 };
 
-const buildDynamicValues = (ctx) => {
+export function buildDynamicValues(ctx) {
   const { dynamicInputFields, dynamicFieldValues } = ctx;
   const dynamicValues = {};
-  if (!dynamicInputFields || dynamicInputFields.length === 0) return dynamicValues;
 
-  dynamicInputFields.forEach((field) => {
+  (dynamicInputFields || []).forEach((field) => {
     const variable = field.variable;
     const value = dynamicFieldValues[variable];
     const unit = getFieldUnitForSave(field, ctx);
@@ -72,8 +71,47 @@ const buildDynamicValues = (ctx) => {
     }
   });
 
+  if (ctx.editUseCustomFuel) {
+    const hasValue = (value) => value !== undefined && value !== null && value !== '';
+    const parseValue = (value) => (hasValue(value) ? parseFloat(value) : null);
+    const quantity = hasValue(dynamicFieldValues.qty)
+      ? dynamicFieldValues.qty
+      : (hasValue(dynamicFieldValues.quantity) ? dynamicFieldValues.quantity : ctx.formData?.quantity);
+    const quantityUnit = dynamicFieldValues.custom_qty_unit
+      || dynamicFieldValues.qty_unit
+      || dynamicFieldValues.quantity_unit
+      || ctx.formData?.quantity_unit
+      || 'kg';
+    const savedCalculationMethodology = dynamicFieldValues.calculation_methodology;
+    const calculationMethodology = (typeof savedCalculationMethodology === 'object'
+      ? savedCalculationMethodology?.value
+      : savedCalculationMethodology)
+      || ctx.editCalcMethodology
+      || 'using_heat_basis_ncv';
+
+    // These fields are rendered by CustomFuelMonthFields rather than the
+    // standard config-driven list, so merge them explicitly into the payload.
+    dynamicValues.qty = { value: parseValue(quantity), unit: quantityUnit };
+    if (hasValue(dynamicFieldValues.custom_ef)) {
+      dynamicValues.custom_ef = { value: parseValue(dynamicFieldValues.custom_ef), unit: dynamicFieldValues.custom_ef_unit || '' };
+    }
+    if (hasValue(dynamicFieldValues.custom_cv)) {
+      dynamicValues.custom_cv = { value: parseValue(dynamicFieldValues.custom_cv), unit: dynamicFieldValues.custom_cv_unit || '' };
+    }
+    if (hasValue(dynamicFieldValues.custom_carbon_content)) {
+      dynamicValues.custom_carbon_content = { value: parseValue(dynamicFieldValues.custom_carbon_content), unit: '%' };
+    }
+    if (hasValue(dynamicFieldValues.custom_oxidation_factor)) {
+      dynamicValues.custom_oxidation_factor = { value: parseValue(dynamicFieldValues.custom_oxidation_factor), unit: '' };
+    }
+    if (hasValue(dynamicFieldValues.density)) {
+      dynamicValues.density = { value: parseValue(dynamicFieldValues.density), unit: dynamicFieldValues.density_unit || 'kg/L' };
+    }
+    dynamicValues.calculation_methodology = { value: calculationMethodology, unit: '' };
+  }
+
   return dynamicValues;
-};
+}
 
 // ---------- validation ----------
 

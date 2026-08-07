@@ -1,0 +1,37 @@
+{
+  "summary": "Validated custom-fuel payload/hydration contract via targeted static pytest checks and completed preview smoke login + Environment > GHG Module > Logs navigation without record mutations.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_scope1_custom_fuel_payload_contract_iter142.py",
+    "/app/test_reports/pytest/iter142_scope1_custom_fuel_contract.xml"
+  ],
+  "action_items": [
+    "No functional regressions found for the requested custom-fuel create/edit payload contract and qty.unit-first hydration path.",
+    "Optional maintainability follow-up: split oversized files Emissions.js and EmissionEntryForm.js into smaller modules per code-review guideline."
+  ],
+  "critical_code_review_comments": [
+    "Emissions.js (~3657 lines) exceeds maintainability threshold (>700 lines), increasing regression risk in future changes.",
+    "EmissionEntryForm.js (~3409 lines) exceeds maintainability threshold (>700 lines), making scoped edits and testability harder."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_scope1_custom_fuel_payload_contract_iter142.py",
+    "/app/test_reports/iteration_142.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Static contract assertions cover Scope1Create.buildDynamicFieldValues, Scope1Edit.buildDynamicValues, and qty.unit-first hydration fallback in Emissions.js + EmissionEntryForm.js. UI smoke used admin credentials and only navigated to GHG Logs; no create/update/delete actions executed.",
+  "rca of the issue": "No issue reproduced in requested paths. Contract checks confirm qty uses custom_qty_unit precedence with legacy fallback, custom fields are merged, and calculation_methodology supports object/string hydration in edit flow."
+}

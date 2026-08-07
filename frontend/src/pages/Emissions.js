@@ -800,9 +800,16 @@ export default function Emissions() {
       // PRIMARY: Read from emission.dynamic_field_values (new structure)
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
       
-      // Hydrate calculation methodology from saved fields
+      // Hydrate calculation methodology from its explicit saved value first.
+      // Legacy records fall back to inferring the method from their saved fields.
+      const savedMethod = savedDynamicValues.calculation_methodology;
+      const savedCalculationMethodology = typeof savedMethod === 'object'
+        ? savedMethod?.value
+        : savedMethod;
       const dfvKeys = Object.keys(savedDynamicValues);
-      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon') || dfvKeys.includes('custom_carbon_content')) {
+      if (savedCalculationMethodology) {
+        setEditCalcMethodology(savedCalculationMethodology);
+      } else if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon') || dfvKeys.includes('custom_carbon_content')) {
         setEditCalcMethodology('using_carbon_composition');
       } else if (dfvKeys.includes('ef_quantity') || (dfvKeys.includes('custom_ef') && !dfvKeys.includes('custom_cv'))) {
         setEditCalcMethodology('using_qty_basis_ef');
@@ -909,10 +916,14 @@ export default function Emissions() {
               if (saved.unit) values[`${key}_unit`] = saved.unit;
             }
           });
-          // Qty unit: stored at top-level emission.unit, map to custom_qty_unit
-          if (editingEmission.unit) {
-            values.custom_qty_unit = editingEmission.unit;
-          }
+          // Custom fuel quantity unit is persisted on dynamic_field_values.qty.
+          // Top-level fields are retained only for records saved before that contract.
+          const savedQty = savedDynamicValues.qty;
+          const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
+          values.custom_qty_unit = savedQtyUnit
+            || editingEmission.unit
+            || editingEmission.quantity_unit
+            || 'kg';
           // Density from dynamic_field_values
           if (savedDynamicValues.density) {
             values.density = savedDynamicValues.density.value?.toString() || '';
@@ -2431,6 +2442,7 @@ export default function Emissions() {
           // Custom fuel props
           editUseCustomFuel,
           editCustomFuelName,
+          editCalcMethodology,
           editProcessType,
         });
 

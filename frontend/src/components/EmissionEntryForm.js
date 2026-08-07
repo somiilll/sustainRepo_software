@@ -319,8 +319,15 @@ export default function EmissionEntryForm({
       // Hydrate calculation methodology from dynamic_field_values
       // If record has carbon_content/composition_of_carbon, it was carbon composition method
       // If record has ef_quantity, it was qty basis method
-      const dfvKeys = Object.keys(editingEmission.dynamic_field_values || {});
-      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
+      const savedDynamicValues = editingEmission.dynamic_field_values || {};
+      const savedCalculationMethodology = savedDynamicValues.calculation_methodology;
+      const calculationMethodology = typeof savedCalculationMethodology === 'object'
+        ? savedCalculationMethodology?.value
+        : savedCalculationMethodology;
+      const dfvKeys = Object.keys(savedDynamicValues);
+      if (calculationMethodology) {
+        setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: calculationMethodology }));
+      } else if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
         setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: 'using_carbon_composition' }));
       } else if (dfvKeys.includes('ef_quantity')) {
         setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: 'using_qty_basis_ef' }));
@@ -343,6 +350,14 @@ export default function EmissionEntryForm({
               monthData[key] = val;
             }
           });
+          if (editingEmission.is_custom_fuel) {
+            const savedQty = dfv.qty;
+            const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
+            monthData.custom_qty_unit = savedQtyUnit
+              || editingEmission.unit
+              || editingEmission.quantity_unit
+              || 'kg';
+          }
           
           // Also include calculated values if they exist
           if (editingEmission.co2e_emissions !== undefined) {
@@ -373,6 +388,14 @@ export default function EmissionEntryForm({
             yearData[key] = val;
           }
         });
+        if (editingEmission.is_custom_fuel) {
+          const savedQty = dfv.qty;
+          const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
+          yearData.custom_qty_unit = savedQtyUnit
+            || editingEmission.unit
+            || editingEmission.quantity_unit
+            || 'kg';
+        }
         
         // Also include calculated values
         if (editingEmission.co2e_emissions !== undefined) {

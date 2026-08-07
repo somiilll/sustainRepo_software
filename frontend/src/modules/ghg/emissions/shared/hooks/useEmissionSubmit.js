@@ -651,6 +651,7 @@ export function useEmissionSubmit(ctx) {
               ...(data.custom_carbon_content ? { custom_carbon_content: { value: parseFloat(data.custom_carbon_content), unit: '%' } } : {}),
               ...(data.custom_oxidation_factor ? { custom_oxidation_factor: { value: parseFloat(data.custom_oxidation_factor), unit: '' } } : {}),
               ...(data.density ? { density: { value: parseFloat(data.density), unit: data.density_unit || 'kg/L' } } : {}),
+              calculation_methodology: { value: decisionFieldValues?.calculation_methodology || 'using_heat_basis_ncv', unit: '' },
             },
           };
           try {

@@ -6,6 +6,15 @@ const VOLUME_UNITS = new Set(['l', 'ml', 'kl', 'm3', 'cm3']);
 const MASS_UNITS = new Set(['kg', 'g', 't']);
 
 /**
+ * Identifies the standard quantity field across the configured GHG forms.
+ * CustomFuelMonthFields owns this field's unit selector when custom fuel is enabled.
+ */
+export const isQuantityField = (field = {}) => {
+  const quantityFields = ['qty', 'qty_energy', 'quantity'];
+  return quantityFields.includes(field.variable) || quantityFields.includes(field.fieldKey);
+};
+
+/**
  * Classify a single unit as 'mass', 'volume', or null.
  */
 export const getUnitDimension = (unit) => {
