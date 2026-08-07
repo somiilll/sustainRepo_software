@@ -201,7 +201,7 @@ def _render_eww_chart(energy: Dict, water: Dict, waste: Dict) -> io.BytesIO:
 class ProgressBarFlowable(Flowable):
     """Horizontal progress bar for target tracking."""
 
-    def __init__(self, label, current, target, unit="", bar_width=480, height=36):
+    def __init__(self, label, current, target, unit="", bar_width=480, height=36, progress_override=None):
         super().__init__()
         self.label = label
         self.current = current or 0
@@ -209,13 +209,17 @@ class ProgressBarFlowable(Flowable):
         self.unit = unit or ""
         self.bar_width = bar_width
         self.height = height
+        self.progress_override = progress_override
 
     def wrap(self, aW, aH):
         return self.bar_width, self.height
 
     def draw(self):
         c = self.canv
-        pct = min((self.current / self.target * 100) if self.target else 0, 100)
+        if self.progress_override is not None:
+            pct = min(max(self.progress_override, 0), 100)
+        else:
+            pct = min((self.current / self.target * 100) if self.target else 0, 100)
 
         c.setFont("Helvetica-Bold", 8)
         c.setFillColor(colors.HexColor(TEXT_PRIMARY))
@@ -539,16 +543,17 @@ def _sec_targets(story, styles, report):
         nd = ParagraphStyle("ND", parent=styles["Normal"], fontSize=10, textColor=colors.HexColor(TEXT_MUTED))
         story.append(Paragraph("No ESG targets have been set for this organization.", nd))
     else:
-        # Show progress bars only for targets that have baseline data to measure against
         for target in targets:
-            baseline = target.get("baseline_value") or 0
+            pct = target.get("progress_pct")
+            actual = target.get("actual_value")
             tv = target.get("target_value") or 0
-            if baseline and tv:
+            if pct is not None and tv:
                 story.append(ProgressBarFlowable(
                     label=target.get("name", "Unnamed Target"),
-                    current=baseline,
+                    current=actual if actual is not None else 0,
                     target=tv,
                     unit=target.get("unit", ""),
+                    progress_override=pct,
                 ))
                 story.append(Spacer(1, 8))
         story.append(Spacer(1, 12))
@@ -556,18 +561,19 @@ def _sec_targets(story, styles, report):
         tgt_rows = []
         for t in targets:
             tv = t.get("target_value") or 0
-            bv = t.get("baseline_value")
+            av = t.get("actual_value")
+            pct = t.get("progress_pct")
             tgt_rows.append([
                 t.get("name", "---"),
                 t.get("category", "---"),
                 f"{tv:,.1f}" if tv else "---",
-                f"{bv:,.1f}" if bv else "---",
+                f"{av:,.1f}" if av is not None else "---",
                 t.get("unit", ""),
-                t.get("reporting_period", "---"),
+                f"{pct:.1f}%" if pct is not None else "---",
             ])
         story.append(_styled_table(
-            ["Target", "Category", "Target Value", "Baseline", "Unit", "Period"],
-            tgt_rows, col_widths=[120, 80, 80, 80, 50, 80]
+            ["Target", "Category", "Target Value", "Actual", "Unit", "Progress"],
+            tgt_rows, col_widths=[120, 80, 80, 80, 50, 70]
         ))
 
     story.append(Spacer(1, 16))

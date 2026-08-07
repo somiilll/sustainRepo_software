@@ -334,6 +334,105 @@ async def calculate_total_energy(
     )
 
 
+
+async def calculate_renewable_energy(
+    org_id: str,
+    scope_type: str = "organization",
+    facility_ids: Optional[List[str]] = None,
+    period: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Calculate total renewable energy consumption across all source types."""
+    resolved_facility_ids = facility_ids if scope_type == "facility" and facility_ids else None
+
+    query: Dict[str, Any] = {
+        "org_id": org_id,
+        "is_current": {"$ne": False},
+        "status": {"$ne": "draft"},
+        "category": {"$regex": "^Energy$", "$options": "i"},
+    }
+    if resolved_facility_ids:
+        query["facility_id"] = {"$in": resolved_facility_ids}
+    if period and period.get("year"):
+        yr = str(period["year"])
+        query["$or"] = [{"reporting_year": {"$regex": yr}}, {"reporting_period": {"$regex": yr}}]
+
+    records = await db.environment_records.find(query, {"_id": 0}).to_list(10000)
+    total_gj = 0.0
+    count = 0
+    for rec in records:
+        fv = rec.get("field_values", {})
+        subcategory = (rec.get("subcategory") or "").lower()
+        field = "renewable_heating_consumption" if "heating" in subcategory else "renewable_energy_consumption"
+        raw = float(fv.get(field) or 0)
+        gj = j_to_gj(raw) if raw else 0
+        if gj == 0 and fv.get("quantity"):
+            is_ren = (fv.get("is_renewable") or "").lower()
+            sub_sub = (fv.get("sub_subcategory") or fv.get("subsubcategory") or "").lower()
+            if "yes" in is_ren or "renewable" in sub_sub:
+                gj = to_gj(float(fv.get("quantity") or 0), fv.get("unit") or "MWh")
+        if gj > 0:
+            total_gj += gj
+            count += 1
+
+    return format_result(
+        value=round(total_gj, 4) if count > 0 else None,
+        unit="GJ",
+        record_count=count,
+        aggregation_type="sum",
+        metadata={"kpi_id": "energy_renewable_total", "kpi_name": "Total Renewable Energy Consumption"},
+    )
+
+
+async def calculate_non_renewable_energy(
+    org_id: str,
+    scope_type: str = "organization",
+    facility_ids: Optional[List[str]] = None,
+    period: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Calculate total non-renewable energy consumption across all source types."""
+    resolved_facility_ids = facility_ids if scope_type == "facility" and facility_ids else None
+
+    query: Dict[str, Any] = {
+        "org_id": org_id,
+        "is_current": {"$ne": False},
+        "status": {"$ne": "draft"},
+        "category": {"$regex": "^Energy$", "$options": "i"},
+    }
+    if resolved_facility_ids:
+        query["facility_id"] = {"$in": resolved_facility_ids}
+    if period and period.get("year"):
+        yr = str(period["year"])
+        query["$or"] = [{"reporting_year": {"$regex": yr}}, {"reporting_period": {"$regex": yr}}]
+
+    records = await db.environment_records.find(query, {"_id": 0}).to_list(10000)
+    total_gj = 0.0
+    count = 0
+    for rec in records:
+        fv = rec.get("field_values", {})
+        subcategory = (rec.get("subcategory") or "").lower()
+        field = "non_renewable_heating_consumption" if "heating" in subcategory else "non_renewable_energy_consumption"
+        raw = float(fv.get(field) or 0)
+        gj = j_to_gj(raw) if raw else 0
+        if gj == 0 and fv.get("quantity"):
+            is_ren = (fv.get("is_renewable") or "").lower()
+            sub_sub = (fv.get("sub_subcategory") or fv.get("subsubcategory") or "").lower()
+            if "yes" not in is_ren and "renewable" not in sub_sub:
+                gj = to_gj(float(fv.get("quantity") or 0), fv.get("unit") or "MWh")
+        if gj > 0:
+            total_gj += gj
+            count += 1
+
+    return format_result(
+        value=round(total_gj, 4) if count > 0 else None,
+        unit="GJ",
+        record_count=count,
+        aggregation_type="sum",
+        metadata={"kpi_id": "energy_non_renewable_total", "kpi_name": "Total Non-Renewable Energy Consumption"},
+    )
+
+
+
 def is_energy_kpi(kpi_id: str) -> bool:
-    """Check if a KPI ID is an energy total KPI."""
-    return kpi_id in ("energy_total_consumption", "energy_total")
+    """Check if a KPI ID is an energy KPI."""
+    return kpi_id in ("energy_total_consumption", "energy_total",
+                      "energy_renewable_total", "energy_non_renewable_total")

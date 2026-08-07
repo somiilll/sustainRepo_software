@@ -118,6 +118,55 @@ def percentage_change(current: float, previous: float) -> float | None:
     return round(((current - previous) / previous) * 100, 2)
 
 
+
+async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id: str) -> List[Dict]:
+    """Compute actual progress for each target using kpi_calculator — mirrors /targets/with-progress."""
+    from modules.kpi_engine import kpi_calculator
+    from modules.esg_targets.router import (
+        _calculate_progress,
+        _get_period_for_target,
+        _resolve_target_value,
+    )
+
+    enriched = []
+    for t in targets_raw:
+        entry: Dict[str, Any] = {
+            "name": t.get("target_name", "Unnamed"),
+            "target_value": t.get("target_value"),
+            "baseline_value": (t.get("baseline") or {}).get("value"),
+            "unit": t.get("unit", ""),
+            "category": t.get("category", ""),
+            "kpi_name": t.get("kpi_name", ""),
+            "reporting_period": t.get("reporting_period", ""),
+            "actual_value": None,
+            "progress_pct": None,
+        }
+        kpi_id = t.get("kpi_id")
+        if kpi_id:
+            try:
+                period = _get_period_for_target(t)
+                facility_ids = t.get("facility_ids") if t.get("scope_type") == "facility" else None
+                calculation = await kpi_calculator.calculate(
+                    kpi_id=kpi_id,
+                    org_id=organization_id,
+                    scope_type=t.get("scope_type", "organization"),
+                    facility_ids=facility_ids,
+                    period=period,
+                )
+                actual_value = calculation.get("value")
+                target_value = _resolve_target_value(t, period)
+                goal_type = t.get("goal_type", "upper_limit")
+                progress = _calculate_progress(actual_value, target_value, goal_type, t)
+                entry["actual_value"] = actual_value
+                entry["progress_pct"] = round(progress["percentage"], 1) if progress["percentage"] is not None else None
+                if target_value is not None:
+                    entry["target_value"] = target_value
+            except Exception:
+                pass
+        enriched.append(entry)
+    return enriched
+
+
 async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
     """Build a factual ESG MIS data pack; no generative metrics are invented."""
     current = await aggregate_emissions(filters, current_user)
@@ -145,18 +194,9 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     relationships = await db.supplier_relationships.find({"customer_org_id": organization_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0, "supplier_name": 1, "supplier_org_name": 1, "overall_score": 1, "invitation_status": 1}).to_list(1000)
     targets_raw = await db.esg_targets.find(
         {"organization_id": organization_id, "is_deleted": {"$ne": True}, "status": "active"},
-        {"_id": 0, "target_name": 1, "target_value": 1, "unit": 1, "baseline": 1, "category": 1, "kpi_name": 1, "reporting_period": 1},
+        {"_id": 0},
     ).to_list(100)
-    targets = [{
-        "name": t.get("target_name", "Unnamed"),
-        "target_value": t.get("target_value"),
-        "baseline_value": (t.get("baseline") or {}).get("value"),
-        "baseline_period": (t.get("baseline") or {}).get("period"),
-        "unit": t.get("unit", ""),
-        "category": t.get("category", ""),
-        "kpi_name": t.get("kpi_name", ""),
-        "reporting_period": t.get("reporting_period", ""),
-    } for t in targets_raw]
+    targets = await _enrich_targets_with_progress(targets_raw, organization_id)
     frameworks = await db.organization_esg_responses.find({"organization_id": organization_id}, {"_id": 0, "framework": 1, "approval_status": 1}).to_list(10000)
     compliance: Dict[str, Dict[str, int]] = {}
     for item in frameworks:

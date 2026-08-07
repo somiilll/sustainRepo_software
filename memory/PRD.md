@@ -95,6 +95,16 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Handles empty data gracefully
 - **Status**: Implemented, locally tested (sample + empty data), API verified (HTTP 200)
 
+### MIS Target Progress Fix (P0)
+- **Bug**: Targets showed "Unnamed Target 0.0 / 20,291.0 L (0%)" — wrong fields, no real progress
+- **Fix**: MIS now calls `kpi_calculator.calculate()` + `_calculate_progress()` (same as `/esg-targets/with-progress`) for real actual_value and progress_pct
+- **Files**: `service.py` (`_enrich_targets_with_progress`), `pdf_builder.py` (`_sec_targets`, `ProgressBarFlowable`)
+
+### Energy Renewable/Non-Renewable Target Subcategories (P1)
+- Added aggregate "Renewable Energy" and "Non-Renewable Energy" subcategories to target hierarchy
+- New KPI calculators in `energy_adapter.py`, registered in `calculator.py` dispatch
+- Available at `/esg-targets/lookup/categories?section=environment`
+
 ## Upcoming Tasks (P1)
 - Biogenic Stationary Combustion Tree Update (apply `calculation_methodology` wrapping to tree `80dbef24`)
 - GHG Form Logic & Custom Fuels E2E Testing

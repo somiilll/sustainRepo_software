@@ -153,6 +153,18 @@ class KPICalculator:
         
         # Check if this is a synthetic Energy target KPI
         if is_energy_kpi(kpi_id):
+            if kpi_id == "energy_renewable_total":
+                from .energy_adapter import calculate_renewable_energy
+                return await calculate_renewable_energy(
+                    org_id=org_id, scope_type=scope_type,
+                    facility_ids=facility_ids, period=period,
+                )
+            if kpi_id == "energy_non_renewable_total":
+                from .energy_adapter import calculate_non_renewable_energy
+                return await calculate_non_renewable_energy(
+                    org_id=org_id, scope_type=scope_type,
+                    facility_ids=facility_ids, period=period,
+                )
             return await calculate_total_energy(
                 org_id=org_id,
                 scope_type=scope_type,
