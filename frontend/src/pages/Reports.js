@@ -9,6 +9,7 @@ import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
+import MISReportsFoundation from '../modules/reports/MISReportsFoundation';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -63,6 +64,7 @@ export default function Reports() {
     reporting_period_end: ''
   });
   const [generatingAi, setGeneratingAi] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     fetchFacilities();
@@ -453,6 +455,17 @@ export default function Reports() {
     }
   };
 
+  const handleConfigureMISReport = (templateId) => {
+    if (templateId === 'ghg_inventory') {
+      resetGhgForm();
+      setGhgDialogOpen(true);
+    }
+    if (templateId === 'ai_executive_summary') {
+      resetAiForm();
+      setAiDialogOpen(true);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -463,12 +476,7 @@ export default function Reports() {
 
   return (
     <div className="space-y-6" data-testid="reports-page">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Reports</h1>
-          <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
-        </div>
-      </div>
+      <MISReportsFoundation onConfigureReport={handleConfigureMISReport} />
 
       {/* GHG Inventory Report Card - Only show if org has GHG module enabled */}
       {hasScope12Access && hasGhgEnabled && (
