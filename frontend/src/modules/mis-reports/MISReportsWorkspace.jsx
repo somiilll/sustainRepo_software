@@ -15,7 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/ta
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const ALL_SCOPES = ['scope1', 'scope2', 'scope3', 'biogenic'];
-const month = new Date().toISOString().slice(0, 7);
+const today = new Date();
+const financialYearStart = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
 
 const formatValue = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
@@ -24,21 +25,20 @@ export default function MISReportsWorkspace() {
   const [schema, setSchema] = useState(null);
   const [summary, setSummary] = useState(null);
   const [executive, setExecutive] = useState(null);
-  const [history, setHistory] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [filters, setFilters] = useState({ reporting_period_start: `${month.slice(0, 4)}-01`, reporting_period_end: month, facility_ids: [], scopes: ALL_SCOPES, categories: [] });
+  const [filters, setFilters] = useState({ reporting_period_start: `${financialYearStart}-04`, reporting_period_end: `${financialYearStart + 1}-03`, facility_ids: [], scopes: ALL_SCOPES, categories: [] });
   const [scheduleForm, setScheduleForm] = useState({ name: 'Monthly Emissions Summary', frequency: 'monthly', recipient_emails: '', is_enabled: true });
 
   const requestConfig = useMemo(() => ({ headers: getAuthHeader() }), [getAuthHeader]);
   const refreshActivity = async () => {
-    const [historyResponse, schedulesResponse, deliveriesResponse] = await Promise.all([
-      axios.get(`${API}/mis-reports/history`, requestConfig), axios.get(`${API}/mis-reports/schedules`, requestConfig), axios.get(`${API}/mis-reports/deliveries`, requestConfig),
+    const [schedulesResponse, deliveriesResponse] = await Promise.all([
+      axios.get(`${API}/mis-reports/schedules`, requestConfig), axios.get(`${API}/mis-reports/deliveries`, requestConfig),
     ]);
-    setHistory(historyResponse.data.items || []); setSchedules(schedulesResponse.data || []); setDeliveries(deliveriesResponse.data || []);
+    setSchedules(schedulesResponse.data || []); setDeliveries(deliveriesResponse.data || []);
   };
 
   useEffect(() => {
@@ -108,7 +108,7 @@ export default function MISReportsWorkspace() {
       <Button onClick={() => setScheduleOpen(true)} className="bg-emerald-900 text-white hover:bg-emerald-800" data-testid="mis-schedule-report-button"><Mail className="h-4 w-4" />Schedule report</Button>
     </header>
     <Tabs defaultValue="summary" data-testid="mis-reports-tabs">
-      <TabsList className="h-auto bg-stone-100" data-testid="mis-reports-tabs-list"><TabsTrigger value="summary" data-testid="mis-tab-summary">Summary</TabsTrigger><TabsTrigger value="history" data-testid="mis-tab-history">Report History</TabsTrigger><TabsTrigger value="schedules" data-testid="mis-tab-schedules">Schedules & Delivery</TabsTrigger></TabsList>
+      <TabsList className="h-auto bg-stone-100" data-testid="mis-reports-tabs-list"><TabsTrigger value="summary" data-testid="mis-tab-summary">Summary</TabsTrigger><TabsTrigger value="schedules" data-testid="mis-tab-schedules">Schedules & Delivery</TabsTrigger></TabsList>
       <TabsContent value="summary" className="mt-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-4" data-testid="mis-summary-layout">
           <aside className="space-y-5 border-b border-stone-200 pb-6 lg:border-b-0 lg:border-r lg:pr-6" data-testid="mis-summary-filters">
@@ -123,7 +123,6 @@ export default function MISReportsWorkspace() {
           </section>
         </div>
       </TabsContent>
-      <TabsContent value="history" className="mt-6"><HistoryTable history={history} /></TabsContent>
       <TabsContent value="schedules" className="mt-6"><ScheduleTables schedules={schedules} deliveries={deliveries} onAction={scheduleAction} /></TabsContent>
     </Tabs>
     <Sheet open={scheduleOpen} onOpenChange={setScheduleOpen}><SheetContent className="overflow-y-auto bg-white" data-testid="mis-schedule-sheet"><SheetHeader><SheetTitle>Schedule Emissions Summary</SheetTitle></SheetHeader><div className="mt-6 space-y-5"><div><Label htmlFor="schedule-name">Schedule name</Label><Input id="schedule-name" value={scheduleForm.name} onChange={(event) => setScheduleForm({ ...scheduleForm, name: event.target.value })} data-testid="mis-schedule-name-input" /></div><div><Label>Frequency</Label><Select value={scheduleForm.frequency} onValueChange={(frequency) => setScheduleForm({ ...scheduleForm, frequency })}><SelectTrigger className="mt-2" data-testid="mis-schedule-frequency-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="quarterly">Quarterly</SelectItem></SelectContent></Select></div><div><Label htmlFor="schedule-recipients">Recipients</Label><Input id="schedule-recipients" placeholder="name@company.com, team@company.com" value={scheduleForm.recipient_emails} onChange={(event) => setScheduleForm({ ...scheduleForm, recipient_emails: event.target.value })} data-testid="mis-schedule-recipients-input" /></div><Button onClick={saveSchedule} className="w-full bg-emerald-900 text-white hover:bg-emerald-800" data-testid="mis-save-schedule-button">Save schedule</Button></div></SheetContent></Sheet>
@@ -144,11 +143,11 @@ function ExecutiveReportSections({ report }) {
     <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Executive summary</p><div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">{kpis.map((kpi) => <Card key={kpi.label} className="rounded-md border-stone-200 shadow-sm" data-testid={`mis-executive-kpi-${kpi.label.replaceAll(' ', '-').toLowerCase()}`}><CardContent className="p-4"><p className="text-xs text-stone-500">{kpi.label}</p><p className="mt-1 font-mono text-lg font-bold">{formatValue(kpi.value)}</p><p className="text-xs text-stone-500">Previous {formatValue(kpi.previous)} · {kpi.change_pct === null ? 'No prior data' : `${kpi.change_pct > 0 ? '▲' : '▼'} ${Math.abs(kpi.change_pct)}%`}</p></CardContent></Card>)}</div></div>
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
       <MetricSection title="Energy performance" metrics={[["Total energy", energy.total, "MWh"], ["Renewable energy", energy.renewable_total, "MWh"], ["Non-renewable energy", energy.non_renewable_total, "MWh"], ["Renewable share", energy.renewable_pct, "%"]]} testId="mis-energy-performance" />
-      <MetricSection title="Water performance" metrics={[["Water consumption", water.consumption, "KL"], ["Water discharge", water.discharge, "KL"], ["Water withdrawal", water.withdrawal, "KL"], ["Water recycled", water.recycled, "KL"], ["Recycle share", water.recycle_pct, "%"]]} testId="mis-water-performance" />
+      <MetricSection title="Water performance" metrics={[["Water discharge", water.discharge, "KL"], ["Water withdrawal", water.withdrawal, "KL"], ["Water recycled", water.recycled, "KL"], ["Recycle share", water.recycle_pct, "%"]]} testId="mis-water-performance" />
       <MetricSection title="Waste performance" metrics={[["Waste generated", waste.generated, ""], ["Waste disposed", waste.disposal, ""], ["Waste recovered", waste.recovered, ""], ["Recovery share", waste.recovery_pct, "%"]]} testId="mis-waste-performance" />
     </div>
     <Card className="rounded-md border-stone-200 shadow-sm" data-testid="mis-factual-insights"><CardContent className="p-5"><h2 className="font-semibold">Carbon insights</h2><ul className="mt-3 space-y-2 text-sm text-stone-700">{insights.length ? insights.map((insight) => <li key={insight}>• {insight}</li>) : <li>No material change was identified in the selected period.</li>}</ul></CardContent></Card>
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2"><MetricSection title="Operational performance" metrics={[["LTIFR", operationalKpis.ltifr, ""], ["Account payable days", operationalKpis.account_payable_days, "days"], ["GHG intensity by production", operationalKpis.ghg_intensity, "kg CO2e / unit"], ["Energy intensity", operationalKpis.energy_intensity, "MWh / unit"], ["No. of incidents", operationalKpis.incident_count, ""]]} testId="mis-operational-performance" /><MetricSection title="Supplier assessment" metrics={[["Suppliers assessed", supplierAssessment.suppliers_assessed, ""], ["High risk", supplierAssessment.high_risk_suppliers, ""], ["Pending", supplierAssessment.pending_assessments, ""]]} testId="mis-supplier-assessment" /></div>
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2"><MetricSection title="Operational performance" metrics={[["LTIFR", operationalKpis.ltifr, ""], ["Account payable days", operationalKpis.account_payable_days, "days"], ["GHG intensity by production", operationalKpis.ghg_intensity, "tCO2e / unit"], ["Energy intensity", operationalKpis.energy_intensity, "MWh / unit"], ["No. of incidents", operationalKpis.incident_count, ""]]} testId="mis-operational-performance" /><MetricSection title="Supplier assessment" metrics={[["Suppliers assessed", supplierAssessment.suppliers_assessed, ""], ["High risk", supplierAssessment.high_risk_suppliers, ""], ["Pending", supplierAssessment.pending_assessments, ""]]} testId="mis-supplier-assessment" /></div>
   </section>;
 }
 function MetricSection({ title, metrics, testId }) { return <Card className="rounded-md border-stone-200 shadow-sm" data-testid={testId}><CardContent className="p-5"><h2 className="font-semibold">{title}</h2><dl className="mt-3 space-y-2">{metrics.map(([label, value, unit]) => <div key={label} className="flex justify-between text-sm"><dt className="text-stone-600">{label}</dt><dd className="font-mono font-semibold">{value === null || value === undefined ? 'Not reported' : `${formatValue(value)} ${unit}`}</dd></div>)}</dl></CardContent></Card>; }
