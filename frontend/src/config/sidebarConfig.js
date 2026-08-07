@@ -130,6 +130,12 @@ const sidebarConfig = [
     ],
   },
   {
+    key: 'reports',
+    label: 'Reports',
+    icon: 'FileText',
+    path: '/reports',
+  },
+  {
     key: 'mis_reports',
     label: 'MIS Reports',
     icon: 'FileBarChart',

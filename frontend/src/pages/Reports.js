@@ -30,7 +30,7 @@ const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
   return fallbackMessage;
 };
 
-export default function Reports() {
+export default function Reports({ showMISFoundation = false }) {
   const [facilities, setFacilities] = useState([]);
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -476,7 +476,16 @@ export default function Reports() {
 
   return (
     <div className="space-y-6" data-testid="reports-page">
-      <MISReportsFoundation onConfigureReport={handleConfigureMISReport} />
+      {showMISFoundation ? (
+        <MISReportsFoundation onConfigureReport={handleConfigureMISReport} />
+      ) : (
+        <div className="flex items-start justify-between" data-testid="reports-legacy-header">
+          <div>
+            <h1 className="text-4xl font-heading font-bold text-text-primary mb-2" data-testid="reports-legacy-heading">Reports</h1>
+            <p className="text-text-secondary" data-testid="reports-legacy-subtitle">Download comprehensive GHG emission reports</p>
+          </div>
+        </div>
+      )}
 
       {/* GHG Inventory Report Card - Only show if org has GHG module enabled */}
       {hasScope12Access && hasGhgEnabled && (

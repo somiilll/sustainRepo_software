@@ -13,6 +13,7 @@ import Emissions from './pages/Emissions';
 import Sinks from './pages/Sinks';
 import BaseYearEmissions from './pages/BaseYearEmissions';
 import BaseYearAndTargets from './pages/BaseYearAndTargets';
+import Reports from './pages/Reports';
 import MISReports from './pages/MISReports';
 import UserManagement from './pages/UserManagement';
 import OrganizationDetails from './pages/OrganizationDetails';
@@ -317,7 +318,7 @@ const AppRoutes = () => {
           <Route path="bulk-upload" element={<Navigate to="/uploads/bulk" replace />} />
           <Route path="base-year-emissions" element={<Navigate to="/targets/voluntary/environment" replace />} />
           <Route path="targets/voluntary/ghg" element={<Navigate to="/targets/voluntary/environment" replace />} />
-          <Route path="reports" element={<Navigate to="/mis-reports" replace />} />
+          <Route path="reports" element={<Reports />} />
           <Route path="mis-reports" element={<MISReports />} />
           <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
           
