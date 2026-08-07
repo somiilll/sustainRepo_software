@@ -14,6 +14,8 @@ from reportlab.pdfgen import canvas
 from shared.database.mongo import db
 from shared.helpers.email import send_email
 from modules.esg_records.services.dashboard.dashboard_metrics_service import get_dashboard_metrics_service
+from modules.dashboards.environment_detail_service import get_environment_detail
+from modules.esg_records.services.dashboard.unit_utils import to_kilolitres
 
 
 ALL_SCOPES = ["scope1", "scope2", "scope3", "biogenic"]
@@ -117,12 +119,15 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
 
     organization_id = current_user.get("organization_id")
     facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
-    dashboard = await get_dashboard_metrics_service(db).get_dashboard_metrics(organization_id, facility_ids, start_date=filters["reporting_period_start"], end_date=filters["reporting_period_end"])
+    # Use the same all-time ESG metric aggregation shown on the Environment dashboard.
+    # Emissions remain period-filtered above; operational sources follow dashboard semantics.
+    dashboard = await get_dashboard_metrics_service(db).get_dashboard_metrics(organization_id, facility_ids)
+    environment_detail = await get_environment_detail(db, organization_id, filters["reporting_period_start"], filters["reporting_period_end"], facility_ids)
     evidence_count = await db.environment_records.count_documents({"org_id": organization_id, "evidence_files.0": {"$exists": True}, "is_current": {"$ne": False}})
     pending = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "pending_approval", "is_current": {"$ne": False}})
     rejected = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "rejected", "is_current": {"$ne": False}})
     total_esg_records = dashboard.get("total_records", 0)
-    relationships = await db.supplier_relationships.find({"customer_org_id": organization_id}, {"_id": 0, "overall_score": 1, "invitation_status": 1}).to_list(1000)
+    relationships = await db.supplier_relationships.find({"customer_org_id": organization_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0, "overall_score": 1, "invitation_status": 1}).to_list(1000)
     frameworks = await db.organization_esg_responses.find({"organization_id": organization_id}, {"_id": 0, "framework": 1, "approval_status": 1}).to_list(10000)
     compliance: Dict[str, Dict[str, int]] = {}
     for item in frameworks:
@@ -144,38 +149,71 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     renewable_total = energy.get("renewable_total", 0) or 0
     energy["renewable_pct"] = round((renewable_total / energy_total * 100) if energy_total else 0, 2)
     water = dashboard.get("water", {})
+    # Dashboard detail reads the granular Water source fields rather than only quantity.
+    water["withdrawal"] = round(sum(row["value"] for row in environment_detail.get("water_sources", [])), 2)
+    water["discharge"] = round(sum(row["value"] for row in environment_detail.get("water_discharge_sources", [])), 2)
+    water["consumption"] = round(sum(row["value"] for row in environment_detail.get("water_consumption_sources", [])), 2)
+    water["recycled"] = await dashboard_recycled_water(organization_id, facility_ids)
+    water["totalinput"] = water["withdrawal"] + water["consumption"]
     water_input = water.get("totalinput", 0) or 0
     water["recycle_pct"] = round((water.get("recycled", 0) / water_input * 100) if water_input else 0, 2)
-    incidents = await db.governance_records.count_documents({"org_id": organization_id, "category": {"$regex": "Safety Incidents", "$options": "i"}, "is_current": {"$ne": False}, "status": {"$ne": "draft"}})
-    operational = await get_operational_kpis(organization_id, current["total_emissions"], energy_total, incidents)
-    return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": energy, "water": water, "waste": dashboard.get("waste", {}), "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "insights": insights, "monthly_trend": current["period_breakdown"]}
-
-
-async def get_operational_kpis(organization_id: str, emissions_total: float, energy_total: float, incidents: int) -> Dict[str, Any]:
-    """Use recorded operational data only; missing source metrics remain unavailable."""
-    records = []
-    for collection in (db.environment_records, db.social_records, db.governance_records):
-        records.extend(await collection.find({"org_id": organization_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}}, {"_id": 0, "field_values": 1}).to_list(10000))
-    values: Dict[str, float] = {}
-    key_groups = {
-        "ltifr": ["ltifr", "lost_time_injury_frequency_rate"],
-        "account_payable_days": ["account_payable_days", "accounts_payable_days", "payable_days"],
-        "production": ["production_output", "production_volume", "units_produced", "total_production"],
+    hazardous_waste = environment_detail.get("hazardous_waste", {})
+    non_hazardous_waste = environment_detail.get("non_hazardous_waste", {})
+    waste = {
+        "generated": round(hazardous_waste.get("generated", 0) + non_hazardous_waste.get("generated", 0), 2),
+        "disposal": round(hazardous_waste.get("disposed", 0) + non_hazardous_waste.get("disposed", 0), 2),
+        "recovered": round(hazardous_waste.get("recovered", 0) + non_hazardous_waste.get("recovered", 0), 2),
     }
-    for name, keys in key_groups.items():
-        for record in records:
-            field_values = record.get("field_values") or {}
-            for key in keys:
-                try:
-                    if field_values.get(key) not in (None, ""):
-                        values[name] = float(field_values[key])
-                        break
-                except (TypeError, ValueError):
-                    continue
-            if name in values:
-                break
-    production = values.get("production")
-    return {"ltifr": values.get("ltifr"), "account_payable_days": values.get("account_payable_days"), "incident_count": incidents, "ghg_intensity": round(emissions_total / production, 4) if production else None, "energy_intensity": round(energy_total / production, 4) if production else None}
+    waste["recovery_pct"] = round((waste["recovered"] / waste["generated"] * 100) if waste["generated"] else 0, 2)
+    incidents = await db.governance_records.count_documents({"org_id": organization_id, "subcategory": "Health & Safety Incidents", "approval_status": {"$in": ["approved", "not_required", None]}})
+    operational = await get_operational_kpis(organization_id, current_scopes.get("scope1", 0) + current_scopes.get("scope2", 0), energy_total, incidents, filters)
+    return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "insights": insights, "monthly_trend": current["period_breakdown"]}
+
+
+async def dashboard_recycled_water(organization_id: str, facility_ids: List[str]) -> float:
+    """Apply the Environment dashboard's approved-record scope to Water Recycle."""
+    query: Dict[str, Any] = {"org_id": organization_id, "category": "Water", "subcategory": "Recycle", "approval_status": {"$in": ["approved", "not_required", None]}}
+    if facility_ids:
+        query["facility_id"] = {"$in": facility_ids}
+    records = await db.environment_records.find(query, {"_id": 0, "field_values": 1}).to_list(10000)
+    total = 0.0
+    for record in records:
+        values = record.get("field_values") or {}
+        try:
+            total += to_kilolitres(float(values.get("total_quantity_of_water_recycled") or 0), values.get("unit"))
+        except (TypeError, ValueError):
+            continue
+    return round(total, 2)
+
+
+async def get_operational_kpis(organization_id: str, scope12_emissions: float, energy_total: float, incidents: int, filters: Dict[str, Any]) -> Dict[str, Any]:
+    """Mirror the dashboard KPI formulas and approved-record filters exactly."""
+    from modules.esg_records.services.dashboard.date_utils import build_date_filter
+    from shared.utils.period_utils import period_variants
+
+    period_conditions = build_date_filter(filters["reporting_period_start"], filters["reporting_period_end"])
+
+    async def latest_value(collection, field_key):
+        base = {"org_id": organization_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}, "approval_status": {"$in": ["approved", "not_required", None]}, f"field_values.{field_key}": {"$exists": True, "$ne": None}}
+        query = {"$and": [base, {"$or": period_conditions}]} if period_conditions else base
+        record = await collection.find_one(query, {"_id": 0, "field_values": 1}, sort=[("created_at", -1)])
+        try:
+            return float(record["field_values"][field_key]) if record else None
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    lost_time_injuries = await latest_value(db.social_records, "no_of_loss_time_injuries")
+    total_hours_worked = await latest_value(db.social_records, "total_hours_worked")
+    accounts_payable = await latest_value(db.governance_records, "accounts_payable")
+    cogs = await latest_value(db.governance_records, "cost_of_goods_services_procured")
+    report_year = int(filters["reporting_period_start"][:4])
+    production = None
+    for variant in period_variants(report_year, "FY"):
+        record = await db.production_quantities.find_one({"organization_id": organization_id, "facility_id": None, "reporting_period": variant, "is_deleted": {"$ne": True}}, {"_id": 0, "quantity": 1})
+        if record:
+            production = record.get("quantity")
+            break
+    return {"ltifr": round((lost_time_injuries * 1000000) / total_hours_worked, 2) if lost_time_injuries and total_hours_worked else None, "account_payable_days": round((accounts_payable * 365) / cogs, 1) if accounts_payable and cogs else None, "incident_count": incidents, "ghg_intensity": round(scope12_emissions / production, 4) if production else None, "energy_intensity": round(energy_total / production, 4) if production else None}
 
 
 async def save_report_run(filters: Dict[str, Any], summary: Dict[str, Any], current_user: dict, status: str = "generated") -> Dict[str, Any]:
