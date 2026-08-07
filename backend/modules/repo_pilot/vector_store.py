@@ -34,25 +34,28 @@ async def query_similar(
     org_id: str, query_embedding: List[float], top_k: int = 15,
     doc_filters: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Find top_k most similar chunks using cosine similarity."""
+    """Find top_k most similar chunks using cosine similarity.
+
+    Uses a streaming min-heap to avoid loading all embeddings into memory.
+    Only top_k results are kept at any time — peak memory is O(top_k), not O(N).
+    """
+    import heapq
+
     query = {"organization_id": org_id}
     if doc_filters:
         query["doc_id"] = {"$in": doc_filters}
 
-    cursor = db[COLLECTION].find(query, {"_id": 0})
-    all_chunks = await cursor.to_list(50000)
-
-    if not all_chunks:
-        return {"documents": [], "metadatas": []}
-
-    # Compute cosine similarity
     q_vec = np.array(query_embedding, dtype=np.float32)
     q_norm = np.linalg.norm(q_vec)
     if q_norm == 0:
         return {"documents": [], "metadatas": []}
 
-    scored = []
-    for chunk in all_chunks:
+    # Min-heap of (score, index, chunk_data) — keeps only top_k best
+    heap: list = []
+    idx = 0
+
+    cursor = db[COLLECTION].find(query, {"_id": 0})
+    async for chunk in cursor:
         emb = chunk.get("embedding")
         if not emb:
             continue
@@ -61,14 +64,22 @@ async def query_similar(
         if c_norm == 0:
             continue
         sim = float(np.dot(q_vec, c_vec) / (q_norm * c_norm))
-        scored.append((sim, chunk))
+        # Store minimal data to keep heap small
+        item = (sim, idx, {"text": chunk["text"], "doc_id": chunk["doc_id"], "page_num": chunk["page_num"]})
+        if len(heap) < top_k:
+            heapq.heappush(heap, item)
+        elif sim > heap[0][0]:
+            heapq.heapreplace(heap, item)
+        idx += 1
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    top = scored[:top_k]
+    if not heap:
+        return {"documents": [], "metadatas": []}
 
+    # Sort descending by score
+    top = sorted(heap, key=lambda x: x[0], reverse=True)
     return {
-        "documents": [c["text"] for _, c in top],
-        "metadatas": [{"doc_id": c["doc_id"], "page_num": c["page_num"]} for _, c in top],
+        "documents": [c["text"] for _, _, c in top],
+        "metadatas": [{"doc_id": c["doc_id"], "page_num": c["page_num"]} for _, _, c in top],
     }
 
 

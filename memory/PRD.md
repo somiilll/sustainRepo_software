@@ -105,6 +105,12 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - New KPI calculators in `energy_adapter.py`, registered in `calculator.py` dispatch
 - Available at `/esg-targets/lookup/categories?section=environment`
 
+### Memory Optimization — Streaming Heap for Embedding Queries (P1)
+- **Files**: `modules/repo_pilot/vector_store.py`, `modules/internal_data_ai/embedding_service.py`
+- Replaced `to_list(50000)` / `to_list(5000)` bulk loads with `async for` streaming + min-heap of size `top_k`
+- Peak memory per query: Repo Pilot ~600MB → ~12MB, Internal AI ~60MB → ~2MB
+- Same API, same results, zero new dependencies
+
 ## Upcoming Tasks (P1)
 - Biogenic Stationary Combustion Tree Update (apply `calculation_methodology` wrapping to tree `80dbef24`)
 - GHG Form Logic & Custom Fuels E2E Testing
