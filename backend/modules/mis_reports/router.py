@@ -20,7 +20,7 @@ from modules.mis_reports.contracts import (
     MISReportHistoryResponse,
 )
 from shared.database.mongo import db
-from modules.mis_reports.service import aggregate_emissions, build_excel, build_executive_mis_report, build_pdf, next_run_at, now_iso, save_report_run, send_schedule
+from modules.mis_reports.service import aggregate_emissions, build_excel, build_executive_mis_report, build_pdf, next_run_at, now_iso, send_schedule
 
 
 router = APIRouter()
@@ -113,8 +113,7 @@ async def generate_emissions_summary(request: EmissionsSummaryRequest, current_u
     await require_mis_admin(current_user)
     filters = request.model_dump()
     summary = await aggregate_emissions(filters, current_user)
-    run = await save_report_run(filters, summary, current_user)
-    return {"run_id": run["id"], "generated_at": run["generated_at"], "filters": filters, **summary}
+    return {"run_id": str(uuid.uuid4()), "generated_at": now_iso(), "filters": filters, **summary}
 
 
 @router.post("/mis-reports/executive-report")
@@ -185,9 +184,9 @@ async def send_mis_schedule_now(schedule_id: str, current_user: dict = Depends(g
     schedule = await db.mis_report_schedules.find_one(query, {"_id": 0})
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
-    run = await send_schedule(schedule, current_user)
+    await send_schedule(schedule, current_user)
     await db.mis_report_schedules.update_one(query, {"$set": {"last_run_at": now_iso(), "next_run_at": next_run_at(schedule["frequency"])}})
-    return {"success": True, "run_id": run["id"]}
+    return {"success": True}
 
 
 @router.get("/mis-reports/deliveries", response_model=List[MISDeliveryResponse])

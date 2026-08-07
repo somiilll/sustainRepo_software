@@ -86,10 +86,10 @@ async def aggregate_emissions(filters: Dict[str, Any], current_user: dict) -> Di
             grouped[key][name] = grouped[key].get(name, 0) + value
 
     def breakdown(items: Dict[str, float], field: str) -> List[Dict[str, Any]]:
-        return [{field: name, "emissions": round(value / 1000, 4)} for name, value in sorted(items.items(), key=lambda item: item[1], reverse=True)]
+        return [{field: name, "emissions": round(value, 4)} for name, value in sorted(items.items(), key=lambda item: item[1], reverse=True)]
 
     return {
-        "total_emissions": round(total / 1000, 4),
+        "total_emissions": round(total, 4),
         "unit": "tCO2e",
         "record_count": len(records),
         "scope_breakdown": breakdown(grouped["scope"], "scope"),
@@ -259,14 +259,13 @@ def build_summary_email(schedule_name: str, summary: Dict[str, Any], filters: Di
 
 async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
     summary = await aggregate_emissions(schedule["filters"], current_user)
-    report_run = await save_report_run(schedule["filters"], summary, current_user, status="emailed")
     sent_at = now_iso()
     attachments = [("SustainRepo_ESG_MIS_Report.xlsx", build_excel(summary)), ("SustainRepo_ESG_MIS_Report.pdf", build_pdf(summary))]
     for recipient_email in schedule["recipient_emails"]:
         success = await send_email_with_attachments(recipient_email, f"ESG MIS Report – {schedule['filters']['reporting_period_end']}", build_summary_email(schedule["name"], summary, schedule["filters"]), attachments)
         delivery = {"id": str(uuid.uuid4()), "schedule_id": schedule["id"], "organization_id": schedule.get("organization_id"), "recipient_email": recipient_email, "status": "sent" if success else "failed", "sent_at": sent_at, "error": None if success else "Resend delivery failed"}
         await db.mis_report_deliveries.insert_one(delivery.copy())
-    return report_run
+    return {"id": None}
 
 
 async def process_due_schedules() -> int:
