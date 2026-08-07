@@ -540,7 +540,7 @@ export default function EmissionEditForm(props) {
                             value={editProcessType || ''}
                             onValueChange={(v) => {
                               setEditProcessType(v);
-                              setEditCalcMethodology('using_ncv');
+                              setEditCalcMethodology('using_heat_basis_ncv');
                             }}
                           >
                             <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-process-type-select">
@@ -564,14 +564,15 @@ export default function EmissionEditForm(props) {
                         <div className="space-y-1.5" data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
                           <Select
-                            value={editCalcMethodology || 'using_ncv'}
+                            value={editCalcMethodology || 'using_heat_basis_ncv'}
                             onValueChange={(v) => setEditCalcMethodology(v)}
                           >
                             <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-calculation-methodology-select">
                               <SelectValue placeholder="Select methodology" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="using_ncv">Using NCV (Net Calorific Value)</SelectItem>
+                              <SelectItem value="using_heat_basis_ncv">Using Heat Basis (NCV)</SelectItem>
+                              <SelectItem value="using_qty_basis_ef">Using Qty Basis EF</SelectItem>
                               <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
                             </SelectContent>
                           </Select>

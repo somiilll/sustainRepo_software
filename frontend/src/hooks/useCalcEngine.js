@@ -207,15 +207,11 @@ export function useCalcEngine(getAuthHeader) {
       }
 
       // Determine decision inputs for the tree traversal
-      // The decision tree may branch on "calculation_methodology" then "ef_quantity_provided"
       const decisionInputs = {
         scope: scope,
         fuel_type: useCustomFuel ? customFuelName : fuel.fuel_name,
         category: category,
-        // Default to using_ncv for backward compatibility
-        calculation_methodology: calculationMethodology || 'using_ncv',
-        // Default to heat-based calculation (ef_quantity_provided = false) unless we're forcing quantity-based
-        ef_quantity_provided: overrides.ef_quantity ? 'true' : 'false'
+        calculation_methodology: calculationMethodology || 'using_heat_basis_ncv',
       };
 
       // Call the backend calc engine execute-by-category endpoint

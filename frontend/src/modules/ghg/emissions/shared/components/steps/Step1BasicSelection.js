@@ -658,14 +658,15 @@ export const Step1BasicSelection = ({
         <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="calculation-methodology-section">
           <Label>Calculation Methodology</Label>
           <Select
-            value={decisionFieldValues.calculation_methodology || 'using_ncv'}
+            value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
             onValueChange={(v) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: v }))}
           >
             <SelectTrigger className="bg-stone-50 h-10" data-testid="calculation-methodology-select">
               <SelectValue placeholder="Select methodology" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="using_ncv">Using NCV (Net Calorific Value)</SelectItem>
+              <SelectItem value="using_heat_basis_ncv">Using Heat Basis (NCV)</SelectItem>
+              <SelectItem value="using_qty_basis_ef">Using Qty Basis EF</SelectItem>
               <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
             </SelectContent>
           </Select>

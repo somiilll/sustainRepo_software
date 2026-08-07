@@ -311,9 +311,12 @@ export default function EmissionEntryForm({
       
       // Hydrate calculation methodology from dynamic_field_values
       // If record has carbon_content/composition_of_carbon, it was carbon composition method
+      // If record has ef_quantity, it was qty basis method
       const dfvKeys = Object.keys(editingEmission.dynamic_field_values || {});
       if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
         setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: 'using_carbon_composition' }));
+      } else if (dfvKeys.includes('ef_quantity')) {
+        setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: 'using_qty_basis_ef' }));
       }
       
       // Hydrate monthly data for monthly frequency
@@ -1278,13 +1281,10 @@ export default function EmissionEntryForm({
     }
     // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula via decision tree first, then fallback to name
     else if ((scope === 'scope1' || scope === 'scope2' || isBiogenicScope1) && formConfig?.formulas?.length) {
-      // Priority 0: Try decision tree traversal (handles calculation_methodology + ef_quantity_provided)
+      // Priority 0: Try decision tree traversal (handles calculation_methodology)
       if (formConfig.decision_tree) {
-        const calcMethodology = decisionFieldValues.calculation_methodology || 'using_ncv';
         const scope1DecisionValues = {
-          calculation_methodology: calcMethodology,
-          // Custom fuel must use Quantity Based formula (user provides EF manually)
-          ef_quantity_provided: useCustomFuel ? 'true' : 'false',
+          calculation_methodology: decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv',
           ...decisionFieldValues,
         };
         const formulaId = traverseDecisionTree(formConfig.decision_tree, scope1DecisionValues);
@@ -1755,10 +1755,10 @@ export default function EmissionEntryForm({
       }
     }
     
-    // For Scope 1/Biogenic Scope 1 Stationary Combustion: default calculation_methodology to 'using_ncv'
+    // For Scope 1/Biogenic Scope 1 Stationary Combustion: default calculation_methodology
     const isBiogenicScope1 = scope === 'biogenic' && biogenicScopeSelection === 'scope1';
     if ((scope === 'scope1' || isBiogenicScope1) && !decisionInputs['calculation_methodology']) {
-      decisionInputs['calculation_methodology'] = 'using_ncv';
+      decisionInputs['calculation_methodology'] = 'using_heat_basis_ncv';
     }
 
     return decisionInputs;

@@ -128,7 +128,7 @@ export default function Emissions() {
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
   const [typeOfProduct, setTypeOfProduct] = useState(''); // C11 only — continuous_usage / one_time_use
-  const [editCalcMethodology, setEditCalcMethodology] = useState('using_ncv'); // Stationary Combustion methodology
+  const [editCalcMethodology, setEditCalcMethodology] = useState('using_heat_basis_ncv'); // Stationary Combustion methodology
   const [editProcessType, setEditProcessType] = useState(''); // Process Emissions type (venting/n2o/ch4)
   const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
@@ -534,8 +534,7 @@ export default function Emissions() {
       // Pass all available decision field values so the tree can resolve
       if (editFormConfig.decision_tree) {
         const decisionValues = {
-          calculation_methodology: editCalcMethodology || 'using_ncv',
-          ef_quantity_provided: editUseCustomFuel ? 'true' : 'false',
+          calculation_methodology: editCalcMethodology || 'using_heat_basis_ncv',
           ...(editProcessType && { process_type: editProcessType }),
         };
         const formulaId = traverseDecisionTreeEdit(editFormConfig.decision_tree, decisionValues);
@@ -742,7 +741,7 @@ export default function Emissions() {
     // For Scope 1 / Biogenic Scope 1: add calculation_methodology and process_type
     const isBiogenicScope1 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1';
     if (formData.scope === 'scope1' || isBiogenicScope1) {
-      decisionInputs['calculation_methodology'] = editCalcMethodology || 'using_ncv';
+      decisionInputs['calculation_methodology'] = editCalcMethodology || 'using_heat_basis_ncv';
       if (editProcessType) {
         decisionInputs['process_type'] = editProcessType;
       }
@@ -781,8 +780,10 @@ export default function Emissions() {
       const dfvKeys = Object.keys(savedDynamicValues);
       if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
         setEditCalcMethodology('using_carbon_composition');
+      } else if (dfvKeys.includes('ef_quantity')) {
+        setEditCalcMethodology('using_qty_basis_ef');
       } else {
-        setEditCalcMethodology('using_ncv');
+        setEditCalcMethodology('using_heat_basis_ncv');
       }
       
       // Hydrate process type from saved fields
