@@ -1,6 +1,6 @@
 import React from 'react';
-import ReportsWorkspace from './Reports';
+import MISReportsWorkspace from '../modules/mis-reports/MISReportsWorkspace';
 
 export default function MISReports() {
-  return <ReportsWorkspace showMISFoundation />;
+  return <MISReportsWorkspace />;
 }

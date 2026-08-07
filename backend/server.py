@@ -3690,6 +3690,18 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+mis_reports_scheduler_task = None
+
+
+async def run_mis_reports_scheduler():
+    """Run enabled MIS delivery schedules without blocking API traffic."""
+    from modules.mis_reports.service import process_due_schedules
+    while True:
+        try:
+            await process_due_schedules()
+        except Exception as error:
+            logger.error(f"MIS reports scheduler failed: {error}")
+        await asyncio.sleep(3600)
 
 @app.on_event("startup")
 async def startup_event():
@@ -3699,6 +3711,8 @@ async def startup_event():
     await check_expired_subscriptions()
     await seed_scopes_and_categories(db)
     await seed_calc_engine(db)
+    global mis_reports_scheduler_task
+    mis_reports_scheduler_task = asyncio.create_task(run_mis_reports_scheduler())
 
 async def check_expired_subscriptions():
     """Deactivate organizations whose subscription has expired"""
@@ -3720,4 +3734,6 @@ async def check_expired_subscriptions():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    if mis_reports_scheduler_task:
+        mis_reports_scheduler_task.cancel()
     client.close()
