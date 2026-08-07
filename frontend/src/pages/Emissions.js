@@ -588,8 +588,11 @@ export default function Emissions() {
       .filter(m => {
         if (m.is_active === false) return false;
         
-        // Custom fuel: never show density (mass-based units only)
-        if (editUseCustomFuel && m.maps_to_variable === 'density') return false;
+        // Custom fuel density: show based on methodology (same logic as add form)
+        if (editUseCustomFuel && m.maps_to_variable === 'density') {
+          if (editCalcMethodology === 'using_qty_basis_ef' || editCalcMethodology === 'using_heat_basis_ncv') return true;
+          return false;
+        }
         
         // Formula-driven filtering when a formula is resolved
         if (matchedFormula && requiredInputVars?.length) {
@@ -599,8 +602,10 @@ export default function Emissions() {
             if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
               return true;
             }
-            // Density: show when formula input supports dimension conversion (volume→mass)
+            // Density: show when formula supports dimension conversion,
+            // OR when using Qty Basis EF (may need density if EF/qty dimensions mismatch)
             if (m.maps_to_variable === 'density') {
+              if (editCalcMethodology === 'using_qty_basis_ef') return true;
               return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
             }
             return false;
@@ -621,29 +626,39 @@ export default function Emissions() {
       })
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
-    return mappings.map(m => ({
-      id: m.id,
-      variable: m.maps_to_variable,
-      fieldKey: m.field_key,
-      label: m.field_label,
-      expectedUnit: m.default_unit,
-      required: m.is_required === true,  // Explicitly check for true
-      isOverride: m.is_override === true, // Explicitly check for true (null/undefined/false all become false)
-      isOverrideExplicitlyFalse: m.is_override === false, // Track if explicitly set to false (required input)
-      fieldType: m.field_type || 'number',
-      allowedUnits: m.allowed_units || [],
-      unitSource: m.unit_source || 'static',
-      compoundWithVariable: m.compound_with_variable || null,
-      placeholder: m.placeholder || `Enter ${m.field_label}`,
-      helpText: m.help_text || '',
-      mapsToContext: m.maps_to_context,
-      mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
-      mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
-      options: m.options || [],
-      defaultValue: m.default_value,
-      validationRules: m.validation_rules || {},
-    }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel, editProcessType]);
+    const isQtyBasis = editCalcMethodology === 'using_qty_basis_ef';
+    const editSelectedFuel = formData.fuel_id ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
+    const editFuelQtyUnits = editSelectedFuel?.allowed_units || [];
+    return mappings.map(m => {
+      const field = {
+        id: m.id,
+        variable: m.maps_to_variable,
+        fieldKey: m.field_key,
+        label: m.field_label,
+        expectedUnit: m.default_unit,
+        required: m.is_required === true,
+        isOverride: m.is_override === true,
+        isOverrideExplicitlyFalse: m.is_override === false,
+        fieldType: m.field_type || 'number',
+        allowedUnits: m.allowed_units || [],
+        unitSource: m.unit_source || 'static',
+        compoundWithVariable: m.compound_with_variable || null,
+        placeholder: m.placeholder || `Enter ${m.field_label}`,
+        helpText: m.help_text || '',
+        mapsToContext: m.maps_to_context,
+        mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
+        mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
+        options: m.options || [],
+        defaultValue: m.default_value,
+        validationRules: m.validation_rules || {},
+      };
+      if (isQtyBasis && m.maps_to_variable === 'density') {
+        field.densityQtyBasisCheck = true;
+        field.fuelQtyUnits = editFuelQtyUnits;
+      }
+      return field;
+    });
+  }, [editFormConfig, formData.scope, formData.fuel_id, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel, editProcessType, fuelDatabase]);
 
   // Older Process Emissions records did not persist process_type. Once the
   // form config arrives, recover it from the saved formula's decision-tree

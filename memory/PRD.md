@@ -136,11 +136,22 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Helper: `isDensityRequiredForQtyBasis()` in `unitHelpers.js` — pure function, shared across components
 - DynamicFieldRenderer auto-enables density override checkbox when density becomes required
 - Backend calc engine enforces: returns clear error when density needed but not provided
+- Edit form (Emissions.js) has the same density check with `densityQtyBasisCheck` flag
+- **Status**: ✅ Implemented
+
+### Custom Fuel 3-Methodology Support (P1)
+- Custom fuel panel on Step 1 now shows methodology-specific input fields:
+  - **Heat Basis (NCV)**: EF value + EF unit (tCO2/TJ, tCO2/MJ) + CV value + CV unit ({TJ,MJ}/{all qty units}) + Qty unit + Source
+  - **Qty Basis EF**: EF value + EF unit (tCO2/{all qty units}) + Qty unit + Source
+  - **Carbon Composition**: Carbon Content (%) + Oxidation Factor + Qty unit + Source
+- Custom fuel no longer always hides density — density visibility follows methodology rules
+- Step 3 qty unit display uses `customFuelQtyUnit` computed from the methodology
+- Files: `Step1BasicSelection.js` (custom fuel fields per methodology), `EmissionEntryForm.js` (density logic + customFuelQtyUnit), `Step3YearMonthlyData.js` (qty unit display), `Emissions.js` (edit form density)
 - **Status**: ✅ Implemented
 
 ## Upcoming Tasks (P1)
-- Custom Fuel 3-Methodology Support (Heat Basis, Qty Basis, Carbon Composition with proper unit handling + density logic)
 - GHG Form Logic & Custom Fuels E2E Testing
+- Custom Fuel Backend Calculation Integration (wire custom fuel inputs through calc engine for all 3 methodologies)
 - Hash-based Integrity Verification for Evidence Files
 - Smart Follow-ups (Internal Data AI)
 - SuperAdmin Config UI for Modules

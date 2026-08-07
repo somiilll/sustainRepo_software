@@ -112,6 +112,7 @@ export const Step3YearMonthlyData = ({
   defaultUnit,
   allowedUnits,
   customEmissionFactorUnit,
+  customFuelQtyUnit,
   getQuantityUnitFromEFUnit,
   
   // Evidence handling
@@ -463,8 +464,8 @@ export const Step3YearMonthlyData = ({
                             <Label>Unit {useCustomFuel && <span className="text-xs text-amber-600">(locked)</span>}</Label>
                             {useCustomFuel ? (
                               <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
-                                <span>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</span>
-                                <span className="ml-auto text-xs text-amber-600">Based on EF unit</span>
+                                <span>{customFuelQtyUnit || getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</span>
+                                <span className="ml-auto text-xs text-amber-600">Set in Step 1</span>
                               </div>
                             ) : (
                               <select

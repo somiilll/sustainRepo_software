@@ -1094,6 +1094,17 @@ export default function EmissionEntryForm({
     return mapping?.quantityUnit || 'kg';
   };
 
+  // Resolve the quantity unit for custom fuels based on selected methodology
+  const customFuelQtyUnit = useMemo(() => {
+    if (!useCustomFuel) return null;
+    const calcMethod = decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv';
+    if (calcMethod === 'using_qty_basis_ef') {
+      return getQuantityUnitFromEFUnit(customEmissionFactorUnit);
+    }
+    // Heat Basis and Carbon Composition: qty unit selected independently
+    return decisionFieldValues._customQtyUnit || 'kg';
+  }, [useCustomFuel, decisionFieldValues, customEmissionFactorUnit, getQuantityUnitFromEFUnit]);
+
   // Step 2 + Step 3 form state moved to useEmissionFormState (F2 integration).
   // The hook also owns the reporting-year-type org-pref sync useEffect and the
   // editingEmission frequency_type/yearlyData hydration useEffect.
@@ -1375,8 +1386,21 @@ export default function EmissionEntryForm({
                              m.applies_to_scopes.includes(scopeId);
       if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
       
-      // Custom fuel: never show density (mass-based units only)
-      if (useCustomFuel && m.maps_to_variable === 'density') return false;
+      // Custom fuel: show density only for Qty Basis EF (dimension mismatch check)
+      // or Heat Basis (if qty unit dimension ≠ CV denominator dimension)
+      if (useCustomFuel && m.maps_to_variable === 'density') {
+        const calcMethod = decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv';
+        if (calcMethod === 'using_carbon_composition') {
+          // Carbon composition: density needed if qty unit is volume
+          const qtyUnit = decisionFieldValues._customQtyUnit || 'kg';
+          const volUnits = new Set(['l', 'kl', 'ml', 'm3', 'cm3']);
+          return volUnits.has(qtyUnit.toLowerCase());
+        }
+        if (calcMethod === 'using_qty_basis_ef' || calcMethod === 'using_heat_basis_ncv') {
+          return true; // Show; DynamicFieldRenderer handles per-month required check
+        }
+        return false;
+      }
       
       // Formula-driven filtering when a formula is resolved
       if (matchedFormula && requiredInputVars?.length) {
@@ -3296,6 +3320,7 @@ export default function EmissionEntryForm({
           defaultUnit={defaultUnit}
           allowedUnits={allowedUnits}
           customEmissionFactorUnit={customEmissionFactorUnit}
+          customFuelQtyUnit={customFuelQtyUnit}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
