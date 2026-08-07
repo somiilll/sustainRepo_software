@@ -539,24 +539,36 @@ def _sec_targets(story, styles, report):
         nd = ParagraphStyle("ND", parent=styles["Normal"], fontSize=10, textColor=colors.HexColor(TEXT_MUTED))
         story.append(Paragraph("No ESG targets have been set for this organization.", nd))
     else:
+        # Show progress bars only for targets that have baseline data to measure against
         for target in targets:
-            story.append(ProgressBarFlowable(
-                label=target.get("name", "Unnamed Target"),
-                current=target.get("current_value") or 0,
-                target=target.get("target_value") or 0,
-                unit=target.get("unit", ""),
-            ))
-            story.append(Spacer(1, 8))
+            baseline = target.get("baseline_value") or 0
+            tv = target.get("target_value") or 0
+            if baseline and tv:
+                story.append(ProgressBarFlowable(
+                    label=target.get("name", "Unnamed Target"),
+                    current=baseline,
+                    target=tv,
+                    unit=target.get("unit", ""),
+                ))
+                story.append(Spacer(1, 8))
         story.append(Spacer(1, 12))
 
         tgt_rows = []
         for t in targets:
             tv = t.get("target_value") or 0
-            cv = t.get("current_value") or 0
-            pct = f"{(cv / tv * 100):.0f}%" if tv else "---"
-            tgt_rows.append([t.get("name", "---"), f"{tv:,.1f}", f"{cv:,.1f}", t.get("unit", ""), pct])
-        story.append(_styled_table(["Target", "Target Value", "Current", "Unit", "Progress"],
-                                    tgt_rows, col_widths=[160, 90, 90, 60, 70]))
+            bv = t.get("baseline_value")
+            tgt_rows.append([
+                t.get("name", "---"),
+                t.get("category", "---"),
+                f"{tv:,.1f}" if tv else "---",
+                f"{bv:,.1f}" if bv else "---",
+                t.get("unit", ""),
+                t.get("reporting_period", "---"),
+            ])
+        story.append(_styled_table(
+            ["Target", "Category", "Target Value", "Baseline", "Unit", "Period"],
+            tgt_rows, col_widths=[120, 80, 80, 80, 50, 80]
+        ))
 
     story.append(Spacer(1, 16))
 

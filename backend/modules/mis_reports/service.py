@@ -143,7 +143,20 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     rejected = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "rejected", "is_current": {"$ne": False}})
     total_esg_records = dashboard.get("total_records", 0)
     relationships = await db.supplier_relationships.find({"customer_org_id": organization_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0, "supplier_name": 1, "supplier_org_name": 1, "overall_score": 1, "invitation_status": 1}).to_list(1000)
-    targets = await db.esg_targets.find({"organization_id": organization_id, "is_deleted": {"$ne": True}}, {"_id": 0, "name": 1, "target_value": 1, "current_value": 1, "unit": 1}).to_list(100)
+    targets_raw = await db.esg_targets.find(
+        {"organization_id": organization_id, "is_deleted": {"$ne": True}, "status": "active"},
+        {"_id": 0, "target_name": 1, "target_value": 1, "unit": 1, "baseline": 1, "category": 1, "kpi_name": 1, "reporting_period": 1},
+    ).to_list(100)
+    targets = [{
+        "name": t.get("target_name", "Unnamed"),
+        "target_value": t.get("target_value"),
+        "baseline_value": (t.get("baseline") or {}).get("value"),
+        "baseline_period": (t.get("baseline") or {}).get("period"),
+        "unit": t.get("unit", ""),
+        "category": t.get("category", ""),
+        "kpi_name": t.get("kpi_name", ""),
+        "reporting_period": t.get("reporting_period", ""),
+    } for t in targets_raw]
     frameworks = await db.organization_esg_responses.find({"organization_id": organization_id}, {"_id": 0, "framework": 1, "approval_status": 1}).to_list(10000)
     compliance: Dict[str, Dict[str, int]] = {}
     for item in frameworks:
