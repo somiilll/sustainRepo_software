@@ -20,7 +20,7 @@ from modules.mis_reports.contracts import (
     MISReportHistoryResponse,
 )
 from shared.database.mongo import db
-from modules.mis_reports.service import aggregate_emissions, build_excel, build_pdf, next_run_at, now_iso, save_report_run, send_schedule
+from modules.mis_reports.service import aggregate_emissions, build_excel, build_executive_mis_report, build_pdf, next_run_at, now_iso, save_report_run, send_schedule
 
 
 router = APIRouter()
@@ -114,6 +114,12 @@ async def generate_emissions_summary(request: EmissionsSummaryRequest, current_u
     summary = await aggregate_emissions(filters, current_user)
     run = await save_report_run(filters, summary, current_user)
     return {"run_id": run["id"], "generated_at": run["generated_at"], "filters": filters, **summary}
+
+
+@router.post("/mis-reports/executive-report")
+async def generate_executive_mis_report(request: EmissionsSummaryRequest, current_user: dict = Depends(get_current_user)):
+    await require_mis_admin(current_user)
+    return await build_executive_mis_report(request.model_dump(), current_user)
 
 
 @router.post("/mis-reports/emissions-summary/export/{output_format}")

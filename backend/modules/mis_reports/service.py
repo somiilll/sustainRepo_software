@@ -4,6 +4,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
+from dateutil.relativedelta import relativedelta
+
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from reportlab.lib.pagesizes import A4
@@ -11,6 +13,7 @@ from reportlab.pdfgen import canvas
 
 from shared.database.mongo import db
 from shared.helpers.email import send_email
+from modules.esg_records.services.dashboard.dashboard_metrics_service import get_dashboard_metrics_service
 
 
 ALL_SCOPES = ["scope1", "scope2", "scope3", "biogenic"]
@@ -85,6 +88,61 @@ async def aggregate_emissions(filters: Dict[str, Any], current_user: dict) -> Di
         "facility_breakdown": breakdown(grouped["facility"], "facility"),
         "period_breakdown": breakdown(grouped["period"], "period"),
     }
+
+
+def previous_period_filters(filters: Dict[str, Any]) -> Dict[str, Any]:
+    start = datetime.strptime(filters["reporting_period_start"], "%Y-%m")
+    end = datetime.strptime(filters["reporting_period_end"], "%Y-%m")
+    month_count = (end.year - start.year) * 12 + end.month - start.month + 1
+    previous_start = start - relativedelta(months=month_count)
+    previous_end = end - relativedelta(months=month_count)
+    return {**filters, "reporting_period_start": previous_start.strftime("%Y-%m"), "reporting_period_end": previous_end.strftime("%Y-%m")}
+
+
+def percentage_change(current: float, previous: float) -> float | None:
+    if not previous:
+        return None
+    return round(((current - previous) / previous) * 100, 2)
+
+
+async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
+    """Build a factual ESG MIS data pack; no generative metrics are invented."""
+    current = await aggregate_emissions(filters, current_user)
+    previous = await aggregate_emissions(previous_period_filters(filters), current_user)
+    previous_scopes = {row["scope"]: row["emissions"] for row in previous["scope_breakdown"]}
+    current_scopes = {row["scope"]: row["emissions"] for row in current["scope_breakdown"]}
+    kpis = [{"label": "Total Emissions", "value": current["total_emissions"], "previous": previous["total_emissions"], "unit": current["unit"], "change_pct": percentage_change(current["total_emissions"], previous["total_emissions"])}]
+    for scope in ALL_SCOPES:
+        kpis.append({"label": scope.replace("scope", "Scope ").title(), "value": current_scopes.get(scope, 0), "previous": previous_scopes.get(scope, 0), "unit": current["unit"], "change_pct": percentage_change(current_scopes.get(scope, 0), previous_scopes.get(scope, 0))})
+
+    organization_id = current_user.get("organization_id")
+    facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
+    dashboard = await get_dashboard_metrics_service(db).get_dashboard_metrics(organization_id, facility_ids, start_date=filters["reporting_period_start"], end_date=filters["reporting_period_end"])
+    evidence_count = await db.environment_records.count_documents({"org_id": organization_id, "evidence_files.0": {"$exists": True}, "is_current": {"$ne": False}})
+    pending = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "pending_approval", "is_current": {"$ne": False}})
+    rejected = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "rejected", "is_current": {"$ne": False}})
+    total_esg_records = dashboard.get("total_records", 0)
+    relationships = await db.supplier_relationships.find({"customer_org_id": organization_id}, {"_id": 0, "overall_score": 1, "invitation_status": 1}).to_list(1000)
+    frameworks = await db.organization_esg_responses.find({"organization_id": organization_id}, {"_id": 0, "framework": 1, "approval_status": 1}).to_list(10000)
+    compliance: Dict[str, Dict[str, int]] = {}
+    for item in frameworks:
+        framework = item.get("framework") or "Unclassified"
+        compliance.setdefault(framework, {"total": 0, "complete": 0})["total"] += 1
+        if item.get("approval_status") in {"approved", "not_required"}: compliance[framework]["complete"] += 1
+    compliance_rows = [{"framework": name, "completion_pct": round((values["complete"] / values["total"] * 100) if values["total"] else 0, 1)} for name, values in compliance.items()]
+
+    insights, actions = [], []
+    for kpi in kpis[1:]:
+        if kpi["change_pct"] is not None and abs(kpi["change_pct"]) >= 5:
+            direction = "increased" if kpi["change_pct"] > 0 else "decreased"
+            insights.append(f"{kpi['label']} {direction} by {abs(kpi['change_pct']):.1f}% versus the previous period.")
+    if current["facility_breakdown"]:
+        top = current["facility_breakdown"][0]
+        insights.append(f"{top['facility']} is the highest-emitting facility at {top['emissions']:.2f} {current['unit']}.")
+    if pending: actions.append({"type": "Pending approvals", "count": pending, "priority": "medium"})
+    if rejected: actions.append({"type": "Rejected entries requiring correction", "count": rejected, "priority": "high"})
+    if total_esg_records and evidence_count < total_esg_records: actions.append({"type": "Records without attached evidence", "count": total_esg_records - evidence_count, "priority": "medium"})
+    return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": dashboard.get("energy", {}), "water": dashboard.get("water", {}), "waste": dashboard.get("waste", {}), "data_collection": {"total_records": total_esg_records, "pending_approval": pending, "rejected": rejected}, "actions": actions, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "data_quality": {"source_records": current["record_count"], "facilities_reporting": len(current["facility_breakdown"]), "evidence_attached": evidence_count}, "insights": insights, "monthly_trend": current["period_breakdown"]}
 
 
 async def save_report_run(filters: Dict[str, Any], summary: Dict[str, Any], current_user: dict, status: str = "generated") -> Dict[str, Any]:
