@@ -171,6 +171,12 @@ export const DynamicFieldRenderer = ({
     !field.variable?.includes('carbon') &&
     !field.variable?.includes('composition');
 
+  // For Qty Basis EF: density is dynamically required when EF unit denominator
+  // dimension mismatches the fuel's quantity unit dimension for this month
+  const densityRequired = field.densityQtyBasisCheck &&
+    isDensityRequiredForQtyBasis(data.ef_quantity_unit, field.fuelQtyUnits);
+  const isFieldRequired = field.required || densityRequired;
+
   // Apply default value when field is first rendered and has no current value
   useEffect(() => {
     if (field.defaultValue !== undefined && field.defaultValue !== null) {
@@ -228,12 +234,6 @@ export const DynamicFieldRenderer = ({
   };
 
   const isDisabled = showOverrideCheckbox && !data[`override_${field.variable}`];
-
-  // For Qty Basis EF: density is dynamically required when EF unit denominator
-  // dimension mismatches the fuel's quantity unit dimension for this month
-  const densityRequired = field.densityQtyBasisCheck &&
-    isDensityRequiredForQtyBasis(data.ef_quantity_unit, field.fuelQtyUnits);
-  const isFieldRequired = field.required || densityRequired;
 
   return (
     <div key={field.id || field.variable} className="space-y-3">
