@@ -1012,6 +1012,8 @@ async def save_responses(
         section=section,
         data=data,
         changed_by_user_id=user_id,
+        changed_by_user_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
+        is_admin=is_admin,
     )
     
     return {

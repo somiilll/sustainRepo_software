@@ -8,7 +8,7 @@
  * - Validation for integer-only fields
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Input } from '../../../../../components/ui/input';
 import { Label } from '../../../../../components/ui/label';
 import {
@@ -47,6 +47,7 @@ export const getFieldUnits = ({
   filteredScope3Activities,
   centralizedUnits,
   biogenicScopeSelection,
+  useCustomFuel = false,
 }) => {
   const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
   let fieldUnits = [];
@@ -55,6 +56,19 @@ export const getFieldUnits = ({
   // renderer level, not via a units list.
   if (field.unitSource === 'none' || field.unitSource === 'text') {
     return [];
+  }
+
+  // Custom fuel: restrict units based on field type
+  if (useCustomFuel) {
+    // Quantity field: only mass-based units (kg, g, t)
+    if (field.variable === 'qty' || field.variable === 'qty_energy') {
+      return ['kg', 'g', 't'];
+    }
+    // Emission factor field: only kgCO2e/kg (mass-based)
+    if (field.variable === 'ef_quantity') {
+      return ['kgCO2e/kg'];
+    }
+    // Other fields: use default behavior
   }
 
   if (field.unitSource === 'fuel') {
@@ -106,6 +120,7 @@ export const DynamicFieldRenderer = ({
   filteredScope3Activities,
   centralizedUnits,
   biogenicScopeSelection,
+  useCustomFuel = false,
   // Compound unit support — when set, dropdown options are suffixed with
   // "/<compoundSuffix>". Computed by the parent from the linked field's unit.
   compoundSuffix = '',
@@ -127,6 +142,7 @@ export const DynamicFieldRenderer = ({
     filteredScope3Activities,
     centralizedUnits,
     biogenicScopeSelection,
+    useCustomFuel,
   });
 
   // If this field is configured as compound, suffix every option.
@@ -146,17 +162,44 @@ export const DynamicFieldRenderer = ({
   // Freeform text unit input driven by admin config (independent of supplier basis).
   const showTextUnitInput = isTextUnitField && !field.variable?.endsWith('_unit');
   const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
-  const isUnitlessCountField = isNoUnitField;
+  // Only enforce integer validation for pure count fields (e.g., "No. of rooms", "No. of days")
+  // Fields with validation_rules.max <= 1 or percentage fields are NOT count fields
+  const isUnitlessCountField = isNoUnitField && 
+    !field.validationRules?.max && 
+    !field.variable?.includes('factor') && 
+    !field.variable?.includes('carbon') &&
+    !field.variable?.includes('composition');
+
+  // Apply default value when field is first rendered and has no current value
+  useEffect(() => {
+    if (field.defaultValue !== undefined && field.defaultValue !== null) {
+      const currentValue = data[field.variable];
+      // Only apply default if no value exists yet
+      if (currentValue === undefined || currentValue === null || currentValue === '') {
+        updateMonthData(monthKey, field.variable, field.defaultValue);
+      }
+    }
+  }, [field.variable, field.defaultValue, monthKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleValueChange = (e) => {
     const val = e.target.value;
     
-    // Integer validation for count fields
+    // Integer validation for count fields only
     if (isUnitlessCountField && val !== '' && val !== null) {
       const numVal = parseFloat(val);
       if (!Number.isInteger(numVal)) {
         const fieldName = field.label?.replace?.(/_/g, ' ')?.replace?.(/\b\w/g, l => l.toUpperCase()) || field.variable;
         toast.error(`${fieldName} must be a whole number`);
+        return;
+      }
+    }
+    
+    // Validation rules: max value check (e.g., oxidation_factor <= 1)
+    if (field.validationRules?.max !== undefined && val !== '' && val !== null) {
+      const numVal = parseFloat(val);
+      if (numVal > field.validationRules.max) {
+        const fieldName = field.label || field.variable;
+        toast.error(`${fieldName} cannot be greater than ${field.validationRules.max}`);
         return;
       }
     }

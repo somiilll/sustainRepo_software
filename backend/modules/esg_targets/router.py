@@ -1047,6 +1047,8 @@ async def get_categories_for_targets(
         if "Energy" not in hierarchy:
             hierarchy["Energy"] = {}
         hierarchy["Energy"]["Total Energy Consumption"] = _get_energy_total_kpi()
+        hierarchy["Energy"]["Renewable Energy"] = _get_renewable_energy_kpi()
+        hierarchy["Energy"]["Non-Renewable Energy"] = _get_non_renewable_energy_kpi()
     
     return {
         "section": section,
@@ -1140,6 +1142,40 @@ def _get_energy_total_kpi() -> list:
         "description": "Total energy consumption aggregating Fuel, Electricity, Steam, Heating, and Cooling from all sources",
         "source": "emission_records + environment_records"
     }]
+
+
+
+def _get_renewable_energy_kpi() -> list:
+    """Aggregate Renewable Energy KPI across all source types (Fuel, Electricity, Heating, Cooling, Steam)."""
+    return [{
+        "kpi_id": "energy_renewable_total",
+        "metric_name": "Total Renewable Energy Consumption",
+        "metric_code": "ENERGY_RENEWABLE",
+        "baseline_mapping_key": "energy_renewable_total",
+        "short_name": "Renewable Energy",
+        "unit": "GJ",
+        "output_type": "number",
+        "aggregation_type": "sum",
+        "description": "Total renewable energy consumption across Fuel, Electricity, Heating, Cooling, and Steam",
+        "source": "environment_records"
+    }]
+
+
+def _get_non_renewable_energy_kpi() -> list:
+    """Aggregate Non-Renewable Energy KPI across all source types (Fuel, Electricity, Heating, Cooling, Steam)."""
+    return [{
+        "kpi_id": "energy_non_renewable_total",
+        "metric_name": "Total Non-Renewable Energy Consumption",
+        "metric_code": "ENERGY_NON_RENEWABLE",
+        "baseline_mapping_key": "energy_non_renewable_total",
+        "short_name": "Non-Renewable Energy",
+        "unit": "GJ",
+        "output_type": "number",
+        "aggregation_type": "sum",
+        "description": "Total non-renewable energy consumption across Fuel, Electricity, Heating, Cooling, and Steam",
+        "source": "environment_records"
+    }]
+
 
 
 # =============================================================================

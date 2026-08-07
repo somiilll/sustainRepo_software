@@ -12,7 +12,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://org-data-visibility.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://esg-executive-pack.preview.emergentagent.com')
 
 class TestBackendAPIs:
     """Backend API tests for iteration 16 features"""

@@ -39,9 +39,6 @@ export const Step1BasicSelection = ({
   setUseCustomFuel,
   setBiogenicScopeSelection,
   setScope3Subcategory,
-  setSelectedSubIndustry,
-  setSelectedTemplate,
-  setTemplateInputValues,
   
   // Biogenic props
   biogenicScopeSelection,
@@ -96,13 +93,6 @@ export const Step1BasicSelection = ({
   getAvailableEFUnits,
   getQuantityUnitFromEFUnit,
   
-  // Process Emissions props
-  isProcessEmissions,
-  selectedSubIndustry,
-  availableSubIndustries,
-  selectedTemplate,
-  templatesForSubIndustry,
-  
   // Supplier/Employee props (optional info)
   supplierName,
   setSupplierName,
@@ -118,6 +108,10 @@ export const Step1BasicSelection = ({
   kpiAllowedScopes = null,
   filterFacilitiesByScope = null,
   hasFullKPIAccess = true,
+  
+  // Decision field values (for calculation_methodology)
+  decisionFieldValues = {},
+  setDecisionFieldValues,
 }) => {
   // Activity type display labels
   const activityTypeLabels = {
@@ -303,9 +297,6 @@ export const Step1BasicSelection = ({
             setScope3Subcategory('');
             setTypeOfProduct?.('');
             setScope3ActivityId('');
-            setSelectedSubIndustry('');
-            setSelectedTemplate(null);
-            setTemplateInputValues({});
           }}
         >
           <SelectTrigger 
@@ -418,69 +409,8 @@ export const Step1BasicSelection = ({
         </div>
       )}
 
-      {/* Process Emissions - Sub-industry Selection */}
-      {isProcessEmissions && (
-        <div className="space-y-2">
-          <Label>Sub-Industry <span className="text-red-500">*</span></Label>
-          <select
-            value={selectedSubIndustry}
-            onChange={(e) => {
-              setSelectedSubIndustry(e.target.value);
-              setSelectedTemplate(null);
-              setTemplateInputValues({});
-            }}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="emission-subindustry-select"
-          >
-            <option value="">Select Sub-Industry</option>
-            {availableSubIndustries.map(si => (
-              <option key={si} value={si}>{si}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Process Emissions - Approach/Template Selection */}
-      {isProcessEmissions && selectedSubIndustry && (
-        <div className="space-y-2">
-          <Label>Approach Used <span className="text-red-500">*</span></Label>
-          <select
-            value={selectedTemplate?.id || ''}
-            onChange={(e) => {
-              const template = templatesForSubIndustry.find(t => t.id === e.target.value);
-              setSelectedTemplate(template || null);
-              if (template) {
-                const initialValues = {};
-                template.predefined_inputs?.forEach(f => {
-                  initialValues[f.key] = f.value || '';
-                });
-                setTemplateInputValues(initialValues);
-              } else {
-                setTemplateInputValues({});
-              }
-            }}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="emission-template-select"
-          >
-            <option value="">Select Approach</option>
-            {templatesForSubIndustry.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-          {selectedTemplate?.description && (
-            <p className="text-xs text-text-muted mt-1">{selectedTemplate.description}</p>
-          )}
-          {selectedTemplate && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg mt-2">
-              <p className="text-xs text-text-muted mb-1">Calculation Formula</p>
-              <code className="text-sm font-mono text-emerald-700">{selectedTemplate.formula}</code>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Scope 3: Method and Activity Selection */}
-      {category && !isProcessEmissions && scope === 'scope3' && (
+      {category && scope === 'scope3' && (
         <div className="space-y-4 mt-4 pb-6 border-b border-stone-200">
           {/* Method Selection */}
           <div className="space-y-2">
@@ -697,12 +627,82 @@ export const Step1BasicSelection = ({
           )}
         </div>
       )}
+      
+      {/* Process Type - Only for Process Emissions (Scope 1) */}
+      {category && category.toLowerCase().includes('process') && 
+       (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+        <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="process-type-section">
+          <Label>Process Type <span className="text-red-500">*</span></Label>
+          <Select
+            value={decisionFieldValues.process_type || ''}
+            onValueChange={(v) => setDecisionFieldValues(prev => ({ ...prev, process_type: v, calculation_methodology: '' }))}
+          >
+            <SelectTrigger className="bg-stone-50 h-10" data-testid="process-type-select">
+              <SelectValue placeholder="Select process type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="venting">Venting</SelectItem>
+              <SelectItem value="n2o_overall_combustion">N2O from Overall Combustion</SelectItem>
+              <SelectItem value="ch4_overall_combustion">CH4 from Overall Combustion</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
-      {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3, and non-process emissions */}
-      {category && !isProcessEmissions && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
+      {/* Calculation Methodology - For Stationary/Flaring OR Process Emissions with venting */}
+      {category && (
+        (category.toLowerCase().includes('stationary') || category.toLowerCase().includes('flaring')) ||
+        (category.toLowerCase().includes('process') && decisionFieldValues.process_type === 'venting')
+      ) && 
+       (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+        <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="calculation-methodology-section">
+          <Label>Calculation Methodology</Label>
+          <Select
+            value={decisionFieldValues.calculation_methodology || 'using_ncv'}
+            onValueChange={(v) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: v }))}
+          >
+            <SelectTrigger className="bg-stone-50 h-10" data-testid="calculation-methodology-select">
+              <SelectValue placeholder="Select methodology" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="using_ncv">Using NCV (Net Calorific Value)</SelectItem>
+              <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3, non-Process Emissions */}
+      {category && !category.toLowerCase().includes('process') && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
         <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
           <div className="flex items-center justify-between">
             <Label>Fuel Type <span className="text-red-500">*</span></Label>
+            {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
+            {(category.toLowerCase().includes('stationary') || 
+              category.toLowerCase().includes('mobile') || 
+              category.toLowerCase().includes('fugitive') ||
+              category.toLowerCase().includes('flaring')) && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useCustomFuel}
+                  onChange={(e) => {
+                    setUseCustomFuel(e.target.checked);
+                    if (e.target.checked) {
+                      setFuelId('');
+                      setFuelSearchTerm('');
+                    } else {
+                      setCustomFuelName('');
+                      setCustomEmissionFactor('');
+                      setCustomSource('');
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                  data-testid="use-custom-fuel-toggle"
+                />
+                <span className="text-sm text-amber-700 font-medium">Use Custom Fuel</span>
+              </label>
+            )}
           </div>
 
           {!useCustomFuel ? (
@@ -759,53 +759,8 @@ export const Step1BasicSelection = ({
                   onChange={(e) => setCustomFuelName(e.target.value)}
                   placeholder="Enter fuel name"
                   className="bg-white"
+                  data-testid="custom-fuel-name-input"
                 />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Emission Factor <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={customEmissionFactor}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '' || parseFloat(val) >= 0) {
-                        setCustomEmissionFactor(val);
-                      }
-                    }}
-                    onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                    placeholder="e.g., 2.5"
-                    className="bg-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>EF Unit <span className="text-red-500">*</span></Label>
-                  <select
-                    value={customEmissionFactorUnit}
-                    onChange={(e) => setCustomEmissionFactorUnit(e.target.value)}
-                    className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                  >
-                    {getAvailableEFUnits(scope).map(unit => (
-                      <option key={unit.value} value={unit.value}>
-                        {unit.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-amber-700">
-                    Quantity unit will be: <strong>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</strong>
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Source <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={customSource}
-                    onChange={(e) => setCustomSource(e.target.value)}
-                    placeholder="Source of info"
-                    className="bg-white"
-                  />
-                </div>
               </div>
             </div>
           )}

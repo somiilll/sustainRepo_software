@@ -425,6 +425,10 @@ export function hydrateEmissionForm(emission, config = {}) {
   const employeeData = extractEmployeeData(scope3Fields);
   const formData = buildFormData();
   const existingEvidences = parseExistingEvidences();
+  const savedProcessType = emission.process_type || emission.dynamic_field_values?.process_type || '';
+  const processType = typeof savedProcessType === 'object'
+    ? savedProcessType.value || ''
+    : savedProcessType;
 
   // =====================
   // Return hydrated values
@@ -443,6 +447,7 @@ export function hydrateEmissionForm(emission, config = {}) {
     
     // Selected category for UI
     selectedCategory: emission.category || '',
+    processType,
     
     // Fuel from database (if matched)
     fuelFromDb,

@@ -355,6 +355,18 @@ export default function EmissionDataGrid({
             activityDisplay = emission.sub_category || emission.fuel_type || '-';
           }
 
+          const isProcessEmission = emission.category?.toLowerCase().includes('process');
+          const rawProcessType = emission.process_type || dfv.process_type?.value || '';
+          const processTypeLabels = {
+            venting: 'Venting',
+            n2o_overall_combustion: 'N2O from Overall Combustion',
+            ch4_overall_combustion: 'CH4 from Overall Combustion',
+          };
+          const processTypeDisplay = isProcessEmission
+            ? processTypeLabels[rawProcessType] || rawProcessType.replaceAll('_', ' ') || '-'
+            : '-';
+          const subcategoryDisplay = isProcessEmission ? processTypeDisplay : activityDisplay;
+
           // Get calculation method display using centralized labels
           const methodDisplay = getMethodLabel(calcMethod, true);
 
@@ -453,8 +465,8 @@ export default function EmissionDataGrid({
                     </p>
                   </div>
                   <div className="flex-1 min-w-[140px] text-left flex items-center gap-2">
-                    <p className="text-sm text-text-primary truncate" title={activityDisplay}>
-                      {activityDisplay}
+                    <p className="text-sm text-text-primary truncate" title={subcategoryDisplay} data-testid={`emission-subcategory-${emission.id}`}>
+                      {subcategoryDisplay}
                     </p>
                     {hasOverride && (
                       <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">

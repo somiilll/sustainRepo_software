@@ -1,193 +1,83 @@
 {
-  "identity": {
-    "name": "E1",
-    "role": "Creative Designer (Top 1%)",
-    "principles": [
-      "Fusion over Imitation",
-      "Emotion First",
-      "Content is King",
-      "Zoom In",
-      "Negative Space",
-      "Contrast"
-    ]
-  },
-  "project_context": {
-    "app_name": "EcoTrack GHG Platform",
-    "app_type": "SaaS Dashboard",
-    "theme": "Light Mode (Organic & Earthy)",
-    "target_audience": "Environmental compliance officers, Sustainability managers",
-    "emotional_tone": "Professional, Trustworthy, Clean, Organic, Data-driven"
-  },
-  "design_system": {
-    "colors": {
-      "palette_name": "Organic & Earthy (Archetype 1)",
-      "primary": {
-        "DEFAULT": "#1A4D2E",
-        "foreground": "#FFFFFF",
-        "description": "Deep Forest Green - Trust, Nature, Authority"
-      },
-      "secondary": {
-        "DEFAULT": "#4F6F52",
-        "foreground": "#FFFFFF",
-        "description": "Sage Green - Soft, approachable, secondary actions"
-      },
-      "accent": {
-        "DEFAULT": "#E85C0D",
-        "foreground": "#FFFFFF",
-        "description": "Earthy Terracotta - Alerts, High-priority actions"
-      },
-      "background": {
-        "DEFAULT": "#F5F7F5",
-        "description": "Off-white/Bone - Avoid pure white, feels like recycled paper"
-      },
-      "surface": {
-        "DEFAULT": "#FFFFFF",
-        "description": "Pure white for cards to create lift"
-      },
-      "text": {
-        "primary": "#1A1A1A",
-        "secondary": "#4A4A4A",
-        "muted": "#71717A"
-      },
-      "chart_colors": [
-        "#1A4D2E",
-        "#4F6F52",
-        "#E85C0D",
-        "#F5A623",
-        "#8D6F64"
-      ]
-    },
-    "typography": {
-      "strategy": "The Soft Utility",
-      "headings": {
-        "font_family": "Manrope, sans-serif",
-        "weights": ["600", "700", "800"],
-        "description": "Modern, clean, semi-geometric but friendly. Good for data and headers."
-      },
-      "body": {
-        "font_family": "Inter, sans-serif",
-        "weights": ["400", "500"],
-        "description": "Standard, highly legible for dense data tables."
-      },
-      "mono": {
-        "font_family": "JetBrains Mono, monospace",
-        "description": "For specific data values or IDs."
-      }
-    },
-    "spacing": {
-      "scale": "Tailwind Scale (p-1 to p-64)",
-      "philosophy": "Generous. Use p-6 or p-8 for card padding. p-12 for section gaps.",
-      "grid_gap": "gap-6 for dashboard, gap-12 for landing"
-    },
-    "visual_enhancers": {
-      "glassmorphism": {
-        "use_case": "Sidebar, Floating Headers, Toasts",
-        "classes": "bg-white/70 backdrop-blur-xl border border-white/20 shadow-sm"
-      },
-      "texture": {
-        "use_case": "Main Background",
-        "description": "Subtle noise overlay to reduce digital flatness (optional)"
-      },
-      "borders": {
-        "style": "Subtle, organic",
-        "radius": "rounded-xl",
-        "color": "border-stone-200"
-      },
-      "shadows": {
-        "card": "shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
-        "hover": "shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
-      }
+  "theme": "light",
+  "archetype": "Organic & Earthy",
+  "typography": {
+    "font_imports": [
+      "@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,500,700&display=swap');",
+      "@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap');"
+    ],
+    "heading_font": "'Cabinet Grotesk', sans-serif",
+    "body_font": "'IBM Plex Sans', sans-serif",
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-bold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-medium tracking-tight",
+      "body": "text-sm text-text-primary leading-relaxed",
+      "labels": "text-xs font-semibold uppercase tracking-[0.2em] text-text-muted"
     }
   },
-  "layout_strategies": {
-    "dashboard": {
-      "type": "High Density Grid (Mode B)",
-      "grid_cols": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
-      "gap": "gap-6",
-      "rules": [
-        "Summary cards: col-span-1",
-        "Main Chart: col-span-2 row-span-2 or col-span-3",
-        "Feed/List: col-span-1 row-span-2",
-        "Fill height: h-full for all children"
-      ]
-    },
-    "landing_page": {
-      "type": "Tetris Grid (Mode A)",
-      "grid_cols": "grid-cols-1 md:grid-cols-12",
-      "gap": "gap-8",
-      "rules": [
-        "Hero: col-span-full md:col-span-8",
-        "Feature: col-span-4",
-        "Asymmetry is key"
-      ]
-    }
+  "colors": {
+    "background": "#FFFFFF",
+    "surface": "#F5F5F0",
+    "primary": "#1A3626",
+    "primary_foreground": "#FFFFFF",
+    "secondary": "#4A6B53",
+    "secondary_foreground": "#FFFFFF",
+    "accent_warning": "#CC5A3A",
+    "accent_alert": "#D99C3D",
+    "text_primary": "#1A1A1A",
+    "text_secondary": "#4A4A4A",
+    "text_muted": "#8C8C85",
+    "border": "#E5E5DF"
+  },
+  "layouts": {
+    "overall": "A4 Print-first layout simulated on web. High-density Grid for Data but with generous internal padding for breathing room. Strict hierarchy.",
+    "cover_page": "Full-bleed hero image with bg-black/40 overlay, massive H1 heading ('SustainRepo ESG Executive Report'), prominent logo placeholder, and report period. High contrast. Grid Tetris style.",
+    "data_sections": "Mode B: High Density Grid (grid-cols-1 md:grid-cols-4). Flat solid surfaces with max 8px border-radius and 1px sharp border. No glassmorphism.",
+    "page_breaks": "Structure the UI into clear, distinct sections (Cover, Exec Summary, Emissions, Operations, Suppliers) to simulate PDF pages."
+  },
+  "visual_enhancers": {
+    "borders": "1px solid border-border. Sharp, clean 'Swiss' technical lines separating data points.",
+    "shadows": "Minimal/None. Use flat solid borders for print clarity.",
+    "charts": "Shadcn Recharts with organic palette (Forest Green, Moss, Ochre, Terracotta). Ensure labels are legible without hover (print safe).",
+    "icons": "Use Phosphor Icons (regular weight) for clear, executive dashboard feel."
   },
   "components": {
-    "buttons": {
-      "style": "Pill-shaped or Rounded-lg",
-      "animation": "transform transition-all active:scale-95 hover:shadow-md",
-      "primary_class": "bg-[#1A4D2E] hover:bg-[#143D24] text-white rounded-full px-8"
-    },
-    "cards": {
-      "style": "Flat with subtle border, no heavy shadow by default",
-      "class": "bg-white border border-stone-200 rounded-xl p-6"
-    },
-    "inputs": {
-      "style": "Shadcn default but with 'focus:ring-[#1A4D2E]' and 'bg-[#F5F7F5]'",
-      "class": "h-12 rounded-lg border-stone-200 bg-stone-50"
-    },
-    "charts": {
-      "library": "Recharts (via Shadcn)",
-      "style": "Minimalist, thin lines, custom tooltips",
-      "colors": "Use palette chart_colors"
-    }
+    "kpi_cards": "Flat background (surface), 1px border, high contrast value text, explicit trend indicator (up/down arrow with +X% or -X%).",
+    "tables": "Dense, clean padding, prominent header. Use left-alignment for text, right-alignment for numbers. Use Shadcn Table.",
+    "email_summary": "Render a visual representation of the scheduled email. CRITICAL: REMOVE 'Source Records Processed'. Must be concise and fact-based.",
+    "target_tracking": "Use Shadcn Progress bars with sharp edges, contrasting fill (Primary or Accent depending on status)."
   },
-  "assets": {
-    "images": [
-      {
-        "category": "Hero/Login Background",
-        "url": "https://images.unsplash.com/photo-1748966006043-3df544d90770?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHx3aW5kJTIwdHVyYmluZXMlMjBncmVlbiUyMGdyYXNzfGVufDB8fHx8MTc3MDg3OTU0Mnww&ixlib=rb-4.1.0&q=85",
-        "description": "Wind turbines on green grass - Clean energy vibe"
-      },
-      {
-        "category": "Facility Placeholder",
-        "url": "https://images.unsplash.com/photo-1766246719951-0d21674dd9b2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBlY28lMjBmcmllbmRseSUyMGZhY3RvcnklMjBidWlsZGluZ3xlbnwwfHx8fDE3NzA4Nzk1NDZ8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Industrial plant - Use for facility thumbnails"
-      }
-    ],
-    "icons": {
-      "library": "Lucide React (Default)",
-      "style": "Stroke width 1.5px (Thin/Elegant)"
+  "image_urls": {
+    "cover_hero": {
+      "url": "https://images.unsplash.com/photo-1640125346217-e4bb9313d6bd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwyfHxzdXN0YWluYWJsZSUyMGZvcmVzdCUyMGNhbm9weSUyMGFlcmlhbHxlbnwwfHx8fDE3ODYwODQ2MjV8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Aerial view of a lush green sustainable forest canopy. Use as Cover Page background with bg-black/40 overlay to ensure text contrast."
+    },
+    "energy_section": {
+      "url": "https://images.unsplash.com/photo-1562519990-50eb51e282b2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwyfHxjbGVhbiUyMG1vZGVybiUyMHdpbmQlMjB0dXJiaW5lc3xlbnwwfHx8fDE3ODYwODQ2MjV8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Clean modern wind turbines. Use as an accent banner for the Energy/Emissions data section."
     }
   },
   "instructions_to_main_agent": [
-    "Implement the 'Organic & Earthy' color palette immediately in tailwind.config.js.",
-    "Use 'Manrope' for all headings. Import it from Google Fonts.",
-    "For the Dashboard, strictly follow the 'High Density Grid' layout.",
-    "Use the provided image URLs for the Login page background and Facility placeholders.",
-    "Ensure all charts use the custom green/earth tone colors, NOT the default blue/red.",
-    "Add 'data-testid' to all interactive elements.",
-    "Do NOT use gradients for backgrounds. Use solid colors or subtle noise textures.",
-    "Use 'sonner' for toasts."
+    "You are building the UI that generates a multi-section executive PDF MIS report for SustainRepo ESG.",
+    "Install required dependencies: `yarn add @phosphor-icons/react recharts`.",
+    "Use light theme exclusively as this is a PDF-first report.",
+    "Include the following sections: 'Cover Page', 'Executive KPI Comparisons', 'Emissions & Resources' (tCO2e, energy/water/waste), 'Operations & Safety' (incidents, LTIFR, account payable days), and 'Supplier Performance' (assessment scores per supplier).",
+    "In the Email notification summary component (if visually represented), REMOVE 'Source Records Processed' per user request. Keep it concise with factual insights.",
+    "Update tailwind.config.js to include the new colors and fonts.",
+    "Update index.css with the font imports (@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,500,700&display=swap'); and Google Fonts IBM Plex Sans) and set the base font family to IBM Plex Sans, headings to Cabinet Grotesk.",
+    "All interactive and key informational elements MUST include a `data-testid` attribute.",
+    "Do NOT use HTML <select> or <input type='date'>. Use Shadcn UI components.",
+    "Use Recharts for monthly trend (tCO2e), facility breakdowns, and incident splits. Disable tooltip-reliance for critical data so it's visible in a static PDF print.",
+    "Structure the layout as a scrollable container with internal 'page' sections imitating an A4 aspect ratio where possible."
   ],
-  "universal_guidelines": [
-    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients",
-    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
-    "Create depth through layered design elements with z-index hierarchy",
-    "Use glass-morphism effects with backdrop filters (12-24px blur)",
-    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms",
-    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file. This disrupts the human natural reading flow of text",
-    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style",
-    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
-    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
-    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
-    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
-    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN",
-    "Prioritize using pre-existing components from src/components/ui when applicable",
-    "Create new components that match the style and conventions of existing components when needed",
-    "Examine existing components to understand the project's component patterns before creating new ones",
-    "Components MUST use named exports (export const ComponentName = ...)",
-    "Pages MUST use default exports (export default function PageName() {...})",
-    "Use sonner for toasts. Sonner component are located in /app/src/components/ui/sonner.tsx"
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not make generic centered layouts. Use grid-based optical alignments.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Avoid the 'AI slop' aesthetic. No generic gradients.",
+    "Do not apply universal transition (`transition: all`). Add transitions specifically to interactive elements.",
+    "Do NOT center align the app container `.App { text-align: center; }`.",
+    "Do not use AI assistant emojis.",
+    "Use `sonner` for toasts."
   ]
 }

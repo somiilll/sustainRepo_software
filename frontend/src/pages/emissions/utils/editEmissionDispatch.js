@@ -29,6 +29,7 @@ export async function editEmissionDispatch(emission, ctx) {
     setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
     setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
     setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
+    setEditUseCustomFuel, setEditCustomFuelName, setEditProcessType,
     // Helpers
     getAuthHeader,
   } = ctx;
@@ -56,6 +57,12 @@ export async function editEmissionDispatch(emission, ctx) {
     
     // Set the category state for UI display
     setSelectedCategory(hydrated.selectedCategory);
+    setEditProcessType?.(hydrated.processType || '');
+    
+    // Apply custom fuel state
+    const isCustomFuel = emission.is_custom_fuel || false;
+    setEditUseCustomFuel?.(isCustomFuel);
+    setEditCustomFuelName?.(isCustomFuel ? (emission.custom_fuel_name || emission.fuel_type || '') : '');
     
     // Apply biogenic scope selection
     if (emission.scope === 'biogenic') {

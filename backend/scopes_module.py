@@ -95,8 +95,8 @@ DEFAULT_CATEGORIES = {
     "scope1": [
         {"name": "Stationary Combustion", "code": "stationary_combustion", "display_order": 1},
         {"name": "Mobile Combustion", "code": "mobile_combustion", "display_order": 2},
-        {"name": "Process Emissions", "code": "process_emissions", "display_order": 3},
-        {"name": "Fugitive Emissions", "code": "fugitive_emissions", "display_order": 4},
+        {"name": "Fugitive Emissions", "code": "fugitive_emissions", "display_order": 3},
+        # NOTE: 'Process Emissions' was removed per user request — do NOT re-add.
     ],
     "scope2": [
         {"name": "Purchased Electricity", "code": "purchased_electricity", "display_order": 1},

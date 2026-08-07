@@ -105,10 +105,11 @@ export function validateEditSubmission(ctx) {
     overrideDensity,
     overrideEmissionFactorHeat,
     overrideJustification,
+    editUseCustomFuel,
+    editCustomFuelName,
+    editProcessType,
   } = ctx;
 
-  console.log("here", formData)
-  console.log("overrideEmissionFactorHeat", overrideEmissionFactorHeat)
   // 1. Override CV/density justifications (DOM-read)
   if (isOverrideCV && !formData.calorific_value_justification?.trim()) {
     return { valid: false, errorMessage: 'Justification is required when overriding Calorific Value' };
@@ -136,7 +137,6 @@ export function validateEditSubmission(ctx) {
         const value = dynamicFieldValues[field.variable];
         const numValue = parseFloat(value);
         if (!value || isNaN(numValue) || numValue <= 0) {
-        console.log("here is the issue", field.label)
           return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
         }
       }
@@ -153,9 +153,18 @@ export function validateEditSubmission(ctx) {
     return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
   }
 
-  // 5. Fuel selection
-  if (!formData.fuel_id) {
-    return { valid: false, errorMessage: 'Please select a fuel from the database' };
+  // 5. Fuel selection — Process Emissions don't require fuel
+  const isProcessEmissions = formData.category?.toLowerCase().includes('process');
+  if (isProcessEmissions && !editProcessType) {
+    return { valid: false, errorMessage: 'Please select a process type' };
+  }
+  if (!isProcessEmissions) {
+    if (!editUseCustomFuel && !formData.fuel_id) {
+      return { valid: false, errorMessage: 'Please select a fuel from the database' };
+    }
+    if (editUseCustomFuel && !editCustomFuelName?.trim()) {
+      return { valid: false, errorMessage: 'Please enter custom fuel name' };
+    }
   }
 
   // 6. Calc engine must have produced a result
@@ -230,6 +239,9 @@ export function buildEditPayload(ctx) {
     isOverrideDensity,
     overrideEmissionFactorHeat,
     overrideJustification,
+    editUseCustomFuel,
+    editCustomFuelName,
+    editProcessType,
   } = ctx;
 
   const reportingPeriod =
@@ -239,6 +251,10 @@ export function buildEditPayload(ctx) {
 
   // Dynamic values
   const dynamicValues = buildDynamicValues(ctx);
+  const isProcessEmissions = formData.category?.toLowerCase().includes('process');
+  if (isProcessEmissions && editProcessType) {
+    dynamicValues.process_type = { value: editProcessType, unit: '' };
+  }
 
   // Outputs
   const outputs = {};
@@ -256,8 +272,11 @@ export function buildEditPayload(ctx) {
     scope: formData.scope,
     category: formData.category,
     sub_category: formData.sub_category,
-    fuel_type: formData.fuel_type,
-    fuel_database_id: formData.fuel_id,
+    fuel_type: editUseCustomFuel ? editCustomFuelName : formData.fuel_type,
+    fuel_database_id: editUseCustomFuel ? null : formData.fuel_id,
+    is_custom_fuel: editUseCustomFuel || false,
+    custom_fuel_name: editUseCustomFuel ? editCustomFuelName : null,
+    process_type: isProcessEmissions ? editProcessType || null : null,
 
     formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
 

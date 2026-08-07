@@ -82,6 +82,7 @@ from modules.dashboards.ws_router import router as dashboards_ws_router
 # Phase B8: reports router (5 routes — /reports/facility, /reports/combined,
 # /reports/ghg-inventory, /reports/download/{token}, /reports/ai-summary).
 from modules.reports.router import router as reports_router
+from modules.mis_reports.router import router as mis_reports_router
 # Phase B9: super-admin / platform config router (~91 routes).
 from modules.superadmin.router import router as superadmin_router
 # Phase B9: Pydantic models moved to modules/superadmin/contracts.py.
@@ -142,6 +143,8 @@ api_router.include_router(dashboards_router)
 api_router.include_router(dashboards_ws_router)
 # Phase B8 router (Reports — 5 routes)
 api_router.include_router(reports_router)
+# MIS Reports V1 module (catalog, shared filters, and run history).
+api_router.include_router(mis_reports_router)
 # Phase B9 router (Super-admin / Platform Config — ~91 routes)
 api_router.include_router(superadmin_router)
 
@@ -3687,6 +3690,18 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+mis_reports_scheduler_task = None
+
+
+async def run_mis_reports_scheduler():
+    """Run enabled MIS delivery schedules without blocking API traffic."""
+    from modules.mis_reports.service import process_due_schedules
+    while True:
+        try:
+            await process_due_schedules()
+        except Exception as error:
+            logger.error(f"MIS reports scheduler failed: {error}")
+        await asyncio.sleep(3600)
 
 @app.on_event("startup")
 async def startup_event():
@@ -3696,6 +3711,8 @@ async def startup_event():
     await check_expired_subscriptions()
     await seed_scopes_and_categories(db)
     await seed_calc_engine(db)
+    global mis_reports_scheduler_task
+    mis_reports_scheduler_task = asyncio.create_task(run_mis_reports_scheduler())
 
 async def check_expired_subscriptions():
     """Deactivate organizations whose subscription has expired"""
@@ -3717,4 +3734,6 @@ async def check_expired_subscriptions():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    if mis_reports_scheduler_task:
+        mis_reports_scheduler_task.cancel()
     client.close()

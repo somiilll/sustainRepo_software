@@ -936,10 +936,11 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         
         return EmissionRecordResponse(**record_dict)
     
-    # No approval required - insert directly
-    # For suppliers, don't set approval_status (approval workflow doesn't apply to them)
-    # For regular users, set as "approved"
-    if current_user.get("user_type") != "supplier":
+    # No approval required - insert directly.
+    # Admins/Super Admins bypass the workflow, so they must not receive an
+    # "approved" status: no approval event occurred. Suppliers also have no
+    # emission approval workflow.
+    if current_user.get("user_type") != "supplier" and not is_admin:
         record_dict["approval_status"] = "approved"
     await db.emission_records.insert_one(record_dict)
     logger.info(f"[EMISSION_CREATE] Saved directly: record_id={record_dict.get('id')}, co2e={record_dict.get('total_emissions')}")

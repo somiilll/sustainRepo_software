@@ -14,9 +14,6 @@ export const validateStep1 = ({
   facilityId,
   scope,
   category,
-  isProcessEmissions,
-  selectedSubIndustry,
-  selectedTemplate,
   scope3Method,
   scope3ActivityId,
   useCustomActivity,
@@ -31,13 +28,6 @@ export const validateStep1 = ({
   if (!facilityId) return { valid: false, message: 'Please select a facility' };
   if (!scope) return { valid: false, message: 'Please select a scope' };
   if (!category) return { valid: false, message: 'Please select a category' };
-
-  // Process Emissions validation
-  if (isProcessEmissions) {
-    if (!selectedSubIndustry) return { valid: false, message: 'Please select a sub-industry' };
-    if (!selectedTemplate) return { valid: false, message: 'Please select an approach/template' };
-    return { valid: true };
-  }
 
   // Scope 3 validation
   if (scope === 'scope3') {
@@ -66,11 +56,16 @@ export const validateStep1 = ({
     return { valid: false, message: 'Please select a biogenic emission type (Scope 1 or Scope 3)' };
   }
 
+  // Process Emissions - no fuel required
+  const isProcessEmissions = category?.toLowerCase().includes('process');
+  if (isProcessEmissions) {
+    return { valid: true };
+  }
+
   // Regular fuel emissions validation (Scope 1, 2, Biogenic Scope 1)
   if (!useCustomFuel && !fuelId) return { valid: false, message: 'Please select a fuel type' };
   if (useCustomFuel && !customFuelName) return { valid: false, message: 'Please enter custom fuel name' };
-  if (useCustomFuel && !customEmissionFactor) return { valid: false, message: 'Please enter emission factor' };
-  if (useCustomFuel && !customSource?.trim()) return { valid: false, message: 'Please enter source/justification for custom fuel type' };
+  // Note: EF and Source are now entered via dynamic fields in Step 3, not in Step 1
 
   return { valid: true };
 };

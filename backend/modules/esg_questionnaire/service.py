@@ -2737,17 +2737,20 @@ class ESGQuestionnaireService:
         section: str,
         data: ESGResponseCreate,
         changed_by_user_id: Optional[str] = None,
+        changed_by_user_name: Optional[str] = None,
+        is_admin: bool = False,
     ) -> Dict[str, Any]:
         """
-        Save responses using 1-document-per-year architecture.
+        Save responses using FLAT document structure (same as Section B/C/GRI).
+        
+        Each question gets its own document with question_key field.
+        Approval logic follows Section B/C pattern:
+        - Admin saves → approval_status = None (not required)
+        - No approval workflow → approval_status = None (not required)
+        - Approval workflow with approver → approval_status = "pending_approval"
         
         When user enters data for both Current FY and Previous FY columns,
-        this method splits the data into two separate year documents:
-        - Current FY data → saved to `reporting_year` document
-        - Previous FY data → saved to `previous_year` document
-        
-        Field names like `reused_current_fy` become `reused` in the stored document.
-        Also tracks version history for each question if changed_by_user_id is provided.
+        this method splits the data into two separate year documents.
         """
         now = datetime.now(timezone.utc).isoformat()
         previous_year = self._calculate_previous_fy(reporting_year)
@@ -2758,13 +2761,15 @@ class ESGQuestionnaireService:
         # Save current year data
         if current_year_data:
             await self._save_year_document(
-                org_id, framework, reporting_year, section, current_year_data, now, changed_by_user_id
+                org_id, framework, reporting_year, section, current_year_data, now, 
+                changed_by_user_id, changed_by_user_name, is_admin
             )
         
         # Save previous year data (if any previous_fy fields were filled)
         if previous_year_data:
             await self._save_year_document(
-                org_id, framework, previous_year, section, previous_year_data, now, changed_by_user_id
+                org_id, framework, previous_year, section, previous_year_data, now,
+                changed_by_user_id, changed_by_user_name, is_admin
             )
         
         # Return merged view (for frontend compatibility)
@@ -2779,77 +2784,90 @@ class ESGQuestionnaireService:
         responses: Dict[str, Any],
         now: str,
         changed_by_user_id: Optional[str] = None,
+        changed_by_user_name: Optional[str] = None,
+        is_admin: bool = False,
     ) -> None:
-        """Save or update a single year's document and track version history."""
-        existing = await self._responses.find_one({
-            "org_id": org_id,
-            "framework": framework,
-            "reporting_year": reporting_year,
-            "section": section,
-        })
+        """
+        Save responses using FLAT document structure (1 doc per question_key).
         
-        if existing:
-            # Merge with existing responses
-            old_responses = existing.get("responses", {})
-            merged = self._deep_merge(old_responses, responses)
+        Follows the same approval logic as Section B/C/GRI (save_gri_response):
+        - Admin saves → approval_status = None (not required)
+        - No approval workflow → approval_status = None (not required)  
+        - Approval workflow with approver assigned → approval_status = "pending_approval"
+        - Previously approved value changed → approval_status = "pending_approval"
+        - Stores last_approved_value for rejection revert (same as Section B/C)
+        """
+        for question_key, new_value in responses.items():
+            # Get existing response for this question (flat format)
+            existing = await self._responses.find_one({
+                "org_id": org_id,
+                "question_key": question_key,
+                "reporting_year": reporting_year,
+            }, {"_id": 0, "value": 1, "approval_status": 1, "status": 1})
             
-            await self._responses.update_one(
-                {
-                    "org_id": org_id,
-                    "framework": framework,
-                    "reporting_year": reporting_year,
-                    "section": section,
-                },
-                {"$set": {"responses": merged, "updated_at": now}}
+            old_value = existing.get("value") if existing else None
+            previous_approval_status = existing.get("approval_status") if existing else None
+            value_changed = old_value != new_value
+            has_value = self._response_has_value(new_value)
+            
+            # Check if previously approved
+            was_approved = previous_approval_status == "approved"
+            
+            # Store previous approved value for rejection revert (same as Section B/C)
+            previous_approved_value = old_value if was_approved and value_changed else None
+            
+            # Determine approval status using same logic as Section B/C
+            # Use _should_use_direct_save to check if approval workflow applies
+            use_direct_save = await self._should_use_direct_save(org_id, question_key, reporting_year)
+            
+            # Admin always bypasses approval (direct save)
+            if is_admin:
+                use_direct_save = True
+            
+            # Determine final approval_status
+            final_approval_status = None  # Default: no approval required
+            
+            if has_value and not use_direct_save:
+                # Approval workflow applies - set to pending_approval
+                final_approval_status = "pending_approval"
+            elif has_value and use_direct_save:
+                # Direct save (no approval workflow or admin)
+                # Check if previously approved value was changed
+                if was_approved and value_changed:
+                    # Re-editing an approved answer should go back to pending
+                    # But only if there's an approval workflow (not admin override)
+                    if not is_admin:
+                        has_approver = await self._has_approver_assigned(org_id, question_key, reporting_year)
+                        if has_approver:
+                            final_approval_status = "pending_approval"
+                # Otherwise, no approval_status (None = not required)
+            
+            # Save using flat format (same as Section B/C/GRI)
+            await self._save_to_unified_collection(
+                org_id=org_id,
+                question_key=question_key,
+                value=new_value,
+                reporting_period=reporting_year,
+                framework=framework,
+                section=section,
+                status="saved" if has_value else "pending",
+                approval_status=final_approval_status,
+                changed_by_user_id=changed_by_user_id,
+                changed_by_user_name=changed_by_user_name,
+                now_iso=now,
+                previous_approved_value=previous_approved_value,  # For rejection revert
             )
             
-            # Trigger approval workflow and log audit for changed questions
-            if changed_by_user_id:
-                for question_key, new_value in responses.items():
-                    old_value = old_responses.get(question_key)
-                    value_changed = old_value != new_value
-                    
-                    # Always trigger approval check (handles re-submission of approved/rejected questions)
-                    try:
-                        await self._trigger_approval_if_required(
-                            org_id, question_key, reporting_year, new_value, changed_by_user_id
-                        )
-                        # Log to audit trail only if value actually changed
-                        if value_changed:
-                            await self._log_question_audit(
-                                org_id, question_key, reporting_year, 
-                                old_value, new_value, changed_by_user_id, "updated"
-                            )
-                    except Exception as e:
-                        print(f"Warning: Failed to trigger approval for {question_key}: {e}")
-        else:
-            doc = {
-                "id": str(uuid.uuid4()),
-                "org_id": org_id,
-                "framework": framework,
-                "reporting_year": reporting_year,
-                "section": section,
-                "responses": responses,
-                "created_at": now,
-                "updated_at": None,
-            }
-            await self._responses.insert_one(doc)
-            
-            # Trigger approval workflow and log audit for new questions
-            if changed_by_user_id:
-                for question_key, new_value in responses.items():
-                    try:
-                        await self._trigger_approval_if_required(
-                            org_id, question_key, reporting_year, new_value, changed_by_user_id
-                        )
-                        # Log to audit trail for version history (new question)
-                        if self._response_has_value(new_value):
-                            await self._log_question_audit(
-                                org_id, question_key, reporting_year,
-                                None, new_value, changed_by_user_id, "created"
-                            )
-                    except Exception as e:
-                        print(f"Warning: Failed to trigger approval for {question_key}: {e}")
+            # Log audit if value changed
+            if changed_by_user_id and value_changed and has_value:
+                action = "created" if existing is None else "updated"
+                try:
+                    await self._log_question_audit(
+                        org_id, question_key, reporting_year,
+                        old_value, new_value, changed_by_user_id, action
+                    )
+                except Exception as e:
+                    print(f"Warning: Failed to log audit for {question_key}: {e}")
 
     def _split_responses_by_year(
         self, 
@@ -3106,16 +3124,31 @@ class ESGQuestionnaireService:
             requires_approval = assignment.get("requires_approval", False) if assignment else False
             now_iso = datetime.now(timezone.utc).isoformat()
             
-            # Check existing response
-            existing_response = await db.esg_responses.find_one({
-                "organization_id": org_id,
-                "question_key": question_key,
+            # Check existing response from unified collection
+            question_config = await self._configs.find_one(
+                {"question_key": question_key},
+                {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
+            )
+            
+            framework = None
+            section = None
+            if question_config:
+                framework = question_config.get("framework") or (question_config.get("frameworks", ["GRI"])[0] if question_config.get("frameworks") else "GRI")
+                section = question_config.get("section", "environment")
+            
+            # Check existing response in unified collection
+            existing_doc = await self._responses.find_one({
+                "org_id": org_id,
+                "framework": framework,
                 "reporting_year": reporting_year,
-            })
+                "section": section,
+            }, {"_id": 0, "responses": 1}) if framework and section else None
+            
+            existing_value = existing_doc.get("responses", {}).get(question_key) if existing_doc else None
             
             # Check if response has actual value
             has_value = self._response_has_value(response_value)
-            had_previous_value = existing_response and self._response_has_value(existing_response.get("value"))
+            had_previous_value = self._response_has_value(existing_value)
             
             # Skip if never filled and still empty (no approval needed for empty questions)
             if not has_value and not had_previous_value:
@@ -3127,17 +3160,11 @@ class ESGQuestionnaireService:
             else:
                 approval_status = "approved"  # Auto-approved if no approval required
             
-            # Get question config to find framework and section
-            question_config = await self._configs.find_one(
-                {"question_key": question_key},
-                {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
-            )
-            
             if question_config:
                 framework = question_config.get("framework") or (question_config.get("frameworks", ["GRI"])[0] if question_config.get("frameworks") else "GRI")
                 section = question_config.get("section", "environment")
                 
-                # Update status in organization_esg_responses (the correct collection)
+                # Update status in organization_esg_responses (unified collection for all sections)
                 await self._responses.update_one(
                     {
                         "org_id": org_id,
@@ -3158,44 +3185,7 @@ class ESGQuestionnaireService:
                     }
                 )
             
-            # Also keep esg_responses updated for backwards compatibility
-            if existing_response:
-                # Update existing
-                await db.esg_responses.update_one(
-                    {"id": existing_response["id"]},
-                    {"$set": {
-                        "value": response_value,
-                        "approval_status": approval_status,
-                        "submitted_at": now_iso,
-                        "submitted_by": changed_by_user_id,
-                        "updated_at": now_iso,
-                    }}
-                )
-            else:
-                # Create new - include section for proper filtering
-                section = assignment.get("section") if assignment else None
-                if not section:
-                    # Try to get section from question config
-                    config = await self._configs.find_one(
-                        {"question_key": question_key},
-                        {"_id": 0, "section": 1}
-                    )
-                    section = config.get("section") if config else None
-                
-                await db.esg_responses.insert_one({
-                    "id": str(uuid.uuid4()),
-                    "organization_id": org_id,
-                    "question_key": question_key,
-                    "reporting_year": reporting_year,
-                    "framework": assignment.get("framework_id", "brsr") if assignment else "brsr",
-                    "section": section,
-                    "value": response_value,
-                    "approval_status": approval_status,
-                    "submitted_at": now_iso,
-                    "submitted_by": changed_by_user_id,
-                    "created_at": now_iso,
-                    "updated_at": now_iso,
-                })
+            # Note: esg_responses dual-write removed - all data now in organization_esg_responses
             
             if not assignment:
                 return  # No assignment for this disclosure, but response is saved

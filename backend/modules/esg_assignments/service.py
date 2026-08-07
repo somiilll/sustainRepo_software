@@ -693,6 +693,7 @@ class AssignmentService:
                 all_have_value = True
                 rejection_reason = None
                 filled_count = 0
+                any_has_approval_workflow = False  # Track if any subpart has approval workflow
                 
                 for sp in subparts:
                     sp_status = sp.get("approval_status")
@@ -705,23 +706,36 @@ class AssignmentService:
                     
                     if sp_status == "rejected":
                         any_rejected = True
+                        any_has_approval_workflow = True
                         rejection_reason = sp.get("rejection_reason")
                     elif sp_status == "pending_approval":
                         any_pending = True
+                        any_has_approval_workflow = True
                         all_approved = False
-                    elif sp_status != "approved":
+                    elif sp_status == "approved":
+                        any_has_approval_workflow = True
+                        # Explicitly approved - counts as approved
+                    elif sp_status is None or sp_status == "not_required":
+                        # No approval_status means "not required" - treat as effectively approved
+                        # Don't set all_approved = False for these
+                        pass
+                    else:
+                        # Unknown status - treat as not approved
                         all_approved = False
                 
                 # Determine aggregated approval status
-                # Priority: rejected > pending_approval > approved > not_started
+                # Priority: rejected > pending_approval > approved > not_required
                 if any_rejected:
                     agg_approval_status = "rejected"
-                elif any_pending or (all_have_value and not all_approved):
+                elif any_pending:
                     agg_approval_status = "pending_approval"
+                elif all_have_value and not any_has_approval_workflow:
+                    # All filled but NO approval workflow on any question = not_required
+                    agg_approval_status = "not_required"
                 elif all_approved and all_have_value:
                     agg_approval_status = "approved"
                 elif all_have_value:
-                    agg_approval_status = "completed"
+                    agg_approval_status = "not_required"  # Changed from "completed" - no approval needed
                 else:
                     agg_approval_status = None
                 

@@ -9,6 +9,7 @@ import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
+import MISReportsFoundation from '../modules/mis-reports/MISReportsFoundation';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -29,7 +30,7 @@ const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
   return fallbackMessage;
 };
 
-export default function Reports() {
+export default function Reports({ showMISFoundation = false }) {
   const [facilities, setFacilities] = useState([]);
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -63,6 +64,7 @@ export default function Reports() {
     reporting_period_end: ''
   });
   const [generatingAi, setGeneratingAi] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     fetchFacilities();
@@ -301,7 +303,7 @@ export default function Reports() {
       reporting_period_end: '',
       include_previous_years: false,
       output_format: 'docx',
-      report_type: 'scope1_2'
+      report_type: 'scope_1_2'
     });
   };
 
@@ -453,6 +455,17 @@ export default function Reports() {
     }
   };
 
+  const handleConfigureMISReport = (templateId) => {
+    if (templateId === 'ghg_inventory') {
+      resetGhgForm();
+      setGhgDialogOpen(true);
+    }
+    if (templateId === 'ai_executive_summary') {
+      resetAiForm();
+      setAiDialogOpen(true);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -463,16 +476,20 @@ export default function Reports() {
 
   return (
     <div className="space-y-6" data-testid="reports-page">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Reports</h1>
-          <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
+      {showMISFoundation ? (
+        <MISReportsFoundation onConfigureReport={handleConfigureMISReport} />
+      ) : (
+        <div className="flex items-start justify-between" data-testid="reports-legacy-header">
+          <div>
+            <h1 className="text-4xl font-heading font-bold text-text-primary mb-2" data-testid="reports-legacy-heading">Reports</h1>
+            <p className="text-text-secondary" data-testid="reports-legacy-subtitle">Download comprehensive GHG emission reports</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* GHG Inventory Report Card - Only show if org has GHG module enabled */}
       {hasScope12Access && hasGhgEnabled && (
-        <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
+        <Card className={`${showMISFoundation ? 'hidden' : ''} p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white`}>
           <div className="flex items-start gap-4">
             <div className="p-3 bg-green-100 rounded-xl">
               <FileText className="w-10 h-10 text-green-600" />
@@ -745,7 +762,7 @@ export default function Reports() {
 
       {/* AI Report Card - Only show if org has GHG module enabled */}
       {hasScope12Access && hasGhgEnabled && (
-        <Card className="p-6 border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50 to-white">
+        <Card className={`${showMISFoundation ? 'hidden' : ''} p-6 border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50 to-white`}>
           <div className="flex items-start gap-4">
             <div className="p-3 bg-purple-100 rounded-xl">
               <Sparkles className="w-10 h-10 text-purple-600" />
@@ -912,7 +929,7 @@ export default function Reports() {
         </Card>
       )}
 
-      {facilities.length === 0 && (
+      {!showMISFoundation && facilities.length === 0 && (
         <div className="text-center py-12">
           <FileText className="w-16 h-16 mx-auto text-text-muted mb-4" />
           <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No facilities available</h3>
@@ -920,35 +937,19 @@ export default function Reports() {
         </div>
       )}
 
-      <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-        <h3 className="text-lg font-heading font-bold text-text-primary mb-3">Report Contents</h3>
-        <ul className="space-y-2 text-sm text-text-secondary">
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Facility information and details</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Emissions summary for selected period (Scope 1, 2, Biogenic & Sinks)</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Visual charts and graphs showing emissions breakdown</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Year-wise emission data breakdown</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Detailed emission records table with all parameters</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Historical tracking and trend analysis</span>
-          </li>
-        </ul>
-      </Card>
+      {!showMISFoundation && (
+        <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+          <h3 className="text-lg font-heading font-bold text-text-primary mb-3">Report Contents</h3>
+          <ul className="space-y-2 text-sm text-text-secondary">
+            <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span><span>Facility information and details</span></li>
+            <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span><span>Emissions summary for selected period (Scope 1, 2, Biogenic & Sinks)</span></li>
+            <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span><span>Visual charts and graphs showing emissions breakdown</span></li>
+            <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span><span>Year-wise emission data breakdown</span></li>
+            <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span><span>Detailed emission records table with all parameters</span></li>
+            <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span><span>Historical tracking and trend analysis</span></li>
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

@@ -1,0 +1,358 @@
+{
+  "period": {
+    "start": "2026-04",
+    "end": "2027-03"
+  },
+  "facility_scope": {
+    "mis_filter_schema_count": 7,
+    "mis_filter_schema_ids": [
+      "0f882e69-1be4-44d2-a1ec-cc7af296ab8b",
+      "1aaa0a22-0f02-47bc-a154-b87c8e872bd5",
+      "39ecd9be-9417-4df6-93c4-e583abf49260",
+      "5cd77bee-8152-41d7-90ff-b00dcfdfd60a",
+      "8548ce14-ca82-4c61-bf3b-b10b938a949b",
+      "8735e369-70f9-4c12-a0b2-d8fbf194cd4d",
+      "c2ec2a8f-fffc-4cfc-958c-85073ce3ab63"
+    ],
+    "facilities_endpoint_total": 7,
+    "facilities_endpoint_active_count": 7,
+    "facilities_endpoint_inactive_count": 0,
+    "inactive_facility_ids": [],
+    "mis_minus_facilities_endpoint": [],
+    "facilities_endpoint_minus_mis": []
+  },
+  "emissions_comparison": {
+    "mis_executive_current_total": 1003.1705,
+    "mis_emissions_summary_total": 1003.1705,
+    "dashboard_stats_total": 1387.64,
+    "absolute_gap_dashboard_minus_mis": 384.4695,
+    "dashboard_monthly_trend_total_sum": 1003.1705,
+    "dashboard_non_monthly_contribution_estimate": 384.4695,
+    "dashboard_yearly_facility_analysis": [
+      {
+        "year": "FY 2026-27",
+        "total_emissions": 1387.64,
+        "scope1": 773.26,
+        "scope2": 260.9,
+        "biogenic": 0,
+        "facility_count": 5
+      }
+    ],
+    "dashboard_yearly_fuel_analysis": [
+      {
+        "year": "FY 2026-27",
+        "total_emissions": 1387.64,
+        "Process Emissions": 357.17,
+        "Petrol (100% mineral petrol)": 303.32,
+        "Non-Renewable Electricity": 244.36,
+        "Aviation Gasoline": 205.61,
+        "Diesel": 88.84
+      }
+    ],
+    "dashboard_monthly_trend_rows": 10,
+    "mis_period_breakdown_rows": 10
+  },
+  "water_comparison": {
+    "mis_water": {
+      "consumption": 0,
+      "withdrawal": 0,
+      "discharge": 0,
+      "totalinput": 0,
+      "recycled": 0.0,
+      "recycle_pct": 0
+    },
+    "dashboard_metrics_water": {
+      "consumption": 0.0,
+      "withdrawal": 0.0,
+      "discharge": 0.0,
+      "totalinput": 0.0,
+      "recycled": 0.0
+    },
+    "dashboard_metrics_water_no_facility_filter": {
+      "consumption": 52.3,
+      "withdrawal": 91.1,
+      "discharge": 100.68,
+      "totalinput": 143.4,
+      "recycled": 5720.72
+    },
+    "dashboard_esg_analytics_water_totals": {
+      "withdrawn": 0.0,
+      "consumed": 0.0,
+      "discharged": 0.0,
+      "recycled": 0.0
+    },
+    "dashboard_esg_analytics_water_totals_no_facility_filter": {
+      "withdrawn": 91.1,
+      "consumed": 52.3,
+      "discharged": 0.16,
+      "recycled": 5720.72
+    },
+    "water_detail_sources": [],
+    "water_detail_sources_no_facility_filter": [
+      {
+        "name": "Third-Party Water",
+        "value": 7900.0
+      },
+      {
+        "name": "Surface Water",
+        "value": 7100.0
+      },
+      {
+        "name": "Ground Water",
+        "value": 5000.0
+      },
+      {
+        "name": "Seawater / Desalinated",
+        "value": 2000.0
+      }
+    ],
+    "water_recycle_records_total": 13,
+    "water_recycle_records_approval_status_counts": {
+      "not_required": 13
+    },
+    "water_recycle_field_keys_present": [
+      "total_quantity_of_water_recycled",
+      "unit"
+    ]
+  },
+  "waste_comparison": {
+    "mis_waste": {
+      "generated": 0.0,
+      "disposal": 0.0,
+      "recovered": 0.0,
+      "recovery_pct": 0
+    },
+    "dashboard_metrics_waste": {
+      "generated": 0.0,
+      "recovered": 0.0,
+      "disposal": 0.0,
+      "total": 0.0,
+      "recovery_pct": 0,
+      "hazardous_generated": 0.0,
+      "non_hazardous_generated": 0.0,
+      "hazardous_recovered": 0.0,
+      "non_hazardous_recovered": 0.0
+    },
+    "dashboard_metrics_waste_no_facility_filter": {
+      "generated": 427900.0,
+      "recovered": 116032.0,
+      "disposal": 345998.0,
+      "total": 427900.0,
+      "recovery_pct": 27.12,
+      "hazardous_generated": 99000.0,
+      "non_hazardous_generated": 328900.0,
+      "hazardous_recovered": 14000.0,
+      "non_hazardous_recovered": 102032.0
+    },
+    "dashboard_esg_analytics_waste_totals": {
+      "generated": 0.0,
+      "recovered": 0.0,
+      "disposed": 0.0
+    },
+    "dashboard_esg_analytics_waste_totals_no_facility_filter": {
+      "generated": 427900.0,
+      "recovered": 129810.0,
+      "disposed": 380998.0
+    },
+    "environment_detail_hazardous": {
+      "generated": 0.0,
+      "recovered": 0.0,
+      "disposed": 0.0
+    },
+    "environment_detail_non_hazardous": {
+      "generated": 0.0,
+      "recovered": 0.0,
+      "disposed": 0.0
+    },
+    "waste_records_total": 29,
+    "waste_records_approval_status_counts": {
+      "approved": 2,
+      "not_required": 27
+    },
+    "waste_subcategory_counts": {
+      "Spills": 2,
+      "Recovered / Diverted from disposal": 9,
+      "Disposal": 9,
+      "Generated": 9
+    },
+    "waste_field_keys_present": [
+      "hazardous_waste_disposed",
+      "hazardous_waste_disposed_offsite",
+      "hazardous_waste_disposed_onsite",
+      "hazardous_waste_generated",
+      "hazardous_waste_recovered",
+      "hazardous_waste_recovered_offsite",
+      "hazardous_waste_recovered_onsite",
+      "if_others_please_specify",
+      "location_of_spill",
+      "material_of_spill",
+      "non_hazardous_waste_disposed",
+      "non_hazardous_waste_generated",
+      "non_hazardous_waste_recovered",
+      "other_hazardous_waste_disposed",
+      "quantity",
+      "radioactive_waste_disposed",
+      "significant_spill",
+      "surface_affected",
+      "unit",
+      "volume_of_spill"
+    ]
+  },
+  "energy_comparison": {
+    "mis_energy": {
+      "emission_records": {
+        "fuel": {
+          "renewable": 0,
+          "non_renewable": 880.28,
+          "total": 880.28
+        },
+        "electricity": {
+          "renewable": 15776.0,
+          "non_renewable": 346.49,
+          "total": 16122.49
+        },
+        "other_sources": {
+          "renewable": 0,
+          "non_renewable": 90.58,
+          "total": 90.58
+        },
+        "total": 17093.35,
+        "renewable_total": 15776.0,
+        "non_renewable_total": 1317.35
+      },
+      "esg_records": {
+        "fuel": {
+          "renewable": 0.0,
+          "non_renewable": 0.0,
+          "total": 0.0
+        },
+        "electricity": {
+          "renewable": 0,
+          "non_renewable": 0,
+          "total": 0
+        },
+        "other_sources": {
+          "renewable": 0,
+          "non_renewable": 0,
+          "total": 0
+        },
+        "total": 0.0,
+        "renewable_total": 0.0,
+        "non_renewable_total": 0.0
+      },
+      "total": 17093.35,
+      "renewable_total": 15776.0,
+      "non_renewable_total": 1317.35,
+      "renewable_pct": 92.29
+    },
+    "dashboard_metrics_energy": {
+      "emission_records": {
+        "fuel": {
+          "renewable": 0,
+          "non_renewable": 880.28,
+          "total": 880.28
+        },
+        "electricity": {
+          "renewable": 15776.0,
+          "non_renewable": 346.49,
+          "total": 16122.49
+        },
+        "other_sources": {
+          "renewable": 0,
+          "non_renewable": 90.58,
+          "total": 90.58
+        },
+        "total": 17093.35,
+        "renewable_total": 15776.0,
+        "non_renewable_total": 1317.35
+      },
+      "esg_records": {
+        "fuel": {
+          "renewable": 0.0,
+          "non_renewable": 0.0,
+          "total": 0.0
+        },
+        "electricity": {
+          "renewable": 0,
+          "non_renewable": 0,
+          "total": 0
+        },
+        "other_sources": {
+          "renewable": 0,
+          "non_renewable": 0,
+          "total": 0
+        },
+        "total": 0.0,
+        "renewable_total": 0.0,
+        "non_renewable_total": 0.0
+      },
+      "total": 17093.35,
+      "renewable_total": 15776.0,
+      "non_renewable_total": 1317.35,
+      "renewable_pct": 92.29
+    },
+    "dashboard_metrics_energy_no_facility_filter": {
+      "emission_records": {
+        "fuel": {
+          "renewable": 0,
+          "non_renewable": 880.28,
+          "total": 880.28
+        },
+        "electricity": {
+          "renewable": 15776.0,
+          "non_renewable": 346.49,
+          "total": 16122.49
+        },
+        "other_sources": {
+          "renewable": 0,
+          "non_renewable": 90.58,
+          "total": 90.58
+        },
+        "total": 17093.35,
+        "renewable_total": 15776.0,
+        "non_renewable_total": 1317.35
+      },
+      "esg_records": {
+        "fuel": {
+          "renewable": 0.0,
+          "non_renewable": 0.01,
+          "total": 0.01
+        },
+        "electricity": {
+          "renewable": 0,
+          "non_renewable": 0.0,
+          "total": 0.0
+        },
+        "other_sources": {
+          "renewable": 0,
+          "non_renewable": 0.0,
+          "total": 0.0
+        },
+        "total": 0.02,
+        "renewable_total": 0.0,
+        "non_renewable_total": 0.02
+      },
+      "total": 17093.37,
+      "renewable_total": 15776.0,
+      "non_renewable_total": 1317.37,
+      "renewable_pct": 92.29
+    },
+    "dashboard_esg_analytics_energy_totals": {
+      "renewable": 15776.0,
+      "non_renewable": 1317.34
+    },
+    "dashboard_esg_analytics_energy_totals_no_facility_filter": {
+      "renewable": 15776.0,
+      "non_renewable": 1317.38
+    },
+    "dashboard_esg_analytics_energy_renewable_pct": 92.29,
+    "dashboard_esg_analytics_energy_renewable_pct_no_facility_filter": 92.29
+  },
+  "supplier_assessment": {
+    "mis_supplier_assessment": {
+      "suppliers_assessed": 3,
+      "high_risk_suppliers": 0,
+      "pending_assessments": 0
+    }
+  }
+}

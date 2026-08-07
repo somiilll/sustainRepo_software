@@ -160,10 +160,6 @@ export default function EmissionEntryForm({
     c7FormulaName, setC7FormulaName,
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
-    // Process Emissions
-    selectedSubIndustry, setSelectedSubIndustry,
-    selectedTemplate, setSelectedTemplate,
-    templateInputValues, setTemplateInputValues,
     // Dynamic Form Config (Calc Engine)
     formConfig, setFormConfig,
     loadingFormConfig, setLoadingFormConfig,
@@ -311,6 +307,13 @@ export default function EmissionEntryForm({
           setEmployeeMonthlyTotals(hydrated.employeeMonthlyTotals);
           setEmployeeYearlyTotal(hydrated.employeeYearlyTotal);
         }
+      }
+      
+      // Hydrate calculation methodology from dynamic_field_values
+      // If record has carbon_content/composition_of_carbon, it was carbon composition method
+      const dfvKeys = Object.keys(editingEmission.dynamic_field_values || {});
+      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
+        setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: 'using_carbon_composition' }));
       }
       
       // Hydrate monthly data for monthly frequency
@@ -783,11 +786,6 @@ export default function EmissionEntryForm({
         });
         return uniqueActivities;
       }
-      
-      // For process_emissions (supplier_basis only), return empty for now
-      if (scope3Subcategory === 'process_emissions') {
-        return [];
-      }
     }
     
     // Standard filtering for non-subcategory categories
@@ -986,12 +984,6 @@ export default function EmissionEntryForm({
       { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
     ];
     
-    // For activity_basis, don't show process_emissions (no data)
-    // For supplier_basis, include process_emissions
-    if (scope3Method === 'supplier_basis') {
-      subcategories.push({ value: 'process_emissions', label: subcategoryLabelsMap['process_emissions'] || 'Process Emissions' });
-    }
-    
     return subcategories;
   }, [requiresSubcategory, scope3Method, configLabels?.subcategories]);
 
@@ -1040,19 +1032,35 @@ export default function EmissionEntryForm({
   // Emission factor unit to quantity unit mapping
   const EMISSION_FACTOR_UNITS = [
     { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/g', label: 'tCO₂/g', quantityUnit: 'g', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't', forScope: ['scope1', 'biogenic'] },
     { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L', forScope: ['scope1', 'biogenic'] },
     { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³', forScope: ['scope1', 'biogenic'] },
     { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh', forScope: ['scope2'] },
     { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh', forScope: ['scope2'] },
   ];
+  
+  // Custom fuel units - restricted to mass-based units (kg, g, t) per user requirement
+  const CUSTOM_FUEL_UNITS = [
+    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg' },
+    { value: 'tCO2/g', label: 'tCO₂/g', quantityUnit: 'g' },
+    { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't' },
+  ];
 
   // Get available EF units based on scope
-  const getAvailableEFUnits = (currentScope) => {
+  const getAvailableEFUnits = (currentScope, isCustomFuel = false) => {
+    if (isCustomFuel) {
+      return CUSTOM_FUEL_UNITS;
+    }
     return EMISSION_FACTOR_UNITS.filter(u => u.forScope.includes(currentScope));
   };
 
   // Get quantity unit based on emission factor unit for custom fuels
   const getQuantityUnitFromEFUnit = (efUnit) => {
+    // Check custom fuel units first
+    const customMapping = CUSTOM_FUEL_UNITS.find(u => u.value === efUnit);
+    if (customMapping) return customMapping.quantityUnit;
+    // Fallback to standard units
     const mapping = EMISSION_FACTOR_UNITS.find(u => u.value === efUnit);
     return mapping?.quantityUnit || 'kg';
   };
@@ -1160,15 +1168,8 @@ export default function EmissionEntryForm({
       result.sort();
     }
     
-    // NOTE: Process Emissions category is now managed through the dynamic category system
-    // It should be added via the formula builder/category management, not hardcoded here
-    // The old hardcoded injection has been removed to respect user's category configuration
-    
     return result;
-  }, [fuelDatabase, scope, processTemplates, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
-
-  // Check if Process Emissions category is selected
-  const isProcessEmissions = category === 'Process Emissions';
+  }, [fuelDatabase, scope, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
 
   // ============================================================================
   // Dynamic Form Config - Get input fields from ce_input_field_mappings
@@ -1195,44 +1196,22 @@ export default function EmissionEntryForm({
     let requiredInputVars = null;
     let matchedFormula = null;
     
+    // Helper function to traverse decision tree and find formula_id
+    const traverseDecisionTree = (node, fieldValues) => {
+      if (!node) return null;
+      if (node.formula_id) return node.formula_id;
+      const fieldName = node.field_name;
+      if (!fieldName) return null;
+      const selectedValue = fieldValues[fieldName];
+      if (!selectedValue) return null;
+      const selectedOption = (node.options || {})[selectedValue];
+      if (!selectedOption) return null;
+      if (selectedOption.formula_id) return selectedOption.formula_id;
+      if (selectedOption.next) return traverseDecisionTree(selectedOption.next, fieldValues);
+      return null;
+    };
+
     if (isScope3Like && scope3Method && formConfig?.formulas?.length) {
-      
-      // Helper function to traverse decision tree and find formula_id
-      const traverseDecisionTree = (node, fieldValues) => {
-        if (!node) return null;
-        
-        // If this node has a formula_id, return it
-        if (node.formula_id) {
-          return node.formula_id;
-        }
-        
-        // Get the field name at this node
-        const fieldName = node.field_name;
-        if (!fieldName) return null;
-        
-        // Get the user's selection for this field
-        const selectedValue = fieldValues[fieldName];
-        if (!selectedValue) return null;
-        
-        // Find the option matching the user's selection
-        const options = node.options || {};
-        const selectedOption = options[selectedValue];
-        
-        if (!selectedOption) return null;
-        
-        // If the selected option has a formula_id, return it
-        if (selectedOption.formula_id) {
-          return selectedOption.formula_id;
-        }
-        
-        // If the selected option has a "next" node, recurse into it
-        if (selectedOption.next) {
-          return traverseDecisionTree(selectedOption.next, fieldValues);
-        }
-        
-        return null;
-      };
-      
       // Try to find formula using decision tree traversal
       if (formConfig.decision_tree) {
         const decisionValues = {
@@ -1297,53 +1276,57 @@ export default function EmissionEntryForm({
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
       }
     }
-    // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula based on decision tree or name
+    // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula via decision tree first, then fallback to name
     else if ((scope === 'scope1' || scope === 'scope2' || isBiogenicScope1) && formConfig?.formulas?.length) {
-      // For Biogenic Scope 1, prioritize formulas with "Biogenic" in the name
-      if (isBiogenicScope1) {
-        // First try to find a formula with "Biogenic" in the name
-        matchedFormula = formConfig.formulas.find(f => 
-          f.name?.toLowerCase().includes('biogenic')
-        );
-        // Fallback to first formula if no biogenic-specific formula found
-        if (!matchedFormula && formConfig.formulas.length > 0) {
-          matchedFormula = formConfig.formulas[0];
+      // Priority 0: Try decision tree traversal (handles calculation_methodology + ef_quantity_provided)
+      if (formConfig.decision_tree) {
+        const calcMethodology = decisionFieldValues.calculation_methodology || 'using_ncv';
+        const scope1DecisionValues = {
+          calculation_methodology: calcMethodology,
+          // Custom fuel must use Quantity Based formula (user provides EF manually)
+          ef_quantity_provided: useCustomFuel ? 'true' : 'false',
+          ...decisionFieldValues,
+        };
+        const formulaId = traverseDecisionTree(formConfig.decision_tree, scope1DecisionValues);
+        if (formulaId) {
+          matchedFormula = formConfig.formulas.find(f => f.id === formulaId);
         }
       }
-      // For regular Scope 1/2 - prioritize formulas with properties (cv, density) for Stationary/Mobile Combustion
-      else {
-        // Check if category is Stationary or Mobile Combustion (needs property overrides like cv, density)
-        // Use the category prop/variable which is the category name from dynamicCategories
-        const currentCategoryName = (category || categoryObj?.name || '').toLowerCase();
-        const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
-        
-        // Priority 1: For Stationary/Mobile Combustion, prefer "Heat Basis" formulas (which have cv, density properties)
-        if (isStationaryOrMobile) {
+
+      // Fallback: name-based matching if tree didn't resolve
+      if (!matchedFormula) {
+        if (isBiogenicScope1) {
           matchedFormula = formConfig.formulas.find(f => 
-            f.name?.toLowerCase().includes('heat basis') || f.name?.toLowerCase().includes('heat-basis')
+            f.name?.toLowerCase().includes('biogenic')
           );
-        }
-        
-        // Priority 2: If not found, prefer formula that has properties (for override fields)
-        if (!matchedFormula) {
-          matchedFormula = formConfig.formulas.find(f => 
-            f.properties?.length > 0 && f.properties.some(p => 
-              ['cv', 'density'].includes(p.variable?.toLowerCase() || p.key?.toLowerCase())
-            )
-          );
-        }
-        
-        // Priority 3: For non-combustion categories or if no formula with cv/density, fallback to Quantity Based
-        if (!matchedFormula) {
-          matchedFormula = formConfig.formulas.find(f => 
-            f.name?.toLowerCase().includes('quantity') || 
-            f.name?.toLowerCase().includes('activity')
-          );
-        }
-        
-        // Priority 4: Fallback to first formula
-        if (!matchedFormula && formConfig.formulas.length > 0) {
-          matchedFormula = formConfig.formulas[0];
+          if (!matchedFormula && formConfig.formulas.length > 0) {
+            matchedFormula = formConfig.formulas[0];
+          }
+        } else {
+          const currentCategoryName = (category || categoryObj?.name || '').toLowerCase();
+          const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
+          
+          if (isStationaryOrMobile) {
+            matchedFormula = formConfig.formulas.find(f => 
+              f.name?.toLowerCase().includes('heat basis') || f.name?.toLowerCase().includes('heat-basis')
+            );
+          }
+          if (!matchedFormula) {
+            matchedFormula = formConfig.formulas.find(f => 
+              f.properties?.length > 0 && f.properties.some(p => 
+                ['cv', 'density'].includes(p.variable?.toLowerCase() || p.key?.toLowerCase())
+              )
+            );
+          }
+          if (!matchedFormula) {
+            matchedFormula = formConfig.formulas.find(f => 
+              f.name?.toLowerCase().includes('quantity') || 
+              f.name?.toLowerCase().includes('activity')
+            );
+          }
+          if (!matchedFormula && formConfig.formulas.length > 0) {
+            matchedFormula = formConfig.formulas[0];
+          }
         }
       }
       
@@ -1356,54 +1339,46 @@ export default function EmissionEntryForm({
     const formulaId = matchedFormula?.id || null;
     
     // Filter input field mappings that apply to this category and scope
+    // Uses formula-driven filtering: only show fields that the resolved formula needs.
+    // Decision fields (maps_to_context in decision tree) always shown so users can toggle tree paths.
+    const decisionFieldNames = (formConfig.decision_fields || []).map(d => d.field_name);
     const applicableMappings = formConfig.input_field_mappings.filter(m => {
       const appliesToCategory = !m.applies_to_categories?.length || 
                                 m.applies_to_categories.includes(categoryId);
       const appliesToScope = !m.applies_to_scopes?.length || 
                              m.applies_to_scopes.includes(scopeId);
+      if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
       
-      // HARDCODED FIX: Always show cv and density for Scope 1/2 Stationary/Mobile Combustion
-      // This must come FIRST before any other filtering to bypass scope restrictions
+      // Custom fuel: never show density (mass-based units only)
+      if (useCustomFuel && m.maps_to_variable === 'density') return false;
+      
+      // Formula-driven filtering when a formula is resolved
+      if (matchedFormula && requiredInputVars?.length) {
+        if (m.is_override) {
+          // Override fields: show if declared as formula property
+          const formulaProperties = matchedFormula.properties || [];
+          if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
+            return true;
+          }
+          // Density: show when formula input supports dimension conversion (volume→mass)
+          if (m.maps_to_variable === 'density') {
+            return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
+          }
+          return false;
+        }
+        // Regular input fields: in formula inputs OR is a decision field in the tree
+        if (requiredInputVars.includes(m.maps_to_variable)) return true;
+        if (m.maps_to_context && decisionFieldNames.includes(m.maps_to_context)) return true;
+        return false;
+      }
+      
+      // Fallback: no formula resolved (e.g. no process_type selected yet) — hide all for Process
       const currentCategoryName = (category || '').toLowerCase();
-      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
-      if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile && m.is_override) {
-        if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
-          // Only check category match and is_active - SKIP scope check for cv/density
-          return appliesToCategory && m.is_active !== false;
-        }
+      if ((scope === 'scope1' || scope === 'scope2') && currentCategoryName.includes('process')) {
+        return false;
       }
       
-      // For Scope 3 with a selected method, strictly filter by formula inputs/properties
-      if (isScope3Like && requiredInputVars && matchedFormula) {
-        if (m.is_override) {
-          // Override fields (like PPP, inflation_rate) should only show if they are 
-          // explicitly listed in the matched formula's properties array
-          const formulaProperties = matchedFormula.properties || [];
-          const isPropertyOfFormula = formulaProperties.some(
-            prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
-          );
-          if (!isPropertyOfFormula) return false;
-        } else {
-          // Regular input fields must be in the formula's inputs
-          const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
-          if (!isRequiredForFormula) return false;
-        }
-      }
-      // For Scope 1/2/Biogenic Scope 1: only filter override fields by formula properties
-      // Non-override fields use scope/category filtering only
-      else if ((isBiogenicScope1 || scope === 'scope1' || scope === 'scope2') && matchedFormula) {
-        if (m.is_override) {
-          // For other override fields (not cv/density), check formula properties
-          const formulaProperties = matchedFormula.properties || [];
-          const isPropertyOfFormula = formulaProperties.some(
-            prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
-          );
-          if (!isPropertyOfFormula) return false;
-        }
-        // Non-override fields: rely on scope/category filtering (no formula input check)
-      }
-      
-      return appliesToCategory && appliesToScope && m.is_active !== false;
+      return true;
     });
     
     // Sort by display_order
@@ -1428,11 +1403,13 @@ export default function EmissionEntryForm({
       mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',  // Flexible value when filled
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
       options: m.options || [],  // For select field_type
+      validationRules: m.validation_rules || {},
+      defaultValue: m.default_value,
     }));
     
     // Return both fields and the matched formula ID
     return { fields, formulaId };
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection]);
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, decisionFieldValues, useCustomFuel]);
   
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
@@ -1778,6 +1755,12 @@ export default function EmissionEntryForm({
       }
     }
     
+    // For Scope 1/Biogenic Scope 1 Stationary Combustion: default calculation_methodology to 'using_ncv'
+    const isBiogenicScope1 = scope === 'biogenic' && biogenicScopeSelection === 'scope1';
+    if ((scope === 'scope1' || isBiogenicScope1) && !decisionInputs['calculation_methodology']) {
+      decisionInputs['calculation_methodology'] = 'using_ncv';
+    }
+
     return decisionInputs;
   }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, category]);
 
@@ -1789,6 +1772,7 @@ export default function EmissionEntryForm({
     
     // Determine if this is a scope3-like flow (regular scope3 or biogenic scope3)
     const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+    const isProcessEmissions = category?.toLowerCase().includes('process');
     const effectiveScope = isScope3Like ? 'scope3' : scope;
     
     // For Scope 3 (or biogenic scope3), we need method and activity instead of fuel
@@ -1804,7 +1788,9 @@ export default function EmissionEntryForm({
         if (!scope3ActivityId) return null;
       }
     } else {
-      if (!selectedFuel || !fuelId) {
+      // Process Emissions resolves entirely through its decision tree and has no fuel.
+      // Standard fuel categories still require a selected fuel unless custom fuel is used.
+      if (!isProcessEmissions && !useCustomFuel && (!selectedFuel || !fuelId)) {
         return null;
       }
     }
@@ -1871,7 +1857,7 @@ export default function EmissionEntryForm({
       // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
       // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
       // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
-      let fuelNameForContext = selectedFuel?.fuel_name || '';
+      let fuelNameForContext = useCustomFuel ? customFuelName : (selectedFuel?.fuel_name || '');
       if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFEntry?.activity) {
         fuelNameForContext = matchedEFEntry.activity;
       }
@@ -1882,11 +1868,12 @@ export default function EmissionEntryForm({
       
       const context = {
         fuel_name: fuelNameForContext,
-        fuel_id: fuelId || '',
+        fuel_id: useCustomFuel ? null : (fuelId || ''),
         scope: effectiveScope, // Use effective scope for context
         category: category,
         facility_id: facilityId,
         reporting_period: monthReportingPeriod, // For currency conversion year lookup
+        is_custom_fuel: useCustomFuel || false,
         // Scope 3 specific context (also applies to biogenic scope3)
         ...(isScope3Like && {
           calculation_method_scope3: scope3Method,
@@ -1941,7 +1928,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalcEngineCalculating(false);
     }
-  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection]);
+  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, useCustomFuel, customFuelName]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {
@@ -1960,7 +1947,7 @@ export default function EmissionEntryForm({
         if (!scope3ActivityId) return null;
       }
     } else {
-      if (!selectedFuel || !fuelId) return null;
+      if (!useCustomFuel && (!selectedFuel || !fuelId)) return null;
     }
     
     const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
@@ -2024,7 +2011,7 @@ export default function EmissionEntryForm({
       // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
       // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
       // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
-      let fuelNameForContext = selectedFuel?.fuel_name || '';
+      let fuelNameForContext = useCustomFuel ? customFuelName : (selectedFuel?.fuel_name || '');
       if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
         fuelNameForContext = matchedEFForContext.activity;
       }
@@ -2036,11 +2023,12 @@ export default function EmissionEntryForm({
       
       const context = {
         fuel_name: fuelNameForContext,
-        fuel_id: fuelId || '',
+        fuel_id: useCustomFuel ? null : (fuelId || ''),
         scope: effectiveScope,
         category: category,
         facility_id: facilityId,
         reporting_period: yearlyReportingPeriodForCalc, // For currency conversion year lookup
+        is_custom_fuel: useCustomFuel || false,
         ...(isScope3Like && {
           calculation_method_scope3: scope3Method,
           scope3_ef_id: scope3ActivityId,
@@ -2099,25 +2087,7 @@ export default function EmissionEntryForm({
     }
   }, [formConfig, frequencyType, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, yearlyData, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, reportingYearType, reportingYear]);
 
-  // Get unique sub-industries from process templates
-  const availableSubIndustries = useMemo(() => {
-    if (!isProcessEmissions) return [];
-    const subIndustries = new Set();
-    processTemplates.forEach(t => {
-      if (t.sub_industry) {
-        subIndustries.add(t.sub_industry);
-      }
-    });
-    return Array.from(subIndustries).sort();
-  }, [processTemplates, isProcessEmissions]);
-
-  // Get templates for selected sub-industry
-  const templatesForSubIndustry = useMemo(() => {
-    if (!isProcessEmissions || !selectedSubIndustry) return [];
-    return processTemplates.filter(t => t.sub_industry === selectedSubIndustry);
-  }, [processTemplates, selectedSubIndustry, isProcessEmissions]);
-
-  // Evaluate formula with given values (for process emissions)
+  // Evaluate formula with given values
   const evaluateFormula = useCallback((formula, values) => {
     try {
       // Replace variable names with values
@@ -2649,6 +2619,7 @@ export default function EmissionEntryForm({
       filteredScope3Activities={filteredScope3Activities}
       centralizedUnits={centralizedUnits}
       biogenicScopeSelection={biogenicScopeSelection}
+      useCustomFuel={useCustomFuel}
       compoundSuffix={computeCompoundSuffix(field, data)}
     />
   );
@@ -2665,6 +2636,7 @@ export default function EmissionEntryForm({
       filteredScope3Activities,
       centralizedUnits,
       biogenicScopeSelection,
+      useCustomFuel,
     });
     const suffix = computeCompoundSuffix(field, yearlyData);
     if (!suffix) return base;
@@ -2676,13 +2648,6 @@ export default function EmissionEntryForm({
   const getMonthStatus = (monthKey) => {
     const data = monthlyData[monthKey];
     if (!data) return 'empty';
-    
-    // For process emissions, check if template input fields have data
-    if (isProcessEmissions && selectedTemplate) {
-      const inputFields = selectedTemplate.input_fields || [];
-      const hasData = inputFields.some(field => data[field.key] && parseFloat(data[field.key]) > 0);
-      return hasData ? 'filled' : 'empty';
-    }
     
     // For Scope 3 with dynamic fields, check if required fields have values
     if ((scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && dynamicInputFields.length > 0) {
@@ -2740,14 +2705,6 @@ export default function EmissionEntryForm({
       return monthsWithData.size;
     }
     
-    if (isProcessEmissions && selectedTemplate) {
-      // For process emissions, count months that have any template input field filled
-      const inputFields = selectedTemplate.input_fields || [];
-      return Object.values(monthlyData).filter(m => {
-        return inputFields.some(field => m?.[field.key] && parseFloat(m[field.key]) > 0);
-      }).length;
-    }
-    
     // For dynamic form config, check if any required field (non-override) has value
     if (dynamicInputFields.length > 0) {
       const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
@@ -2761,14 +2718,13 @@ export default function EmissionEntryForm({
     
     // No dynamic fields loaded yet - return 0
     return 0;
-  }, [monthlyData, yearlyData, frequencyType, isProcessEmissions, selectedTemplate, dynamicInputFields, isC7EmployeeCommuting, employees]);
+  }, [monthlyData, yearlyData, frequencyType, dynamicInputFields, isC7EmployeeCommuting, employees]);
 
   // F4: Validation dispatcher delegates to extracted utils.
   // The util `canProceedToStep` covers cases 2/3/4 (legacy case 5 default-true preserved).
   const canProceedToStep = (step) => canProceedToStepUtil(step, {
     // Step 1 params
     facilityId, scope, category,
-    isProcessEmissions, selectedSubIndustry, selectedTemplate,
     scope3Method, scope3ActivityId, useCustomActivity, scope3CustomActivity,
     biogenicScopeSelection,
     useCustomFuel, fuelId, customFuelName, customEmissionFactor, customSource,
@@ -3049,11 +3005,11 @@ export default function EmissionEntryForm({
     monthlyData, yearlyData, processNames, responsiblePerson,
     responsiblePersonDesignation, responsiblePersonContact, notes, recordSource, supplierName,
     supplierCode, employeeName, employeeId, assetName, fromLocation, toLocation,
-    selectedSubIndustry, selectedTemplate, templateInputValues, dynamicCategories,
+    dynamicCategories,
     // Setters
     setIsSaving,
     // Computed
-    isC7EmployeeCommuting, isProcessEmissions, requiresSubcategory, selectedFuel,
+    isC7EmployeeCommuting, requiresSubcategory, selectedFuel,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     // Helpers
     canProceedToStep, getAuthHeader, onSuccess, getActualYearForMonth,
@@ -3141,9 +3097,6 @@ export default function EmissionEntryForm({
           setUseCustomFuel={setUseCustomFuel}
           setBiogenicScopeSelection={setBiogenicScopeSelection}
           setScope3Subcategory={setScope3Subcategory}
-          setSelectedSubIndustry={setSelectedSubIndustry}
-          setSelectedTemplate={setSelectedTemplate}
-          setTemplateInputValues={setTemplateInputValues}
           biogenicScopeSelection={biogenicScopeSelection}
           loadingBiogenicCategories={loadingBiogenicCategories}
           category={category}
@@ -3181,11 +3134,6 @@ export default function EmissionEntryForm({
           filteredFuelsForCategory={filteredFuelsForCategory}
           getAvailableEFUnits={getAvailableEFUnits}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
-          isProcessEmissions={isProcessEmissions}
-          selectedSubIndustry={selectedSubIndustry}
-          availableSubIndustries={availableSubIndustries}
-          selectedTemplate={selectedTemplate}
-          templatesForSubIndustry={templatesForSubIndustry}
           supplierName={supplierName}
           setSupplierName={setSupplierName}
           supplierCode={supplierCode}
@@ -3199,22 +3147,21 @@ export default function EmissionEntryForm({
           kpiAllowedScopes={kpiAllowedScopes}
           filterFacilitiesByScope={filterFacilitiesByScope}
           hasFullKPIAccess={hasFullKPIAccess}
+          // Decision field values (for calculation_methodology etc.)
+          decisionFieldValues={decisionFieldValues}
+          setDecisionFieldValues={setDecisionFieldValues}
         />
       )}
 
       {/* Step 2: Process & Responsibility - Extracted to Step2ProcessResponsibility component */}
       {currentStep === 2 && (
         <Step2ProcessResponsibility
-          isProcessEmissions={isProcessEmissions}
-          selectedTemplate={selectedTemplate}
           responsiblePerson={responsiblePerson}
           setResponsiblePerson={setResponsiblePerson}
           responsiblePersonDesignation={responsiblePersonDesignation}
           setResponsiblePersonDesignation={setResponsiblePersonDesignation}
           responsiblePersonContact={responsiblePersonContact}
           setResponsiblePersonContact={setResponsiblePersonContact}
-          templateInputValues={templateInputValues}
-          setTemplateInputValues={setTemplateInputValues}
           processNames={processNames}
           addProcessName={addProcessName}
           removeProcessName={removeProcessName}
@@ -3301,8 +3248,6 @@ export default function EmissionEntryForm({
           filteredScope3Activities={filteredScope3Activities}
           useCustomActivity={useCustomActivity}
           scope3CustomActivity={scope3CustomActivity}
-          isProcessEmissions={isProcessEmissions}
-          selectedTemplate={selectedTemplate}
           scope={scope}
           biogenicScopeSelection={biogenicScopeSelection}
           useCustomFuel={useCustomFuel}

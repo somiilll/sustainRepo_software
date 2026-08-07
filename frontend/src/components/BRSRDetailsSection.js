@@ -36,7 +36,10 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
-  Loader2 
+  Loader2,
+  History,
+  Save,
+  Clock
 } from 'lucide-react';
 
 // Import yearly sections component for year-specific data (Employees, CSR, etc.)
@@ -63,6 +66,7 @@ export default function BRSRDetailsSection({
   const [isOpen, setIsOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingQuestion, setSavingQuestion] = useState(null); // Track which question is being saved
   const [isComplete, setIsComplete] = useState(false);
   const [missingFields, setMissingFields] = useState([]);
   
@@ -74,33 +78,38 @@ export default function BRSRDetailsSection({
   const [assignedQuestionKeys, setAssignedQuestionKeys] = useState(null); // null = loading, [] = none assigned
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
+  // Question statuses and version history (similar to Section B/C)
+  const [questionStatuses, setQuestionStatuses] = useState({});
+  const [questionHistory, setQuestionHistory] = useState({});
+  const [showHistoryFor, setShowHistoryFor] = useState(null); // question_key to show history modal
+  
   // BRSR Form Data - Section A: General Disclosures
   const [formData, setFormData] = useState({
     // I. Details of the Listed Entity (Q1-15)
     cin: '',                              // Q1: Corporate Identity Number
     listed_entity_name: '',               // Q2: Name of the Listed Entity
-    year_of_incorporation: new Date().getFullYear(), // Q3: Year of incorporation
+    year_of_incorporation: '',            // Q3: Year of incorporation
     registered_address: '',               // Q4: Registered office address
     registered_city: '',
     registered_state: '',
-    registered_country: 'India',
+    registered_country: '',
     registered_pincode: '',
     corporate_address: '',                // Q5: Corporate address (NEW)
     corporate_city: '',
     corporate_state: '',
-    corporate_country: 'India',
+    corporate_country: '',
     corporate_pincode: '',
     email: '',                            // Q6: E-mail
     telephone: '',                        // Q7: Telephone
     website: '',                          // Q8: Website
     // Q9: Financial year - handled by reporting_period
-    stock_exchange: 'BSE',                // Q10: Name of Stock Exchange(s)
-    paid_up_capital: 0,                   // Q11: Paid-up Capital
+    stock_exchange: '',                   // Q10: Name of Stock Exchange(s)
+    paid_up_capital: '',                  // Q11: Paid-up Capital
     // Q12: BRSR Contact Person
     brsr_contact_name: '',
     brsr_contact_telephone: '',
     brsr_contact_email: '',
-    reporting_boundary: 'Standalone',     // Q13: Reporting boundary
+    reporting_boundary: '',               // Q13: Reporting boundary
     assurance_provider: '',               // Q14: Name of assurance provider
     assurance_type: '',                   // Q15: Type of assurance obtained
     
@@ -111,7 +120,7 @@ export default function BRSRDetailsSection({
     // III. Operations (Q18-19)
     plants_offices: [{ ...EMPTY_PLANT_OFFICE }],            // Q18
     markets_served: [{ ...EMPTY_MARKET_SERVED }],           // Q19a
-    export_contribution_percentage: 0,                       // Q19b
+    export_contribution_percentage: '',                      // Q19b
     customer_types_brief: '',                                // Q19c
     
     // Reporting period for year-specific data
@@ -122,6 +131,7 @@ export default function BRSRDetailsSection({
     if (reportingPeriod) {
       fetchBRSRDetails();
       fetchUserAssignments();
+      fetchQuestionStatuses();
     }
   }, [reportingPeriod]);
 
@@ -274,12 +284,25 @@ export default function BRSRDetailsSection({
       mapped.brsr_contact_email = contact.email || '';
     }
     
-    // Markets served composite
+    // Markets served - now separate question keys
     if (responses.brsr_a_markets_served) {
+      // Handle both old nested format and new flat format
       const markets = responses.brsr_a_markets_served;
-      if (markets.locations) mapped.markets_served = markets.locations;
-      if (markets.export_contribution_percentage !== undefined) mapped.export_contribution_percentage = markets.export_contribution_percentage;
-      if (markets.customer_types_brief) mapped.customer_types_brief = markets.customer_types_brief;
+      if (Array.isArray(markets)) {
+        // New flat format - just the locations array
+        mapped.markets_served = markets;
+      } else if (markets.locations) {
+        // Old nested format - extract locations
+        mapped.markets_served = markets.locations;
+      }
+    }
+    
+    // Separate question keys for export contribution and customer types
+    if (responses.brsr_a_export_contribution !== undefined) {
+      mapped.export_contribution_percentage = responses.brsr_a_export_contribution;
+    }
+    if (responses.brsr_a_customer_types !== undefined) {
+      mapped.customer_types_brief = responses.brsr_a_customer_types;
     }
     
     // Dynamic tables
@@ -332,11 +355,9 @@ export default function BRSRDetailsSection({
       brsr_a_business_activities: formData.business_activities,
       brsr_a_products_services: formData.products_services,
       brsr_a_plants_offices: formData.plants_offices,
-      brsr_a_markets_served: {
-        locations: formData.markets_served,
-        export_contribution_percentage: formData.export_contribution_percentage,
-        customer_types_brief: formData.customer_types_brief,
-      },
+      brsr_a_markets_served: formData.markets_served,  // Only locations table
+      brsr_a_export_contribution: formData.export_contribution_percentage,  // Separate question
+      brsr_a_customer_types: formData.customer_types_brief,  // Separate question
     };
   };
 
@@ -357,6 +378,10 @@ export default function BRSRDetailsSection({
           ...mappedData,
           reporting_period: reportingPeriod,
         }));
+        
+        // Store original data for change comparison in Save All
+        setOriginalData(res.data.responses);
+        
         // Check completeness based on required fields
         const missing = [];
         if (!mappedData.cin) missing.push('cin');
@@ -374,6 +399,7 @@ export default function BRSRDetailsSection({
           plants_offices: [{ ...EMPTY_PLANT_OFFICE }],
           markets_served: [{ ...EMPTY_MARKET_SERVED }],
         }));
+        setOriginalData({});
         setIsComplete(false);
         setMissingFields(['cin', 'listed_entity_name', 'email']);
       }
@@ -393,6 +419,217 @@ export default function BRSRDetailsSection({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Fetch question statuses for Section A
+  const fetchQuestionStatuses = async () => {
+    try {
+      const res = await axios.get(
+        `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingPeriod)}/statuses`,
+        { headers: getAuthHeader() }
+      );
+      setQuestionStatuses(res.data.statuses || {});
+    } catch (error) {
+      console.warn('Failed to fetch question statuses:', error);
+      setQuestionStatuses({});
+    }
+  };
+
+  // Fetch version history for a specific question
+  const fetchQuestionHistory = async (questionKey) => {
+    try {
+      const res = await axios.get(
+        `${API}/esg-questionnaire/history/${questionKey}`,
+        { 
+          params: { reporting_period: reportingPeriod },
+          headers: getAuthHeader() 
+        }
+      );
+      setQuestionHistory(prev => ({
+        ...prev,
+        [questionKey]: res.data.history || []
+      }));
+      return res.data.history || [];
+    } catch (error) {
+      console.error('Failed to fetch question history:', error);
+      return [];
+    }
+  };
+
+  // Save individual question (similar to Section B/C)
+  const saveQuestion = async (questionKey, value) => {
+    setSavingQuestion(questionKey);
+    try {
+      await axios.post(
+        `${API}/esg-questionnaire/response`,
+        { 
+          question_key: questionKey, 
+          value, 
+          reporting_period: reportingPeriod,
+          status: 'saved'
+        },
+        { headers: getAuthHeader() }
+      );
+      toast.success('Question saved');
+      
+      // Remove from dirty fields
+      setDirtyFields(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(questionKey);
+        return newSet;
+      });
+      
+      // Refresh statuses
+      await fetchQuestionStatuses();
+    } catch (error) {
+      console.error('Save question error:', error);
+      toast.error(error.response?.data?.detail || 'Failed to save question');
+    } finally {
+      setSavingQuestion(null);
+    }
+  };
+
+  // Render status badge for a question
+  const renderQuestionStatus = (questionKey) => {
+    const status = questionStatuses[questionKey];
+    if (!status) return null;
+    
+    const approvalState = status.approval_status;
+    const saveState = status.status;
+    
+    // Handle "not_required" as completed without approval
+    if (approvalState === 'not_required' || (!approvalState && saveState === 'saved')) {
+      return (
+        <Badge className="text-xs bg-slate-100 text-slate-700">
+          Saved
+        </Badge>
+      );
+    }
+    
+    const statusConfig = {
+      pending_approval: { label: 'Awaiting Approval', className: 'bg-amber-100 text-amber-800' },
+      approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
+      rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
+      draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
+      saved: { label: 'Saved', className: 'bg-slate-100 text-slate-700' },
+    };
+    
+    const cfg = statusConfig[approvalState] || statusConfig[saveState];
+    if (!cfg) return null;
+    
+    return (
+      <Badge className={`text-xs ${cfg.className}`}>
+        {cfg.label}
+      </Badge>
+    );
+  };
+
+  // Render history button and modal trigger
+  const renderHistoryButton = (questionKey) => {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 w-7 p-0"
+        onClick={async () => {
+          await fetchQuestionHistory(questionKey);
+          setShowHistoryFor(questionKey);
+        }}
+        title="View history"
+      >
+        <History className="h-4 w-4 text-gray-500" />
+      </Button>
+    );
+  };
+
+  // Render individual save button for a question
+  const renderSaveButton = (questionKey, getValue) => {
+    const isDirty = dirtyFields.has(questionKey);
+    const isSaving = savingQuestion === questionKey;
+    
+    if (!isEditing) return null;
+    
+    // Always show button in edit mode, but disable when not dirty
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className={`h-7 px-2 text-xs ${!isDirty && !isSaving ? 'opacity-50' : ''}`}
+        onClick={() => saveQuestion(questionKey, getValue())}
+        disabled={isSaving || !isDirty}
+      >
+        {isSaving ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <>
+            <Save className="h-3 w-3 mr-1" />
+            Save
+          </>
+        )}
+      </Button>
+    );
+  };
+
+  // Render question header with status, history, and save button
+  const renderQuestionHeader = (label, questionKey, getValue, required = false) => {
+    return (
+      <div className="flex items-center justify-between mb-1">
+        <Label className="flex items-center gap-2">
+          {label} {required && <span className="text-red-500">*</span>}
+          {renderQuestionStatus(questionKey)}
+        </Label>
+        <div className="flex items-center gap-1">
+          {renderHistoryButton(questionKey)}
+          {renderSaveButton(questionKey, getValue)}
+        </div>
+      </div>
+    );
+  };
+
+  // History modal component
+  const renderHistoryModal = () => {
+    if (!showHistoryFor) return null;
+    
+    const history = questionHistory[showHistoryFor] || [];
+    
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowHistoryFor(null)}>
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="p-4 border-b flex justify-between items-center">
+            <h3 className="font-semibold">Version History: {showHistoryFor.replace(/_/g, ' ').replace('brsr a ', '')}</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowHistoryFor(null)}>×</Button>
+          </div>
+          <div className="p-4 overflow-y-auto max-h-[60vh]">
+            {history.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">No history available</p>
+            ) : (
+              <div className="space-y-3">
+                {history.map((entry, idx) => (
+                  <div key={idx} className="border rounded p-3 text-sm">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-medium">{entry.performed_by?.name || 'Unknown'}</span>
+                      <span className="text-gray-500 text-xs">
+                        {new Date(entry.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-gray-600">
+                      <span className="capitalize">{entry.action}</span>
+                      {entry.change_details?.old_value !== undefined && (
+                        <div className="mt-1 text-xs">
+                          <span className="text-red-600">- {JSON.stringify(entry.change_details.old_value)}</span>
+                          <br />
+                          <span className="text-green-600">+ {JSON.stringify(entry.change_details.new_value)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const handleInputChange = (field, value, questionKey = null) => {
@@ -449,8 +686,8 @@ export default function BRSRDetailsSection({
     }
   }, [formData, loading]);
 
-  // Convert form data to API responses format - ONLY for dirty fields
-  const mapDirtyFieldsToResponses = () => {
+  // Convert form data to API responses format - compare with original and only return changed
+  const mapChangedFieldsToResponses = () => {
     const allResponses = {
       brsr_a_cin: formData.cin,
       brsr_a_entity_name: formData.listed_entity_name,
@@ -485,37 +722,36 @@ export default function BRSRDetailsSection({
       brsr_a_business_activities: formData.business_activities,
       brsr_a_products_services: formData.products_services,
       brsr_a_plants_offices: formData.plants_offices,
-      brsr_a_markets_served: {
-        locations: formData.markets_served,
-        export_contribution_percentage: formData.export_contribution_percentage,
-        customer_types_brief: formData.customer_types_brief,
-      },
+      brsr_a_markets_served: formData.markets_served,  // Only locations table
+      brsr_a_export_contribution: formData.export_contribution_percentage,  // Separate question
+      brsr_a_customer_types: formData.customer_types_brief,  // Separate question
     };
     
-    // If admin, send all (admins can edit all)
-    if (isAdmin) {
-      return allResponses;
-    }
+    // Compare with original data and only return changed fields
+    const changedResponses = {};
     
-    // If no dirty fields, return empty (nothing to save)
-    if (dirtyFields.size === 0) {
-      return {};
-    }
-    
-    // Filter to only include dirty fields
-    const filteredResponses = {};
-    for (const key of dirtyFields) {
-      if (allResponses[key] !== undefined) {
-        filteredResponses[key] = allResponses[key];
+    for (const [key, newValue] of Object.entries(allResponses)) {
+      const oldValue = originalData[key];
+      
+      // Deep compare for objects/arrays
+      const hasChanged = JSON.stringify(oldValue) !== JSON.stringify(newValue);
+      
+      if (hasChanged) {
+        changedResponses[key] = newValue;
       }
     }
     
-    return filteredResponses;
+    return changedResponses;
+  };
+
+  // Legacy function - kept for backward compatibility
+  const mapDirtyFieldsToResponses = () => {
+    return mapChangedFieldsToResponses();
   };
 
   const saveBRSRDetails = async () => {
-    // Get only the changed responses
-    const responses = mapDirtyFieldsToResponses();
+    // Get only the changed responses (compare with original)
+    const responses = mapChangedFieldsToResponses();
     
     // Check if there's anything to save
     if (Object.keys(responses).length === 0) {
@@ -535,6 +771,12 @@ export default function BRSRDetailsSection({
       // Clear dirty fields after successful save
       setDirtyFields(new Set());
       
+      // Update original data with new values to prevent re-saving unchanged data
+      setOriginalData(prev => ({ ...prev, ...responses }));
+      
+      // Refresh statuses after save
+      await fetchQuestionStatuses();
+      
       // Check completeness based on required fields
       const missing = [];
       if (!formData.cin) missing.push('cin');
@@ -543,7 +785,7 @@ export default function BRSRDetailsSection({
       setMissingFields(missing);
       setIsComplete(missing.length === 0);
       
-      toast.success('BRSR Section A details saved successfully');
+      toast.success(`BRSR Section A: ${Object.keys(responses).length} question(s) saved`);
     } catch (error) {
       console.error('Failed to save BRSR details:', error);
       toast.error(error.response?.data?.detail || 'Failed to save BRSR details');
@@ -590,7 +832,7 @@ export default function BRSRDetailsSection({
               {/* CIN */}
               {(isAdmin || canSeeQuestion('brsr_a_cin')) && (
               <div className="space-y-2">
-                <Label>Corporate Identity Number (CIN) *</Label>
+                {renderQuestionHeader('Corporate Identity Number (CIN)', 'brsr_a_cin', () => formData.cin, true)}
                 {isEditing && canEditQuestion('brsr_a_cin') ? (
                   <Input
                     value={formData.cin}
@@ -607,7 +849,7 @@ export default function BRSRDetailsSection({
               {/* Entity Name */}
               {(isAdmin || canSeeQuestion('brsr_a_entity_name')) && (
               <div className="space-y-2">
-                <Label>Name of the Listed Entity *</Label>
+                {renderQuestionHeader('Name of the Listed Entity', 'brsr_a_entity_name', () => formData.listed_entity_name, true)}
                 {isEditing && canEditQuestion('brsr_a_entity_name') ? (
                   <Input
                     value={formData.listed_entity_name}
@@ -624,7 +866,7 @@ export default function BRSRDetailsSection({
               {/* Year of Incorporation */}
               {(isAdmin || canSeeQuestion('brsr_a_year_of_incorporation')) && (
               <div className="space-y-2">
-                <Label>Year of Incorporation *</Label>
+                {renderQuestionHeader('Year of Incorporation', 'brsr_a_year_of_incorporation', () => formData.year_of_incorporation, true)}
                 {isEditing && canEditQuestion('brsr_a_year_of_incorporation') ? (
                   <Input
                     type="number"
@@ -644,7 +886,15 @@ export default function BRSRDetailsSection({
               {/* Q4: Registered Office Address - Grouped Box */}
               {(isAdmin || canSeeQuestion('brsr_a_registered_address')) && (
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
-                <h5 className="text-sm font-medium text-text-primary mb-3">Registered Office Address</h5>
+                <div className="mb-3">
+                  {renderQuestionHeader('Registered Office Address', 'brsr_a_registered_address', () => ({
+                    address: formData.registered_address,
+                    city: formData.registered_city,
+                    state: formData.registered_state,
+                    country: formData.registered_country,
+                    pincode: formData.registered_pincode,
+                  }), true)}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2 lg:col-span-2">
                     <Label>Address *</Label>
@@ -730,7 +980,15 @@ export default function BRSRDetailsSection({
               {/* Q5: Corporate Address - Grouped Box */}
               {(isAdmin || canSeeQuestion('brsr_a_corporate_address')) && (
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
-                <h5 className="text-sm font-medium text-text-primary mb-3">Corporate Address</h5>
+                <div className="mb-3">
+                  {renderQuestionHeader('Corporate Address', 'brsr_a_corporate_address', () => ({
+                    address: formData.corporate_address,
+                    city: formData.corporate_city,
+                    state: formData.corporate_state,
+                    country: formData.corporate_country,
+                    pincode: formData.corporate_pincode,
+                  }), false)}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2 lg:col-span-2">
                     <Label>Address</Label>
@@ -816,7 +1074,7 @@ export default function BRSRDetailsSection({
               {/* Email */}
               {(isAdmin || canSeeQuestion('brsr_a_email')) && (
               <div className="space-y-2">
-                <Label>E-mail *</Label>
+                {renderQuestionHeader('E-mail', 'brsr_a_email', () => formData.email, true)}
                 {isEditing && canEditQuestion('brsr_a_email') ? (
                   <Input
                     type="email"
@@ -834,7 +1092,7 @@ export default function BRSRDetailsSection({
               {/* Telephone */}
               {(isAdmin || canSeeQuestion('brsr_a_telephone')) && (
               <div className="space-y-2">
-                <Label>Telephone *</Label>
+                {renderQuestionHeader('Telephone', 'brsr_a_telephone', () => formData.telephone, true)}
                 {isEditing && canEditQuestion('brsr_a_telephone') ? (
                   <Input
                     value={formData.telephone}
@@ -851,7 +1109,7 @@ export default function BRSRDetailsSection({
               {/* Website */}
               {(isAdmin || canSeeQuestion('brsr_a_website')) && (
               <div className="space-y-2">
-                <Label>Website *</Label>
+                {renderQuestionHeader('Website', 'brsr_a_website', () => formData.website, true)}
                 {isEditing && canEditQuestion('brsr_a_website') ? (
                   <Input
                     value={formData.website}
@@ -868,7 +1126,7 @@ export default function BRSRDetailsSection({
               {/* Paid-up Capital */}
               {(isAdmin || canSeeQuestion('brsr_a_paid_up_capital')) && (
               <div className="space-y-2">
-                <Label>Paid-up Capital (INR) *</Label>
+                {renderQuestionHeader('Paid-up Capital (INR)', 'brsr_a_paid_up_capital', () => formData.paid_up_capital, true)}
                 {isEditing && canEditQuestion('brsr_a_paid_up_capital') ? (
                   <Input
                     type="number"
@@ -889,7 +1147,7 @@ export default function BRSRDetailsSection({
               {/* Assurance Provider */}
               {(isAdmin || canSeeQuestion('brsr_a_assurance_provider')) && (
               <div className="space-y-2">
-                <Label>Name of Assurance Provider *</Label>
+                {renderQuestionHeader('Name of Assurance Provider', 'brsr_a_assurance_provider', () => formData.assurance_provider, true)}
                 {isEditing && canEditQuestion('brsr_a_assurance_provider') ? (
                   <Input
                     value={formData.assurance_provider}
@@ -906,7 +1164,7 @@ export default function BRSRDetailsSection({
               {/* Assurance Type */}
               {(isAdmin || canSeeQuestion('brsr_a_assurance_type')) && (
               <div className="space-y-2">
-                <Label>Type of Assurance Obtained *</Label>
+                {renderQuestionHeader('Type of Assurance Obtained', 'brsr_a_assurance_type', () => formData.assurance_type, true)}
                 {isEditing && canEditQuestion('brsr_a_assurance_type') ? (
                   <Input
                     value={formData.assurance_type}
@@ -920,15 +1178,15 @@ export default function BRSRDetailsSection({
               </div>
               )}
               
-              {/* Export Contribution - part of markets_served */}
-              {(isAdmin || canSeeQuestion('brsr_a_markets_served')) && (
+              {/* Export Contribution - separate question key */}
+              {(isAdmin || canSeeQuestion('brsr_a_export_contribution')) && (
               <div className="space-y-2">
-                <Label>Export Contribution (% of Turnover) *</Label>
-                {isEditing && canEditQuestion('brsr_a_markets_served') ? (
+                {renderQuestionHeader('Export Contribution (% of Turnover)', 'brsr_a_export_contribution', () => formData.export_contribution_percentage, true)}
+                {isEditing && canEditQuestion('brsr_a_export_contribution') ? (
                   <Input
                     type="number"
                     value={formData.export_contribution_percentage}
-                    onChange={(e) => handleInputChange('export_contribution_percentage', parseFloat(e.target.value) || 0, 'brsr_a_markets_served')}
+                    onChange={(e) => handleInputChange('export_contribution_percentage', parseFloat(e.target.value) || 0, 'brsr_a_export_contribution')}
                     placeholder="Enter percentage"
                     min="0"
                     max="100"
@@ -942,14 +1200,14 @@ export default function BRSRDetailsSection({
               </div>
               )}
               
-              {/* Customer Types Brief - part of markets_served */}
-              {(isAdmin || canSeeQuestion('brsr_a_markets_served')) && (
+              {/* Customer Types Brief - separate question key */}
+              {(isAdmin || canSeeQuestion('brsr_a_customer_types')) && (
               <div className="space-y-2 md:col-span-2 lg:col-span-3">
-                <Label>Brief on Types of Customers *</Label>
-                {isEditing && canEditQuestion('brsr_a_markets_served') ? (
+                {renderQuestionHeader('Brief on Types of Customers', 'brsr_a_customer_types', () => formData.customer_types_brief, true)}
+                {isEditing && canEditQuestion('brsr_a_customer_types') ? (
                   <Textarea
                     value={formData.customer_types_brief}
-                    onChange={(e) => handleInputChange('customer_types_brief', e.target.value, 'brsr_a_markets_served')}
+                    onChange={(e) => handleInputChange('customer_types_brief', e.target.value, 'brsr_a_customer_types')}
                     placeholder="Describe the types of customers..."
                     rows={3}
                     data-testid="brsr-customer-types"
@@ -968,9 +1226,13 @@ export default function BRSRDetailsSection({
           {/* BRSR Contact Person Section */}
           {(isAdmin || canSeeQuestion('brsr_a_contact_person')) && (
           <div>
-            <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
-              BRSR Report Contact Person
-            </h4>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b">
+              {renderQuestionHeader('BRSR Report Contact Person', 'brsr_a_contact_person', () => ({
+                name: formData.brsr_contact_name,
+                telephone: formData.brsr_contact_telephone,
+                email: formData.brsr_contact_email,
+              }), true)}
+            </div>
             <p className="text-xs text-text-muted mb-4">
               Name and contact details (telephone, email address) of the person who may be contacted in case of any queries on the BRSR report
             </p>
@@ -1030,7 +1292,7 @@ export default function BRSRDetailsSection({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {(isAdmin || canSeeQuestion('brsr_a_stock_exchange')) && (
               <div className="space-y-3">
-                <Label>Stock Exchange(s) where shares are listed *</Label>
+                {renderQuestionHeader('Stock Exchange(s) where shares are listed', 'brsr_a_stock_exchange', () => formData.stock_exchange, true)}
                 {isEditing && canEditQuestion('brsr_a_stock_exchange') ? (
                   <RadioGroup
                     value={formData.stock_exchange}
@@ -1058,7 +1320,7 @@ export default function BRSRDetailsSection({
               
               {(isAdmin || canSeeQuestion('brsr_a_reporting_boundary')) && (
               <div className="space-y-3">
-                <Label>Reporting Boundary *</Label>
+                {renderQuestionHeader('Reporting Boundary', 'brsr_a_reporting_boundary', () => formData.reporting_boundary, true)}
                 {isEditing && canEditQuestion('brsr_a_reporting_boundary') ? (
                   <RadioGroup
                     value={formData.reporting_boundary}
@@ -1089,9 +1351,7 @@ export default function BRSRDetailsSection({
             {(isAdmin || canSeeQuestion('brsr_a_business_activities')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-text-primary">
-                  Business Activities Accounting for 90% of Turnover *
-                </h4>
+                {renderQuestionHeader('Business Activities Accounting for 90% of Turnover', 'brsr_a_business_activities', () => formData.business_activities, true)}
                 {isEditing && canEditQuestion('brsr_a_business_activities') && (
                   <Button
                     type="button"
@@ -1181,9 +1441,7 @@ export default function BRSRDetailsSection({
             {(isAdmin || canSeeQuestion('brsr_a_products_services')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-text-primary">
-                  Products/Services Accounting for 90% of Turnover *
-                </h4>
+                {renderQuestionHeader('Products/Services Accounting for 90% of Turnover', 'brsr_a_products_services', () => formData.products_services, true)}
                 {isEditing && canEditQuestion('brsr_a_products_services') && (
                   <Button
                     type="button"
@@ -1273,9 +1531,7 @@ export default function BRSRDetailsSection({
             {(isAdmin || canSeeQuestion('brsr_a_plants_offices')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-text-primary">
-                  Plants and Offices Operated *
-                </h4>
+                {renderQuestionHeader('Plants and Offices Operated', 'brsr_a_plants_offices', () => formData.plants_offices, true)}
                 {isEditing && canEditQuestion('brsr_a_plants_offices') && (
                   <Button
                     type="button"
@@ -1372,9 +1628,7 @@ export default function BRSRDetailsSection({
             {(isAdmin || canSeeQuestion('brsr_a_markets_served')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-text-primary">
-                  Markets Served by Entity *
-                </h4>
+                {renderQuestionHeader('Markets Served by Entity', 'brsr_a_markets_served', () => formData.markets_served, true)}
                 {isEditing && canEditQuestion('brsr_a_markets_served') && (
                   <Button
                     type="button"
@@ -1455,26 +1709,6 @@ export default function BRSRDetailsSection({
             )}
           </div>
 
-          {/* Validation Messages */}
-          {!isComplete && missingFields.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-amber-800">Missing Required Fields</p>
-                  <ul className="text-sm text-amber-700 mt-1 list-disc list-inside">
-                    {missingFields.slice(0, 5).map((field, idx) => (
-                      <li key={idx}>{field.replace(/_/g, ' ')}</li>
-                    ))}
-                    {missingFields.length > 5 && (
-                      <li>...and {missingFields.length - 5} more</li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Save Button - only shown in edit mode */}
           {isEditing && (
             <div className="flex justify-end pt-4 border-t border-stone-200">
@@ -1550,6 +1784,9 @@ export default function BRSRDetailsSection({
       <CollapsibleContent>
         {content}
       </CollapsibleContent>
+      
+      {/* History Modal */}
+      {renderHistoryModal()}
     </Collapsible>
   );
 }

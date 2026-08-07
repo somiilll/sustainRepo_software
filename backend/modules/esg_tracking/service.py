@@ -178,13 +178,16 @@ class TrackingService:
         # Get all responses for this org and period
         responses = await self._responses.find(
             {
-                "organization_id": organization_id,
+                "$or": [
+                    {"org_id": organization_id},
+                    {"organization_id": organization_id}
+                ],
                 "reporting_year": reporting_period,
             },
             {"_id": 0, "question_key": 1, "updated_at": 1, "value": 1}
         ).to_list(5000)
         
-        response_map = {r["question_key"]: r for r in responses}
+        response_map = {r["question_key"]: r for r in responses if r.get("question_key")}
         
         # Get all assignments for this org and period
         assignments = await self._assignments.find(
@@ -832,17 +835,24 @@ class TrackingService:
                     subparts_filled = sum(1 for sp in subpart_responses if sp.get("value") is not None and sp.get("value") != "")
                     total_subparts = len(subpart_responses)
                     all_have_value = subparts_filled == total_subparts
-                    all_approved = all(sp.get("approval_status") == "approved" for sp in subpart_responses)
+                    
+                    # Handle approval status aggregation
+                    # None/missing approval_status means "not_required" (no approval workflow)
                     any_rejected = any(sp.get("approval_status") == "rejected" for sp in subpart_responses)
                     any_pending = any(sp.get("approval_status") == "pending_approval" for sp in subpart_responses)
+                    any_explicitly_approved = any(sp.get("approval_status") == "approved" for sp in subpart_responses)
+                    any_has_approval_workflow = any_rejected or any_pending or any_explicitly_approved
                     
                     # Determine aggregated approval status
                     if any_rejected:
                         agg_approval_status = "rejected"
-                    elif all_approved and all_have_value:
-                        agg_approval_status = "approved"
-                    elif any_pending or (all_have_value and not all_approved):
+                    elif any_pending:
                         agg_approval_status = "pending_approval"
+                    elif all_have_value and not any_has_approval_workflow:
+                        # All filled, no approval workflow on any = not_required
+                        agg_approval_status = "not_required"
+                    elif any_explicitly_approved and all_have_value:
+                        agg_approval_status = "approved"
                     else:
                         agg_approval_status = None
                     

@@ -94,6 +94,7 @@ def parse_period_to_date(period_str: str, is_end: bool = False) -> Optional[str]
     return None
 
 
+
 # Report generation endpoint with year-wise breakdown
 @router.get("/reports/facility/{facility_id}")
 async def generate_facility_report(

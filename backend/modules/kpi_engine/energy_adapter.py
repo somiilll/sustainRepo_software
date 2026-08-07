@@ -334,6 +334,138 @@ async def calculate_total_energy(
     )
 
 
+
+async def _get_renewable_breakdown(
+    org_id: str,
+    facility_ids: Optional[List[str]],
+    period: Optional[Dict[str, Any]],
+) -> Dict[str, float]:
+    """
+    Get renewable / non-renewable energy from BOTH sources (mirrors dashboard EnergyMetricsService).
+    Source 1: GHG emission_records — electricity with sub_subcategory "Renewable"
+    Source 2: ESG environment_records — renewable_energy_consumption / renewable_heating_consumption fields
+    Returns {"renewable": GJ, "non_renewable": GJ, "record_count": int}
+    """
+    from modules.esg_records.ghg_integration import get_ghg_integration_service
+
+    renewable_gj = 0.0
+    non_renewable_gj = 0.0
+    record_count = 0
+
+    # ── Source 1: GHG emission_records ──
+    try:
+        ghg_service = get_ghg_integration_service(db)
+        start_date, end_date = _get_date_range_for_period(period) if period else (None, None)
+        records = await ghg_service.get_energy_from_ghg(
+            org_id=org_id, facility_ids=facility_ids,
+            start_date=start_date, end_date=end_date,
+        )
+        for rec in records:
+            fv = rec.get("field_values", {})
+            energy_val = float(fv.get("total_energy", 0))
+            unit = fv.get("energy_unit", "MWh")
+            subcategory = (rec.get("subcategory") or "").lower()
+            sub_sub = (rec.get("sub_subcategory") or "").lower()
+            energy_gj = to_gj(energy_val, unit)
+            if energy_gj <= 0:
+                continue
+            record_count += 1
+            if "electricity" in subcategory and "renewable" in sub_sub and "non" not in sub_sub:
+                renewable_gj += energy_gj
+            else:
+                non_renewable_gj += energy_gj
+    except Exception:
+        pass
+
+    # ── Source 2: ESG environment_records ──
+    esg_query: Dict[str, Any] = {
+        "org_id": org_id,
+        "is_current": {"$ne": False},
+        "status": {"$ne": "draft"},
+        "category": {"$regex": "^Energy$", "$options": "i"},
+    }
+    if facility_ids:
+        esg_query["facility_id"] = {"$in": facility_ids}
+    if period and period.get("year"):
+        yr = period["year"]
+        yr_str = str(yr)
+        esg_query["$or"] = [
+            {"reporting_year": {"$regex": yr_str}},
+            {"reporting_period": {"$regex": yr_str}},
+            {"reporting_period.year": yr},
+            {"reporting_period.financial_year": {"$regex": yr_str}},
+        ]
+
+    esg_records = await db.environment_records.find(esg_query, {"_id": 0}).to_list(10000)
+    for rec in esg_records:
+        fv = rec.get("field_values", {})
+        subcategory = (rec.get("subcategory") or "").lower()
+        if "heating" in subcategory:
+            ren_raw = float(fv.get("renewable_heating_consumption") or 0)
+            nonren_raw = float(fv.get("non_renewable_heating_consumption") or 0)
+        else:
+            ren_raw = float(fv.get("renewable_energy_consumption") or 0)
+            nonren_raw = float(fv.get("non_renewable_energy_consumption") or 0)
+        ren_gj = j_to_gj(ren_raw) if ren_raw else 0
+        nonren_gj = j_to_gj(nonren_raw) if nonren_raw else 0
+        # Fallback: legacy quantity field
+        if ren_gj == 0 and nonren_gj == 0 and fv.get("quantity"):
+            old_qty = float(fv.get("quantity") or 0)
+            old_unit = fv.get("unit") or "MWh"
+            is_ren = (fv.get("is_renewable") or "").lower()
+            sub_sub = (fv.get("sub_subcategory") or fv.get("subsubcategory") or "").lower()
+            if "yes" in is_ren or ("renewable" in sub_sub and "non" not in sub_sub):
+                ren_gj = to_gj(old_qty, old_unit)
+            else:
+                nonren_gj = to_gj(old_qty, old_unit)
+        if ren_gj > 0 or nonren_gj > 0:
+            record_count += 1
+            renewable_gj += ren_gj
+            non_renewable_gj += nonren_gj
+
+    return {"renewable": round(renewable_gj, 4), "non_renewable": round(non_renewable_gj, 4), "record_count": record_count}
+
+
+async def calculate_renewable_energy(
+    org_id: str,
+    scope_type: str = "organization",
+    facility_ids: Optional[List[str]] = None,
+    period: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Calculate total renewable energy (GHG electricity-renewable + ESG renewable fields)."""
+    resolved = facility_ids if scope_type == "facility" and facility_ids else None
+    breakdown = await _get_renewable_breakdown(org_id, resolved, period)
+    val = breakdown["renewable"]
+    return format_result(
+        value=val if breakdown["record_count"] > 0 else None,
+        unit="GJ",
+        record_count=breakdown["record_count"],
+        aggregation_type="sum",
+        metadata={"kpi_id": "energy_renewable_total", "kpi_name": "Total Renewable Energy Consumption"},
+    )
+
+
+async def calculate_non_renewable_energy(
+    org_id: str,
+    scope_type: str = "organization",
+    facility_ids: Optional[List[str]] = None,
+    period: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Calculate total non-renewable energy (GHG fuel/non-renewable electricity + ESG non-renewable fields)."""
+    resolved = facility_ids if scope_type == "facility" and facility_ids else None
+    breakdown = await _get_renewable_breakdown(org_id, resolved, period)
+    val = breakdown["non_renewable"]
+    return format_result(
+        value=val if breakdown["record_count"] > 0 else None,
+        unit="GJ",
+        record_count=breakdown["record_count"],
+        aggregation_type="sum",
+        metadata={"kpi_id": "energy_non_renewable_total", "kpi_name": "Total Non-Renewable Energy Consumption"},
+    )
+
+
+
 def is_energy_kpi(kpi_id: str) -> bool:
-    """Check if a KPI ID is an energy total KPI."""
-    return kpi_id in ("energy_total_consumption", "energy_total")
+    """Check if a KPI ID is an energy KPI."""
+    return kpi_id in ("energy_total_consumption", "energy_total",
+                      "energy_renewable_total", "energy_non_renewable_total")

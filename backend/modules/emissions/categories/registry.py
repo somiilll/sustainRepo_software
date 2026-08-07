@@ -72,7 +72,7 @@ _SEED: List[CategoryDescriptor] = [
     CategoryDescriptor(id="stationary_combustion", scope="scope1", name="Stationary Combustion"),
     CategoryDescriptor(id="mobile_combustion", scope="scope1", name="Mobile Combustion"),
     CategoryDescriptor(id="fugitive_emissions", scope="scope1", name="Fugitive Emissions"),
-    CategoryDescriptor(id="process_emissions", scope="scope1", name="Process Emissions"),
+    # NOTE: 'Process Emissions' removed per user request — do NOT re-add.
     # Scope 2
     CategoryDescriptor(id="purchased_electricity", scope="scope2", name="Purchased Electricity"),
     # NOTE: 'Purchased Steam', 'Purchased Heating', 'Purchased Cooling' removed

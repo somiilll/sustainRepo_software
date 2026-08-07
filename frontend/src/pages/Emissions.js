@@ -128,8 +128,12 @@ export default function Emissions() {
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
   const [typeOfProduct, setTypeOfProduct] = useState(''); // C11 only — continuous_usage / one_time_use
+  const [editCalcMethodology, setEditCalcMethodology] = useState('using_ncv'); // Stationary Combustion methodology
+  const [editProcessType, setEditProcessType] = useState(''); // Process Emissions type (venting/n2o/ch4)
   const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
+  const [editUseCustomFuel, setEditUseCustomFuel] = useState(false); // Toggle for custom fuel in edit mode
+  const [editCustomFuelName, setEditCustomFuelName] = useState(''); // Custom fuel name in edit mode
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   const [activitySearchTerm, setActivitySearchTerm] = useState(''); // Search filter for activities in edit dialog
@@ -398,6 +402,24 @@ export default function Emissions() {
     const isBiogenicScope1 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1';
     const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
     
+    // Helper function to traverse decision tree and find formula_id.
+    // Mirrors the logic used in EmissionEntryForm so create + edit pick
+    // the same formula for the same selections.
+    const traverseDecisionTreeEdit = (node, fieldValues) => {
+      if (!node) return null;
+      if (node.formula_id) return node.formula_id;
+      const fieldName = node.field_name;
+      if (!fieldName) return null;
+      const selectedValue = fieldValues[fieldName];
+      if (!selectedValue) return null;
+      const options = node.options || {};
+      const selectedOption = options[selectedValue];
+      if (!selectedOption) return null;
+      if (selectedOption.formula_id) return selectedOption.formula_id;
+      if (selectedOption.next) return traverseDecisionTreeEdit(selectedOption.next, fieldValues);
+      return null;
+    };
+    
     // For Scope 3 (or biogenic scope3), find the formula that matches the selected decision path
     let requiredInputVars = null;
     let matchedFormula = null;  // Moved outside the if block for proper scoping
@@ -422,8 +444,7 @@ export default function Emissions() {
         'stationary_combustion': ['stationary'],
         'mobile_combustion': ['mobile'],
         'energy': ['energy', 'electricity'],  // Support both new and legacy
-        'electricity': ['energy', 'electricity'],  // Legacy support
-        'process_emissions': ['process']
+        'electricity': ['energy', 'electricity']  // Legacy support
       };
       
       // Map method to formula name patterns for matching
@@ -442,24 +463,6 @@ export default function Emissions() {
         return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
       };
       
-      // Helper function to traverse decision tree and find formula_id.
-      // Mirrors the logic used in EmissionEntryForm so create + edit pick
-      // the same formula for the same selections.
-      const traverseDecisionTreeEdit = (node, fieldValues) => {
-        if (!node) return null;
-        if (node.formula_id) return node.formula_id;
-        const fieldName = node.field_name;
-        if (!fieldName) return null;
-        const selectedValue = fieldValues[fieldName];
-        if (!selectedValue) return null;
-        const options = node.options || {};
-        const selectedOption = options[selectedValue];
-        if (!selectedOption) return null;
-        if (selectedOption.formula_id) return selectedOption.formula_id;
-        if (selectedOption.next) return traverseDecisionTreeEdit(selectedOption.next, fieldValues);
-        return null;
-      };
-
       // PRIORITY 0: Decision tree traversal — uses all the selections the
       // user made (method, activity_type, subcategory_selection, type_of_product).
       if (editFormConfig.decision_tree) {
@@ -524,8 +527,25 @@ export default function Emissions() {
     }
     // For Biogenic Scope 1, Scope 1, or Scope 2 - match formula to filter fields correctly
     else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && editFormConfig?.formulas?.length) {
-      // For Biogenic Scope 1, prioritize formulas with "Biogenic" in the name
-      if (isBiogenicScope1) {
+      const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
+      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
+      
+      // Priority 0: Try decision tree traversal for any category that has one
+      // Pass all available decision field values so the tree can resolve
+      if (editFormConfig.decision_tree) {
+        const decisionValues = {
+          calculation_methodology: editCalcMethodology || 'using_ncv',
+          ef_quantity_provided: editUseCustomFuel ? 'true' : 'false',
+          ...(editProcessType && { process_type: editProcessType }),
+        };
+        const formulaId = traverseDecisionTreeEdit(editFormConfig.decision_tree, decisionValues);
+        if (formulaId) {
+          matchedFormula = editFormConfig.formulas.find(f => f.id === formulaId);
+        }
+      }
+      
+      // Fallback for Biogenic Scope 1
+      if (!matchedFormula && isBiogenicScope1) {
         // First try formula_id from emission record
         if (editingEmission?.formula_id) {
           matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
@@ -541,8 +561,8 @@ export default function Emissions() {
           matchedFormula = editFormConfig.formulas[0];
         }
       }
-      // For regular Scope 1/2
-      else {
+      // Fallback for regular Scope 1/2
+      else if (!matchedFormula) {
         // First try formula_id from emission record
         if (editingEmission?.formula_id) {
           matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
@@ -562,47 +582,40 @@ export default function Emissions() {
     }
     
     // Filter and sort by display_order
+    // Uses formula-driven filtering: only show fields that the resolved formula needs.
+    // Decision fields (maps_to_context in decision tree) always shown so users can toggle tree paths.
+    const decisionFieldNames = (editFormConfig.decision_fields || []).map(d => d.field_name);
     const mappings = [...editFormConfig.input_field_mappings]
       .filter(m => {
         if (m.is_active === false) return false;
         
-        // HARDCODED FIX: Always show cv and density for Scope 1/2 Stationary/Mobile Combustion
-        const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
-        const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
-        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && isStationaryOrMobile && m.is_override) {
-          if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
-            return true; // Always show cv/density for Stationary/Mobile
+        // Custom fuel: never show density (mass-based units only)
+        if (editUseCustomFuel && m.maps_to_variable === 'density') return false;
+        
+        // Formula-driven filtering when a formula is resolved
+        if (matchedFormula && requiredInputVars?.length) {
+          if (m.is_override) {
+            // Override fields: show if declared as formula property
+            const formulaProperties = matchedFormula.properties || [];
+            if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
+              return true;
+            }
+            // Density: show when formula input supports dimension conversion (volume→mass)
+            if (m.maps_to_variable === 'density') {
+              return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
+            }
+            return false;
           }
+          // Regular input fields: in formula inputs OR is a decision field in the tree
+          if (requiredInputVars.includes(m.maps_to_variable)) return true;
+          if (m.maps_to_context && decisionFieldNames.includes(m.maps_to_context)) return true;
+          return false;
         }
         
-        // For Scope 3 with a selected method, strictly filter by formula inputs/properties
-        if (isScope3Like && requiredInputVars && matchedFormula) {
-          if (m.is_override) {
-            // Override fields (like PPP, inflation_rate) should only show if they are 
-            // explicitly listed in the matched formula's properties array
-            const formulaProperties = matchedFormula.properties || [];
-            const isPropertyOfFormula = formulaProperties.some(
-              prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
-            );
-            if (!isPropertyOfFormula) return false;
-          } else {
-            // Regular input fields must be in the formula's inputs
-            const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
-            if (!isRequiredForFormula) return false;
-          }
-        }
-        // For Scope 1/2/Biogenic Scope 1: only filter override fields by formula properties
-        // Non-override fields use scope/category filtering only
-        else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && matchedFormula) {
-          if (m.is_override) {
-            // Override fields should only show if in formula properties
-            const formulaProperties = matchedFormula.properties || [];
-            const isPropertyOfFormula = formulaProperties.some(
-              prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
-            );
-            if (!isPropertyOfFormula) return false;
-          }
-          // Non-override fields: rely on scope/category filtering (no formula input check)
+        // Fallback: no formula resolved (e.g. no process_type selected yet) — hide all for Process
+        const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
+        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && currentCategoryName.includes('process')) {
+          return false;
         }
         
         return true;
@@ -628,8 +641,40 @@ export default function Emissions() {
       mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
       options: m.options || [],
+      defaultValue: m.default_value,
+      validationRules: m.validation_rules || {},
     }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection]);
+  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel, editProcessType]);
+
+  // Older Process Emissions records did not persist process_type. Once the
+  // form config arrives, recover it from the saved formula's decision-tree
+  // branch so the edit form can resolve its inputs and live calculation.
+  useEffect(() => {
+    const isProcessEmission = formData.category?.toLowerCase().includes('process');
+    if (!dialogOpen || !isProcessEmission || editProcessType || !editingEmission?.formula_id || !editFormConfig?.decision_tree) {
+      return;
+    }
+
+    const findProcessTypeForFormula = (node) => {
+      if (!node || typeof node !== 'object') return '';
+      const options = node.options || {};
+      for (const [optionValue, option] of Object.entries(options)) {
+        if (option?.formula_id === editingEmission.formula_id && node.field_name === 'process_type') {
+          return optionValue;
+        }
+        const nestedMatch = findProcessTypeForFormula(option?.next);
+        if (nestedMatch) {
+          return node.field_name === 'process_type' ? optionValue : nestedMatch;
+        }
+      }
+      return '';
+    };
+
+    const inferredProcessType = findProcessTypeForFormula(editFormConfig.decision_tree);
+    if (inferredProcessType) {
+      setEditProcessType(inferredProcessType);
+    }
+  }, [dialogOpen, formData.category, editProcessType, editingEmission?.formula_id, editFormConfig]);
 
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
@@ -694,8 +739,17 @@ export default function Emissions() {
       }
     }
     
+    // For Scope 1 / Biogenic Scope 1: add calculation_methodology and process_type
+    const isBiogenicScope1 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1';
+    if (formData.scope === 'scope1' || isBiogenicScope1) {
+      decisionInputs['calculation_methodology'] = editCalcMethodology || 'using_ncv';
+      if (editProcessType) {
+        decisionInputs['process_type'] = editProcessType;
+      }
+    }
+    
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -722,6 +776,22 @@ export default function Emissions() {
       
       // PRIMARY: Read from emission.dynamic_field_values (new structure)
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
+      
+      // Hydrate calculation methodology from saved fields
+      const dfvKeys = Object.keys(savedDynamicValues);
+      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
+        setEditCalcMethodology('using_carbon_composition');
+      } else {
+        setEditCalcMethodology('using_ncv');
+      }
+      
+      // Hydrate process type from saved fields
+      const savedProcessType = savedDynamicValues.process_type;
+      if (savedProcessType) {
+        setEditProcessType(savedProcessType.value || savedProcessType || '');
+      } else {
+        setEditProcessType('');
+      }
       
       // Helper to get the correct unit for a field
       // When editing, we primarily use the saved unit from dynamic_field_values
@@ -1327,21 +1397,27 @@ export default function Emissions() {
     }
     
     // Group fuels by unique identifier (name + category) to handle region/year variants
+    // Support both categories array and legacy category field
     const fuelsByKey = {};
     filtered.forEach(fuel => {
-      const key = `${fuel.fuel_name}_${fuel.category}`;
-      if (!fuelsByKey[key]) {
-        fuelsByKey[key] = [];
-      }
-      fuelsByKey[key].push(fuel);
+      const fuelCategories = fuel.categories?.length > 0 ? fuel.categories : (fuel.category ? [fuel.category] : ['uncategorized']);
+      fuelCategories.forEach(cat => {
+        const key = `${fuel.fuel_name}_${cat}`;
+        if (!fuelsByKey[key]) {
+          fuelsByKey[key] = [];
+        }
+        fuelsByKey[key].push(fuel);
+      });
     });
     
     // For each fuel name+category, select the best match based on region and year priority
     const prioritizedFuels = [];
+    const addedFuelIds = new Set(); // Prevent duplicates when fuel appears in multiple categories
     Object.values(fuelsByKey).forEach(fuels => {
       const bestMatch = selectBestFuelMatch(fuels, selectedFacilityCountry, reportingYearFromPeriod);
-      if (bestMatch) {
+      if (bestMatch && !addedFuelIds.has(bestMatch.id)) {
         prioritizedFuels.push(bestMatch);
+        addedFuelIds.add(bestMatch.id);
       }
     });
     
@@ -1459,11 +1535,6 @@ export default function Emissions() {
       { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
     ];
     
-    // For supplier_basis, include process_emissions
-    if (scope3Method === 'supplier_basis') {
-      subcategories.push({ value: 'process_emissions', label: subcategoryLabelsMap['process_emissions'] || 'Process Emissions' });
-    }
-    
     return subcategories;
   }, [requiresSubcategory, scope3Method, configLabels.subcategories]);
 
@@ -1572,11 +1643,6 @@ export default function Emissions() {
         });
         return uniqueActivities;
       }
-      
-      // For process_emissions, return empty for now
-      if (scope3Subcategory === 'process_emissions') {
-        return [];
-      }
     }
     
     // Standard filtering for non-subcategory categories
@@ -1663,7 +1729,8 @@ export default function Emissions() {
       });
     }
     
-    // For other scopes, use fuel database categories
+    // Scope 1 combines fuel categories with configured categories. Process
+    // Emissions is decision-tree based, so it has no fuel database row.
     const cats = new Set();
     getFuelsForScope.forEach(f => {
       // Support both categories array and legacy category field
@@ -1673,8 +1740,19 @@ export default function Emissions() {
         cats.add(f.category);
       }
     });
+
+    const configuredScope = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1'
+      ? 'scope1'
+      : formData.scope;
+    dynamicCategories
+      .filter(category => category.scope_code === configuredScope)
+      .forEach(category => cats.add(category.name));
+    if (formData.category) {
+      cats.add(formData.category);
+    }
+    
     return Array.from(cats).sort();
-  }, [formData.scope, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
+  }, [formData.scope, formData.category, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
@@ -1863,7 +1941,8 @@ export default function Emissions() {
         return;
       }
     } else {
-      if (!selectedFuel) {
+      const isProcessEmissions = (formData.category || selectedCategory || '').toLowerCase().includes('process');
+      if (!isProcessEmissions && !editUseCustomFuel && !selectedFuel) {
         setBackendCalcResult(null);
         return;
       }
@@ -2010,10 +2089,19 @@ export default function Emissions() {
       // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
       // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
       // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
-      let fuelNameForContext = selectedFuel?.fuel_name;
+      let fuelNameForContext = editUseCustomFuel ? editCustomFuelName : selectedFuel?.fuel_name;
       
       if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity) {
         fuelNameForContext = matchedEFForPreview.activity;
+      }
+      
+      // For custom fuel, merge ef_quantity from inputs into user_overrides
+      // so the backend property resolver can use it
+      if (editUseCustomFuel) {
+        if (inputs.ef_quantity) {
+          userOverrides.ef_quantity = inputs.ef_quantity;
+          userOverrides.emission_factor = inputs.ef_quantity;
+        }
       }
       
       // Call backend calc engine with dynamic inputs
@@ -2023,10 +2111,11 @@ export default function Emissions() {
         inputs: inputs,
         context: {
           fuel_name: fuelNameForContext,
-          fuel_id: selectedFuel?.id,
+          fuel_id: editUseCustomFuel ? null : selectedFuel?.id,
           scope: effectiveScope, // Use effective scope for context
           category: formData.category || selectedCategory,
           reporting_period: formData.reporting_period_start, // For currency conversion year lookup
+          is_custom_fuel: editUseCustomFuel || false,
           // Scope 3 specific context
           ...scope3ContextPreview,
         },
@@ -2067,7 +2156,8 @@ export default function Emissions() {
       unit: formData.quantity_unit || 'kg',
       overrides: overrides,
       gwpConfig: gwpConfig,
-      dryRun: true
+      dryRun: true,
+      calculationMethodology: editCalcMethodology,
     }).then(result => {
       if (result) {
         setBackendCalcResult(result);
@@ -2089,7 +2179,8 @@ export default function Emissions() {
     overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, scope3ActivityId, filteredScope3Activities,
-    useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection
+    useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection,
+    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType
   ]);
   
   // Use backend calculation engine result exclusively
@@ -2255,6 +2346,10 @@ export default function Emissions() {
         overrideDensity,
         overrideEmissionFactorHeat,
         overrideJustification,
+        // Custom fuel props
+        editUseCustomFuel,
+        editCustomFuelName,
+        editProcessType,
       });
       if (!validation.valid) {
         toast.error(validation.errorMessage);
@@ -2286,6 +2381,10 @@ export default function Emissions() {
           isOverrideDensity,
           overrideEmissionFactorHeat,
           overrideJustification,
+          // Custom fuel props
+          editUseCustomFuel,
+          editCustomFuelName,
+          editProcessType,
         });
 
         setIsSaving(true);
@@ -2333,6 +2432,7 @@ export default function Emissions() {
     setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
     setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
     setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
+    setEditUseCustomFuel, setEditCustomFuelName,
     // Helpers
     getAuthHeader,
   });
@@ -3205,6 +3305,12 @@ export default function Emissions() {
                   scope3CustomActivity={scope3CustomActivity}
                   useCustomActivity={useCustomActivity}
                   typeOfProduct={typeOfProduct}
+                  editCalcMethodology={editCalcMethodology}
+                  setEditCalcMethodology={setEditCalcMethodology}
+                  editProcessType={editProcessType}
+                  setEditProcessType={setEditProcessType}
+                  editUseCustomFuel={editUseCustomFuel}
+                  editCustomFuelName={editCustomFuelName}
                   activitySearchTerm={activitySearchTerm}
                   loadingScope3EF={loadingScope3EF}
                   loadingBiogenicCategories={loadingBiogenicCategories}
@@ -3233,6 +3339,8 @@ export default function Emissions() {
                   setScope3Subcategory={setScope3Subcategory}
                   setScope3CustomActivity={setScope3CustomActivity}
                   setUseCustomActivity={setUseCustomActivity}
+                  setEditUseCustomFuel={setEditUseCustomFuel}
+                  setEditCustomFuelName={setEditCustomFuelName}
                   setTypeOfProduct={setTypeOfProduct}
                   setActivitySearchTerm={setActivitySearchTerm}
                   setDynamicFieldValues={setDynamicFieldValues}
