@@ -143,7 +143,7 @@ async def seed_scopes_and_categories(db):
             continue
         for cat in categories:
             existing = await db.emission_categories.find_one(
-                {"scope_id": scope["id"], "code": cat["code"]}, {"_id": 0}
+                {"code": cat["code"]}, {"_id": 0}
             )
             if not existing:
                 doc = {
