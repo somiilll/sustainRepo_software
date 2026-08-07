@@ -39,31 +39,12 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
   return unitDef?.unit_type === 'volume';
 };
 
-// Unit dimension classification for density requirement checks
-const VOLUME_UNITS = new Set(['l', 'ml', 'kl', 'm3', 'cm3']);
-const MASS_UNITS = new Set(['kg', 'g', 't']);
-
-/**
- * For Qty Basis EF: density is required when the EF unit's denominator dimension
- * differs from the fuel's quantity unit dimension.
- * e.g. EF = kgCO2/L (volume denom) but fuel only allows kg,g,t (mass qty) → need density.
- *
- * @param {string} efUnit - Selected EF unit like "kgCO2/L" or "kgCO2/kg"
- * @param {string[]} qtyAllowedUnits - Fuel's allowed quantity units like ["L","ml","kl"] or ["kg","g","t"]
- * @returns {boolean}
- */
-const isDensityRequiredForQtyBasis = (efUnit, qtyAllowedUnits) => {
-  if (!efUnit || !qtyAllowedUnits?.length) return false;
-  const denominator = efUnit.split('/')[1]?.toLowerCase();
-  if (!denominator) return false;
-  const efDenomIsVolume = VOLUME_UNITS.has(denominator);
-  const efDenomIsMass = MASS_UNITS.has(denominator);
-  if (!efDenomIsVolume && !efDenomIsMass) return false;
-  const qtyUnitsLower = qtyAllowedUnits.map(u => u.toLowerCase());
-  const qtyAllMass = qtyUnitsLower.every(u => MASS_UNITS.has(u));
-  const qtyAllVolume = qtyUnitsLower.every(u => VOLUME_UNITS.has(u));
-  return (efDenomIsVolume && qtyAllMass) || (efDenomIsMass && qtyAllVolume);
-};
+// Density dimension-mismatch helpers (canonical source: shared/utils/unitHelpers.js)
+import {
+  isDensityRequiredForQtyBasis,
+  isDensityRequiredForHeatBasis,
+  isDensityRequiredForCarbonComposition,
+} from './modules/ghg/emissions/shared/utils/unitHelpers';
 
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
@@ -1386,18 +1367,19 @@ export default function EmissionEntryForm({
                              m.applies_to_scopes.includes(scopeId);
       if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
       
-      // Custom fuel: show density only for Qty Basis EF (dimension mismatch check)
-      // or Heat Basis (if qty unit dimension ≠ CV denominator dimension)
+      // Custom fuel density: show only when dimension mismatch per methodology
       if (useCustomFuel && m.maps_to_variable === 'density') {
         const calcMethod = decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv';
+        const qtyUnit = decisionFieldValues._customQtyUnit || 'kg';
         if (calcMethod === 'using_carbon_composition') {
-          // Carbon composition: density needed if qty unit is volume
-          const qtyUnit = decisionFieldValues._customQtyUnit || 'kg';
-          const volUnits = new Set(['l', 'kl', 'ml', 'm3', 'cm3']);
-          return volUnits.has(qtyUnit.toLowerCase());
+          return isDensityRequiredForCarbonComposition(qtyUnit);
         }
-        if (calcMethod === 'using_qty_basis_ef' || calcMethod === 'using_heat_basis_ncv') {
-          return true; // Show; DynamicFieldRenderer handles per-month required check
+        if (calcMethod === 'using_heat_basis_ncv') {
+          const cvUnit = decisionFieldValues._customCVUnit || 'TJ/kg';
+          return isDensityRequiredForHeatBasis(cvUnit, qtyUnit);
+        }
+        if (calcMethod === 'using_qty_basis_ef') {
+          return isDensityRequiredForQtyBasis(customEmissionFactorUnit, [qtyUnit]);
         }
         return false;
       }
@@ -1411,10 +1393,18 @@ export default function EmissionEntryForm({
             return true;
           }
           // Density: show when formula supports dimension conversion,
-          // OR when using Qty Basis EF (may need density if EF/qty dimensions mismatch)
+          // OR when using Qty Basis EF and fuel's qty units could mismatch EF denominators
           if (m.maps_to_variable === 'density') {
             const calcMethod = decisionFieldValues.calculation_methodology;
-            if (calcMethod === 'using_qty_basis_ef') return true;
+            if (calcMethod === 'using_qty_basis_ef') {
+              // Only show if the fuel's units are all one dimension but the EF mapping
+              // has denominators of the other dimension (i.e. mismatch is possible)
+              const efMapping = formConfig.input_field_mappings.find(fm => fm.maps_to_variable === 'ef_quantity');
+              const efAllowedUnits = efMapping?.allowed_units || [];
+              const qtyUnits = selectedFuel?.allowed_units || [];
+              // Check if any EF unit denominator could mismatch fuel qty units
+              return efAllowedUnits.some(eu => isDensityRequiredForQtyBasis(eu, qtyUnits));
+            }
             return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
           }
           return false;

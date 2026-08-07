@@ -29,6 +29,7 @@ import useEvidenceManagement from './emissions/useEvidenceManagement';
 import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/utils/persistCalcAuditLog';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
 import { categoryRegistry } from '../modules/emissions';
+import { isDensityRequiredForQtyBasis } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
@@ -588,7 +589,7 @@ export default function Emissions() {
       .filter(m => {
         if (m.is_active === false) return false;
         
-        // Custom fuel density: show based on methodology (same logic as add form)
+        // Custom fuel density: show only when dimension mismatch per methodology
         if (editUseCustomFuel && m.maps_to_variable === 'density') {
           if (editCalcMethodology === 'using_qty_basis_ef' || editCalcMethodology === 'using_heat_basis_ncv') return true;
           return false;
@@ -603,9 +604,15 @@ export default function Emissions() {
               return true;
             }
             // Density: show when formula supports dimension conversion,
-            // OR when using Qty Basis EF (may need density if EF/qty dimensions mismatch)
+            // OR when using Qty Basis EF and fuel's qty units could mismatch EF denominators
             if (m.maps_to_variable === 'density') {
-              if (editCalcMethodology === 'using_qty_basis_ef') return true;
+              if (editCalcMethodology === 'using_qty_basis_ef') {
+                const efMapping = editFormConfig.input_field_mappings.find(fm => fm.maps_to_variable === 'ef_quantity');
+                const efAllowedUnits = efMapping?.allowed_units || [];
+                const editSelectedFuelForDensity = formData.fuel_id ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
+                const qtyUnits = editSelectedFuelForDensity?.allowed_units || [];
+                return efAllowedUnits.some(eu => isDensityRequiredForQtyBasis(eu, qtyUnits));
+              }
               return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
             }
             return false;

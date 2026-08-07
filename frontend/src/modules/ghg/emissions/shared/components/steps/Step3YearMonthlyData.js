@@ -399,10 +399,17 @@ export const Step3YearMonthlyData = ({
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label>Unit <span className="text-xs text-emerald-600">(fixed)</span></Label>
-                                <div className="flex items-center h-10 bg-emerald-50 border border-emerald-200 rounded-lg px-3 text-emerald-700">
-                                  <span>{field.unit || 'unit'}</span>
-                                </div>
+                                <Label>Unit</Label>
+                                <select
+                                  value={data[`${field.key}_unit`] || field.unit || 'kg'}
+                                  onChange={(e) => updateMonthData(monthKey, `${field.key}_unit`, e.target.value)}
+                                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                  data-testid={`month-${monthKey}-${field.key}-unit`}
+                                >
+                                  {['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3'].map(u => (
+                                    <option key={u} value={u}>{u}</option>
+                                  ))}
+                                </select>
                               </div>
                             </div>
                           ))}
@@ -785,10 +792,17 @@ const YearlyDataEntry = ({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Unit <span className="text-xs text-emerald-600">(fixed)</span></Label>
-                  <div className="flex items-center h-10 bg-emerald-50 border border-emerald-200 rounded-lg px-3 text-emerald-700">
-                    <span>{field.unit || 'unit'}</span>
-                  </div>
+                  <Label>Unit</Label>
+                  <select
+                    value={yearlyData[`${field.key}_unit`] || field.unit || 'kg'}
+                    onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.key}_unit`]: e.target.value }))}
+                    className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                    data-testid={`yearly-${field.key}-unit`}
+                  >
+                    {['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3'].map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             ))}

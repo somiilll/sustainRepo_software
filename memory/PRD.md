@@ -130,13 +130,24 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Added `using_qty_basis_ef` detection in edit hydration (checks for `ef_quantity` in saved dynamic_field_values)
 
 ### Qty Basis EF Density Requirement (P1)
-- When methodology is `using_qty_basis_ef`, density field is shown for Stationary and Mobile Combustion
-- Density dynamically marked as required (red asterisk) when EF unit denominator dimension mismatches fuel qty unit dimension
-- Example: EF = kgCO2/L (volume denom) but fuel qty = kg,g,t (mass only) → density required
-- Helper: `isDensityRequiredForQtyBasis()` in `unitHelpers.js` — pure function, shared across components
-- DynamicFieldRenderer auto-enables density override checkbox when density becomes required
-- Backend calc engine enforces: returns clear error when density needed but not provided
-- Edit form (Emissions.js) has the same density check with `densityQtyBasisCheck` flag
+- When methodology is `using_qty_basis_ef`, density field shown **only** when fuel's allowed units could actually mismatch EF denominators
+- Example: fuel has only mass units (kg,g,t), EF mapping has `kgCO2/L` option → density shown
+- Example: fuel has volume units (L,ml,kl), EF mapping has `kgCO2/L` → density NOT shown (no mismatch)
+- DynamicFieldRenderer checks per-month selected EF unit for required indicator
+- Edit form (Emissions.js) has the same conditional density check
+- **Status**: ✅ Implemented
+
+### Heat Basis / Carbon Composition Density Checks (P1)
+- `isDensityRequiredForHeatBasis(cvUnit, qtyUnit)`: compares CV denominator dimension vs qty unit dimension
+- `isDensityRequiredForCarbonComposition(qtyUnit)`: density needed when qty unit is volume-based
+- Custom fuel density shown only on actual dimension mismatch per methodology
+- All helpers in shared `unitHelpers.js` — clean, reusable, unit-testable
+- **Status**: ✅ Implemented
+
+### Process Emissions Qty Unit Dropdown (P1)
+- Replaced fixed "(fixed)" unit label with selectable dropdown (kg, g, t, L, kL, ml, m3, cm3)
+- Applied to both monthly and yearly views in Step3YearMonthlyData.js
+- Unit stored as `{field.key}_unit` in monthlyData/yearlyData
 - **Status**: ✅ Implemented
 
 ### Custom Fuel 3-Methodology Support (P1)
