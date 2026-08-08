@@ -330,7 +330,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
         actions.append({"priority": "High", "area": "Energy", "action": f"Investigate {energy_change:.1f}% increase in consumption"})
     if energy_total and not energy.get("renewable_pct"):
         actions.append({"priority": "Medium", "area": "Renewable Energy", "action": "Develop a renewable-energy improvement plan"})
-    if water_status in {"Needs attention", "Anomaly — investigate"}:
+    if water_status in {"Needs attention", "Large period-over-period change — review recommended"}:
         actions.append({"priority": "Medium", "area": "Water", "action": "Review current consumption against target and prior period"})
     availability = {"current": "available" if current["record_count"] else "No data available for this reporting period.", "comparison": "available" if previous["record_count"] else "Previous-period comparison unavailable.", "previous_ytd": "available" if previous_ytd["record_count"] else "Previous FY/CY YTD comparison unavailable."}
     resource_status = {"energy": energy_status, "water": water_status, "renewable": renewable_status, "waste_recovery": comparison_status(waste.get("recovery_pct", 0) or 0, previous_resources["waste"].get("recovery_pct", 0) or 0, "higher")[1]}
