@@ -21,6 +21,7 @@ from shared.helpers.email import send_email_with_attachments
 from modules.esg_records.services.dashboard.dashboard_metrics_service import get_dashboard_metrics_service
 from modules.dashboards.environment_detail_service import get_environment_detail
 from modules.esg_records.services.dashboard.unit_utils import to_kilolitres
+from modules.mis_reports.reporting_period_service import ReportingPeriodService
 
 
 ALL_SCOPES = ["scope1", "scope2", "scope3", "biogenic"]
@@ -63,11 +64,18 @@ async def aggregate_emissions(filters: Dict[str, Any], current_user: dict) -> Di
     query: Dict[str, Any] = {
         "facility_id": {"$in": facility_ids},
         "scope": {"$in": scopes},
-        "$or": [
+    }
+    if filters.get("strict_period"):
+        if filters.get("period_frequency") in {"daily", "weekly"}:
+            # Daily/weekly reporting is exact only for records stored as ISO dates; monthly records are intentionally not stretched across shorter periods.
+            query["reporting_period"] = {"$gte": filters["period_start_date"], "$lte": filters["period_end_date"]}
+        else:
+            query["reporting_period"] = {"$gte": filters["reporting_period_start"], "$lte": filters["reporting_period_end"]}
+    else:
+        query["$or"] = [
             {"reporting_period": {"$gte": filters["reporting_period_start"], "$lte": filters["reporting_period_end"]}},
             {"reporting_period": {"$in": fiscal_periods}},
-        ],
-    }
+        ]
     if categories:
         query["category"] = {"$in": categories}
     records = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
@@ -189,15 +197,28 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
     return enriched
 
 
-async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
+async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict, reporting_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Build a factual ESG MIS data pack; no generative metrics are invented."""
     current = await aggregate_emissions(filters, current_user)
-    previous = await aggregate_emissions(previous_period_filters(filters), current_user)
+    if reporting_context:
+        frequency = reporting_context["frequency"]
+        previous_filters = ReportingPeriodService.filters_for(filters, reporting_context["comparison_period"], frequency)
+        previous_year_filters = ReportingPeriodService.filters_for(filters, reporting_context["previous_year_period"], frequency)
+        ytd_filters = ReportingPeriodService.filters_for(filters, reporting_context["ytd_period"], frequency)
+    else:
+        previous_filters = previous_period_filters(filters)
+        previous_year_filters = previous_period_filters(previous_filters)
+        ytd_filters = filters
+    previous = await aggregate_emissions(previous_filters, current_user)
+    previous_year = await aggregate_emissions(previous_year_filters, current_user)
+    ytd = await aggregate_emissions(ytd_filters, current_user)
     previous_scopes = {row["scope"]: row["emissions"] for row in previous["scope_breakdown"]}
     current_scopes = {row["scope"]: row["emissions"] for row in current["scope_breakdown"]}
-    kpis = [{"label": "Total Emissions", "value": current["total_emissions"], "previous": previous["total_emissions"], "unit": current["unit"], "change_pct": percentage_change(current["total_emissions"], previous["total_emissions"])}]
+    previous_year_scopes = {row["scope"]: row["emissions"] for row in previous_year["scope_breakdown"]}
+    ytd_scopes = {row["scope"]: row["emissions"] for row in ytd["scope_breakdown"]}
+    kpis = [{"label": "Total Emissions", "value": current["total_emissions"], "previous": previous["total_emissions"], "previous_year": previous_year["total_emissions"], "ytd": ytd["total_emissions"], "unit": current["unit"], "change_pct": percentage_change(current["total_emissions"], previous["total_emissions"]), "previous_year_change_pct": percentage_change(current["total_emissions"], previous_year["total_emissions"])}]
     for scope in ALL_SCOPES:
-        kpis.append({"label": scope.replace("scope", "Scope ").title(), "value": current_scopes.get(scope, 0), "previous": previous_scopes.get(scope, 0), "unit": current["unit"], "change_pct": percentage_change(current_scopes.get(scope, 0), previous_scopes.get(scope, 0))})
+        kpis.append({"label": scope.replace("scope", "Scope ").title(), "value": current_scopes.get(scope, 0), "previous": previous_scopes.get(scope, 0), "previous_year": previous_year_scopes.get(scope, 0), "ytd": ytd_scopes.get(scope, 0), "unit": current["unit"], "change_pct": percentage_change(current_scopes.get(scope, 0), previous_scopes.get(scope, 0)), "previous_year_change_pct": percentage_change(current_scopes.get(scope, 0), previous_year_scopes.get(scope, 0))})
 
     organization_id = current_user.get("organization_id")
     facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
@@ -268,7 +289,8 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
         ],
     })
     operational = await get_operational_kpis(organization_id, current_scopes.get("scope1", 0) + current_scopes.get("scope2", 0), energy_total, incidents, filters)
-    return {"filters": filters, "current": current, "previous": previous, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "insights": insights, "monthly_trend": current["period_breakdown"]}
+    availability = {"current": "available" if current["record_count"] else "No data available for this reporting period.", "comparison": "available" if previous["record_count"] else "Previous-period comparison unavailable.", "previous_year": "available" if previous_year["record_count"] else "Previous-year comparison unavailable."}
+    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "previous_year": previous_year, "ytd": ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "insights": insights, "monthly_trend": current["period_breakdown"], "availability": availability}
 
 
 async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[List[str]]) -> float:
@@ -380,13 +402,15 @@ def build_summary_email(schedule_name: str, summary: Dict[str, Any], filters: Di
 
 
 async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
-    summary = await aggregate_emissions(schedule["filters"], current_user)
     sent_at = now_iso()
     delivery_id = str(uuid.uuid4())
     recipients = schedule_recipients(schedule)
-    facility_names = await facility_names_for_filters(schedule["filters"], current_user)
-    organization = await db.organizations.find_one({"id": schedule.get("organization_id")}, {"_id": 0, "name": 1})
-    executive = await build_executive_mis_report(schedule["filters"], current_user)
+    organization = await db.organizations.find_one({"id": schedule.get("organization_id")}, {"_id": 0, "name": 1, "reporting_year_type": 1, "financial_year_start_month": 1})
+    reporting_context = ReportingPeriodService(organization, datetime.now(timezone.utc)).resolve(schedule["frequency"])
+    resolved_filters = ReportingPeriodService.filters_for(schedule["filters"], reporting_context["reporting_period"], schedule["frequency"])
+    summary = await aggregate_emissions(resolved_filters, current_user)
+    facility_names = await facility_names_for_filters(resolved_filters, current_user)
+    executive = await build_executive_mis_report(resolved_filters, current_user, reporting_context)
     pdf_name = safe_report_filename(schedule["name"], "pdf")
     xlsx_name = safe_report_filename(schedule["name"], "xlsx")
     try:
@@ -398,21 +422,21 @@ async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[st
         ]
     except Exception as error:
         failure = str(error)
-        delivery_run = {"id": delivery_id, "schedule_id": schedule.get("id"), "schedule_name": schedule["name"], "organization_id": schedule.get("organization_id"), "status": "failed", "generated_at": sent_at, "reporting_period_label": schedule.get("reporting_period_label"), "filters": schedule["filters"], "recipients": recipients, "content": schedule.get("content") or {}, "facility_mode": schedule.get("facility_mode", "all"), "facility_names": facility_names, "artifacts": [], "failure_reason": failure, "schedule_snapshot": schedule}
+        delivery_run = {"id": delivery_id, "schedule_id": schedule.get("id"), "schedule_name": schedule["name"], "organization_id": schedule.get("organization_id"), "status": "failed", "generated_at": sent_at, "reporting_period_label": reporting_context["reporting_period"]["label"], "filters": resolved_filters, "reporting_context": reporting_context, "recipients": recipients, "content": schedule.get("content") or {}, "facility_mode": schedule.get("facility_mode", "all"), "facility_names": facility_names, "artifacts": [], "failure_reason": failure, "schedule_snapshot": schedule}
         await db.mis_report_delivery_runs.insert_one(delivery_run.copy())
         return delivery_run
 
     attachments = [(xlsx_name, xlsx_content), (pdf_name, pdf_content)]
     failures = []
     for recipient in recipients:
-        success = await send_email_with_attachments(recipient["email"], f"ESG MIS Report – {schedule['filters']['reporting_period_end']}", build_summary_email(schedule["name"], summary, schedule["filters"]), attachments)
+        success = await send_email_with_attachments(recipient["email"], f"ESG MIS Report – {reporting_context['reporting_period']['label']}", build_summary_email(schedule["name"], summary, resolved_filters), attachments)
         error = None if success else "Resend delivery failed"
         if error:
             failures.append(recipient["email"])
         delivery = {"id": str(uuid.uuid4()), "delivery_run_id": delivery_id, "schedule_id": schedule["id"], "organization_id": schedule.get("organization_id"), "recipient_email": recipient["email"], "recipient_name": recipient["name"], "status": "sent" if success else "failed", "sent_at": sent_at, "error": error}
         await db.mis_report_deliveries.insert_one(delivery.copy())
     status = "sent" if not failures else ("failed" if len(failures) == len(recipients) else "partial")
-    delivery_run = {"id": delivery_id, "schedule_id": schedule.get("id"), "schedule_name": schedule["name"], "organization_id": schedule.get("organization_id"), "status": status, "generated_at": sent_at, "reporting_period_label": schedule.get("reporting_period_label"), "filters": schedule["filters"], "recipients": recipients, "content": schedule.get("content") or {}, "facility_mode": schedule.get("facility_mode", "all"), "facility_names": facility_names, "artifacts": artifacts, "failure_reason": "Resend delivery failed for: " + ", ".join(failures) if failures else None, "schedule_snapshot": schedule}
+    delivery_run = {"id": delivery_id, "schedule_id": schedule.get("id"), "schedule_name": schedule["name"], "organization_id": schedule.get("organization_id"), "status": status, "generated_at": sent_at, "reporting_period_label": reporting_context["reporting_period"]["label"], "filters": resolved_filters, "reporting_context": reporting_context, "recipients": recipients, "content": schedule.get("content") or {}, "facility_mode": schedule.get("facility_mode", "all"), "facility_names": facility_names, "artifacts": artifacts, "failure_reason": "Resend delivery failed for: " + ", ".join(failures) if failures else None, "schedule_snapshot": schedule}
     await db.mis_report_delivery_runs.insert_one(delivery_run.copy())
     return delivery_run
 
@@ -430,13 +454,13 @@ async def process_due_schedules() -> int:
             await send_schedule(schedule, user_context)
             await db.mis_report_schedules.update_one(
                 {"id": schedule["id"]},
-                {"$set": {"last_run_at": now_iso(), "next_run_at": next_run_at(schedule["frequency"])}},
+                {"$set": {"last_run_at": now_iso(), "next_run_at": next_run_at(schedule["frequency"], schedule.get("run_time", "09:00"), schedule.get("run_day"))}},
             )
             processed += 1
         except Exception:
             await db.mis_report_schedules.update_one(
                 {"id": schedule["id"]},
-                {"$set": {"next_run_at": next_run_at(schedule["frequency"])}},
+                {"$set": {"next_run_at": next_run_at(schedule["frequency"], schedule.get("run_time", "09:00"), schedule.get("run_day"))}},
             )
     return processed
 
@@ -472,12 +496,21 @@ def build_pdf(summary: Dict[str, Any]) -> bytes:
 
 def build_executive_excel(report: Dict[str, Any]) -> bytes:
     workbook = Workbook(); workbook.remove(workbook.active)
+    context = report.get("reporting_context") or {}
+    context_rows = []
+    if context:
+        context_rows = [
+            ["Reporting Period", context["reporting_period"]["label"]], ["Comparison Period", context["comparison_period"]["label"]],
+            ["Previous-Year Equivalent", context["previous_year_period"]["label"]], ["YTD", f"{context['ytd_period']['start_date']} to {context['ytd_period']['end_date']}"],
+            ["Reporting Calendar", context["reporting_calendar"]["label"]], [],
+        ]
     def sheet(name, rows):
         ws = workbook.create_sheet(name); ws.append(["SustainRepo ESG MIS Report"]); ws.append([])
+        for row in context_rows: ws.append(row)
         for row in rows: ws.append(row)
         for cell in ws[1]: cell.font = Font(bold=True, color="FFFFFF"); cell.fill = PatternFill("solid", fgColor="166534")
         ws.column_dimensions["A"].width = 34; ws.column_dimensions["B"].width = 22; ws.column_dimensions["C"].width = 22
-    sheet("Executive Summary", [["KPI", "Current", "Previous", "Change %"]] + [[k["label"], k["value"], k["previous"], k["change_pct"]] for k in report["kpis"]])
+    sheet("Executive Summary", [["KPI", "Current", "Previous", "Change %", "Previous Year", "YoY %", "YTD"]] + [[k["label"], k["value"], k["previous"], k["change_pct"], k.get("previous_year"), k.get("previous_year_change_pct"), k.get("ytd")] for k in report["kpis"]])
     sheet("Emissions Overview", [["Scope", "tCO2e"]] + [[r["scope"], r["emissions"]] for r in report["current"]["scope_breakdown"]] + [[]] + [["Category", "tCO2e"]] + [[r["category"], r["emissions"]] for r in report["current"]["category_breakdown"]])
     sheet("Facility Performance", [["Facility", "tCO2e"]] + [[r["facility"], r["emissions"]] for r in report["current"]["facility_breakdown"]])
     sheet("Operations", [["Energy", report["energy"].get("total"), "MWh"], ["Renewable share", report["energy"].get("renewable_pct"), "%"], ["Water recycled", report["water"].get("recycled"), "KL"], ["Waste recovered", report["waste"].get("recovered"), ""], ["LTIFR", report["operational_kpis"].get("ltifr"), ""], ["Account payable days", report["operational_kpis"].get("account_payable_days"), "days"]])

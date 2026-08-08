@@ -161,6 +161,7 @@ class MISDeliveryHistoryResponse(BaseModel):
     status: str
     generated_at: str
     reporting_period_label: Optional[str] = None
+    reporting_context: Optional[Dict[str, Any]] = None
     filters: Dict[str, Any]
     recipients: List[Dict[str, str]] = Field(default_factory=list)
     content: Dict[str, Any] = Field(default_factory=dict)

@@ -369,7 +369,7 @@ def _styled_table(headers, rows, col_widths=None):
 
 # ─── Section Builders ────────────────────────────────────────────────────────
 
-def _sec_cover(story, styles, org_name, period_start, period_end, generated_by):
+def _sec_cover(story, styles, org_name, period_start, period_end, generated_by, reporting_context=None):
     story.append(Spacer(1, 2.8 * inch))
 
     title_s = ParagraphStyle("CT", parent=styles["Title"], fontSize=28,
@@ -385,7 +385,18 @@ def _sec_cover(story, styles, org_name, period_start, period_end, generated_by):
     story.append(Spacer(1, 12))
     story.append(Paragraph(org_name or "Organization", sub_s))
     story.append(Spacer(1, 20))
-    story.append(Paragraph(f"Reporting Period: {period_start} to {period_end}", info_s))
+    if reporting_context:
+        current = reporting_context["reporting_period"]
+        comparison = reporting_context["comparison_period"]
+        previous_year = reporting_context["previous_year_period"]
+        ytd = reporting_context["ytd_period"]
+        calendar = reporting_context["reporting_calendar"]
+        story.append(Paragraph(f"Reporting Period: {current['label']}", info_s))
+        story.append(Paragraph(f"Comparison Period: {comparison['label']}", info_s))
+        story.append(Paragraph(f"Previous-Year Equivalent: {previous_year['label']}", info_s))
+        story.append(Paragraph(f"YTD: {ytd['start_date']} to {ytd['end_date']} ({calendar['label']})", info_s))
+    else:
+        story.append(Paragraph(f"Reporting Period: {period_start} to {period_end}", info_s))
     story.append(Paragraph(f"Generated: {datetime.now(timezone.utc).strftime('%B %d, %Y')}", info_s))
     story.append(Paragraph(f"Prepared by: {generated_by or 'SustainRepo'}", info_s))
     story.append(Spacer(1, 1.5 * inch))
@@ -415,10 +426,11 @@ def _sec_executive_summary(story, styles, kpis):
     rows = []
     for k in kpis:
         chg = "---" if k["change_pct"] is None else f"{k['change_pct']:+.1f}%"
-        rows.append([k["label"], f"{k['value']:,.2f} {k['unit']}", f"{k['previous']:,.2f} {k['unit']}", chg])
+        yoy = "---" if k.get("previous_year_change_pct") is None else f"{k['previous_year_change_pct']:+.1f}%"
+        rows.append([k["label"], f"{k['value']:,.2f} {k['unit']}", f"{k['previous']:,.2f} {k['unit']}", chg, f"{k.get('previous_year', 0):,.2f}", yoy, f"{k.get('ytd', 0):,.2f}"])
 
-    story.append(_styled_table(["KPI", "Current Period", "Previous Period", "Change"],
-                                rows, col_widths=[150, 130, 130, 80]))
+    story.append(_styled_table(["KPI", "Current", "Previous", "MoM/WoW", "Prior Year", "YoY", "YTD"],
+                                rows, col_widths=[90, 65, 65, 55, 65, 50, 65]))
     story.append(PageBreak())
 
 
@@ -604,7 +616,7 @@ def build_beautiful_executive_pdf(report: Dict[str, Any], organization_name: str
     period_start = filters.get("reporting_period_start", "---")
     period_end = filters.get("reporting_period_end", "---")
 
-    _sec_cover(story, styles, organization_name, period_start, period_end, generated_by)
+    _sec_cover(story, styles, organization_name, period_start, period_end, generated_by, report.get("reporting_context"))
     _sec_executive_summary(story, styles, report.get("kpis", []))
     _sec_emissions_overview(story, styles, report)
     _sec_facility_performance(story, styles, report)

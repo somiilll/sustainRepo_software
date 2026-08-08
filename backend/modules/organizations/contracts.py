@@ -24,6 +24,7 @@ class OrganizationCreate(BaseModel):
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = "yearly"
     reporting_year_type: Optional[str] = None
+    financial_year_start_month: Optional[int] = None
     org_boundaries_approach: Optional[str] = None
     org_boundaries_equity_percentage: Optional[float] = None
     org_boundaries: Optional[str] = None
@@ -87,6 +88,13 @@ class OrganizationCreate(BaseModel):
                 raise ValueError('Pincode must be exactly 6 digits')
         return v
 
+    @field_validator('financial_year_start_month')
+    @classmethod
+    def validate_financial_year_start_month(cls, v):
+        if v is not None and not 1 <= v <= 12:
+            raise ValueError('Financial year start month must be between 1 and 12')
+        return v
+
     @field_validator('esg_frameworks_enabled')
     @classmethod
     def validate_esg_frameworks(cls, v):
@@ -115,6 +123,7 @@ class OrganizationResponse(BaseModel):
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = None
     reporting_year_type: Optional[str] = None
+    financial_year_start_month: Optional[int] = None
     org_boundaries_approach: Optional[str] = None
     org_boundaries_equity_percentage: Optional[float] = None
     org_boundaries: Optional[str] = None
