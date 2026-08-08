@@ -12,11 +12,23 @@ export const ALL_SECTION_IDS = CONTENT_TREE.flatMap(leafIds);
 
 const SECTION_LABELS = {
   ghg: 'GHG', water: 'Water', waste: 'Waste', biodiversity: 'Biodiversity', social: 'Social', governance: 'Governance',
-  sbti: 'SBTi Targets', voluntary_environment: 'Voluntary Environment Targets', voluntary_social: 'Voluntary Social Targets',
-  voluntary_governance: 'Voluntary Governance Targets', supplier_assessment: 'Supplier Assessment',
+  sbti: 'SBTi', voluntary_environment: 'Voluntary Environment', voluntary_social: 'Voluntary Social',
+  voluntary_governance: 'Voluntary Governance', supplier_assessment: 'Supplier Assessment',
 };
 
 export const formatSectionLabels = (sections = []) => sections.map((section) => SECTION_LABELS[section] || section.replaceAll('_', ' ')).join(' · ');
+
+export const formatGeneratedFor = (deliveryOrPreview = {}) => {
+  const period = deliveryOrPreview.reporting_context?.reporting_period;
+  if (period?.start_date) {
+    const start = new Date(`${period.start_date}T12:00:00`);
+    const frequency = deliveryOrPreview.reporting_context?.frequency;
+    if (frequency === 'monthly') return start.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }).replace(' ', " '");
+    return period.label;
+  }
+  const fallback = new Date(deliveryOrPreview.generated_at || Date.now());
+  return fallback.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }).replace(' ', " '");
+};
 
 export const frequencyLabel = (frequency) => ({ daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly' }[frequency] || frequency);
 

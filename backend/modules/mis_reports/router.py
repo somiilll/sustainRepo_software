@@ -23,7 +23,7 @@ from modules.mis_reports.contracts import (
     MISReportHistoryResponse,
 )
 from shared.database.mongo import db
-from modules.mis_reports.service import aggregate_emissions, build_executive_excel, build_executive_mis_report, build_executive_pdf, next_run_at, now_iso, send_schedule
+from modules.mis_reports.service import ReportingPeriodService, aggregate_emissions, build_executive_excel, build_executive_mis_report, build_executive_pdf, next_run_at, now_iso, send_schedule
 
 
 router = APIRouter()
@@ -199,6 +199,18 @@ async def send_mis_schedule_now(schedule_id: str, current_user: dict = Depends(g
     delivery = await send_schedule(schedule, current_user)
     await db.mis_report_schedules.update_one(query, {"$set": {"last_run_at": now_iso(), "next_run_at": next_run_at(schedule["frequency"], schedule.get("run_time", "09:00"), schedule.get("run_day"))}})
     return {"success": delivery.get("status") in {"sent", "partial"}, "delivery_id": delivery.get("id"), "status": delivery.get("status"), "failure_reason": delivery.get("failure_reason")}
+
+
+@router.get("/mis-reports/schedules/{schedule_id}/resolved-period")
+async def get_mis_schedule_resolved_period(schedule_id: str, current_user: dict = Depends(get_current_user)):
+    """Preview the exact period Send Now will use without generating or sending a report."""
+    await require_mis_admin(current_user)
+    query = {"id": schedule_id} if current_user.get("role") == "super_admin" else {"id": schedule_id, "organization_id": current_user.get("organization_id")}
+    schedule = await db.mis_report_schedules.find_one(query, {"_id": 0, "frequency": 1, "organization_id": 1})
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    organization = await db.organizations.find_one({"id": schedule.get("organization_id")}, {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1})
+    return ReportingPeriodService(organization, datetime.now(timezone.utc)).resolve(schedule["frequency"])
 
 
 @router.get("/mis-reports/deliveries", response_model=List[MISDeliveryResponse])
