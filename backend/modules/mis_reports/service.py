@@ -151,7 +151,7 @@ def comparison_status(current: float, previous: float, direction: str) -> tuple[
         return change, "No material change"
     if direction == "lower":
         if change > 100:
-            return change, "Anomaly — investigate"
+            return change, "Large period-over-period change — review recommended"
         return change, "Improving" if change < 0 else "Needs attention"
     if direction == "higher":
         return change, "Improving" if change > 0 else "Needs attention"
@@ -326,7 +326,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
         insights.append(f"{active_targets} active targets: {target_counts['On Track'] + target_counts['Achieved']} on track or achieved, {target_counts['At Risk']} at risk, and {target_counts['Behind']} behind.")
     if target_counts["Behind"]:
         actions.append({"priority": "High", "area": "Targets", "action": f"Review {target_counts['Behind']} target{'s' if target_counts['Behind'] != 1 else ''} currently behind plan"})
-    if energy_status == "Anomaly — investigate":
+    if energy_status == "Large period-over-period change — review recommended":
         actions.append({"priority": "High", "area": "Energy", "action": f"Investigate {energy_change:.1f}% increase in consumption"})
     if energy_total and not energy.get("renewable_pct"):
         actions.append({"priority": "Medium", "area": "Renewable Energy", "action": "Develop a renewable-energy improvement plan"})
@@ -334,7 +334,9 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
         actions.append({"priority": "Medium", "area": "Water", "action": "Review current consumption against target and prior period"})
     availability = {"current": "available" if current["record_count"] else "No data available for this reporting period.", "comparison": "available" if previous["record_count"] else "Previous-period comparison unavailable.", "previous_ytd": "available" if previous_ytd["record_count"] else "Previous FY/CY YTD comparison unavailable."}
     resource_status = {"energy": energy_status, "water": water_status, "renewable": renewable_status, "waste_recovery": comparison_status(waste.get("recovery_pct", 0) or 0, previous_resources["waste"].get("recovery_pct", 0) or 0, "higher")[1]}
-    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "availability": availability}
+    high_priority = sum(1 for action in actions if action["priority"] == "High")
+    overall_management_status = "Attention Required" if high_priority or target_counts["Behind"] else ("Monitor" if actions or target_counts["At Risk"] else "On Track")
+    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "availability": availability}
 
 
 async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[List[str]]) -> float:

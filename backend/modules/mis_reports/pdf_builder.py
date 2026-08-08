@@ -414,7 +414,7 @@ def _status_text(change, lower_is_better=True):
     if abs(change) < 0.05:
         return "No material change"
     if lower_is_better and change > 100:
-        return "Anomaly — investigate"
+        return "Large period-over-period change — review recommended"
     good = change < 0 if lower_is_better else change > 0
     return f"{'Improving' if good else 'Needs attention'} · {abs(change):.1f}% {'decrease' if change < 0 else 'increase'}"
 
@@ -431,12 +431,15 @@ def _sec_executive_summary(story, styles, report):
     water, waste = report.get("water", {}), report.get("waste", {})
     targets = report.get("target_summary", {})
     summary_rows = [
-        ["Emissions", f"{emissions.get('value', 0):,.2f} tCO2e", _status_text(emissions.get('change_pct'), True)],
-        ["Water", f"{water.get('consumption', 0):,.2f} KL", _status_text(_pct_change(water.get('consumption', 0), report.get('previous_resources', {}).get('water', {}).get('consumption', 0)), True)],
-        ["Waste Recovery", f"{waste.get('recovery_pct', 0):,.1f}%", "No recovery benchmark configured"],
-        ["Target Progress", f"{targets.get('active', 0)} active targets", f"{targets.get('On Track', 0) + targets.get('Achieved', 0)} on track · {targets.get('At Risk', 0)} at risk · {targets.get('Behind', 0)} behind"],
+        ["Emissions", f"{emissions.get('value', 0):,.2f} tCO2e", f"{emissions.get('previous', 0):,.2f} tCO2e", _status_text(emissions.get('change_pct'), True)],
+        ["Water", f"{water.get('consumption', 0):,.2f} KL", f"{report.get('previous_resources', {}).get('water', {}).get('consumption', 0):,.2f} KL", _status_text(_pct_change(water.get('consumption', 0), report.get('previous_resources', {}).get('water', {}).get('consumption', 0)), True)],
+        ["Waste Recovery", f"{waste.get('recovery_pct', 0):,.1f}%", f"{report.get('previous_resources', {}).get('waste', {}).get('recovery_pct', 0):,.1f}%", "No recovery benchmark configured"],
+        ["Target Progress", f"{targets.get('active', 0)} active targets", "", f"{targets.get('On Track', 0) + targets.get('Achieved', 0)} on track · {targets.get('At Risk', 0)} at risk · {targets.get('Behind', 0)} behind"],
     ]
-    story.append(_styled_table(["Management metric", "Current period", "Management status"], summary_rows, col_widths=[145, 130, 230]))
+    overall = report.get("overall_management_status", {})
+    story.append(_styled_table(["Overall ESG Management Status", overall.get("status", "Monitor"), f"{overall.get('high_priority_count', 0)} high-priority item(s) require management review"], [["Management status", overall.get("status", "Monitor"), f"{overall.get('high_priority_count', 0)} high-priority item(s) require management review"]], col_widths=[160, 130, 215]))
+    story.append(Spacer(1, 10))
+    story.append(_styled_table(["Management metric", "Current", "Previous comparable period", "Management status"], summary_rows, col_widths=[120, 115, 130, 140]))
     story.append(Spacer(1, 14))
     labels = ["What happened", "Why / Where", "What needs attention"]
     insight_rows = [[labels[min(index, 2)], insight] for index, insight in enumerate(report.get("insights", [])[:3])]
