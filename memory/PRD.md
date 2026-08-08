@@ -176,6 +176,11 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Verified matching collection names, document counts, and index names. UUID handling used MongoDB standard representation.
 - No Decision Tree, formula, variable, or calc-engine database configuration was changed.
 
+### Repo Pilot Report Migration
+- Migrated the completed `IndianOil_BRSR2425.pdf` Repo Pilot document from `test_database` to `sustainrepo_staging` after explicit user confirmation.
+- Preserved the document identifier, metadata, 293 linked chunks and their identifiers, 57 page-image references, and private R2 storage references.
+- Verified source/destination report metadata and chunk identifier sets match exactly. No Decision Tree or calc-engine configuration changed.
+
 ### Emission Live-Calculation Presentation
 - Custom Fuel and non-Custom Fuel live results now use the same colourful CO₂ / CH₄ / N₂O / CO₂e summary with calculation-detail audit entries.
 - Removed the repeated Custom Fuel applied-formula header from Add and Edit result displays only; backend formula resolution and calculation data are unchanged.
