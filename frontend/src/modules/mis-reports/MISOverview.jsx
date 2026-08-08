@@ -4,9 +4,9 @@ import { Button } from '../../components/ui/button';
 
 const metrics = [
   { key: 'active_schedules', label: 'Active schedules', detail: 'Reports currently scheduled', icon: CalendarClock, tone: 'text-emerald-800 bg-emerald-50' },
-  { key: 'reports_delivered', label: 'Reports delivered', detail: 'Across all configurations', icon: Send, tone: 'text-blue-800 bg-blue-50' },
-  { key: 'recipients', label: 'Recipients', detail: 'Across delivery history', icon: Mail, tone: 'text-amber-800 bg-amber-50' },
-  { key: 'success_rate', label: 'Success rate', detail: 'Successful delivery events', icon: ShieldCheck, tone: 'text-violet-800 bg-violet-50' },
+  { key: 'reports_delivered', label: 'Reports delivered', detail: 'This month', icon: Send, tone: 'text-blue-800 bg-blue-50' },
+  { key: 'recipients', label: 'Recipients', detail: 'Across all configurations', icon: Mail, tone: 'text-amber-800 bg-amber-50' },
+  { key: 'success_rate', label: 'Success rate', detail: 'Delivery success', icon: ShieldCheck, tone: 'text-violet-800 bg-violet-50' },
 ];
 
 export default function MISOverview({ overview, onHistory }) {

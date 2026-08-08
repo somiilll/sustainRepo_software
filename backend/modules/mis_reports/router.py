@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 
 import io
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -147,7 +148,7 @@ async def list_mis_schedules(current_user: dict = Depends(get_current_user)):
 @router.post("/mis-reports/schedules", response_model=MISScheduleResponse)
 async def create_mis_schedule(request: MISScheduleCreate, current_user: dict = Depends(get_current_user)):
     await require_mis_admin(current_user)
-    recipients = [recipient.model_dump() | {"id": recipient.id or str(uuid.uuid4()), "email": str(recipient.email)} for recipient in request.recipients] or [{"id": str(uuid.uuid4()), "name": str(email).split("@", 1)[0], "email": str(email)} for email in request.recipient_emails]
+    recipients = [{"id": recipient.id or str(uuid.uuid4()), "name": recipient.name or str(recipient.email).split("@", 1)[0], "email": str(recipient.email)} for recipient in request.recipients] or [{"id": str(uuid.uuid4()), "name": str(email).split("@", 1)[0], "email": str(email)} for email in request.recipient_emails]
     schedule = {"id": str(uuid.uuid4()), "organization_id": current_user.get("organization_id"), "created_by_email": current_user.get("email"), "name": request.name, "frequency": request.frequency, "recipient_emails": [item["email"] for item in recipients], "recipients": recipients, "filters": request.filters.model_dump(), "content": request.content.model_dump(), "facility_mode": request.facility_mode, "run_time": request.run_time, "run_day": request.run_day, "timezone": request.timezone, "reporting_period_label": request.reporting_period_label, "is_enabled": request.is_enabled, "next_run_at": next_run_at(request.frequency, request.run_time, request.run_day) if request.is_enabled else None, "last_run_at": None, "created_at": now_iso()}
     await db.mis_report_schedules.insert_one(schedule.copy())
     return schedule
@@ -162,7 +163,7 @@ async def update_mis_schedule(schedule_id: str, request: MISScheduleUpdate, curr
         raise HTTPException(status_code=404, detail="Schedule not found")
     updates = request.model_dump(exclude_none=True)
     if "recipients" in updates:
-        updates["recipients"] = [{**recipient, "id": recipient.get("id") or str(uuid.uuid4()), "email": str(recipient["email"])} for recipient in updates["recipients"]]
+        updates["recipients"] = [{"id": recipient.get("id") or str(uuid.uuid4()), "name": recipient.get("name") or str(recipient["email"]).split("@", 1)[0], "email": str(recipient["email"])} for recipient in updates["recipients"]]
         updates["recipient_emails"] = [item["email"] for item in updates["recipients"]]
     elif "recipient_emails" in updates:
         updates["recipient_emails"] = [str(email) for email in updates["recipient_emails"]]
@@ -220,10 +221,14 @@ async def get_mis_overview(current_user: dict = Depends(get_current_user)):
     query = {} if current_user.get("role") == "super_admin" else {"organization_id": current_user.get("organization_id")}
     active_schedules = await db.mis_report_schedules.count_documents({**query, "is_enabled": True})
     deliveries = await db.mis_report_delivery_runs.find(query, {"_id": 0}).sort("generated_at", -1).to_list(100)
+    schedules = await db.mis_report_schedules.find(query, {"_id": 0, "recipients": 1, "recipient_emails": 1}).to_list(100)
     total = len(deliveries)
     sent = sum(1 for item in deliveries if item.get("status") == "sent")
-    recipients = {recipient.get("email") for item in deliveries for recipient in item.get("recipients", []) if recipient.get("email")}
-    return {"active_schedules": active_schedules, "reports_delivered": total, "recipients": len(recipients), "success_rate": round((sent / total * 100) if total else 0, 1), "recent_deliveries": deliveries[:5]}
+    recipients = {recipient.get("email") for schedule in schedules for recipient in (schedule.get("recipients") or []) if recipient.get("email")}
+    recipients.update(email for schedule in schedules if not schedule.get("recipients") for email in schedule.get("recipient_emails", []) if email)
+    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    reports_delivered = sum(1 for item in deliveries if item.get("status") == "sent" and item.get("generated_at", "") >= month_start)
+    return {"active_schedules": active_schedules, "reports_delivered": reports_delivered, "recipients": len(recipients), "success_rate": round((sent / total * 100) if total else 0, 1), "recent_deliveries": deliveries[:5]}
 
 
 @router.get("/mis-reports/delivery-history/{delivery_id}/download/{output_format}")

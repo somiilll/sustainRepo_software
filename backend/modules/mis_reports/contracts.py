@@ -58,8 +58,8 @@ class EmissionsSummaryRequest(BaseModel):
 
 class MISRecipientInput(BaseModel):
     id: Optional[str] = None
-    name: str = Field(min_length=1, max_length=120)
     email: EmailStr
+    name: Optional[str] = Field(default=None, max_length=120)
 
 
 class MISReportContent(BaseModel):
