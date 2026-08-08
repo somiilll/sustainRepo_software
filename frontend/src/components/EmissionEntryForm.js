@@ -199,8 +199,8 @@ export default function EmissionEntryForm({
     employeeName, setEmployeeName,
     employeeId, setEmployeeId,
   } = _formState;
-  const [customFuelLiveResults, setCustomFuelLiveResults] = useState({});
-  const customFuelCalcTimers = useRef({});
+  const [liveCalculationResults, setLiveCalculationResults] = useState({});
+  const liveCalculationTimers = useRef({});
 
 
   // ============================================================================
@@ -2015,32 +2015,37 @@ export default function EmissionEntryForm({
   }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, useCustomFuel, customFuelName]);
 
   useEffect(() => {
-    Object.values(customFuelCalcTimers.current).forEach(clearTimeout);
-    customFuelCalcTimers.current = {};
-    if (!useCustomFuel || frequencyType !== 'monthly') {
-      setCustomFuelLiveResults({});
+    Object.values(liveCalculationTimers.current).forEach(clearTimeout);
+    liveCalculationTimers.current = {};
+    if (frequencyType !== 'monthly') {
+      setLiveCalculationResults({});
       return undefined;
     }
 
-    const readyMonths = Object.entries(monthlyData).filter(([, monthData]) => (
-      buildCustomFuelCalculationPayload({
-        dynamicFieldValues: monthData,
-        calculationMethodology: buildDecisionInputs(monthData).calculation_methodology,
-      }).isReady
-    ));
+    const readyMonths = Object.entries(monthlyData).filter(([, monthData]) => {
+      if (useCustomFuel) {
+        return buildCustomFuelCalculationPayload({
+          dynamicFieldValues: monthData,
+          calculationMethodology: buildDecisionInputs(monthData).calculation_methodology,
+        }).isReady;
+      }
+      return Object.entries(monthData).some(([key, value]) => (
+        !key.endsWith('_unit') && key !== 'evidences' && Number.parseFloat(value) > 0
+      ));
+    });
     const readyMonthKeys = new Set(readyMonths.map(([monthKey]) => monthKey));
-    setCustomFuelLiveResults((current) => Object.fromEntries(
+    setLiveCalculationResults((current) => Object.fromEntries(
       Object.entries(current).filter(([monthKey]) => readyMonthKeys.has(monthKey)),
     ));
 
     readyMonths.forEach(([monthKey, monthData]) => {
-      customFuelCalcTimers.current[monthKey] = setTimeout(async () => {
+      liveCalculationTimers.current[monthKey] = setTimeout(async () => {
         const result = await executeCalcEngine(monthKey, monthData);
-        if (result) setCustomFuelLiveResults((current) => ({ ...current, [monthKey]: result }));
+        if (result) setLiveCalculationResults((current) => ({ ...current, [monthKey]: result }));
       }, 350);
     });
 
-    return () => Object.values(customFuelCalcTimers.current).forEach(clearTimeout);
+    return () => Object.values(liveCalculationTimers.current).forEach(clearTimeout);
   }, [useCustomFuel, frequencyType, monthlyData, buildDecisionInputs, executeCalcEngine]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
@@ -3373,8 +3378,8 @@ export default function EmissionEntryForm({
           customEmissionFactorUnit={customEmissionFactorUnit}
           customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
-          customFuelLiveResults={customFuelLiveResults}
-          isCustomFuelCalculating={isCalcEngineCalculating}
+          liveCalculationResults={liveCalculationResults}
+          isLiveCalculationCalculating={isCalcEngineCalculating}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}

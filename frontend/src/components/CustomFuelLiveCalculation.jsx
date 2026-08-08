@@ -9,7 +9,7 @@ const unitFromOutput = (result, outputName, fallback) => (
   result?.outputs?.[outputName]?.unit || fallback
 );
 
-export const CustomFuelLiveCalculation = ({ result, isCalculating = false }) => {
+export const LiveCalculationSummary = ({ result, isCalculating = false }) => {
   if (!result) return null;
 
   const auditLog = result.audit_log || result.auditLog || [];
@@ -26,8 +26,10 @@ export const CustomFuelLiveCalculation = ({ result, isCalculating = false }) => 
   };
 
   return (
-    <section data-testid="custom-fuel-live-calculation">
+    <section data-testid="live-calculation-summary">
       <ColourfulEmissionSummary calculation={calculation} isCalculating={isCalculating} isScope3Like={false} />
     </section>
   );
 };
+
+export const CustomFuelLiveCalculation = LiveCalculationSummary;

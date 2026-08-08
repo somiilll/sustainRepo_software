@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 
 // Import CustomFuelMonthFields for per-month custom fuel inputs
 import CustomFuelMonthFields from '../CustomFuelMonthFields';
-import { CustomFuelLiveCalculation } from '../../../../../../components/CustomFuelLiveCalculation';
+import { LiveCalculationSummary } from '../../../../../../components/CustomFuelLiveCalculation';
 
 // Import MultiEmployeeInput for C7
 import MultiEmployeeInput from '../../../../../../components/MultiEmployeeInput';
@@ -120,8 +120,8 @@ export const Step3YearMonthlyData = ({
   customEmissionFactorUnit,
   customFuelQtyUnit,
   calculationMethodology,
-  customFuelLiveResults,
-  isCustomFuelCalculating,
+  liveCalculationResults,
+  isLiveCalculationCalculating,
   getQuantityUnitFromEFUnit,
   
   // Evidence handling
@@ -502,12 +502,14 @@ export const Step3YearMonthlyData = ({
                             updateMonthData={updateMonthData}
                             calculationMethodology={calculationMethodology}
                           />
-                          <CustomFuelLiveCalculation
-                            result={customFuelLiveResults?.[monthKey]}
-                            methodology={calculationMethodology}
-                            isCalculating={isCustomFuelCalculating}
-                          />
                         </>
+                      )}
+
+                      {liveCalculationResults?.[monthKey] && (
+                        <LiveCalculationSummary
+                          result={liveCalculationResults[monthKey]}
+                          isCalculating={isLiveCalculationCalculating}
+                        />
                       )}
 
                       {/* Evidence Upload */}

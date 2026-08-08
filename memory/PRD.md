@@ -176,6 +176,11 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Verified matching collection names, document counts, and index names. UUID handling used MongoDB standard representation.
 - No Decision Tree, formula, variable, or calc-engine database configuration was changed.
 
+### Emission Live-Calculation Presentation
+- Custom Fuel and non-Custom Fuel live results now use the same colourful CO₂ / CH₄ / N₂O / CO₂e summary with calculation-detail audit entries.
+- Removed the repeated Custom Fuel applied-formula header from Add and Edit result displays only; backend formula resolution and calculation data are unchanged.
+- Monthly Add Emissions now retains live result state per entered month and presents the shared colourful summary when the calc engine returns a result.
+
 ## Upcoming Tasks (P1)
 - GHG Form Logic & Custom Fuels E2E Testing
 - Custom Fuel Backend Calculation Integration (wire custom fuel inputs through calc engine for all 3 methodologies)

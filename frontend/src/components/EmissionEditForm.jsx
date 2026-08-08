@@ -17,7 +17,7 @@ import {
   SubmitButtonSection,
 } from '../pages/emissions/EditFormSections';
 import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/CustomFuelMonthFields';
-import EmissionCalculationTrace from './EmissionCalculationTrace';
+import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
 import {
   Plus,
@@ -1727,9 +1727,10 @@ export default function EmissionEditForm(props) {
                       isCalculating={isCalculating}
                     />
                   ) : (
-                    <EmissionCalculationTrace
+                    <ColourfulEmissionSummary
                       calculation={effectiveCalculatedEmissions}
                       isCalculating={isCalculating}
+                      isScope3Like={formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')}
                     />
                   )
                 )}
