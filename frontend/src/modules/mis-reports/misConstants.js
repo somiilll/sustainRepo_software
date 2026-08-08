@@ -2,11 +2,13 @@ export const CONTENT_TREE = [
   { id: 'environment', label: 'Environment', children: [{ id: 'ghg', label: 'GHG' }, { id: 'water', label: 'Water' }, { id: 'waste', label: 'Waste' }, { id: 'biodiversity', label: 'Biodiversity' }] },
   { id: 'social', label: 'Social' },
   { id: 'governance', label: 'Governance' },
-  { id: 'targets', label: 'Targets', children: [{ id: 'voluntary', label: 'Voluntary' }, { id: 'target_environment', label: 'Environment' }, { id: 'target_social', label: 'Social' }, { id: 'target_governance', label: 'Governance' }, { id: 'sbti', label: 'SBTi' }] },
+  { id: 'targets', label: 'Targets', children: [{ id: 'voluntary', label: 'Voluntary', children: [{ id: 'voluntary_environment', label: 'Environment' }, { id: 'voluntary_social', label: 'Social' }, { id: 'voluntary_governance', label: 'Governance' }] }, { id: 'sbti', label: 'SBTi' }] },
   { id: 'supplier_assessment', label: 'Supplier Assessment' },
 ];
 
-export const ALL_SECTION_IDS = CONTENT_TREE.flatMap((node) => node.children ? node.children.map((child) => child.id) : [node.id]);
+const leafIds = (node) => node.children ? node.children.flatMap(leafIds) : [node.id];
+
+export const ALL_SECTION_IDS = CONTENT_TREE.flatMap(leafIds);
 
 export const frequencyLabel = (frequency) => ({ daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly' }[frequency] || frequency);
 
