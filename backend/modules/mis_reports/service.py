@@ -1,6 +1,7 @@
 """Shared aggregation, export, history, and delivery helpers for MIS Reports."""
 import io
 import uuid
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -326,9 +327,51 @@ async def save_report_run(filters: Dict[str, Any], summary: Dict[str, Any], curr
     return run
 
 
-def next_run_at(frequency: str) -> str:
-    days = {"weekly": 7, "monthly": 30, "quarterly": 90}[frequency]
-    return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+def next_run_at(frequency: str, run_time: str = "09:00", run_day: Optional[int] = None) -> str:
+    """Return a predictable UTC next run without changing existing schedules' defaults."""
+    days = {"daily": 1, "weekly": 7, "monthly": 30, "quarterly": 90, "yearly": 365}
+    hour, minute = (int(value) for value in (run_time or "09:00").split(":", 1))
+    candidate = datetime.now(timezone.utc).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if candidate <= datetime.now(timezone.utc):
+        candidate += timedelta(days=days[frequency])
+    elif frequency != "daily":
+        candidate += timedelta(days=days[frequency] - 1)
+    return candidate.isoformat()
+
+
+def schedule_recipients(schedule: Dict[str, Any]) -> List[Dict[str, str]]:
+    recipients = schedule.get("recipients") or []
+    if recipients:
+        return [{"id": str(item.get("id") or uuid.uuid4()), "name": item.get("name") or item.get("email", ""), "email": item.get("email", "")} for item in recipients]
+    return [{"id": str(uuid.uuid4()), "name": email.split("@", 1)[0], "email": email} for email in schedule.get("recipient_emails", [])]
+
+
+def safe_report_filename(name: str, extension: str) -> str:
+    base = re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_") or "ESG_MIS_Report"
+    return f"{base}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.{extension}"
+
+
+async def facility_names_for_filters(filters: Dict[str, Any], current_user: dict) -> List[str]:
+    facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
+    facilities = await db.facilities.find({"id": {"$in": facility_ids}}, {"_id": 0, "name": 1}).to_list(1000)
+    return [facility.get("name", "Facility") for facility in facilities]
+
+
+async def store_delivery_artifact(content: bytes, filename: str, content_type: str, organization_id: str, delivery_id: str) -> Dict[str, Any]:
+    """Persist a generated artifact once so historical downloads never regenerate a report."""
+    from r2_storage import get_r2_storage
+
+    result = await get_r2_storage().upload_file(
+        content,
+        filename,
+        "esg_metrics",
+        content_type,
+        folder=f"mis_reports/{organization_id}/{delivery_id}",
+        metadata={"delivery_id": delivery_id, "organization_id": organization_id},
+    )
+    if not result.get("success"):
+        raise RuntimeError(result.get("error", "Unable to store report artifact"))
+    return {"format": filename.rsplit(".", 1)[-1], "filename": filename, "content_type": content_type, "file_size": result["file_size"], "storage_key": result["key"], "bucket_type": "esg_metrics"}
 
 
 def build_summary_email(schedule_name: str, summary: Dict[str, Any], filters: Dict[str, Any]) -> str:
@@ -339,13 +382,39 @@ def build_summary_email(schedule_name: str, summary: Dict[str, Any], filters: Di
 async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
     summary = await aggregate_emissions(schedule["filters"], current_user)
     sent_at = now_iso()
+    delivery_id = str(uuid.uuid4())
+    recipients = schedule_recipients(schedule)
+    facility_names = await facility_names_for_filters(schedule["filters"], current_user)
+    organization = await db.organizations.find_one({"id": schedule.get("organization_id")}, {"_id": 0, "name": 1})
     executive = await build_executive_mis_report(schedule["filters"], current_user)
-    attachments = [("SustainRepo_ESG_MIS_Report.xlsx", build_executive_excel(executive)), ("SustainRepo_ESG_MIS_Report.pdf", build_executive_pdf(executive, "SustainRepo Organization", current_user.get("email")))]
-    for recipient_email in schedule["recipient_emails"]:
-        success = await send_email_with_attachments(recipient_email, f"ESG MIS Report – {schedule['filters']['reporting_period_end']}", build_summary_email(schedule["name"], summary, schedule["filters"]), attachments)
-        delivery = {"id": str(uuid.uuid4()), "schedule_id": schedule["id"], "organization_id": schedule.get("organization_id"), "recipient_email": recipient_email, "status": "sent" if success else "failed", "sent_at": sent_at, "error": None if success else "Resend delivery failed"}
+    pdf_name = safe_report_filename(schedule["name"], "pdf")
+    xlsx_name = safe_report_filename(schedule["name"], "xlsx")
+    try:
+        pdf_content = build_executive_pdf(executive, (organization or {}).get("name", "SustainRepo Organization"), current_user.get("email"))
+        xlsx_content = build_executive_excel(executive)
+        artifacts = [
+            await store_delivery_artifact(pdf_content, pdf_name, "application/pdf", schedule.get("organization_id", "global"), delivery_id),
+            await store_delivery_artifact(xlsx_content, xlsx_name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", schedule.get("organization_id", "global"), delivery_id),
+        ]
+    except Exception as error:
+        failure = str(error)
+        delivery_run = {"id": delivery_id, "schedule_id": schedule.get("id"), "schedule_name": schedule["name"], "organization_id": schedule.get("organization_id"), "status": "failed", "generated_at": sent_at, "reporting_period_label": schedule.get("reporting_period_label"), "filters": schedule["filters"], "recipients": recipients, "content": schedule.get("content") or {}, "facility_mode": schedule.get("facility_mode", "all"), "facility_names": facility_names, "artifacts": [], "failure_reason": failure, "schedule_snapshot": schedule}
+        await db.mis_report_delivery_runs.insert_one(delivery_run.copy())
+        return delivery_run
+
+    attachments = [(xlsx_name, xlsx_content), (pdf_name, pdf_content)]
+    failures = []
+    for recipient in recipients:
+        success = await send_email_with_attachments(recipient["email"], f"ESG MIS Report – {schedule['filters']['reporting_period_end']}", build_summary_email(schedule["name"], summary, schedule["filters"]), attachments)
+        error = None if success else "Resend delivery failed"
+        if error:
+            failures.append(recipient["email"])
+        delivery = {"id": str(uuid.uuid4()), "delivery_run_id": delivery_id, "schedule_id": schedule["id"], "organization_id": schedule.get("organization_id"), "recipient_email": recipient["email"], "recipient_name": recipient["name"], "status": "sent" if success else "failed", "sent_at": sent_at, "error": error}
         await db.mis_report_deliveries.insert_one(delivery.copy())
-    return {"id": None}
+    status = "sent" if not failures else ("failed" if len(failures) == len(recipients) else "partial")
+    delivery_run = {"id": delivery_id, "schedule_id": schedule.get("id"), "schedule_name": schedule["name"], "organization_id": schedule.get("organization_id"), "status": status, "generated_at": sent_at, "reporting_period_label": schedule.get("reporting_period_label"), "filters": schedule["filters"], "recipients": recipients, "content": schedule.get("content") or {}, "facility_mode": schedule.get("facility_mode", "all"), "facility_names": facility_names, "artifacts": artifacts, "failure_reason": "Resend delivery failed for: " + ", ".join(failures) if failures else None, "schedule_snapshot": schedule}
+    await db.mis_report_delivery_runs.insert_one(delivery_run.copy())
+    return delivery_run
 
 
 async def process_due_schedules() -> int:

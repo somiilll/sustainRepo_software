@@ -11,6 +11,8 @@ from modules.auth.dependencies import get_current_user
 from modules.mis_reports.contracts import (
     MISReportCatalogResponse,
     MISDeliveryResponse,
+    MISDeliveryHistoryResponse,
+    MISOverviewResponse,
     MISScheduleCreate,
     MISScheduleResponse,
     MISScheduleUpdate,
@@ -145,7 +147,8 @@ async def list_mis_schedules(current_user: dict = Depends(get_current_user)):
 @router.post("/mis-reports/schedules", response_model=MISScheduleResponse)
 async def create_mis_schedule(request: MISScheduleCreate, current_user: dict = Depends(get_current_user)):
     await require_mis_admin(current_user)
-    schedule = {"id": str(uuid.uuid4()), "organization_id": current_user.get("organization_id"), "created_by_email": current_user.get("email"), "name": request.name, "frequency": request.frequency, "recipient_emails": [str(email) for email in request.recipient_emails], "filters": request.filters.model_dump(), "is_enabled": request.is_enabled, "next_run_at": next_run_at(request.frequency) if request.is_enabled else None, "last_run_at": None, "created_at": now_iso()}
+    recipients = [recipient.model_dump() | {"id": recipient.id or str(uuid.uuid4()), "email": str(recipient.email)} for recipient in request.recipients] or [{"id": str(uuid.uuid4()), "name": str(email).split("@", 1)[0], "email": str(email)} for email in request.recipient_emails]
+    schedule = {"id": str(uuid.uuid4()), "organization_id": current_user.get("organization_id"), "created_by_email": current_user.get("email"), "name": request.name, "frequency": request.frequency, "recipient_emails": [item["email"] for item in recipients], "recipients": recipients, "filters": request.filters.model_dump(), "content": request.content.model_dump(), "facility_mode": request.facility_mode, "run_time": request.run_time, "run_day": request.run_day, "timezone": request.timezone, "reporting_period_label": request.reporting_period_label, "is_enabled": request.is_enabled, "next_run_at": next_run_at(request.frequency, request.run_time, request.run_day) if request.is_enabled else None, "last_run_at": None, "created_at": now_iso()}
     await db.mis_report_schedules.insert_one(schedule.copy())
     return schedule
 
@@ -158,12 +161,19 @@ async def update_mis_schedule(schedule_id: str, request: MISScheduleUpdate, curr
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
     updates = request.model_dump(exclude_none=True)
-    if "recipient_emails" in updates: updates["recipient_emails"] = [str(email) for email in updates["recipient_emails"]]
+    if "recipients" in updates:
+        updates["recipients"] = [{**recipient, "id": recipient.get("id") or str(uuid.uuid4()), "email": str(recipient["email"])} for recipient in updates["recipients"]]
+        updates["recipient_emails"] = [item["email"] for item in updates["recipients"]]
+    elif "recipient_emails" in updates:
+        updates["recipient_emails"] = [str(email) for email in updates["recipient_emails"]]
+        updates["recipients"] = [{"id": str(uuid.uuid4()), "name": email.split("@", 1)[0], "email": email} for email in updates["recipient_emails"]]
     if "filters" in updates: updates["filters"] = request.filters.model_dump() if request.filters else schedule["filters"]
+    if "content" in updates: updates["content"] = request.content.model_dump() if request.content else schedule.get("content", {})
     frequency = updates.get("frequency", schedule["frequency"])
-    if updates.get("is_enabled") is True and not schedule.get("is_enabled"):
-        updates["next_run_at"] = next_run_at(frequency)
-    if updates.get("is_enabled") is False: updates["next_run_at"] = None
+    effective_enabled = updates.get("is_enabled", schedule.get("is_enabled", True))
+    if effective_enabled and (updates.get("is_enabled") is True or any(key in updates for key in ("frequency", "run_time", "run_day", "timezone"))):
+        updates["next_run_at"] = next_run_at(frequency, updates.get("run_time", schedule.get("run_time", "09:00")), updates.get("run_day", schedule.get("run_day")))
+    if not effective_enabled: updates["next_run_at"] = None
     await db.mis_report_schedules.update_one(query, {"$set": updates})
     return await db.mis_report_schedules.find_one(query, {"_id": 0})
 
@@ -185,9 +195,9 @@ async def send_mis_schedule_now(schedule_id: str, current_user: dict = Depends(g
     schedule = await db.mis_report_schedules.find_one(query, {"_id": 0})
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
-    await send_schedule(schedule, current_user)
-    await db.mis_report_schedules.update_one(query, {"$set": {"last_run_at": now_iso(), "next_run_at": next_run_at(schedule["frequency"])}})
-    return {"success": True}
+    delivery = await send_schedule(schedule, current_user)
+    await db.mis_report_schedules.update_one(query, {"$set": {"last_run_at": now_iso(), "next_run_at": next_run_at(schedule["frequency"], schedule.get("run_time", "09:00"), schedule.get("run_day"))}})
+    return {"success": delivery.get("status") in {"sent", "partial"}, "delivery_id": delivery.get("id"), "status": delivery.get("status"), "failure_reason": delivery.get("failure_reason")}
 
 
 @router.get("/mis-reports/deliveries", response_model=List[MISDeliveryResponse])
@@ -195,3 +205,40 @@ async def list_mis_deliveries(current_user: dict = Depends(get_current_user)):
     await require_mis_admin(current_user)
     query = {} if current_user.get("role") == "super_admin" else {"organization_id": current_user.get("organization_id")}
     return await db.mis_report_deliveries.find(query, {"_id": 0}).sort("sent_at", -1).to_list(100)
+
+
+@router.get("/mis-reports/delivery-history", response_model=List[MISDeliveryHistoryResponse])
+async def list_mis_delivery_history(current_user: dict = Depends(get_current_user)):
+    await require_mis_admin(current_user)
+    query = {} if current_user.get("role") == "super_admin" else {"organization_id": current_user.get("organization_id")}
+    return await db.mis_report_delivery_runs.find(query, {"_id": 0}).sort("generated_at", -1).to_list(100)
+
+
+@router.get("/mis-reports/overview", response_model=MISOverviewResponse)
+async def get_mis_overview(current_user: dict = Depends(get_current_user)):
+    await require_mis_admin(current_user)
+    query = {} if current_user.get("role") == "super_admin" else {"organization_id": current_user.get("organization_id")}
+    active_schedules = await db.mis_report_schedules.count_documents({**query, "is_enabled": True})
+    deliveries = await db.mis_report_delivery_runs.find(query, {"_id": 0}).sort("generated_at", -1).to_list(100)
+    total = len(deliveries)
+    sent = sum(1 for item in deliveries if item.get("status") == "sent")
+    recipients = {recipient.get("email") for item in deliveries for recipient in item.get("recipients", []) if recipient.get("email")}
+    return {"active_schedules": active_schedules, "reports_delivered": total, "recipients": len(recipients), "success_rate": round((sent / total * 100) if total else 0, 1), "recent_deliveries": deliveries[:5]}
+
+
+@router.get("/mis-reports/delivery-history/{delivery_id}/download/{output_format}")
+async def download_mis_delivery_artifact(delivery_id: str, output_format: str, current_user: dict = Depends(get_current_user)):
+    await require_mis_admin(current_user)
+    query = {"id": delivery_id} if current_user.get("role") == "super_admin" else {"id": delivery_id, "organization_id": current_user.get("organization_id")}
+    delivery = await db.mis_report_delivery_runs.find_one(query, {"_id": 0})
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Delivery record not found")
+    artifact = next((item for item in delivery.get("artifacts", []) if item.get("format") == output_format), None)
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Generated artifact not found")
+    from r2_storage import get_r2_storage
+    try:
+        content, content_type = await get_r2_storage().get_file(artifact.get("bucket_type", "esg_metrics"), artifact["storage_key"])
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Stored artifact is no longer available")
+    return StreamingResponse(io.BytesIO(content), media_type=content_type or artifact["content_type"], headers={"Content-Disposition": f"attachment; filename={artifact['filename']}"})
