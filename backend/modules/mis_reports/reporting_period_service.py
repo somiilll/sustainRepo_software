@@ -102,10 +102,11 @@ class ReportingPeriodService:
         if frequency not in calculators:
             raise ValueError(f"MIS frequency '{frequency}' is not supported for period reporting")
         current, previous, previous_year, ytd, calendar_label = calculators[frequency]()
+        previous_ytd = DateRange(ytd.start - relativedelta(years=1), ytd.end - relativedelta(years=1), f"Previous {calendar_label.split()[0]} YTD")
         return {
             "frequency": frequency,
             "reporting_calendar": {"type": self.reporting_type, "label": calendar_label, "financial_year_start_month": self.fiscal_start_month if self.reporting_type == "FY" else None},
-            "reporting_period": current.as_dict(), "comparison_period": previous.as_dict(), "previous_year_period": previous_year.as_dict(), "ytd_period": ytd.as_dict(),
+            "reporting_period": current.as_dict(), "comparison_period": previous.as_dict(), "previous_year_period": previous_year.as_dict(), "ytd_period": ytd.as_dict(), "previous_ytd_period": previous_ytd.as_dict(),
             "weekly_mapping": self.WEEK_DEFINITION if frequency == "weekly" else None,
         }
 

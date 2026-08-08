@@ -127,6 +127,20 @@ def percentage_change(current: float, previous: float) -> float | None:
     return round(((current - previous) / previous) * 100, 2)
 
 
+def target_direction_and_status(actual: Optional[float], target: Optional[float], goal_type: str) -> tuple[str, str]:
+    """Classify targets using their stored goal direction—never a one-size-fits-all ratio."""
+    direction = {"upper_limit": "decrease", "lower_limit": "increase", "exact": "maintain", "range": "maintain"}.get(goal_type, "maintain")
+    if actual is None or target is None:
+        return direction, "No Data"
+    if goal_type == "upper_limit":
+        return direction, "On Track" if actual <= target else ("At Risk" if actual <= target * 1.1 else "Behind")
+    if goal_type == "lower_limit":
+        return direction, "Achieved" if actual >= target else ("At Risk" if actual >= target * 0.9 else "Behind")
+    if goal_type == "exact":
+        return direction, "Achieved" if actual == target else "At Risk"
+    return direction, "On Track"
+
+
 
 async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id: str) -> List[Dict]:
     """Compute actual progress for each target using kpi_calculator — mirrors /targets/with-progress."""
@@ -144,12 +158,17 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
             "name": t.get("target_name", "Unnamed"),
             "target_value": t.get("target_value"),
             "baseline_value": (t.get("baseline") or {}).get("value"),
+            "baseline_period": (t.get("baseline") or {}).get("period"),
             "unit": t.get("unit", ""),
             "category": t.get("category", ""),
             "kpi_name": t.get("kpi_name", ""),
             "reporting_period": t.get("reporting_period", ""),
             "actual_value": None,
             "progress_pct": None,
+            "target_type": t.get("target_type", "absolute"),
+            "goal_type": t.get("goal_type", "upper_limit"),
+            "target_direction": t.get("target_direction"),
+            "status": "No Data",
         }
         kpi_id = t.get("kpi_id")
         if kpi_id:
@@ -191,6 +210,9 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
                 entry["progress_pct"] = round(progress["percentage"], 1) if progress["percentage"] is not None else None
                 if target_value is not None:
                     entry["target_value"] = target_value
+                direction, status = target_direction_and_status(actual_value, target_value, goal_type)
+                entry["target_direction"] = entry["target_direction"] or direction
+                entry["status"] = status
             except Exception:
                 pass
         enriched.append(entry)
@@ -203,22 +225,22 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     if reporting_context:
         frequency = reporting_context["frequency"]
         previous_filters = ReportingPeriodService.filters_for(filters, reporting_context["comparison_period"], frequency)
-        previous_year_filters = ReportingPeriodService.filters_for(filters, reporting_context["previous_year_period"], frequency)
         ytd_filters = ReportingPeriodService.filters_for(filters, reporting_context["ytd_period"], frequency)
+        previous_ytd_filters = ReportingPeriodService.filters_for(filters, reporting_context["previous_ytd_period"], frequency)
     else:
         previous_filters = previous_period_filters(filters)
-        previous_year_filters = previous_period_filters(previous_filters)
         ytd_filters = filters
+        previous_ytd_filters = previous_period_filters(filters)
     previous = await aggregate_emissions(previous_filters, current_user)
-    previous_year = await aggregate_emissions(previous_year_filters, current_user)
     ytd = await aggregate_emissions(ytd_filters, current_user)
+    previous_ytd = await aggregate_emissions(previous_ytd_filters, current_user)
     previous_scopes = {row["scope"]: row["emissions"] for row in previous["scope_breakdown"]}
     current_scopes = {row["scope"]: row["emissions"] for row in current["scope_breakdown"]}
-    previous_year_scopes = {row["scope"]: row["emissions"] for row in previous_year["scope_breakdown"]}
+    previous_ytd_scopes = {row["scope"]: row["emissions"] for row in previous_ytd["scope_breakdown"]}
     ytd_scopes = {row["scope"]: row["emissions"] for row in ytd["scope_breakdown"]}
-    kpis = [{"label": "Total Emissions", "value": current["total_emissions"], "previous": previous["total_emissions"], "previous_year": previous_year["total_emissions"], "ytd": ytd["total_emissions"], "unit": current["unit"], "change_pct": percentage_change(current["total_emissions"], previous["total_emissions"]), "previous_year_change_pct": percentage_change(current["total_emissions"], previous_year["total_emissions"])}]
+    kpis = [{"label": "Total Emissions", "value": current["total_emissions"], "previous": previous["total_emissions"], "ytd": ytd["total_emissions"], "previous_ytd": previous_ytd["total_emissions"], "unit": current["unit"], "change_pct": percentage_change(current["total_emissions"], previous["total_emissions"]), "ytd_change_pct": percentage_change(ytd["total_emissions"], previous_ytd["total_emissions"])}]
     for scope in ALL_SCOPES:
-        kpis.append({"label": scope.replace("scope", "Scope ").title(), "value": current_scopes.get(scope, 0), "previous": previous_scopes.get(scope, 0), "previous_year": previous_year_scopes.get(scope, 0), "ytd": ytd_scopes.get(scope, 0), "unit": current["unit"], "change_pct": percentage_change(current_scopes.get(scope, 0), previous_scopes.get(scope, 0)), "previous_year_change_pct": percentage_change(current_scopes.get(scope, 0), previous_year_scopes.get(scope, 0))})
+        kpis.append({"label": scope.replace("scope", "Scope ").title(), "value": current_scopes.get(scope, 0), "previous": previous_scopes.get(scope, 0), "ytd": ytd_scopes.get(scope, 0), "previous_ytd": previous_ytd_scopes.get(scope, 0), "unit": current["unit"], "change_pct": percentage_change(current_scopes.get(scope, 0), previous_scopes.get(scope, 0)), "ytd_change_pct": percentage_change(ytd_scopes.get(scope, 0), previous_ytd_scopes.get(scope, 0))})
 
     organization_id = current_user.get("organization_id")
     facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
@@ -226,14 +248,8 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     all_facilities = await organization_facility_ids(current_user)
     is_all_facilities = set(facility_ids) == set(all_facilities)
     esg_facility_filter = None if is_all_facilities else facility_ids
-    dashboard = await get_dashboard_metrics_service(db).get_dashboard_metrics(
-        organization_id, esg_facility_filter, start_date=filters["reporting_period_start"], end_date=filters["reporting_period_end"]
-    )
-    environment_detail = await get_environment_detail(db, organization_id, filters["reporting_period_start"], filters["reporting_period_end"], esg_facility_filter)
-    evidence_count = await db.environment_records.count_documents({"org_id": organization_id, "evidence_files.0": {"$exists": True}, "is_current": {"$ne": False}})
-    pending = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "pending_approval", "is_current": {"$ne": False}})
-    rejected = await db.environment_records.count_documents({"org_id": organization_id, "approval_status": "rejected", "is_current": {"$ne": False}})
-    total_esg_records = dashboard.get("total_records", 0)
+    current_resources = await build_resource_snapshot(organization_id, esg_facility_filter, filters)
+    previous_resources = await build_resource_snapshot(organization_id, esg_facility_filter, previous_filters)
     relationships = await db.supplier_relationships.find({"customer_org_id": organization_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0, "supplier_name": 1, "supplier_org_name": 1, "overall_score": 1, "invitation_status": 1}).to_list(1000)
     targets_raw = await db.esg_targets.find(
         {"organization_id": organization_id, "is_deleted": {"$ne": True}, "status": "active"},
@@ -249,34 +265,8 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     compliance_rows = [{"framework": name, "completion_pct": round((values["complete"] / values["total"] * 100) if values["total"] else 0, 1)} for name, values in compliance.items()]
 
     insights, actions = [], []
-    for kpi in kpis[1:]:
-        if kpi["change_pct"] is not None and abs(kpi["change_pct"]) >= 5:
-            direction = "increased" if kpi["change_pct"] > 0 else "decreased"
-            insights.append(f"{kpi['label']} {direction} by {abs(kpi['change_pct']):.1f}% versus the previous period.")
-    if current["facility_breakdown"]:
-        top = current["facility_breakdown"][0]
-        insights.append(f"{top['facility']} is the highest-emitting facility at {top['emissions']:.2f} {current['unit']}.")
-    energy = dashboard.get("energy", {})
+    energy, water, waste = current_resources["energy"], current_resources["water"], current_resources["waste"]
     energy_total = energy.get("total", 0) or 0
-    renewable_total = energy.get("renewable_total", 0) or 0
-    energy["renewable_pct"] = round((renewable_total / energy_total * 100) if energy_total else 0, 2)
-    water = dashboard.get("water", {})
-    # Dashboard detail reads the granular Water source fields rather than only quantity.
-    water["withdrawal"] = round(sum(row["value"] for row in environment_detail.get("water_sources", [])), 2)
-    water["discharge"] = round(sum(row["value"] for row in environment_detail.get("water_discharge_sources", [])), 2)
-    water["consumption"] = round(sum(row["value"] for row in environment_detail.get("water_consumption_sources", [])), 2)
-    water["recycled"] = await dashboard_recycled_water(organization_id, esg_facility_filter)
-    water["totalinput"] = water["withdrawal"] + water["consumption"]
-    water_input = water.get("totalinput", 0) or 0
-    water["recycle_pct"] = round((water.get("recycled", 0) / water_input * 100) if water_input else 0, 2)
-    hazardous_waste = environment_detail.get("hazardous_waste", {})
-    non_hazardous_waste = environment_detail.get("non_hazardous_waste", {})
-    waste = {
-        "generated": round(hazardous_waste.get("generated", 0) + non_hazardous_waste.get("generated", 0), 2),
-        "disposal": round(hazardous_waste.get("disposed", 0) + non_hazardous_waste.get("disposed", 0), 2),
-        "recovered": round(hazardous_waste.get("recovered", 0) + non_hazardous_waste.get("recovered", 0), 2),
-    }
-    waste["recovery_pct"] = round((waste["recovered"] / waste["generated"] * 100) if waste["generated"] else 0, 2)
     incidents = await db.governance_records.count_documents({
         "org_id": organization_id,
         "approval_status": {"$in": ["approved", "not_required", None]},
@@ -289,8 +279,38 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
         ],
     })
     operational = await get_operational_kpis(organization_id, current_scopes.get("scope1", 0) + current_scopes.get("scope2", 0), energy_total, incidents, filters)
-    availability = {"current": "available" if current["record_count"] else "No data available for this reporting period.", "comparison": "available" if previous["record_count"] else "Previous-period comparison unavailable.", "previous_year": "available" if previous_year["record_count"] else "Previous-year comparison unavailable."}
-    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "previous_year": previous_year, "ytd": ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "insights": insights, "monthly_trend": current["period_breakdown"], "availability": availability}
+    total_change = kpis[0]["change_pct"]
+    if total_change is not None:
+        insights.append(f"Emissions {'decreased' if total_change < 0 else 'increased'} {abs(total_change):.1f}% versus the comparable previous period.")
+    previous_facilities = {row["facility"]: row["emissions"] for row in previous["facility_breakdown"]}
+    facility_comparisons = []
+    for row in current["facility_breakdown"]:
+        prior_value = previous_facilities.get(row["facility"], 0)
+        facility_comparisons.append({"facility": row["facility"], "current": row["emissions"], "previous": prior_value, "change_pct": percentage_change(row["emissions"], prior_value)})
+    if current["facility_breakdown"] and current["total_emissions"]:
+        top = current["facility_breakdown"][0]
+        concentration = round(top["emissions"] / current["total_emissions"] * 100, 1)
+        insights.append(f"{top['facility']} contributed {concentration:.1f}% of current-period emissions.")
+    if energy_total:
+        insights.append(f"Energy consumption was {energy_total:,.2f} MWh, with renewable energy contribution at {energy.get('renewable_pct', 0):.1f}%.")
+    if water.get("consumption"):
+        insights.append(f"Water consumption was {water['consumption']:,.2f} KL for the current reporting period.")
+    if waste.get("generated"):
+        insights.append(f"Waste recovery reached {waste.get('recovery_pct', 0):.1f}% of generated waste.")
+    if relationships:
+        insights.append(f"{len(relationships)} suppliers have been assessed, with {sum(1 for row in relationships if row.get('overall_score') is not None and row['overall_score'] < 50)} currently high-risk.")
+    target_counts = {status: sum(1 for target in targets if target.get("status") == status) for status in ("On Track", "At Risk", "Behind", "Achieved")}
+    active_targets = len(targets)
+    if active_targets:
+        insights.append(f"{active_targets} active targets: {target_counts['On Track'] + target_counts['Achieved']} on track or achieved, {target_counts['At Risk']} at risk, and {target_counts['Behind']} behind.")
+    if target_counts["Behind"]:
+        actions.append(f"{target_counts['Behind']} target{'s' if target_counts['Behind'] != 1 else ''} behind schedule")
+    if energy_total and not energy.get("renewable_pct"):
+        actions.append("Renewable energy contribution is 0%")
+    if water.get("consumption"):
+        actions.append("Water consumption requires management review")
+    availability = {"current": "available" if current["record_count"] else "No data available for this reporting period.", "comparison": "available" if previous["record_count"] else "Previous-period comparison unavailable.", "previous_ytd": "available" if previous_ytd["record_count"] else "Previous FY/CY YTD comparison unavailable."}
+    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "availability": availability}
 
 
 async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[List[str]]) -> float:
@@ -307,6 +327,28 @@ async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[
         except (TypeError, ValueError):
             continue
     return round(total, 2)
+
+
+async def build_resource_snapshot(organization_id: str, facility_ids: Optional[List[str]], filters: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
+    """Build one period's energy, water, and waste metrics for like-for-like report comparisons."""
+    dashboard = await get_dashboard_metrics_service(db).get_dashboard_metrics(
+        organization_id, facility_ids, start_date=filters["reporting_period_start"], end_date=filters["reporting_period_end"]
+    )
+    detail = await get_environment_detail(db, organization_id, filters["reporting_period_start"], filters["reporting_period_end"], facility_ids)
+    energy = dashboard.get("energy", {})
+    energy_total = energy.get("total", 0) or 0
+    energy["renewable_pct"] = round(((energy.get("renewable_total", 0) or 0) / energy_total * 100) if energy_total else 0, 2)
+    water = dashboard.get("water", {})
+    water["withdrawal"] = round(sum(row["value"] for row in detail.get("water_sources", [])), 2)
+    water["discharge"] = round(sum(row["value"] for row in detail.get("water_discharge_sources", [])), 2)
+    water["consumption"] = round(sum(row["value"] for row in detail.get("water_consumption_sources", [])), 2)
+    water["recycled"] = await dashboard_recycled_water(organization_id, facility_ids)
+    water["totalinput"] = water["withdrawal"] + water["consumption"]
+    water["recycle_pct"] = round((water.get("recycled", 0) / water["totalinput"] * 100) if water["totalinput"] else 0, 2)
+    hazardous, non_hazardous = detail.get("hazardous_waste", {}), detail.get("non_hazardous_waste", {})
+    waste = {"generated": round(hazardous.get("generated", 0) + non_hazardous.get("generated", 0), 2), "disposal": round(hazardous.get("disposed", 0) + non_hazardous.get("disposed", 0), 2), "recovered": round(hazardous.get("recovered", 0) + non_hazardous.get("recovered", 0), 2)}
+    waste["recovery_pct"] = round((waste["recovered"] / waste["generated"] * 100) if waste["generated"] else 0, 2)
+    return {"energy": energy, "water": water, "waste": waste}
 
 
 async def get_operational_kpis(organization_id: str, scope12_emissions: float, energy_total: float, incidents: int, filters: Dict[str, Any]) -> Dict[str, Any]:
@@ -501,7 +543,7 @@ def build_executive_excel(report: Dict[str, Any]) -> bytes:
     if context:
         context_rows = [
             ["Reporting Period", context["reporting_period"]["label"]], ["Comparison Period", context["comparison_period"]["label"]],
-            ["Previous-Year Equivalent", context["previous_year_period"]["label"]], ["YTD", f"{context['ytd_period']['start_date']} to {context['ytd_period']['end_date']}"],
+            ["Current FY/CY YTD", f"{context['ytd_period']['start_date']} to {context['ytd_period']['end_date']}"], ["Previous FY/CY YTD", f"{context['previous_ytd_period']['start_date']} to {context['previous_ytd_period']['end_date']}"],
             ["Reporting Calendar", context["reporting_calendar"]["label"]], [],
         ]
     def sheet(name, rows):
@@ -510,11 +552,11 @@ def build_executive_excel(report: Dict[str, Any]) -> bytes:
         for row in rows: ws.append(row)
         for cell in ws[1]: cell.font = Font(bold=True, color="FFFFFF"); cell.fill = PatternFill("solid", fgColor="166534")
         ws.column_dimensions["A"].width = 34; ws.column_dimensions["B"].width = 22; ws.column_dimensions["C"].width = 22
-    sheet("Executive Summary", [["KPI", "Current", "Previous", "Change %", "Previous Year", "YoY %", "YTD"]] + [[k["label"], k["value"], k["previous"], k["change_pct"], k.get("previous_year"), k.get("previous_year_change_pct"), k.get("ytd")] for k in report["kpis"]])
+    sheet("Executive Summary", [["KPI", "Current", "Previous", "Change %", "FY/CY YTD", "Previous FY/CY YTD", "YTD Change %"]] + [[k["label"], k["value"], k["previous"], k["change_pct"], k.get("ytd"), k.get("previous_ytd"), k.get("ytd_change_pct")] for k in report["kpis"]])
     sheet("Emissions Overview", [["Scope", "tCO2e"]] + [[r["scope"], r["emissions"]] for r in report["current"]["scope_breakdown"]] + [[]] + [["Category", "tCO2e"]] + [[r["category"], r["emissions"]] for r in report["current"]["category_breakdown"]])
-    sheet("Facility Performance", [["Facility", "tCO2e"]] + [[r["facility"], r["emissions"]] for r in report["current"]["facility_breakdown"]])
+    sheet("Facility Performance", [["Facility", "Current", "Previous", "Change %"]] + [[r["facility"], r["current"], r["previous"], r["change_pct"]] for r in report.get("facility_comparisons", [])])
     sheet("Operations", [["Energy", report["energy"].get("total"), "MWh"], ["Renewable share", report["energy"].get("renewable_pct"), "%"], ["Water recycled", report["water"].get("recycled"), "KL"], ["Waste recovered", report["waste"].get("recovered"), ""], ["LTIFR", report["operational_kpis"].get("ltifr"), ""], ["Account payable days", report["operational_kpis"].get("account_payable_days"), "days"]])
-    sheet("Suppliers & Targets", [["Supplier", "ESG Score"]] + [[r.get("supplier_name") or r.get("supplier_org_name") or "Supplier", r.get("overall_score")] for r in report.get("supplier_scores", [])] + [[]] + [["Target", "Target value", "Current value"]] + [[r.get("name"), r.get("target_value"), r.get("current_value")] for r in report.get("targets", [])])
+    sheet("Suppliers & Targets", [["Supplier", "ESG Score"]] + [[r.get("supplier_name") or r.get("supplier_org_name") or "Supplier", r.get("overall_score")] for r in report.get("supplier_scores", [])] + [[]] + [["Target", "Target", "Actual", "Direction", "Status"]] + [[r.get("name"), r.get("target_value"), r.get("actual_value"), r.get("target_direction"), r.get("status")] for r in report.get("targets", [])])
     buffer = io.BytesIO(); workbook.save(buffer); return buffer.getvalue()
 
 

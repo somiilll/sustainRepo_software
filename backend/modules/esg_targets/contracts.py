@@ -107,6 +107,7 @@ class ESGTargetCreate(BaseModel):
     unit: Optional[str] = None                 # Inherited from KPI, stored for display
     percentage_direction: Optional[str] = None  # "increase" or "decrease" for percentage targets
     percentage_amount: Optional[float] = None   # The % value (e.g., 20 for 20%)
+    target_direction: Optional[str] = None      # decrease, increase, or maintain; derived from goal_type when omitted
     
     # Baseline
     baseline: Optional[BaselineConfig] = None
@@ -153,6 +154,7 @@ class ESGTargetUpdate(BaseModel):
     unit: Optional[str] = None
     percentage_direction: Optional[str] = None
     percentage_amount: Optional[float] = None
+    target_direction: Optional[str] = None
     
     baseline: Optional[BaselineConfig] = None
     
@@ -202,6 +204,7 @@ class ESGTargetResponse(BaseModel):
     unit: Optional[str] = None
     percentage_direction: Optional[str] = None
     percentage_amount: Optional[float] = None
+    target_direction: Optional[str] = None
     
     baseline: Optional[Dict[str, Any]] = None
     
