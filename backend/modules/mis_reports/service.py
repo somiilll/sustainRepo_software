@@ -127,18 +127,35 @@ def percentage_change(current: float, previous: float) -> float | None:
     return round(((current - previous) / previous) * 100, 2)
 
 
-def target_direction_and_status(actual: Optional[float], target: Optional[float], goal_type: str) -> tuple[str, str]:
+def target_direction_and_status(actual: Optional[float], target: Optional[float], direction: Optional[str]) -> tuple[str, str]:
     """Classify targets using their stored goal direction—never a one-size-fits-all ratio."""
-    direction = {"upper_limit": "decrease", "lower_limit": "increase", "exact": "maintain", "range": "maintain"}.get(goal_type, "maintain")
+    if direction not in {"decrease", "increase", "maintain"}:
+        return "Not configured", "Direction required"
     if actual is None or target is None:
         return direction, "No Data"
-    if goal_type == "upper_limit":
+    if direction == "decrease":
         return direction, "On Track" if actual <= target else ("At Risk" if actual <= target * 1.1 else "Behind")
-    if goal_type == "lower_limit":
+    if direction == "increase":
         return direction, "Achieved" if actual >= target else ("At Risk" if actual >= target * 0.9 else "Behind")
-    if goal_type == "exact":
-        return direction, "Achieved" if actual == target else "At Risk"
-    return direction, "On Track"
+    return direction, "Achieved" if actual == target else "At Risk"
+
+
+def comparison_status(current: float, previous: float, direction: str) -> tuple[Optional[float], str]:
+    """Return meaningful management status without dividing by zero or treating every decrease as good."""
+    if previous == 0:
+        return None, "New activity / No comparable baseline" if current else "No activity in either period"
+    if current == 0:
+        return -100.0, "No current-period activity"
+    change = percentage_change(current, previous)
+    if change is None or abs(change) < 0.05:
+        return change, "No material change"
+    if direction == "lower":
+        if change > 100:
+            return change, "Anomaly — investigate"
+        return change, "Improving" if change < 0 else "Needs attention"
+    if direction == "higher":
+        return change, "Improving" if change > 0 else "Needs attention"
+    return change, "Informational"
 
 
 
@@ -167,7 +184,7 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
             "progress_pct": None,
             "target_type": t.get("target_type", "absolute"),
             "goal_type": t.get("goal_type", "upper_limit"),
-            "target_direction": t.get("target_direction"),
+            "target_direction": t.get("target_direction") or t.get("percentage_direction"),
             "status": "No Data",
         }
         kpi_id = t.get("kpi_id")
@@ -210,8 +227,8 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
                 entry["progress_pct"] = round(progress["percentage"], 1) if progress["percentage"] is not None else None
                 if target_value is not None:
                     entry["target_value"] = target_value
-                direction, status = target_direction_and_status(actual_value, target_value, goal_type)
-                entry["target_direction"] = entry["target_direction"] or direction
+                direction, status = target_direction_and_status(actual_value, target_value, entry["target_direction"])
+                entry["target_direction"] = direction
                 entry["status"] = status
             except Exception:
                 pass
@@ -286,17 +303,21 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     facility_comparisons = []
     for row in current["facility_breakdown"]:
         prior_value = previous_facilities.get(row["facility"], 0)
-        facility_comparisons.append({"facility": row["facility"], "current": row["emissions"], "previous": prior_value, "change_pct": percentage_change(row["emissions"], prior_value)})
+        change_pct, status = comparison_status(row["emissions"], prior_value, "lower")
+        facility_comparisons.append({"facility": row["facility"], "current": row["emissions"], "previous": prior_value, "change_pct": change_pct, "status": status})
     if current["facility_breakdown"] and current["total_emissions"]:
         top = current["facility_breakdown"][0]
         concentration = round(top["emissions"] / current["total_emissions"] * 100, 1)
         insights.append(f"{top['facility']} contributed {concentration:.1f}% of current-period emissions.")
-    if energy_total:
-        insights.append(f"Energy consumption was {energy_total:,.2f} MWh, with renewable energy contribution at {energy.get('renewable_pct', 0):.1f}%.")
-    if water.get("consumption"):
-        insights.append(f"Water consumption was {water['consumption']:,.2f} KL for the current reporting period.")
-    if waste.get("generated"):
-        insights.append(f"Waste recovery reached {waste.get('recovery_pct', 0):.1f}% of generated waste.")
+    energy_change, energy_status = comparison_status(energy_total, previous_resources["energy"].get("total", 0) or 0, "lower")
+    water_change, water_status = comparison_status(water.get("consumption", 0) or 0, previous_resources["water"].get("consumption", 0) or 0, "lower")
+    renewable_change, renewable_status = comparison_status(energy.get("renewable_pct", 0) or 0, previous_resources["energy"].get("renewable_pct", 0) or 0, "higher")
+    if energy_change is not None and energy_change > 20:
+        insights.append(f"Energy consumption increased {energy_change:.1f}% and requires investigation.")
+    if energy_total and not energy.get("renewable_pct"):
+        insights.append("Renewable energy contribution remains at 0%, creating a clear improvement opportunity.")
+    if water_change is not None and water_change > 5:
+        insights.append(f"Water consumption increased {water_change:.1f}% versus the comparable previous period and requires review.")
     if relationships:
         insights.append(f"{len(relationships)} suppliers have been assessed, with {sum(1 for row in relationships if row.get('overall_score') is not None and row['overall_score'] < 50)} currently high-risk.")
     target_counts = {status: sum(1 for target in targets if target.get("status") == status) for status in ("On Track", "At Risk", "Behind", "Achieved")}
@@ -304,13 +325,16 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     if active_targets:
         insights.append(f"{active_targets} active targets: {target_counts['On Track'] + target_counts['Achieved']} on track or achieved, {target_counts['At Risk']} at risk, and {target_counts['Behind']} behind.")
     if target_counts["Behind"]:
-        actions.append(f"{target_counts['Behind']} target{'s' if target_counts['Behind'] != 1 else ''} behind schedule")
+        actions.append({"priority": "High", "area": "Targets", "action": f"Review {target_counts['Behind']} target{'s' if target_counts['Behind'] != 1 else ''} currently behind plan"})
+    if energy_status == "Anomaly — investigate":
+        actions.append({"priority": "High", "area": "Energy", "action": f"Investigate {energy_change:.1f}% increase in consumption"})
     if energy_total and not energy.get("renewable_pct"):
-        actions.append("Renewable energy contribution is 0%")
-    if water.get("consumption"):
-        actions.append("Water consumption requires management review")
+        actions.append({"priority": "Medium", "area": "Renewable Energy", "action": "Develop a renewable-energy improvement plan"})
+    if water_status in {"Needs attention", "Anomaly — investigate"}:
+        actions.append({"priority": "Medium", "area": "Water", "action": "Review current consumption against target and prior period"})
     availability = {"current": "available" if current["record_count"] else "No data available for this reporting period.", "comparison": "available" if previous["record_count"] else "Previous-period comparison unavailable.", "previous_ytd": "available" if previous_ytd["record_count"] else "Previous FY/CY YTD comparison unavailable."}
-    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "availability": availability}
+    resource_status = {"energy": energy_status, "water": water_status, "renewable": renewable_status, "waste_recovery": comparison_status(waste.get("recovery_pct", 0) or 0, previous_resources["waste"].get("recovery_pct", 0) or 0, "higher")[1]}
+    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "availability": availability}
 
 
 async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[List[str]]) -> float:

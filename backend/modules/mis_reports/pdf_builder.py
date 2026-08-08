@@ -410,7 +410,11 @@ def _sec_cover(story, styles, org_name, period_start, period_end, generated_by, 
 
 def _status_text(change, lower_is_better=True):
     if change is None:
-        return "Comparison unavailable"
+        return "New activity / No comparable baseline"
+    if abs(change) < 0.05:
+        return "No material change"
+    if lower_is_better and change > 100:
+        return "Anomaly — investigate"
     good = change < 0 if lower_is_better else change > 0
     return f"{'Improving' if good else 'Needs attention'} · {abs(change):.1f}% {'decrease' if change < 0 else 'increase'}"
 
@@ -436,8 +440,6 @@ def _sec_executive_summary(story, styles, report):
     story.append(Spacer(1, 14))
     labels = ["What happened", "Why / Where", "What needs attention"]
     insight_rows = [[labels[min(index, 2)], insight] for index, insight in enumerate(report.get("insights", [])[:3])]
-    for action in report.get("actions", []):
-        insight_rows.append(["Attention", action])
     if insight_rows:
         story.append(_styled_table(["Management view", "Finding"], insight_rows, col_widths=[110, 395]))
     story.append(Spacer(1, 14))
@@ -494,8 +496,7 @@ def _sec_facility_performance(story, styles, report):
 
     fac_rows = []
     for row in report.get("facility_comparisons", []):
-        change = "---" if row["change_pct"] is None else _status_text(row["change_pct"], True)
-        fac_rows.append([row["facility"], f"{row['current']:,.2f}", f"{row['previous']:,.2f}", change])
+        fac_rows.append([row["facility"], f"{row['current']:,.2f}", f"{row['previous']:,.2f}", row.get("status") or _status_text(row["change_pct"], True)])
     if fac_rows:
         story.append(_styled_table(["Facility", "Current", "Previous", "Change"], fac_rows, col_widths=[180, 100, 100, 125]))
 
@@ -511,16 +512,17 @@ def _sec_eww(story, styles, report):
     waste = report.get("waste", {})
 
     previous = report.get("previous_resources", {})
-    def rows_for(title, metrics, unit, lower_is_better=True):
+    def rows_for(title, metrics):
         story.append(Paragraph(title, ParagraphStyle(f"{title}Style", parent=styles["Heading3"], textColor=colors.HexColor(DARK), spaceAfter=6)))
         rows = []
-        for label, current_value, previous_value in metrics:
-            rows.append([label, f"{current_value:,.2f}", f"{previous_value:,.2f}", _status_text(_pct_change(current_value, previous_value), lower_is_better)])
-        story.append(_styled_table(["Metric", f"Current ({unit})", f"Previous ({unit})", "Status"], rows, col_widths=[170, 105, 105, 125]))
+        for label, current_value, previous_value, unit, lower_is_better in metrics:
+            status = "No activity in either period" if current_value == 0 and previous_value == 0 else _status_text(_pct_change(current_value, previous_value), lower_is_better)
+            rows.append([label, f"{current_value:,.2f} {unit}", f"{previous_value:,.2f} {unit}", status])
+        story.append(_styled_table(["Metric", "Current", "Previous", "Status"], rows, col_widths=[170, 105, 105, 125]))
         story.append(Spacer(1, 10))
-    rows_for("Energy", [("Energy Consumption", energy.get("total", 0) or 0, previous.get("energy", {}).get("total", 0) or 0), ("Renewable Energy %", energy.get("renewable_pct", 0) or 0, previous.get("energy", {}).get("renewable_pct", 0) or 0)], "MWh", False)
-    rows_for("Water", [("Water Consumption", water.get("consumption", 0) or 0, previous.get("water", {}).get("consumption", 0) or 0), ("Water Recycled", water.get("recycled", 0) or 0, previous.get("water", {}).get("recycled", 0) or 0)], "KL", True)
-    rows_for("Waste", [("Waste Generated", waste.get("generated", 0) or 0, previous.get("waste", {}).get("generated", 0) or 0), ("Waste Recovery %", waste.get("recovery_pct", 0) or 0, previous.get("waste", {}).get("recovery_pct", 0) or 0)], "%", False)
+    rows_for("Energy", [("Energy Consumption", energy.get("total", 0) or 0, previous.get("energy", {}).get("total", 0) or 0, "MWh", True), ("Renewable Energy", energy.get("renewable_pct", 0) or 0, previous.get("energy", {}).get("renewable_pct", 0) or 0, "%", False)])
+    rows_for("Water", [("Water Consumption", water.get("consumption", 0) or 0, previous.get("water", {}).get("consumption", 0) or 0, "KL", True), ("Water Recycled", water.get("recycled", 0) or 0, previous.get("water", {}).get("recycled", 0) or 0, "KL", False)])
+    rows_for("Waste", [("Waste Generated", waste.get("generated", 0) or 0, previous.get("waste", {}).get("generated", 0) or 0, "kg", True), ("Waste Recovery", waste.get("recovery_pct", 0) or 0, previous.get("waste", {}).get("recovery_pct", 0) or 0, "%", False)])
     story.append(PageBreak())
 
 
@@ -581,7 +583,7 @@ def _sec_targets(story, styles, report):
                 f"{pct:.1f}%" if pct is not None else "---",
             ])
         story.append(_styled_table(
-            ["Target", "Target", "Actual", "Unit", "Direction", "Status", "Progress"],
+            ["Target name", "Target", "Actual", "Unit", "Direction", "Status", "Progress"],
             tgt_rows, col_widths=[105, 70, 70, 45, 60, 65, 55]
         ))
 
@@ -595,6 +597,14 @@ def _sec_targets(story, styles, report):
                                textColor=colors.HexColor(TEXT_PRIMARY), spaceAfter=4, leftIndent=20)
         for insight in insights:
             story.append(Paragraph(f"&bull; {insight}", ins_s))
+    actions = report.get("actions", [])
+    if actions:
+        story.append(Spacer(1, 14))
+        story.append(SectionHeader("8", "Management Actions"))
+        story.append(Spacer(1, 8))
+        action_rows = [[action.get("priority", "Medium"), action.get("area", "Management"), action.get("action", "Review")]
+                       for action in actions]
+        story.append(_styled_table(["Priority", "Area", "Action Required"], action_rows, col_widths=[70, 115, 285]))
 
 
 # ─── Public Entry Point ─────────────────────────────────────────────────────
