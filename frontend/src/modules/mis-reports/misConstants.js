@@ -10,6 +10,14 @@ const leafIds = (node) => node.children ? node.children.flatMap(leafIds) : [node
 
 export const ALL_SECTION_IDS = CONTENT_TREE.flatMap(leafIds);
 
+const SECTION_LABELS = {
+  ghg: 'GHG', water: 'Water', waste: 'Waste', biodiversity: 'Biodiversity', social: 'Social', governance: 'Governance',
+  sbti: 'SBTi Targets', voluntary_environment: 'Voluntary Environment Targets', voluntary_social: 'Voluntary Social Targets',
+  voluntary_governance: 'Voluntary Governance Targets', supplier_assessment: 'Supplier Assessment',
+};
+
+export const formatSectionLabels = (sections = []) => sections.map((section) => SECTION_LABELS[section] || section.replaceAll('_', ' ')).join(' · ');
+
 export const frequencyLabel = (frequency) => ({ daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly' }[frequency] || frequency);
 
 export const periodLabel = () => {
