@@ -180,6 +180,7 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Custom Fuel and non-Custom Fuel live results now use the same colourful CO₂ / CH₄ / N₂O / CO₂e summary with calculation-detail audit entries.
 - Removed the repeated Custom Fuel applied-formula header from Add and Edit result displays only; backend formula resolution and calculation data are unchanged.
 - Monthly Add Emissions now retains live result state per entered month and presents the shared colourful summary when the calc engine returns a result.
+- Create Emissions now suppresses the entire live Calculated Emissions panel and preview requests for Custom Fuel only; Custom Fuel Edit and non-Custom Fuel views remain unchanged.
 
 ## Upcoming Tasks (P1)
 - GHG Form Logic & Custom Fuels E2E Testing

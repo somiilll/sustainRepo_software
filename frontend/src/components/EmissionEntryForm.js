@@ -2017,22 +2017,16 @@ export default function EmissionEntryForm({
   useEffect(() => {
     Object.values(liveCalculationTimers.current).forEach(clearTimeout);
     liveCalculationTimers.current = {};
-    if (frequencyType !== 'monthly') {
+    if (frequencyType !== 'monthly' || useCustomFuel) {
       setLiveCalculationResults({});
       return undefined;
     }
 
-    const readyMonths = Object.entries(monthlyData).filter(([, monthData]) => {
-      if (useCustomFuel) {
-        return buildCustomFuelCalculationPayload({
-          dynamicFieldValues: monthData,
-          calculationMethodology: buildDecisionInputs(monthData).calculation_methodology,
-        }).isReady;
-      }
-      return Object.entries(monthData).some(([key, value]) => (
+    const readyMonths = Object.entries(monthlyData).filter(([, monthData]) => (
+      Object.entries(monthData).some(([key, value]) => (
         !key.endsWith('_unit') && key !== 'evidences' && Number.parseFloat(value) > 0
-      ));
-    });
+      ))
+    ));
     const readyMonthKeys = new Set(readyMonths.map(([monthKey]) => monthKey));
     setLiveCalculationResults((current) => Object.fromEntries(
       Object.entries(current).filter(([monthKey]) => readyMonthKeys.has(monthKey)),

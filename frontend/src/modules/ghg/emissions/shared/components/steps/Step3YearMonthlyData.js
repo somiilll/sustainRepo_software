@@ -505,7 +505,7 @@ export const Step3YearMonthlyData = ({
                         </>
                       )}
 
-                      {liveCalculationResults?.[monthKey] && (
+                      {!useCustomFuel && liveCalculationResults?.[monthKey] && (
                         <LiveCalculationSummary
                           result={liveCalculationResults[monthKey]}
                           isCalculating={isLiveCalculationCalculating}
