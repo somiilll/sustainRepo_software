@@ -12,8 +12,8 @@ export const ALL_SECTION_IDS = CONTENT_TREE.flatMap(leafIds);
 
 const SECTION_LABELS = {
   ghg: 'GHG', water: 'Water', waste: 'Waste', biodiversity: 'Biodiversity', social: 'Social', governance: 'Governance',
-  sbti: 'SBTi', voluntary_environment: 'Voluntary Environment', voluntary_social: 'Voluntary Social',
-  voluntary_governance: 'Voluntary Governance', supplier_assessment: 'Supplier Assessment',
+  sbti: 'SBTi', voluntary_environment: 'Voluntary Environment Targets', voluntary_social: 'Voluntary Social Targets',
+  voluntary_governance: 'Voluntary Governance Targets', supplier_assessment: 'Supplier Assessment',
 };
 
 export const formatSectionLabels = (sections = []) => sections.map((section) => SECTION_LABELS[section] || section.replaceAll('_', ' ')).join(' · ');
