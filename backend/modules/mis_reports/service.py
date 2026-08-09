@@ -352,7 +352,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     result = {"filters": filters, "reporting_context": reporting_context, "selected_sections": selected_sections or [], "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "twelve_month_operational_trends": operational_trends, "availability": availability}
     result["executive_summary"] = await build_executive_summary_data(result, filters, current_user)
     result["emissions_deep"] = await build_emissions_deep_data(result, filters, current_user)
-    result["resources_deep"] = _build_resources_deep(result)
+    result["resources_deep"] = await _build_resources_deep(result, current_user)
     return result
 
 
@@ -1226,7 +1226,37 @@ async def build_emissions_deep_data(report: Dict[str, Any], filters: Dict[str, A
 
 
 
-def _build_resources_deep(report: dict) -> dict:
+WATER_SOURCE_FIELDS = {
+    "water_withdrawal_through_ground_water": "Groundwater",
+    "water_withdrawal_through_surface_water": "Surface Water",
+    "water_withdrawal_through_third_party_water": "Third-Party Water",
+    "water_withdrawal_through_seawater_desalinated_water": "Seawater / Desalinated",
+}
+
+
+def _record_to_month(rp: dict) -> str | None:
+    """Extract YYYY-MM from an environment_record reporting_period dict."""
+    if not rp:
+        return None
+    if rp.get("month"):
+        y = rp.get("year")
+        m = rp.get("month")
+        if not y:
+            return None
+        try:
+            month_num = int(m)
+        except (TypeError, ValueError):
+            try:
+                month_num = datetime.strptime(str(m), "%B").month
+            except (TypeError, ValueError):
+                return None
+        return f"{y}-{month_num:02d}"
+    if rp.get("date"):
+        return str(rp["date"])[:7]
+    return None
+
+
+async def _build_resources_deep(report: dict, current_user: dict) -> dict:
     """Build structured energy/water/waste deep data from existing trend + current-month snapshots."""
     ctx = report.get("reporting_context")
     rt = report.get("twelve_month_resource_trends", {})
@@ -1312,6 +1342,43 @@ def _build_resources_deep(report: dict) -> dict:
             "nonhaz_generated": wst.get("non_hazardous_generated", 0) or 0,
             "nonhaz_recovered": wst.get("non_hazardous_recovered", 0) or 0,
         },
+    }
+
+    # ── Water withdrawal sources (single bulk query) ──
+    org_id = current_user.get("organization_id")
+    years_in_window = list({int(m[:4]) for m in months})
+    source_recs = await db.environment_records.find(
+        {"org_id": org_id, "category": "Water", "subcategory": "Withdrawal",
+         "approval_status": {"$in": ["approved", "not_required", None]},
+         "reporting_period.year": {"$in": years_in_window}},
+        {"_id": 0, "field_values": 1, "reporting_period": 1},
+    ).to_list(10000)
+
+    source_by_month: Dict[str, Dict[str, float]] = {m: {} for m in months}
+    for rec in source_recs:
+        rm = _record_to_month(rec.get("reporting_period"))
+        if rm not in source_by_month:
+            continue
+        fv = rec.get("field_values") or {}
+        for field_key, label in WATER_SOURCE_FIELDS.items():
+            try:
+                val = float(fv.get(field_key) or 0)
+            except (TypeError, ValueError):
+                val = 0
+            if val:
+                source_by_month[rm][label] = round(source_by_month[rm].get(label, 0) + val, 2)
+
+    all_sources = sorted({s for mv in source_by_month.values() for s in mv})
+    cur_sources = source_by_month.get(current_month, {})
+    cur_total_src = sum(cur_sources.values()) or 0
+    water["source_composition"] = [
+        {"category": s, "value": round(cur_sources.get(s, 0), 2),
+         "pct": round(cur_sources.get(s, 0) / cur_total_src * 100, 1) if cur_total_src else 0}
+        for s in (all_sources or list(WATER_SOURCE_FIELDS.values()))
+    ]
+    water["source_trends"] = {
+        s: [{"period": m, "value": source_by_month[m].get(s)} for m in months]
+        for s in (all_sources or list(WATER_SOURCE_FIELDS.values()))
     }
 
     return {

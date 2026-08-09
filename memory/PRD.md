@@ -297,3 +297,15 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Data source**: `_build_resources_deep()` derives all data from the extended `twelve_month_resource_trends` (now includes renewable_total, non_renewable_total, waste_recovered, hazardous/non_hazardous splits) — zero additional DB calls for basic data.
 - **Files changed**: `service.py` (extended `build_twelve_month_resource_trends` metrics dict, added `_build_resources_deep`), `pdf_builder.py` (added `_render_grouped_bar`, `_sec_energy_performance`, `_sec_water_performance`, `_sec_waste_performance`; removed `_sec_eww`).
 - **Tests**: 35 total tests passing (28 regression + 7 emissions deep).
+
+
+### Water Source Charts + PDF Module Split — 2026-08-09
+- **Water Withdrawal by Source**: Added donut chart showing current-month withdrawal composition (Groundwater, Surface Water, Third-Party Water, Seawater/Desalinated) plus a 12-month multi-line source trend chart. Data fetched via a single bulk query on `environment_records` with `field_values` extraction.
+- **PDF Module Split**: Broke the 1343-line `pdf_builder.py` into 4 focused sub-modules:
+  - `pdf_builder.py` (115 lines) — main entry point, page callbacks, imports
+  - `pdf_styles.py` (185 lines) — colour constants, flowable classes, table helpers
+  - `pdf_charts.py` (229 lines) — all matplotlib chart renderers
+  - `pdf_sections.py` (623 lines) — all section builder functions
+- **Files created**: `pdf_styles.py`, `pdf_charts.py`, `pdf_sections.py`
+- **Files changed**: `service.py` (added `WATER_SOURCE_FIELDS`, `_record_to_month`, async `_build_resources_deep` with source queries)
+- **Tests**: 35 total passing, no regression.
