@@ -243,3 +243,7 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ### Remaining MIS Reporting Work
 - Add aligned FY/CY comparison trend datasets/charts for energy, water recycle, waste recycle, and renewable energy.
 - Add a Target Settings UI to replace temporary legacy name-based direction fallback with stored configuration.
+
+### MIS Resource Source of Truth — 2026-08-08
+- MIS resource snapshots now consume dashboard metric-service energy, water, recycle, waste, and recovery values directly; detailed-record overrides were removed.
+- Validation: `/app/test_reports/iteration_147.json` — 20 pure MIS tests passed, with no Send Now, emails, or data mutation.
