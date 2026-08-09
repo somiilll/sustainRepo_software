@@ -378,33 +378,46 @@ def _sec_facility_performance(story, styles, report):
             width=7.2 * inch, height=2.4 * inch))
         story.append(Spacer(1, 8))
 
-        # ── Scope breakdown table ──
+        # ── Scope breakdown table (full width) ──
         sb_rows = [[s["label"], f"{s['value']:,.2f} tCO2e", f"{s['pct']:.1f}%"] for s in f["scope_breakdown"]]
         sb_rows.append(["Total", f"{f['current_total']:,.2f} tCO2e", "100%"])
+        story.append(_styled_table(["Scope", "Emissions", "%"], sb_rows, col_widths=[100, 110, 60]))
+        story.append(Spacer(1, 8))
 
-        # ── Scope 1 source table (side-by-side with scope breakdown) ──
+        # ── Scope 1: donut + source table side-by-side ──
         s1_cats = f.get("scope1_categories", [])
+        s1_total = sum(c["value"] for c in s1_cats)
+        s1_clr = {"Stationary Combustion": "#ea580c", "Mobile Combustion": "#f59e0b",
+                   "Process Emissions": "#fbbf24", "Fugitive Emissions": "#92400e"}
+        s1_donut = Image(
+            _render_deep_donut("Scope 1 Sources", s1_cats, s1_clr, s1_total, "tCO2e"),
+            width=2.6 * inch, height=2.6 * inch)
         s1_rows = [[c["category"][:28], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s1_cats] if s1_cats else [["No Scope 1 data", "", ""]]
+        s1_table = _styled_table(["Scope 1 Source", "tCO2e", "%"], s1_rows, col_widths=[140, 65, 45])
+        row1 = Table([[s1_donut, s1_table]], colWidths=[2.8 * inch, 4.2 * inch], hAlign="LEFT")
+        row1.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+        story.append(row1)
+        story.append(Spacer(1, 8))
 
-        sb_table = _styled_table(["Scope", "Emissions", "%"], sb_rows, col_widths=[70, 80, 45])
-        s1_table = _styled_table(["Scope 1 Source", "tCO2e", "%"], s1_rows, col_widths=[110, 60, 40])
-        pair = Table([[sb_table, s1_table]], colWidths=[3.4 * inch, 3.5 * inch], hAlign="LEFT")
-        pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
-        story.append(pair)
-        story.append(Spacer(1, 6))
-
-        # ── Scope 2 + Scope 3 side-by-side ──
+        # ── Scope 2: donut + source table side-by-side ──
         s2_cats = f.get("scope2_categories", [])
+        s2_total = sum(c["value"] for c in s2_cats)
+        s2_clr = {"Purchased Electricity": "#2563eb", "Purchased Heat/Steam": "#60a5fa",
+                   "Purchased Cooling": "#93c5fd"}
+        s2_donut = Image(
+            _render_deep_donut("Scope 2 Sources", s2_cats, s2_clr, s2_total, "tCO2e"),
+            width=2.6 * inch, height=2.6 * inch)
         s2_rows = [[c["category"][:28], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s2_cats] if s2_cats else [["No Scope 2 data", "", ""]]
-        s2_table = _styled_table(["Scope 2 Source", "tCO2e", "%"], s2_rows, col_widths=[110, 60, 40])
+        s2_table = _styled_table(["Scope 2 Source", "tCO2e", "%"], s2_rows, col_widths=[140, 65, 45])
+        row2 = Table([[s2_donut, s2_table]], colWidths=[2.8 * inch, 4.2 * inch], hAlign="LEFT")
+        row2.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+        story.append(row2)
+        story.append(Spacer(1, 8))
 
+        # ── Scope 3 category table (full width) ──
         s3_cats = f.get("scope3_categories", [])
-        s3_rows = [[c["category"][:30], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s3_cats] if s3_cats else [["No Scope 3 data", "", ""]]
-        s3_table = _styled_table(["Scope 3 Category", "tCO2e", "%"], s3_rows, col_widths=[120, 55, 40])
-
-        pair2 = Table([[s2_table, s3_table]], colWidths=[3.4 * inch, 3.5 * inch], hAlign="LEFT")
-        pair2.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
-        story.append(pair2)
+        s3_rows = [[c["category"][:35], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s3_cats] if s3_cats else [["No Scope 3 data", "", ""]]
+        story.append(_styled_table(["Scope 3 Category", "tCO2e", "%"], s3_rows, col_widths=[200, 70, 50]))
 
         story.append(PageBreak())
 
