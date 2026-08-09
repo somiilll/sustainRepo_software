@@ -251,3 +251,7 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ### MIS Executive Summary Energy Routing — 2026-08-08
 - Energy Consumption now appears in the Executive Summary whenever GHG is selected, preserving compatibility with existing configurations that do not have a standalone Energy selector.
 - Validation: `/app/test_reports/iteration_150.json` — 3 targeted tests passed with no delivery side effects.
+
+### MIS Operations Trend Charts — 2026-08-08
+- Added conditional rolling 12-month Incidents, LTIFR, and Account Payable Days charts to the Operations PDF section, including explicit unavailable-history treatment.
+- Validation: `/app/test_reports/iteration_152.json` — 4/4 focused checks passed without API calls, delivery, email, or data mutation.
