@@ -39,6 +39,27 @@ GREEN_TEXT = "#16a34a"
 SCOPE_COLORS = {"scope1": "#166534", "scope2": "#2563eb", "scope3": "#f59e0b", "biogenic": "#8b5cf6"}
 SCOPE_LABELS = {"scope1": "Scope 1", "scope2": "Scope 2", "scope3": "Scope 3", "biogenic": "Biogenic"}
 
+# ─── Emissions Analytics v2 palette ──────────────────────────────────────────
+EA_COLORS = {
+    "total": "#0f4c81", "scope1": "#ea580c", "scope2": "#2563eb",
+    "scope3": "#7c3aed", "biogenic": "#16a34a",
+}
+SCOPE1_CAT_COLORS = {
+    "Stationary Combustion": "#ea580c", "Mobile Combustion": "#f59e0b",
+    "Process Emissions": "#fbbf24", "Fugitive Emissions": "#92400e",
+}
+SCOPE2_CAT_COLORS = {
+    "Purchased Electricity": "#2563eb", "Purchased Heat/Steam": "#60a5fa",
+    "Purchased Cooling": "#93c5fd",
+}
+BIOGENIC_CAT_COLORS = {
+    "Stationary Combustion": "#16a34a", "Mobile Combustion": "#4ade80",
+    "Flaring": "#86efac", "Process Emissions": "#bbf7d0",
+}
+SCOPE3_SHADES = ["#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd", "#6d28d9",
+                 "#4c1d95", "#5b21b6", "#ddd6fe", "#9333ea", "#a855f7",
+                 "#c084fc", "#d8b4fe", "#e9d5ff", "#f3e8ff", "#581c87"]
+
 # Executive Summary v2 — Section palette (never all-green)
 SECTION_COLORS = {
     "ghg": "#0e7490",          # Teal
@@ -231,6 +252,163 @@ def _render_eww_chart(energy: Dict, water: Dict, waste: Dict) -> io.BytesIO:
     ax.spines["left"].set_color(BORDER_COLOR)
     fig.tight_layout()
     return _fig_to_bytes(fig)
+
+
+
+# ─── Emissions Analytics v2 — Chart Renderers ────────────────────────────────
+
+def _render_labeled_trend(title: str, trend: list, unit: str, color: str,
+                          current_month: str, figsize=(7.2, 2.8)) -> io.BytesIO:
+    """Full-width trend chart with value labels on every data point."""
+    _setup_mpl()
+    labels = [datetime.strptime(d["period"], "%Y-%m").strftime("%b %y") for d in trend]
+    values = [d.get("value") for d in trend]
+    valid_x = [i for i, v in enumerate(values) if v is not None]
+    valid_y = [v for v in values if v is not None]
+
+    fig, ax = plt.subplots(figsize=figsize)
+    if not valid_y:
+        ax.text(0.5, 0.5, "No data available", ha="center", va="center",
+                fontsize=12, color=TEXT_MUTED)
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+        return _fig_to_bytes(fig)
+
+    ax.plot(valid_x, valid_y, color=color, linewidth=2.5, marker="o",
+            markersize=5, zorder=3)
+    ax.fill_between(valid_x, valid_y, alpha=0.08, color=color)
+
+    # Highlight current month with a larger marker
+    cur_idx = next((i for i, d in enumerate(trend) if d["period"] == current_month), None)
+    if cur_idx is not None and values[cur_idx] is not None:
+        ax.scatter([cur_idx], [values[cur_idx]], color=color, s=90, zorder=5,
+                   edgecolors="white", linewidth=2)
+
+    # Value labels above every point
+    y_range = max(valid_y) - min(valid_y) if len(valid_y) > 1 else (max(valid_y) or 1)
+    offset = max(y_range * 0.06, 0.5)
+    for i, v in enumerate(values):
+        if v is not None:
+            txt = f"{v:,.0f}" if abs(v) >= 10 else f"{v:,.2f}"
+            ax.annotate(txt, (i, v), textcoords="offset points", xytext=(0, 8),
+                        ha="center", fontsize=6, fontweight="bold", color=color)
+
+    ax.set_xticks(range(len(labels)))
+    ax.set_xticklabels(labels, fontsize=6.5, rotation=45, ha="right")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    ax.set_ylabel(unit, fontsize=7, color=TEXT_SECONDARY)
+    ax.set_title(title, fontsize=11, fontweight="bold", color=DARK, pad=12)
+    ax.grid(axis="y", alpha=0.2, linewidth=0.5)
+    ax.spines["bottom"].set_color(BORDER_COLOR)
+    ax.spines["left"].set_color(BORDER_COLOR)
+    fig.tight_layout()
+    return _fig_to_bytes(fig)
+
+
+def _render_deep_donut(title: str, items: list, color_map: dict,
+                       center_value: float, center_unit: str,
+                       group_threshold_pct: float = 0) -> io.BytesIO:
+    """Donut chart that keeps zero-value categories in the legend."""
+    _setup_mpl()
+    from matplotlib.patches import Patch
+
+    plot_items = [it for it in items if it.get("value", 0) > 0]
+    fig, ax = plt.subplots(figsize=(3.8, 3.8))
+
+    if not plot_items:
+        ax.text(0.5, 0.5, "No data", ha="center", va="center",
+                fontsize=12, color=TEXT_MUTED)
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+        return _fig_to_bytes(fig)
+
+    # Optionally group tiny slices into "Other"
+    if group_threshold_pct > 0:
+        major, other_val = [], 0.0
+        for it in plot_items:
+            if it["pct"] >= group_threshold_pct:
+                major.append(it)
+            else:
+                other_val += it["value"]
+        if other_val > 0:
+            other_pct = round(other_val / center_value * 100, 1) if center_value else 0
+            major.append({"category": "Other", "value": round(other_val, 2), "pct": other_pct})
+        plot_items = major
+
+    def _clr(it):
+        return color_map.get(it.get("category") or it.get("scope") or it.get("label"), "#6b7280")
+
+    pie_vals = [it["value"] for it in plot_items]
+    pie_clrs = [_clr(it) for it in plot_items]
+    wedges, _, autotexts = ax.pie(
+        pie_vals, labels=None, colors=pie_clrs, autopct="%1.1f%%",
+        startangle=90, pctdistance=0.78,
+        wedgeprops=dict(width=0.4, edgecolor="white", linewidth=2),
+    )
+    for t in autotexts:
+        t.set_fontsize(7); t.set_color("white"); t.set_fontweight("bold")
+
+    ax.text(0, 0.04, f"{center_value:,.1f}", ha="center", va="center",
+            fontsize=13, fontweight="bold", color=DARK)
+    ax.text(0, -0.08, center_unit, ha="center", va="center",
+            fontsize=7, color=TEXT_SECONDARY)
+
+    # Legend with ALL original categories including zeros
+    leg_labels = []
+    leg_handles = []
+    for it in items:
+        name = it.get("category") or it.get("label") or "?"
+        v = it.get("value", 0)
+        p = it.get("pct", 0)
+        leg_labels.append(f"{name}: {v:,.1f} ({p:.1f}%)")
+        leg_handles.append(Patch(facecolor=_clr(it)))
+
+    ax.legend(leg_handles, leg_labels, loc="lower center",
+              bbox_to_anchor=(0.5, -0.22), ncol=min(len(items), 2),
+              fontsize=6, frameon=False)
+    ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8)
+    fig.tight_layout()
+    return _fig_to_bytes(fig)
+
+
+def _render_multiline_trend(title: str, cat_trends: dict, unit: str,
+                            color_map: dict, figsize=(7.2, 2.8)) -> io.BytesIO:
+    """Multi-line trend chart for category breakdowns."""
+    _setup_mpl()
+    fig, ax = plt.subplots(figsize=figsize)
+    if not cat_trends:
+        ax.text(0.5, 0.5, "No category data", ha="center", va="center",
+                fontsize=12, color=TEXT_MUTED)
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+        return _fig_to_bytes(fig)
+
+    periods = None
+    fallback_colors = ["#0f4c81", "#ea580c", "#2563eb", "#7c3aed", "#16a34a",
+                       "#d97706", "#dc2626", "#0891b2", "#4f46e5", "#be185d"]
+    for idx, (cat_name, series) in enumerate(cat_trends.items()):
+        if periods is None:
+            periods = [datetime.strptime(d["period"], "%Y-%m").strftime("%b") for d in series]
+        vals = [d.get("value") for d in series]
+        vx = [i for i, v in enumerate(vals) if v is not None]
+        vy = [v for v in vals if v is not None]
+        clr = color_map.get(cat_name, fallback_colors[idx % len(fallback_colors)])
+        if vy:
+            ax.plot(vx, vy, color=clr, linewidth=1.8, marker="o", markersize=3,
+                    label=cat_name[:28])
+        else:
+            ax.plot([], [], color=clr, linewidth=1.8, label=f"{cat_name[:28]} (no data)")
+
+    if periods:
+        ax.set_xticks(range(len(periods)))
+        ax.set_xticklabels(periods, fontsize=6.5, rotation=45, ha="right")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    ax.set_ylabel(unit, fontsize=7, color=TEXT_SECONDARY)
+    ax.grid(axis="y", alpha=0.2, linewidth=0.5)
+    ax.legend(fontsize=6, frameon=False, loc="upper left")
+    ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8)
+    ax.spines["bottom"].set_color(BORDER_COLOR)
+    ax.spines["left"].set_color(BORDER_COLOR)
+    fig.tight_layout()
+    return _fig_to_bytes(fig)
+
 
 
 # ─── Custom Flowables ────────────────────────────────────────────────────────
@@ -614,36 +792,174 @@ def _sec_executive_summary(story, styles, report):
     story.append(PageBreak())
 
 
-def _sec_emissions_overview(story, styles, report):
-    story.append(SectionHeader("2", "Emissions Overview"))
-    story.append(Spacer(1, 14))
+def _sec_emissions_analytics(story, styles, report):
+    """Premium visual emissions analytics — Total, Scope 1-3, Biogenic."""
+    deep = report.get("emissions_deep", {})
+    if not deep:
+        story.append(SectionHeader("2", "Emissions Overview"))
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("Emissions analytics data is unavailable.", ParagraphStyle("EAFall", parent=styles["Normal"], fontSize=10, textColor=colors.HexColor(TEXT_MUTED))))
+        story.append(PageBreak())
+        return
 
-    donut_buf = _render_donut_chart(report["current"]["scope_breakdown"])
-    donut_img = Image(donut_buf, width=3 * inch, height=3 * inch)
+    current_month = deep.get("current_month", "")
+    cm_label = deep.get("current_month_label", "")
+    sub_title = ParagraphStyle("EASub", fontName="Helvetica-Bold", fontSize=10, textColor=colors.HexColor(TEXT_SECONDARY), spaceAfter=4)
+    val_style = ParagraphStyle("EAVal", fontName="Helvetica-Bold", fontSize=12, textColor=colors.HexColor(DARK), spaceAfter=2)
+    note_style = ParagraphStyle("EANote", fontName="Helvetica", fontSize=7, textColor=colors.HexColor(TEXT_MUTED), spaceAfter=4)
 
-    trend_buf = _render_rolling_trend("12-Month GHG Trend", report.get("twelve_month_emissions_trend", []), "tCO2e", "#0f4c81") if report.get("twelve_month_emissions_trend") else _render_trend_chart(report.get("monthly_trend", []))
-    trend_img = Image(trend_buf, width=3.6 * inch, height=2.2 * inch)
+    def _scope_color_map(scope_key):
+        if scope_key == "scope1":
+            return SCOPE1_CAT_COLORS
+        if scope_key == "scope2":
+            return SCOPE2_CAT_COLORS
+        if scope_key == "biogenic":
+            return BIOGENIC_CAT_COLORS
+        if scope_key == "scope3":
+            items = deep.get("scope3", {}).get("composition", [])
+            return {it["category"]: SCOPE3_SHADES[i % len(SCOPE3_SHADES)] for i, it in enumerate(items)}
+        return {}
 
-    chart_row = Table([[donut_img, trend_img]], colWidths=[3.2 * inch, 3.8 * inch], hAlign="LEFT")
-    chart_row.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-    ]))
-    story.append(chart_row)
-    story.append(Spacer(1, 16))
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TOTAL EMISSIONS
+    # ═══════════════════════════════════════════════════════════════════════════
+    story.append(SectionHeader("2", "Total Emissions"))
+    story.append(Spacer(1, 6))
+    total = deep.get("total", {})
+    story.append(Paragraph(f"{cm_label}: {total.get('current_value', 0):,.2f} tCO2e", val_style))
+    story.append(Spacer(1, 6))
 
-    scope_rows = [[r["scope"].replace("scope", "Scope ").title(), f"{r['emissions']:,.2f}"]
-                  for r in report["current"]["scope_breakdown"]]
-    if scope_rows:
-        story.append(_styled_table(["Scope", "Emissions (tCO2e)"], scope_rows, col_widths=[200, 200]))
-        story.append(Spacer(1, 12))
+    trend_buf = _render_labeled_trend("Total Emissions — tCO2e", total.get("trend", []), "tCO2e", EA_COLORS["total"], current_month)
+    story.append(Image(trend_buf, width=7.2 * inch, height=2.8 * inch))
+    story.append(Spacer(1, 12))
 
-    cat_rows = [[r["category"], f"{r['emissions']:,.2f}"]
-                for r in report["current"]["category_breakdown"][:10]]
-    if cat_rows:
-        story.append(_styled_table(["Category", "Emissions (tCO2e)"], cat_rows, col_widths=[250, 200]))
+    # Composition donut + scope breakdown side-by-side
+    scope_comp = total.get("composition", [])
+    scope_clr_map = {s["scope"]: EA_COLORS.get(s["scope"], "#6b7280") for s in scope_comp}
+    # Also map by label for the donut renderer
+    for s in scope_comp:
+        scope_clr_map[s["label"]] = EA_COLORS.get(s["scope"], "#6b7280")
+    donut_buf = _render_deep_donut("Emissions by Scope", scope_comp, scope_clr_map, total.get("current_value", 0), "tCO2e")
+    donut_img = Image(donut_buf, width=3.6 * inch, height=3.6 * inch)
+
+    comp_rows = [[s.get("label", ""), f"{s['value']:,.2f} tCO2e", f"{s['pct']:.1f}%"] for s in scope_comp]
+    comp_table = _styled_table(["Scope", "Value", "%"], comp_rows, col_widths=[100, 100, 55])
+
+    row = Table([[donut_img, comp_table]], colWidths=[3.8 * inch, 3.2 * inch], hAlign="LEFT")
+    row.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    story.append(row)
+    story.append(PageBreak())
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # HELPER: render a scope page (trend + donut + category trends)
+    # ═══════════════════════════════════════════════════════════════════════════
+    def _add_scope_page(scope_key, section_num, title, color):
+        block = deep.get(scope_key, {})
+        story.append(SectionHeader(section_num, title))
+        story.append(Spacer(1, 6))
+        cv = block.get("current_value")
+        story.append(Paragraph(f"{cm_label}: {cv:,.2f} tCO2e" if cv is not None else f"{cm_label}: No data", val_style))
+        story.append(Spacer(1, 6))
+
+        # Trend
+        trend_img = Image(
+            _render_labeled_trend(f"{title} — tCO2e", block.get("trend", []), "tCO2e", color, current_month),
+            width=7.2 * inch, height=2.8 * inch,
+        )
+        story.append(trend_img)
+        story.append(Spacer(1, 10))
+
+        # Composition donut + breakdown
+        comp = block.get("composition", [])
+        cat_cm = _scope_color_map(scope_key)
+        if comp:
+            threshold = 2 if scope_key == "scope3" else 0
+            d_buf = _render_deep_donut(f"{title} Composition", comp, cat_cm, cv or 0, "tCO2e", group_threshold_pct=threshold)
+            d_img = Image(d_buf, width=3.6 * inch, height=3.6 * inch)
+            comp_rows = [[c["category"][:35], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in comp]
+            ct = _styled_table(["Category", "tCO2e", "%"], comp_rows, col_widths=[140, 65, 45])
+            pair = Table([[d_img, ct]], colWidths=[3.8 * inch, 3.2 * inch], hAlign="LEFT")
+            pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+            story.append(pair)
+        story.append(Spacer(1, 10))
+
+        # Category trends
+        cat_trends = block.get("category_trends", {})
+        if cat_trends:
+            if scope_key == "scope3" and len(cat_trends) > 5:
+                # Top 5 categories + Other
+                sorted_cats = sorted(cat_trends.keys(), key=lambda c: sum(d.get("value") or 0 for d in cat_trends[c]), reverse=True)
+                top5 = {c: cat_trends[c] for c in sorted_cats[:5]}
+                # Aggregate remaining into "Other"
+                other_series = [{"period": m, "value": None} for m in deep["months"]]
+                for c in sorted_cats[5:]:
+                    for i, d in enumerate(cat_trends[c]):
+                        v = d.get("value")
+                        if v is not None:
+                            other_series[i]["value"] = (other_series[i]["value"] or 0) + v
+                if any(d["value"] is not None for d in other_series):
+                    top5["Other Categories"] = other_series
+                    cat_cm["Other Categories"] = "#94a3b8"
+                display_trends = top5
+            else:
+                display_trends = cat_trends
+            ml_buf = _render_multiline_trend(f"{title} — Category Trend", display_trends, "tCO2e", cat_cm)
+            story.append(Image(ml_buf, width=7.2 * inch, height=2.8 * inch))
+
+        story.append(PageBreak())
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SCOPE 1
+    # ═══════════════════════════════════════════════════════════════════════════
+    _add_scope_page("scope1", "3", "Scope 1 Emissions", EA_COLORS["scope1"])
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SCOPE 2
+    # ═══════════════════════════════════════════════════════════════════════════
+    block2 = deep.get("scope2", {})
+    story.append(SectionHeader("4", "Scope 2 Emissions"))
+    story.append(Spacer(1, 6))
+    cv2 = block2.get("current_value")
+    story.append(Paragraph(f"{cm_label}: {cv2:,.2f} tCO2e" if cv2 is not None else f"{cm_label}: No data", val_style))
+    story.append(Spacer(1, 6))
+
+    s2_trend = Image(
+        _render_labeled_trend("Scope 2 Emissions — tCO2e", block2.get("trend", []), "tCO2e", EA_COLORS["scope2"], current_month),
+        width=7.2 * inch, height=2.8 * inch,
+    )
+    story.append(s2_trend)
+    story.append(Spacer(1, 10))
+
+    s2_comp = block2.get("composition", [])
+    s2_cm = _scope_color_map("scope2")
+    if s2_comp:
+        d_buf = _render_deep_donut("Scope 2 Composition", s2_comp, s2_cm, cv2 or 0, "tCO2e")
+        d_img = Image(d_buf, width=3.6 * inch, height=3.6 * inch)
+        comp_rows = [[c["category"][:35], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s2_comp]
+        ct = _styled_table(["Category", "tCO2e", "%"], comp_rows, col_widths=[140, 65, 45])
+        pair = Table([[d_img, ct]], colWidths=[3.8 * inch, 3.2 * inch], hAlign="LEFT")
+        pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+        story.append(pair)
+        story.append(Spacer(1, 10))
+
+    # Purchased Electricity dedicated trend (if it exists)
+    s2_cat_trends = block2.get("category_trends", {})
+    elec_key = next((k for k in s2_cat_trends if "electr" in k.lower()), None)
+    if elec_key:
+        e_buf = _render_labeled_trend(f"{elec_key} — tCO2e", s2_cat_trends[elec_key], "tCO2e", "#2563eb", current_month, figsize=(7.2, 2.4))
+        story.append(Image(e_buf, width=7.2 * inch, height=2.4 * inch))
 
     story.append(PageBreak())
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SCOPE 3
+    # ═══════════════════════════════════════════════════════════════════════════
+    _add_scope_page("scope3", "5", "Scope 3 Emissions", EA_COLORS["scope3"])
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BIOGENIC
+    # ═══════════════════════════════════════════════════════════════════════════
+    _add_scope_page("biogenic", "6", "Biogenic Emissions", EA_COLORS["biogenic"])
 
 
 def _sec_facility_performance(story, styles, report):
@@ -825,7 +1141,7 @@ def build_beautiful_executive_pdf(report: Dict[str, Any], organization_name: str
     _sec_cover(story, styles, organization_name, period_start, period_end, generated_by, report.get("reporting_context"))
     _sec_executive_summary(story, styles, report)
     if include_ghg:
-        _sec_emissions_overview(story, styles, report)
+        _sec_emissions_analytics(story, styles, report)
         _sec_facility_performance(story, styles, report)
     if include_resources:
         _sec_eww(story, styles, report)

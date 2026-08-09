@@ -268,3 +268,13 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Configuration-driven**: Only sections matching the MIS report configuration are displayed.
 - **Files changed**: `service.py` (added `_compute_avg_with_count`, `_generate_insight`, `build_executive_summary_data`), `pdf_builder.py` (added `ColoredSectionBar`, `_exec_summary_section_table`, `_insight_para`, `_fmt_val`, rewrote `_sec_executive_summary`).
 - **Tests**: 20 unit tests in `/app/backend/tests/test_executive_summary_insights.py` + 8 existing reporting-period tests — all 28 pass.
+
+### MIS Emissions Overview v2 — Visual Analytics Redesign — 2026-08-09
+- **Complete redesign** of the Emissions Overview page into a premium visual analytics report spanning 5 dedicated sections: Total Emissions, Scope 1, Scope 2, Scope 3, Biogenic.
+- **Per-scope analytics pattern**: Each scope gets a full-width 12-13 month trend chart (with value labels on every point and current-month highlight), a composition donut chart (with all categories including zeros), a detailed breakdown table, and a multi-line category trend chart.
+- **Scope 3 grouping**: Categories contributing <2% are visually grouped as "Other" in the donut chart; the full C1-C15 breakdown is preserved in the detailed legend/table. Top 5 categories shown as trend lines; remainder aggregated into "Other Categories".
+- **Scope 2 dedicated electricity trend**: A separate Purchased Electricity trend chart is rendered below the Scope 2 composition.
+- **Zero-value handling**: Zero-value categories are never hidden — they appear in legends, tables, and donut labels as "0.00 tCO2e — 0.0%".
+- **Colour system**: Total=Dark Blue, Scope 1=Orange family, Scope 2=Blue family, Scope 3=Purple family, Biogenic=Green family. Sub-categories use distinct shades within their family.
+- **Data source**: Single MongoDB aggregation pipeline (`build_emissions_deep_data`) groups emissions by (period, scope, category) across 13 months in one query — no separate calculations.
+- **Files changed**: `service.py` (added `build_emissions_deep_data`), `pdf_builder.py` (added `_render_labeled_trend`, `_render_deep_donut`, `_render_multiline_trend`, `_sec_emissions_analytics`; replaced `_sec_emissions_overview`).

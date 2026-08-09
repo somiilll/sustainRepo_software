@@ -351,6 +351,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     operational_trends = await build_twelve_month_operational_trends(filters, current_user, reporting_context)
     result = {"filters": filters, "reporting_context": reporting_context, "selected_sections": selected_sections or [], "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "twelve_month_operational_trends": operational_trends, "availability": availability}
     result["executive_summary"] = await build_executive_summary_data(result, filters, current_user)
+    result["emissions_deep"] = await build_emissions_deep_data(result, filters, current_user)
     return result
 
 
@@ -1051,4 +1052,69 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
         "current_month_label": current_label,
         "previous_month_label": previous_label,
         "sections": sections,
+    }
+
+
+
+async def build_emissions_deep_data(report: Dict[str, Any], filters: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
+    """Fetch granular per-scope, per-category emissions for 12-13 months via a single aggregation."""
+    ctx = report.get("reporting_context")
+    if ctx:
+        current_start = datetime.fromisoformat(ctx["reporting_period"]["start_date"]).date().replace(day=1)
+    else:
+        current_start = datetime.strptime(filters["reporting_period_start"], "%Y-%m").date()
+
+    current_month = current_start.strftime("%Y-%m")
+    months = [(current_start - relativedelta(months=i)).strftime("%Y-%m") for i in range(12, -1, -1)]
+    fac_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
+
+    pipeline = [
+        {"$match": {"facility_id": {"$in": fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months}}},
+        {"$addFields": {"_ev": {"$toDouble": {"$ifNull": ["$co2e_emissions", 0]}}}},
+        {"$group": {"_id": {"p": "$reporting_period", "s": "$scope", "c": {"$ifNull": ["$category", "Uncategorized"]}}, "v": {"$sum": "$_ev"}}},
+    ]
+    raw = await db.emission_records.aggregate(pipeline).to_list(100000)
+
+    tree: Dict[str, Dict[str, Dict[str, float]]] = {}
+    for r in raw:
+        p, s, c = r["_id"]["p"], r["_id"]["s"], r["_id"]["c"]
+        tree.setdefault(p, {}).setdefault(s, {})[c] = round(r["v"], 4)
+
+    def _block(sk: str) -> dict:
+        cats: set = set()
+        for m in months:
+            cats.update(tree.get(m, {}).get(sk, {}).keys())
+        trend = []
+        for m in months:
+            sc = tree.get(m, {}).get(sk)
+            trend.append({"period": m, "value": round(sum(sc.values()), 2) if sc else None})
+        cc = tree.get(current_month, {}).get(sk, {})
+        ct = sum(cc.values()) if cc else 0
+        comp = sorted(
+            [{"category": c, "value": round(cc.get(c, 0), 2), "pct": round(cc.get(c, 0) / ct * 100, 1) if ct else 0} for c in cats],
+            key=lambda x: -x["value"],
+        )
+        ct_trends = {}
+        for c in sorted(cats):
+            ct_trends[c] = [{"period": m, "value": round(tree.get(m, {}).get(sk, {}).get(c, 0), 2) if tree.get(m, {}).get(sk) else None} for m in months]
+        return {"trend": trend, "current_value": round(ct, 2), "composition": comp, "category_trends": ct_trends}
+
+    total_trend = []
+    for m in months:
+        md = tree.get(m)
+        total_trend.append({"period": m, "value": round(sum(sum(cs.values()) for cs in md.values()), 2) if md else None})
+
+    cd = tree.get(current_month, {})
+    tc = sum(sum(cs.values()) for cs in cd.values())
+    scope_comp = [
+        {"scope": s, "label": s.replace("scope", "Scope ").title(), "value": round(sum(cd.get(s, {}).values()), 2), "pct": round(sum(cd.get(s, {}).values()) / tc * 100, 1) if tc else 0}
+        for s in ALL_SCOPES
+    ]
+
+    return {
+        "months": months, "current_month": current_month,
+        "current_month_label": current_start.strftime("%B %Y"),
+        "total": {"trend": total_trend, "current_value": round(tc, 2), "composition": scope_comp},
+        "scope1": _block("scope1"), "scope2": _block("scope2"),
+        "scope3": _block("scope3"), "biogenic": _block("biogenic"),
     }
