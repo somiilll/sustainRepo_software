@@ -370,24 +370,16 @@ async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[
 
 
 async def build_resource_snapshot(organization_id: str, facility_ids: Optional[List[str]], filters: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
-    """Build one period's energy, water, and waste metrics for like-for-like report comparisons."""
+    """Use the dashboard metric service as the single source of truth for MIS resources."""
     dashboard = await get_dashboard_metrics_service(db).get_dashboard_metrics(
         organization_id, facility_ids, start_date=filters["reporting_period_start"], end_date=filters["reporting_period_end"]
     )
-    detail = await get_environment_detail(db, organization_id, filters["reporting_period_start"], filters["reporting_period_end"], facility_ids)
-    energy = dashboard.get("energy", {})
+    energy = dict(dashboard.get("energy", {}))
     energy_total = energy.get("total", 0) or 0
     energy["renewable_pct"] = round(((energy.get("renewable_total", 0) or 0) / energy_total * 100) if energy_total else 0, 2)
-    water = dashboard.get("water", {})
-    water["withdrawal"] = round(sum(row["value"] for row in detail.get("water_sources", [])), 2)
-    water["discharge"] = round(sum(row["value"] for row in detail.get("water_discharge_sources", [])), 2)
-    water["consumption"] = round(sum(row["value"] for row in detail.get("water_consumption_sources", [])), 2)
-    water["recycled"] = await dashboard_recycled_water(organization_id, facility_ids, filters)
-    water["totalinput"] = water["withdrawal"] + water["consumption"]
+    water = dict(dashboard.get("water", {}))
     water["recycle_pct"] = round((water.get("recycled", 0) / water["totalinput"] * 100) if water["totalinput"] else 0, 2)
-    hazardous, non_hazardous = detail.get("hazardous_waste", {}), detail.get("non_hazardous_waste", {})
-    waste = {"generated": round(hazardous.get("generated", 0) + non_hazardous.get("generated", 0), 2), "disposal": round(hazardous.get("disposed", 0) + non_hazardous.get("disposed", 0), 2), "recovered": round(hazardous.get("recovered", 0) + non_hazardous.get("recovered", 0), 2)}
-    waste["recovery_pct"] = round((waste["recovered"] / waste["generated"] * 100) if waste["generated"] else 0, 2)
+    waste = dict(dashboard.get("waste", {}))
     return {"energy": energy, "water": water, "waste": waste}
 
 
