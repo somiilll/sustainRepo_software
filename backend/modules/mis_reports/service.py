@@ -140,6 +140,16 @@ def target_direction_and_status(actual: Optional[float], target: Optional[float]
     return direction, "Achieved" if actual == target else "At Risk"
 
 
+def inferred_legacy_target_direction(name: str) -> str:
+    """Temporary fallback for legacy targets until their explicit direction is configured."""
+    value = (name or "").lower()
+    if any(term in value for term in ("renewable", "recycle", "recovery", "recycling")):
+        return "increase"
+    if any(term in value for term in ("ghg", "emission", "water consumption", "energy", "waste generation", "waste generated")):
+        return "decrease"
+    return "maintain"
+
+
 def comparison_status(current: float, previous: float, direction: str) -> tuple[Optional[float], str]:
     """Return meaningful management status without dividing by zero or treating every decrease as good."""
     if previous == 0:
@@ -184,7 +194,7 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
             "progress_pct": None,
             "target_type": t.get("target_type", "absolute"),
             "goal_type": t.get("goal_type", "upper_limit"),
-            "target_direction": t.get("target_direction") or t.get("percentage_direction"),
+            "target_direction": t.get("target_direction") or t.get("percentage_direction") or inferred_legacy_target_direction(t.get("name", "")),
             "status": "No Data",
         }
         kpi_id = t.get("kpi_id")

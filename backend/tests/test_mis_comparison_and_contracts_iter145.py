@@ -5,7 +5,14 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from modules.mis_reports.service import comparison_status, target_direction_and_status
+import pytest
+
+from modules.mis_reports.service import (
+    _enrich_targets_with_progress,
+    comparison_status,
+    inferred_legacy_target_direction,
+    target_direction_and_status,
+)
 from modules.mis_reports import pdf_builder
 from modules.mis_reports import service as mis_service
 
@@ -73,3 +80,59 @@ def test_service_contract_has_overall_management_and_facility_status_fields():
     source = Path(mis_service.__file__).read_text(encoding="utf-8")
     assert "overall_management_status" in source
     assert '"status": status' in source
+
+
+# Module: Legacy fallback direction inference by target name
+def test_inferred_legacy_target_direction_expected_mappings():
+    assert inferred_legacy_target_direction("Renewable Energy") == "increase"
+    assert inferred_legacy_target_direction("Waste Recovery") == "increase"
+    assert inferred_legacy_target_direction("GHG Emissions") == "decrease"
+    assert inferred_legacy_target_direction("Water Consumption") == "decrease"
+    assert inferred_legacy_target_direction("Energy") == "decrease"
+    assert inferred_legacy_target_direction("Waste Generated") == "decrease"
+    assert inferred_legacy_target_direction("Arbitrary KPI") == "maintain"
+
+
+# Module: MIS target enrichment precedence explicit->percentage->legacy-name fallback
+@pytest.mark.asyncio
+async def test_enrich_targets_direction_precedence_and_legacy_name_fallback():
+    targets_raw = [
+        {
+            "target_name": "Renewable Energy",
+            "target_direction": "decrease",
+            "percentage_direction": "increase",
+        },
+        {
+            "target_name": "Waste Recovery",
+            "percentage_direction": "increase",
+        },
+        {
+            "target_name": "GHG emissions",
+        },
+        {
+            "target_name": "Water Consumption",
+        },
+        {
+            "target_name": "Energy",
+        },
+        {
+            "target_name": "Waste Generated",
+        },
+        {
+            "target_name": "Completely Arbitrary Target",
+        },
+    ]
+
+    enriched = await _enrich_targets_with_progress(targets_raw, "org-test")
+    directions = [row["target_direction"] for row in enriched]
+
+    # explicit target_direction wins over percentage_direction
+    assert directions[0] == "decrease"
+    # percentage_direction wins when explicit target_direction is missing
+    assert directions[1] == "increase"
+    # fallback by target name
+    assert directions[2] == "decrease"
+    assert directions[3] == "decrease"
+    assert directions[4] == "decrease"
+    assert directions[5] == "decrease"
+    assert directions[6] == "maintain"
