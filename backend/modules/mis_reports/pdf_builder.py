@@ -415,7 +415,7 @@ def _sec_cover(story, styles, org_name, period_start, period_end, generated_by, 
         story.append(Paragraph(f"PREVIOUS MONTH: {comparison['label']}", info_s))
         story.append(Paragraph(f"REPORTING YEAR: {calendar['label']}", info_s))
     else:
-        story.append(Paragraph(f"Reporting Period: {period_start} to {period_end}", info_s))
+        story.append(Paragraph(f"MIS MONTH: {period_start} to {period_end}", info_s))
     story.append(Paragraph(f"Generated: {datetime.now(timezone.utc).strftime('%B %d, %Y')}", info_s))
     story.append(Paragraph(f"Prepared by: {generated_by or 'SustainRepo'}", info_s))
     story.append(Spacer(1, 1.5 * inch))
