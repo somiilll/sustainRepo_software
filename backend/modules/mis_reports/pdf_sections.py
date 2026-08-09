@@ -324,23 +324,89 @@ def _sec_emissions_analytics(story, styles, report):
 
 
 def _sec_facility_performance(story, styles, report):
+    """Comprehensive facility-level emissions analysis for ALL org facilities."""
+    fd = report.get("facility_deep", {})
+    facilities = fd.get("facilities", [])
+    if not facilities:
+        story.append(SectionHeader("3", "Facility Performance"))
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("No facility data available.", ParagraphStyle("FPFallback", parent=styles["Normal"], fontSize=10, textColor=colors.HexColor(TEXT_MUTED))))
+        story.append(PageBreak())
+        return
+
+    current_month = fd.get("current_month", "")
+    cm_label = fd.get("current_month_label", "")
+    pm_label = fd.get("previous_month_label", "")
+    val_s = ParagraphStyle("FPVal", fontName="Helvetica-Bold", fontSize=11, textColor=colors.HexColor(DARK), spaceAfter=2)
+    fac_hdr_s = ParagraphStyle("FPFacHdr", fontName="Helvetica-Bold", fontSize=12, textColor=colors.HexColor("#0f4c81"), spaceBefore=6, spaceAfter=2)
+    sub_s = ParagraphStyle("FPSub", fontName="Helvetica-Bold", fontSize=9, textColor=colors.HexColor(TEXT_SECONDARY), spaceAfter=2)
+    note_s = ParagraphStyle("FPNote", fontName="Helvetica", fontSize=8, textColor=colors.HexColor(TEXT_MUTED), spaceAfter=2)
+
+    # ═══════════ SUMMARY: All-facility comparison table + bar chart ═══════════
     story.append(SectionHeader("3", "Facility Performance"))
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 10))
 
-    fb = report["current"]["facility_breakdown"]
-    bar_buf = _render_facility_bar_chart(fb)
-    img_h = max(2 * inch, min(len(fb[:10]) * 0.4 * inch, 5 * inch))
-    bar_img = Image(bar_buf, width=6 * inch, height=img_h)
-    story.append(bar_img)
-    story.append(Spacer(1, 16))
+    # Comparison table
+    comp_rows = []
+    for f in facilities:
+        chg = f"N/A" if f["change_pct"] is None else ("No change" if f["change_pct"] == 0 and f["current_total"] == 0 and f["previous_total"] == 0 else f"{f['change_pct']:+.1f}%")
+        comp_rows.append([f["name"], f"{f['current_total']:,.2f}", f"{f['previous_total']:,.2f}", chg])
+    story.append(_styled_table(["Facility", cm_label or "Current", pm_label or "Previous", "Change"], comp_rows, col_widths=[160, 100, 100, 80]))
+    story.append(Spacer(1, 12))
 
-    fac_rows = []
-    for row in report.get("facility_comparisons", []):
-        fac_rows.append([row["facility"], f"{row['current']:,.2f}", f"{row['previous']:,.2f}", row.get("status") or _status_text(row["change_pct"], True)])
-    if fac_rows:
-        story.append(_styled_table(["Facility", "Current", "Previous", "Change"], fac_rows, col_widths=[180, 100, 100, 125]))
-
+    # All-facility bar chart
+    bar_data = [{"facility": f["name"], "emissions": f["current_total"]} for f in facilities]
+    story.append(Image(
+        _render_facility_bar_chart(bar_data),
+        width=7.2 * inch, height=max(2 * inch, min(len(facilities) * 0.45 * inch, 5.5 * inch))))
     story.append(PageBreak())
+
+    # ═══════════ PER-FACILITY DETAIL BLOCKS ═══════════
+    scope_clr = {"Scope 1": "#ea580c", "Scope 2": "#2563eb", "Scope 3": "#7c3aed", "Biogenic": "#16a34a"}
+    from .pdf_styles import EA_COLORS, SCOPE1_CAT_COLORS, SCOPE2_CAT_COLORS, SCOPE3_SHADES
+
+    for f in facilities:
+        # ── Facility header ──
+        story.append(Paragraph(f["name"], fac_hdr_s))
+        story.append(Paragraph(
+            f"Current Month: {f['current_total']:,.2f} tCO2e  |  Previous Month: {f['previous_total']:,.2f} tCO2e", val_s))
+        story.append(Spacer(1, 6))
+
+        # ── 12-month trend ──
+        story.append(Image(
+            _render_labeled_trend(f"{f['name']} — Total Emissions Trend", f["monthly_trend"], "tCO2e", "#0f4c81", current_month, figsize=(7.2, 2.4)),
+            width=7.2 * inch, height=2.4 * inch))
+        story.append(Spacer(1, 8))
+
+        # ── Scope breakdown table ──
+        sb_rows = [[s["label"], f"{s['value']:,.2f} tCO2e", f"{s['pct']:.1f}%"] for s in f["scope_breakdown"]]
+        sb_rows.append(["Total", f"{f['current_total']:,.2f} tCO2e", "100%"])
+
+        # ── Scope 1 source table (side-by-side with scope breakdown) ──
+        s1_cats = f.get("scope1_categories", [])
+        s1_rows = [[c["category"][:28], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s1_cats] if s1_cats else [["No Scope 1 data", "", ""]]
+
+        sb_table = _styled_table(["Scope", "Emissions", "%"], sb_rows, col_widths=[70, 80, 45])
+        s1_table = _styled_table(["Scope 1 Source", "tCO2e", "%"], s1_rows, col_widths=[110, 60, 40])
+        pair = Table([[sb_table, s1_table]], colWidths=[3.4 * inch, 3.5 * inch], hAlign="LEFT")
+        pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+        story.append(pair)
+        story.append(Spacer(1, 6))
+
+        # ── Scope 2 + Scope 3 side-by-side ──
+        s2_cats = f.get("scope2_categories", [])
+        s2_rows = [[c["category"][:28], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s2_cats] if s2_cats else [["No Scope 2 data", "", ""]]
+        s2_table = _styled_table(["Scope 2 Source", "tCO2e", "%"], s2_rows, col_widths=[110, 60, 40])
+
+        s3_cats = f.get("scope3_categories", [])
+        s3_rows = [[c["category"][:30], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s3_cats] if s3_cats else [["No Scope 3 data", "", ""]]
+        s3_table = _styled_table(["Scope 3 Category", "tCO2e", "%"], s3_rows, col_widths=[120, 55, 40])
+
+        pair2 = Table([[s2_table, s3_table]], colWidths=[3.4 * inch, 3.5 * inch], hAlign="LEFT")
+        pair2.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+        story.append(pair2)
+
+        story.append(PageBreak())
 
 
 def _sec_energy_performance(story, styles, report):

@@ -353,6 +353,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     result["executive_summary"] = await build_executive_summary_data(result, filters, current_user)
     result["emissions_deep"] = await build_emissions_deep_data(result, filters, current_user)
     result["resources_deep"] = await _build_resources_deep(result, current_user)
+    result["facility_deep"] = await build_facility_deep_data(result, filters, current_user)
     return result
 
 
@@ -1385,4 +1386,149 @@ async def _build_resources_deep(report: dict, current_user: dict) -> dict:
         "months": months, "current_month": current_month,
         "current_month_label": cm_label,
         "energy": energy, "water": water, "waste": waste,
+    }
+
+
+
+async def build_facility_deep_data(report: Dict[str, Any], filters: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
+    """Per-facility emissions breakdown for ALL org facilities, including zeros."""
+    ctx = report.get("reporting_context")
+    if ctx:
+        current_start = datetime.fromisoformat(ctx["reporting_period"]["start_date"]).date().replace(day=1)
+    else:
+        current_start = datetime.strptime(filters["reporting_period_start"], "%Y-%m").date()
+
+    current_month = current_start.strftime("%Y-%m")
+    prev_month = (current_start - relativedelta(months=1)).strftime("%Y-%m")
+    months = [(current_start - relativedelta(months=i)).strftime("%Y-%m") for i in range(12, -1, -1)]
+
+    org_id = current_user.get("organization_id")
+
+    # ── All org facilities (master list — never truncated) ──
+    fac_docs = await db.facilities.find(
+        {"organization_id": org_id, "is_deleted": {"$ne": True}},
+        {"_id": 0, "id": 1, "name": 1},
+    ).to_list(500)
+    fac_map = {f["id"]: f.get("name", f["id"][:8]) for f in fac_docs}
+    all_fac_ids = list(fac_map.keys())
+
+    if not all_fac_ids:
+        return {}
+
+    # ── Single aggregation: (period, scope, category, facility) ──
+    pipeline = [
+        {"$match": {"facility_id": {"$in": all_fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months}}},
+        {"$addFields": {"_ev": {"$toDouble": {"$ifNull": ["$co2e_emissions", 0]}}}},
+        {"$group": {"_id": {"p": "$reporting_period", "s": "$scope", "c": {"$ifNull": ["$category", "Uncategorized"]}, "f": "$facility_id"}, "v": {"$sum": "$_ev"}}},
+    ]
+    raw = await db.emission_records.aggregate(pipeline).to_list(200000)
+
+    # tree: {facility: {period: {scope: {category: value}}}}
+    tree: Dict[str, Dict[str, Dict[str, Dict[str, float]]]] = {}
+    for r in raw:
+        f, p, s, c = r["_id"]["f"], r["_id"]["p"], r["_id"]["s"], r["_id"]["c"]
+        tree.setdefault(f, {}).setdefault(p, {}).setdefault(s, {})[c] = round(r["v"], 4)
+
+    # ── Also handle FY/CY annual records ──
+    from shared.utils.period_utils import period_variants as _pv
+    org_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "financial_year_start_month": 1})
+    fy_month = int((org_doc or {}).get("financial_year_start_month") or 4)
+    annual_candidates: List[str] = []
+    for y in {int(m[:4]) for m in months}:
+        annual_candidates.extend(_pv(y, "FY"))
+        annual_candidates.extend(_pv(y - 1, "FY"))
+        annual_candidates.extend([f"CY{y}", f"CY {y}"])
+    annual_recs = await db.emission_records.find(
+        {"facility_id": {"$in": all_fac_ids}, "scope": {"$in": ALL_SCOPES},
+         "$or": [{"reporting_period": {"$in": annual_candidates}},
+                 {"reporting_period": {"$regex": r"\d{4}-\d{2}\s*to\s*\d{4}-\d{2}"}}]},
+        {"_id": 0, "facility_id": 1, "scope": 1, "category": 1, "co2e_emissions": 1, "reporting_period": 1},
+    ).to_list(50000)
+    months_set = set(months)
+    for rec in annual_recs:
+        covered = _period_to_months(rec.get("reporting_period", ""), fy_month)
+        if not covered:
+            continue
+        try:
+            val = float(rec.get("co2e_emissions") or 0)
+        except (TypeError, ValueError):
+            continue
+        if val == 0:
+            continue
+        share = round(val / len(covered), 6)
+        f_id = rec.get("facility_id", "")
+        s = rec.get("scope", "")
+        c = rec.get("category") or "Uncategorized"
+        for cm in covered:
+            if cm in months_set:
+                tree.setdefault(f_id, {}).setdefault(cm, {}).setdefault(s, {})[c] = round(tree.get(f_id, {}).get(cm, {}).get(s, {}).get(c, 0) + share, 4)
+
+    # ── Build per-facility blocks ──
+    facilities = []
+    for fac_id in all_fac_ids:
+        fac_name = fac_map[fac_id]
+        ft = tree.get(fac_id, {})
+
+        # Monthly trend
+        trend = []
+        for m in months:
+            md = ft.get(m)
+            trend.append({"period": m, "value": round(sum(sum(cs.values()) for cs in md.values()), 2) if md else 0})
+
+        # Current / previous month totals
+        def _month_total(m):
+            md = ft.get(m, {})
+            return round(sum(sum(cs.values()) for cs in md.values()), 2) if md else 0
+
+        cur_total = _month_total(current_month)
+        prev_total = _month_total(prev_month)
+        if prev_total:
+            change_pct = round((cur_total - prev_total) / prev_total * 100, 1)
+        elif cur_total == 0:
+            change_pct = 0
+        else:
+            change_pct = None  # N/A
+
+        # Scope breakdown (current month)
+        cur_data = ft.get(current_month, {})
+        scope_breakdown = []
+        for s in ALL_SCOPES:
+            sv = round(sum(cur_data.get(s, {}).values()), 2)
+            pct = round(sv / cur_total * 100, 1) if cur_total else 0
+            scope_breakdown.append({"scope": s, "label": s.replace("scope", "Scope ").title(), "value": sv, "pct": pct})
+
+        # Category breakdowns per scope
+        def _scope_cats(sk, canonical=None):
+            cats_in_data = set()
+            for m in months:
+                cats_in_data.update(ft.get(m, {}).get(sk, {}).keys())
+            if canonical:
+                cats_in_data.update(canonical)
+            cc = cur_data.get(sk, {})
+            total_scope = sum(cc.values()) if cc else 0
+            return sorted(
+                [{"category": c, "value": round(cc.get(c, 0), 2), "pct": round(cc.get(c, 0) / total_scope * 100, 1) if total_scope else 0} for c in cats_in_data],
+                key=lambda x: -x["value"],
+            )
+
+        facilities.append({
+            "id": fac_id, "name": fac_name,
+            "current_total": cur_total, "previous_total": prev_total, "change_pct": change_pct,
+            "scope_breakdown": scope_breakdown,
+            "scope1_categories": _scope_cats("scope1"),
+            "scope2_categories": _scope_cats("scope2"),
+            "scope3_categories": _scope_cats("scope3", canonical=SCOPE3_CANONICAL),
+            "biogenic_categories": _scope_cats("biogenic"),
+            "monthly_trend": trend,
+        })
+
+    # Sort by current_total descending (zero-emission facilities at bottom)
+    facilities.sort(key=lambda f: -f["current_total"])
+
+    return {
+        "facilities": facilities,
+        "months": months,
+        "current_month": current_month,
+        "current_month_label": current_start.strftime("%B %Y"),
+        "previous_month_label": (current_start - relativedelta(months=1)).strftime("%B %Y"),
     }

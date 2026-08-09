@@ -309,3 +309,14 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Files created**: `pdf_styles.py`, `pdf_charts.py`, `pdf_sections.py`
 - **Files changed**: `service.py` (added `WATER_SOURCE_FIELDS`, `_record_to_month`, async `_build_resources_deep` with source queries)
 - **Tests**: 35 total passing, no regression.
+
+
+### MIS Facility Performance — Complete Redesign — 2026-08-09
+- **Complete rebuild**: Replaced the old "Top Facilities" ranking with a comprehensive per-facility emissions analysis that includes ALL org facilities (including zero-emission ones).
+- **Summary page**: All-facility comparison table (Facility | Current Month | Previous Month | Change) + horizontal bar chart showing every facility (zeros visible at 0.0).
+- **Per-facility detail blocks** (1 page each, 7 facilities = 7 pages): facility header, current vs previous values, full-width 12-13 month labeled trend chart, scope breakdown table (S1/S2/S3/Biogenic with zeros), Scope 1 source table, Scope 2 source table, all 15 Scope 3 categories (C1-C15 including zeros) — all displayed side-by-side for compact layout.
+- **Zero handling**: Zero-emission facilities still appear with full structure (trend chart, scope tables, C1-C15). Zero scopes/categories shown as "0.00 tCO2e — 0.0%".
+- **FY/CY distribution**: Per-facility annual records distributed across months using `_period_to_months()`.
+- **Data source**: Single aggregation pipeline groups by (period, scope, category, facility_id). Facility list from `facilities` collection master data, not emission records.
+- **Files changed**: `service.py` (added `build_facility_deep_data`), `pdf_sections.py` (rewrote `_sec_facility_performance`).
+- **Report size**: 23 pages / 1.5MB for 7 facilities. 35 MIS tests passing.
