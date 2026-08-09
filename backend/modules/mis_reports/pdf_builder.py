@@ -39,6 +39,16 @@ GREEN_TEXT = "#16a34a"
 SCOPE_COLORS = {"scope1": "#166534", "scope2": "#2563eb", "scope3": "#f59e0b", "biogenic": "#8b5cf6"}
 SCOPE_LABELS = {"scope1": "Scope 1", "scope2": "Scope 2", "scope3": "Scope 3", "biogenic": "Biogenic"}
 
+# Executive Summary v2 — Section palette (never all-green)
+SECTION_COLORS = {
+    "ghg": "#0e7490",          # Teal
+    "energy": "#b45309",       # Amber-dark
+    "water": "#0369a1",        # Cyan-dark
+    "waste": "#7e22ce",        # Purple
+    "social_governance": "#312e81",  # Indigo/Navy
+}
+INSIGHT_COLORS = {"green": "#16a34a", "red": "#dc2626", "amber": "#d97706", "grey": "#6b7280"}
+
 
 # ─── Matplotlib Helpers ──────────────────────────────────────────────────────
 
@@ -287,6 +297,27 @@ class SectionHeader(Flowable):
         c.drawString(14, 8, f"{self.number}. {self.title}")
 
 
+class ColoredSectionBar(Flowable):
+    """Compact section header with a colored accent bar for executive summary."""
+
+    def __init__(self, title, accent_color):
+        super().__init__()
+        self.title = title
+        self.accent_color = accent_color
+        self.height = 22
+
+    def wrap(self, aW, aH):
+        return aW, self.height
+
+    def draw(self):
+        c = self.canv
+        c.setFillColor(colors.HexColor(self.accent_color))
+        c.rect(0, 0, 4, self.height, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColor(colors.HexColor(DARK))
+        c.drawString(12, 5, self.title)
+
+
 class KPICard(Flowable):
     """Single KPI metric card."""
 
@@ -398,6 +429,67 @@ def _styled_table(headers, rows, col_widths=None):
     return t
 
 
+def _insight_para(text: str, color_key: str):
+    """Paragraph with direction-aware colour for the Insight column."""
+    hex_clr = INSIGHT_COLORS.get(color_key, "#6b7280")
+    style = ParagraphStyle("InsightP", fontName="Helvetica", fontSize=7, leading=9, textColor=colors.HexColor(hex_clr))
+    return Paragraph(text, style)
+
+
+def _fmt_val(v, unit: str = "") -> str:
+    """Human-friendly value formatting with correct unit."""
+    if v is None:
+        return "No data available"
+    # Count-based metrics: integer, no unit suffix
+    if unit == "count":
+        if v == 0:
+            return "0"
+        return f"{int(v):,d}" if isinstance(v, (int, float)) else str(v)
+    if v == 0:
+        return f"0 {unit}".strip() if unit else "0"
+    if abs(v) < 0.01:
+        return f"{v:,.6f} {unit}".strip()
+    if abs(v) < 1:
+        return f"{v:,.4f} {unit}".strip()
+    return f"{v:,.2f} {unit}".strip()
+
+
+def _exec_summary_section_table(headers, rows, section_color):
+    """Compact executive summary table with section-coloured header row."""
+    hdr_style = ParagraphStyle("ExHdr", fontName="Helvetica-Bold", fontSize=7.5, leading=9, textColor=colors.white)
+    cell_style = ParagraphStyle("ExCell", fontName="Helvetica", fontSize=7.5, leading=9, textColor=colors.HexColor(TEXT_PRIMARY))
+    metric_style = ParagraphStyle("ExMetric", fontName="Helvetica-Bold", fontSize=7.5, leading=9, textColor=colors.HexColor(TEXT_PRIMARY))
+
+    def _wrap(v, style):
+        return v if isinstance(v, Flowable) else Paragraph(str(v), style)
+
+    data = [[_wrap(h, hdr_style) for h in headers]]
+    for row in rows:
+        data.append([_wrap(row[0], metric_style)] + [_wrap(v, cell_style) for v in row[1:]])
+
+    t = Table(data, colWidths=[100, 82, 82, 259], repeatRows=1, hAlign="LEFT")
+    cmds = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(section_color)),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 7.5),
+        ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor(TEXT_PRIMARY)),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor(BORDER_COLOR)),
+        ("PADDING", (0, 0), (-1, -1), 5),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+    ]
+    for i in range(1, len(data)):
+        if i % 2 == 0:
+            cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor(TABLE_ALT_ROW)))
+    t.setStyle(TableStyle(cmds))
+    return t
+
+
+
 # ─── Section Builders ────────────────────────────────────────────────────────
 
 def _sec_cover(story, styles, org_name, period_start, period_end, generated_by, reporting_context=None):
@@ -449,34 +541,71 @@ def _pct_change(current, previous):
 
 
 def _sec_executive_summary(story, styles, report):
-    story.append(SectionHeader("1", "Executive Summary"))
-    story.append(Spacer(1, 14))
-    kpis = report.get("kpis", [])
-    emissions = kpis[0] if kpis else {}
-    water, waste = report.get("water", {}), report.get("waste", {})
-    targets = report.get("target_summary", {})
-    selected = set(report.get("selected_sections") or []); include_all = not selected
-    summary_rows = []
-    if include_all or "ghg" in selected: summary_rows.append(["GHG Emissions", f"{emissions.get('value', 0):,.2f} tCO2e", f"{emissions.get('previous', 0):,.2f} tCO2e", _status_text(emissions.get('change_pct'), True)])
-    if include_all or "energy" in selected or "ghg" in selected: summary_rows.append(["Energy Consumption", f"{report.get('energy', {}).get('total', 0):,.2f} MWh", f"{report.get('previous_resources', {}).get('energy', {}).get('total', 0):,.2f} MWh", _status_text(_pct_change(report.get('energy', {}).get('total', 0), report.get('previous_resources', {}).get('energy', {}).get('total', 0)), True)])
-    if include_all or "water" in selected: summary_rows.append(["Water Consumption", f"{water.get('consumption', 0):,.2f} KL", f"{report.get('previous_resources', {}).get('water', {}).get('consumption', 0):,.2f} KL", _status_text(_pct_change(water.get('consumption', 0), report.get('previous_resources', {}).get('water', {}).get('consumption', 0)), True)])
-    if include_all or "waste" in selected: summary_rows.append(["Waste Generated", f"{waste.get('generated', 0):,.2f} kg", f"{report.get('previous_resources', {}).get('waste', {}).get('generated', 0):,.2f} kg", _status_text(_pct_change(waste.get('generated', 0), report.get('previous_resources', {}).get('waste', {}).get('generated', 0)), True)])
-    if include_all or bool(selected & {"voluntary_environment", "voluntary_social", "voluntary_governance", "sbti"}): summary_rows.append(["Target Progress", f"{targets.get('active', 0)} active targets", "", f"{targets.get('On Track', 0) + targets.get('Achieved', 0)} on track · {targets.get('At Risk', 0)} at risk · {targets.get('Behind', 0)} behind"])
-    overall = report.get("overall_management_status", {})
-    story.append(_styled_table(["Overall ESG Management Status", overall.get("status", "Monitor"), f"{overall.get('high_priority_count', 0)} high-priority item(s) require management review"], [["Management status", overall.get("status", "Monitor"), f"{overall.get('high_priority_count', 0)} high-priority item(s) require management review"]], col_widths=[160, 130, 215]))
-    story.append(Spacer(1, 10))
-    story.append(_styled_table(["Management metric", "Current", "Previous comparable period", "Management status"], summary_rows, col_widths=[120, 115, 130, 140]))
-    story.append(Spacer(1, 14))
-    labels = ["What happened", "Why / Where", "What needs attention"]
-    insight_rows = [[labels[min(index, 2)], insight] for index, insight in enumerate(report.get("insights", [])[:3])]
-    if insight_rows:
-        story.append(_styled_table(["Management view", "Finding"], insight_rows, col_widths=[110, 395]))
-    story.append(Spacer(1, 14))
-    scope_rows = []
-    for k in kpis[1:]:
-        change = "Comparison unavailable" if k["change_pct"] is None else _status_text(k["change_pct"], True)
-        scope_rows.append([k["label"], f"{k['value']:,.2f}", f"{k['previous']:,.2f}", change])
-    story.append(_styled_table(["Scope", "Current", "Previous", "Comparison"], scope_rows, col_widths=[115, 90, 90, 210]))
+    """Page 2 — Premium executive summary with section-coloured tables and 13-month insights."""
+    exec_data = report.get("executive_summary", {})
+    if not exec_data or not exec_data.get("sections"):
+        # Graceful fallback: empty summary note
+        nd = ParagraphStyle("ESFallback", parent=styles["Normal"], fontSize=10, textColor=colors.HexColor(TEXT_MUTED))
+        story.append(Paragraph("Executive Summary data is unavailable for this report configuration.", nd))
+        story.append(PageBreak())
+        return
+
+    # ── Title ──
+    title_s = ParagraphStyle("ExecTitle", parent=styles["Title"], fontSize=18,
+                             textColor=colors.HexColor(DARK), spaceAfter=2, alignment=TA_LEFT)
+    context_s = ParagraphStyle("ExecCtx", parent=styles["Normal"], fontSize=10,
+                               textColor=colors.HexColor(TEXT_SECONDARY), spaceAfter=1)
+
+    story.append(Paragraph("Executive Summary", title_s))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph(f"Current Month: {exec_data['current_month_label']}", context_s))
+    story.append(Paragraph(f"Previous Month: {exec_data['previous_month_label']}", context_s))
+    story.append(Spacer(1, 12))
+
+    # ── Derive short column headers from labels ──
+    def _short_label(label):
+        """'August 2026' → 'Aug 2026'"""
+        parts = (label or "").split()
+        if len(parts) >= 2:
+            return parts[0][:3] + " " + parts[-1]
+        return label or ""
+
+    current_col = _short_label(exec_data["current_month_label"])
+    previous_col = _short_label(exec_data["previous_month_label"])
+
+    for section in exec_data.get("sections", []):
+        sec_color = section.get("color", BRAND)
+        story.append(ColoredSectionBar(section["title"], sec_color))
+        story.append(Spacer(1, 3))
+
+        headers = ["Metric", current_col, previous_col, "Insight"]
+        rows = []
+        for m in section.get("metrics", []):
+            rows.append([
+                m["name"],
+                _fmt_val(m.get("current"), m.get("unit", "")),
+                _fmt_val(m.get("previous"), m.get("unit", "")),
+                _insight_para(m.get("text", ""), m.get("color", "grey")),
+            ])
+        story.append(_exec_summary_section_table(headers, rows, sec_color))
+
+        # Optional incident breakdown (compact note below the Social table)
+        if section.get("incident_breakdown"):
+            ib = section["incident_breakdown"]
+            bd_s = ParagraphStyle("IncBD", fontName="Helvetica", fontSize=6.5, leading=8,
+                                  textColor=colors.HexColor(TEXT_MUTED), leftIndent=4)
+            parts = []
+            if ib.get("safety_incidents"):
+                parts.append(f"Safety Incidents: {ib['safety_incidents']}")
+            if ib.get("data_breaches"):
+                parts.append(f"Data Breaches: {ib['data_breaches']}")
+            if ib.get("violations"):
+                parts.append(f"Violations: {ib['violations']}")
+            if parts:
+                story.append(Paragraph("  \u00b7  ".join(parts), bd_s))
+
+        story.append(Spacer(1, 8))
+
     story.append(PageBreak())
 
 

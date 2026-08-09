@@ -349,7 +349,9 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     twelve_month_emissions_trend = await build_twelve_month_emissions_trend(filters, current_user, reporting_context)
     twelve_month_resource_trends = await build_twelve_month_resource_trends(filters, current_user, reporting_context)
     operational_trends = await build_twelve_month_operational_trends(filters, current_user, reporting_context)
-    return {"filters": filters, "reporting_context": reporting_context, "selected_sections": selected_sections or [], "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "twelve_month_operational_trends": operational_trends, "availability": availability}
+    result = {"filters": filters, "reporting_context": reporting_context, "selected_sections": selected_sections or [], "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "twelve_month_operational_trends": operational_trends, "availability": availability}
+    result["executive_summary"] = await build_executive_summary_data(result, filters, current_user)
+    return result
 
 
 async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[List[str]], filters: Optional[Dict[str, Any]] = None) -> float:
@@ -670,3 +672,383 @@ def build_executive_excel(report: Dict[str, Any]) -> bytes:
 def build_executive_pdf(report: Dict[str, Any], organization_name: str, generated_by: str) -> bytes:
     from modules.mis_reports.pdf_builder import build_beautiful_executive_pdf
     return build_beautiful_executive_pdf(report, organization_name, generated_by)
+
+
+# ─── Executive Summary v2: 13-Month Average Insight Engine ────────────────────
+
+
+def _compute_avg_with_count(values: list) -> tuple:
+    """Average of non-None values, returning (avg, count) or (None, 0)."""
+    valid = [v for v in values if v is not None]
+    if not valid:
+        return None, 0
+    return round(sum(valid) / len(valid), 4), len(valid)
+
+
+def _generate_insight(current_val, avg, direction: str = "neutral", months_count: int = 13) -> dict:
+    """Factual, data-driven insight comparing current month to historical average."""
+    if current_val is None:
+        return {"text": "No data available", "variance_pct": None, "color": "grey"}
+    if avg is None:
+        return {"text": "No meaningful historical average available", "variance_pct": None, "color": "grey"}
+    if avg == 0:
+        if current_val == 0:
+            return {"text": "No activity recorded", "variance_pct": None, "color": "grey"}
+        return {"text": "No meaningful historical average available", "variance_pct": None, "color": "grey"}
+
+    # Special case: current is zero
+    if current_val == 0:
+        avg_fmt = f"{avg:,.2f}"
+        color = "green" if direction == "decrease" else ("red" if direction == "increase" else "grey")
+        return {"text": f"Decreased to 0 from a {months_count}-month average of {avg_fmt}", "variance_pct": -100.0, "color": color}
+
+    variance = round(((current_val - avg) / avg) * 100, 1)
+    avg_fmt = f"{avg:,.2f}"
+
+    if abs(variance) < 2:
+        return {"text": f"Remained broadly in line with the previous {months_count}-month average of {avg_fmt}", "variance_pct": variance, "color": "grey"}
+
+    word = "Increased" if variance > 0 else "Decreased"
+    text = f"{word} {abs(variance):,.1f}% compared with the previous {months_count}-month average of {avg_fmt}"
+
+    if direction == "decrease":
+        color = "green" if variance < 0 else "red"
+    elif direction == "increase":
+        color = "green" if variance > 0 else "red"
+    else:
+        color = "amber" if abs(variance) > 20 else "grey"
+
+    return {"text": text, "variance_pct": variance, "color": color}
+
+
+async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
+    """Build structured Page 2 executive summary data with 13-month average insights.
+
+    Uses bulk queries for emissions, reuses existing 12-month trend data for resources
+    and operational metrics (supplementing with 2 additional months), and computes
+    intensity metrics from production/revenue denominators.
+    """
+    ctx = report.get("reporting_context")
+    if ctx:
+        current_label = ctx["reporting_period"]["label"]
+        previous_label = ctx["comparison_period"]["label"]
+        current_start = datetime.fromisoformat(ctx["reporting_period"]["start_date"]).date().replace(day=1)
+    else:
+        # Derive from filters when no schedule context is provided
+        current_start = datetime.strptime(filters["reporting_period_start"], "%Y-%m").date().replace(day=1)
+        current_label = current_start.strftime("%B %Y")
+        prev = current_start - relativedelta(months=1)
+        previous_label = prev.strftime("%B %Y")
+
+    # 13 completed months immediately preceding the current month (oldest first)
+    months_13 = [(current_start - relativedelta(months=i)).strftime("%Y-%m") for i in range(13, 0, -1)]
+
+    org_id = current_user.get("organization_id")
+    fac_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
+    all_facs = await organization_facility_ids(current_user)
+    fac_filter = None if set(fac_ids) == set(all_facs) else fac_ids
+
+    # ════════════════════════════════════════════════════════════════════════════
+    # 1. EMISSIONS BY SCOPE — single bulk query across 13 months
+    # ════════════════════════════════════════════════════════════════════════════
+    emission_recs = await db.emission_records.find(
+        {"facility_id": {"$in": fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months_13}},
+        {"_id": 0, "scope": 1, "reporting_period": 1, "co2e_emissions": 1},
+    ).to_list(100000)
+
+    scope_by_month = {m: {s: 0.0 for s in ALL_SCOPES} for m in months_13}
+    months_with_emission_data: set = set()
+    for rec in emission_recs:
+        p, s = rec.get("reporting_period", ""), rec.get("scope", "")
+        if p in scope_by_month and s in ALL_SCOPES:
+            try:
+                scope_by_month[p][s] += float(rec.get("co2e_emissions") or 0)
+                months_with_emission_data.add(p)
+            except (TypeError, ValueError):
+                pass
+
+    scope_avgs: Dict[str, tuple] = {}
+    for s in ALL_SCOPES:
+        vals = [scope_by_month[m][s] for m in months_13 if m in months_with_emission_data]
+        scope_avgs[s] = _compute_avg_with_count(vals)
+
+    # ════════════════════════════════════════════════════════════════════════════
+    # 2. RESOURCES — reuse 12-month trend data + fetch 2 extra months
+    # ════════════════════════════════════════════════════════════════════════════
+    resource_trends = report.get("twelve_month_resource_trends", {})
+    op_trends = report.get("twelve_month_operational_trends", {})
+
+    def _trend_map(key):
+        return {e["period"]: e.get("value") for e in resource_trends.get(key, [])}
+
+    energy_tm = _trend_map("energy")
+    renew_pct_tm = _trend_map("renewable_energy")
+    w_cons_tm = _trend_map("water_consumption")
+    w_with_tm = _trend_map("water_withdrawal")
+    w_disc_tm = _trend_map("water_discharge")
+    w_rec_tm = _trend_map("water_recycle")
+    waste_gen_tm = _trend_map("waste_generated")
+    waste_rec_pct_tm = _trend_map("waste_recovery")
+
+    inc_tm = {e["period"]: e.get("value") for e in op_trends.get("incidents", [])}
+    ltifr_tm = {e["period"]: e.get("value") for e in op_trends.get("ltifr", [])}
+    ap_tm = {e["period"]: e.get("value") for e in op_trends.get("account_payable_days", [])}
+
+    # Determine which months are NOT covered by the 12-month trends
+    extra_months = [m for m in months_13 if m not in energy_tm]
+    for period in extra_months:
+        mf = {**filters, "reporting_period_start": period, "reporting_period_end": period, "strict_period": True}
+        snap = await build_resource_snapshot(org_id, fac_filter, mf)
+        e, w, ws = snap["energy"], snap["water"], snap["waste"]
+        energy_tm[period] = e.get("total")
+        renew_pct_tm[period] = e.get("renewable_pct")
+        w_cons_tm[period] = w.get("consumption")
+        w_with_tm[period] = w.get("withdrawal")
+        w_disc_tm[period] = w.get("discharge")
+        w_rec_tm[period] = w.get("recycled")
+        waste_gen_tm[period] = ws.get("generated")
+        waste_rec_pct_tm[period] = ws.get("recovery_pct")
+
+        # Operational data for extra months
+        scope12 = scope_by_month[period]["scope1"] + scope_by_month[period]["scope2"]
+        inc = await db.governance_records.count_documents({
+            "org_id": org_id, "reporting_period": period,
+            "approval_status": {"$in": ["approved", "not_required", None]},
+            "$or": [
+                {"subcategory": "Health & Safety Incidents"},
+                {"category": {"$regex": "data breach", "$options": "i"}},
+                {"subcategory": {"$regex": "data breach", "$options": "i"}},
+                {"category": {"$regex": "violation", "$options": "i"}},
+                {"subcategory": {"$regex": "violation", "$options": "i"}},
+            ],
+        })
+        ops = await get_operational_kpis(org_id, scope12, e.get("total", 0) or 0, inc, mf)
+        inc_tm[period] = inc
+        ltifr_tm[period] = ops.get("ltifr")
+        ap_tm[period] = ops.get("account_payable_days")
+
+    # ── Build 13-month value arrays for resource averages ──
+    energy_vals = [energy_tm.get(m) for m in months_13]
+    renew_abs_vals, non_renew_abs_vals = [], []
+    for i, m in enumerate(months_13):
+        et = energy_vals[i]
+        rp = renew_pct_tm.get(m)
+        if et is not None and et > 0 and rp is not None:
+            renew_abs_vals.append(round(et * rp / 100, 4))
+            non_renew_abs_vals.append(round(et * (1 - rp / 100), 4))
+        elif et is not None and et == 0:
+            renew_abs_vals.append(0.0)
+            non_renew_abs_vals.append(0.0)
+        else:
+            renew_abs_vals.append(None)
+            non_renew_abs_vals.append(None)
+
+    w_cons_vals = [w_cons_tm.get(m) for m in months_13]
+    w_with_vals = [w_with_tm.get(m) for m in months_13]
+    w_disc_vals = [w_disc_tm.get(m) for m in months_13]
+    w_rec_vals = [w_rec_tm.get(m) for m in months_13]
+
+    waste_gen_vals = [waste_gen_tm.get(m) for m in months_13]
+    waste_recyc_vals, waste_disp_vals = [], []
+    for i in range(13):
+        g = waste_gen_vals[i]
+        rp = waste_rec_pct_tm.get(months_13[i])
+        if g is not None and rp is not None:
+            rec = g * rp / 100
+            waste_recyc_vals.append(round(rec, 4))
+            waste_disp_vals.append(round(max(g - rec, 0), 4))
+        else:
+            waste_recyc_vals.append(None)
+            waste_disp_vals.append(None)
+
+    resource_avgs = {
+        "energy_total": _compute_avg_with_count(energy_vals),
+        "energy_renewable": _compute_avg_with_count(renew_abs_vals),
+        "energy_non_renewable": _compute_avg_with_count(non_renew_abs_vals),
+        "water_consumption": _compute_avg_with_count(w_cons_vals),
+        "water_withdrawal": _compute_avg_with_count(w_with_vals),
+        "water_discharge": _compute_avg_with_count(w_disc_vals),
+        "water_recycle": _compute_avg_with_count(w_rec_vals),
+        "waste_generated": _compute_avg_with_count(waste_gen_vals),
+        "waste_disposed": _compute_avg_with_count(waste_disp_vals),
+        "waste_recycled": _compute_avg_with_count(waste_recyc_vals),
+    }
+
+    inc_vals = [inc_tm.get(m) for m in months_13]
+    ltifr_vals = [ltifr_tm.get(m) for m in months_13]
+    ap_vals = [ap_tm.get(m) for m in months_13]
+    op_avgs = {
+        "incidents": _compute_avg_with_count(inc_vals),
+        "ltifr": _compute_avg_with_count(ltifr_vals),
+        "ap_days": _compute_avg_with_count(ap_vals),
+    }
+
+    # ════════════════════════════════════════════════════════════════════════════
+    # 3. INTENSITY DENOMINATORS — production & revenue
+    # ════════════════════════════════════════════════════════════════════════════
+    from shared.utils.period_utils import period_variants
+    report_year = int(filters["reporting_period_start"][:4])
+    production, prod_unit = None, "MT"
+    for variant in period_variants(report_year, "FY"):
+        rec = await db.production_quantities.find_one(
+            {"organization_id": org_id, "facility_id": None, "reporting_period": variant, "is_deleted": {"$ne": True}},
+            {"_id": 0, "quantity": 1, "unit": 1},
+        )
+        if rec and rec.get("quantity"):
+            try:
+                production = float(rec["quantity"])
+            except (TypeError, ValueError):
+                pass
+            prod_unit = rec.get("unit", "MT")
+            break
+
+    revenue, rev_currency = None, "INR"
+    fin = await db.organization_financials.find_one({"org_id": org_id}, {"_id": 0, "turnover": 1, "currency": 1})
+    if fin:
+        try:
+            revenue = float(fin.get("turnover") or 0) or None
+        except (TypeError, ValueError):
+            pass
+        rev_currency = fin.get("currency", "INR")
+
+    # Current / previous scope 1+2 for intensity
+    current_scopes = {r["scope"]: r["emissions"] for r in report["current"]["scope_breakdown"]}
+    previous_scopes = {r["scope"]: r["emissions"] for r in report["previous"]["scope_breakdown"]}
+    c_scope12 = current_scopes.get("scope1", 0) + current_scopes.get("scope2", 0)
+    p_scope12 = previous_scopes.get("scope1", 0) + previous_scopes.get("scope2", 0)
+
+    ghg_int_prod = round(c_scope12 / production, 6) if production else None
+    ghg_int_prod_prev = round(p_scope12 / production, 6) if production else None
+    ghg_int_rev = round(c_scope12 / revenue, 6) if revenue else None
+    ghg_int_rev_prev = round(p_scope12 / revenue, 6) if revenue else None
+
+    e_total = report.get("energy", {}).get("total", 0) or 0
+    pe_total = report.get("previous_resources", {}).get("energy", {}).get("total", 0) or 0
+    energy_int_prod = round(e_total / production, 6) if production else None
+    energy_int_prod_prev = round(pe_total / production, 6) if production else None
+    energy_int_rev = round(e_total / revenue, 6) if revenue else None
+    energy_int_rev_prev = round(pe_total / revenue, 6) if revenue else None
+
+    # 13-month intensity averages
+    scope12_monthly = [scope_by_month[m]["scope1"] + scope_by_month[m]["scope2"] for m in months_13]
+    ghg_int_prod_avg = _compute_avg_with_count([v / production for v in scope12_monthly]) if production else (None, 0)
+    ghg_int_rev_avg = _compute_avg_with_count([v / revenue for v in scope12_monthly]) if revenue else (None, 0)
+    energy_int_prod_avg = _compute_avg_with_count([(v or 0) / production for v in energy_vals if v is not None]) if production else (None, 0)
+    energy_int_rev_avg = _compute_avg_with_count([(v or 0) / revenue for v in energy_vals if v is not None]) if revenue else (None, 0)
+
+    # ════════════════════════════════════════════════════════════════════════════
+    # 4. INCIDENT BREAKDOWN (current period)
+    # ════════════════════════════════════════════════════════════════════════════
+    period_start = filters["reporting_period_start"]
+    period_end = filters["reporting_period_end"]
+    incident_base = {"org_id": org_id, "reporting_period": {"$gte": period_start, "$lte": period_end}, "approval_status": {"$in": ["approved", "not_required", None]}}
+    safety_count = await db.governance_records.count_documents({**incident_base, "subcategory": "Health & Safety Incidents"})
+    breach_count = await db.governance_records.count_documents({**incident_base, "$or": [{"category": {"$regex": "data breach", "$options": "i"}}, {"subcategory": {"$regex": "data breach", "$options": "i"}}]})
+    violation_count = await db.governance_records.count_documents({**incident_base, "$or": [{"category": {"$regex": "violation", "$options": "i"}}, {"subcategory": {"$regex": "violation", "$options": "i"}}]})
+
+    # ════════════════════════════════════════════════════════════════════════════
+    # 5. PREVIOUS MONTH OPERATIONAL VALUES (from trend maps)
+    # ════════════════════════════════════════════════════════════════════════════
+    prev_month = (current_start - relativedelta(months=1)).strftime("%Y-%m")
+    prev_ltifr = ltifr_tm.get(prev_month)
+    prev_ap = ap_tm.get(prev_month)
+    prev_incidents = inc_tm.get(prev_month, 0)
+
+    # ════════════════════════════════════════════════════════════════════════════
+    # 6. BUILD STRUCTURED SECTIONS
+    # ════════════════════════════════════════════════════════════════════════════
+    selected = set(report.get("selected_sections") or [])
+    include_all = not selected
+
+    cr = report.get("energy", {})
+    pr = report.get("previous_resources", {})
+    water_data = report.get("water", {})
+    waste_data = report.get("waste", {})
+    ops = report.get("operational_kpis", {})
+
+    def _m(name: str, current, previous, unit: str, avg_tuple: tuple, direction: str) -> dict:
+        avg_val, count = avg_tuple if isinstance(avg_tuple, tuple) else (avg_tuple, 13)
+        ins = _generate_insight(current, avg_val, direction, count if count else 13)
+        return {"name": name, "current": current, "previous": previous, "unit": unit, **ins}
+
+    sections = []
+
+    # ── GHG Emissions ──
+    if include_all or "ghg" in selected:
+        sections.append({
+            "key": "ghg", "title": "GHG Emissions", "color": "#0e7490",
+            "metrics": [
+                _m("Scope 1", current_scopes.get("scope1", 0), previous_scopes.get("scope1", 0), "tCO2e", scope_avgs.get("scope1", (None, 0)), "decrease"),
+                _m("Scope 2", current_scopes.get("scope2", 0), previous_scopes.get("scope2", 0), "tCO2e", scope_avgs.get("scope2", (None, 0)), "decrease"),
+                _m("Scope 3", current_scopes.get("scope3", 0), previous_scopes.get("scope3", 0), "tCO2e", scope_avgs.get("scope3", (None, 0)), "decrease"),
+                _m("Biogenic", current_scopes.get("biogenic", 0), previous_scopes.get("biogenic", 0), "tCO2e", scope_avgs.get("biogenic", (None, 0)), "decrease"),
+                _m("Intensity by Production", ghg_int_prod, ghg_int_prod_prev, f"tCO2e/{prod_unit}", ghg_int_prod_avg, "decrease"),
+                _m("Intensity by Revenue", ghg_int_rev, ghg_int_rev_prev, f"tCO2e/{rev_currency}", ghg_int_rev_avg, "decrease"),
+            ],
+        })
+
+    # ── Energy Consumption ──
+    if include_all or "energy" in selected or "ghg" in selected:
+        sections.append({
+            "key": "energy", "title": "Energy Consumption", "color": "#d97706",
+            "metrics": [
+                _m("Renewable Energy", cr.get("renewable_total", 0), pr.get("energy", {}).get("renewable_total", 0), "MWh", resource_avgs["energy_renewable"], "increase"),
+                _m("Non-Renewable Energy", cr.get("non_renewable_total", 0), pr.get("energy", {}).get("non_renewable_total", 0), "MWh", resource_avgs["energy_non_renewable"], "decrease"),
+                _m("Intensity by Production", energy_int_prod, energy_int_prod_prev, f"MWh/{prod_unit}", energy_int_prod_avg, "decrease"),
+                _m("Intensity by Revenue", energy_int_rev, energy_int_rev_prev, f"MWh/{rev_currency}", energy_int_rev_avg, "decrease"),
+            ],
+        })
+
+    # ── Water ──
+    if include_all or "water" in selected:
+        sections.append({
+            "key": "water", "title": "Water", "color": "#0284c7",
+            "metrics": [
+                _m("Consumption", water_data.get("consumption", 0), pr.get("water", {}).get("consumption", 0), "KL", resource_avgs["water_consumption"], "decrease"),
+                _m("Withdrawal", water_data.get("withdrawal", 0), pr.get("water", {}).get("withdrawal", 0), "KL", resource_avgs["water_withdrawal"], "decrease"),
+                _m("Discharge", water_data.get("discharge", 0), pr.get("water", {}).get("discharge", 0), "KL", resource_avgs["water_discharge"], "neutral"),
+                _m("Recycle", water_data.get("recycled", 0), pr.get("water", {}).get("recycled", 0), "KL", resource_avgs["water_recycle"], "increase"),
+            ],
+        })
+
+    # ── Waste ──
+    if include_all or "waste" in selected:
+        wg = waste_data.get("generated", 0) or 0
+        wr = waste_data.get("recovered", 0) or 0
+        wd = max(wg - wr, 0)
+        pwg = pr.get("waste", {}).get("generated", 0) or 0
+        pwr = pr.get("waste", {}).get("recovered", 0) or 0
+        pwd = max(pwg - pwr, 0)
+        sections.append({
+            "key": "waste", "title": "Waste", "color": "#7e22ce",
+            "metrics": [
+                _m("Generated", wg, pwg, "kg", resource_avgs["waste_generated"], "decrease"),
+                _m("Disposed", wd, pwd, "kg", resource_avgs["waste_disposed"], "decrease"),
+                _m("Recycled", wr, pwr, "kg", resource_avgs["waste_recycled"], "increase"),
+            ],
+        })
+
+    # ── Social & Governance ──
+    show_social = include_all or "social" in selected or "governance" in selected
+    if show_social:
+        total_incidents = ops.get("incident_count", 0)
+        sections.append({
+            "key": "social_governance", "title": "Social & Governance", "color": "#312e81",
+            "metrics": [
+                _m("LTIFR", ops.get("ltifr"), prev_ltifr, "", op_avgs["ltifr"], "decrease"),
+                _m("Account Payable Days", ops.get("account_payable_days"), prev_ap, "days", op_avgs["ap_days"], "neutral"),
+                _m("Number of Incidents", total_incidents, prev_incidents, "count", op_avgs["incidents"], "decrease"),
+            ],
+            "incident_breakdown": {
+                "total": total_incidents,
+                "safety_incidents": safety_count,
+                "data_breaches": breach_count,
+                "violations": violation_count,
+            },
+        })
+
+    return {
+        "current_month_label": current_label,
+        "previous_month_label": previous_label,
+        "sections": sections,
+    }
