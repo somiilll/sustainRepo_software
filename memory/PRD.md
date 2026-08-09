@@ -255,3 +255,16 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ### MIS Operations Trend Charts — 2026-08-08
 - Added conditional rolling 12-month Incidents, LTIFR, and Account Payable Days charts to the Operations PDF section, including explicit unavailable-history treatment.
 - Validation: `/app/test_reports/iteration_152.json` — 4/4 focused checks passed without API calls, delivery, email, or data mutation.
+
+
+### MIS Executive Summary v2 — Page 2 Redesign — 2026-08-09
+- **Complete rebuild** of Page 2 Executive Summary with 5 section-colored tables (GHG=Teal, Energy=Amber, Water=Cyan, Waste=Purple, Social&Governance=Indigo).
+- **13-month average insight engine**: Each metric computes a rolling average of the 13 completed months preceding the current month. Insights are factual ("Increased X% compared with the previous N-month average of Y") — no qualitative phrases like "Improving" or "Needs Attention".
+- **Conditional insights**: Insight column only shows text when the current-vs-previous month swing exceeds 30%; small changes leave the cell blank.
+- **Direction-aware colouring**: Green for favourable movement, red for unfavourable, based on per-metric directionality (e.g. decrease in GHG = green, increase in recycling = green).
+- **Metrics**: GHG (Scope 1-3, Biogenic, Intensity by Production, Intensity by Revenue), Energy (Renewable, Non-Renewable, Intensity by Production/Revenue), Water (Consumption, Withdrawal, Discharge, Recycle), Waste (Generated, Disposed, Recycled), Social & Governance (LTIFR, AP Days, Number of Incidents with breakdown).
+- **Intensity by Revenue**: New metric using organisation's `organization_financials.turnover` as denominator.
+- **Zero/Null handling**: "No data available" for None, "Decreased to 0 from a N-month average of Y" for zero values, "No meaningful historical average available" for zero baseline.
+- **Configuration-driven**: Only sections matching the MIS report configuration are displayed.
+- **Files changed**: `service.py` (added `_compute_avg_with_count`, `_generate_insight`, `build_executive_summary_data`), `pdf_builder.py` (added `ColoredSectionBar`, `_exec_summary_section_table`, `_insight_para`, `_fmt_val`, rewrote `_sec_executive_summary`).
+- **Tests**: 20 unit tests in `/app/backend/tests/test_executive_summary_insights.py` + 8 existing reporting-period tests — all 28 pass.

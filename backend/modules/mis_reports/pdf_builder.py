@@ -553,14 +553,9 @@ def _sec_executive_summary(story, styles, report):
     # ── Title ──
     title_s = ParagraphStyle("ExecTitle", parent=styles["Title"], fontSize=18,
                              textColor=colors.HexColor(DARK), spaceAfter=2, alignment=TA_LEFT)
-    context_s = ParagraphStyle("ExecCtx", parent=styles["Normal"], fontSize=10,
-                               textColor=colors.HexColor(TEXT_SECONDARY), spaceAfter=1)
 
     story.append(Paragraph("Executive Summary", title_s))
-    story.append(Spacer(1, 4))
-    story.append(Paragraph(f"Current Month: {exec_data['current_month_label']}", context_s))
-    story.append(Paragraph(f"Previous Month: {exec_data['previous_month_label']}", context_s))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 14))
 
     # ── Derive short column headers from labels ──
     def _short_label(label):
@@ -581,11 +576,21 @@ def _sec_executive_summary(story, styles, report):
         headers = ["Metric", current_col, previous_col, "Insight"]
         rows = []
         for m in section.get("metrics", []):
+            # Only surface the insight when the current-vs-previous swing is large
+            insight_cell = _insight_para(m.get("text", ""), m.get("color", "grey"))
+            cur = m.get("current")
+            prev = m.get("previous")
+            if cur is not None and prev is not None and prev != 0:
+                mom_change = abs((cur - prev) / prev) * 100
+                if mom_change < 30:
+                    insight_cell = Paragraph("", ParagraphStyle("Blank", fontSize=1))
+            elif cur is not None and prev is not None and cur == prev:
+                insight_cell = Paragraph("", ParagraphStyle("Blank", fontSize=1))
             rows.append([
                 m["name"],
                 _fmt_val(m.get("current"), m.get("unit", "")),
                 _fmt_val(m.get("previous"), m.get("unit", "")),
-                _insight_para(m.get("text", ""), m.get("color", "grey")),
+                insight_cell,
             ])
         story.append(_exec_summary_section_table(headers, rows, sec_color))
 
@@ -604,7 +609,7 @@ def _sec_executive_summary(story, styles, report):
             if parts:
                 story.append(Paragraph("  \u00b7  ".join(parts), bd_s))
 
-        story.append(Spacer(1, 8))
+        story.append(Spacer(1, 16))
 
     story.append(PageBreak())
 
