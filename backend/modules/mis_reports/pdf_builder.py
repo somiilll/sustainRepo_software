@@ -134,6 +134,19 @@ def _render_trend_chart(period_breakdown: List[Dict]) -> io.BytesIO:
     return _fig_to_bytes(fig)
 
 
+def _render_fy_comparison_trend(trends: Dict[str, List[Dict]]) -> io.BytesIO:
+    _setup_mpl()
+    current, previous = trends.get("current", []), trends.get("previous", [])
+    if not current:
+        return _render_trend_chart([])
+    labels = [datetime.strptime(row["period"], "%Y-%m").strftime("%b") for row in current]
+    x = range(len(labels)); fig, ax = plt.subplots(figsize=(5.5, 3))
+    ax.plot(x, [row["emissions"] for row in current], color=BRAND, linewidth=2.5, marker="o", label="Current FY/CY")
+    ax.plot(x, [row["emissions"] for row in previous], color="#64748b", linewidth=2, marker="o", linestyle="--", label="Previous FY/CY")
+    ax.set_xticks(list(x)); ax.set_xticklabels(labels, fontsize=7); ax.set_ylabel("tCO2e", fontsize=8); ax.grid(axis="y", alpha=.25); ax.legend(fontsize=7, frameon=False)
+    ax.set_title("FY/CY Emissions Trend", fontsize=11, fontweight="bold", color=DARK, pad=10); fig.tight_layout(); return _fig_to_bytes(fig)
+
+
 def _render_facility_bar_chart(facility_breakdown: List[Dict]) -> io.BytesIO:
     _setup_mpl()
     data = facility_breakdown[:10]
@@ -344,7 +357,11 @@ def _draw_content_page(canvas_obj, doc):
 # ─── Styled Table Helper ────────────────────────────────────────────────────
 
 def _styled_table(headers, rows, col_widths=None):
-    data = [headers] + rows
+    header_style = ParagraphStyle("TableHeaderWrap", fontName="Helvetica-Bold", fontSize=8, leading=10, textColor=colors.white)
+    cell_style = ParagraphStyle("TableCellWrap", fontName="Helvetica", fontSize=7.5, leading=9, textColor=colors.HexColor(TEXT_PRIMARY))
+    def wrap(value, style):
+        return value if isinstance(value, Flowable) else Paragraph(str(value), style)
+    data = [[wrap(value, header_style) for value in headers]] + [[wrap(value, cell_style) for value in row] for row in rows]
     t = Table(data, colWidths=col_widths, repeatRows=1, hAlign="LEFT")
     cmds = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(TABLE_HEADER_BG)),
@@ -461,7 +478,7 @@ def _sec_emissions_overview(story, styles, report):
     donut_buf = _render_donut_chart(report["current"]["scope_breakdown"])
     donut_img = Image(donut_buf, width=3 * inch, height=3 * inch)
 
-    trend_buf = _render_trend_chart(report.get("monthly_trend", []))
+    trend_buf = _render_fy_comparison_trend(report.get("fy_emissions_trend", {})) if report.get("fy_emissions_trend") else _render_trend_chart(report.get("monthly_trend", []))
     trend_img = Image(trend_buf, width=3.6 * inch, height=2.2 * inch)
 
     chart_row = Table([[donut_img, trend_img]], colWidths=[3.2 * inch, 3.8 * inch], hAlign="LEFT")
