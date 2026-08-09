@@ -762,6 +762,60 @@ def _render_target_bar(target_val, actual_val, unit, figsize=(5.5, 1.4)):
     fig.tight_layout(); return _fig_to_bytes(fig)
 
 
+
+def _render_monthly_target_trend(title, history, unit, figsize=(7.2, 2.8)):
+    """Two-line chart: Actual vs Target for monthly targets."""
+    from .pdf_charts import _setup_mpl, _fig_to_bytes
+    import matplotlib.pyplot as plt
+    import matplotlib.ticker as mticker
+    _setup_mpl()
+    fig, ax = plt.subplots(figsize=figsize)
+    if not history:
+        ax.text(0.5, 0.5, "No monthly target data", ha="center", va="center", fontsize=12, color="#94a3b8")
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off"); return _fig_to_bytes(fig)
+
+    from datetime import datetime as _dt
+    labels = [_dt.strptime(h["period"], "%Y-%m").strftime("%b %y") for h in history]
+    x = list(range(len(history)))
+    targets = [h.get("target") for h in history]
+    actuals = [h.get("actual") for h in history]
+
+    # Target line (dashed)
+    tx = [i for i, v in enumerate(targets) if v is not None]
+    ty = [v for v in targets if v is not None]
+    if ty:
+        ax.plot(tx, ty, color="#7c3aed", linewidth=2, linestyle="--", marker="s", markersize=5, label="Target", zorder=3)
+        for i, v in zip(tx, ty):
+            ax.annotate(f"{v:,.0f}" if abs(v) >= 10 else f"{v:,.2f}", (i, v), textcoords="offset points",
+                        xytext=(0, 10), ha="center", fontsize=6, fontweight="bold", color="#7c3aed")
+
+    # Actual line (solid)
+    ax_list = [i for i, v in enumerate(actuals) if v is not None]
+    ay = [v for v in actuals if v is not None]
+    if ay:
+        # Break at None gaps
+        segs, sx, sy = [], [], []
+        for i, v in enumerate(actuals):
+            if v is not None: sx.append(i); sy.append(v)
+            else:
+                if sx: segs.append((list(sx), list(sy)))
+                sx, sy = [], []
+        if sx: segs.append((sx, sy))
+        for si, (seg_x, seg_y) in enumerate(segs):
+            ax.plot(seg_x, seg_y, color="#0f4c81", linewidth=2.5, marker="o", markersize=5,
+                    label="Actual" if si == 0 else None, zorder=4)
+        for i, v in zip(ax_list, ay):
+            ax.annotate(f"{v:,.0f}" if abs(v) >= 10 else f"{v:,.2f}", (i, v), textcoords="offset points",
+                        xytext=(0, -12), ha="center", fontsize=6, fontweight="bold", color="#0f4c81")
+
+    ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=6.5, rotation=45, ha="right")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    ax.set_ylabel(unit, fontsize=7, color="#475569"); ax.grid(axis="y", alpha=0.2, linewidth=0.5)
+    ax.legend(fontsize=7, frameon=False, loc="upper left")
+    ax.set_title(title, fontsize=10, fontweight="bold", color="#0f172a", pad=10)
+    fig.tight_layout(); return _fig_to_bytes(fig)
+
+
 def _sec_targets(story, styles, report):
     """Targets section — individual visual blocks per target, grouped by section."""
     story.append(SectionHeader("7", "Targets"))
@@ -834,6 +888,28 @@ def _sec_targets(story, styles, report):
 
             if tv is not None and av is not None:
                 story.append(Image(_render_target_bar(tv, av, unit), width=5.5 * inch, height=1.4 * inch))
+
+            # Monthly target: actual vs target trend chart
+            mh = t.get("monthly_history", [])
+            if mh:
+                story.append(Spacer(1, 6))
+                story.append(Image(
+                    _render_monthly_target_trend(f"{name} — Actual vs Target", mh, unit),
+                    width=7.2 * inch, height=2.8 * inch))
+                # Compact history table
+                mh_rows = []
+                for h in mh:
+                    tv_str = f"{h['target']:,.2f}" if h.get("target") is not None else "—"
+                    av_str = f"{h['actual']:,.2f}" if h.get("actual") is not None else "No data"
+                    if h.get("target") and h.get("actual"):
+                        perf = round(h["actual"] / h["target"] * 100, 1)
+                        perf_str = f"{perf:.1f}%"
+                    else:
+                        perf_str = "—"
+                    mh_rows.append([h["period"], tv_str, av_str, perf_str])
+                if mh_rows:
+                    story.append(Spacer(1, 4))
+                    story.append(_styled_table(["Month", "Target", "Actual", "Achievement"], mh_rows, col_widths=[80, 90, 90, 80]))
 
             story.append(Spacer(1, 14))
 

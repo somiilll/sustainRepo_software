@@ -338,4 +338,10 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Grouped by section**: Targets organized under Environment, Social, Governance, SBTi headings with colored accent bars.
 - **Direction-aware comparison**: Respects whether higher or lower is better (increase/decrease/maintain). Uses existing Targets module evaluation logic.
 - **Fixed enrichment**: Added `tracking_mode`, `section`, and `gap` fields to `_enrich_targets_with_progress`.
+
+### Monthly Target Trends — 2026-08-09
+- Added two-line Actual vs Target trend chart for `tracking_mode=monthly` targets: purple dashed Target line + blue solid Actual line with value labels on every point. Only months with configured targets are shown (no fabricated values).
+- Compact history table (Month | Target | Actual | Achievement %) rendered below the chart.
+- Backend: `_attach_monthly_target_history` pairs `tracking_values` dict with actual values from existing deep trend data via `_resolve_actual_trend` (maps category→trend). `tracking_values` now passed through from raw target data.
+
 - 34-page / 1.75MB report. 35 MIS tests passing.

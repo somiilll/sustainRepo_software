@@ -199,6 +199,7 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
             "goal_type": t.get("goal_type", "upper_limit"),
             "target_direction": t.get("target_direction") or t.get("percentage_direction") or inferred_legacy_target_direction(t.get("name") or t.get("target_name", "")),
             "status": "No Data",
+            "tracking_values": t.get("tracking_values"),
         }
         kpi_id = t.get("kpi_id")
         if kpi_id:
@@ -359,6 +360,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     result["emissions_deep"] = await build_emissions_deep_data(result, filters, current_user)
     result["resources_deep"] = await _build_resources_deep(result, current_user)
     result["facility_deep"] = await build_facility_deep_data(result, filters, current_user)
+    _attach_monthly_target_history(result)
     return result
 
 
@@ -1542,3 +1544,57 @@ async def build_facility_deep_data(report: Dict[str, Any], filters: Dict[str, An
         "current_month_label": current_start.strftime("%B %Y"),
         "previous_month_label": (current_start - relativedelta(months=1)).strftime("%B %Y"),
     }
+
+
+
+# ─── Monthly Target History Builder ──────────────────────────────────────────
+
+# Maps target category/kpi to the correct trend key in emissions_deep or resources_deep
+_CATEGORY_TREND_MAP = {
+    "ghg": ("emissions_deep", "total", "trend"),
+    "scope 1": ("emissions_deep", "scope1", "trend"),
+    "scope 2": ("emissions_deep", "scope2", "trend"),
+    "scope 3": ("emissions_deep", "scope3", "trend"),
+    "energy": ("resources_deep", "energy", "total_trend"),
+    "water": ("resources_deep", "water", "consumption_trend"),
+    "waste": ("resources_deep", "waste", "generated_trend"),
+}
+
+
+def _resolve_actual_trend(report: dict, category: str) -> Dict[str, float]:
+    """Given a target category, find the matching monthly actual trend and return {period: value}."""
+    cat_lower = (category or "").lower().strip()
+    for key, (deep_key, section, trend_key) in _CATEGORY_TREND_MAP.items():
+        if key in cat_lower:
+            deep = report.get(deep_key, {})
+            sec = deep.get(section, {})
+            trend = sec.get(trend_key, [])
+            return {d["period"]: d.get("value") for d in trend if d.get("value") is not None}
+    return {}
+
+
+def _attach_monthly_target_history(report: dict) -> None:
+    """For each monthly target, build a monthly_history array pairing target values with actuals."""
+    targets = report.get("targets", [])
+    for t in targets:
+        if t.get("tracking_mode") != "monthly":
+            continue
+        tv_map = t.get("tracking_values") or {}
+        if not tv_map:
+            continue
+        actual_map = _resolve_actual_trend(report, t.get("category", ""))
+        # Build history for months where a target is configured, within the 12-month window
+        months_in_window = set()
+        for deep_key in ("emissions_deep", "resources_deep"):
+            for m in report.get(deep_key, {}).get("months", []):
+                months_in_window.add(m)
+        history = []
+        for period in sorted(tv_map.keys()):
+            if months_in_window and period not in months_in_window:
+                continue
+            history.append({
+                "period": period,
+                "target": tv_map[period],
+                "actual": actual_map.get(period),
+            })
+        t["monthly_history"] = history
