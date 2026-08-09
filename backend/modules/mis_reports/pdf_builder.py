@@ -23,14 +23,14 @@ from reportlab.platypus import (
 )
 
 # ─── Brand Palette ───────────────────────────────────────────────────────────
-BRAND = "#166534"
+BRAND = "#0f4c81"
 BRAND_LIGHT = "#dcfce7"
 BRAND_ACCENT = "#22c55e"
 DARK = "#0f172a"
 TEXT_PRIMARY = "#1e293b"
 TEXT_SECONDARY = "#475569"
 TEXT_MUTED = "#94a3b8"
-TABLE_HEADER_BG = "#166534"
+TABLE_HEADER_BG = "#17324d"
 TABLE_ALT_ROW = "#f8fafc"
 BORDER_COLOR = "#e2e8f0"
 RED_TEXT = "#dc2626"
@@ -134,17 +134,13 @@ def _render_trend_chart(period_breakdown: List[Dict]) -> io.BytesIO:
     return _fig_to_bytes(fig)
 
 
-def _render_fy_comparison_trend(trends: Dict[str, List[Dict]]) -> io.BytesIO:
+def _render_rolling_trend(title: str, trends: List[Dict], unit: str, color: str) -> io.BytesIO:
     _setup_mpl()
-    current, previous = trends.get("current", []), trends.get("previous", [])
-    if not current:
+    if not trends or not any(row.get("value") is not None for row in trends):
         return _render_trend_chart([])
-    labels = [datetime.strptime(row["period"], "%Y-%m").strftime("%b") for row in current]
-    x = range(len(labels)); fig, ax = plt.subplots(figsize=(5.5, 3))
-    ax.plot(x, [row["emissions"] for row in current], color=BRAND, linewidth=2.5, marker="o", label="Current FY/CY")
-    ax.plot(x, [row["emissions"] for row in previous], color="#64748b", linewidth=2, marker="o", linestyle="--", label="Previous FY/CY")
-    ax.set_xticks(list(x)); ax.set_xticklabels(labels, fontsize=7); ax.set_ylabel("tCO2e", fontsize=8); ax.grid(axis="y", alpha=.25); ax.legend(fontsize=7, frameon=False)
-    ax.set_title("FY/CY Emissions Trend", fontsize=11, fontweight="bold", color=DARK, pad=10); fig.tight_layout(); return _fig_to_bytes(fig)
+    labels = [datetime.strptime(row["period"], "%Y-%m").strftime("%b") for row in trends]; x = range(len(labels)); values = [row.get("value") for row in trends]
+    fig, ax = plt.subplots(figsize=(5.5, 3)); ax.plot(x, values, color=color, linewidth=2.5, marker="o")
+    ax.set_xticks(list(x)); ax.set_xticklabels(labels, fontsize=7); ax.set_ylabel(unit, fontsize=8); ax.grid(axis="y", alpha=.25); ax.set_title(title, fontsize=11, fontweight="bold", color=DARK, pad=10); fig.tight_layout(); return _fig_to_bytes(fig)
 
 
 def _render_resource_fy_trend(title: str, trends: Dict[str, List[Dict]], unit: str) -> io.BytesIO:
@@ -414,14 +410,10 @@ def _sec_cover(story, styles, org_name, period_start, period_end, generated_by, 
     if reporting_context:
         current = reporting_context["reporting_period"]
         comparison = reporting_context["comparison_period"]
-        ytd = reporting_context["ytd_period"]
-        previous_ytd = reporting_context.get("previous_ytd_period")
         calendar = reporting_context["reporting_calendar"]
-        story.append(Paragraph(f"Reporting Period: {current['label']}", info_s))
-        story.append(Paragraph(f"Comparison Period: {comparison['label']}", info_s))
-        story.append(Paragraph(f"YTD: {ytd['start_date']} to {ytd['end_date']} ({calendar['label']})", info_s))
-        if previous_ytd:
-            story.append(Paragraph(f"Previous FY/CY YTD: {previous_ytd['start_date']} to {previous_ytd['end_date']}", info_s))
+        story.append(Paragraph(f"MIS MONTH: {current['label']}", info_s))
+        story.append(Paragraph(f"PREVIOUS MONTH: {comparison['label']}", info_s))
+        story.append(Paragraph(f"REPORTING YEAR: {calendar['label']}", info_s))
     else:
         story.append(Paragraph(f"Reporting Period: {period_start} to {period_end}", info_s))
     story.append(Paragraph(f"Generated: {datetime.now(timezone.utc).strftime('%B %d, %Y')}", info_s))
@@ -487,7 +479,7 @@ def _sec_emissions_overview(story, styles, report):
     donut_buf = _render_donut_chart(report["current"]["scope_breakdown"])
     donut_img = Image(donut_buf, width=3 * inch, height=3 * inch)
 
-    trend_buf = _render_fy_comparison_trend(report.get("fy_emissions_trend", {})) if report.get("fy_emissions_trend") else _render_trend_chart(report.get("monthly_trend", []))
+    trend_buf = _render_rolling_trend("12-Month GHG Trend", report.get("twelve_month_emissions_trend", []), "tCO2e", "#0f4c81") if report.get("twelve_month_emissions_trend") else _render_trend_chart(report.get("monthly_trend", []))
     trend_img = Image(trend_buf, width=3.6 * inch, height=2.2 * inch)
 
     chart_row = Table([[donut_img, trend_img]], colWidths=[3.2 * inch, 3.8 * inch], hAlign="LEFT")
@@ -552,9 +544,9 @@ def _sec_eww(story, styles, report):
     rows_for("Energy", [("Energy Consumption", energy.get("total", 0) or 0, previous.get("energy", {}).get("total", 0) or 0, "MWh", True), ("Renewable Energy", energy.get("renewable_pct", 0) or 0, previous.get("energy", {}).get("renewable_pct", 0) or 0, "%", False)])
     rows_for("Water", [("Water Consumption", water.get("consumption", 0) or 0, previous.get("water", {}).get("consumption", 0) or 0, "KL", True), ("Water Recycled", water.get("recycled", 0) or 0, previous.get("water", {}).get("recycled", 0) or 0, "KL", False)])
     rows_for("Waste", [("Waste Generated", waste.get("generated", 0) or 0, previous.get("waste", {}).get("generated", 0) or 0, "kg", True), ("Waste Recovery", waste.get("recovery_pct", 0) or 0, previous.get("waste", {}).get("recovery_pct", 0) or 0, "%", False)])
-    trends = report.get("fy_resource_trends", {})
+    trends = report.get("twelve_month_resource_trends", {})
     if trends:
-        charts = [[Image(_render_resource_fy_trend("Energy Trend", trends.get("energy", {}), "MWh"), width=3.1*inch, height=2*inch), Image(_render_resource_fy_trend("Water Recycle Trend", trends.get("water_recycle", {}), "KL"), width=3.1*inch, height=2*inch)], [Image(_render_resource_fy_trend("Waste Recovery Trend", trends.get("waste_recovery", {}), "%"), width=3.1*inch, height=2*inch), Image(_render_resource_fy_trend("Renewable Energy Trend", trends.get("renewable_energy", {}), "%"), width=3.1*inch, height=2*inch)]]
+        charts = [[Image(_render_rolling_trend("12-Month Energy Trend", trends.get("energy", []), "MWh", "#d97706"), width=3.1*inch, height=2*inch), Image(_render_rolling_trend("12-Month Water Recycle", trends.get("water_recycle", []), "KL", "#0284c7"), width=3.1*inch, height=2*inch)], [Image(_render_rolling_trend("12-Month Waste Recovery", trends.get("waste_recovery", []), "%", "#7e22ce"), width=3.1*inch, height=2*inch), Image(_render_rolling_trend("12-Month Renewable Energy", trends.get("renewable_energy", []), "%", "#d97706"), width=3.1*inch, height=2*inch)]]
         story.append(Table(charts, colWidths=[3.2*inch, 3.2*inch], hAlign="LEFT"))
     story.append(PageBreak())
 

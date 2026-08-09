@@ -346,9 +346,9 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     resource_status = {"energy": energy_status, "water": water_status, "renewable": renewable_status, "waste_recovery": comparison_status(waste.get("recovery_pct", 0) or 0, previous_resources["waste"].get("recovery_pct", 0) or 0, "higher")[1]}
     high_priority = sum(1 for action in actions if action["priority"] == "High")
     overall_management_status = "Attention Required" if high_priority or target_counts["Behind"] else ("Monitor" if actions or target_counts["At Risk"] else "On Track")
-    fy_emissions_trend = await build_fy_emissions_trend(filters, current_user, reporting_context)
-    fy_resource_trends = await build_fy_resource_trends(filters, current_user, reporting_context)
-    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "fy_emissions_trend": fy_emissions_trend, "fy_resource_trends": fy_resource_trends, "availability": availability}
+    twelve_month_emissions_trend = await build_twelve_month_emissions_trend(filters, current_user, reporting_context)
+    twelve_month_resource_trends = await build_twelve_month_resource_trends(filters, current_user, reporting_context)
+    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "availability": availability}
 
 
 async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[List[str]], filters: Optional[Dict[str, Any]] = None) -> float:
@@ -383,25 +383,35 @@ async def build_resource_snapshot(organization_id: str, facility_ids: Optional[L
     return {"energy": energy, "water": water, "waste": waste}
 
 
-async def build_fy_emissions_trend(filters: Dict[str, Any], current_user: dict, context: Optional[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+async def build_twelve_month_emissions_trend(filters: Dict[str, Any], current_user: dict, context: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Map each month of current and prior FY/CY YTD for the management trend chart."""
     if not context:
-        return {"current": [], "previous": []}
-    start = datetime.fromisoformat(context["ytd_period"]["start_date"]).date().replace(day=1)
-    previous_start = datetime.fromisoformat(context["previous_ytd_period"]["start_date"]).date().replace(day=1)
-    end = datetime.fromisoformat(context["ytd_period"]["end_date"]).date().replace(day=1)
-    months = []
-    cursor = start
-    while cursor <= end:
-        months.append(cursor.strftime("%Y-%m")); cursor = (cursor + relativedelta(months=1)).replace(day=1)
-    prior_months = [(previous_start + relativedelta(months=index)).strftime("%Y-%m") for index in range(len(months))]
+        return []
+    end = datetime.fromisoformat(context["reporting_period"]["start_date"]).date().replace(day=1)
+    months = [(end - relativedelta(months=index)).strftime("%Y-%m") for index in range(11, -1, -1)]
     facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
-    records = await db.emission_records.find({"facility_id": {"$in": facility_ids}, "scope": {"$in": filters.get("scopes") or ALL_SCOPES}, "reporting_period": {"$in": months + prior_months}}, {"_id": 0, "reporting_period": 1, "co2e_emissions": 1}).to_list(100000)
-    totals = {key: 0.0 for key in months + prior_months}
+    records = await db.emission_records.find({"facility_id": {"$in": facility_ids}, "scope": {"$in": filters.get("scopes") or ALL_SCOPES}, "reporting_period": {"$in": months}}, {"_id": 0, "reporting_period": 1, "co2e_emissions": 1}).to_list(100000)
+    totals, seen = {key: 0.0 for key in months}, set()
     for row in records:
-        try: totals[row.get("reporting_period", "")] += float(row.get("co2e_emissions") or 0)
+        try: totals[row.get("reporting_period", "")] += float(row.get("co2e_emissions") or 0); seen.add(row.get("reporting_period", ""))
         except (TypeError, ValueError): continue
-    return {"current": [{"period": key, "emissions": round(totals[key], 2)} for key in months], "previous": [{"period": key, "emissions": round(totals[key], 2)} for key in prior_months]}
+    return [{"period": key, "value": round(totals[key], 2) if key in seen else None} for key in months]
+
+
+async def build_twelve_month_resource_trends(filters: Dict[str, Any], current_user: dict, context: Optional[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    if not context:
+        return {}
+    end = datetime.fromisoformat(context["reporting_period"]["start_date"]).date().replace(day=1)
+    months = [(end - relativedelta(months=index)).strftime("%Y-%m") for index in range(11, -1, -1)]
+    facilities = filters.get("facility_ids") or await organization_facility_ids(current_user)
+    all_facilities = await organization_facility_ids(current_user)
+    facility_filter = None if set(facilities) == set(all_facilities) else facilities
+    metrics = {"energy": ("energy", "total"), "water_consumption": ("water", "consumption"), "water_withdrawal": ("water", "withdrawal"), "water_discharge": ("water", "discharge"), "water_recycle": ("water", "recycled"), "waste_generated": ("waste", "generated"), "waste_recovery": ("waste", "recovery_pct"), "renewable_energy": ("energy", "renewable_pct")}
+    result = {key: [] for key in metrics}
+    for period in months:
+        snapshot = await build_resource_snapshot(current_user.get("organization_id"), facility_filter, {**filters, "reporting_period_start": period, "reporting_period_end": period, "strict_period": True})
+        for key, (section, field) in metrics.items(): result[key].append({"period": period, "value": snapshot[section].get(field)})
+    return result
 
 
 async def build_fy_resource_trends(filters: Dict[str, Any], current_user: dict, context: Optional[Dict[str, Any]]) -> Dict[str, Dict[str, List[Dict[str, Any]]]]:

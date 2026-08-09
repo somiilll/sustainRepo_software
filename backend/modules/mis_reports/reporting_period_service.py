@@ -47,11 +47,11 @@ class ReportingPeriodService:
 
     def _monthly(self) -> tuple[DateRange, DateRange, DateRange, DateRange, str]:
         start, nominal_end = self._month_range(self.execution_date)
-        current = DateRange(start, min(nominal_end, self.execution_date), self.execution_date.strftime("%B %Y") + (" — Month to Date" if self.execution_date < nominal_end else ""), self.execution_date < nominal_end)
+        current = DateRange(start, min(nominal_end, self.execution_date), self.execution_date.strftime("%B %Y"), self.execution_date < nominal_end)
         previous_start, previous_end = self._month_range(start - timedelta(days=1))
         prior_start, prior_end = self._month_range(start - relativedelta(years=1))
         ytd_start, _, calendar_label = self.calendar_range(self.execution_date)
-        return current, DateRange(previous_start, previous_end, previous_start.strftime("%B %Y")), DateRange(prior_start, prior_end, prior_start.strftime("%B %Y")), DateRange(ytd_start, current.end, f"{calendar_label} YTD"), calendar_label
+        return current, DateRange(previous_start, previous_end, previous_start.strftime("%B %Y")), DateRange(prior_start, prior_end, prior_start.strftime("%B %Y")), DateRange(ytd_start, current.end, calendar_label), calendar_label
 
     def _weekly(self) -> tuple[DateRange, DateRange, DateRange, DateRange, str]:
         start = self.execution_date - timedelta(days=self.execution_date.weekday())

@@ -26,11 +26,12 @@ def test_monthly_calendar_year_august_ytd_starts_january():
     assert result["reporting_calendar"]["label"] == "CY 2026"
 
 
-def test_monthly_mid_period_is_labeled_month_to_date():
+def test_monthly_mid_period_uses_plain_business_month_label():
     result = resolve("financial_year", "monthly", "2026-08-10T09:00:00")
     assert result["reporting_period"]["end_date"] == "2026-08-10"
     assert result["reporting_period"]["is_partial"] is True
-    assert "Month to Date" in result["reporting_period"]["label"]
+    assert result["reporting_period"]["label"] == "August 2026"
+    assert "MTD" not in result["reporting_period"]["label"]
 
 
 def test_weekly_monday_sunday_and_364_day_previous_year_mapping():
