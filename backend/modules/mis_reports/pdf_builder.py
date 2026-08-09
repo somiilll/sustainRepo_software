@@ -147,6 +147,15 @@ def _render_fy_comparison_trend(trends: Dict[str, List[Dict]]) -> io.BytesIO:
     ax.set_title("FY/CY Emissions Trend", fontsize=11, fontweight="bold", color=DARK, pad=10); fig.tight_layout(); return _fig_to_bytes(fig)
 
 
+def _render_resource_fy_trend(title: str, trends: Dict[str, List[Dict]], unit: str) -> io.BytesIO:
+    _setup_mpl(); current, previous = trends.get("current", []), trends.get("previous", [])
+    if not current: return _render_trend_chart([])
+    labels = [datetime.strptime(row["period"], "%Y-%m").strftime("%b") for row in current]; x = range(len(labels))
+    fig, ax = plt.subplots(figsize=(3.25, 2.1)); ax.plot(x, [r["value"] for r in current], color=BRAND, marker="o", linewidth=2, label="Current")
+    ax.plot(x, [r["value"] for r in previous], color="#64748b", marker="o", linewidth=1.6, linestyle="--", label="Previous")
+    ax.set_xticks(list(x)); ax.set_xticklabels(labels, fontsize=6); ax.set_ylabel(unit, fontsize=7); ax.grid(axis="y", alpha=.2); ax.legend(fontsize=6, frameon=False); ax.set_title(title, fontsize=9, fontweight="bold", color=DARK); fig.tight_layout(); return _fig_to_bytes(fig)
+
+
 def _render_facility_bar_chart(facility_breakdown: List[Dict]) -> io.BytesIO:
     _setup_mpl()
     data = facility_breakdown[:10]
@@ -543,6 +552,10 @@ def _sec_eww(story, styles, report):
     rows_for("Energy", [("Energy Consumption", energy.get("total", 0) or 0, previous.get("energy", {}).get("total", 0) or 0, "MWh", True), ("Renewable Energy", energy.get("renewable_pct", 0) or 0, previous.get("energy", {}).get("renewable_pct", 0) or 0, "%", False)])
     rows_for("Water", [("Water Consumption", water.get("consumption", 0) or 0, previous.get("water", {}).get("consumption", 0) or 0, "KL", True), ("Water Recycled", water.get("recycled", 0) or 0, previous.get("water", {}).get("recycled", 0) or 0, "KL", False)])
     rows_for("Waste", [("Waste Generated", waste.get("generated", 0) or 0, previous.get("waste", {}).get("generated", 0) or 0, "kg", True), ("Waste Recovery", waste.get("recovery_pct", 0) or 0, previous.get("waste", {}).get("recovery_pct", 0) or 0, "%", False)])
+    trends = report.get("fy_resource_trends", {})
+    if trends:
+        charts = [[Image(_render_resource_fy_trend("Energy Trend", trends.get("energy", {}), "MWh"), width=3.1*inch, height=2*inch), Image(_render_resource_fy_trend("Water Recycle Trend", trends.get("water_recycle", {}), "KL"), width=3.1*inch, height=2*inch)], [Image(_render_resource_fy_trend("Waste Recovery Trend", trends.get("waste_recovery", {}), "%"), width=3.1*inch, height=2*inch), Image(_render_resource_fy_trend("Renewable Energy Trend", trends.get("renewable_energy", {}), "%"), width=3.1*inch, height=2*inch)]]
+        story.append(Table(charts, colWidths=[3.2*inch, 3.2*inch], hAlign="LEFT"))
     story.append(PageBreak())
 
 
