@@ -3,7 +3,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://brsr-migration.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://mis-dashboard-v2-1.preview.emergentagent.com").rstrip("/")
 
 EMAIL = "esg-test-user@example.com"
 PASSWORD = "TestUser123!"
