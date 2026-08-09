@@ -648,13 +648,22 @@ def build_beautiful_executive_pdf(report: Dict[str, Any], organization_name: str
     period_start = filters.get("reporting_period_start", "---")
     period_end = filters.get("reporting_period_end", "---")
 
+    selected = set(report.get("selected_sections") or [])
+    include_all = not selected
+    include_ghg = include_all or "ghg" in selected
+    include_resources = include_all or bool(selected & {"energy", "water", "waste"})
+    include_targets = include_all or bool(selected & {"voluntary_environment", "voluntary_social", "voluntary_governance", "sbti"})
     _sec_cover(story, styles, organization_name, period_start, period_end, generated_by, report.get("reporting_context"))
     _sec_executive_summary(story, styles, report)
-    _sec_emissions_overview(story, styles, report)
-    _sec_facility_performance(story, styles, report)
-    _sec_eww(story, styles, report)
-    _sec_incidents_compliance(story, styles, report)
-    _sec_targets(story, styles, report)
+    if include_ghg:
+        _sec_emissions_overview(story, styles, report)
+        _sec_facility_performance(story, styles, report)
+    if include_resources:
+        _sec_eww(story, styles, report)
+    if include_all or "social" in selected or "governance" in selected:
+        _sec_incidents_compliance(story, styles, report)
+    if include_targets:
+        _sec_targets(story, styles, report)
 
     doc.build(story, onFirstPage=_draw_cover_bg, onLaterPages=_draw_content_page)
     return buffer.getvalue()

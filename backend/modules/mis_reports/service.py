@@ -246,7 +246,7 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
     return enriched
 
 
-async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict, reporting_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict, reporting_context: Optional[Dict[str, Any]] = None, selected_sections: Optional[List[str]] = None) -> Dict[str, Any]:
     """Build a factual ESG MIS data pack; no generative metrics are invented."""
     current = await aggregate_emissions(filters, current_user)
     if reporting_context:
@@ -348,7 +348,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     overall_management_status = "Attention Required" if high_priority or target_counts["Behind"] else ("Monitor" if actions or target_counts["At Risk"] else "On Track")
     twelve_month_emissions_trend = await build_twelve_month_emissions_trend(filters, current_user, reporting_context)
     twelve_month_resource_trends = await build_twelve_month_resource_trends(filters, current_user, reporting_context)
-    return {"filters": filters, "reporting_context": reporting_context, "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "availability": availability}
+    return {"filters": filters, "reporting_context": reporting_context, "selected_sections": selected_sections or [], "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "availability": availability}
 
 
 async def dashboard_recycled_water(organization_id: str, facility_ids: Optional[List[str]], filters: Optional[Dict[str, Any]] = None) -> float:
@@ -541,7 +541,7 @@ async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[st
     resolved_filters = ReportingPeriodService.filters_for(schedule["filters"], reporting_context["reporting_period"], schedule["frequency"])
     summary = await aggregate_emissions(resolved_filters, current_user)
     facility_names = await facility_names_for_filters(resolved_filters, current_user)
-    executive = await build_executive_mis_report(resolved_filters, current_user, reporting_context)
+    executive = await build_executive_mis_report(resolved_filters, current_user, reporting_context, (schedule.get("content") or {}).get("sections", []))
     pdf_name = safe_report_filename(schedule["name"], "pdf")
     xlsx_name = safe_report_filename(schedule["name"], "xlsx")
     try:
