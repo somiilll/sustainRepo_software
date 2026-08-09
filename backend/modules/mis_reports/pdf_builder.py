@@ -576,6 +576,26 @@ def _sec_incidents_compliance(story, styles, report):
     story.append(_styled_table(["Operational KPI", "Value"], ops_rows, col_widths=[250, 200]))
     story.append(Spacer(1, 16))
 
+    operational_trends = report.get("twelve_month_operational_trends", {})
+    if operational_trends:
+        available = {key: series for key, series in operational_trends.items() if any(point.get("value") is not None for point in series)}
+        if available:
+            story.append(Paragraph("12-Month Operational Trends", ParagraphStyle("OpsTrendTitle", parent=styles["Heading3"], textColor=colors.HexColor(DARK), spaceAfter=8)))
+            charts = []
+            chart_specs = [("incidents", "12-Month Incidents Trend", "Count", "#4f46e5"), ("ltifr", "12-Month LTIFR Trend", "LTIFR", "#0f4c81"), ("account_payable_days", "12-Month Account Payable Days", "Days", "#475569")]
+            for key, title, unit, color in chart_specs:
+                if key in available:
+                    charts.append(Image(_render_rolling_trend(title, available[key], unit, color), width=3.1 * inch, height=2 * inch))
+            chart_rows = [charts[index:index + 2] for index in range(0, len(charts), 2)]
+            if len(chart_rows[-1]) == 1:
+                chart_rows[-1].append(Spacer(3.1 * inch, 2 * inch))
+            story.append(Table(chart_rows, colWidths=[3.2 * inch, 3.2 * inch], hAlign="LEFT"))
+            story.append(Spacer(1, 14))
+        else:
+            note = ParagraphStyle("OpsTrendNote", parent=styles["Normal"], fontSize=8, textColor=colors.HexColor(TEXT_MUTED))
+            story.append(Paragraph("12-month operational trends unavailable — insufficient approved historical data.", note))
+            story.append(Spacer(1, 10))
+
     compliance = report.get("compliance", [])
     if compliance:
         comp_rows = [[r["framework"], f"{r['completion_pct']:.1f}%"] for r in compliance]
