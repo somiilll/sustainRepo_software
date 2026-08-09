@@ -695,9 +695,9 @@ def _sec_supplier_assessment(story, styles, report):
         name = s.get("supplier_name") or s.get("company_name") or s.get("supplier_org_name") or f"Supplier {len(suppliers)+1}"
         suppliers.append({
             "name": name,
-            "overall": s.get("overall_score"),
-            "esg": s.get("esg_score"),
-            "ghg": s.get("ghg_score"),
+            "overall": s.get("overall_completion_percent") if s.get("overall_completion_percent") is not None else s.get("overall_score"),
+            "esg": s.get("esg_completion_percent") if s.get("esg_completion_percent") is not None else s.get("esg_score"),
+            "ghg": s.get("ghg_completion_percent") if s.get("ghg_completion_percent") is not None else s.get("ghg_score"),
             "status": s.get("invitation_status", "pending"),
         })
 

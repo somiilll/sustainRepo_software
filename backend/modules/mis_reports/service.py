@@ -27,6 +27,12 @@ from modules.mis_reports.reporting_period_service import ReportingPeriodService
 ALL_SCOPES = ["scope1", "scope2", "scope3", "biogenic"]
 
 
+def _governance_period_filter(period_str: str) -> dict:
+    """Convert a 'YYYY-MM' string into a MongoDB filter matching the nested reporting_period object."""
+    year, month = int(period_str[:4]), int(period_str[5:7])
+    return {"reporting_period.year": year, "reporting_period.month": {"$in": [str(month), month]}}
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -335,7 +341,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     if water_change is not None and water_change > 5:
         insights.append(f"Water consumption increased {water_change:.1f}% versus the comparable previous period and requires review.")
     if relationships:
-        insights.append(f"{len(relationships)} suppliers have been assessed, with {sum(1 for row in relationships if row.get('overall_score') is not None and row['overall_score'] < 50)} currently high-risk.")
+        insights.append(f"{len(relationships)} suppliers have been assessed, with {sum(1 for row in relationships if (row.get('overall_completion_percent') or row.get('overall_score')) is not None and (row.get('overall_completion_percent') or row.get('overall_score') or 0) < 50)} currently high-risk.")
     target_counts = {status: sum(1 for target in targets if target.get("status") == status) for status in ("On Track", "At Risk", "Behind", "Achieved")}
     active_targets = len(targets)
     if active_targets:
@@ -355,7 +361,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     twelve_month_emissions_trend = await build_twelve_month_emissions_trend(filters, current_user, reporting_context)
     twelve_month_resource_trends = await build_twelve_month_resource_trends(filters, current_user, reporting_context)
     operational_trends = await build_twelve_month_operational_trends(filters, current_user, reporting_context)
-    result = {"filters": filters, "reporting_context": reporting_context, "selected_sections": selected_sections or [], "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if row.get("overall_score") is not None and row["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "twelve_month_operational_trends": operational_trends, "availability": availability}
+    result = {"filters": filters, "reporting_context": reporting_context, "selected_sections": selected_sections or [], "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if (row.get("overall_completion_percent") or row.get("overall_score")) is not None and (row.get("overall_completion_percent") or row.get("overall_score") or 0) < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "twelve_month_operational_trends": operational_trends, "availability": availability}
     result["executive_summary"] = await build_executive_summary_data(result, filters, current_user)
     result["emissions_deep"] = await build_emissions_deep_data(result, filters, current_user)
     result["resources_deep"] = await _build_resources_deep(result, current_user)
@@ -444,7 +450,7 @@ async def build_twelve_month_operational_trends(filters: Dict[str, Any], current
         period_filters = {**filters, "reporting_period_start": period, "reporting_period_end": period, "strict_period": True}
         emissions = await aggregate_emissions(period_filters, current_user)
         resources = await build_resource_snapshot(org_id, None, period_filters)
-        incidents = await db.governance_records.count_documents({**incident_filter_base, "reporting_period": period})
+        incidents = await db.governance_records.count_documents({**incident_filter_base, **_governance_period_filter(period)})
         ops = await get_operational_kpis(org_id, emissions["total_emissions"], resources["energy"].get("total", 0) or 0, incidents, period_filters)
         result["incidents"].append({"period": period, "value": incidents})
         result["ltifr"].append({"period": period, "value": ops.get("ltifr")})
@@ -683,7 +689,7 @@ def build_executive_excel(report: Dict[str, Any]) -> bytes:
     sheet("Emissions Overview", [["Scope", "tCO2e"]] + [[r["scope"], r["emissions"]] for r in report["current"]["scope_breakdown"]] + [[]] + [["Category", "tCO2e"]] + [[r["category"], r["emissions"]] for r in report["current"]["category_breakdown"]])
     sheet("Facility Performance", [["Facility", "Current", "Previous", "Change %"]] + [[r["facility"], r["current"], r["previous"], r["change_pct"]] for r in report.get("facility_comparisons", [])])
     sheet("Operations", [["Energy", report["energy"].get("total"), "MWh"], ["Renewable share", report["energy"].get("renewable_pct"), "%"], ["Water recycled", report["water"].get("recycled"), "KL"], ["Waste recovered", report["waste"].get("recovered"), ""], ["LTIFR", report["operational_kpis"].get("ltifr"), ""], ["Account payable days", report["operational_kpis"].get("account_payable_days"), "days"]])
-    sheet("Suppliers & Targets", [["Supplier", "ESG Score"]] + [[r.get("supplier_name") or r.get("supplier_org_name") or "Supplier", r.get("overall_score")] for r in report.get("supplier_scores", [])] + [[]] + [["Target", "Target", "Actual", "Direction", "Status"]] + [[r.get("name"), r.get("target_value"), r.get("actual_value"), r.get("target_direction"), r.get("status")] for r in report.get("targets", [])])
+    sheet("Suppliers & Targets", [["Supplier", "ESG Score"]] + [[r.get("supplier_name") or r.get("supplier_org_name") or "Supplier", r.get("overall_completion_percent") or r.get("overall_score")] for r in report.get("supplier_scores", [])] + [[]] + [["Target", "Target", "Actual", "Direction", "Status"]] + [[r.get("name"), r.get("target_value"), r.get("actual_value"), r.get("target_direction"), r.get("status")] for r in report.get("targets", [])])
     buffer = io.BytesIO(); workbook.save(buffer); return buffer.getvalue()
 
 
@@ -830,7 +836,7 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
         # Operational data for extra months
         scope12 = scope_by_month[period]["scope1"] + scope_by_month[period]["scope2"]
         inc = await db.governance_records.count_documents({
-            "org_id": org_id, "reporting_period": period,
+            "org_id": org_id, **_governance_period_filter(period),
             "approval_status": {"$in": ["approved", "not_required", None]},
             "$or": [
                 {"subcategory": "Health & Safety Incidents"},
@@ -959,7 +965,7 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
     # ════════════════════════════════════════════════════════════════════════════
     period_start = filters["reporting_period_start"]
     period_end = filters["reporting_period_end"]
-    incident_base = {"org_id": org_id, "reporting_period": {"$gte": period_start, "$lte": period_end}, "approval_status": {"$in": ["approved", "not_required", None]}}
+    incident_base = {"org_id": org_id, **_governance_period_filter(period_start), "approval_status": {"$in": ["approved", "not_required", None]}}
     safety_count = await db.governance_records.count_documents({**incident_base, "subcategory": "Health & Safety Incidents"})
     breach_count = await db.governance_records.count_documents({**incident_base, "$or": [{"category": {"$regex": "data breach", "$options": "i"}}, {"subcategory": {"$regex": "data breach", "$options": "i"}}]})
     violation_count = await db.governance_records.count_documents({**incident_base, "$or": [{"category": {"$regex": "violation", "$options": "i"}}, {"subcategory": {"$regex": "violation", "$options": "i"}}]})
