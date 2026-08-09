@@ -286,3 +286,14 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Trend line breaks at missing data**: `_render_labeled_trend` and `_render_multiline_trend` now segment the line into consecutive non-None runs, creating visual gaps where months have no data instead of misleading straight lines.
 - **FY/CY annual record distribution**: `build_emissions_deep_data` now also queries emission records with FY (e.g. "FY 2025-2026"), CY (e.g. "CY2025"), and range (e.g. "2025-04 to 2026-03") reporting periods. These are distributed evenly (value/12) across their constituent months. Helper `_period_to_months(period_str, fy_start_month)` handles all formats.
 - **Validation**: `/app/test_reports/iteration_153.json` — 7 new tests + 28 regression tests, 100% pass rate.
+
+
+### MIS Energy, Water & Waste — Separate Premium Sections — 2026-08-09
+- **Split into 3 dedicated sections**: Replaced the combined "Energy, Water & Waste Performance" section with separate "Energy Performance" (amber), "Water Performance" (blue), and "Waste Performance" (purple) sections, each with distinct visual identity.
+- **Energy Performance**: Total consumption trend (full-width, value-labeled), renewable vs non-renewable donut + breakdown table, combined renewable/non-renewable multi-line comparison trend.
+- **Water Performance**: Four individual trend charts — Consumption (full-width), Withdrawal + Discharge (side-by-side), Recycle (full-width). All with value labels and KL units.
+- **Waste Performance**: Generated trend (full-width), Disposed + Recovered (side-by-side), Hazardous vs Non-Hazardous grouped bar comparison chart, plus individual hazardous/non-hazardous generated + recovered trends.
+- **No current-vs-previous comparison tables** per user instruction — sections go straight to visual trends.
+- **Data source**: `_build_resources_deep()` derives all data from the extended `twelve_month_resource_trends` (now includes renewable_total, non_renewable_total, waste_recovered, hazardous/non_hazardous splits) — zero additional DB calls for basic data.
+- **Files changed**: `service.py` (extended `build_twelve_month_resource_trends` metrics dict, added `_build_resources_deep`), `pdf_builder.py` (added `_render_grouped_bar`, `_sec_energy_performance`, `_sec_water_performance`, `_sec_waste_performance`; removed `_sec_eww`).
+- **Tests**: 35 total tests passing (28 regression + 7 emissions deep).

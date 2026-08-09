@@ -1017,30 +1017,182 @@ def _sec_facility_performance(story, styles, report):
     story.append(PageBreak())
 
 
-def _sec_eww(story, styles, report):
-    story.append(SectionHeader("4", "Energy, Water & Waste Performance"))
+def _render_grouped_bar(title: str, groups: list, bar_colors: list,
+                        unit: str, figsize=(7.2, 2.8)) -> io.BytesIO:
+    """Grouped horizontal bar chart for hazardous vs non-hazardous comparison."""
+    _setup_mpl()
+    fig, ax = plt.subplots(figsize=figsize)
+    if not groups:
+        ax.text(0.5, 0.5, "No data", ha="center", va="center", fontsize=12, color=TEXT_MUTED)
+        ax.axis("off"); return _fig_to_bytes(fig)
+    cat_labels = [g["label"] for g in groups]
+    n = len(groups[0].get("values", []))
+    bar_h = 0.35
+    y = range(len(cat_labels))
+    legend_labels = groups[0].get("series_labels", [])
+    for i in range(n):
+        offsets = [j - bar_h * (n - 1) / 2 + i * bar_h for j in y]
+        vals = [g["values"][i] for g in groups]
+        bars = ax.barh(offsets, vals, bar_h * 0.9, color=bar_colors[i % len(bar_colors)],
+                       label=legend_labels[i] if i < len(legend_labels) else "")
+        for bar, v in zip(bars, vals):
+            if v > 0:
+                ax.text(bar.get_width() + max(max(max(g["values"]) for g in groups) * 0.02, 0.5),
+                        bar.get_y() + bar.get_height() / 2, f"{v:,.1f}",
+                        va="center", fontsize=7, color=DARK)
+    ax.set_yticks(list(y))
+    ax.set_yticklabels(cat_labels, fontsize=8)
+    ax.set_xlabel(unit, fontsize=7, color=TEXT_SECONDARY)
+    ax.legend(fontsize=7, frameon=False, loc="lower right")
+    ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8)
+    ax.grid(axis="x", alpha=0.2); ax.invert_yaxis()
+    fig.tight_layout()
+    return _fig_to_bytes(fig)
+
+
+def _sec_energy_performance(story, styles, report):
+    """Energy Performance section with trends and composition."""
+    rd = report.get("resources_deep", {})
+    en = rd.get("energy", {})
+    if not en:
+        return
+    cm = rd.get("current_month", "")
+    cm_label = rd.get("current_month_label", "")
+    months = rd.get("months", [])
+    val_s = ParagraphStyle("EValS", fontName="Helvetica-Bold", fontSize=12, textColor=colors.HexColor(DARK), spaceAfter=2)
+
+    story.append(ColoredSectionBar("Energy Performance", "#b45309"))
+    story.append(Spacer(1, 6))
+    total_e = en.get("current", {}).get("total", 0) or 0
+    story.append(Paragraph(f"{cm_label}: {total_e:,.2f} MWh", val_s))
+    story.append(Spacer(1, 6))
+
+    # Total consumption trend
+    story.append(Image(
+        _render_labeled_trend("Total Energy Consumption — MWh", en.get("total_trend", []), "MWh", "#b45309", cm),
+        width=7.2 * inch, height=2.8 * inch))
+    story.append(Spacer(1, 12))
+
+    # Renewable vs Non-Renewable donut
+    comp = en.get("composition", [])
+    e_clr = {"Renewable Energy": "#16a34a", "Non-Renewable Energy": "#dc2626"}
+    d_img = Image(
+        _render_deep_donut("Energy Mix", comp, e_clr, total_e, "MWh"),
+        width=3.6 * inch, height=3.6 * inch)
+    comp_rows = [[c["category"], f"{c['value']:,.2f} MWh", f"{c['pct']:.1f}%"] for c in comp]
+    ct = _styled_table(["Type", "Value", "%"], comp_rows, col_widths=[130, 80, 50])
+    pair = Table([[d_img, ct]], colWidths=[3.8 * inch, 3.2 * inch], hAlign="LEFT")
+    pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    story.append(pair)
+    story.append(Spacer(1, 10))
+
+    # Renewable + Non-Renewable comparison trend
+    combined = {}
+    for d in en.get("renewable_trend", []):
+        combined.setdefault("Renewable", []).append(d)
+    for d in en.get("non_renewable_trend", []):
+        combined.setdefault("Non-Renewable", []).append(d)
+    comb_clr = {"Renewable": "#16a34a", "Non-Renewable": "#dc2626"}
+    story.append(Image(
+        _render_multiline_trend("Renewable vs Non-Renewable — MWh", combined, "MWh", comb_clr),
+        width=7.2 * inch, height=2.8 * inch))
+    story.append(PageBreak())
+
+
+def _sec_water_performance(story, styles, report):
+    """Water Performance section with individual metric trends."""
+    rd = report.get("resources_deep", {})
+    wa = rd.get("water", {})
+    if not wa:
+        return
+    cm = rd.get("current_month", "")
+    cm_label = rd.get("current_month_label", "")
+
+    story.append(ColoredSectionBar("Water Performance", "#0369a1"))
+    story.append(Spacer(1, 10))
+
+    # Consumption trend
+    story.append(Image(
+        _render_labeled_trend("Water Consumption — KL", wa.get("consumption_trend", []), "KL", "#0369a1", cm),
+        width=7.2 * inch, height=2.6 * inch))
+    story.append(Spacer(1, 10))
+
+    # Withdrawal + Discharge side by side
+    w_img = Image(
+        _render_labeled_trend("Water Withdrawal — KL", wa.get("withdrawal_trend", []), "KL", "#0284c7", cm, figsize=(3.5, 2.4)),
+        width=3.5 * inch, height=2.4 * inch)
+    d_img = Image(
+        _render_labeled_trend("Water Discharge — KL", wa.get("discharge_trend", []), "KL", "#0891b2", cm, figsize=(3.5, 2.4)),
+        width=3.5 * inch, height=2.4 * inch)
+    story.append(Table([[w_img, d_img]], colWidths=[3.6 * inch, 3.6 * inch], hAlign="LEFT"))
+    story.append(Spacer(1, 10))
+
+    # Recycle trend
+    story.append(Image(
+        _render_labeled_trend("Water Recycle — KL", wa.get("recycle_trend", []), "KL", "#059669", cm),
+        width=7.2 * inch, height=2.6 * inch))
+    story.append(PageBreak())
+
+
+def _sec_waste_performance(story, styles, report):
+    """Waste Performance section with hazardous/non-hazardous breakdown."""
+    rd = report.get("resources_deep", {})
+    ws = rd.get("waste", {})
+    if not ws:
+        return
+    cm = rd.get("current_month", "")
+    cm_label = rd.get("current_month_label", "")
+
+    story.append(ColoredSectionBar("Waste Performance", "#7e22ce"))
+    story.append(Spacer(1, 10))
+
+    # Main trends: Generated, Disposed, Recovered
+    story.append(Image(
+        _render_labeled_trend("Waste Generated — kg", ws.get("generated_trend", []), "kg", "#7e22ce", cm),
+        width=7.2 * inch, height=2.6 * inch))
+    story.append(Spacer(1, 8))
+
+    disp_img = Image(
+        _render_labeled_trend("Waste Disposed — kg", ws.get("disposed_trend", []), "kg", "#dc2626", cm, figsize=(3.5, 2.4)),
+        width=3.5 * inch, height=2.4 * inch)
+    rec_img = Image(
+        _render_labeled_trend("Waste Recovered — kg", ws.get("recovered_trend", []), "kg", "#16a34a", cm, figsize=(3.5, 2.4)),
+        width=3.5 * inch, height=2.4 * inch)
+    story.append(Table([[disp_img, rec_img]], colWidths=[3.6 * inch, 3.6 * inch], hAlign="LEFT"))
     story.append(Spacer(1, 14))
 
-    energy = report.get("energy", {})
-    water = report.get("water", {})
-    waste = report.get("waste", {})
+    # Hazardous vs Non-Hazardous comparison bar
+    cur = ws.get("current", {})
+    haz_gen = cur.get("haz_generated", 0)
+    haz_rec = cur.get("haz_recovered", 0)
+    haz_disp = max(haz_gen - haz_rec, 0)
+    nhaz_gen = cur.get("nonhaz_generated", 0)
+    nhaz_rec = cur.get("nonhaz_recovered", 0)
+    nhaz_disp = max(nhaz_gen - nhaz_rec, 0)
+    bar_groups = [
+        {"label": "Generated", "values": [haz_gen, nhaz_gen], "series_labels": ["Hazardous", "Non-Hazardous"]},
+        {"label": "Recovered", "values": [haz_rec, nhaz_rec], "series_labels": ["Hazardous", "Non-Hazardous"]},
+        {"label": "Disposed", "values": [haz_disp, nhaz_disp], "series_labels": ["Hazardous", "Non-Hazardous"]},
+    ]
+    story.append(Image(
+        _render_grouped_bar("Hazardous vs Non-Hazardous Waste", bar_groups, ["#dc2626", "#6366f1"], "kg"),
+        width=7.2 * inch, height=2.8 * inch))
+    story.append(Spacer(1, 12))
 
-    previous = report.get("previous_resources", {})
-    def rows_for(title, metrics):
-        story.append(Paragraph(title, ParagraphStyle(f"{title}Style", parent=styles["Heading3"], textColor=colors.HexColor(DARK), spaceAfter=6)))
-        rows = []
-        for label, current_value, previous_value, unit, lower_is_better in metrics:
-            status = "No activity in either period" if current_value == 0 and previous_value == 0 else _status_text(_pct_change(current_value, previous_value), lower_is_better)
-            rows.append([label, f"{current_value:,.2f} {unit}", f"{previous_value:,.2f} {unit}", status])
-        story.append(_styled_table(["Metric", "Current", "Previous", "Status"], rows, col_widths=[170, 105, 105, 125]))
-        story.append(Spacer(1, 10))
-    rows_for("Energy", [("Energy Consumption", energy.get("total", 0) or 0, previous.get("energy", {}).get("total", 0) or 0, "MWh", True), ("Renewable Energy", energy.get("renewable_pct", 0) or 0, previous.get("energy", {}).get("renewable_pct", 0) or 0, "%", False)])
-    rows_for("Water", [("Water Consumption", water.get("consumption", 0) or 0, previous.get("water", {}).get("consumption", 0) or 0, "KL", True), ("Water Recycled", water.get("recycled", 0) or 0, previous.get("water", {}).get("recycled", 0) or 0, "KL", False)])
-    rows_for("Waste", [("Waste Generated", waste.get("generated", 0) or 0, previous.get("waste", {}).get("generated", 0) or 0, "kg", True), ("Waste Recovery", waste.get("recovery_pct", 0) or 0, previous.get("waste", {}).get("recovery_pct", 0) or 0, "%", False)])
-    trends = report.get("twelve_month_resource_trends", {})
-    if trends:
-        charts = [[Image(_render_rolling_trend("12-Month Energy Trend", trends.get("energy", []), "MWh", "#d97706"), width=3.1*inch, height=2*inch), Image(_render_rolling_trend("12-Month Water Recycle", trends.get("water_recycle", []), "KL", "#0284c7"), width=3.1*inch, height=2*inch)], [Image(_render_rolling_trend("12-Month Waste Recovery", trends.get("waste_recovery", []), "%", "#7e22ce"), width=3.1*inch, height=2*inch), Image(_render_rolling_trend("12-Month Renewable Energy", trends.get("renewable_energy", []), "%", "#d97706"), width=3.1*inch, height=2*inch)]]
-        story.append(Table(charts, colWidths=[3.2*inch, 3.2*inch], hAlign="LEFT"))
+    # Hazardous trends side by side
+    haz_sub = ParagraphStyle("HazSub", fontName="Helvetica-Bold", fontSize=9, textColor=colors.HexColor("#dc2626"), spaceAfter=4)
+    nhaz_sub = ParagraphStyle("NHazSub", fontName="Helvetica-Bold", fontSize=9, textColor=colors.HexColor("#6366f1"), spaceAfter=4)
+
+    story.append(Paragraph("Hazardous Waste Trends", haz_sub))
+    hg = Image(_render_labeled_trend("Haz. Generated", ws.get("haz_generated_trend", []), "kg", "#dc2626", cm, figsize=(3.5, 2)), width=3.5*inch, height=2*inch)
+    hr = Image(_render_labeled_trend("Haz. Recovered", ws.get("haz_recovered_trend", []), "kg", "#f87171", cm, figsize=(3.5, 2)), width=3.5*inch, height=2*inch)
+    story.append(Table([[hg, hr]], colWidths=[3.6*inch, 3.6*inch], hAlign="LEFT"))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Non-Hazardous Waste Trends", nhaz_sub))
+    ng = Image(_render_labeled_trend("Non-Haz. Generated", ws.get("nonhaz_generated_trend", []), "kg", "#6366f1", cm, figsize=(3.5, 2)), width=3.5*inch, height=2*inch)
+    nr = Image(_render_labeled_trend("Non-Haz. Recovered", ws.get("nonhaz_recovered_trend", []), "kg", "#a78bfa", cm, figsize=(3.5, 2)), width=3.5*inch, height=2*inch)
+    story.append(Table([[ng, nr]], colWidths=[3.6*inch, 3.6*inch], hAlign="LEFT"))
     story.append(PageBreak())
 
 
@@ -1179,7 +1331,9 @@ def build_beautiful_executive_pdf(report: Dict[str, Any], organization_name: str
         _sec_emissions_analytics(story, styles, report)
         _sec_facility_performance(story, styles, report)
     if include_resources:
-        _sec_eww(story, styles, report)
+        _sec_energy_performance(story, styles, report)
+        _sec_water_performance(story, styles, report)
+        _sec_waste_performance(story, styles, report)
     if include_all or "social" in selected or "governance" in selected:
         _sec_incidents_compliance(story, styles, report)
     if include_targets:
