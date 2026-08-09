@@ -234,3 +234,12 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Admin: goyalsomil2001@gmail.com / TestUser123!
 - SuperAdmin: superadmin@ecotrack.com
 - Organization ID: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
+
+## MIS Reporting Enhancements — 2026-08-08
+- Added centralized reporting-period logic, FY/CY current-vs-prior-period semantics, FY/CY emissions trend mapping, direction-aware management statuses, action lists, and overflow-safe PDF table cells.
+- Legacy target directions temporarily fall back to target-name rules; explicit `target_direction` or `percentage_direction` remains authoritative.
+- Validation: `/app/test_reports/iteration_146.json` — 18 backend checks passed with no send/email actions.
+
+### Remaining MIS Reporting Work
+- Add aligned FY/CY comparison trend datasets/charts for energy, water recycle, waste recycle, and renewable energy.
+- Add a Target Settings UI to replace temporary legacy name-based direction fallback with stored configuration.
