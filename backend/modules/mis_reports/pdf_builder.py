@@ -595,6 +595,10 @@ def _sec_incidents_compliance(story, styles, report):
             note = ParagraphStyle("OpsTrendNote", parent=styles["Normal"], fontSize=8, textColor=colors.HexColor(TEXT_MUTED))
             story.append(Paragraph("12-month operational trends unavailable — insufficient approved historical data.", note))
             story.append(Spacer(1, 10))
+    else:
+        note = ParagraphStyle("OpsTrendEmptyNote", parent=styles["Normal"], fontSize=8, textColor=colors.HexColor(TEXT_MUTED))
+        story.append(Paragraph("12-month operational trends unavailable — insufficient approved historical data.", note))
+        story.append(Spacer(1, 10))
 
     compliance = report.get("compliance", [])
     if compliance:
