@@ -283,7 +283,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     esg_facility_filter = None if is_all_facilities else facility_ids
     current_resources = await build_resource_snapshot(organization_id, esg_facility_filter, filters)
     previous_resources = await build_resource_snapshot(organization_id, esg_facility_filter, previous_filters)
-    relationships = await db.supplier_relationships.find({"customer_org_id": organization_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0, "supplier_name": 1, "supplier_org_name": 1, "overall_score": 1, "invitation_status": 1}).to_list(1000)
+    relationships = await db.supplier_relationships.find({"customer_org_id": organization_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0, "supplier_name": 1, "supplier_org_name": 1, "company_name": 1, "overall_score": 1, "esg_score": 1, "ghg_score": 1, "overall_completion_percent": 1, "esg_completion_percent": 1, "ghg_completion_percent": 1, "invitation_status": 1}).to_list(1000)
     targets_raw = await db.esg_targets.find(
         {"organization_id": organization_id, "is_deleted": {"$ne": True}, "status": "active"},
         {"_id": 0},
