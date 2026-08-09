@@ -152,6 +152,15 @@ def _render_resource_fy_trend(title: str, trends: Dict[str, List[Dict]], unit: s
     ax.set_xticks(list(x)); ax.set_xticklabels(labels, fontsize=6); ax.set_ylabel(unit, fontsize=7); ax.grid(axis="y", alpha=.2); ax.legend(fontsize=6, frameon=False); ax.set_title(title, fontsize=9, fontweight="bold", color=DARK); fig.tight_layout(); return _fig_to_bytes(fig)
 
 
+def _render_target_comparison(targets: List[Dict]) -> io.BytesIO:
+    _setup_mpl(); configured = [target for target in targets if target.get("target_direction") in {"increase", "decrease", "maintain"} and target.get("target_value") is not None and target.get("actual_value") is not None]
+    if not configured: return _render_trend_chart([])
+    labels = [str(target.get("name", "Target"))[:22] for target in configured]; y = list(range(len(labels))); fig, ax = plt.subplots(figsize=(5.6, max(2.2, len(labels) * .45)))
+    ax.barh([value + .18 for value in y], [target["target_value"] for target in configured], height=.34, color="#7c3aed", label="Target")
+    ax.barh([value - .18 for value in y], [target["actual_value"] for target in configured], height=.34, color="#0f4c81", label="Current month")
+    ax.set_yticks(y); ax.set_yticklabels(labels, fontsize=7); ax.invert_yaxis(); ax.grid(axis="x", alpha=.2); ax.legend(fontsize=7, frameon=False); ax.set_title("Target Performance — Target vs Current Month", fontsize=10, fontweight="bold", color=DARK); fig.tight_layout(); return _fig_to_bytes(fig)
+
+
 def _render_facility_bar_chart(facility_breakdown: List[Dict]) -> io.BytesIO:
     _setup_mpl()
     data = facility_breakdown[:10]
@@ -448,12 +457,13 @@ def _sec_executive_summary(story, styles, report):
     emissions = kpis[0] if kpis else {}
     water, waste = report.get("water", {}), report.get("waste", {})
     targets = report.get("target_summary", {})
-    summary_rows = [
-        ["Emissions", f"{emissions.get('value', 0):,.2f} tCO2e", f"{emissions.get('previous', 0):,.2f} tCO2e", _status_text(emissions.get('change_pct'), True)],
-        ["Water", f"{water.get('consumption', 0):,.2f} KL", f"{report.get('previous_resources', {}).get('water', {}).get('consumption', 0):,.2f} KL", _status_text(_pct_change(water.get('consumption', 0), report.get('previous_resources', {}).get('water', {}).get('consumption', 0)), True)],
-        ["Waste Recovery", f"{waste.get('recovery_pct', 0):,.1f}%", f"{report.get('previous_resources', {}).get('waste', {}).get('recovery_pct', 0):,.1f}%", "No recovery benchmark configured"],
-        ["Target Progress", f"{targets.get('active', 0)} active targets", "", f"{targets.get('On Track', 0) + targets.get('Achieved', 0)} on track · {targets.get('At Risk', 0)} at risk · {targets.get('Behind', 0)} behind"],
-    ]
+    selected = set(report.get("selected_sections") or []); include_all = not selected
+    summary_rows = []
+    if include_all or "ghg" in selected: summary_rows.append(["GHG Emissions", f"{emissions.get('value', 0):,.2f} tCO2e", f"{emissions.get('previous', 0):,.2f} tCO2e", _status_text(emissions.get('change_pct'), True)])
+    if include_all or "energy" in selected: summary_rows.append(["Energy Consumption", f"{report.get('energy', {}).get('total', 0):,.2f} MWh", f"{report.get('previous_resources', {}).get('energy', {}).get('total', 0):,.2f} MWh", _status_text(_pct_change(report.get('energy', {}).get('total', 0), report.get('previous_resources', {}).get('energy', {}).get('total', 0)), True)])
+    if include_all or "water" in selected: summary_rows.append(["Water Consumption", f"{water.get('consumption', 0):,.2f} KL", f"{report.get('previous_resources', {}).get('water', {}).get('consumption', 0):,.2f} KL", _status_text(_pct_change(water.get('consumption', 0), report.get('previous_resources', {}).get('water', {}).get('consumption', 0)), True)])
+    if include_all or "waste" in selected: summary_rows.append(["Waste Generated", f"{waste.get('generated', 0):,.2f} kg", f"{report.get('previous_resources', {}).get('waste', {}).get('generated', 0):,.2f} kg", _status_text(_pct_change(waste.get('generated', 0), report.get('previous_resources', {}).get('waste', {}).get('generated', 0)), True)])
+    if include_all or bool(selected & {"voluntary_environment", "voluntary_social", "voluntary_governance", "sbti"}): summary_rows.append(["Target Progress", f"{targets.get('active', 0)} active targets", "", f"{targets.get('On Track', 0) + targets.get('Achieved', 0)} on track · {targets.get('At Risk', 0)} at risk · {targets.get('Behind', 0)} behind"])
     overall = report.get("overall_management_status", {})
     story.append(_styled_table(["Overall ESG Management Status", overall.get("status", "Monitor"), f"{overall.get('high_priority_count', 0)} high-priority item(s) require management review"], [["Management status", overall.get("status", "Monitor"), f"{overall.get('high_priority_count', 0)} high-priority item(s) require management review"]], col_widths=[160, 130, 215]))
     story.append(Spacer(1, 10))
@@ -602,15 +612,18 @@ def _sec_targets(story, styles, report):
                 t.get("name", "---"),
                 f"{tv:,.1f}" if tv else "---",
                 f"{av:,.1f}" if av is not None else "---",
+                f"{t.get('previous_actual_value'):,.1f}" if t.get("previous_actual_value") is not None else "Previous month unavailable",
                 t.get("unit", ""),
                 t.get("target_direction", "maintain").title(),
-                t.get("status", "No Data"),
-                f"{pct:.1f}%" if pct is not None else "---",
+                "Configuration Required" if t.get("target_direction") == "Not configured" else t.get("status", "No Data"),
+                f"{pct:.1f}%" if pct is not None and t.get("target_direction") != "Not configured" else "Configuration Required",
             ])
         story.append(_styled_table(
-            ["Target name", "Target", "Actual", "Unit", "Direction", "Status", "Progress"],
-            tgt_rows, col_widths=[105, 70, 70, 45, 60, 65, 55]
+            ["Target name", "Target", "Current month", "Previous month", "Unit", "Direction", "Status", "Progress"],
+            tgt_rows, col_widths=[90, 55, 60, 75, 35, 55, 60, 45]
         ))
+        story.append(Spacer(1, 14))
+        story.append(Image(_render_target_comparison(targets), width=5.6 * inch, height=max(2.2 * inch, min(4.2 * inch, len(targets) * .45 * inch))))
 
     story.append(Spacer(1, 16))
 
