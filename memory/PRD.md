@@ -278,3 +278,11 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Colour system**: Total=Dark Blue, Scope 1=Orange family, Scope 2=Blue family, Scope 3=Purple family, Biogenic=Green family. Sub-categories use distinct shades within their family.
 - **Data source**: Single MongoDB aggregation pipeline (`build_emissions_deep_data`) groups emissions by (period, scope, category) across 13 months in one query — no separate calculations.
 - **Files changed**: `service.py` (added `build_emissions_deep_data`), `pdf_builder.py` (added `_render_labeled_trend`, `_render_deep_donut`, `_render_multiline_trend`, `_sec_emissions_analytics`; replaced `_sec_emissions_overview`).
+
+
+### MIS Emissions Analytics — Bug Fixes — 2026-08-09
+- **GHG Emissions master heading**: Added "GHG Emissions" as the chapter title on the page after Executive Summary; Total Emissions, Scope 1-3, and Biogenic are now sub-sections with colored accent bars.
+- **All 15 Scope 3 categories**: Added `SCOPE3_CANONICAL` constant list (C1-C15). All 15 categories now always appear in composition and category trends even when their value is 0.
+- **Trend line breaks at missing data**: `_render_labeled_trend` and `_render_multiline_trend` now segment the line into consecutive non-None runs, creating visual gaps where months have no data instead of misleading straight lines.
+- **FY/CY annual record distribution**: `build_emissions_deep_data` now also queries emission records with FY (e.g. "FY 2025-2026"), CY (e.g. "CY2025"), and range (e.g. "2025-04 to 2026-03") reporting periods. These are distributed evenly (value/12) across their constituent months. Helper `_period_to_months(period_str, fy_start_month)` handles all formats.
+- **Validation**: `/app/test_reports/iteration_153.json` — 7 new tests + 28 regression tests, 100% pass rate.
