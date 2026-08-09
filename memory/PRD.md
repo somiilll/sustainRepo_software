@@ -247,3 +247,7 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ### MIS Resource Source of Truth — 2026-08-08
 - MIS resource snapshots now consume dashboard metric-service energy, water, recycle, waste, and recovery values directly; detailed-record overrides were removed.
 - Validation: `/app/test_reports/iteration_147.json` — 20 pure MIS tests passed, with no Send Now, emails, or data mutation.
+
+### MIS Executive Summary Energy Routing — 2026-08-08
+- Energy Consumption now appears in the Executive Summary whenever GHG is selected, preserving compatibility with existing configurations that do not have a standalone Energy selector.
+- Validation: `/app/test_reports/iteration_150.json` — 3 targeted tests passed with no delivery side effects.
