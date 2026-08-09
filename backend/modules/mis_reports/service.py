@@ -1056,6 +1056,63 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
 
 
 
+SCOPE3_CANONICAL = [
+    "C1 - Purchased Goods and Services",
+    "C2 - Capital Goods",
+    "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "C4 - Upstream Transportation and Distribution",
+    "C5 - Waste Generated in Operations",
+    "C6 - Business Travel",
+    "C7 - Employee Commuting",
+    "C8 - Upstream Leased Assets",
+    "C9 - Downstream Transportation and Distribution",
+    "C10 - Processing of Sold Products",
+    "C11 - Use of Sold Products",
+    "C12 - End-of-Life Treatment of Sold Products",
+    "C13 - Downstream Leased Assets",
+    "C14 - Franchises",
+    "C15 - Investments",
+]
+
+
+def _period_to_months(period_str: str, fy_start_month: int = 4) -> List[str]:
+    """Parse FY/CY/range period strings into a list of YYYY-MM months they cover."""
+    import re as _re
+    if not period_str:
+        return []
+    # CY format: "CY2025", "CY 2025"
+    cy = _re.match(r"CY\s*(\d{4})", period_str, _re.I)
+    if cy:
+        y = int(cy.group(1))
+        return [f"{y}-{m:02d}" for m in range(1, 13)]
+    # Range: "2025-01 to 2025-12", "2025-04 to 2025-03"
+    rng = _re.match(r"(\d{4}-\d{2})\s*to\s*(\d{4}-\d{2})", period_str, _re.I)
+    if rng:
+        s = datetime.strptime(rng.group(1), "%Y-%m").date()
+        e = datetime.strptime(rng.group(2), "%Y-%m").date()
+        if e < s:
+            e = e.replace(year=e.year + 1)
+        out, cur = [], s
+        while cur <= e:
+            out.append(cur.strftime("%Y-%m"))
+            cur += relativedelta(months=1)
+        return out
+    # FY format: "FY 2025-2026", "FY 2025-26", "2025-2026", "2025-26"
+    fy = _re.match(r"(?:FY\s*)?(\d{4})-(\d{2,4})$", period_str, _re.I)
+    if fy:
+        start_year = int(fy.group(1))
+        out = []
+        for i in range(12):
+            m = fy_start_month + i
+            y = start_year
+            if m > 12:
+                m -= 12
+                y += 1
+            out.append(f"{y}-{m:02d}")
+        return out
+    return []
+
+
 async def build_emissions_deep_data(report: Dict[str, Any], filters: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
     """Fetch granular per-scope, per-category emissions for 12-13 months via a single aggregation."""
     ctx = report.get("reporting_context")
@@ -1066,8 +1123,11 @@ async def build_emissions_deep_data(report: Dict[str, Any], filters: Dict[str, A
 
     current_month = current_start.strftime("%Y-%m")
     months = [(current_start - relativedelta(months=i)).strftime("%Y-%m") for i in range(12, -1, -1)]
+    months_set = set(months)
     fac_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
+    org_id = current_user.get("organization_id")
 
+    # ── 1. Monthly records (exact YYYY-MM match) ──
     pipeline = [
         {"$match": {"facility_id": {"$in": fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months}}},
         {"$addFields": {"_ev": {"$toDouble": {"$ifNull": ["$co2e_emissions", 0]}}}},
@@ -1080,10 +1140,49 @@ async def build_emissions_deep_data(report: Dict[str, Any], filters: Dict[str, A
         p, s, c = r["_id"]["p"], r["_id"]["s"], r["_id"]["c"]
         tree.setdefault(p, {}).setdefault(s, {})[c] = round(r["v"], 4)
 
-    def _block(sk: str) -> dict:
+    # ── 2. FY / CY / range annual records — distribute across months ──
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "financial_year_start_month": 1})
+    fy_month = int((org or {}).get("financial_year_start_month") or 4)
+
+    from shared.utils.period_utils import period_variants as _pv
+    annual_candidates: List[str] = []
+    for y in {int(m[:4]) for m in months}:
+        annual_candidates.extend(_pv(y, "FY"))
+        annual_candidates.extend(_pv(y - 1, "FY"))
+        annual_candidates.extend([f"CY{y}", f"CY {y}"])
+
+    # Also catch range-style periods
+    annual_recs = await db.emission_records.find(
+        {"facility_id": {"$in": fac_ids}, "scope": {"$in": ALL_SCOPES},
+         "$or": [{"reporting_period": {"$in": annual_candidates}},
+                 {"reporting_period": {"$regex": r"\d{4}-\d{2}\s*to\s*\d{4}-\d{2}"}}]},
+        {"_id": 0, "scope": 1, "category": 1, "co2e_emissions": 1, "reporting_period": 1},
+    ).to_list(10000)
+
+    for rec in annual_recs:
+        covered = _period_to_months(rec.get("reporting_period", ""), fy_month)
+        if not covered:
+            continue
+        try:
+            val = float(rec.get("co2e_emissions") or 0)
+        except (TypeError, ValueError):
+            continue
+        if val == 0:
+            continue
+        share = round(val / len(covered), 6)
+        scope = rec.get("scope", "")
+        cat = rec.get("category") or "Uncategorized"
+        for cm in covered:
+            if cm in months_set:
+                tree.setdefault(cm, {}).setdefault(scope, {})[cat] = round(tree.get(cm, {}).get(scope, {}).get(cat, 0) + share, 4)
+
+    # ── 3. Build output ──
+    def _block(sk: str, canonical_cats: Optional[List[str]] = None) -> dict:
         cats: set = set()
         for m in months:
             cats.update(tree.get(m, {}).get(sk, {}).keys())
+        if canonical_cats:
+            cats.update(canonical_cats)
         trend = []
         for m in months:
             sc = tree.get(m, {}).get(sk)
@@ -1115,6 +1214,8 @@ async def build_emissions_deep_data(report: Dict[str, Any], filters: Dict[str, A
         "months": months, "current_month": current_month,
         "current_month_label": current_start.strftime("%B %Y"),
         "total": {"trend": total_trend, "current_value": round(tc, 2), "composition": scope_comp},
-        "scope1": _block("scope1"), "scope2": _block("scope2"),
-        "scope3": _block("scope3"), "biogenic": _block("biogenic"),
+        "scope1": _block("scope1"),
+        "scope2": _block("scope2"),
+        "scope3": _block("scope3", canonical_cats=SCOPE3_CANONICAL),
+        "biogenic": _block("biogenic"),
     }

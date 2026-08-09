@@ -273,9 +273,23 @@ def _render_labeled_trend(title: str, trend: list, unit: str, color: str,
         ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
         return _fig_to_bytes(fig)
 
-    ax.plot(valid_x, valid_y, color=color, linewidth=2.5, marker="o",
-            markersize=5, zorder=3)
-    ax.fill_between(valid_x, valid_y, alpha=0.08, color=color)
+    # Break the line into segments of consecutive non-None values
+    segments = []
+    seg_x, seg_y = [], []
+    for i, v in enumerate(values):
+        if v is not None:
+            seg_x.append(i)
+            seg_y.append(v)
+        else:
+            if seg_x:
+                segments.append((list(seg_x), list(seg_y)))
+            seg_x, seg_y = [], []
+    if seg_x:
+        segments.append((seg_x, seg_y))
+
+    for sx, sy in segments:
+        ax.plot(sx, sy, color=color, linewidth=2.5, marker="o", markersize=5, zorder=3)
+        ax.fill_between(sx, sy, alpha=0.08, color=color)
 
     # Highlight current month with a larger marker
     cur_idx = next((i for i, d in enumerate(trend) if d["period"] == current_month), None)
@@ -391,8 +405,21 @@ def _render_multiline_trend(title: str, cat_trends: dict, unit: str,
         vy = [v for v in vals if v is not None]
         clr = color_map.get(cat_name, fallback_colors[idx % len(fallback_colors)])
         if vy:
-            ax.plot(vx, vy, color=clr, linewidth=1.8, marker="o", markersize=3,
-                    label=cat_name[:28])
+            # Break line at None gaps
+            segs = []
+            sx, sy = [], []
+            for i, v in enumerate(vals):
+                if v is not None:
+                    sx.append(i); sy.append(v)
+                else:
+                    if sx:
+                        segs.append((list(sx), list(sy)))
+                    sx, sy = [], []
+            if sx:
+                segs.append((sx, sy))
+            for si, (seg_x, seg_y) in enumerate(segs):
+                ax.plot(seg_x, seg_y, color=clr, linewidth=1.8, marker="o", markersize=3,
+                        label=cat_name[:28] if si == 0 else None)
         else:
             ax.plot([], [], color=clr, linewidth=1.8, label=f"{cat_name[:28]} (no data)")
 
@@ -821,9 +848,17 @@ def _sec_emissions_analytics(story, styles, report):
         return {}
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # GHG EMISSIONS — master heading
+    # ═══════════════════════════════════════════════════════════════════════════
+    chapter_s = ParagraphStyle("EAChapter", parent=styles["Title"], fontSize=20,
+                               textColor=colors.HexColor(DARK), spaceAfter=4, alignment=TA_LEFT)
+    story.append(Paragraph("GHG Emissions", chapter_s))
+    story.append(Spacer(1, 10))
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # TOTAL EMISSIONS
     # ═══════════════════════════════════════════════════════════════════════════
-    story.append(SectionHeader("2", "Total Emissions"))
+    story.append(ColoredSectionBar("Total Emissions", EA_COLORS["total"]))
     story.append(Spacer(1, 6))
     total = deep.get("total", {})
     story.append(Paragraph(f"{cm_label}: {total.get('current_value', 0):,.2f} tCO2e", val_style))
@@ -855,7 +890,7 @@ def _sec_emissions_analytics(story, styles, report):
     # ═══════════════════════════════════════════════════════════════════════════
     def _add_scope_page(scope_key, section_num, title, color):
         block = deep.get(scope_key, {})
-        story.append(SectionHeader(section_num, title))
+        story.append(ColoredSectionBar(title, color))
         story.append(Spacer(1, 6))
         cv = block.get("current_value")
         story.append(Paragraph(f"{cm_label}: {cv:,.2f} tCO2e" if cv is not None else f"{cm_label}: No data", val_style))
@@ -917,7 +952,7 @@ def _sec_emissions_analytics(story, styles, report):
     # SCOPE 2
     # ═══════════════════════════════════════════════════════════════════════════
     block2 = deep.get("scope2", {})
-    story.append(SectionHeader("4", "Scope 2 Emissions"))
+    story.append(ColoredSectionBar("Scope 2 Emissions", EA_COLORS["scope2"]))
     story.append(Spacer(1, 6))
     cv2 = block2.get("current_value")
     story.append(Paragraph(f"{cm_label}: {cv2:,.2f} tCO2e" if cv2 is not None else f"{cm_label}: No data", val_style))
