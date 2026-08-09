@@ -188,10 +188,13 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
             "baseline_period": (t.get("baseline") or {}).get("period"),
             "unit": t.get("unit", ""),
             "category": t.get("category", ""),
+            "section": t.get("section", "environment"),
+            "tracking_mode": t.get("tracking_mode", "static"),
             "kpi_name": t.get("kpi_name", ""),
             "reporting_period": t.get("reporting_period", ""),
             "actual_value": None,
             "progress_pct": None,
+            "gap": None,
             "target_type": t.get("target_type", "absolute"),
             "goal_type": t.get("goal_type", "upper_limit"),
             "target_direction": t.get("target_direction") or t.get("percentage_direction") or inferred_legacy_target_direction(t.get("name") or t.get("target_name", "")),
@@ -237,6 +240,8 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
                 entry["progress_pct"] = round(progress["percentage"], 1) if progress["percentage"] is not None else None
                 if target_value is not None:
                     entry["target_value"] = target_value
+                if actual_value is not None and target_value is not None:
+                    entry["gap"] = round(actual_value - target_value, 4)
                 direction, status = target_direction_and_status(actual_value, target_value, entry["target_direction"])
                 entry["target_direction"] = direction
                 entry["status"] = status

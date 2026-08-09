@@ -331,3 +331,11 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **New Supplier Assessment section**: Overall Supplier Ranking table (Rank | Supplier | Overall/ESG/Emissions scores), Emissions vs ESG side-by-side ranking tables. "Not Assessed" shown for suppliers without scores (never converted to 0). Horizontal bar chart shown when assessed suppliers exist.
 - **Files changed**: `service.py` (fixed `build_twelve_month_operational_trends` incident filter + context handling), `pdf_sections.py` (rewrote `_sec_incidents_compliance`, added `_sec_supplier_assessment`), `pdf_builder.py` (added supplier section call + import).
 - **Report size**: 32 pages / 1.7MB. 35 MIS tests passing.
+
+
+### MIS Targets Section — Complete Redesign — 2026-08-09
+- **Individual target visual blocks**: Each target gets its own card with Name, Type (Yearly/Static/Monthly), Period, Direction, Target Value, Actual Value, Achievement %, Gap, Status — plus a dedicated Actual vs Target horizontal bar chart.
+- **Grouped by section**: Targets organized under Environment, Social, Governance, SBTi headings with colored accent bars.
+- **Direction-aware comparison**: Respects whether higher or lower is better (increase/decrease/maintain). Uses existing Targets module evaluation logic.
+- **Fixed enrichment**: Added `tracking_mode`, `section`, and `gap` fields to `_enrich_targets_with_progress`.
+- 34-page / 1.75MB report. 35 MIS tests passing.

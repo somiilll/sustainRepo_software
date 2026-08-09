@@ -744,42 +744,105 @@ def _sec_supplier_assessment(story, styles, report):
     story.append(PageBreak())
 
 
+def _render_target_bar(target_val, actual_val, unit, figsize=(5.5, 1.4)):
+    """Small horizontal actual-vs-target comparison bar."""
+    from .pdf_charts import _setup_mpl, _fig_to_bytes
+    import matplotlib.pyplot as plt
+    _setup_mpl()
+    fig, ax = plt.subplots(figsize=figsize)
+    labels = ["Target", "Actual"]
+    vals = [target_val or 0, actual_val or 0]
+    bar_colors = ["#7c3aed", "#0f4c81"]
+    bars = ax.barh(labels, vals, color=bar_colors, height=0.55, edgecolor="white")
+    for bar, v in zip(bars, vals):
+        ax.text(bar.get_width() + max(max(vals) * 0.02, 0.1), bar.get_y() + bar.get_height() / 2,
+                f"{v:,.2f}", va="center", fontsize=8, color="#0f172a")
+    ax.invert_yaxis(); ax.grid(axis="x", alpha=0.15)
+    ax.set_xlabel(unit, fontsize=7); ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
+    fig.tight_layout(); return _fig_to_bytes(fig)
+
+
 def _sec_targets(story, styles, report):
-    story.append(SectionHeader("6", "Targets & Progress"))
-    story.append(Spacer(1, 14))
+    """Targets section — individual visual blocks per target, grouped by section."""
+    story.append(SectionHeader("7", "Targets"))
+    story.append(Spacer(1, 10))
 
     targets = report.get("targets", [])
+    target_summary = report.get("target_summary", {})
+
     if not targets:
-        nd = ParagraphStyle("ND", parent=styles["Normal"], fontSize=10, textColor=colors.HexColor(TEXT_MUTED))
-        story.append(Paragraph("No ESG targets have been set for this organization.", nd))
-    else:
-        tgt_rows = []
-        for t in targets:
-            tv = t.get("target_value") or 0
+        story.append(Paragraph("No ESG targets have been set for this organisation.", ParagraphStyle("ND", parent=styles["Normal"], fontSize=10, textColor=colors.HexColor(TEXT_MUTED))))
+        story.append(PageBreak())
+        return
+
+    note_s = ParagraphStyle("TgtNote", fontName="Helvetica", fontSize=8, textColor=colors.HexColor(TEXT_MUTED), spaceAfter=2)
+
+    # ── Summary ──
+    summary_rows = [
+        ["Active Targets", str(target_summary.get("active", len(targets)))],
+        ["On Track", str(target_summary.get("On Track", 0))],
+        ["Achieved", str(target_summary.get("Achieved", 0))],
+        ["At Risk", str(target_summary.get("At Risk", 0))],
+        ["Behind", str(target_summary.get("Behind", 0))],
+    ]
+    story.append(_styled_table(["Status", "Count"], summary_rows, col_widths=[200, 100]))
+    story.append(Spacer(1, 14))
+
+    # ── Group targets by section ──
+    sections_order = ["environment", "social", "governance", "sbti"]
+    section_labels = {"environment": "Environment", "social": "Social", "governance": "Governance", "sbti": "SBTi"}
+    grouped = {}
+    for t in targets:
+        sec = t.get("section", "environment")
+        grouped.setdefault(sec, []).append(t)
+
+    for sec_key in sections_order:
+        sec_targets = grouped.get(sec_key)
+        if not sec_targets:
+            continue
+
+        story.append(ColoredSectionBar(f"{section_labels.get(sec_key, sec_key)} Targets", "#4f46e5"))
+        story.append(Spacer(1, 8))
+
+        for t in sec_targets:
+            name = t.get("name", "Unnamed Target")
+            tracking_mode = t.get("tracking_mode", "static")
+            tv = t.get("target_value")
             av = t.get("actual_value")
             pct = t.get("progress_pct")
-            tgt_rows.append([
-                t.get("name", "---"),
-                f"{tv:,.1f}" if tv else "---",
-                f"{av:,.1f}" if av is not None else "---",
-                f"{t.get('previous_actual_value'):,.1f}" if t.get("previous_actual_value") is not None else "Previous month unavailable",
-                t.get("unit", ""),
-                t.get("target_direction", "maintain").title(),
-                "Configuration Required" if t.get("target_direction") == "Not configured" else t.get("status", "No Data"),
-                f"{pct:.1f}%" if pct is not None and t.get("target_direction") != "Not configured" else "Configuration Required",
-            ])
-        story.append(_styled_table(
-            ["Target name", "Target", "Current month", "Previous month", "Unit", "Direction", "Status", "Progress"],
-            tgt_rows, col_widths=[90, 55, 60, 75, 35, 55, 60, 45]
-        ))
-        story.append(Spacer(1, 14))
-        story.append(Image(_render_target_comparison(targets), width=5.6 * inch, height=max(2.2 * inch, min(4.2 * inch, len(targets) * .45 * inch))))
+            gap = t.get("gap")
+            status = t.get("status", "No Data")
+            direction = t.get("target_direction", "maintain")
+            unit = t.get("unit", "")
+            period = t.get("reporting_period", "")
 
-    story.append(Spacer(1, 16))
+            tgt_hdr = ParagraphStyle("TgtHdr", fontName="Helvetica-Bold", fontSize=10, textColor=colors.HexColor("#0f4c81"), spaceAfter=2)
+            story.append(Paragraph(name, tgt_hdr))
 
+            mode_label = {"yearly": "Yearly", "static": "Static", "monthly": "Monthly"}.get(tracking_mode, tracking_mode.title())
+            story.append(Paragraph(f"{mode_label} Target  |  {period}  |  Direction: {direction.title()}", note_s))
+
+            info_rows = [
+                ["Target Value", f"{tv:,.2f} {unit}" if tv is not None else "Not set"],
+                ["Actual Value", f"{av:,.2f} {unit}" if av is not None else "No data"],
+                ["Achievement", f"{pct:.1f}%" if pct is not None else "N/A"],
+                ["Gap", f"{gap:+,.2f} {unit}" if gap is not None else "N/A"],
+                ["Status", status],
+            ]
+            story.append(_styled_table(["", ""], info_rows, col_widths=[120, 200]))
+            story.append(Spacer(1, 6))
+
+            if tv is not None and av is not None:
+                story.append(Image(_render_target_bar(tv, av, unit), width=5.5 * inch, height=1.4 * inch))
+
+            story.append(Spacer(1, 14))
+
+    story.append(PageBreak())
+
+    # ── Insights & Actions ──
     insights = report.get("insights", [])
     if insights:
-        story.append(SectionHeader("7", "Key Insights"))
+        story.append(SectionHeader("8", "Key Insights"))
         story.append(Spacer(1, 12))
         ins_s = ParagraphStyle("Ins", parent=styles["Normal"], fontSize=9,
                                textColor=colors.HexColor(TEXT_PRIMARY), spaceAfter=4, leftIndent=20)
@@ -788,7 +851,7 @@ def _sec_targets(story, styles, report):
     actions = report.get("actions", [])
     if actions:
         story.append(Spacer(1, 14))
-        story.append(SectionHeader("8", "Management Actions"))
+        story.append(SectionHeader("9", "Management Actions"))
         story.append(Spacer(1, 8))
         action_rows = [[action.get("priority", "Medium"), action.get("area", "Management"), action.get("action", "Review")]
                        for action in actions]
