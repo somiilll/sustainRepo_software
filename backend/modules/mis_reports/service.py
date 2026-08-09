@@ -308,6 +308,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     energy_total = energy.get("total", 0) or 0
     incidents = await db.governance_records.count_documents({
         "org_id": organization_id,
+        **_governance_period_filter(filters["reporting_period_start"]),
         "approval_status": {"$in": ["approved", "not_required", None]},
         "$or": [
             {"subcategory": "Health & Safety Incidents"},
@@ -1055,7 +1056,7 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
     # ── Social & Governance ──
     show_social = include_all or "social" in selected or "governance" in selected
     if show_social:
-        total_incidents = ops.get("incident_count", 0)
+        total_incidents = inc_tm.get(period_start, 0)
         sections.append({
             "key": "social_governance", "title": "Social & Governance", "color": "#312e81",
             "metrics": [
