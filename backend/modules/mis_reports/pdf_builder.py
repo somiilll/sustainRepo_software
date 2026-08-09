@@ -37,7 +37,7 @@ from .pdf_sections import (                                     # noqa: F401
     _sec_cover, _sec_executive_summary, _sec_emissions_analytics,
     _sec_facility_performance, _sec_energy_performance,
     _sec_water_performance, _sec_waste_performance,
-    _sec_incidents_compliance, _sec_targets,
+    _sec_incidents_compliance, _sec_supplier_assessment, _sec_targets,
 )
 
 
@@ -108,6 +108,7 @@ def build_beautiful_executive_pdf(report: Dict[str, Any], organization_name: str
         _sec_waste_performance(story, styles, report)
     if include_all or "social" in selected or "governance" in selected:
         _sec_incidents_compliance(story, styles, report)
+        _sec_supplier_assessment(story, styles, report)
     if include_targets:
         _sec_targets(story, styles, report)
 

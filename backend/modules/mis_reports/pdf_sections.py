@@ -595,58 +595,151 @@ def _sec_waste_performance(story, styles, report):
 
 
 def _sec_incidents_compliance(story, styles, report):
+    """Incidents & Compliance — LTIFR, AP Days, Incidents with full-width trends."""
     story.append(SectionHeader("5", "Incidents & Compliance"))
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 10))
 
     ops = report.get("operational_kpis", {})
-    ops_rows = [
-        ["Safety Incidents", str(ops.get("incident_count", 0))],
-        ["LTIFR", f"{ops['ltifr']:,.2f}" if ops.get("ltifr") is not None else "Not reported"],
-        ["GHG Intensity", f"{ops['ghg_intensity']:,.4f}" if ops.get("ghg_intensity") is not None else "Not reported"],
-        ["Energy Intensity", f"{ops['energy_intensity']:,.4f}" if ops.get("energy_intensity") is not None else "Not reported"],
-        ["Account Payable Days", f"{ops['account_payable_days']:,.1f}" if ops.get("account_payable_days") is not None else "Not reported"],
+    operational_trends = report.get("twelve_month_operational_trends", {})
+    current_month = ""
+    ed = report.get("emissions_deep", {})
+    if ed:
+        current_month = ed.get("current_month", "")
+
+    val_s = ParagraphStyle("ICVal", fontName="Helvetica-Bold", fontSize=12, textColor=colors.HexColor(DARK), spaceAfter=2)
+    note_s = ParagraphStyle("ICNote", fontName="Helvetica", fontSize=8, textColor=colors.HexColor(TEXT_MUTED), spaceAfter=4)
+
+    # ── Key Metrics (no GHG/Energy Intensity) ──
+    ltifr_val = ops.get("ltifr")
+    ap_val = ops.get("account_payable_days")
+    incident_count = ops.get("incident_count", 0)
+
+    kpi_rows = [
+        ["LTIFR", f"{ltifr_val:,.2f}" if ltifr_val is not None else "Not reported"],
+        ["Account Payable Days", f"{ap_val:,.1f} days" if ap_val is not None else "Not reported"],
+        ["Number of Incidents", str(incident_count)],
     ]
-    story.append(_styled_table(["Operational KPI", "Value"], ops_rows, col_widths=[250, 200]))
+    story.append(_styled_table(["Metric", "Value"], kpi_rows, col_widths=[250, 200]))
     story.append(Spacer(1, 16))
 
-    operational_trends = report.get("twelve_month_operational_trends", {})
-    if operational_trends:
-        available = {key: series for key, series in operational_trends.items() if any(point.get("value") is not None for point in series)}
-        if available:
-            story.append(Paragraph("12-Month Operational Trends", ParagraphStyle("OpsTrendTitle", parent=styles["Heading3"], textColor=colors.HexColor(DARK), spaceAfter=8)))
-            charts = []
-            chart_specs = [("incidents", "12-Month Incidents Trend", "Count", "#4f46e5"), ("ltifr", "12-Month LTIFR Trend", "LTIFR", "#0f4c81"), ("account_payable_days", "12-Month Account Payable Days", "Days", "#475569")]
-            for key, title, unit, color in chart_specs:
-                if key in available:
-                    charts.append(Image(_render_rolling_trend(title, available[key], unit, color), width=3.1 * inch, height=2 * inch))
-            chart_rows = [charts[index:index + 2] for index in range(0, len(charts), 2)]
-            if len(chart_rows[-1]) == 1:
-                chart_rows[-1].append(Spacer(3.1 * inch, 2 * inch))
-            story.append(Table(chart_rows, colWidths=[3.2 * inch, 3.2 * inch], hAlign="LEFT"))
-            story.append(Spacer(1, 14))
-        else:
-            note = ParagraphStyle("OpsTrendNote", parent=styles["Normal"], fontSize=8, textColor=colors.HexColor(TEXT_MUTED))
-            story.append(Paragraph("12-month operational trends unavailable — insufficient approved historical data.", note))
-            story.append(Spacer(1, 10))
+    # ── LTIFR Trend (full-width) — only when LTIFR is actually reported ──
+    ltifr_series = operational_trends.get("ltifr", [])
+    ltifr_has_data = any(p.get("value") is not None for p in ltifr_series)
+    if ltifr_val is not None and ltifr_has_data:
+        story.append(Image(
+            _render_labeled_trend("LTIFR Trend", ltifr_series, "LTIFR", "#0f4c81", current_month),
+            width=7.2 * inch, height=2.8 * inch))
     else:
-        note = ParagraphStyle("OpsTrendEmptyNote", parent=styles["Normal"], fontSize=8, textColor=colors.HexColor(TEXT_MUTED))
-        story.append(Paragraph("12-month operational trends unavailable — insufficient approved historical data.", note))
-        story.append(Spacer(1, 10))
+        story.append(Paragraph("LTIFR trend unavailable — no reported LTIFR data.", note_s))
+    story.append(Spacer(1, 14))
 
+    # ── Incident Trend (full-width, per-month actual data) ──
+    incident_series = operational_trends.get("incidents", [])
+    incident_has_data = any(p.get("value") is not None for p in incident_series)
+    if incident_has_data:
+        story.append(Image(
+            _render_labeled_trend("Incident Trend", incident_series, "Count", "#4f46e5", current_month),
+            width=7.2 * inch, height=2.8 * inch))
+    else:
+        story.append(Paragraph("Incident trend unavailable — no reported incident data.", note_s))
+    story.append(Spacer(1, 12))
+
+    # ── Current Month Incident Breakdown ──
+    exec_data = report.get("executive_summary", {})
+    ib = {}
+    for sec in exec_data.get("sections", []):
+        if sec.get("key") == "social_governance" and sec.get("incident_breakdown"):
+            ib = sec["incident_breakdown"]
+            break
+    if ib:
+        bd_rows = [
+            ["Safety Incidents", str(ib.get("safety_incidents", 0))],
+            ["Data Breaches", str(ib.get("data_breaches", 0))],
+            ["Violations", str(ib.get("violations", 0))],
+            ["Total Incidents", str(ib.get("total", incident_count))],
+        ]
+        story.append(_styled_table(["Incident Type", "Current Month"], bd_rows, col_widths=[200, 120]))
+        story.append(Spacer(1, 12))
+
+    # ── Account Payable Days Trend (full-width) ──
+    ap_series = operational_trends.get("account_payable_days", [])
+    ap_has_data = any(p.get("value") is not None for p in ap_series)
+    if ap_has_data:
+        story.append(Image(
+            _render_labeled_trend("Account Payable Days Trend", ap_series, "Days", "#475569", current_month),
+            width=7.2 * inch, height=2.8 * inch))
+        story.append(Spacer(1, 12))
+
+    # ── Compliance frameworks ──
     compliance = report.get("compliance", [])
     if compliance:
         comp_rows = [[r["framework"], f"{r['completion_pct']:.1f}%"] for r in compliance]
         story.append(_styled_table(["Framework", "Completion"], comp_rows, col_widths=[280, 120]))
-        story.append(Spacer(1, 12))
 
+    story.append(PageBreak())
+
+
+def _sec_supplier_assessment(story, styles, report):
+    """Supplier Assessment — Overall, Emissions, and ESG rankings."""
+    scores = report.get("supplier_scores", [])
     sa = report.get("supplier_assessment", {})
-    if sa:
-        sa_rows = [
-            ["Suppliers Assessed", str(sa.get("suppliers_assessed", 0))],
-            ["High-Risk Suppliers", str(sa.get("high_risk_suppliers", 0))],
-            ["Pending Assessments", str(sa.get("pending_assessments", 0))],
-        ]
-        story.append(_styled_table(["Supplier Assessment", "Count"], sa_rows, col_widths=[250, 120]))
+    if not scores and not sa:
+        return
+
+    story.append(SectionHeader("6", "Supplier Assessment"))
+    story.append(Spacer(1, 10))
+
+    # Prepare supplier data with proper naming
+    suppliers = []
+    for s in scores:
+        name = s.get("supplier_name") or s.get("company_name") or s.get("supplier_org_name") or f"Supplier {len(suppliers)+1}"
+        suppliers.append({
+            "name": name,
+            "overall": s.get("overall_score"),
+            "esg": s.get("esg_score"),
+            "ghg": s.get("ghg_score"),
+            "status": s.get("invitation_status", "pending"),
+        })
+
+    def _score_fmt(v):
+        if v is None:
+            return "Not Assessed"
+        return f"{v:.1f}"
+
+    # ── Overall Supplier Ranking ──
+    overall_sorted = sorted(suppliers, key=lambda x: -(x["overall"] or -1))
+    overall_rows = []
+    for i, s in enumerate(overall_sorted, 1):
+        overall_rows.append([str(i), s["name"], _score_fmt(s["overall"]), _score_fmt(s["esg"]), _score_fmt(s["ghg"])])
+    story.append(ColoredSectionBar("Overall Supplier Ranking", "#0f4c81"))
+    story.append(Spacer(1, 6))
+    story.append(_styled_table(["Rank", "Supplier", "Overall Score", "ESG Score", "Emissions Score"], overall_rows, col_widths=[35, 160, 80, 80, 80]))
+    story.append(Spacer(1, 10))
+
+    # Overall ranking bar chart
+    assessed = [s for s in overall_sorted if s["overall"] is not None]
+    if assessed:
+        bar_data = [{"facility": s["name"], "emissions": s["overall"]} for s in assessed]
+        story.append(Image(
+            _render_facility_bar_chart(bar_data),
+            width=7.2 * inch, height=max(1.8 * inch, min(len(assessed) * 0.45 * inch, 4 * inch))))
+    story.append(Spacer(1, 14))
+
+    # ── Emissions + ESG Rankings side by side ──
+    ghg_sorted = sorted(suppliers, key=lambda x: -(x["ghg"] or -1))
+    esg_sorted = sorted(suppliers, key=lambda x: -(x["esg"] or -1))
+
+    ghg_rows = [[str(i), s["name"][:22], _score_fmt(s["ghg"])] for i, s in enumerate(ghg_sorted, 1)]
+    esg_rows = [[str(i), s["name"][:22], _score_fmt(s["esg"])] for i, s in enumerate(esg_sorted, 1)]
+
+    ghg_table = _styled_table(["#", "Supplier", "Emissions"], ghg_rows, col_widths=[25, 115, 60])
+    esg_table = _styled_table(["#", "Supplier", "ESG"], esg_rows, col_widths=[25, 115, 60])
+
+    story.append(ColoredSectionBar("Supplier Rankings — Emissions vs ESG", "#7c3aed"))
+    story.append(Spacer(1, 6))
+    pair = Table([[ghg_table, esg_table]], colWidths=[3.4 * inch, 3.4 * inch], hAlign="LEFT")
+    pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    story.append(pair)
 
     story.append(PageBreak())
 

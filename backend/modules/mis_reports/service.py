@@ -424,15 +424,20 @@ async def build_twelve_month_resource_trends(filters: Dict[str, Any], current_us
 
 
 async def build_twelve_month_operational_trends(filters: Dict[str, Any], current_user: dict, context: Optional[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    if not context: return {}
-    end = datetime.fromisoformat(context["reporting_period"]["start_date"]).date().replace(day=1)
+    if context:
+        end = datetime.fromisoformat(context["reporting_period"]["start_date"]).date().replace(day=1)
+    elif filters.get("reporting_period_start"):
+        end = datetime.strptime(filters["reporting_period_start"], "%Y-%m").date().replace(day=1)
+    else:
+        return {}
     months = [(end - relativedelta(months=index)).strftime("%Y-%m") for index in range(11, -1, -1)]
     org_id = current_user.get("organization_id"); result = {"incidents": [], "ltifr": [], "account_payable_days": []}
+    incident_filter_base = {"org_id": org_id, "approval_status": {"$in": ["approved", "not_required", None]}, "$or": [{"subcategory": "Health & Safety Incidents"}, {"category": {"$regex": "data breach", "$options": "i"}}, {"subcategory": {"$regex": "data breach", "$options": "i"}}, {"category": {"$regex": "violation", "$options": "i"}}, {"subcategory": {"$regex": "violation", "$options": "i"}}]}
     for period in months:
         period_filters = {**filters, "reporting_period_start": period, "reporting_period_end": period, "strict_period": True}
         emissions = await aggregate_emissions(period_filters, current_user)
         resources = await build_resource_snapshot(org_id, None, period_filters)
-        incidents = await db.governance_records.count_documents({"org_id": org_id, "reporting_period": period, "approval_status": {"$in": ["approved", "not_required", None]}})
+        incidents = await db.governance_records.count_documents({**incident_filter_base, "reporting_period": period})
         ops = await get_operational_kpis(org_id, emissions["total_emissions"], resources["energy"].get("total", 0) or 0, incidents, period_filters)
         result["incidents"].append({"period": period, "value": incidents})
         result["ltifr"].append({"period": period, "value": ops.get("ltifr")})

@@ -320,3 +320,14 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Data source**: Single aggregation pipeline groups by (period, scope, category, facility_id). Facility list from `facilities` collection master data, not emission records.
 - **Files changed**: `service.py` (added `build_facility_deep_data`), `pdf_sections.py` (rewrote `_sec_facility_performance`).
 - **Report size**: 23 pages / 1.5MB for 7 facilities. 35 MIS tests passing.
+
+
+### MIS Incidents & Compliance + Supplier Assessment — Redesign — 2026-08-09
+- **Removed GHG/Energy Intensity** from Incidents & Compliance section (belonged in emissions/energy sections).
+- **Fixed LTIFR consistency**: When LTIFR is "Not reported" (None), the trend chart is NOT displayed — replaced with clean empty-state message. KPI card and trend never contradict.
+- **Fixed operational trends**: `build_twelve_month_operational_trends` now works without `reporting_context` (same fix as resource trends). Incident count query uses proper $or filter (Safety Incidents + Data Breaches + Violations) instead of counting all governance records.
+- **Full-width trends**: LTIFR, Incidents, and Account Payable Days trends are all full-width with labeled values.
+- **Incident breakdown table**: Shows Safety Incidents, Data Breaches, Violations, and Total for the current month.
+- **New Supplier Assessment section**: Overall Supplier Ranking table (Rank | Supplier | Overall/ESG/Emissions scores), Emissions vs ESG side-by-side ranking tables. "Not Assessed" shown for suppliers without scores (never converted to 0). Horizontal bar chart shown when assessed suppliers exist.
+- **Files changed**: `service.py` (fixed `build_twelve_month_operational_trends` incident filter + context handling), `pdf_sections.py` (rewrote `_sec_incidents_compliance`, added `_sec_supplier_assessment`), `pdf_builder.py` (added supplier section call + import).
+- **Report size**: 32 pages / 1.7MB. 35 MIS tests passing.
