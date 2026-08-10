@@ -22,6 +22,7 @@ from modules.esg_records.services.dashboard.dashboard_metrics_service import get
 from modules.dashboards.environment_detail_service import get_environment_detail
 from modules.esg_records.services.dashboard.unit_utils import to_kilolitres
 from modules.mis_reports.reporting_period_service import ReportingPeriodService
+from modules.supplier_assessment.service import SupplierAssessmentService
 
 
 ALL_SCOPES = ["scope1", "scope2", "scope3", "biogenic"]
@@ -290,6 +291,10 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     current_resources = await build_resource_snapshot(organization_id, esg_facility_filter, filters)
     previous_resources = await build_resource_snapshot(organization_id, esg_facility_filter, previous_filters)
     relationships = await db.supplier_relationships.find({"customer_org_id": organization_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0, "supplier_name": 1, "supplier_org_name": 1, "company_name": 1, "overall_score": 1, "esg_score": 1, "ghg_score": 1, "overall_completion_percent": 1, "esg_completion_percent": 1, "ghg_completion_percent": 1, "invitation_status": 1}).to_list(1000)
+    # Get dynamically computed supplier rankings (same as dashboard)
+    supplier_svc = SupplierAssessmentService()
+    supplier_rankings_data = await supplier_svc.get_supplier_rankings(organization_id)
+    supplier_rankings = supplier_rankings_data.get("rankings", [])
     targets_raw = await db.esg_targets.find(
         {"organization_id": organization_id, "is_deleted": {"$ne": True}, "status": "active"},
         {"_id": 0},
@@ -341,8 +346,9 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
         insights.append("Renewable energy contribution remains at 0%, creating a clear improvement opportunity.")
     if water_change is not None and water_change > 5:
         insights.append(f"Water consumption increased {water_change:.1f}% versus the comparable previous period and requires review.")
-    if relationships:
-        insights.append(f"{len(relationships)} suppliers have been assessed, with {sum(1 for row in relationships if (row.get('overall_completion_percent') or row.get('overall_score')) is not None and (row.get('overall_completion_percent') or row.get('overall_score') or 0) < 50)} currently high-risk.")
+    if supplier_rankings:
+        high_risk = sum(1 for r in supplier_rankings if r.get("overall_score") is not None and r["overall_score"] < 50)
+        insights.append(f"{len(supplier_rankings)} suppliers have been assessed, with {high_risk} currently high-risk.")
     target_counts = {status: sum(1 for target in targets if target.get("status") == status) for status in ("On Track", "At Risk", "Behind", "Achieved")}
     active_targets = len(targets)
     if active_targets:
@@ -362,7 +368,7 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
     twelve_month_emissions_trend = await build_twelve_month_emissions_trend(filters, current_user, reporting_context)
     twelve_month_resource_trends = await build_twelve_month_resource_trends(filters, current_user, reporting_context)
     operational_trends = await build_twelve_month_operational_trends(filters, current_user, reporting_context)
-    result = {"filters": filters, "reporting_context": reporting_context, "selected_sections": selected_sections or [], "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(relationships), "high_risk_suppliers": sum(1 for row in relationships if (row.get("overall_completion_percent") or row.get("overall_score")) is not None and (row.get("overall_completion_percent") or row.get("overall_score") or 0) < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": relationships, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "twelve_month_operational_trends": operational_trends, "availability": availability}
+    result = {"filters": filters, "reporting_context": reporting_context, "selected_sections": selected_sections or [], "current": current, "previous": previous, "ytd": ytd, "previous_ytd": previous_ytd, "kpis": kpis, "energy": energy, "water": water, "waste": waste, "previous_resources": previous_resources, "resource_status": resource_status, "operational_kpis": operational, "compliance": compliance_rows, "supplier_assessment": {"suppliers_assessed": len(supplier_rankings), "high_risk_suppliers": sum(1 for r in supplier_rankings if r.get("overall_score") is not None and r["overall_score"] < 50), "pending_assessments": sum(1 for row in relationships if row.get("invitation_status") not in {"completed", "accepted"})}, "supplier_scores": supplier_rankings, "targets": targets, "target_summary": {"active": active_targets, **target_counts}, "insights": insights[:7], "actions": actions, "overall_management_status": {"status": overall_management_status, "high_priority_count": high_priority}, "facility_comparisons": facility_comparisons, "monthly_trend": current["period_breakdown"], "twelve_month_emissions_trend": twelve_month_emissions_trend, "twelve_month_resource_trends": twelve_month_resource_trends, "twelve_month_operational_trends": operational_trends, "availability": availability}
     result["executive_summary"] = await build_executive_summary_data(result, filters, current_user)
     result["emissions_deep"] = await build_emissions_deep_data(result, filters, current_user)
     result["resources_deep"] = await _build_resources_deep(result, current_user)
@@ -690,7 +696,7 @@ def build_executive_excel(report: Dict[str, Any]) -> bytes:
     sheet("Emissions Overview", [["Scope", "tCO2e"]] + [[r["scope"], r["emissions"]] for r in report["current"]["scope_breakdown"]] + [[]] + [["Category", "tCO2e"]] + [[r["category"], r["emissions"]] for r in report["current"]["category_breakdown"]])
     sheet("Facility Performance", [["Facility", "Current", "Previous", "Change %"]] + [[r["facility"], r["current"], r["previous"], r["change_pct"]] for r in report.get("facility_comparisons", [])])
     sheet("Operations", [["Energy", report["energy"].get("total"), "MWh"], ["Renewable share", report["energy"].get("renewable_pct"), "%"], ["Water recycled", report["water"].get("recycled"), "KL"], ["Waste recovered", report["waste"].get("recovered"), ""], ["LTIFR", report["operational_kpis"].get("ltifr"), ""], ["Account payable days", report["operational_kpis"].get("account_payable_days"), "days"]])
-    sheet("Suppliers & Targets", [["Supplier", "ESG Score"]] + [[r.get("supplier_name") or r.get("supplier_org_name") or "Supplier", r.get("overall_completion_percent") or r.get("overall_score")] for r in report.get("supplier_scores", [])] + [[]] + [["Target", "Target", "Actual", "Direction", "Status"]] + [[r.get("name"), r.get("target_value"), r.get("actual_value"), r.get("target_direction"), r.get("status")] for r in report.get("targets", [])])
+    sheet("Suppliers & Targets", [["Supplier", "Overall Score", "ESG Score", "GHG Score"]] + [[r.get("company_name") or r.get("supplier_name") or "Supplier", r.get("overall_score"), r.get("esg_score"), r.get("ghg_score")] for r in report.get("supplier_scores", [])] + [[]] + [["Target", "Target", "Actual", "Direction", "Status"]] + [[r.get("name"), r.get("target_value"), r.get("actual_value"), r.get("target_direction"), r.get("status")] for r in report.get("targets", [])])
     buffer = io.BytesIO(); workbook.save(buffer); return buffer.getvalue()
 
 
