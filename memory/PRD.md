@@ -127,6 +127,11 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ### Staging Database Replacement
 - **Status**: Done
 
+### Staging MIS Delivery Run Collection
+- Created the previously missing `mis_report_delivery_runs` collection in `sustainrepo_staging`.
+- The collection was created empty with MongoDB's default `_id_` index, matching the local collection's index structure; no delivery records were copied or modified.
+- **Status**: Done and verified.
+
 ### Repo Pilot Report Migration
 - **Status**: Done
 
