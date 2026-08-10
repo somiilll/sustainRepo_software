@@ -20,7 +20,7 @@ import pytest
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://emissions-analytics.preview.emergentagent.com"
+    BASE_URL = "https://data-integrity-lab-5.preview.emergentagent.com"
 
 ADMIN_EMAIL = "goyalsomil2001@gmail.com"
 AMAN_EMAIL = "goyalsomil+1@hotmail.com"
