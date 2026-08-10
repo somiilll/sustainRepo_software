@@ -39,9 +39,9 @@ BIOGENIC_CAT_COLORS = {
     "Stationary Combustion": "#16a34a", "Mobile Combustion": "#4ade80",
     "Flaring": "#86efac", "Process Emissions": "#bbf7d0",
 }
-SCOPE3_SHADES = ["#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd", "#6d28d9",
-                 "#4c1d95", "#5b21b6", "#ddd6fe", "#9333ea", "#a855f7",
-                 "#c084fc", "#d8b4fe", "#e9d5ff", "#f3e8ff", "#581c87"]
+SCOPE3_SHADES = ["#7c3aed", "#ea580c", "#0891b2", "#16a34a", "#d97706",
+                 "#dc2626", "#2563eb", "#be185d", "#4f46e5", "#0d9488",
+                 "#ca8a04", "#9333ea", "#0369a1", "#c2410c", "#65a30d"]
 
 SECTION_COLORS = {
     "ghg": "#0e7490", "energy": "#b45309", "water": "#0369a1",

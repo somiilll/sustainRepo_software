@@ -233,8 +233,33 @@ def _sec_emissions_analytics(story, styles, report):
         # Composition donut + breakdown
         comp = block.get("composition", [])
         cat_cm = _scope_color_map(scope_key)
-        if comp:
-            threshold = 2 if scope_key == "scope3" else 0
+
+        # ── Biogenic: group into Direct (Scope 1) vs Indirect (Scope 3) ──
+        if scope_key == "biogenic" and comp:
+            SCOPE1_CATS = {"Stationary Combustion", "Mobile Combustion", "Process Emissions", "Fugitive Emissions", "Flaring"}
+            direct_val = sum(c["value"] for c in comp if c["category"] in SCOPE1_CATS)
+            indirect_val = sum(c["value"] for c in comp if c["category"] not in SCOPE1_CATS)
+            total_bio = direct_val + indirect_val
+            grouped_comp = []
+            if direct_val > 0 or any(c["category"] in SCOPE1_CATS for c in comp):
+                grouped_comp.append({"category": "Direct (Scope 1)", "value": round(direct_val, 2), "pct": round(direct_val / total_bio * 100, 1) if total_bio else 0})
+            if indirect_val > 0 or any(c["category"] not in SCOPE1_CATS for c in comp):
+                grouped_comp.append({"category": "Indirect (Scope 3)", "value": round(indirect_val, 2), "pct": round(indirect_val / total_bio * 100, 1) if total_bio else 0})
+            bio_colors = {"Direct (Scope 1)": "#16a34a", "Indirect (Scope 3)": "#7c3aed"}
+            d_buf = _render_deep_donut(f"{title} Composition", grouped_comp, bio_colors, cv or 0, "tCO2e")
+            d_img = Image(d_buf, width=3.6 * inch, height=3.6 * inch)
+            # Detailed table still shows all categories with Direct/Indirect label
+            comp_rows = []
+            for c in comp:
+                label = c["category"]
+                prefix = "Direct" if c["category"] in SCOPE1_CATS else "Indirect"
+                comp_rows.append([f"{prefix}: {label[:28]}", f"{c['value']:,.2f}", f"{c['pct']:.1f}%"])
+            ct = _styled_table(["Category", "tCO2e", "%"], comp_rows, col_widths=[170, 55, 40])
+            pair = Table([[d_img, ct]], colWidths=[3.8 * inch, 3.2 * inch], hAlign="LEFT")
+            pair.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+            story.append(pair)
+        elif comp:
+            threshold = 5 if scope_key == "scope3" else 0
             d_buf = _render_deep_donut(f"{title} Composition", comp, cat_cm, cv or 0, "tCO2e", group_threshold_pct=threshold)
             d_img = Image(d_buf, width=3.6 * inch, height=3.6 * inch)
             comp_rows = [[c["category"][:35], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in comp]
@@ -414,10 +439,22 @@ def _sec_facility_performance(story, styles, report):
         story.append(row2)
         story.append(Spacer(1, 8))
 
-        # ── Scope 3 category table (full width) ──
+        # ── Scope 3: donut + category table side-by-side ──
         s3_cats = f.get("scope3_categories", [])
-        s3_rows = [[c["category"][:35], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s3_cats] if s3_cats else [["No Scope 3 data", "", ""]]
-        story.append(_styled_table(["Scope 3 Category", "tCO2e", "%"], s3_rows, col_widths=[200, 70, 50]))
+        s3_total = sum(c["value"] for c in s3_cats)
+        s3_clr = {SCOPE3_SHADES[i % len(SCOPE3_SHADES)]: SCOPE3_SHADES[i % len(SCOPE3_SHADES)] for i in range(15)}
+        # Build color map from category names
+        s3_color_map = {}
+        for i, c in enumerate(s3_cats):
+            s3_color_map[c["category"]] = SCOPE3_SHADES[i % len(SCOPE3_SHADES)]
+        s3_donut = Image(
+            _render_deep_donut("Scope 3 Sources", s3_cats, s3_color_map, s3_total, "tCO2e", group_threshold_pct=5),
+            width=2.6 * inch, height=2.6 * inch)
+        s3_rows = [[c["category"][:28], f"{c['value']:,.2f}", f"{c['pct']:.1f}%"] for c in s3_cats] if s3_cats else [["No Scope 3 data", "", ""]]
+        s3_table = _styled_table(["Scope 3 Category", "tCO2e", "%"], s3_rows, col_widths=[140, 65, 45])
+        row3 = Table([[s3_donut, s3_table]], colWidths=[2.8 * inch, 4.2 * inch], hAlign="LEFT")
+        row3.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+        story.append(row3)
 
         story.append(PageBreak())
 
@@ -721,7 +758,7 @@ def _sec_supplier_assessment(story, styles, report):
     if assessed:
         bar_data = [{"facility": s["name"], "emissions": s["overall"]} for s in assessed]
         story.append(Image(
-            _render_facility_bar_chart(bar_data),
+            _render_facility_bar_chart(bar_data, title="Overall Supplier Ranking", xlabel="Overall Score"),
             width=7.2 * inch, height=max(1.8 * inch, min(len(assessed) * 0.45 * inch, 4 * inch))))
     story.append(Spacer(1, 14))
 

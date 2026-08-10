@@ -98,7 +98,9 @@ def _render_target_comparison(targets: List[Dict]) -> io.BytesIO:
     ax.set_yticks(y); ax.set_yticklabels(labels, fontsize=7); ax.invert_yaxis(); ax.grid(axis="x", alpha=.2); ax.legend(fontsize=7, frameon=False); ax.set_title("Target Performance — Target vs Current Month", fontsize=10, fontweight="bold", color=DARK); fig.tight_layout(); return _fig_to_bytes(fig)
 
 
-def _render_facility_bar_chart(facility_breakdown: List[Dict]) -> io.BytesIO:
+def _render_facility_bar_chart(facility_breakdown: List[Dict],
+                              title: str = "Total Emissions by Facility — Current Month",
+                              xlabel: str = "tCO2e") -> io.BytesIO:
     _setup_mpl(); data = facility_breakdown[:10]
     if not data:
         fig, ax = plt.subplots(figsize=(6, 2.5)); ax.text(0.5, 0.5, "No facility data", ha="center", va="center", fontsize=12, color=TEXT_MUTED); ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off"); return _fig_to_bytes(fig)
@@ -106,7 +108,7 @@ def _render_facility_bar_chart(facility_breakdown: List[Dict]) -> io.BytesIO:
     fig, ax = plt.subplots(figsize=(6, max(2.5, len(data) * 0.45))); bars = ax.barh(names, values, color=BRAND, height=0.6, edgecolor="white", linewidth=0.5)
     max_val = max(values) if values else 1
     for bar, val in zip(bars, values): ax.text(bar.get_width() + max_val * 0.02, bar.get_y() + bar.get_height() / 2, f"{val:,.1f}", va="center", fontsize=7, color=TEXT_SECONDARY)
-    ax.set_xlabel("tCO2e", fontsize=8, color=TEXT_SECONDARY); ax.set_title("Top Facilities by Emissions", fontsize=11, fontweight="bold", color=DARK, pad=10)
+    ax.set_xlabel(xlabel, fontsize=8, color=TEXT_SECONDARY); ax.set_title(title, fontsize=11, fontweight="bold", color=DARK, pad=10)
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}")); ax.grid(axis="x", alpha=0.3, linewidth=0.5); ax.spines["bottom"].set_color(BORDER_COLOR); ax.spines["left"].set_color(BORDER_COLOR); fig.tight_layout()
     return _fig_to_bytes(fig)
 
@@ -170,10 +172,12 @@ def _render_deep_donut(title: str, items: list, color_map: dict,
     ax.text(0, 0.04, f"{center_value:,.1f}", ha="center", va="center", fontsize=13, fontweight="bold", color=DARK)
     ax.text(0, -0.08, center_unit, ha="center", va="center", fontsize=7, color=TEXT_SECONDARY)
     leg_labels, leg_handles = [], []
-    for it in items:
+    legend_items = plot_items if group_threshold_pct > 0 else items
+    for it in legend_items:
         name = it.get("category") or it.get("label") or "?"; v = it.get("value", 0); p = it.get("pct", 0)
         leg_labels.append(f"{name}: {v:,.1f} ({p:.1f}%)"); leg_handles.append(Patch(facecolor=_clr(it)))
-    ax.legend(leg_handles, leg_labels, loc="lower center", bbox_to_anchor=(0.5, -0.22), ncol=min(len(items), 2), fontsize=6, frameon=False)
+    ncols = min(len(legend_items), 2)
+    ax.legend(leg_handles, leg_labels, loc="lower center", bbox_to_anchor=(0.5, -0.22), ncol=ncols, fontsize=6, frameon=False)
     ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8); fig.tight_layout()
     return _fig_to_bytes(fig)
 
