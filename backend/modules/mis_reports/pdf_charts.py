@@ -14,9 +14,10 @@ from .pdf_styles import (
 )
 
 
-def _fig_to_bytes(fig, dpi=150):
+def _fig_to_bytes(fig, dpi=150, tight=True):
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", facecolor="white", edgecolor="none")
+    bbox = "tight" if tight else None
+    fig.savefig(buf, format="png", dpi=dpi, bbox_inches=bbox, facecolor="white", edgecolor="none")
     buf.seek(0)
     plt.close(fig)
     return buf
@@ -39,9 +40,10 @@ def _render_donut_chart(scope_breakdown: List[Dict]) -> io.BytesIO:
         fig, ax = plt.subplots(figsize=(4, 4))
         ax.text(0.5, 0.5, "No emission data", ha="center", va="center", fontsize=12, color=TEXT_MUTED)
         ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
-        return _fig_to_bytes(fig)
+        return _fig_to_bytes(fig, tight=False)
     labels = [SCOPE_LABELS.get(d[0], d[0]) for d in data]; values = [d[1] for d in data]; clrs = [SCOPE_COLORS.get(d[0], "#6b7280") for d in data]
     fig, ax = plt.subplots(figsize=(4, 4))
+    ax.set_aspect("equal")
     wedges, texts, autotexts = ax.pie(values, labels=None, colors=clrs, autopct="%1.1f%%", startangle=90, pctdistance=0.78, wedgeprops=dict(width=0.4, edgecolor="white", linewidth=2))
     for t in autotexts: t.set_fontsize(8); t.set_color("white"); t.set_fontweight("bold")
     total = sum(values)
@@ -49,7 +51,7 @@ def _render_donut_chart(scope_breakdown: List[Dict]) -> io.BytesIO:
     ax.text(0, -0.08, "tCO2e", ha="center", va="center", fontsize=8, color=TEXT_SECONDARY)
     ax.legend(labels, loc="lower center", bbox_to_anchor=(0.5, -0.12), ncol=min(len(labels), 4), fontsize=8, frameon=False)
     ax.set_title("Emissions by Scope", fontsize=11, fontweight="bold", color=DARK, pad=12); fig.tight_layout()
-    return _fig_to_bytes(fig)
+    return _fig_to_bytes(fig, tight=False)
 
 
 def _render_trend_chart(period_breakdown: List[Dict]) -> io.BytesIO:
@@ -154,10 +156,19 @@ def _render_deep_donut(title: str, items: list, color_map: dict,
     _setup_mpl()
     from matplotlib.patches import Patch
     plot_items = [it for it in items if it.get("value", 0) > 0]
-    fig, ax = plt.subplots(figsize=(3.8, 3.8))
+    # Use a taller figure to give legend its own space below the square chart
+    legend_items_count = len(plot_items) if group_threshold_pct > 0 else len(items)
+    legend_rows = max(1, (legend_items_count + 1) // 2)
+    legend_height = legend_rows * 0.25
+    fig_h = 3.8 + legend_height
+    fig = plt.figure(figsize=(3.8, fig_h))
+    # Create axes in the top square portion of the figure
+    chart_bottom = legend_height / fig_h
+    ax = fig.add_axes([0.05, chart_bottom, 0.9, 3.8 / fig_h * 0.9])
+    ax.set_aspect("equal")
     if not plot_items:
         ax.text(0.5, 0.5, "No data", ha="center", va="center", fontsize=12, color=TEXT_MUTED)
-        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off"); return _fig_to_bytes(fig)
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off"); return _fig_to_bytes(fig, tight=False)
     if group_threshold_pct > 0:
         major, other_val = [], 0.0
         for it in plot_items:
@@ -171,24 +182,33 @@ def _render_deep_donut(title: str, items: list, color_map: dict,
     for t in autotexts: t.set_fontsize(7); t.set_color("white"); t.set_fontweight("bold")
     ax.text(0, 0.04, f"{center_value:,.1f}", ha="center", va="center", fontsize=13, fontweight="bold", color=DARK)
     ax.text(0, -0.08, center_unit, ha="center", va="center", fontsize=7, color=TEXT_SECONDARY)
+    ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8)
+    # Build legend in a separate area at the bottom
     leg_labels, leg_handles = [], []
-    legend_items = plot_items if group_threshold_pct > 0 else items
-    for it in legend_items:
+    legend_source = plot_items if group_threshold_pct > 0 else items
+    for it in legend_source:
         name = it.get("category") or it.get("label") or "?"; v = it.get("value", 0); p = it.get("pct", 0)
         leg_labels.append(f"{name}: {v:,.1f} ({p:.1f}%)"); leg_handles.append(Patch(facecolor=_clr(it)))
-    ncols = min(len(legend_items), 2)
-    ax.legend(leg_handles, leg_labels, loc="lower center", bbox_to_anchor=(0.5, -0.22), ncol=ncols, fontsize=6, frameon=False)
-    ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8); fig.tight_layout()
-    return _fig_to_bytes(fig)
+    ncols = min(len(legend_source), 2)
+    fig.legend(leg_handles, leg_labels, loc="lower center", ncol=ncols, fontsize=6, frameon=False,
+               bbox_to_anchor=(0.5, 0.0))
+    return _fig_to_bytes(fig, tight=False)
 
 
 def _render_multiline_trend(title: str, cat_trends: dict, unit: str,
                             color_map: dict, figsize=(7.2, 2.8)) -> io.BytesIO:
     _setup_mpl()
-    fig, ax = plt.subplots(figsize=figsize)
+    num_cats = len(cat_trends)
+    # Add extra height for the legend below the chart
+    legend_rows = max(1, (num_cats + 2) // 3)
+    extra_h = legend_rows * 0.22
+    fig_w, fig_h = figsize[0], figsize[1] + extra_h
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    # Chart area in top portion, legend space at bottom
+    ax = fig.add_axes([0.08, (extra_h + 0.1) / fig_h, 0.88, figsize[1] * 0.82 / fig_h])
     if not cat_trends:
         ax.text(0.5, 0.5, "No category data", ha="center", va="center", fontsize=12, color=TEXT_MUTED)
-        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off"); return _fig_to_bytes(fig)
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off"); return _fig_to_bytes(fig, tight=False)
     periods = None
     fallback_colors = ["#0f4c81", "#ea580c", "#2563eb", "#7c3aed", "#16a34a", "#d97706", "#dc2626", "#0891b2", "#4f46e5", "#be185d"]
     for idx, (cat_name, series) in enumerate(cat_trends.items()):
@@ -209,9 +229,12 @@ def _render_multiline_trend(title: str, cat_trends: dict, unit: str,
     if periods: ax.set_xticks(range(len(periods))); ax.set_xticklabels(periods, fontsize=6.5, rotation=45, ha="right")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
     ax.set_ylabel(unit, fontsize=7, color=TEXT_SECONDARY); ax.grid(axis="y", alpha=0.2, linewidth=0.5)
-    ax.legend(fontsize=6, frameon=False, loc="upper left"); ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8)
-    ax.spines["bottom"].set_color(BORDER_COLOR); ax.spines["left"].set_color(BORDER_COLOR); fig.tight_layout()
-    return _fig_to_bytes(fig)
+    ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8)
+    ax.spines["bottom"].set_color(BORDER_COLOR); ax.spines["left"].set_color(BORDER_COLOR)
+    # Place legend below the chart area
+    fig.legend(*ax.get_legend_handles_labels(), loc="lower center", ncol=min(num_cats, 3),
+               fontsize=6, frameon=False, bbox_to_anchor=(0.5, 0.0))
+    return _fig_to_bytes(fig, tight=False)
 
 
 def _render_grouped_bar(title: str, groups: list, bar_colors: list,
