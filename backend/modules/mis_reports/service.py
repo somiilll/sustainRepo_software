@@ -2,6 +2,7 @@
 import io
 import uuid
 import re
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -631,27 +632,63 @@ def safe_report_filename(name: str, extension: str) -> str:
     return f"{base}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.{extension}"
 
 
+def archive_org_name(organization_name: str) -> str:
+    """Keep organization names readable in archive paths without allowing path traversal."""
+    value = re.sub(r"[\\/\x00-\x1f]+", "-", (organization_name or "Organization")).strip()
+    return value.strip(".") or "Organization"
+
+
+def build_report_configuration_snapshot(schedule: Dict[str, Any], resolved_filters: Dict[str, Any], facility_names: List[str]) -> Dict[str, Any]:
+    content = dict(schedule.get("content") or {})
+    return {
+        "schedule_name": schedule.get("name"),
+        "frequency": schedule.get("frequency"),
+        "timezone": schedule.get("timezone"),
+        "facility_selection": {
+            "mode": schedule.get("facility_mode", "all"),
+            "facility_ids": list(resolved_filters.get("facility_ids") or []),
+            "facility_names": list(facility_names),
+        },
+        "sections": list(content.get("sections") or []),
+        "filters": dict(resolved_filters),
+        "content": content,
+    }
+
+
+def build_report_period_snapshot(reporting_context: Dict[str, Any]) -> Dict[str, Any]:
+    reporting_period = reporting_context.get("reporting_period") or {}
+    return {
+        "label": reporting_period.get("label"),
+        "start_date": reporting_period.get("start_date"),
+        "end_date": reporting_period.get("end_date"),
+        "frequency": reporting_context.get("frequency"),
+    }
+
+
 async def facility_names_for_filters(filters: Dict[str, Any], current_user: dict) -> List[str]:
     facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
     facilities = await db.facilities.find({"id": {"$in": facility_ids}}, {"_id": 0, "name": 1}).to_list(1000)
     return [facility.get("name", "Facility") for facility in facilities]
 
 
-async def store_delivery_artifact(content: bytes, filename: str, content_type: str, organization_id: str, delivery_id: str) -> Dict[str, Any]:
+async def store_delivery_artifact(content: bytes, filename: str, content_type: str, organization_name: str, archive_date: str, delivery_id: str) -> Dict[str, Any]:
     """Persist a generated artifact once so historical downloads never regenerate a report."""
     from r2_storage import get_r2_storage
 
+    extension = filename.rsplit(".", 1)[-1].lower()
+    checksum = hashlib.sha256(content).hexdigest()
+    object_key = f"{archive_org_name(organization_name)}/{archive_date}/{delivery_id}/report.{extension}"
     result = await get_r2_storage().upload_file(
         content,
         filename,
-        "esg_metrics",
+        "mis_reports",
         content_type,
-        folder=f"mis_reports/{organization_id}/{delivery_id}",
-        metadata={"delivery_id": delivery_id, "organization_id": organization_id},
+        metadata={"delivery_run_id": delivery_id, "organization_name": organization_name, "sha256": checksum},
+        object_key=object_key,
     )
     if not result.get("success"):
         raise RuntimeError(result.get("error", "Unable to store report artifact"))
-    return {"format": filename.rsplit(".", 1)[-1], "filename": filename, "content_type": content_type, "file_size": result["file_size"], "storage_key": result["key"], "bucket_type": "esg_metrics"}
+    return {"format": extension, "filename": filename, "content_type": content_type, "file_size": result["file_size"], "storage_key": result["key"], "bucket_type": "mis_reports", "sha256": checksum}
 
 
 def build_summary_email(schedule_name: str, summary: Dict[str, Any], filters: Dict[str, Any]) -> str:
@@ -660,27 +697,72 @@ def build_summary_email(schedule_name: str, summary: Dict[str, Any], filters: Di
 
 
 async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[str, Any]:
-    sent_at = now_iso()
+    requested_at = now_iso()
     delivery_id = str(uuid.uuid4())
     recipients = schedule_recipients(schedule)
     organization = await db.organizations.find_one({"id": schedule.get("organization_id")}, {"_id": 0, "name": 1, "reporting_year_type": 1, "financial_year_start_month": 1})
+    organization_name = (organization or {}).get("name", "SustainRepo Organization")
     reporting_context = ReportingPeriodService(organization, datetime.now(timezone.utc)).resolve(schedule["frequency"])
     resolved_filters = ReportingPeriodService.filters_for(schedule["filters"], reporting_context["reporting_period"], schedule["frequency"])
     summary = await aggregate_emissions(resolved_filters, current_user)
     facility_names = await facility_names_for_filters(resolved_filters, current_user)
+    report_configuration_snapshot = build_report_configuration_snapshot(schedule, resolved_filters, facility_names)
+    report_period = build_report_period_snapshot(reporting_context)
     executive = await build_executive_mis_report(resolved_filters, current_user, reporting_context, (schedule.get("content") or {}).get("sections", []))
     pdf_name = safe_report_filename(schedule["name"], "pdf")
     xlsx_name = safe_report_filename(schedule["name"], "xlsx")
+    archive_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    def delivery_run_record(status: str, generated_at: str, artifacts: List[Dict[str, Any]], failure_reason: Optional[str] = None) -> Dict[str, Any]:
+        by_format = {item.get("format"): item for item in artifacts}
+        pdf_artifact = by_format.get("pdf", {})
+        excel_artifact = by_format.get("xlsx", {})
+        return {
+            "id": delivery_id,
+            "delivery_run_id": delivery_id,
+            "schedule_id": schedule.get("id"),
+            "schedule_name": schedule["name"],
+            "organization_id": schedule.get("organization_id"),
+            "organization_name": organization_name,
+            "status": status,
+            "requested_at": requested_at,
+            "generated_at": generated_at,
+            "reporting_period_label": report_period.get("label"),
+            "report_period": report_period,
+            "report_configuration_snapshot": report_configuration_snapshot,
+            "recipient_snapshot": list(recipients),
+            "filters": resolved_filters,
+            "reporting_context": reporting_context,
+            "recipients": list(recipients),
+            "content": schedule.get("content") or {},
+            "facility_mode": schedule.get("facility_mode", "all"),
+            "facility_names": facility_names,
+            "artifacts": artifacts,
+            "pdf_storage_key": pdf_artifact.get("storage_key"),
+            "excel_storage_key": excel_artifact.get("storage_key"),
+            "pdf_file_size": pdf_artifact.get("file_size"),
+            "excel_file_size": excel_artifact.get("file_size"),
+            "pdf_checksum": pdf_artifact.get("sha256"),
+            "excel_checksum": excel_artifact.get("sha256"),
+            "archive_bucket_type": "mis_reports" if artifacts else None,
+            "failure_reason": failure_reason,
+            "schedule_snapshot": dict(schedule),
+        }
+
     try:
-        pdf_content = build_executive_pdf(executive, (organization or {}).get("name", "SustainRepo Organization"), current_user.get("email"))
+        pdf_content = build_executive_pdf(executive, organization_name, current_user.get("email"))
         xlsx_content = build_executive_excel(executive)
-        artifacts = [
-            await store_delivery_artifact(pdf_content, pdf_name, "application/pdf", schedule.get("organization_id", "global"), delivery_id),
-            await store_delivery_artifact(xlsx_content, xlsx_name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", schedule.get("organization_id", "global"), delivery_id),
-        ]
+        artifacts = []
+        artifacts.append(await store_delivery_artifact(pdf_content, pdf_name, "application/pdf", organization_name, archive_date, delivery_id))
+        artifacts.append(await store_delivery_artifact(xlsx_content, xlsx_name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", organization_name, archive_date, delivery_id))
     except Exception as error:
-        failure = str(error)
-        delivery_run = {"id": delivery_id, "schedule_id": schedule.get("id"), "schedule_name": schedule["name"], "organization_id": schedule.get("organization_id"), "status": "failed", "generated_at": sent_at, "reporting_period_label": reporting_context["reporting_period"]["label"], "filters": resolved_filters, "reporting_context": reporting_context, "recipients": recipients, "content": schedule.get("content") or {}, "facility_mode": schedule.get("facility_mode", "all"), "facility_names": facility_names, "artifacts": [], "failure_reason": failure, "schedule_snapshot": schedule}
+        from r2_storage import get_r2_storage
+        for artifact in locals().get("artifacts", []):
+            try:
+                await get_r2_storage().delete_file(artifact["bucket_type"], artifact["storage_key"])
+            except Exception:
+                pass
+        delivery_run = delivery_run_record("failed", now_iso(), [], str(error))
         await db.mis_report_delivery_runs.insert_one(delivery_run.copy())
         return delivery_run
 
@@ -691,10 +773,11 @@ async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[st
         error = None if success else "Resend delivery failed"
         if error:
             failures.append(recipient["email"])
-        delivery = {"id": str(uuid.uuid4()), "delivery_run_id": delivery_id, "schedule_id": schedule["id"], "organization_id": schedule.get("organization_id"), "recipient_email": recipient["email"], "recipient_name": recipient["name"], "status": "sent" if success else "failed", "sent_at": sent_at, "error": error}
+        delivery = {"id": str(uuid.uuid4()), "delivery_run_id": delivery_id, "schedule_id": schedule["id"], "organization_id": schedule.get("organization_id"), "recipient_email": recipient["email"], "recipient_name": recipient["name"], "status": "sent" if success else "failed", "sent_at": now_iso(), "error": error}
         await db.mis_report_deliveries.insert_one(delivery.copy())
     status = "sent" if not failures else ("failed" if len(failures) == len(recipients) else "partial")
-    delivery_run = {"id": delivery_id, "schedule_id": schedule.get("id"), "schedule_name": schedule["name"], "organization_id": schedule.get("organization_id"), "status": status, "generated_at": sent_at, "reporting_period_label": reporting_context["reporting_period"]["label"], "filters": resolved_filters, "reporting_context": reporting_context, "recipients": recipients, "content": schedule.get("content") or {}, "facility_mode": schedule.get("facility_mode", "all"), "facility_names": facility_names, "artifacts": artifacts, "failure_reason": "Resend delivery failed for: " + ", ".join(failures) if failures else None, "schedule_snapshot": schedule}
+    delivery_run = delivery_run_record(status, now_iso(), artifacts, "Resend delivery failed for: " + ", ".join(failures) if failures else None)
+    delivery_run["delivered_at"] = now_iso()
     await db.mis_report_delivery_runs.insert_one(delivery_run.copy())
     return delivery_run
 

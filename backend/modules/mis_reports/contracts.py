@@ -151,6 +151,7 @@ class MISDeliveryArtifactResponse(BaseModel):
     filename: str
     content_type: str
     file_size: int
+    sha256: Optional[str] = None
 
 
 class MISDeliveryHistoryResponse(BaseModel):
@@ -169,6 +170,10 @@ class MISDeliveryHistoryResponse(BaseModel):
     facility_names: List[str] = Field(default_factory=list)
     artifacts: List[MISDeliveryArtifactResponse] = Field(default_factory=list)
     failure_reason: Optional[str] = None
+    delivery_run_id: Optional[str] = None
+    report_period: Optional[Dict[str, Any]] = None
+    report_configuration_snapshot: Optional[Dict[str, Any]] = None
+    recipient_snapshot: List[Dict[str, str]] = Field(default_factory=list)
 
 
 class MISOverviewResponse(BaseModel):
