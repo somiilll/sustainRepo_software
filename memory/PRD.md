@@ -165,6 +165,16 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 
 ## Bug Fixes (Aug 2026 — Latest Session)
 
+### MIS SBTi Targets + Multiline Trend Legend Spacing
+- **Root Cause**: MIS only queried `esg_targets`; separately stored `sbti_targets` were never mapped into the report target feed. Multiline chart legends used three cramped columns without a dedicated gutter.
+- **Fix**: Added a read-only SBTi-to-MIS target mapper with live KPI progress, target year, term type, and short/long-term labeling. Multiline charts now use two legend columns, reserved legend height, and explicit row/column spacing.
+- **Status**: Done — independently verified by testing agent (5/5 runtime checks, PDF content, and visual legend review passed).
+
+### MIS Water / Waste Dashboard Parity
+- **Root Cause**: MIS water metrics included pending-approval records; waste values were legacy kilograms while the UI labeled them as MT; MIS disposal was derived rather than using the submitted Disposal record.
+- **Fix**: Water metrics now use approved/not-required records; dashboard and MIS normalize legacy waste quantities to MT; MIS trends use explicit disposal totals; report labels use MT; environment-detail honors the selected reporting period.
+- **Status**: Implemented and API parity self-checked for August 2026. Independent test-agent verification was requested but stopped before execution by the prior user instruction.
+
 ### Supplier Assessment "Not Assessed" Fix
 - **Root Cause**: `pdf_sections.py` read `overall_score`/`esg_score`/`ghg_score` (all None in DB) instead of `overall_completion_percent`/`esg_completion_percent`/`ghg_completion_percent` (actual values).
 - **Fix**: Updated field mapping in `pdf_sections.py` lines 698-700 with fallback. Also fixed `high_risk_suppliers` count in `service.py`.
