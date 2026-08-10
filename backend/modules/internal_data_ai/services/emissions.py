@@ -1,6 +1,6 @@
 """Emissions service for Internal Data AI."""
 from shared.database.mongo import db
-from modules.internal_data_ai.query_scope import and_filters, normalize_scope, organization_scope, resolve_authorized_facilities
+from modules.internal_data_ai.query_scope import and_filters, extract_consumption, normalize_scope, organization_scope, resolve_authorized_facilities
 from modules.internal_data_ai.reporting_periods import emission_period_filter, latest_available_period, period_from_payload
 
 
@@ -42,6 +42,7 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
 
     summary = []
     for r in records[:20]:
+        qty_value, qty_unit = extract_consumption(r)
         summary.append({
             "id": r.get("id"),
             "facility": fac_map.get(r.get("facility_id"), r.get("facility_id")),
@@ -49,8 +50,8 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
             "category": r.get("category"),
             "sub_category": r.get("sub_category"),
             "fuel_type": r.get("fuel_type"),
-            "quantity": r.get("quantity"),
-            "unit": r.get("unit"),
+            "quantity": qty_value,
+            "unit": qty_unit,
             "total_emissions": r.get("total_emissions"),
             "co2e_emissions": r.get("co2e_emissions"),
             "formula_id": r.get("formula_id"),

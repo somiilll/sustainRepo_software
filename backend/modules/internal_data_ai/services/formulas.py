@@ -2,7 +2,7 @@
 from typing import Any, Iterable
 
 from shared.database.mongo import db
-from modules.internal_data_ai.query_scope import and_filters
+from modules.internal_data_ai.query_scope import and_filters, extract_consumption
 
 
 def _string_values(value: Any) -> set[str]:
@@ -113,8 +113,8 @@ async def explain(org_id: str, **kwargs) -> dict:
                 "version": formula.get("version") or formula.get("version_number"),
             },
             "record_inputs": {
-                "quantity": record.get("quantity"),
-                "unit": record.get("unit"),
+                "quantity": extract_consumption(record)[0],
+                "unit": extract_consumption(record)[1],
                 "emission_factor": record.get("emission_factor"),
                 "emission_factor_unit": record.get("emission_factor_unit"),
             },

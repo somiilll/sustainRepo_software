@@ -72,3 +72,23 @@ def normalize_scope(scope: Any) -> str:
     if numeric:
         return numeric.group(1)
     return re.sub(r"^scope\s*", "", value).strip()
+
+
+def extract_consumption(record: dict) -> tuple:
+    """Extract (quantity, unit) from ``dynamic_field_values.qty``.
+
+    Returns ``(None, None)`` when the data is absent or malformed.
+    Numeric strings are coerced to their numeric equivalent.
+    """
+    dfv = record.get("dynamic_field_values") or {}
+    qty_data = dfv.get("qty") or {}
+    value = qty_data.get("value")
+    unit = qty_data.get("unit")
+    if isinstance(value, str):
+        try:
+            value = float(value)
+            if value == int(value):
+                value = int(value)
+        except (ValueError, TypeError):
+            value = None
+    return value, unit

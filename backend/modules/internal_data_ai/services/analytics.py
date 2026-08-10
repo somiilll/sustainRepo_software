@@ -76,11 +76,17 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     scope_breakdown = await db.emission_records.aggregate(scope_pipeline).to_list(5)
 
     # Consumption breakdown — aggregate quantity + unit + fuel_type for operational answers
+    # Quantity lives in dynamic_field_values.qty.value; unit in dynamic_field_values.qty.unit
     consumption_pipeline = [
         {"$match": match_stage},
         {"$group": {
-            "_id": {"fuel_type": "$fuel_type", "unit": "$unit"},
-            "total_quantity": {"$sum": {"$toDouble": {"$ifNull": ["$quantity", 0]}}},
+            "_id": {"fuel_type": "$fuel_type", "unit": "$dynamic_field_values.qty.unit"},
+            "total_quantity": {"$sum": {"$convert": {
+                "input": "$dynamic_field_values.qty.value",
+                "to": "double",
+                "onError": 0,
+                "onNull": 0,
+            }}},
             "total_emissions": {"$sum": {"$toDouble": {"$ifNull": ["$co2e_emissions", "$total_emissions"]}}},
             "record_count": {"$sum": 1},
         }},

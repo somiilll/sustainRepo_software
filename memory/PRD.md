@@ -220,6 +220,15 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
   5. Added structured debug logging for routing decisions.
 - **Status**: Done — iteration 160 verified 32/32 tests (26 planner unit + 6 integration including live endpoint checks).
 
+### Internal Data AI — Consumption Quantity Extraction from dynamic_field_values
+- **Root Cause**: `emissions.search_records()` read `r.get("quantity")` / `r.get("unit")` — top-level fields that don't exist on emission records. Actual data lives in `dynamic_field_values.qty.value` / `.unit`. Similarly, `analytics.py` aggregation summed `$quantity` (non-existent). Result: GPT response builder saw `quantity: null` → "No data found."
+- **Fix**:
+  1. Added `extract_consumption(record)` helper in `query_scope.py` — safely reads `dynamic_field_values.qty`, coerces string values to numeric, returns `(None, None)` for missing data.
+  2. `emissions.py` uses the helper for each record summary.
+  3. `analytics.py` consumption pipeline uses `$dynamic_field_values.qty.value` with `$convert` (onError/onNull guards) and groups by `$dynamic_field_values.qty.unit` — different units are never incorrectly combined.
+  4. `formulas.py` record_inputs also uses the helper.
+- **Status**: Done — 39 unit/integration tests pass (26 routing + 13 extraction). User requested skip of full testing agent run.
+
 ## Pending Issues
 
 ### Process Emissions Live-Calculation Review (P0)
