@@ -53,6 +53,7 @@ class WaterMetricsService:
             "org_id": org_id,
             "is_current": {"$ne": False},
             "status": {"$ne": "draft"},
+            "approval_status": {"$in": ["approved", "not_required", None]},
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"},
             "subcategory": {"$regex": "^Recycle$", "$options": "i"},
         }
@@ -95,6 +96,7 @@ class WaterMetricsService:
             "org_id": org_id,
             "is_current": {"$ne": False},
             "status": {"$ne": "draft"},
+            "approval_status": {"$in": ["approved", "not_required", None]},
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"},
             "subcategory": {"$regex": f"^{subcategory}$", "$options": "i"}
         }

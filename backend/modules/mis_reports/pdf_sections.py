@@ -583,17 +583,17 @@ def _sec_waste_performance(story, styles, report):
 
     # Main trends: Generated, Disposed, Recovered
     story.append(Image(
-        _render_labeled_trend("Waste Generated — kg", ws.get("generated_trend", []), "kg", "#7e22ce", cm),
+        _render_labeled_trend("Waste Generated — MT", ws.get("generated_trend", []), "MT", "#7e22ce", cm),
         width=7.2 * inch, height=2.6 * inch))
     story.append(Spacer(1, 8))
 
     story.append(Image(
-        _render_labeled_trend("Waste Disposed — kg", ws.get("disposed_trend", []), "kg", "#dc2626", cm),
+        _render_labeled_trend("Waste Disposed — MT", ws.get("disposed_trend", []), "MT", "#dc2626", cm),
         width=7.2 * inch, height=2.6 * inch))
     story.append(Spacer(1, 8))
 
     story.append(Image(
-        _render_labeled_trend("Waste Recovered — kg", ws.get("recovered_trend", []), "kg", "#16a34a", cm),
+        _render_labeled_trend("Waste Recovered — MT", ws.get("recovered_trend", []), "MT", "#16a34a", cm),
         width=7.2 * inch, height=2.6 * inch))
     story.append(Spacer(1, 14))
 
@@ -601,17 +601,17 @@ def _sec_waste_performance(story, styles, report):
     cur = ws.get("current", {})
     haz_gen = cur.get("haz_generated", 0)
     haz_rec = cur.get("haz_recovered", 0)
-    haz_disp = max(haz_gen - haz_rec, 0)
+    haz_disp = cur.get("haz_disposed", 0)
     nhaz_gen = cur.get("nonhaz_generated", 0)
     nhaz_rec = cur.get("nonhaz_recovered", 0)
-    nhaz_disp = max(nhaz_gen - nhaz_rec, 0)
+    nhaz_disp = cur.get("nonhaz_disposed", 0)
     bar_groups = [
         {"label": "Generated", "values": [haz_gen, nhaz_gen], "series_labels": ["Hazardous", "Non-Hazardous"]},
         {"label": "Recovered", "values": [haz_rec, nhaz_rec], "series_labels": ["Hazardous", "Non-Hazardous"]},
         {"label": "Disposed", "values": [haz_disp, nhaz_disp], "series_labels": ["Hazardous", "Non-Hazardous"]},
     ]
     story.append(Image(
-        _render_grouped_bar("Hazardous vs Non-Hazardous Waste", bar_groups, ["#dc2626", "#6366f1"], "kg"),
+        _render_grouped_bar("Hazardous vs Non-Hazardous Waste", bar_groups, ["#dc2626", "#6366f1"], "MT"),
         width=7.2 * inch, height=2.8 * inch))
     story.append(Spacer(1, 12))
 
@@ -620,15 +620,15 @@ def _sec_waste_performance(story, styles, report):
     nhaz_sub = ParagraphStyle("NHazSub", fontName="Helvetica-Bold", fontSize=9, textColor=colors.HexColor("#6366f1"), spaceAfter=4)
 
     story.append(Paragraph("Hazardous Waste Trends", haz_sub))
-    story.append(Image(_render_labeled_trend("Hazardous Generated — kg", ws.get("haz_generated_trend", []), "kg", "#dc2626", cm), width=7.2*inch, height=2.6*inch))
+    story.append(Image(_render_labeled_trend("Hazardous Generated — MT", ws.get("haz_generated_trend", []), "MT", "#dc2626", cm), width=7.2*inch, height=2.6*inch))
     story.append(Spacer(1, 8))
-    story.append(Image(_render_labeled_trend("Hazardous Recovered — kg", ws.get("haz_recovered_trend", []), "kg", "#f87171", cm), width=7.2*inch, height=2.6*inch))
+    story.append(Image(_render_labeled_trend("Hazardous Recovered — MT", ws.get("haz_recovered_trend", []), "MT", "#f87171", cm), width=7.2*inch, height=2.6*inch))
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Non-Hazardous Waste Trends", nhaz_sub))
-    story.append(Image(_render_labeled_trend("Non-Hazardous Generated — kg", ws.get("nonhaz_generated_trend", []), "kg", "#6366f1", cm), width=7.2*inch, height=2.6*inch))
+    story.append(Image(_render_labeled_trend("Non-Hazardous Generated — MT", ws.get("nonhaz_generated_trend", []), "MT", "#6366f1", cm), width=7.2*inch, height=2.6*inch))
     story.append(Spacer(1, 8))
-    story.append(Image(_render_labeled_trend("Non-Hazardous Recovered — kg", ws.get("nonhaz_recovered_trend", []), "kg", "#a78bfa", cm), width=7.2*inch, height=2.6*inch))
+    story.append(Image(_render_labeled_trend("Non-Hazardous Recovered — MT", ws.get("nonhaz_recovered_trend", []), "MT", "#a78bfa", cm), width=7.2*inch, height=2.6*inch))
     story.append(PageBreak())
 
 

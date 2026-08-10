@@ -11,6 +11,7 @@ Calculation logic:
 """
 from typing import Optional, List, Dict, Any
 from .date_utils import build_date_filter
+from .waste_utils import to_metric_tonnes
 
 
 # Field mappings for hazardous/non-hazardous breakdown
@@ -67,6 +68,8 @@ class WasteMetricsService:
             "non_hazardous_generated": round(waste_data["non_hazardous"]["generated"], 2),
             "hazardous_recovered": round(waste_data["hazardous"]["recovered"], 2),
             "non_hazardous_recovered": round(waste_data["non_hazardous"]["recovered"], 2),
+            "hazardous_disposed": round(waste_data["hazardous"]["disposed"], 2),
+            "non_hazardous_disposed": round(waste_data["non_hazardous"]["disposed"], 2),
         }
     
     async def _get_all_waste_data(
@@ -122,7 +125,7 @@ class WasteMetricsService:
                 val = fv.get(field_key)
                 if val is not None and val != "":
                     try:
-                        val_float = float(val)
+                        val_float = to_metric_tonnes(val, fv.get("unit"))
                         if val_float > 0:
                             target = hazardous_waste if waste_type == "hazardous" else non_hazardous_waste
                             target[metric] += val_float
@@ -136,7 +139,7 @@ class WasteMetricsService:
                 qty = fv.get("quantity")
                 if qty is not None and qty != "":
                     try:
-                        qty_float = float(qty)
+                        qty_float = to_metric_tonnes(qty, fv.get("unit"))
                         if qty_float > 0:
                             # Determine if hazardous or not
                             waste_type_str = str(fv.get("waste_type") or "").lower()

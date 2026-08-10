@@ -435,7 +435,7 @@ async def build_twelve_month_resource_trends(filters: Dict[str, Any], current_us
     facilities = filters.get("facility_ids") or await organization_facility_ids(current_user)
     all_facilities = await organization_facility_ids(current_user)
     facility_filter = None if set(facilities) == set(all_facilities) else facilities
-    metrics = {"energy": ("energy", "total"), "water_consumption": ("water", "consumption"), "water_withdrawal": ("water", "withdrawal"), "water_discharge": ("water", "discharge"), "water_recycle": ("water", "recycled"), "waste_generated": ("waste", "generated"), "waste_recovery": ("waste", "recovery_pct"), "renewable_energy": ("energy", "renewable_pct"), "energy_renewable_total": ("energy", "renewable_total"), "energy_non_renewable_total": ("energy", "non_renewable_total"), "waste_recovered": ("waste", "recovered"), "waste_haz_generated": ("waste", "hazardous_generated"), "waste_haz_recovered": ("waste", "hazardous_recovered"), "waste_nonhaz_generated": ("waste", "non_hazardous_generated"), "waste_nonhaz_recovered": ("waste", "non_hazardous_recovered")}
+    metrics = {"energy": ("energy", "total"), "water_consumption": ("water", "consumption"), "water_withdrawal": ("water", "withdrawal"), "water_discharge": ("water", "discharge"), "water_recycle": ("water", "recycled"), "waste_generated": ("waste", "generated"), "waste_recovery": ("waste", "recovery_pct"), "renewable_energy": ("energy", "renewable_pct"), "energy_renewable_total": ("energy", "renewable_total"), "energy_non_renewable_total": ("energy", "non_renewable_total"), "waste_recovered": ("waste", "recovered"), "waste_disposal": ("waste", "disposal"), "waste_haz_generated": ("waste", "hazardous_generated"), "waste_haz_recovered": ("waste", "hazardous_recovered"), "waste_haz_disposed": ("waste", "hazardous_disposed"), "waste_nonhaz_generated": ("waste", "non_hazardous_generated"), "waste_nonhaz_recovered": ("waste", "non_hazardous_recovered"), "waste_nonhaz_disposed": ("waste", "non_hazardous_disposed")}
     result = {key: [] for key in metrics}
     for period in months:
         snapshot = await build_resource_snapshot(current_user.get("organization_id"), facility_filter, {**filters, "reporting_period_start": period, "reporting_period_end": period, "strict_period": True})
@@ -819,6 +819,7 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
     w_disc_tm = _trend_map("water_discharge")
     w_rec_tm = _trend_map("water_recycle")
     waste_gen_tm = _trend_map("waste_generated")
+    waste_disp_tm = _trend_map("waste_disposal")
     waste_rec_pct_tm = _trend_map("waste_recovery")
 
     inc_tm = {e["period"]: e.get("value") for e in op_trends.get("incidents", [])}
@@ -838,6 +839,7 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
         w_disc_tm[period] = w.get("discharge")
         w_rec_tm[period] = w.get("recycled")
         waste_gen_tm[period] = ws.get("generated")
+        waste_disp_tm[period] = ws.get("disposal")
         waste_rec_pct_tm[period] = ws.get("recovery_pct")
 
         # Operational data for extra months
@@ -880,17 +882,16 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
     w_rec_vals = [w_rec_tm.get(m) for m in months_13]
 
     waste_gen_vals = [waste_gen_tm.get(m) for m in months_13]
-    waste_recyc_vals, waste_disp_vals = [], []
+    waste_disp_vals = [waste_disp_tm.get(m) for m in months_13]
+    waste_recyc_vals = []
     for i in range(13):
         g = waste_gen_vals[i]
         rp = waste_rec_pct_tm.get(months_13[i])
         if g is not None and rp is not None:
             rec = g * rp / 100
             waste_recyc_vals.append(round(rec, 4))
-            waste_disp_vals.append(round(max(g - rec, 0), 4))
         else:
             waste_recyc_vals.append(None)
-            waste_disp_vals.append(None)
 
     resource_avgs = {
         "energy_total": _compute_avg_with_count(energy_vals),
@@ -1340,33 +1341,35 @@ async def _build_resources_deep(report: dict, current_user: dict) -> dict:
     # Waste
     gen_m = _tmap("waste_generated")
     rec_m = _tmap("waste_recovered")
+    disp_m = _tmap("waste_disposal")
     haz_gen_m = _tmap("waste_haz_generated")
     haz_rec_m = _tmap("waste_haz_recovered")
+    haz_disp_m = _tmap("waste_haz_disposed")
     nhaz_gen_m = _tmap("waste_nonhaz_generated")
     nhaz_rec_m = _tmap("waste_nonhaz_recovered")
+    nhaz_disp_m = _tmap("waste_nonhaz_disposed")
     wst = report.get("waste", {})
-
-    def _safe(v):
-        return v if v is not None else 0
 
     waste = {
         "generated_trend": [{"period": m, "value": gen_m.get(m)} for m in months],
         "recovered_trend": [{"period": m, "value": rec_m.get(m)} for m in months],
-        "disposed_trend": [{"period": m, "value": round(max(_safe(gen_m.get(m)) - _safe(rec_m.get(m)), 0), 2) if gen_m.get(m) is not None else None} for m in months],
+        "disposed_trend": [{"period": m, "value": disp_m.get(m)} for m in months],
         "haz_generated_trend": [{"period": m, "value": haz_gen_m.get(m)} for m in months],
         "haz_recovered_trend": [{"period": m, "value": haz_rec_m.get(m)} for m in months],
-        "haz_disposed_trend": [{"period": m, "value": round(max(_safe(haz_gen_m.get(m)) - _safe(haz_rec_m.get(m)), 0), 2) if haz_gen_m.get(m) is not None else None} for m in months],
+        "haz_disposed_trend": [{"period": m, "value": haz_disp_m.get(m)} for m in months],
         "nonhaz_generated_trend": [{"period": m, "value": nhaz_gen_m.get(m)} for m in months],
         "nonhaz_recovered_trend": [{"period": m, "value": nhaz_rec_m.get(m)} for m in months],
-        "nonhaz_disposed_trend": [{"period": m, "value": round(max(_safe(nhaz_gen_m.get(m)) - _safe(nhaz_rec_m.get(m)), 0), 2) if nhaz_gen_m.get(m) is not None else None} for m in months],
+        "nonhaz_disposed_trend": [{"period": m, "value": nhaz_disp_m.get(m)} for m in months],
         "current": {
             "generated": wst.get("generated", 0) or 0,
             "recovered": wst.get("recovered", 0) or 0,
-            "disposed": max((wst.get("generated", 0) or 0) - (wst.get("recovered", 0) or 0), 0),
+            "disposed": wst.get("disposal", 0) or 0,
             "haz_generated": wst.get("hazardous_generated", 0) or 0,
             "haz_recovered": wst.get("hazardous_recovered", 0) or 0,
+            "haz_disposed": wst.get("hazardous_disposed", 0) or 0,
             "nonhaz_generated": wst.get("non_hazardous_generated", 0) or 0,
             "nonhaz_recovered": wst.get("non_hazardous_recovered", 0) or 0,
+            "nonhaz_disposed": wst.get("non_hazardous_disposed", 0) or 0,
         },
     }
 
@@ -1387,10 +1390,7 @@ async def _build_resources_deep(report: dict, current_user: dict) -> dict:
             continue
         fv = rec.get("field_values") or {}
         for field_key, label in WATER_SOURCE_FIELDS.items():
-            try:
-                val = float(fv.get(field_key) or 0)
-            except (TypeError, ValueError):
-                val = 0
+            val = to_kilolitres(fv.get(field_key), fv.get("unit"))
             if val:
                 source_by_month[rm][label] = round(source_by_month[rm].get(label, 0) + val, 2)
 
