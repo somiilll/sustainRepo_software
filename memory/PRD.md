@@ -132,6 +132,13 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - The collection was created empty with MongoDB's default `_id_` index, matching the local collection's index structure; no delivery records were copied or modified.
 - **Status**: Done and verified.
 
+### Immutable MIS Report Archive
+- New scheduled and **Send now** deliveries are archived in the configured `mis-reports-dev` R2 bucket at `{organization name}/{YYYY-MM-DD}/{delivery_run_id}/report.pdf|report.xlsx`; organization IDs are not used in archive paths.
+- `mis_report_delivery_runs` now records immutable report-configuration and recipient snapshots, reporting period, exact artifact keys, sizes, and SHA-256 checksums for PDF/XLSX artifacts. Direct browser exports remain on-demand and do not archive to R2.
+- Partial uploads are removed before a failed run is recorded, preventing orphaned archive files.
+- **Staging cleanup**: Deleted 2 old delivery-run records, 14 related recipient-delivery records, and 4 legacy R2 artifacts. The existing schedule was retained.
+- **Status**: Done — archive contract tests passed (7/7), including a live temporary R2 write/read/checksum/delete check. **MOCKED** report-builder, database, and email layers were used for schedule-flow contract tests.
+
 ### Repo Pilot Report Migration
 - **Status**: Done
 
