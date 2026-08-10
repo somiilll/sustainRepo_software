@@ -168,7 +168,8 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ### MIS SBTi Targets + Multiline Trend Legend Spacing
 - **Root Cause**: MIS only queried `esg_targets`; separately stored `sbti_targets` were never mapped into the report target feed. Multiline chart legends used three cramped columns without a dedicated gutter.
 - **Fix**: Added a read-only SBTi-to-MIS target mapper with live KPI progress, target year, term type, and short/long-term labeling. Multiline charts now use two legend columns, reserved legend height, and explicit row/column spacing.
-- **Status**: Done — independently verified by testing agent (5/5 runtime checks, PDF content, and visual legend review passed).
+- **SBTi Leadership Snapshot**: Added a compact six-column “SBTi Trajectory Summary” at the top of the Targets section showing baseline → current → target, term, target year, and status/achievement.
+- **Status**: Done — independently verified by testing agent (5/5 runtime checks, PDF content, and visual legend review passed; trajectory layout verified in the exported PDF).
 
 ### MIS Water / Waste Dashboard Parity
 - **Root Cause**: MIS water metrics included pending-approval records; waste values were legacy kilograms while the UI labeled them as MT; MIS disposal was derived rather than using the submitted Disposal record.
