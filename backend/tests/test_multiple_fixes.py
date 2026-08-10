@@ -12,7 +12,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://mis-premium-pdf.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://emissions-analytics.preview.emergentagent.com').rstrip('/')
 
 class TestOrganizationControlTypes:
     """Test Organization control types functionality"""
