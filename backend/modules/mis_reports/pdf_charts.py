@@ -242,17 +242,25 @@ def _render_multiline_trend(title: str, cat_trends: dict, unit: str,
 def _render_grouped_bar(title: str, groups: list, bar_colors: list,
                         unit: str, figsize=(7.2, 2.8)) -> io.BytesIO:
     _setup_mpl()
-    fig, ax = plt.subplots(figsize=figsize)
+    legend_height = 0.46
+    fig_w, fig_h = figsize[0], figsize[1] + legend_height
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    ax = fig.add_axes([0.12, (legend_height + 0.12) / fig_h, 0.82, figsize[1] * 0.78 / fig_h])
     if not groups:
-        ax.text(0.5, 0.5, "No data", ha="center", va="center", fontsize=12, color=TEXT_MUTED); ax.axis("off"); return _fig_to_bytes(fig)
+        ax.text(0.5, 0.5, "No data", ha="center", va="center", fontsize=12, color=TEXT_MUTED); ax.axis("off"); return _fig_to_bytes(fig, tight=False)
     cat_labels = [g["label"] for g in groups]; n = len(groups[0].get("values", [])); bar_h = 0.35; y = range(len(cat_labels))
     legend_labels = groups[0].get("series_labels", [])
+    max_value = max((value for group in groups for value in group.get("values", [])), default=0)
     for i in range(n):
         offsets = [j - bar_h * (n - 1) / 2 + i * bar_h for j in y]; vals = [g["values"][i] for g in groups]
         bars = ax.barh(offsets, vals, bar_h * 0.9, color=bar_colors[i % len(bar_colors)], label=legend_labels[i] if i < len(legend_labels) else "")
         for bar, v in zip(bars, vals):
-            if v > 0: ax.text(bar.get_width() + max(max(max(g["values"]) for g in groups) * 0.02, 0.5), bar.get_y() + bar.get_height() / 2, f"{v:,.1f}", va="center", fontsize=7, color=DARK)
+            if v > 0: ax.text(bar.get_width() + max(max_value * 0.02, 0.5), bar.get_y() + bar.get_height() / 2, f"{v:,.1f}", va="center", fontsize=7, color=DARK)
     ax.set_yticks(list(y)); ax.set_yticklabels(cat_labels, fontsize=8); ax.set_xlabel(unit, fontsize=7, color=TEXT_SECONDARY)
-    ax.legend(fontsize=7, frameon=False, loc="lower right"); ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8)
-    ax.grid(axis="x", alpha=0.2); ax.invert_yaxis(); fig.tight_layout()
-    return _fig_to_bytes(fig)
+    ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8)
+    ax.grid(axis="x", alpha=0.2); ax.invert_yaxis(); ax.margins(x=0.14)
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=min(max(n, 1), 2), fontsize=7,
+               frameon=False, bbox_to_anchor=(0.5, 0.035), columnspacing=2.0,
+               labelspacing=0.7, handletextpad=0.6)
+    return _fig_to_bytes(fig, tight=False)

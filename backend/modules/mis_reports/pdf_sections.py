@@ -612,7 +612,7 @@ def _sec_waste_performance(story, styles, report):
     ]
     story.append(Image(
         _render_grouped_bar("Hazardous vs Non-Hazardous Waste", bar_groups, ["#dc2626", "#6366f1"], "MT"),
-        width=7.2 * inch, height=2.8 * inch))
+        width=7.2 * inch, height=3.1 * inch))
     story.append(Spacer(1, 12))
 
     # Hazardous trends side by side
