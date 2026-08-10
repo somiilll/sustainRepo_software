@@ -869,6 +869,37 @@ def _sec_targets(story, styles, report):
 
     note_s = ParagraphStyle("TgtNote", fontName="Helvetica", fontSize=8, textColor=colors.HexColor(TEXT_MUTED), spaceAfter=2)
 
+    # ── Leadership snapshot: SBTi baseline → current → target trajectory ──
+    sbti_targets = [target for target in targets if target.get("target_source") == "sbti"]
+    if sbti_targets:
+        story.append(ColoredSectionBar("SBTi Trajectory Summary", "#0f766e"))
+        story.append(Spacer(1, 6))
+        trajectory_rows = []
+        for target in sbti_targets:
+            unit = target.get("unit", "")
+            base_value = _fmt_val(target.get("baseline_value"), unit)
+            current_value = _fmt_val(target.get("actual_value"), unit)
+            target_value = _fmt_val(target.get("target_value"), unit)
+            term_label = (target.get("term_type") or "").replace("_", " ").title() or "SBTi"
+            target_year = target.get("reporting_period") or "Not set"
+            achievement = target.get("progress_pct")
+            status = target.get("status", "No Data")
+            status_text = f"{status}<br/>{achievement:.1f}% achieved" if achievement is not None else status
+            trajectory_rows.append([
+                target.get("name", "SBTi Target"),
+                term_label,
+                f"{base_value}<br/>{target.get('baseline_period') or 'Base year not set'}",
+                current_value,
+                f"{target_value}<br/>{target_year}",
+                status_text,
+            ])
+        story.append(_styled_table(
+            ["SBTi Target", "Term", "Baseline", "Current", "Target", "Status"],
+            trajectory_rows,
+            col_widths=[115, 55, 100, 85, 100, 60],
+        ))
+        story.append(Spacer(1, 14))
+
     # ── Summary ──
     summary_rows = [
         ["Active Targets", str(target_summary.get("active", len(targets)))],
