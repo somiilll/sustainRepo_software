@@ -8,12 +8,30 @@ from typing import List, Dict, Any
 logger = logging.getLogger(__name__)
 
 
+def _has_operational_data_dimension(entities: dict) -> bool:
+    """Return True when extracted entities contain operational/emissions data dimensions.
+
+    This is entity-driven and requires no hardcoded fuel/activity names — any
+    non-empty value in a recognised data-dimension field is sufficient.
+    """
+    return any([
+        entities.get("fuel_type"),
+        entities.get("scope"),
+        entities.get("category"),
+        entities.get("facility"),
+    ])
+
+
 def plan_service_calls(intent_result: dict) -> List[Dict[str, Any]]:
     """Convert intent + entities into ordered service call plan."""
     intent = intent_result.get("intent", "summary")
     entities = intent_result.get("entities", {})
 
     plan = []
+    logger.info(
+        "plan_service_calls — intent=%s entities=%s",
+        intent, {k: v for k, v in entities.items() if v is not None},
+    )
 
     if intent == "record_lookup":
         record_type = entities.get("record_type") or "emission"
@@ -55,15 +73,27 @@ def plan_service_calls(intent_result: dict) -> List[Dict[str, Any]]:
         plan.append({"service": "organization", "method": "get_info", "params": entities})
 
     elif intent == "kpi_lookup":
-        # GHG/emissions value questions (e.g. "scope 1 emissions") get misclassified here by the
-        # LLM instead of "analytics" — route them to the analytics service which actually
-        # aggregates emission_records, instead of esg_kpi_definitions (a metadata catalog with
-        # no computed values).
         record_type = (entities.get("record_type") or "").lower()
         metric = (entities.get("metric") or entities.get("entity_name") or "").lower()
-        is_emission_metric = record_type == "emission" or bool(entities.get("scope")) or "emission" in metric or "ghg" in metric
+        has_data_dim = _has_operational_data_dimension(entities)
+        is_emission_metric = (
+            record_type == "emission"
+            or has_data_dim
+            or "emission" in metric
+            or "ghg" in metric
+            or "consumed" in metric
+            or "consumption" in metric
+        )
+        logger.info(
+            "kpi_lookup routing — record_type=%s metric=%s has_data_dim=%s "
+            "is_emission_metric=%s entities=%s",
+            record_type, metric, has_data_dim, is_emission_metric, entities,
+        )
         if is_emission_metric:
-            plan.append({"service": "analytics", "method": "query", "params": entities})
+            if entities.get("fuel_type"):
+                plan.append({"service": "emissions", "method": "search_records", "params": entities})
+            else:
+                plan.append({"service": "analytics", "method": "query", "params": entities})
         else:
             plan.append({"service": "esg_records", "method": "get_kpis", "params": entities})
 
@@ -91,4 +121,5 @@ def plan_service_calls(intent_result: dict) -> List[Dict[str, Any]]:
     else:
         plan.append({"service": "analytics", "method": "summary", "params": entities})
 
+    logger.info("plan_service_calls — selected_pipeline=%s", plan)
     return plan

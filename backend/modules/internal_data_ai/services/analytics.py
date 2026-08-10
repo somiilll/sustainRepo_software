@@ -10,6 +10,7 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     scope = kwargs.get("scope")
     category = kwargs.get("category")
     facility_name = kwargs.get("facility")
+    fuel_type = kwargs.get("fuel_type")
 
     resolved_facilities = await resolve_authorized_facilities(db, org_id, facility_ids, facility_name)
     match_stage = organization_scope(org_id, resolved_facilities)
@@ -20,6 +21,8 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
             {"category": {"$regex": category, "$options": "i"}},
             {"sub_category": {"$regex": category, "$options": "i"}},
         ]})
+    if fuel_type:
+        match_stage = and_filters(match_stage, {"fuel_type": {"$regex": fuel_type, "$options": "i"}})
     period = period_from_payload(kwargs.get("period"))
     if period is None:
         period = await latest_available_period(db, "emission_records", match_stage)
@@ -72,12 +75,27 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     ]
     scope_breakdown = await db.emission_records.aggregate(scope_pipeline).to_list(5)
 
+    # Consumption breakdown — aggregate quantity + unit + fuel_type for operational answers
+    consumption_pipeline = [
+        {"$match": match_stage},
+        {"$group": {
+            "_id": {"fuel_type": "$fuel_type", "unit": "$unit"},
+            "total_quantity": {"$sum": {"$toDouble": {"$ifNull": ["$quantity", 0]}}},
+            "total_emissions": {"$sum": {"$toDouble": {"$ifNull": ["$co2e_emissions", "$total_emissions"]}}},
+            "record_count": {"$sum": 1},
+        }},
+        {"$sort": {"total_quantity": -1}},
+        {"$limit": 20},
+    ]
+    consumption_data = await db.emission_records.aggregate(consumption_pipeline).to_list(20)
+
     total_records = await db.emission_records.count_documents(match_stage)
 
     return {
         "total_records": total_records,
         "unit": "tCO2e",
         "period": period.label,
+        "fuel_type_filter": fuel_type,
         "facility_rankings": [
             {"facility": fac_map.get(r["_id"], r["_id"]), "total_emissions": round(r["total_emissions"], 2), "records": r["record_count"]}
             for r in facility_emissions
@@ -89,6 +107,16 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
         "scope_breakdown": [
             {"scope": r["_id"], "total_emissions": round(r["total_emissions"], 2), "records": r["record_count"]}
             for r in scope_breakdown
+        ],
+        "consumption_breakdown": [
+            {
+                "fuel_type": c["_id"].get("fuel_type"),
+                "unit": c["_id"].get("unit"),
+                "total_quantity": round(c["total_quantity"], 2),
+                "total_emissions": round(c["total_emissions"], 2),
+                "records": c["record_count"],
+            }
+            for c in consumption_data
         ],
     }
 

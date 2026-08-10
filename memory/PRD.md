@@ -210,6 +210,16 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Fix**: Added `_governance_period_filter` to main report query. Exec summary now uses per-month `inc_tm[period_start]` value.
 - **Status**: Done (self-verified via curl)
 
+### Internal Data AI — Fuel/Activity Consumption Query Routing Fix
+- **Root Cause**: `kpi_lookup` intent for fuel-specific consumption questions (e.g., "How much Crude Oil was consumed for July 2026?") was misrouted to `esg_kpi_definitions` (KPI metadata catalog) instead of the emissions pipeline. The `is_emission_metric` heuristic only checked for "emission"/"ghg" keywords and explicit scope — missed `fuel_type` entity presence. Additionally, `analytics.query()` never applied `fuel_type` as a filter.
+- **Fix**: 
+  1. Added `_has_operational_data_dimension()` in `planner.py` — entity-driven check (fuel_type, scope, category, facility) with no hardcoded fuel names.
+  2. Updated `kpi_lookup` routing: when operational data dimensions present + fuel_type → `emissions.search_records()`; no fuel_type → `analytics.query()`; no dimensions → `esg_records.get_kpis()`.
+  3. Added `fuel_type` regex filter to `analytics.query()` match stage.
+  4. Added `consumption_breakdown` aggregation (quantity + unit + fuel_type) to analytics response.
+  5. Added structured debug logging for routing decisions.
+- **Status**: Done — iteration 160 verified 32/32 tests (26 planner unit + 6 integration including live endpoint checks).
+
 ## Pending Issues
 
 ### Process Emissions Live-Calculation Review (P0)
