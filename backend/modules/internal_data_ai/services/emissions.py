@@ -1,6 +1,6 @@
 """Emissions service for Internal Data AI."""
 from shared.database.mongo import db
-from modules.internal_data_ai.query_scope import and_filters, extract_consumption, normalize_scope, organization_scope, resolve_authorized_facilities
+from modules.internal_data_ai.query_scope import and_filters, extract_consumption, normalize_scope, organization_scope, resolve_authorized_facilities, scope_filter
 from modules.internal_data_ai.reporting_periods import emission_period_filter, latest_available_period, period_from_payload
 
 
@@ -10,8 +10,7 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
 
     scope = kwargs.get("scope")
     if scope:
-        scope_num = normalize_scope(scope)
-        query = and_filters(query, {"scope": {"$regex": f"^{scope_num}$", "$options": "i"}})
+        query = and_filters(query, scope_filter(scope))
 
     category = kwargs.get("category")
     if category:

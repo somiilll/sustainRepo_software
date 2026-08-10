@@ -229,6 +229,16 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
   4. `formulas.py` record_inputs also uses the helper.
 - **Status**: Done — 39 unit/integration tests pass (26 routing + 13 extraction). User requested skip of full testing agent run.
 
+### Internal Data AI — Scope Filter Format Mismatch
+- **Root Cause**: DB stores scope as `"scope1"` but the regex filter `^1$` (from `normalize_scope`) only matched the bare number `"1"`. Additionally, the LLM intent detector infers `scope` and `category` even when the user only mentions a fuel name, adding extra filters that compound the mismatch.
+- **Fix**: Added `scope_filter()` helper in `query_scope.py` that builds regex `^(scope\s*)?{num}$` — matches `"1"`, `"scope1"`, `"Scope 1"`, `"SCOPE 1"`, etc. Applied in both `emissions.py` and `analytics.py`.
+- **Verified**: All 4 failing queries now return correct data:
+  - Consumption: "400 L across 2 records"
+  - CO2e: "0.5452 tCO2e combined"
+  - Methodology (no period): Both formula_ids with definitions
+  - Methodology (with period): Both formula_ids for July 2026
+- **Status**: Done — user requested skip of testing agent run.
+
 ## Pending Issues
 
 ### Process Emissions Live-Calculation Review (P0)

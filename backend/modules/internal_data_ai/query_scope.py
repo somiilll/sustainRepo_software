@@ -74,6 +74,16 @@ def normalize_scope(scope: Any) -> str:
     return re.sub(r"^scope\s*", "", value).strip()
 
 
+def scope_filter(scope: Any) -> Dict[str, Any]:
+    """Build a MongoDB filter that matches all stored scope formats.
+
+    Stored values may be ``"1"``, ``"scope1"``, ``"Scope 1"``, etc.
+    The returned regex matches any of these case-insensitively.
+    """
+    num = normalize_scope(scope)
+    return {"scope": {"$regex": rf"^(scope\s*)?{num}$", "$options": "i"}}
+
+
 def extract_consumption(record: dict) -> tuple:
     """Extract (quantity, unit) from ``dynamic_field_values.qty``.
 
