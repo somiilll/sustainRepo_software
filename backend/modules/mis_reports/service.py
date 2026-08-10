@@ -259,6 +259,77 @@ async def _enrich_targets_with_progress(targets_raw: List[Dict], organization_id
     return enriched
 
 
+async def _enrich_sbti_targets_with_progress(targets_raw: List[Dict], organization_id: str) -> List[Dict]:
+    """Map separately stored SBTi targets into the MIS target presentation model."""
+    from modules.kpi_engine import kpi_calculator
+    from modules.esg_targets.router import _get_denominator_for_intensity, _get_org_reporting_type
+    from modules.sbti_targets.service import compute_achievement
+
+    reporting_type = await _get_org_reporting_type(organization_id)
+    current_year = datetime.now(timezone.utc).year
+    enriched = []
+    for target in targets_raw:
+        target_type = target.get("target_type", "percentage")
+        is_intensity = target_type in {"intensity_revenue", "intensity_production"}
+        target_value = target.get("target_intensity") if is_intensity else target.get("target_value")
+        baseline_value = target.get("base_year_intensity") if is_intensity else target.get("base_year_value")
+        actual_value = None
+        kpi_id = target.get("kpi_id")
+        if kpi_id:
+            try:
+                calculation = await kpi_calculator.calculate(
+                    kpi_id=kpi_id,
+                    org_id=organization_id,
+                    scope_type="organization",
+                    facility_ids=None,
+                    period={"year": current_year},
+                )
+                actual_value = calculation.get("value")
+                if is_intensity and actual_value is not None:
+                    denominator = await _get_denominator_for_intensity(
+                        {"target_type": target_type, "scope_type": "organization", "facility_ids": [], "_reporting_type": reporting_type},
+                        organization_id,
+                        {"year": current_year},
+                    )
+                    actual_value = round(actual_value / denominator["value"], 6) if denominator.get("value") else None
+            except Exception:
+                actual_value = None
+
+        progress_pct = compute_achievement(
+            "intensity" if is_intensity else "percentage",
+            target_intensity=target_value,
+            current_intensity=actual_value,
+            base_intensity=baseline_value,
+            target_value=target_value,
+            current_value=actual_value,
+            base_value=baseline_value,
+        )
+        direction, status = target_direction_and_status(actual_value, target_value, "decrease")
+        enriched.append({
+            "name": target.get("target_name", "SBTi Target"),
+            "target_value": target_value,
+            "baseline_value": baseline_value,
+            "baseline_period": target.get("base_year", ""),
+            "unit": target.get("unit", ""),
+            "category": "SBTi",
+            "section": "sbti",
+            "tracking_mode": "static",
+            "kpi_name": target.get("kpi_name", ""),
+            "reporting_period": target.get("target_year", ""),
+            "actual_value": actual_value,
+            "progress_pct": progress_pct,
+            "gap": round(actual_value - target_value, 4) if actual_value is not None and target_value is not None else None,
+            "target_type": target_type,
+            "goal_type": "upper_limit",
+            "target_direction": direction,
+            "status": status,
+            "tracking_values": None,
+            "target_source": "sbti",
+            "term_type": target.get("term_type", ""),
+        })
+    return enriched
+
+
 async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict, reporting_context: Optional[Dict[str, Any]] = None, selected_sections: Optional[List[str]] = None) -> Dict[str, Any]:
     """Build a factual ESG MIS data pack; no generative metrics are invented."""
     current = await aggregate_emissions(filters, current_user)
@@ -299,7 +370,12 @@ async def build_executive_mis_report(filters: Dict[str, Any], current_user: dict
         {"organization_id": organization_id, "is_deleted": {"$ne": True}, "status": "active"},
         {"_id": 0},
     ).to_list(100)
+    sbti_targets_raw = await db.sbti_targets.find(
+        {"organization_id": organization_id, "status": "active"},
+        {"_id": 0},
+    ).to_list(100)
     targets = await _enrich_targets_with_progress(targets_raw, organization_id)
+    targets.extend(await _enrich_sbti_targets_with_progress(sbti_targets_raw, organization_id))
     frameworks = await db.organization_esg_responses.find({"organization_id": organization_id}, {"_id": 0, "framework": 1, "approval_status": 1}).to_list(10000)
     compliance: Dict[str, Dict[str, int]] = {}
     for item in frameworks:

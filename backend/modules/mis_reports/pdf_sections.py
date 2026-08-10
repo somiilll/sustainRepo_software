@@ -912,7 +912,11 @@ def _sec_targets(story, styles, report):
             story.append(Paragraph(name, tgt_hdr))
 
             mode_label = {"yearly": "Yearly", "static": "Static", "monthly": "Monthly"}.get(tracking_mode, tracking_mode.title())
-            story.append(Paragraph(f"{mode_label} Target  |  {period}  |  Direction: {direction.title()}", note_s))
+            if t.get("target_source") == "sbti":
+                term_label = (t.get("term_type") or "").replace("_", " ").title()
+                story.append(Paragraph(f"SBTi {term_label} Target  |  Target Year: {period}  |  Direction: {direction.title()}", note_s))
+            else:
+                story.append(Paragraph(f"{mode_label} Target  |  {period}  |  Direction: {direction.title()}", note_s))
 
             info_rows = [
                 ["Target Value", f"{tv:,.2f} {unit}" if tv is not None else "Not set"],

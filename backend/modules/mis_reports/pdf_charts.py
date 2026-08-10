@@ -199,13 +199,14 @@ def _render_multiline_trend(title: str, cat_trends: dict, unit: str,
                             color_map: dict, figsize=(7.2, 2.8)) -> io.BytesIO:
     _setup_mpl()
     num_cats = len(cat_trends)
-    # Add extra height for the legend below the chart
-    legend_rows = max(1, (num_cats + 2) // 3)
-    extra_h = legend_rows * 0.22
+    # Use two columns and a dedicated gutter so longer legend names never collide.
+    legend_columns = min(max(num_cats, 1), 2)
+    legend_rows = max(1, (num_cats + legend_columns - 1) // legend_columns)
+    extra_h = legend_rows * 0.28 + 0.16
     fig_w, fig_h = figsize[0], figsize[1] + extra_h
     fig = plt.figure(figsize=(fig_w, fig_h))
     # Chart area in top portion, legend space at bottom
-    ax = fig.add_axes([0.08, (extra_h + 0.1) / fig_h, 0.88, figsize[1] * 0.82 / fig_h])
+    ax = fig.add_axes([0.08, (extra_h + 0.14) / fig_h, 0.88, figsize[1] * 0.78 / fig_h])
     if not cat_trends:
         ax.text(0.5, 0.5, "No category data", ha="center", va="center", fontsize=12, color=TEXT_MUTED)
         ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off"); return _fig_to_bytes(fig, tight=False)
@@ -232,8 +233,9 @@ def _render_multiline_trend(title: str, cat_trends: dict, unit: str,
     ax.set_title(title, fontsize=10, fontweight="bold", color=DARK, pad=8)
     ax.spines["bottom"].set_color(BORDER_COLOR); ax.spines["left"].set_color(BORDER_COLOR)
     # Place legend below the chart area
-    fig.legend(*ax.get_legend_handles_labels(), loc="lower center", ncol=min(num_cats, 3),
-               fontsize=6, frameon=False, bbox_to_anchor=(0.5, 0.0))
+    fig.legend(*ax.get_legend_handles_labels(), loc="lower center", ncol=legend_columns,
+               fontsize=6, frameon=False, bbox_to_anchor=(0.5, 0.035),
+               columnspacing=1.8, labelspacing=0.75, handletextpad=0.6)
     return _fig_to_bytes(fig, tight=False)
 
 
