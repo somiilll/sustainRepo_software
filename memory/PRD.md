@@ -173,8 +173,8 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 
 ### MIS Water / Waste Dashboard Parity
 - **Root Cause**: MIS water metrics included pending-approval records; waste values were legacy kilograms while the UI labeled them as MT; MIS disposal was derived rather than using the submitted Disposal record.
-- **Fix**: Water metrics now use approved/not-required records; dashboard and MIS normalize legacy waste quantities to MT; MIS trends use explicit disposal totals; report labels use MT; environment-detail honors the selected reporting period.
-- **Status**: Implemented and API parity self-checked for August 2026. Independent test-agent verification was requested but stopped before execution by the prior user instruction.
+- **Fix**: Water metrics now use approved/not-required records; dashboard and MIS normalize legacy waste quantities to MT; MIS trends use explicit disposal totals; report labels use MT; environment-detail honors the selected reporting period. The Hazardous vs Non-Hazardous Waste chart now reserves a dedicated bottom legend band and has extra PDF height.
+- **Status**: Waste legend layout independently verified in the August 2026 PDF (5/5 testing-agent checks). Water/waste API parity was self-checked; the earlier dedicated parity testing-agent run stopped before execution by prior user instruction.
 
 ### Supplier Assessment "Not Assessed" Fix
 - **Root Cause**: `pdf_sections.py` read `overall_score`/`esg_score`/`ghg_score` (all None in DB) instead of `overall_completion_percent`/`esg_completion_percent`/`ghg_completion_percent` (actual values).
