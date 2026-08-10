@@ -43,6 +43,9 @@ async def get_progress(org_id: str, facility_ids: list = None, **kwargs) -> dict
             "target_year": t.get("target_year"),
             "tracking_mode": t.get("tracking_mode"),
             "kpi_name": t.get("kpi_name"),
+            "baseline_value": t.get("base_year_value") or t.get("base_year_intensity"),
+            "target_value": t.get("target_value") or t.get("target_intensity"),
+            "unit": t.get("unit"),
         })
 
     return {"total_targets": len(results), "targets": results}

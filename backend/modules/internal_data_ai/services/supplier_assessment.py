@@ -43,8 +43,9 @@ async def get_data(org_id: str, facility_ids: list = None, **kwargs) -> dict:
         })
 
     # 3. Assessment responses with scores
+    questionnaire_ids = [q.get("id") for q in questionnaires if q.get("id")]
     responses = await db.supplier_questionnaire_responses.find(
-        {"questionnaire_id": {"$in": [q.get("id") for q in questionnaires]}},
+        {"questionnaire_id": {"$in": questionnaire_ids}},
         {"_id": 0, "answers": 0},
     ).to_list(50)
 
@@ -61,7 +62,7 @@ async def get_data(org_id: str, facility_ids: list = None, **kwargs) -> dict:
         })
 
     # 4. Questions overview
-    q_ids = [q.get("id") for q in questionnaires]
+    q_ids = questionnaire_ids
     questions = await db.supplier_questions.find(
         {"questionnaire_id": {"$in": q_ids}},
         {"_id": 0, "id": 1, "question_text": 1, "esg_section": 1, "scoring": 1},

@@ -56,10 +56,10 @@ async def lookup(org_id: str, **kwargs) -> dict:
 
     # Check org-level overrides
     overrides = await db.emission_factors.find(
-        {"$or": [
+        {"$and": [{"organization_id": org_id}, {"$or": [
             {"name": {"$regex": fuel_type, "$options": "i"}},
             {"category": {"$regex": fuel_type, "$options": "i"}},
-        ]},
+        ]}]},
         {"_id": 0}
     ).to_list(5)
     for o in overrides:

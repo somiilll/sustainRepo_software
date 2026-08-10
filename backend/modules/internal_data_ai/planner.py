@@ -26,6 +26,7 @@ def plan_service_calls(intent_result: dict) -> List[Dict[str, Any]]:
         plan.append({"service": "emission_factors", "method": "lookup", "params": entities})
 
     elif intent == "formula_calculation":
+        plan.append({"service": "emissions", "method": "search_records", "params": entities})
         plan.append({"service": "formulas", "method": "explain", "params": entities})
 
     elif intent == "approval_history":

@@ -15,6 +15,7 @@ from modules.internal_data_ai.planner import plan_service_calls
 from modules.internal_data_ai.executor import execute_plan
 from modules.internal_data_ai.response_builder import build_response
 from modules.internal_data_ai.embedding_service import find_similar_entities, precompute_embeddings
+from modules.internal_data_ai.reporting_periods import extract_explicit_period
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,8 @@ async def internal_ai_chat(
         raise HTTPException(status_code=400, detail="No organization")
 
     # Get user's assigned facilities for permission filtering
-    facility_ids = current_user.get("assigned_facilities") or []
+    assigned_facilities = current_user.get("assigned_facilities")
+    facility_ids = list(assigned_facilities) if assigned_facilities else None
     session_id = request.session_id or str(uuid.uuid4())
 
     # 1. Auto-precompute embeddings if missing
@@ -74,6 +76,11 @@ async def internal_ai_chat(
         ],
     }
 
+    organization = await db.organizations.find_one(
+        {"id": org_id},
+        {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1},
+    )
+
     # 2. Intent detection
     intent_result = await detect_intent(request.message, org_context)
     intent_name = intent_result.get("intent", "summary")
@@ -81,6 +88,9 @@ async def internal_ai_chat(
 
     # Enrich entities from embedding matches
     entities = intent_result.get("entities", {})
+    explicit_period = extract_explicit_period(request.message, organization)
+    # The parser is authoritative: an LLM cannot invent a reporting period.
+    entities["period"] = explicit_period.as_dict() if explicit_period else None
     for match in matched_entities:
         if match["score"] > 0.5:
             if match["entity_type"] == "facility" and not entities.get("facility"):

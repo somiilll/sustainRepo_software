@@ -1,5 +1,6 @@
 """Data Status service for Internal Data AI — record-level status aggregation."""
 from shared.database.mongo import db
+from modules.internal_data_ai.query_scope import and_filters, organization_scope
 
 
 async def get_status(org_id: str, facility_ids: list = None, **kwargs) -> dict:
@@ -9,9 +10,7 @@ async def get_status(org_id: str, facility_ids: list = None, **kwargs) -> dict:
 
     # GHG Emission Records status
     if not record_type or "emission" in record_type.lower():
-        em_match = {"organization_id": org_id}
-        if facility_ids:
-            em_match["facility_id"] = {"$in": facility_ids}
+        em_match = organization_scope(org_id, facility_ids)
         pipeline = [
             {"$match": em_match},
             {"$group": {"_id": "$status", "count": {"$sum": 1}}},
@@ -22,7 +21,7 @@ async def get_status(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     # Environment Records
     if not record_type or "environment" in record_type.lower():
         pipeline = [
-            {"$match": {"org_id": org_id}},
+            {"$match": and_filters({"$or": [{"organization_id": org_id}, {"org_id": org_id}]}, organization_scope(org_id, facility_ids, organization_field="org_id"))},
             {"$group": {"_id": "$status", "count": {"$sum": 1}}},
         ]
         env_stats = await db.environment_records.aggregate(pipeline).to_list(10)
@@ -31,7 +30,7 @@ async def get_status(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     # Social Records
     if not record_type or "social" in record_type.lower():
         pipeline = [
-            {"$match": {"org_id": org_id}},
+            {"$match": and_filters({"$or": [{"organization_id": org_id}, {"org_id": org_id}]}, organization_scope(org_id, facility_ids, organization_field="org_id"))},
             {"$group": {"_id": "$status", "count": {"$sum": 1}}},
         ]
         soc_stats = await db.social_records.aggregate(pipeline).to_list(10)
@@ -40,7 +39,7 @@ async def get_status(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     # Governance Records
     if not record_type or "governance" in record_type.lower():
         pipeline = [
-            {"$match": {"org_id": org_id}},
+            {"$match": and_filters({"$or": [{"organization_id": org_id}, {"org_id": org_id}]}, organization_scope(org_id, facility_ids, organization_field="org_id"))},
             {"$group": {"_id": "$status", "count": {"$sum": 1}}},
         ]
         gov_stats = await db.governance_records.aggregate(pipeline).to_list(10)
@@ -64,8 +63,11 @@ async def get_status(org_id: str, facility_ids: list = None, **kwargs) -> dict:
         results["framework_submissions"] = fw_result
 
     # Approval requests summary
+    approval_match = {"organization_id": org_id}
+    if facility_ids is not None:
+        approval_match["entity_snapshot.facility_id"] = {"$in": facility_ids}
     approval_pipeline = [
-        {"$match": {"organization_id": org_id}},
+        {"$match": approval_match},
         {"$group": {"_id": "$status", "count": {"$sum": 1}}},
     ]
     approval_stats = await db.approval_requests.aggregate(approval_pipeline).to_list(10)

@@ -77,7 +77,9 @@ async def execute_plan(plan: List[Dict[str, Any]], org_id: str, facility_ids: li
     for step in plan:
         service_name = step.get("service")
         method_name = step.get("method")
-        params = step.get("params", {})
+        params = dict(step.get("params", {}))
+        if service_name == "formulas":
+            params["emission_records"] = merged.get("emissions", {}).get("records", [])
 
         service = SERVICE_MAP.get(service_name)
         if not service:

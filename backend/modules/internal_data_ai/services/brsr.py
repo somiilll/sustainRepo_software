@@ -96,9 +96,14 @@ async def get_version_history(org_id: str, facility_ids: list = None, **kwargs) 
     """BRSR response version history."""
     question_key = kwargs.get("metric") or kwargs.get("entity_name") or ""
 
-    query = {"framework": "brsr"}
+    source_query = {"organization_id": org_id, "framework": {"$in": _FW_VARIANTS}}
     if question_key:
-        query["question_key"] = {"$regex": question_key, "$options": "i"}
+        source_query["question_key"] = {"$regex": question_key, "$options": "i"}
+
+    responses = await db.esg_responses.find(source_query, {"_id": 0, "id": 1, "question_key": 1}).to_list(1000)
+    record_ids = [response["id"] for response in responses if response.get("id")]
+    question_keys = [response["question_key"] for response in responses if response.get("question_key")]
+    query = {"organization_id": org_id, "$or": [{"record_id": {"$in": record_ids}}, {"question_key": {"$in": question_keys}}]}
 
     versions = await db.esg_responses_versions.find(
         query, {"_id": 0}

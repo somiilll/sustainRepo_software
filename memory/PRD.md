@@ -177,6 +177,13 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 
 ## Bug Fixes (Aug 2026 — Latest Session)
 
+### Internal Data AI — Scoped Retrieval, Reporting Periods, and Methodology Lineage
+- **Security**: Added server-owned organization and facility query helpers. Internal AI now resolves facility names to authorized IDs and applies organization ID + allowed facility IDs in MongoDB queries before data reaches the model. Evidence global-file fallback, global user listing, and unscoped audit/history paths were removed or replaced with scoped record-ID allowlists.
+- **Reporting periods**: Raw-question parsing deterministically resolves explicit month, ISO month, FY, CY, quarter, and current FY/CY requests using organization reporting configuration. Model-invented periods are discarded; no-period answers select the latest valid stored period for emissions analytics and expose the resolved period.
+- **Methodology**: Formula questions now retrieve authorized emission records first, follow their exact `formula_id`, return the stored formula/variables/properties/audit data, and explicitly report missing formula/audit information without inference.
+- **Analytics**: Scope normalization accepts `Scope 1`, `scope 1`, or `1`; analytics applies scope, category, facilities, organization, and reporting period before aggregation.
+- **Status**: Done — iteration 159 verification passed 24/24 executed tests plus frontend login/dashboard smoke. **MOCKED** MongoDB fixture and LLM intent/formatting layers were used for deterministic security tests; the optional live Internal AI chat smoke was skipped because its LLM environment guard was unavailable.
+
 ### MIS SBTi Targets + Multiline Trend Legend Spacing
 - **Root Cause**: MIS only queried `esg_targets`; separately stored `sbti_targets` were never mapped into the report target feed. Multiline chart legends used three cramped columns without a dedicated gutter.
 - **Fix**: Added a read-only SBTi-to-MIS target mapper with live KPI progress, target year, term type, and short/long-term labeling. Multiline charts now use two legend columns, reserved legend height, and explicit row/column spacing.
