@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 
 import { categoryRegistry } from '../../../../emissions';
 import { MONTHS } from '../constants/emission-form-constants';
+import { buildCustomFuelCalculationPayload } from '../../../../../pages/emissions/utils/customFuelCalcAdapter';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -79,32 +80,6 @@ export function useEmissionSubmit(ctx) {
     const apiBase = supplierContext 
       ? `${API}/supplier-assessment/my-assessment/emissions`
       : `${API}/emissions`;
-
-    /**
-     * Compute custom fuel emissions from per-month data.
-     * Returns { co2e } based on the selected calculation methodology.
-     */
-    const computeCustomFuelEmissions = (monthData) => {
-      const calcMethod = decisionFieldValues?.calculation_methodology || 'using_heat_basis_ncv';
-      const qty = parseFloat(monthData.quantity || monthData.qty || 0);
-      if (!qty) return { co2e: 0 };
-
-      if (calcMethod === 'using_heat_basis_ncv') {
-        const ef = parseFloat(monthData.custom_ef || 0);
-        const cv = parseFloat(monthData.custom_cv || 0);
-        return { co2e: qty * cv * ef };
-      }
-      if (calcMethod === 'using_qty_basis_ef') {
-        const ef = parseFloat(monthData.custom_ef || 0);
-        return { co2e: qty * ef };
-      }
-      if (calcMethod === 'using_carbon_composition') {
-        const cc = parseFloat(monthData.custom_carbon_content || 0);
-        const ox = parseFloat(monthData.custom_oxidation_factor || 0);
-        return { co2e: (qty * cc / 100 * ox) / 1000 };
-      }
-      return { co2e: 0 };
-    };
 
     // Prevent duplicate submissions
     if (isSaving) return;
@@ -400,8 +375,14 @@ export function useEmissionSubmit(ctx) {
               reportingPeriod: yearlyReportingPeriod,
             };
 
-            const { inputs: yInputs, userOverrides: yOverrides } = yearlyMod.extractInputsForCalcEngine(yearlyData, yBaseCtx);
+            const { inputs: yInputs, userOverrides: yOverrides, isCustomFuelReady: yIsCustomFuelReady } = yearlyMod.extractInputsForCalcEngine(yearlyData, yBaseCtx);
             const { decisionInputs: yDecisionInputs, context: yContext, isScope3Like: yIsScope3Like } = yearlyMod.buildDecisionContext(yearlyData, yBaseCtx);
+
+            if (useCustomFuel && !yIsCustomFuelReady) {
+              toast.error('Complete Custom Fuel inputs are required before saving.');
+              setIsSaving(false);
+              return;
+            }
 
             let yCalcCO2 = 0, yCalcCH4 = 0, yCalcN2O = 0, yCalcCO2e = 0;
             let yResolvedFormulaId = null;
@@ -409,7 +390,13 @@ export function useEmissionSubmit(ctx) {
             const yEffectiveScope = yIsScope3Like ? 'scope3' : scope;
             const yCategoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === yEffectiveScope);
 
-            if (yCategoryObj?.id && !useCustomFuel) {
+            if (useCustomFuel && !yCategoryObj?.id) {
+              toast.error('Custom Fuel calculation category is unavailable.');
+              setIsSaving(false);
+              return;
+            }
+
+            if (yCategoryObj?.id) {
               try {
                 const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
                   category_id: yCategoryObj.id,
@@ -427,14 +414,19 @@ export function useEmissionSubmit(ctx) {
                   yCalcN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
                   yCalcCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
                   yResolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
+                } else if (useCustomFuel) {
+                  toast.error('Custom Fuel calculation returned no result.');
+                  setIsSaving(false);
+                  return;
                 }
               } catch (e) {
-                // Fall through with zeros — record persisted, can be recalculated later
+                if (useCustomFuel) {
+                  toast.error('Custom Fuel backend calculation failed.');
+                  setIsSaving(false);
+                  return;
+                }
+                // Standard fuel remains unchanged: it can be recalculated later.
               }
-            } else if (useCustomFuel) {
-              const result = computeCustomFuelEmissions(yearlyData);
-              yCalcCO2e = result.co2e;
-              yCalcCO2 = result.co2e;
             }
 
             const yPayload = {
@@ -616,7 +608,45 @@ export function useEmissionSubmit(ctx) {
         for (const [monthKey, data] of monthsWithData) {
           const actualYear = getActualYearForMonth(monthKey);
           const reportingPeriod = `${actualYear}-${monthKey}`;
-          const result = computeCustomFuelEmissions(data);
+          const customFuelCalculation = buildCustomFuelCalculationPayload({
+            dynamicFieldValues: data,
+            calculationMethodology: decisionFieldValues?.calculation_methodology,
+          });
+          if (!customFuelCalculation.isReady) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: complete Custom Fuel inputs are required`);
+            continue;
+          }
+          const effectiveScope = scope === 'biogenic' && biogenicScopeSelection === 'scope1' ? 'scope1' : scope;
+          const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
+          if (!categoryObj?.id) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Custom Fuel calculation category is unavailable`);
+            continue;
+          }
+          let calculation;
+          try {
+            const response = await axios.post(`${API}/calc-engine/execute-by-category`, {
+              category_id: categoryObj.id,
+              decision_inputs: { calculation_methodology: decisionFieldValues?.calculation_methodology || 'using_heat_basis_ncv' },
+              inputs: customFuelCalculation.inputs,
+              user_overrides: customFuelCalculation.userOverrides,
+              context: {
+                fuel_name: customFuelName,
+                fuel_id: null,
+                scope: effectiveScope,
+                category,
+                facility_id: facilityId,
+                reporting_period: reportingPeriod,
+                is_custom_fuel: true,
+              },
+              dry_run: false,
+            }, { headers: getAuthHeader() });
+            if (!response.data?.ok) throw new Error('Calculation engine returned no result');
+            calculation = response.data;
+          } catch (error) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: backend calculation failed`);
+            continue;
+          }
+          const outputs = calculation.outputs || {};
           const qtyUnit = data.custom_qty_unit || data.unit || 'kg';
           const payload = {
             facility_id: facilityId,
@@ -629,11 +659,12 @@ export function useEmissionSubmit(ctx) {
             reporting_period: reportingPeriod,
             quantity: parseFloat(data.quantity || data.qty || 0),
             unit: qtyUnit,
-            calculated_co2: result.co2e,
-            calculated_ch4: 0,
-            calculated_n2o: 0,
-            calculated_co2e: result.co2e,
-            co2e_total: result.co2e,
+            formula_id: calculation.resolved_formula?.id || calculation.formula_id || null,
+            calculated_co2: outputs.co2?.value || calculation.co2_emissions || 0,
+            calculated_ch4: outputs.ch4?.value || calculation.ch4_emissions || 0,
+            calculated_n2o: outputs.n2o?.value || calculation.n2o_emissions || 0,
+            calculated_co2e: outputs.co2e?.value || calculation.co2e_emissions || 0,
+            co2e_total: outputs.co2e?.value || calculation.co2e_emissions || 0,
             notes,
             record_source: recordSource || 'manual',
             responsible_person: responsiblePerson,
@@ -727,8 +758,13 @@ export function useEmissionSubmit(ctx) {
             reportingPeriod,
           };
 
-          const { inputs, userOverrides } = dispatchActiveModule.extractInputsForCalcEngine(data, baseCtx);
+          const { inputs, userOverrides, isCustomFuelReady } = dispatchActiveModule.extractInputsForCalcEngine(data, baseCtx);
           const { decisionInputs, context, isScope3Like } = dispatchActiveModule.buildDecisionContext(data, baseCtx);
+
+          if (useCustomFuel && !isCustomFuelReady) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: complete Custom Fuel inputs are required`);
+            continue;
+          }
 
           let calculatedCO2 = 0, calculatedCH4 = 0, calculatedN2O = 0, calculatedCO2e = 0;
           let resolvedFormulaId = null;
@@ -736,6 +772,11 @@ export function useEmissionSubmit(ctx) {
           // Calc-engine lookup uses scope-specific category code
           const effectiveScopeForLookup = isScope3Like ? 'scope3' : scope;
           const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScopeForLookup);
+
+          if (useCustomFuel && !categoryObj?.id) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Custom Fuel calculation category is unavailable`);
+            continue;
+          }
 
           if (categoryObj?.id) {
             try {
@@ -761,15 +802,16 @@ export function useEmissionSubmit(ctx) {
                 calculatedN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
                 calculatedCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
                 resolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
+              } else if (useCustomFuel) {
+                errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: backend calculation returned no result`);
+                continue;
               }
             } catch (e) {
-              // Fallback for custom fuel: compute from per-month fields
               if (useCustomFuel) {
-                const result = computeCustomFuelEmissions(data);
-                calculatedCO2 = result.co2e;
-                calculatedCO2e = result.co2e;
+                errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: backend calculation failed`);
+                continue;
               }
-              // For standard fuel: Fall through with zeros — record persisted, can be recalculated later
+              // Standard fuel remains unchanged: it can be recalculated later.
             }
           }
 

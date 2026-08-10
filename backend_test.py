@@ -7,7 +7,7 @@ from datetime import datetime
 import uuid
 
 class GHGPlatformTester:
-    def __init__(self, base_url="https://ghg-calc-engine-5.preview.emergentagent.com"):
+    def __init__(self, base_url="https://emissions-analytics.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.admin_token = None

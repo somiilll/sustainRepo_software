@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 
 // Import CustomFuelMonthFields for per-month custom fuel inputs
 import CustomFuelMonthFields from '../CustomFuelMonthFields';
+import { LiveCalculationSummary } from '../../../../../../components/CustomFuelLiveCalculation';
 
 // Import MultiEmployeeInput for C7
 import MultiEmployeeInput from '../../../../../../components/MultiEmployeeInput';
@@ -109,6 +110,7 @@ export const Step3YearMonthlyData = ({
   
   // Override/fuel props
   scope,
+  category,
   biogenicScopeSelection,
   useCustomFuel,
   selectedFuel,
@@ -118,6 +120,8 @@ export const Step3YearMonthlyData = ({
   customEmissionFactorUnit,
   customFuelQtyUnit,
   calculationMethodology,
+  liveCalculationResults,
+  isLiveCalculationCalculating,
   getQuantityUnitFromEFUnit,
   
   // Evidence handling
@@ -491,11 +495,20 @@ export const Step3YearMonthlyData = ({
 
                       {/* Per-month custom fuel fields (EF, CV, carbon content etc.) */}
                       {useCustomFuel && (
-                        <CustomFuelMonthFields
-                          monthKey={monthKey}
-                          data={data}
-                          updateMonthData={updateMonthData}
-                          calculationMethodology={calculationMethodology}
+                        <>
+                          <CustomFuelMonthFields
+                            monthKey={monthKey}
+                            data={data}
+                            updateMonthData={updateMonthData}
+                            calculationMethodology={calculationMethodology}
+                          />
+                        </>
+                      )}
+
+                      {!useCustomFuel && liveCalculationResults?.[monthKey] && (
+                        <LiveCalculationSummary
+                          result={liveCalculationResults[monthKey]}
+                          isCalculating={isLiveCalculationCalculating}
                         />
                       )}
 

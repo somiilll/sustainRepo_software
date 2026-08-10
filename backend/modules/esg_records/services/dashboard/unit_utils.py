@@ -3,6 +3,10 @@
 
 def to_kilolitres(value: float, unit: str) -> float:
     """Convert water quantity to KiloLitres."""
+    try:
+        value = float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
     normalized = (unit or "litres").lower()
     if "mega" in normalized:
         return value * 1000

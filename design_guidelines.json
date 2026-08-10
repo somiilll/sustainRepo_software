@@ -1,83 +1,97 @@
 {
-  "theme": "light",
-  "archetype": "Organic & Earthy",
+  "theme": {
+    "name": "The Botanical Swiss (Premium Enterprise ESG)",
+    "description": "A high-end, premium enterprise aesthetic that blends the authoritative, precise geometry of 'Swiss & High-Contrast' with the grounded, trusting palette of 'Organic & Earthy'. Designed specifically for CFOs and Sustainability Heads. It rejects the generic 'SaaS dashboard' look by replacing gray boxes with vast negative space, crisp typography, and deep forest/sage tones. It utilizes progressive disclosure and a split-screen wizard architecture to make complex ESG reporting feel effortless.",
+    "mode": "light"
+  },
   "typography": {
-    "font_imports": [
-      "@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,500,700&display=swap');",
-      "@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap');"
-    ],
-    "heading_font": "'Cabinet Grotesk', sans-serif",
-    "body_font": "'IBM Plex Sans', sans-serif",
-    "hierarchy": {
-      "h1": "text-4xl sm:text-5xl font-bold tracking-tight",
-      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+    "strategy": "Old Money Tech - Authority meets high legibility.",
+    "fonts": {
+      "headings": "Cabinet Grotesk",
+      "body": "Manrope",
+      "mono": "JetBrains Mono"
+    },
+    "scales": {
+      "h1": "text-4xl sm:text-5xl tracking-tight text-slate-900 font-medium",
+      "h2": "text-3xl sm:text-4xl tracking-tight text-slate-900",
       "h3": "text-xl sm:text-2xl font-medium tracking-tight",
-      "body": "text-sm text-text-primary leading-relaxed",
-      "labels": "text-xs font-semibold uppercase tracking-[0.2em] text-text-muted"
-    }
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed text-slate-600",
+      "small": "text-sm text-slate-500",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-slate-400"
+    },
+    "instructions": "NEVER use Inter, Roboto, or Open Sans for headings. Enforce tight tracking on all headings above text-2xl. Use font-light and font-medium strategically to create tension."
   },
   "colors": {
-    "background": "#FFFFFF",
-    "surface": "#F5F5F0",
-    "primary": "#1A3626",
-    "primary_foreground": "#FFFFFF",
-    "secondary": "#4A6B53",
-    "secondary_foreground": "#FFFFFF",
-    "accent_warning": "#CC5A3A",
-    "accent_alert": "#D99C3D",
-    "text_primary": "#1A1A1A",
-    "text_secondary": "#4A4A4A",
-    "text_muted": "#8C8C85",
-    "border": "#E5E5DF"
+    "archetype": "Organic & Earthy + Swiss Precision",
+    "palette": {
+      "background": "#FDFDFC",
+      "surface": "#FFFFFF",
+      "surface_hover": "#F6F8F6",
+      "primary": "#0D3C26",
+      "primary_hover": "#16593A",
+      "secondary": "#EAF0EB",
+      "secondary_foreground": "#0D3C26",
+      "accent": "#CBA365",
+      "border": "#E2E8E4",
+      "text_primary": "#111412",
+      "text_secondary": "#5C6661",
+      "success": "#2E7D32",
+      "warning": "#F57C00",
+      "error": "#D32F2F"
+    },
+    "instructions": "Avoid muddy grays; tint all neutral grays slightly with green (sage). Never use pure black. Ensure button hover states explicitly set text colors. Primary CTA should be the deep forest green (#0D3C26). Accent color (muted gold) is used extremely sparingly for 'Premium/VIP' indicators or 'Active' step highlights in the wizard."
   },
   "layouts": {
-    "overall": "A4 Print-first layout simulated on web. High-density Grid for Data but with generous internal padding for breathing room. Strict hierarchy.",
-    "cover_page": "Full-bleed hero image with bg-black/40 overlay, massive H1 heading ('SustainRepo ESG Executive Report'), prominent logo placeholder, and report period. High contrast. Grid Tetris style.",
-    "data_sections": "Mode B: High Density Grid (grid-cols-1 md:grid-cols-4). Flat solid surfaces with max 8px border-radius and 1px sharp border. No glassmorphism.",
-    "page_breaks": "Structure the UI into clear, distinct sections (Cover, Exec Summary, Emissions, Operations, Suppliers) to simulate PDF pages."
-  },
-  "visual_enhancers": {
-    "borders": "1px solid border-border. Sharp, clean 'Swiss' technical lines separating data points.",
-    "shadows": "Minimal/None. Use flat solid borders for print clarity.",
-    "charts": "Shadcn Recharts with organic palette (Forest Green, Moss, Ochre, Terracotta). Ensure labels are legible without hover (print safe).",
-    "icons": "Use Phosphor Icons (regular weight) for clear, executive dashboard feel."
+    "page_structure": "Mobile-first responsive. Use extremely generous spacing (Tailwind p-8 to p-16).",
+    "kpi_dashboard": "Mode B: High Density Grid (for data). Use grid-cols-1 md:grid-cols-4 gap-6. Summary widgets span 1 col, primary charts span 2-3 cols. No standard Vercel-look cards.",
+    "wizard_flow": "Split-Screen Architecture. Left 30-40% of the screen is sticky, displaying progress, overlines, and the active stage (e.g., 'Step 2: ESG Content'). Right 60-70% is the interactive form. This prevents the 'long scrolling form' fatigue.",
+    "drawer": "Delivery History uses a side-drawer (Slide-out panel) from the right (w-[400px] or w-[500px]) to show exact generated artifacts without losing the context of the main list."
   },
   "components": {
-    "kpi_cards": "Flat background (surface), 1px border, high contrast value text, explicit trend indicator (up/down arrow with +X% or -X%).",
-    "tables": "Dense, clean padding, prominent header. Use left-alignment for text, right-alignment for numbers. Use Shadcn Table.",
-    "email_summary": "Render a visual representation of the scheduled email. CRITICAL: REMOVE 'Source Records Processed'. Must be concise and fact-based.",
-    "target_tracking": "Use Shadcn Progress bars with sharp edges, contrasting fill (Primary or Accent depending on status)."
+    "wizard_stepper": "Do not use a top horizontal progress bar. Use a vertical, text-rich stepper on the left side. Highlight the active step with the primary color and bold typography. Inactive steps are muted.",
+    "hierarchical_tree": "For ESG Section selection. Do NOT use standard HTML checkboxes. Use expandable nodes. Parent node has an overall status (All, Partial, None). Use pill-shaped badges or custom Radix/Shadcn toggles for selection. Expand to reveal children (Environment -> GHG/Water/Waste).",
+    "cards": "The 'Neumorphism / Clay & Crisp' variant. Use 1px subtle borders (border-border) with very soft ambient shadows (shadow-sm). For hovered interactive cards, elevate to shadow-md with a slight -translate-y-1 transform.",
+    "facility_selector": "Multi-select dropdown with searchable chips. Selected facilities appear as premium rounded chips inside the input area. Provide 'Select All' utility.",
+    "tables": "For Schedules & Delivery. Dense, highly legible. Remove vertical borders. Use horizontal borders only. Frequencies (daily/weekly/monthly) must be formatted in a human-readable badge. Include inline action menus (Edit, Delete, Send Now) via Shadcn DropdownMenu.",
+    "modals": "Use Shadcn Dialog for 'Send Now' confirmations. Style with blur backdrop.",
+    "empty_states": "Premium empty states. Do not just say 'No data'. Use subtle illustrations, an overline, a clear heading, and a primary CTA to 'Create First Configuration'."
   },
-  "image_urls": {
-    "cover_hero": {
-      "url": "https://images.unsplash.com/photo-1640125346217-e4bb9313d6bd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwyfHxzdXN0YWluYWJsZSUyMGZvcmVzdCUyMGNhbm9weSUyMGFlcmlhbHxlbnwwfHx8fDE3ODYwODQ2MjV8MA&ixlib=rb-4.1.0&q=85",
-      "description": "Aerial view of a lush green sustainable forest canopy. Use as Cover Page background with bg-black/40 overlay to ensure text contrast."
-    },
-    "energy_section": {
-      "url": "https://images.unsplash.com/photo-1562519990-50eb51e282b2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwyfHxjbGVhbiUyMG1vZGVybiUyMHdpbmQlMjB0dXJiaW5lc3xlbnwwfHx8fDE3ODYwODQ2MjV8MA&ixlib=rb-4.1.0&q=85",
-      "description": "Clean modern wind turbines. Use as an accent banner for the Energy/Emissions data section."
+  "motion": {
+    "instructions": "Use micro-interactions for feedback. Hover states on rows and cards. Smooth entrance animations for wizard steps using Framer Motion (opacity 0 to 1, y: 10 to 0). Tree expansions must animate smoothly (height 0 to auto).",
+    "accessibility": "Respect prefers-reduced-motion. Do not rely on motion alone for state changes."
+  },
+  "visual_enhancers": {
+    "textures": "Add a very subtle SVG noise overlay or a faint botanical abstract texture to the sticky left panel of the wizard.",
+    "glassmorphism": "Use for the sticky top navigation bar (backdrop-blur-xl bg-white/80 border-b border-border/40) to ensure content scrolling underneath is elegantly blurred."
+  },
+  "accessibility": {
+    "contrast": "Ensure minimum 4.5:1 for normal text. Use text-shadow if placing text over any image.",
+    "testing": "All interactive elements (buttons, inputs, menu items, table rows) MUST include a 'data-testid' attribute (e.g., 'data-testid=\"wizard-next-button\"')."
+  },
+  "media": {
+    "image_urls": {
+      "corporate_dashboard_bg": {
+        "url": "https://images.unsplash.com/photo-1779700210487-a01758a3c55a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBjb3Jwb3JhdGUlMjBib2FyZHJvb20lMjBnbGFzc3xlbnwwfHx8fDE3ODYxODg1NDl8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Empty conference room with a panoramic city view at sunset. Use as an ambient hero background for the Management Overview with heavy white/gradient overlay (bg-white/80 to white)."
+      },
+      "esg_concept_texture": {
+        "url": "https://images.unsplash.com/photo-1451976426598-a7593bd6d0b2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwzfHxzdXN0YWluYWJsZSUyMG1vZGVybiUyMGFyY2hpdGVjdHVyZXxlbnwwfHx8fDE3ODYxODg1NDl8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Gray concrete building covered in trees. Use as a subtle decorative image inside the 'Review & Send' step or the 'Empty State' for Schedules."
+      },
+      "subtle_green_texture": {
+        "url": "https://images.unsplash.com/photo-1710668457149-789dce4ff826?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGdyZWVuJTIwZm9yZXN0JTIwcGF0dGVybnxlbnwwfHx8fDE3ODYxODg1NDl8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract green plant leaves. Use as a masked background pattern for the left-side panel in the wizard, opacity 5%."
+      }
     }
   },
-  "instructions_to_main_agent": [
-    "You are building the UI that generates a multi-section executive PDF MIS report for SustainRepo ESG.",
-    "Install required dependencies: `yarn add @phosphor-icons/react recharts`.",
-    "Use light theme exclusively as this is a PDF-first report.",
-    "Include the following sections: 'Cover Page', 'Executive KPI Comparisons', 'Emissions & Resources' (tCO2e, energy/water/waste), 'Operations & Safety' (incidents, LTIFR, account payable days), and 'Supplier Performance' (assessment scores per supplier).",
-    "In the Email notification summary component (if visually represented), REMOVE 'Source Records Processed' per user request. Keep it concise with factual insights.",
-    "Update tailwind.config.js to include the new colors and fonts.",
-    "Update index.css with the font imports (@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,500,700&display=swap'); and Google Fonts IBM Plex Sans) and set the base font family to IBM Plex Sans, headings to Cabinet Grotesk.",
-    "All interactive and key informational elements MUST include a `data-testid` attribute.",
-    "Do NOT use HTML <select> or <input type='date'>. Use Shadcn UI components.",
-    "Use Recharts for monthly trend (tCO2e), facility breakdowns, and incident splits. Disable tooltip-reliance for critical data so it's visible in a static PDF print.",
-    "Structure the layout as a scrollable container with internal 'page' sections imitating an A4 aspect ratio where possible."
-  ],
   "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "Do not make generic centered layouts. Use grid-based optical alignments.",
-    "Create depth through layered design elements with z-index hierarchy.",
-    "Avoid the 'AI slop' aesthetic. No generic gradients.",
-    "Do not apply universal transition (`transition: all`). Add transitions specifically to interactive elements.",
-    "Do NOT center align the app container `.App { text-align: center; }`.",
-    "Do not use AI assistant emojis.",
-    "Use `sonner` for toasts."
+    "Prioritize using pre-existing components from src/components/ui.",
+    "Do not center align the App container.",
+    "Do not apply 'transition: all'. Explicitly state transition properties.",
+    "Never use generic AI emojis for icons; use 'lucide-react' or '@phosphor-icons/react'.",
+    "Ensure generous spacing; a dense UI is fine for data tables, but the surrounding layout needs breathing room (e.g., p-8 or p-12 wrappers).",
+    "Add 'sonner' for toast notifications on actions like 'Send Now' or 'Schedule Saved'.",
+    "For the Hierarchical ESG Content tree, create a custom React component using Lucide icons (ChevronRight, ChevronDown) for expanding/collapsing, and a 3-state checkbox or pill for 'All/Partial/None'."
   ]
 }

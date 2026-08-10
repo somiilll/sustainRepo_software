@@ -189,6 +189,11 @@ def water_kl(value: float, unit: str) -> float:
     return to_kilolitres(value, unit)
 
 
+def waste_mt(value: float, unit: str) -> float:
+    from modules.esg_records.services.dashboard.waste_utils import to_metric_tonnes
+    return to_metric_tonnes(value, unit)
+
+
 def blank_months(keys: Iterable[str], fields: Iterable[str]) -> Dict[str, dict]:
     return {key: {"period": key, **{field: 0.0 for field in fields}} for key in keys}
 
@@ -387,9 +392,24 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
             if key:
                 water_rows[period][key] += value
         elif category == "waste":
-            key = {"generated": "generated", "recovered / diverted from disposal": "recovered", "disposal": "disposed"}.get(subcategory)
-            if key:
-                waste_rows[period][key] += quantity
+            mapped_fields = {
+                "hazardous_waste_generated": "generated",
+                "non_hazardous_waste_generated": "generated",
+                "hazardous_waste_recovered": "recovered",
+                "non_hazardous_waste_recovered": "recovered",
+                "hazardous_waste_disposed": "disposed",
+                "non_hazardous_waste_disposed": "disposed",
+            }
+            found_mapped = False
+            for field, key in mapped_fields.items():
+                value = waste_mt(values.get(field), values.get("unit"))
+                if value > 0:
+                    waste_rows[period][key] += value
+                    found_mapped = True
+            if not found_mapped:
+                key = {"generated": "generated", "recovered / diverted from disposal": "recovered", "disposal": "disposed"}.get(subcategory)
+                if key:
+                    waste_rows[period][key] += waste_mt(quantity, values.get("unit"))
 
     months_set = set(months)
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -45,6 +45,7 @@ import {
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
 
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
@@ -198,6 +199,8 @@ export default function EmissionEntryForm({
     employeeName, setEmployeeName,
     employeeId, setEmployeeId,
   } = _formState;
+  const [liveCalculationResults, setLiveCalculationResults] = useState({});
+  const liveCalculationTimers = useRef({});
 
 
   // ============================================================================
@@ -1917,6 +1920,17 @@ export default function EmissionEntryForm({
           };
         }
       });
+
+      const customFuelCalculation = useCustomFuel
+        ? buildCustomFuelCalculationPayload({
+          dynamicFieldValues: monthData,
+          calculationMethodology: buildDecisionInputs(monthData).calculation_methodology,
+        })
+        : null;
+      if (customFuelCalculation) {
+        if (!customFuelCalculation.isReady) return null;
+        Object.assign(inputs, customFuelCalculation.inputs);
+      }
       
       // Build context
       const matchedEFEntry = filteredScope3Activities.find(a => a.id === scope3ActivityId);
@@ -1967,6 +1981,9 @@ export default function EmissionEntryForm({
           }
         }
       });
+      if (customFuelCalculation) {
+        Object.assign(userOverrides, customFuelCalculation.userOverrides);
+      }
       
       // Build decision inputs AUTOMATICALLY based on what's filled
       const decisionInputs = buildDecisionInputs(monthData);
@@ -1996,6 +2013,34 @@ export default function EmissionEntryForm({
       setIsCalcEngineCalculating(false);
     }
   }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, useCustomFuel, customFuelName]);
+
+  useEffect(() => {
+    Object.values(liveCalculationTimers.current).forEach(clearTimeout);
+    liveCalculationTimers.current = {};
+    if (frequencyType !== 'monthly' || useCustomFuel) {
+      setLiveCalculationResults({});
+      return undefined;
+    }
+
+    const readyMonths = Object.entries(monthlyData).filter(([, monthData]) => (
+      Object.entries(monthData).some(([key, value]) => (
+        !key.endsWith('_unit') && key !== 'evidences' && Number.parseFloat(value) > 0
+      ))
+    ));
+    const readyMonthKeys = new Set(readyMonths.map(([monthKey]) => monthKey));
+    setLiveCalculationResults((current) => Object.fromEntries(
+      Object.entries(current).filter(([monthKey]) => readyMonthKeys.has(monthKey)),
+    ));
+
+    readyMonths.forEach(([monthKey, monthData]) => {
+      liveCalculationTimers.current[monthKey] = setTimeout(async () => {
+        const result = await executeCalcEngine(monthKey, monthData);
+        if (result) setLiveCalculationResults((current) => ({ ...current, [monthKey]: result }));
+      }, 350);
+    });
+
+    return () => Object.values(liveCalculationTimers.current).forEach(clearTimeout);
+  }, [useCustomFuel, frequencyType, monthlyData, buildDecisionInputs, executeCalcEngine]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {
@@ -3327,6 +3372,8 @@ export default function EmissionEntryForm({
           customEmissionFactorUnit={customEmissionFactorUnit}
           customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
+          liveCalculationResults={liveCalculationResults}
+          isLiveCalculationCalculating={isCalcEngineCalculating}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}

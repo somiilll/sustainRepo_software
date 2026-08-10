@@ -29,7 +29,7 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Added "Wrap" button to both `BranchNode` and `LeafNode` components
 - Inline `WrapPrompt` component asks for option value, then wraps current node under new parent
 - Works at any tree depth via existing `onUpdate` callback chain
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ### Calculation Methodology Dropdown (P1)
 - **Files changed**:
@@ -41,39 +41,34 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **3 options**: Using Heat Basis (NCV), Using Qty Basis EF, Using Composition of Carbon
 - `ef_quantity_provided` implicit fork removed — replaced with explicit 3-way choice
 - Backward compatible: existing records infer methodology from saved `dynamic_field_values` keys
-- **Status**: ✅ Implemented (Updated Aug 2026)
+- **Status**: Done (Updated Aug 2026)
 
 ### Field Toggling by Methodology (P1)
 - **Files**: `EmissionEntryForm.js`, `Emissions.js`
-- Hardcoded toggling logic:
-  - "Using Carbon Composition": hide `ef_quantity` (Emission Factor), show `carbon_content`, `oxidation_factor`
-  - "Using NCV": hide `carbon_content`, `oxidation_factor`, show `ef_quantity`
+- Hardcoded toggling logic
 - Applies to Stationary, Mobile, Flaring categories
-- **Status**: ✅ Implemented (hardcoded — P0 TODO: proper formula-input-based logic)
+- **Status**: Done (hardcoded — P0 TODO: proper formula-input-based logic)
 
 ### Oxidation Factor Defaults & Validation
 - DB: `oxidation_factor` has `default_value: 1`, `validation_rules: {max: 1, min: 0}`
 - Frontend: `DynamicFieldRenderer.js` auto-populates default, enforces max via toast error
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ### Custom Fuel Type Implementation (P0)
 - **Files**: `Step1BasicSelection.js`, `EmissionEntryForm.js`
 - Added "Use Custom Fuel" toggle for Stationary, Mobile, Fugitive, Flaring categories
 - Custom fuel input fields: Name, Emission Factor, EF Unit, Source
 - **Units restricted to mass-based only**: kg, g, t (per user requirement)
-- Added `CUSTOM_FUEL_UNITS` array with `tCO2/kg`, `tCO2/g`, `tCO2/t`
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ### Flaring Category Support
 - Added `flaring` to `isStationaryOrMobile` check in both Add and Edit forms
-- Flaring now has same calculation methodology options as Stationary Combustion
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ### Fuel Database Categories Fix
 - **File**: `Emissions.js` line 1379-1402
 - Fixed grouping key to iterate over `fuel.categories` array instead of just `fuel.category`
-- Ensures fuels with multiple categories (like Flaring) appear correctly
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ## Upcoming Tasks (P0) — Proper Logic
 
@@ -87,139 +82,173 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 
 ### Beautiful Executive PDF Report (P0)
 - **File**: `/app/backend/modules/mis_reports/pdf_builder.py`
-- Complete rewrite of `build_executive_pdf()` with 7 professional sections:
-  1. Cover Page (branded, decorative green theme)
-  2. Executive Summary (KPI cards + comparison table with change %)
-  3. Emissions Overview (Donut chart by scope + Line chart monthly trend)
-  4. Facility Performance (Horizontal bar chart + table)
-  5. Energy, Water & Waste (Resource bar chart + detailed metrics table)
-  6. Incidents & Compliance (Operational KPIs + framework completion + supplier assessment)
-  7. Targets & Progress (Visual progress bars + summary table)
-- Charts rendered via `matplotlib` → PNG → embedded in `reportlab` PDF
-- Consistent brand theme (#166534 green), page headers/footers on content pages
-- Handles empty data gracefully
-- **Status**: Implemented, locally tested (sample + empty data), API verified (HTTP 200)
+- Complete rewrite of `build_executive_pdf()` with 7 professional sections
+- Charts rendered via `matplotlib` -> PNG -> embedded in `reportlab` PDF
+- **Status**: Done
 
 ### MIS Target Progress Fix (P0)
 - **Bug**: Targets showed "Unnamed Target 0.0 / 20,291.0 L (0%)" — wrong fields, no real progress
-- **Fix**: MIS now calls `kpi_calculator.calculate()` + `_calculate_progress()` (same as `/esg-targets/with-progress`) for real actual_value and progress_pct
-- **Files**: `service.py` (`_enrich_targets_with_progress`), `pdf_builder.py` (`_sec_targets`, `ProgressBarFlowable`)
+- **Fix**: MIS now calls `kpi_calculator.calculate()` + `_calculate_progress()` for real actual_value and progress_pct
+- **Status**: Done
 
 ### Energy Renewable/Non-Renewable Target Subcategories (P1)
 - Added aggregate "Renewable Energy" and "Non-Renewable Energy" subcategories to target hierarchy
-- New KPI calculators in `energy_adapter.py`, registered in `calculator.py` dispatch
-- Available at `/esg-targets/lookup/categories?section=environment`
+- **Status**: Done
 
 ### Memory Optimization — Streaming Heap for Embedding Queries (P1)
-- **Files**: `modules/repo_pilot/vector_store.py`, `modules/internal_data_ai/embedding_service.py`
-- Replaced `to_list(50000)` / `to_list(5000)` bulk loads with `async for` streaming + min-heap of size `top_k`
-- Peak memory per query: Repo Pilot ~600MB → ~12MB, Internal AI ~60MB → ~2MB
-- Same API, same results, zero new dependencies
+- Peak memory per query: Repo Pilot ~600MB -> ~12MB, Internal AI ~60MB -> ~2MB
+- **Status**: Done
 
 ## Completed Work (Aug 2026) — Decision Tree Flattening
 
 ### Stationary Combustion 3-Way Methodology (P1)
-- **4 Decision Trees updated** in MongoDB:
-  - Scope 1 → Stationary Combustion (`9fa2ca12`): flattened from `using_ncv → ef_quantity_provided` sub-tree to 3 flat options
-  - Scope 1 → Flaring (`98b9822d`): same flattening
-  - Scope 1 → Process Emissions (`d39293e1`): venting sub-tree flattened to 3 options
-  - Biogenic → Stationary Combustion (`80dbef24`): added `calculation_methodology` level (was only `ef_quantity_provided`)
-- **2 Mobile Combustion Trees updated**: Scope 1 (`afaed9c6`) + Biogenic (`158e8396`) — same 3-way methodology
-- **5 Frontend files updated**: Step1BasicSelection.js, EmissionEntryForm.js, EmissionEditForm.jsx, Emissions.js, useCalcEngine.js
-- Removed all `ef_quantity_provided` references from frontend
-- Added `using_qty_basis_ef` detection in edit hydration (checks for `ef_quantity` in saved dynamic_field_values)
+- **4 Decision Trees updated** in MongoDB
+- **2 Mobile Combustion Trees updated**
+- **5 Frontend files updated**
+- **Status**: Done
 
 ### Qty Basis EF Density Requirement (P1)
-- When methodology is `using_qty_basis_ef`, density field shown **only** when fuel's allowed units could actually mismatch EF denominators
-- Example: fuel has only mass units (kg,g,t), EF mapping has `kgCO2/L` option → density shown
-- Example: fuel has volume units (L,ml,kl), EF mapping has `kgCO2/L` → density NOT shown (no mismatch)
-- DynamicFieldRenderer checks per-month selected EF unit for required indicator
-- Edit form (Emissions.js) has the same conditional density check
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ### Heat Basis / Carbon Composition Density Checks (P1)
-- `isDensityRequiredForHeatBasis(cvUnit, qtyUnit)`: compares CV denominator dimension vs qty unit dimension
-- `isDensityRequiredForCarbonComposition(qtyUnit)`: density needed when qty unit is volume-based
-- Custom fuel density shown only on actual dimension mismatch per methodology
-- All helpers in shared `unitHelpers.js` — clean, reusable, unit-testable
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ### Process Emissions Qty Unit Dropdown (P1)
-- Replaced fixed "(fixed)" unit label with selectable dropdown (kg, g, t, L, kL, ml, m3, cm3)
-- Applied to both monthly and yearly views in Step3YearMonthlyData.js
-- Unit stored as `{field.key}_unit` in monthlyData/yearlyData
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ### Custom Fuel 3-Methodology Support (P1)
-- Step 1: Name + Source only (slim). All calculation inputs entered per-month in Step 3.
-- `CustomFuelMonthFields.js`: per-methodology fields + Qty Unit + Density (shown on dimension mismatch)
-  - Heat Basis: EF + EF unit + CV + CV unit + Qty unit + Density (when CV denom ≠ qty dimension)
-  - Qty Basis: EF + EF unit + Qty unit + Density (when EF denom ≠ qty dimension)
-  - Carbon Composition: Carbon Content + Oxidation Factor + Qty unit + Density (when qty is volume)
-- Standard dynamic fields suppressed for custom fuel (`cv`, `ef_quantity`, `carbon_content`, `oxidation_factor`, `density`)
-- Custom fuel direct-save path in `useEmissionSubmit.js` for scope1/biogenic (no module needed)
-- Per-month custom fuel data saved in `dynamic_field_values` for persistence
-- Edit form hydrates custom fuel fields from saved `dynamic_field_values`
-- Edit form renders `CustomFuelMonthFields` when `editUseCustomFuel` is true
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ### Standard Fuel Density Override (P1)
-- Density for `using_qty_basis_ef` shown only when dimension mismatch AND fuel has no density in DB
-- If fuel has density in DB (e.g. Diesel density=0.84), calc engine uses it automatically — no override needed
-- **Status**: ✅ Implemented
+- **Status**: Done
 
 ## Operational Maintenance (Aug 2026)
 
 ### Staging Database Replacement
-- Replaced `sustainrepo_staging` contents with the current `test_database` source after explicit user confirmation.
-- Copied 99 collections and 17,772 documents; recreated 53 non-default indexes and all empty source collections.
-- Verified matching collection names, document counts, and index names. UUID handling used MongoDB standard representation.
-- No Decision Tree, formula, variable, or calc-engine database configuration was changed.
+- **Status**: Done
+
+### Repo Pilot Report Migration
+- **Status**: Done
+
+### Emission Live-Calculation Presentation
+- **Status**: Done
+
+## MIS Report Enhancements (Aug 2026)
+
+### MIS Executive Summary v2 — Page 2 Redesign
+- Complete rebuild with 5 section-colored tables and 13-month average insight engine
+- **Status**: Done
+
+### MIS Emissions Overview v2 — Visual Analytics Redesign
+- 5 dedicated sections: Total, Scope 1-3, Biogenic with trends and donuts
+- **Status**: Done
+
+### MIS Energy, Water & Waste — Separate Premium Sections
+- Split into 3 dedicated sections with visual identity
+- **Status**: Done
+
+### Water Source Charts + PDF Module Split
+- Water Withdrawal by Source donut + multi-line trend
+- Split pdf_builder.py into 4 sub-modules
+- **Status**: Done
+
+### MIS Facility Performance — Complete Redesign
+- Per-facility emissions analysis including ALL facilities
+- **Status**: Done
+
+### MIS Incidents & Compliance + Supplier Assessment — Redesign
+- **Status**: Done
+
+### MIS Targets Section — Complete Redesign
+- Individual target visual blocks with direction-aware comparison
+- **Status**: Done
+
+## Bug Fixes (Aug 2026 — Latest Session)
+
+### MIS SBTi Targets + Multiline Trend Legend Spacing
+- **Root Cause**: MIS only queried `esg_targets`; separately stored `sbti_targets` were never mapped into the report target feed. Multiline chart legends used three cramped columns without a dedicated gutter.
+- **Fix**: Added a read-only SBTi-to-MIS target mapper with live KPI progress, target year, term type, and short/long-term labeling. Multiline charts now use two legend columns, reserved legend height, and explicit row/column spacing.
+- **SBTi Leadership Snapshot**: Added a compact six-column “SBTi Trajectory Summary” at the top of the Targets section showing baseline → current → target, term, target year, and status/achievement.
+- **Status**: Done — independently verified by testing agent (5/5 runtime checks, PDF content, and visual legend review passed; trajectory layout verified in the exported PDF).
+
+### MIS Water / Waste Dashboard Parity
+- **Root Cause**: MIS water metrics included pending-approval records; waste values were legacy kilograms while the UI labeled them as MT; MIS disposal was derived rather than using the submitted Disposal record.
+- **Fix**: Water metrics now use approved/not-required records; dashboard and MIS normalize legacy waste quantities to MT; MIS trends use explicit disposal totals; report labels use MT; environment-detail honors the selected reporting period. The Hazardous vs Non-Hazardous Waste chart now reserves a dedicated bottom legend band and has extra PDF height.
+- **Status**: Waste legend layout independently verified in the August 2026 PDF (5/5 testing-agent checks). Water/waste API parity was self-checked; the earlier dedicated parity testing-agent run stopped before execution by prior user instruction.
+
+### Supplier Assessment "Not Assessed" Fix
+- **Root Cause**: `pdf_sections.py` read `overall_score`/`esg_score`/`ghg_score` (all None in DB) instead of `overall_completion_percent`/`esg_completion_percent`/`ghg_completion_percent` (actual values).
+- **Fix**: Updated field mapping in `pdf_sections.py` lines 698-700 with fallback. Also fixed `high_risk_suppliers` count in `service.py`.
+- **Status**: Done (self-verified via curl)
+
+### Incident Trends Showing 0 Fix
+- **Root Cause**: `governance_records.reporting_period` is a nested object `{year, month}` but MIS queried it as flat string `"2026-08"` — never matched.
+- **Fix**: Added `_governance_period_filter()` helper in `service.py`. Applied to 3 locations: operational trends, exec summary 13-month loop, incident breakdown.
+- **Status**: Done (self-verified via curl)
+
+### Incident KPI Mismatch Fix (4 vs 1)
+- **Root Cause**: Main report incident count (line 309) had NO period filter — counted ALL incidents across ALL months. Exec summary `total_incidents` used this unfiltered count.
+- **Fix**: Added `_governance_period_filter` to main report query. Exec summary now uses per-month `inc_tm[period_start]` value.
+- **Status**: Done (self-verified via curl)
+
+## Pending Issues
+
+### Process Emissions Live-Calculation Review (P0)
+- **Status**: PARKED by user for later
+
+### Custom Fuel Edit Save Validation (P0)
+- **Status**: USER VERIFICATION PENDING
+
+### React 19 Console Warnings — Recharts (P3)
+- **Status**: Open
+
+### Environment Report PDF Character Spacing Bug (P2)
+- **Status**: Open
 
 ## Upcoming Tasks (P1)
-- GHG Form Logic & Custom Fuels E2E Testing
-- Custom Fuel Backend Calculation Integration (wire custom fuel inputs through calc engine for all 3 methodologies)
-- Hash-based Integrity Verification for Evidence Files
-- Smart Follow-ups (Internal Data AI)
+- Target Settings UI (replace legacy name-based `target_direction` fallback)
+- Hash-based Integrity Verification for Evidence Files (SHA-256)
 - SuperAdmin Config UI for Modules
 - Supplier and Customer Org Onboarding Wizards
-- Word document download option for BRSR
-- Add "Previous Year Columns" to BRSR tables
-
-## Pending Issues (P2)
-- Orphaned OCR Temp Files
-- Section A Approval Workflow Verification
-- Environment Report PDF Character Spacing Bug
-- React 19 Console Warnings — Recharts (P3)
+- Word document download for BRSR (.docx) + "Previous Year Columns"
+- MIS Schedule Preview (preview full PDF before activating delivery)
+- Report Bookmarks (PDF outline/sidebar navigation)
+- Dynamic Unit Config (auto-detect org units like MWh vs GJ)
 
 ## Future Tasks (P2+)
-- Emission Form Refactoring
-- SuperAdmin Org View (supplier org names)
+- Decouple Add/Edit Emissions Flow into unified `EmissionDraft` workflow
+- Copy Month Values for Custom Fuel EF/CV
+- Dashboard Scope 1 & 3 Emissions Deduplication
 - BRSRDetailsSection.js decomposition (1800+ lines)
 - Remaining toLocaleString() migrations
 - Materiality Assessment Phase 2+
-- Dashboard Scope 1 & 3 Emissions Deduplication
 - SOC 2 Compliance Implementation
 
 ## Key Files Reference
+
+### Backend — MIS Reports
+- `/app/backend/modules/mis_reports/service.py` — Data aggregation, `_governance_period_filter` helper
+- `/app/backend/modules/mis_reports/pdf_builder.py` — PDF entry point
+- `/app/backend/modules/mis_reports/pdf_sections.py` — Section builders (supplier uses completion_percent)
+- `/app/backend/modules/mis_reports/pdf_charts.py` — Matplotlib chart renderers
+- `/app/backend/modules/mis_reports/pdf_styles.py` — Constants, colors, flowable classes
 
 ### Backend — Calc Engine
 - `/app/backend/calc_engine/execution.py` — CalcEngine executor
 - `/app/backend/calc_engine/formulas.py` — Formula + Decision Tree CRUD
 - `/app/backend/calc_engine/router.py` — Calc engine API endpoints
-- `/app/backend/calc_engine/properties.py` — Property resolution
-- `/app/backend/calc_engine/variables.py` — Variable registry
 
 ### Frontend — Emissions
-- `/app/frontend/src/components/TreeNodeEditor.js` — Decision tree node editor (Wrap Node)
-- `/app/frontend/src/pages/DecisionTreeEditor.js` — Decision tree editor page
-- `/app/frontend/src/components/EmissionEntryForm.js` — Emission entry form (methodology dropdown integration)
-- `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step1BasicSelection.js` — Step 1 with methodology dropdown, Custom Fuel toggle
-- `/app/frontend/src/modules/ghg/emissions/shared/components/DynamicFieldRenderer.js` — Dynamic field rendering with defaults
-- `/app/frontend/src/hooks/useCalcEngine.js` — Calc engine hook (methodology param)
-- `/app/frontend/src/pages/Emissions.js` — Emissions page (edit flow methodology)
+- `/app/frontend/src/components/EmissionEntryForm.js` — Emission entry form
+- `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step1BasicSelection.js`
+- `/app/frontend/src/hooks/useCalcEngine.js`
+- `/app/frontend/src/pages/Emissions.js`
 
 ## Test Credentials
 - Admin: goyalsomil2001@gmail.com / TestUser123!
 - SuperAdmin: superadmin@ecotrack.com
 - Organization ID: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
+
+## 3rd Party Integrations
+- Resend (Emails) - requires User API Key
+- OpenAI GPT 5.6 Sol / text-embedding-3-large (Repo Pilot) — uses Emergent LLM Key

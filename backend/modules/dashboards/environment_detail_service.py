@@ -1,5 +1,8 @@
 """Environment detail service — scope breakdowns, hotspots, water sources, waste types."""
 from typing import Dict, List, Optional
+from modules.esg_records.services.dashboard.waste_utils import to_metric_tonnes
+from modules.esg_records.services.dashboard.date_utils import build_date_filter
+from modules.esg_records.services.dashboard.unit_utils import to_kilolitres
 
 
 # Standard GHG Protocol category mapping
@@ -182,12 +185,23 @@ async def get_environment_detail(
         )
 
     # --- Water source breakdown from environment_records ---
-    org_query = {"org_id": org_id, "approval_status": {"$in": ["approved", "not_required", None]}}
+    org_query = {
+        "org_id": org_id,
+        "is_current": {"$ne": False},
+        "status": {"$ne": "draft"},
+        "approval_status": {"$in": ["approved", "not_required", None]},
+    }
     if facility_ids:
         org_query["facility_id"] = {"$in": facility_ids}
 
+    resource_period_filter = build_date_filter(start_date, end_date)
+
+    def resource_query(category: str) -> dict:
+        base = {**org_query, "category": category}
+        return {"$and": [base, {"$or": resource_period_filter}]} if resource_period_filter else base
+
     water_records = await db.environment_records.find(
-        {**org_query, "category": "Water"},
+        resource_query("Water"),
         {"_id": 0, "subcategory": 1, "field_values": 1, "reporting_period": 1},
     ).to_list(5000)
 
@@ -226,7 +240,7 @@ async def get_environment_detail(
 
         if sub == "withdrawal":
             for key, label in WITHDRAWAL_KEYS.items():
-                val = float(fv.get(key) or 0)
+                val = to_kilolitres(fv.get(key), fv.get("unit"))
                 if val > 0:
                     water_sources[label] = water_sources.get(label, 0) + val
                     if period_key:
@@ -234,19 +248,19 @@ async def get_environment_detail(
                         water_monthly_sources[period_key][label] = water_monthly_sources[period_key].get(label, 0) + val
         elif sub == "discharge":
             for key, label in DISCHARGE_KEYS.items():
-                val = float(fv.get(key) or 0)
+                val = to_kilolitres(fv.get(key), fv.get("unit"))
                 if val > 0:
                     water_discharge_sources[label] = water_discharge_sources.get(label, 0) + val
         elif sub == "consumption":
             # Consumption may use individual keys or a single quantity+source_type
             found_individual = False
             for key, label in CONSUMPTION_KEYS.items():
-                val = float(fv.get(key) or 0)
+                val = to_kilolitres(fv.get(key), fv.get("unit"))
                 if val > 0:
                     water_consumption_sources[label] = water_consumption_sources.get(label, 0) + val
                     found_individual = True
             if not found_individual:
-                qty = float(fv.get("quantity") or 0)
+                qty = to_kilolitres(fv.get("quantity"), fv.get("unit"))
                 src = fv.get("source_type") or "Other"
                 if qty > 0:
                     water_consumption_sources[src] = water_consumption_sources.get(src, 0) + qty
@@ -272,7 +286,7 @@ async def get_environment_detail(
 
     # --- Waste type breakdown ---
     waste_records = await db.environment_records.find(
-        {**org_query, "category": "Waste"},
+        resource_query("Waste"),
         {"_id": 0, "subcategory": 1, "field_values": 1, "reporting_period": 1},
     ).to_list(5000)
 
@@ -296,7 +310,7 @@ async def get_environment_detail(
         haz_g = haz_r = haz_d = nhaz_g = nhaz_r = nhaz_d = 0.0
 
         for field_key, (waste_type, metric) in WASTE_FIELD_MAP.items():
-            val = float(fv.get(field_key) or 0)
+            val = to_metric_tonnes(fv.get(field_key), fv.get("unit"))
             if val > 0:
                 target = hazardous_waste if waste_type == "hazardous" else non_hazardous_waste
                 target[metric] += val
@@ -313,9 +327,10 @@ async def get_environment_detail(
         # Fallback: if no mapped keys found, try subcategory + quantity
         if not found_mapped:
             sub = (wr.get("subcategory") or "").lower()
-            qty = float(fv.get("quantity") or 0)
+            qty = to_metric_tonnes(fv.get("quantity"), fv.get("unit"))
             if qty > 0:
-                is_haz = "hazardous" in str(fv.get("waste_type") or "").lower()
+                waste_type = str(fv.get("waste_type") or "").lower()
+                is_haz = "hazardous" in waste_type and "non" not in waste_type
                 target = hazardous_waste if is_haz else non_hazardous_waste
                 if "generated" in sub:
                     target["generated"] += qty
