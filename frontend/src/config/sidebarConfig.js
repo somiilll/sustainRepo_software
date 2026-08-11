@@ -163,6 +163,13 @@ const sidebarConfig = [
     ],
   },
   {
+    key: 'sustainability_config',
+    label: 'Sustainability Config',
+    icon: 'Settings2',
+    path: '/sustainability-config',
+    adminOnly: true,
+  },
+  {
     key: 'users',
     label: 'Users',
     icon: 'Users',

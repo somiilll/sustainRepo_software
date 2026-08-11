@@ -459,7 +459,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://data-integrity-lab-5.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-reports-hub.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""

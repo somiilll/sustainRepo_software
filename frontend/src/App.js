@@ -77,6 +77,7 @@ import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
 import OCRInvoice from './pages/OCRInvoice';
+import SustainabilityConfig from './pages/SustainabilityConfig';
 import { OCRProvider } from './contexts/OCRContext';
 import { initializeCategoryModules } from './modules/emissions';
 
@@ -357,6 +358,11 @@ const AppRoutes = () => {
           <Route path="audit-trails" element={
             <AdminRoute>
               <AuditTrails />
+            </AdminRoute>
+          } />
+          <Route path="sustainability-config" element={
+            <AdminRoute>
+              <SustainabilityConfig />
             </AdminRoute>
           } />
         </Route>

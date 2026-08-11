@@ -214,6 +214,10 @@ api_router.include_router(materiality_router, tags=["Materiality Assessment"])
 from modules.supplier_assessment.router import router as supplier_assessment_router
 api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment"])
 
+# Sustainability Module Configuration (Organization-scoped modules/KPIs/questions)
+from modules.sustainability_config.router import router as sustainability_config_router
+api_router.include_router(sustainability_config_router, tags=["Sustainability Config"])
+
 # BRSR Report Generation Module (Annexure II PDF)
 from modules.brsr_report.router import router as brsr_report_router
 api_router.include_router(brsr_report_router, tags=["BRSR Report"])
@@ -3711,6 +3715,8 @@ async def startup_event():
     await check_expired_subscriptions()
     await seed_scopes_and_categories(db)
     await seed_calc_engine(db)
+    from modules.sustainability_config.service import ensure_indexes as ensure_sustainability_indexes
+    await ensure_sustainability_indexes()
     global mis_reports_scheduler_task
     mis_reports_scheduler_task = asyncio.create_task(run_mis_reports_scheduler())
 

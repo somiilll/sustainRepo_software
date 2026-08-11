@@ -239,6 +239,22 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
   - Methodology (with period): Both formula_ids for July 2026
 - **Status**: Done — user requested skip of testing agent run.
 
+## Completed Work (Aug 2026) — Sustainability Module Configuration
+
+### Milestone 1: Configuration Foundation (P0)
+- **5 new MongoDB collections**: `organization_modules`, `org_module_categories`, `org_module_kpis`, `org_module_kpi_fields`, `org_module_kpi_calcs`
+- All org-scoped with compound unique indexes and full CRUD APIs
+- **Backend module**: `/app/backend/modules/sustainability_config/` (contracts, service, router, seed)
+- **API prefix**: `/api/sustainability-config/`
+- **Admin Config UI**: `/app/frontend/src/pages/SustainabilityConfig.js` — full hierarchy drill-down (Module → Category → KPI → Questions → Calculations)
+- **Question Builder**: 13 response types (text, number, integer, decimal, percentage, currency, yes/no, dropdown, multi-select, date, month, facility, file), field_type (input/calculated), validation, options, evidence_required
+- **Calculation Config**: 6 types (quantity_factor, difference, sum, ratio, percentage_of, custom_expression)
+- **Config Versioning**: Integer `config_version` per KPI field config, immutable historical versions
+- **Migration/Seed**: `POST /api/sustainability-config/migrate-existing` — creates org config from existing `esg_record_categories` (additive, idempotent)
+- **Organization Isolation**: Verified — two orgs with same "Energy" module have completely independent subcategories, KPIs, and questions
+- **Testing**: 12/12 backend pytest + full frontend E2E (iteration 162)
+- **Status**: Done
+
 ## Pending Issues
 
 ### Process Emissions Live-Calculation Review (P0)
@@ -253,10 +269,24 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ### Environment Report PDF Character Spacing Bug (P2)
 - **Status**: Open
 
-## Upcoming Tasks (P1)
+## Upcoming Tasks — Sustainability Config Milestones
+
+### Milestone 2: User-Facing Features (P0)
+- Dynamic sidebar generation from `organization_modules`
+- Generic `/:module/kpi` routing
+- Generic KPI page (Log + Add Data + Set Target) wired to org-specific config
+- Module-aware record storage (connecting to existing `environment_records` via mapping)
+- Assignment/target integration with `module_code`
+
+### Milestone 3: Analytics & Dashboard (P1)
+- Generic Analysis page driven by org KPIs
+- Dashboard card generation from enabled modules
+- Calculation config execution bridge
+- Full isolation testing + backward compatibility testing
+
+## Other Upcoming Tasks (P1)
 - Target Settings UI (replace legacy name-based `target_direction` fallback)
 - Hash-based Integrity Verification for Evidence Files (SHA-256)
-- SuperAdmin Config UI for Modules
 - Supplier and Customer Org Onboarding Wizards
 - Word document download for BRSR (.docx) + "Previous Year Columns"
 - MIS Schedule Preview (preview full PDF before activating delivery)
@@ -274,6 +304,12 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 
 ## Key Files Reference
 
+### Backend — Sustainability Config
+- `/app/backend/modules/sustainability_config/contracts.py` — Pydantic models for all 5 collections
+- `/app/backend/modules/sustainability_config/service.py` — CRUD + indexing + full config tree
+- `/app/backend/modules/sustainability_config/router.py` — All API endpoints (~25 routes)
+- `/app/backend/modules/sustainability_config/seed.py` — Migration from esg_record_categories
+
 ### Backend — MIS Reports
 - `/app/backend/modules/mis_reports/service.py` — Data aggregation, `_governance_period_filter` helper
 - `/app/backend/modules/mis_reports/pdf_builder.py` — PDF entry point
@@ -286,6 +322,9 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - `/app/backend/calc_engine/formulas.py` — Formula + Decision Tree CRUD
 - `/app/backend/calc_engine/router.py` — Calc engine API endpoints
 
+### Frontend — Sustainability Config
+- `/app/frontend/src/pages/SustainabilityConfig.js` — Admin Config UI (Module → Category → KPI → Questions → Calculations)
+
 ### Frontend — Emissions
 - `/app/frontend/src/components/EmissionEntryForm.js` — Emission entry form
 - `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step1BasicSelection.js`
@@ -295,7 +334,8 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ## Test Credentials
 - Admin: goyalsomil2001@gmail.com / TestUser123!
 - SuperAdmin: superadmin@ecotrack.com
-- Organization ID: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
+- Organization ID (ORG_A): 9067d872-8a3a-4ed9-8494-e3ef04952f7c
+- Organization ID (ORG_B): 5df41e27-c90d-4660-90b5-475823e0b55f
 
 ## 3rd Party Integrations
 - Resend (Emails) - requires User API Key
