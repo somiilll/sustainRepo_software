@@ -97,6 +97,7 @@ export default function SustainabilityConfig() {
           <TabsTrigger value="modules">Modules</TabsTrigger>
           <TabsTrigger value="kpi-overrides">KPI Overrides</TabsTrigger>
           <TabsTrigger value="custom-categories">Custom Categories</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
@@ -113,6 +114,10 @@ export default function SustainabilityConfig() {
 
         <TabsContent value="custom-categories" className="mt-4">
           <CustomCategoriesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
+        </TabsContent>
+
+        <TabsContent value="features" className="mt-4">
+          <FeaturesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
         </TabsContent>
       </Tabs>
     </div>
@@ -541,5 +546,71 @@ function FieldEditorDialog({ title, fields, setFields, onSave, onClose, saving }
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+
+
+// ============================================================
+// Features Tab — Toggle org feature flags (Set Target, etc.)
+// ============================================================
+function FeaturesTab({ orgConfig, onSave, saving }) {
+  const features = orgConfig?.features || {};
+  const setTarget = features.set_target || {};
+  const [enabled, setEnabled] = useState(!!setTarget.enabled);
+  const [sections, setSections] = useState(setTarget.modules || []);
+
+  const ALL_SECTIONS = ['power', 'water', 'steam', 'energy', 'waste', 'social', 'governance'];
+
+  const toggleSection = (code) => {
+    setSections(prev => prev.includes(code) ? prev.filter(s => s !== code) : [...prev, code]);
+  };
+
+  const handleSave = () => {
+    onSave({ features: { set_target: { enabled, modules: sections } } });
+  };
+
+  return (
+    <Card className="p-6" data-testid="features-tab">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">Feature Flags</h2>
+        <Button size="sm" onClick={handleSave} disabled={saving} data-testid="save-features-btn">
+          <Save className="h-4 w-4 mr-1" /> Save
+        </Button>
+      </div>
+
+      <div className="space-y-6">
+        {/* Set Target */}
+        <div className="border rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-medium text-stone-800">Set Target Tab</h3>
+              <p className="text-xs text-stone-500">Adds a "Set Target" tab to KPI pages (Metrics Logs, Add Metric, Set Target)</p>
+            </div>
+            <Switch checked={enabled} onCheckedChange={setEnabled} data-testid="feature-set-target-toggle" />
+          </div>
+
+          {enabled && (
+            <div>
+              <Label className="text-sm mb-2 block">Enabled for modules:</Label>
+              <div className="flex flex-wrap gap-2">
+                {ALL_SECTIONS.map(code => (
+                  <Button
+                    key={code}
+                    size="sm"
+                    variant={sections.includes(code) ? 'default' : 'outline'}
+                    onClick={() => toggleSection(code)}
+                    data-testid={`feature-module-${code}`}
+                  >
+                    {code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-stone-400 mt-2">Select which modules show the Set Target tab</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }

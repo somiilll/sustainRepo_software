@@ -42,6 +42,7 @@ import AuditTrails from './pages/AuditTrails';
 import BulkUpload from './pages/BulkUpload';
 import Environment from './pages/Environment';
 import OrgEnvironmentKPI from './pages/OrgEnvironmentKPI';
+import OrgSectionKPI from './pages/OrgSectionKPI';
 import Social from './pages/Social';
 import HRWorkforce from './pages/HRWorkforce';
 import SBTiTargets from './pages/SBTiTargets';
@@ -297,9 +298,15 @@ const AppRoutes = () => {
           <Route path="environment/:moduleCode" element={<OrgEnvironmentKPI />} />
           <Route path="social" element={<Social />} />
           <Route path="social/analysis" element={<SocialAnalysis />} />
+          {/* Catch-all for org-specific social modules */}
+          <Route path="social/:moduleCode/:subcatCode" element={<OrgSectionKPI section="social" />} />
+          <Route path="social/:moduleCode" element={<OrgSectionKPI section="social" />} />
           <Route path="hr-workforce" element={<HRWorkforce />} />
           <Route path="governance" element={<Governance />} />
           <Route path="governance/analysis" element={<GovernanceAnalysis />} />
+          {/* Catch-all for org-specific governance modules */}
+          <Route path="governance/:moduleCode/:subcatCode" element={<OrgSectionKPI section="governance" />} />
+          <Route path="governance/:moduleCode" element={<OrgSectionKPI section="governance" />} />
           <Route path="reporting" element={<Reporting />} />
           <Route path="reporting/brsr" element={<BRSRModule />} />
           <Route path="reporting/gri" element={<GRIModule />} />

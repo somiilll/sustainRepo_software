@@ -4,6 +4,7 @@ Organization Configuration — Service Layer
 Single collection: organization_config
 One document per organization containing only overrides.
 Resolution: global esg_record_categories + org overrides → final config.
+Supports all three ESG sections: environment, social, governance.
 """
 
 from typing import Any, Dict, List, Optional
@@ -76,38 +77,35 @@ async def delete_org_config(org_id: str) -> bool:
 
 
 # =========================================================================
-# RESOLUTION: Global + Org Overrides → Final Config
+# RESOLUTION: Global + Org Overrides → Final Config (all sections)
 # =========================================================================
 
-async def resolve_config(org_id: str) -> Dict[str, Any]:
-    """Merge global esg_record_categories with organization_config overrides.
-
-    Returns the final configuration the org should see.
-    """
-    # 1. Load global categories (environment section, active only)
-    global_cats = await db["esg_record_categories"].find(
-        {"section": "environment", "is_active": True}, {"_id": 0}
-    ).sort("order", 1).to_list(None)
-
-    # 2. Load org config (may not exist)
-    org_cfg = await get_org_config(org_id) or {}
-
+async def _resolve_section(section: str, org_cfg: dict) -> List[Dict]:
+    """Resolve a single section (environment/social/governance)."""
     modules_cfg = org_cfg.get("modules") or {}
     cats_cfg = org_cfg.get("categories") or {}
     kpi_overrides = org_cfg.get("kpi_overrides") or {}
-    dashboard_cfg = org_cfg.get("dashboard") or {"type": "standard"}
-
-    enabled_modules = modules_cfg.get("enabled")  # None = all
-    disabled_subcats = set(cats_cfg.get("disabled") or [])
     custom_cats = cats_cfg.get("custom") or []
+    disabled_subcats = set(cats_cfg.get("disabled") or [])
 
-    # 3. Group global categories by top-level category (module)
+    # Section-specific enabled modules
+    section_key = f"{section}_enabled" if section != "environment" else "enabled"
+    enabled_modules = modules_cfg.get(section_key)
+    # For environment, fall back to "enabled"; for others, None means "show all"
+    if enabled_modules is None and section == "environment":
+        enabled_modules = modules_cfg.get("enabled")
+
+    # Load global categories for this section
+    global_cats = await db["esg_record_categories"].find(
+        {"section": section, "is_active": True}, {"_id": 0}
+    ).sort("order", 1).to_list(None)
+
     modules: Dict[str, Dict] = {}
+
     for cat in global_cats:
         mod_name = cat.get("category", "Other")
         mod_code = _code(mod_name)
 
-        # Filter by enabled modules
         if enabled_modules is not None and mod_code not in enabled_modules:
             continue
 
@@ -121,11 +119,9 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         subcat_name = cat.get("subcategory") or mod_name
         subcat_code = _code(subcat_name)
 
-        # Filter by disabled subcategories
         if subcat_code in disabled_subcats:
             continue
 
-        # Check for KPI override
         override = kpi_overrides.get(subcat_code)
         if override and override.get("visible") is False:
             continue
@@ -149,8 +145,12 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
             "order": cat.get("order", 0),
         })
 
-    # 4. Add custom categories
+    # Add custom categories for this section
     for custom in custom_cats:
+        cat_section = custom.get("section", "environment")
+        if cat_section != section:
+            continue
+
         mod_code = custom.get("module_code", "other")
         if enabled_modules is not None and mod_code not in enabled_modules:
             continue
@@ -158,7 +158,7 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         if mod_code not in modules:
             modules[mod_code] = {
                 "module_code": mod_code,
-                "module_name": custom.get("module_code", "").replace("_", " ").title(),
+                "module_name": (custom.get("module_name") or custom.get("module_code", "")).replace("_", " ").title(),
                 "subcategories": [],
             }
 
@@ -166,8 +166,6 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
             "category_id": None,
             "subcategory_code": custom.get("category_code"),
             "subcategory_name": custom.get("category_name"),
-            "original_category": None,
-            "original_subcategory": None,
             "fields": custom.get("fields", []),
             "calculation": custom.get("calculation"),
             "target_config": custom.get("target_config"),
@@ -176,13 +174,29 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
             "order": custom.get("display_order", 99),
         })
 
-    # Sort subcategories by order
     for mod in modules.values():
         mod["subcategories"].sort(key=lambda s: s.get("order", 0))
 
+    return list(modules.values())
+
+
+async def resolve_config(org_id: str) -> Dict[str, Any]:
+    """Merge global esg_record_categories with organization_config overrides.
+
+    Returns the final configuration across all three sections.
+    """
+    org_cfg = await get_org_config(org_id) or {}
+    dashboard_cfg = org_cfg.get("dashboard") or {"type": "standard"}
+
+    env_modules = await _resolve_section("environment", org_cfg)
+    social_modules = await _resolve_section("social", org_cfg)
+    governance_modules = await _resolve_section("governance", org_cfg)
+
     return {
         "organization_id": org_id,
-        "modules": list(modules.values()),
+        "modules": env_modules,
+        "social_modules": social_modules,
+        "governance_modules": governance_modules,
         "dashboard": dashboard_cfg,
         "features": org_cfg.get("features") or {},
         "has_org_config": bool(org_cfg),

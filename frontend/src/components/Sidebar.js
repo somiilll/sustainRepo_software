@@ -13,6 +13,14 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const LOGO_FALLBACK = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
 
 const ENV_MODULE_ICONS = { power: 'Zap', water: 'Droplets', steam: 'Cloud', energy: 'Zap', waste: 'Trash2' };
+const SOCIAL_MODULE_ICONS = { workforce: 'Users2', health_safety: 'HeartPulse', community: 'Building2', human_rights: 'Scale' };
+const GOVERNANCE_MODULE_ICONS = { board: 'Shield', ethics: 'Scale', compliance: 'FileCheck', risk: 'AlertTriangle' };
+
+function _sectionIcons(section) {
+  if (section === 'social') return SOCIAL_MODULE_ICONS;
+  if (section === 'governance') return GOVERNANCE_MODULE_ICONS;
+  return ENV_MODULE_ICONS;
+}
 
 function getIcon(name) {
   return LucideIcons[name] || null;
@@ -109,17 +117,36 @@ export default function Sidebar() {
     }).then(r => setResolvedConfig(r.data)).catch(() => null);
   }, [token, isSuperAdmin]);
 
-  // Build the active sidebar config, replacing Environment children if org has custom config
+  // Build the active sidebar config, replacing section children if org has custom config
   const activeConfig = useMemo(() => {
     if (isSuperAdmin) return superAdminSidebarConfig;
     if (!resolvedConfig?.has_org_config) return sidebarConfig;
 
-    const modules = resolvedConfig.modules || [];
-    if (modules.length === 0) return sidebarConfig;
+    // Helper: build dynamic module children for a section
+    const buildSectionChildren = (sectionKey, modules, routePrefix, defaultChildren, keepStatic) => {
+      if (!modules || modules.length === 0) return null; // no override, keep default
+      const icons = _sectionIcons(sectionKey);
+      const children = keepStatic ? [...keepStatic] : [];
+      modules.forEach(mod => {
+        children.push({
+          key: `${sectionKey}.${mod.module_code}`,
+          label: mod.module_name,
+          icon: icons[mod.module_code] || 'Leaf',
+          children: [
+            { key: `${sectionKey}.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `${routePrefix}/${mod.module_code}` },
+            { key: `${sectionKey}.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `${routePrefix}/${mod.module_code}/analysis` },
+          ],
+        });
+      });
+      return children;
+    };
 
-    // Build dynamic environment children from resolved config
-    const envChildren = [
-      // Always keep GHG Module
+    // Environment: keep GHG Module, replace rest with org modules
+    const envModules = resolvedConfig.modules || [];
+    const socialModules = resolvedConfig.social_modules || [];
+    const govModules = resolvedConfig.governance_modules || [];
+
+    const ghgStatic = [
       { key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
           { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg' },
           { key: 'environment.ghg.sinks', label: 'Sinks', icon: 'TreeDeciduous', path: '/sinks' },
@@ -128,25 +155,14 @@ export default function Sidebar() {
       ] },
     ];
 
-    // Add dynamic modules from resolved config — each shows KPI + Analysis
-    modules.forEach(mod => {
-      const modIcon = ENV_MODULE_ICONS[mod.module_code] || 'Leaf';
-      envChildren.push({
-        key: `environment.${mod.module_code}`,
-        label: mod.module_name,
-        icon: modIcon,
-        children: [
-          { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
-          { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
-        ],
-      });
-    });
+    const envChildren = envModules.length > 0 ? buildSectionChildren('environment', envModules, '/environment', null, ghgStatic) : null;
+    const socialChildren = socialModules.length > 0 ? buildSectionChildren('social', socialModules, '/social', null, null) : null;
+    const govChildren = govModules.length > 0 ? buildSectionChildren('governance', govModules, '/governance', null, null) : null;
 
-    // Replace the environment item's children in sidebarConfig
     return sidebarConfig.map(item => {
-      if (item.key === 'environment') {
-        return { ...item, children: envChildren };
-      }
+      if (item.key === 'environment' && envChildren) return { ...item, children: envChildren };
+      if (item.key === 'social' && socialChildren) return { ...item, children: socialChildren };
+      if (item.key === 'governance' && govChildren) return { ...item, children: govChildren };
       return item;
     });
   }, [isSuperAdmin, resolvedConfig]);

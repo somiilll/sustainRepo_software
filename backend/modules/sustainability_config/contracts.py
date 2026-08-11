@@ -37,6 +37,8 @@ class CustomCategory(BaseModel):
     module_code: str  # parent module, e.g. "energy"
     category_code: str
     category_name: str
+    section: str = "environment"  # environment | social | governance
+    module_name: Optional[str] = None  # display name override for module
     display_order: int = 99
     fields: List[FieldDefinition] = []
     calculation: Optional[Dict[str, Any]] = None  # controlled calc config

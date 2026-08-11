@@ -223,15 +223,13 @@ async def list_categories(
         framework=framework
     )
 
-    # Apply organization_config overrides for environment section
-    if section == "environment":
-        org_id = current_user.get("organization_id")
-        if org_id:
-            from modules.sustainability_config.service import get_org_config
-            import re
-            org_cfg = await get_org_config(org_id)
-            if org_cfg:
-                categories = _apply_org_overrides(categories, org_cfg)
+    # Apply organization_config overrides for all ESG sections
+    org_id = current_user.get("organization_id")
+    if org_id:
+        from modules.sustainability_config.service import get_org_config
+        org_cfg = await get_org_config(org_id)
+        if org_cfg:
+            categories = _apply_org_overrides(categories, org_cfg, section)
 
     return {"categories": categories, "total": len(categories)}
 
@@ -273,13 +271,15 @@ def _map_custom_field(f: dict) -> dict:
     }
 
 
-def _apply_org_overrides(categories: list, org_cfg: dict) -> list:
+def _apply_org_overrides(categories: list, org_cfg: dict, section: str = "environment") -> list:
     """Apply organization_config overrides to the global categories list."""
     modules_cfg = org_cfg.get("modules") or {}
     cats_cfg = org_cfg.get("categories") or {}
     kpi_overrides = org_cfg.get("kpi_overrides") or {}
 
-    enabled_modules = modules_cfg.get("enabled")  # None = all
+    # Section-specific enabled modules: check modules.enabled (env) or modules.social_enabled, etc.
+    section_key = f"{section}_enabled" if section != "environment" else "enabled"
+    enabled_modules = modules_cfg.get(section_key, modules_cfg.get("enabled") if section == "environment" else None)
     disabled_subcats = set(cats_cfg.get("disabled") or [])
     custom_cats = cats_cfg.get("custom") or []
 
@@ -288,7 +288,7 @@ def _apply_org_overrides(categories: list, org_cfg: dict) -> list:
         mod_code = _to_code(cat.get("category", ""))
         subcat_code = _to_code(cat.get("subcategory") or cat.get("category", ""))
 
-        # Filter by enabled modules
+        # Filter by enabled modules (only if explicitly configured for this section)
         if enabled_modules is not None and mod_code not in enabled_modules:
             continue
 
@@ -308,14 +308,16 @@ def _apply_org_overrides(categories: list, org_cfg: dict) -> list:
 
         result.append(cat)
 
-    # Add custom categories as virtual entries
+    # Add custom categories as virtual entries — only for this section
     for custom in custom_cats:
+        cat_section = custom.get("section", "environment")
+        if cat_section != section:
+            continue
         raw_fields = custom.get("fields") or []
-        # Map org config field format to global esg_record_categories format
         mapped_fields = [_map_custom_field(f) for f in raw_fields]
         result.append({
             "id": f"custom_{custom.get('category_code', 'unknown')}",
-            "section": "environment",
+            "section": section,
             "category": (custom.get("module_name") or custom.get("module_code", "")).replace("_", " ").title(),
             "subcategory": custom.get("category_name"),
             "is_active": True,
@@ -351,7 +353,7 @@ async def get_category(
                         mapped_fields = [_map_custom_field(f) for f in raw_fields]
                         return {
                             "id": category_id,
-                            "section": "environment",
+                            "section": custom.get("section", "environment"),
                             "category": (custom.get("module_name") or custom.get("module_code", "")).replace("_", " ").title(),
                             "subcategory": custom.get("category_name"),
                             "is_active": True,
@@ -365,9 +367,9 @@ async def get_category(
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    # Apply field overrides if org has them
+    # Apply field overrides if org has them (all sections)
     org_id = current_user.get("organization_id")
-    if org_id and section == "environment":
+    if org_id:
         from modules.sustainability_config.service import get_org_config
         org_cfg = await get_org_config(org_id)
         if org_cfg:
