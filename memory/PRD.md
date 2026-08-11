@@ -241,19 +241,17 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 
 ## Completed Work (Aug 2026) — Sustainability Module Configuration
 
-### Milestone 1: Configuration Foundation (P0)
-- **5 new MongoDB collections**: `organization_modules`, `org_module_categories`, `org_module_kpis`, `org_module_kpi_fields`, `org_module_kpi_calcs`
-- All org-scoped with compound unique indexes and full CRUD APIs
-- **Backend module**: `/app/backend/modules/sustainability_config/` (contracts, service, router, seed)
-- **API prefix**: `/api/sustainability-config/`
-- **Admin Config UI**: `/app/frontend/src/pages/SustainabilityConfig.js` — full hierarchy drill-down (Module → Category → KPI → Questions → Calculations)
-- **Question Builder**: 13 response types (text, number, integer, decimal, percentage, currency, yes/no, dropdown, multi-select, date, month, facility, file), field_type (input/calculated), validation, options, evidence_required
-- **Calculation Config**: 6 types (quantity_factor, difference, sum, ratio, percentage_of, custom_expression)
-- **Config Versioning**: Integer `config_version` per KPI field config, immutable historical versions
-- **Migration/Seed**: `POST /api/sustainability-config/migrate-existing` — creates org config from existing `esg_record_categories` (additive, idempotent)
-- **Organization Isolation**: Verified — two orgs with same "Energy" module have completely independent subcategories, KPIs, and questions
-- **Testing**: 12/12 backend pytest + full frontend E2E (iteration 162)
-- **Status**: Done
+### Simplified Organization Config (replaces Milestone 1 5-collection design)
+- **Architecture**: Single `organization_config` collection — one document per org containing only overrides
+- **Resolution logic**: Global `esg_record_categories` + org overrides → final config
+- **Schema**: `modules.enabled`, `categories.custom[]` (with full fields), `categories.disabled[]`, `kpi_overrides.{subcategory_code}`, `dashboard.type`
+- **Backend**: `/app/backend/modules/sustainability_config/` — contracts, service (resolve_config merger), router (3 admin + 1 user endpoint)
+- **Admin UI**: `/sustainability-config` page with 4 tabs: Overview (resolved tree), Modules (enable/disable), KPI Overrides (field editor per subcategory), Custom Categories (full field definitions)
+- **Key principle**: Only store overrides. 95% of orgs use global defaults. Only different questions stored per-org.
+- **Old 5 collections dropped**: `organization_modules`, `org_module_categories`, `org_module_kpis`, `org_module_kpi_fields`, `org_module_kpi_calcs` all removed
+- **Sidebar**: Unchanged — original Environment > GHG/Energy/Water/Waste structure preserved
+- **Routing**: Unchanged — existing `/environment/energy`, `/ghg`, etc. all preserved
+- **Status**: Done — backend tested via curl, frontend admin UI verified via screenshots
 
 ## Pending Issues
 
@@ -269,20 +267,20 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ### Environment Report PDF Character Spacing Bug (P2)
 - **Status**: Open
 
-## Upcoming Tasks — Sustainability Config Milestones
+## Upcoming Tasks — Sustainability Config Next Steps
 
-### Milestone 2: User-Facing Features (P0)
-- Dynamic sidebar generation from `organization_modules`
-- Generic `/:module/kpi` routing
-- Generic KPI page (Log + Add Data + Set Target) wired to org-specific config
-- Module-aware record storage (connecting to existing `environment_records` via mapping)
-- Assignment/target integration with `module_code`
+### Wire Config into Existing Data Entry (P0)
+- `ESGRecordsDataEntry` checks `organization_config.kpi_overrides` when rendering forms
+- If override exists for subcategory → use custom fields; else → use global `esg_record_categories` fields
+- No new collections, no new form engine — just a config check before rendering
 
-### Milestone 3: Analytics & Dashboard (P1)
-- Generic Analysis page driven by org KPIs
-- Dashboard card generation from enabled modules
-- Calculation config execution bridge
-- Full isolation testing + backward compatibility testing
+### Connect Sidebar Module Filtering (P1)
+- If `organization_config.modules.enabled` is set, filter which modules appear in sidebar
+- No sidebar restructure — just hide/show existing items based on config
+
+### Dashboard Standard/Custom Mode (P1)
+- If `organization_config.dashboard.type === "custom"`, render custom KPI cards
+- Default stays standard (current hardcoded dashboard)
 
 ## Other Upcoming Tasks (P1)
 - Target Settings UI (replace legacy name-based `target_direction` fallback)
@@ -305,10 +303,9 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ## Key Files Reference
 
 ### Backend — Sustainability Config
-- `/app/backend/modules/sustainability_config/contracts.py` — Pydantic models for all 5 collections
-- `/app/backend/modules/sustainability_config/service.py` — CRUD + indexing + full config tree
-- `/app/backend/modules/sustainability_config/router.py` — All API endpoints (~25 routes)
-- `/app/backend/modules/sustainability_config/seed.py` — Migration from esg_record_categories
+- `/app/backend/modules/sustainability_config/contracts.py` — Pydantic models (FieldDefinition, CustomCategory, KPIOverride, OrganizationConfigUpdate)
+- `/app/backend/modules/sustainability_config/service.py` — CRUD + resolve_config (global + overrides merger)
+- `/app/backend/modules/sustainability_config/router.py` — 4 endpoints: GET/PUT/DELETE org-config + GET resolved
 
 ### Backend — MIS Reports
 - `/app/backend/modules/mis_reports/service.py` — Data aggregation, `_governance_period_filter` helper
@@ -323,7 +320,7 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - `/app/backend/calc_engine/router.py` — Calc engine API endpoints
 
 ### Frontend — Sustainability Config
-- `/app/frontend/src/pages/SustainabilityConfig.js` — Admin Config UI (Module → Category → KPI → Questions → Calculations)
+- `/app/frontend/src/pages/SustainabilityConfig.js` — Admin Config UI (Overview, Modules, KPI Overrides, Custom Categories)
 
 ### Frontend — Emissions
 - `/app/frontend/src/components/EmissionEntryForm.js` — Emission entry form

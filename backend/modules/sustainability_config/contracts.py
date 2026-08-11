@@ -1,128 +1,27 @@
 """
-Sustainability Module Configuration — Contracts / Pydantic Models
+Organization Configuration — Contracts / Pydantic Models
 
-Organization-scoped configuration hierarchy:
-  Organization → Module → Category → KPI → Fields → Calculations
+Single-collection override layer:
+  Global esg_record_categories + organization_config overrides → final config
 """
 
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
-from enum import Enum
 
 
 # =============================================================================
-# Enums
+# Field definition (used in kpi_overrides and custom categories)
 # =============================================================================
-
-class ResponseType(str, Enum):
-    TEXT = "text"
-    NUMBER = "number"
-    INTEGER = "integer"
-    DECIMAL = "decimal"
-    PERCENTAGE = "percentage"
-    CURRENCY = "currency"
-    YES_NO = "yes_no"
-    DROPDOWN = "dropdown"
-    MULTI_SELECT = "multi_select"
-    DATE = "date"
-    MONTH = "month"
-    FACILITY = "facility"
-    FILE = "file"
-
-
-class FieldType(str, Enum):
-    INPUT = "input"
-    CALCULATED = "calculated"
-
-
-class CalculationType(str, Enum):
-    QUANTITY_FACTOR = "quantity_factor"       # qty × factor
-    DIFFERENCE = "difference"                 # a - b
-    SUM = "sum"                               # a + b + c
-    RATIO = "ratio"                           # a / b
-    PERCENTAGE_OF = "percentage_of"           # (a / b) * 100
-    CUSTOM_EXPRESSION = "custom_expression"   # controlled expression string
-
-
-# =============================================================================
-# Module
-# =============================================================================
-
-class ModuleCreate(BaseModel):
-    module_code: str = Field(..., min_length=1, max_length=50, pattern=r'^[a-z][a-z0-9_]*$')
-    module_name: str = Field(..., min_length=1, max_length=100)
-    icon: Optional[str] = "Leaf"
-    enabled: bool = True
-    display_order: int = 0
-
-
-class ModuleUpdate(BaseModel):
-    module_name: Optional[str] = None
-    icon: Optional[str] = None
-    enabled: Optional[bool] = None
-    display_order: Optional[int] = None
-
-
-# =============================================================================
-# Category
-# =============================================================================
-
-class CategoryCreate(BaseModel):
-    category_code: str = Field(..., min_length=1, max_length=50, pattern=r'^[a-z][a-z0-9_]*$')
-    category_name: str = Field(..., min_length=1, max_length=100)
-    enabled: bool = True
-    display_order: int = 0
-
-
-class CategoryUpdate(BaseModel):
-    category_name: Optional[str] = None
-    enabled: Optional[bool] = None
-    display_order: Optional[int] = None
-
-
-# =============================================================================
-# KPI
-# =============================================================================
-
-class KPICreate(BaseModel):
-    kpi_code: str = Field(..., min_length=1, max_length=80, pattern=r'^[a-z][a-z0-9_]*$')
-    kpi_name: str = Field(..., min_length=1, max_length=150)
-    unit: Optional[str] = None
-    description: Optional[str] = None
-    enabled: bool = True
-    display_order: int = 0
-
-
-class KPIUpdate(BaseModel):
-    kpi_name: Optional[str] = None
-    unit: Optional[str] = None
-    description: Optional[str] = None
-    enabled: Optional[bool] = None
-    display_order: Optional[int] = None
-
-
-# =============================================================================
-# Field / Question
-# =============================================================================
-
-class FieldValidation(BaseModel):
-    min: Optional[float] = None
-    max: Optional[float] = None
-    decimal_precision: Optional[int] = None
-    pattern: Optional[str] = None
-    max_file_size_mb: Optional[float] = None
-    allowed_file_types: Optional[List[str]] = None
-
 
 class FieldDefinition(BaseModel):
-    field_code: str = Field(..., min_length=1, max_length=80)
-    label: str = Field(..., min_length=1, max_length=200)
-    field_type: FieldType = FieldType.INPUT
-    response_type: ResponseType = ResponseType.TEXT
+    field_code: str
+    label: str
+    field_type: str = "input"  # input | calculated
+    response_type: str = "text"  # text|number|integer|decimal|percentage|currency|yes_no|dropdown|multi_select|date|month|facility|file
     unit: Optional[str] = None
     required: bool = False
     help_text: Optional[str] = None
-    validation: Optional[FieldValidation] = None
+    validation: Optional[Dict[str, Any]] = None
     options: Optional[List[str]] = None
     default_value: Optional[Any] = None
     display_order: int = 0
@@ -130,41 +29,58 @@ class FieldDefinition(BaseModel):
     evidence_required: bool = False
 
 
-class FieldConfigCreate(BaseModel):
-    """Create a new field configuration version for a KPI."""
-    fields: List[FieldDefinition]
-    effective_from: Optional[str] = None  # ISO date, defaults to now
+# =============================================================================
+# Custom category (org adds a category that doesn't exist globally)
+# =============================================================================
 
-
-class FieldConfigUpdate(BaseModel):
-    """Update fields in the current active version."""
-    fields: List[FieldDefinition]
+class CustomCategory(BaseModel):
+    module_code: str  # parent module, e.g. "energy"
+    category_code: str
+    category_name: str
+    display_order: int = 99
+    fields: List[FieldDefinition] = []
+    calculation: Optional[Dict[str, Any]] = None  # controlled calc config
+    target_config: Optional[Dict[str, Any]] = None
 
 
 # =============================================================================
-# Calculation
+# KPI Override (org customizes fields/calc for a global subcategory)
 # =============================================================================
 
-class CalculationCreate(BaseModel):
-    calculation_code: str = Field(..., min_length=1, max_length=80, pattern=r'^[a-z][a-z0-9_]*$')
-    calculation_name: str = Field(..., min_length=1, max_length=150)
-    calculation_type: CalculationType
-    inputs: Dict[str, str]  # role → field_code mapping, e.g. {"quantity": "electricity_consumed", "factor": "grid_ef"}
-    expression: Optional[str] = None  # for custom_expression type only
-    output_field_code: str
-    output_label: str
-    output_unit: Optional[str] = None
-    enabled: bool = True
-    display_order: int = 0
+class KPIOverride(BaseModel):
+    """Override for a specific subcategory (keyed by esg_record_categories subcategory code)."""
+    fields: Optional[List[FieldDefinition]] = None  # replaces global fields
+    kpi_name: Optional[str] = None  # optional display name override
+    unit: Optional[str] = None
+    visible: Optional[bool] = None  # hide a global KPI
+    calculation: Optional[Dict[str, Any]] = None
 
 
-class CalculationUpdate(BaseModel):
-    calculation_name: Optional[str] = None
-    calculation_type: Optional[CalculationType] = None
-    inputs: Optional[Dict[str, str]] = None
-    expression: Optional[str] = None
-    output_field_code: Optional[str] = None
-    output_label: Optional[str] = None
-    output_unit: Optional[str] = None
-    enabled: Optional[bool] = None
-    display_order: Optional[int] = None
+# =============================================================================
+# Dashboard config
+# =============================================================================
+
+class DashboardConfig(BaseModel):
+    type: str = "standard"  # standard | custom
+    configuration: Optional[Dict[str, Any]] = None
+
+
+# =============================================================================
+# Top-level organization config
+# =============================================================================
+
+class ModulesConfig(BaseModel):
+    enabled: Optional[List[str]] = None  # None = all, [] = none, ["energy","water"] = those
+
+
+class CategoriesConfig(BaseModel):
+    custom: List[CustomCategory] = []
+    disabled: List[str] = []  # subcategory codes to hide
+
+
+class OrganizationConfigUpdate(BaseModel):
+    """Payload for creating/updating the organization config."""
+    modules: Optional[ModulesConfig] = None
+    categories: Optional[CategoriesConfig] = None
+    kpi_overrides: Optional[Dict[str, KPIOverride]] = None  # key = subcategory code
+    dashboard: Optional[DashboardConfig] = None
