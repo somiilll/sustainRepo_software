@@ -9,6 +9,7 @@ const superAdminSidebarConfig = [
   { key: 'sa-sectors', label: 'Sectors', path: '/super-admin/sectors', icon: 'Layers' },
   { key: 'sa-esg-config', label: 'ESG Config', path: '/super-admin/esg-config', icon: 'Settings2' },
   { key: 'sa-kpi-defs', label: 'KPI Definitions', path: '/super-admin/kpi-definitions', icon: 'Gauge' },
+  { key: 'sustainability_config', label: 'Org Config', icon: 'Building2', path: '/super-admin/org-config' },
   {
     key: 'sa-ghg',
     label: 'GHG',
@@ -42,13 +43,7 @@ const superAdminSidebarConfig = [
           { key: 'sa-sandbox', label: 'Calculation Sandbox', path: '/super-admin/calc-sandbox', icon: 'Beaker' },
         ],
       },
-  {
-    key: 'sustainability_config',
-    label: 'Org Config',
-    icon: 'Settings2',
-    path: '/super-admin/org-config',
-  },
-  { key: 'sa-proc-tpl', label: 'Process Templates', path: '/super-admin/process-templates', icon: 'FileCode2' },
+      { key: 'sa-proc-tpl', label: 'Process Templates', path: '/super-admin/process-templates', icon: 'FileCode2' },
     ],
   },
 ];

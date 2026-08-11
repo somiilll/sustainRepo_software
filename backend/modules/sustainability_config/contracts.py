@@ -89,5 +89,6 @@ class OrganizationConfigUpdate(BaseModel):
     modules: Optional[ModulesConfig] = None
     categories: Optional[CategoriesConfig] = None
     kpi_overrides: Optional[Dict[str, KPIOverride]] = None  # key = subcategory code
+    target_overrides: Optional[Dict[str, KPIOverride]] = None  # key = subcategory code, separate target questions
     dashboard: Optional[DashboardConfig] = None
     features: Optional[FeaturesConfig] = None

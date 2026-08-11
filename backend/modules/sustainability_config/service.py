@@ -59,6 +59,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             "modules": data.get("modules", {"enabled": None}),
             "categories": data.get("categories", {"custom": [], "disabled": []}),
             "kpi_overrides": data.get("kpi_overrides", {}),
+            "target_overrides": data.get("target_overrides", {}),
             "dashboard": data.get("dashboard", {"type": "standard"}),
             "features": data.get("features", {}),
             "created_at": now,
@@ -209,3 +210,6 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
 
 async def ensure_indexes():
     await _coll().create_index("organization_id", unique=True)
+    cmr = db["configured_metric_records"]
+    await cmr.create_index([("organization_id", 1), ("feature_type", 1), ("category", 1)])
+    await cmr.create_index([("organization_id", 1), ("feature_type", 1), ("created_at", -1)])

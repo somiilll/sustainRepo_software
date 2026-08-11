@@ -10,7 +10,8 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 /**
  * ESG Records Module — 2 or 3-tab view: Metrics Logs + Add Metric + (Set Target).
- * Set Target tab appears only when the org's features.set_target.enabled is true.
+ * Set Target renders a dedicated SetTargetForm that saves to configured_metric_records.
+ * It does NOT affect environment_records, workflow tasks, or approval.
  */
 export default function ESGRecordsModule({ section = 'environment', preFilterCategory = '', preFilterSubcategory: preFilterSubcatProp = '' }) {
   const { token } = useAuth();
@@ -19,7 +20,7 @@ export default function ESGRecordsModule({ section = 'environment', preFilterCat
   const [reportingYears, setReportingYears] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showSetTarget, setShowSetTarget] = useState(false);
-  const [TargetsComponent, setTargetsComponent] = useState(null);
+  const [TargetForm, setTargetForm] = useState(null);
 
   const category = preFilterCategory || searchParams.get('category') || '';
   const preFilterSubcategory = preFilterSubcatProp || searchParams.get('subcategory') || '';
@@ -54,13 +55,9 @@ export default function ESGRecordsModule({ section = 'environment', preFilterCat
       headers: { Authorization: `Bearer ${token}` },
     }).then(res => {
       const features = res.data?.features || {};
-      const setTargetCfg = features.set_target;
-      if (setTargetCfg?.enabled) {
+      if (features.set_target?.enabled) {
         setShowSetTarget(true);
-        // Lazy-load ESGTargetsTab only when needed
-        import('./ESGTargetsTab').then(mod => {
-          setTargetsComponent(() => mod.default);
-        });
+        import('./SetTargetForm').then(mod => setTargetForm(() => mod.default));
       }
     }).catch(() => null);
   }, [token]);
@@ -69,8 +66,6 @@ export default function ESGRecordsModule({ section = 'environment', preFilterCat
     setRefreshKey(prev => prev + 1);
     setActiveTab('logs');
   };
-
-  const tabCount = showSetTarget ? 3 : 2;
 
   return (
     <div className="space-y-4" data-testid={`esg-records-module-${section}`}>
@@ -114,10 +109,14 @@ export default function ESGRecordsModule({ section = 'environment', preFilterCat
 
         {showSetTarget && (
           <TabsContent value="set-target" className="mt-4">
-            {TargetsComponent ? (
-              <TargetsComponent section={section} reportingPeriod={reportingPeriod} />
+            {TargetForm ? (
+              <TargetForm
+                section={section}
+                preFilterCategory={category}
+                preFilterSubcategory={preFilterSubcategory}
+              />
             ) : (
-              <div className="flex justify-center py-8 text-stone-400">Loading targets...</div>
+              <div className="flex justify-center py-8 text-stone-400">Loading...</div>
             )}
           </TabsContent>
         )}
