@@ -249,9 +249,19 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Admin UI**: `/sustainability-config` page with 4 tabs: Overview (resolved tree), Modules (enable/disable), KPI Overrides (field editor per subcategory), Custom Categories (full field definitions)
 - **Key principle**: Only store overrides. 95% of orgs use global defaults. Only different questions stored per-org.
 - **Old 5 collections dropped**: `organization_modules`, `org_module_categories`, `org_module_kpis`, `org_module_kpi_fields`, `org_module_kpi_calcs` all removed
-- **Sidebar**: Unchanged — original Environment > GHG/Energy/Water/Waste structure preserved
-- **Routing**: Unchanged — existing `/environment/energy`, `/ghg`, etc. all preserved
-- **Status**: Done — backend tested via curl, frontend admin UI verified via screenshots
+- **Sidebar**: Dynamic — reads `resolved` config and generates Environment children from org's custom modules (Power/Water/Steam)
+- **Routing**: Added catch-all `environment/:moduleCode` and `environment/:moduleCode/:subcatCode` routes
+- **Status**: Done — Phase A verified with Power/DG Sets/Solar/Steam all showing org-specific custom fields
+
+### Phase A: Config → Sidebar → Environment → Data Entry (Done)
+- **Backend `list_categories` enhanced**: Merges `organization_config` overrides into category list — disabled subcats removed, custom categories injected with mapped fields (`field_key`/`type`), kpi_overrides applied
+- **Backend `get_category` enhanced**: Returns custom category fields for `custom_*` IDs, applies kpi_overrides for global categories
+- **`_map_custom_field`**: Maps org config field format (`field_code`, `response_type`) to global format (`field_key`, `type`) so `DynamicFieldRenderer` renders them correctly
+- **Sidebar**: Fetches `GET /api/sustainability-config/resolved`, replaces Environment children with org's resolved modules (Power > Electricity/DG Sets/Solar, Water > Consumption, Steam > KPI/Analysis)
+- **`OrgEnvironmentKPI.js`**: New lightweight page for custom module routes, resolves display names from categories API, passes `preFilterCategory` + `preFilterSubcategory` to `ESGRecordsModule`
+- **ORG1 config seeded**: Power (3 subcats with 6-7 fields each), Water/Consumption (6 fields), Steam (6 fields), features.set_target enabled, dashboard.type=custom
+- **Backward compatibility**: Existing `/environment/energy`, `/ghg`, etc. routes unchanged
+- **`features` field added** to organization_config schema for feature flags (set_target, etc.)
 
 ## Pending Issues
 
@@ -269,18 +279,21 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 
 ## Upcoming Tasks — Sustainability Config Next Steps
 
-### Wire Config into Existing Data Entry (P0)
-- `ESGRecordsDataEntry` checks `organization_config.kpi_overrides` when rendering forms
-- If override exists for subcategory → use custom fields; else → use global `esg_record_categories` fields
-- No new collections, no new form engine — just a config check before rendering
+### Phase B: Set Target + Record Storage (P0)
+- Add Set Target tab to ESGRecordsModule (config-driven via `features.set_target`)
+- Ensure records store module_code/category_code for proper Log filtering
+- Verify record submit + log cycle end-to-end
 
-### Connect Sidebar Module Filtering (P1)
-- If `organization_config.modules.enabled` is set, filter which modules appear in sidebar
-- No sidebar restructure — just hide/show existing items based on config
+### Phase C: Workflow + Analysis + Dashboard + MIS (P1)
+- Assignment wizard uses resolved config categories
+- Analysis page uses resolved config KPIs
+- Dashboard custom mode (standard vs custom)
+- MIS reads resolved config
 
-### Dashboard Standard/Custom Mode (P1)
-- If `organization_config.dashboard.type === "custom"`, render custom KPI cards
-- Default stays standard (current hardcoded dashboard)
+### Phase D: Backward Compatibility + Isolation Testing (P1)
+- Verify standard orgs unchanged
+- Verify ORG1 sees Power/Water/Steam only
+- Full testing with testing agent
 
 ## Other Upcoming Tasks (P1)
 - Target Settings UI (replace legacy name-based `target_direction` fallback)

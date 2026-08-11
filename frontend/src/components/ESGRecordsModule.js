@@ -12,7 +12,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
  * ESG Records Module — 2-tab view: Metrics Logs + Add Metric.
  * Used by Environment (Energy, Water, Waste, etc.), Social, Governance pages.
  */
-export default function ESGRecordsModule({ section = 'environment', preFilterCategory = '' }) {
+export default function ESGRecordsModule({ section = 'environment', preFilterCategory = '', preFilterSubcategory: preFilterSubcatProp = '' }) {
   const { token } = useAuth();
   const [searchParams] = useSearchParams();
   const [reportingPeriod, setReportingPeriod] = useState('');
@@ -20,7 +20,7 @@ export default function ESGRecordsModule({ section = 'environment', preFilterCat
   const [refreshKey, setRefreshKey] = useState(0);
 
   const category = preFilterCategory || searchParams.get('category') || '';
-  const preFilterSubcategory = searchParams.get('subcategory') || '';
+  const preFilterSubcategory = preFilterSubcatProp || searchParams.get('subcategory') || '';
   const defaultTab = searchParams.get('tab') || 'logs';
 
   const [activeTab, setActiveTab] = useState(defaultTab);

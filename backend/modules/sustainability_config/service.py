@@ -59,6 +59,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             "categories": data.get("categories", {"custom": [], "disabled": []}),
             "kpi_overrides": data.get("kpi_overrides", {}),
             "dashboard": data.get("dashboard", {"type": "standard"}),
+            "features": data.get("features", {}),
             "created_at": now,
             "updated_at": now,
             "created_by": user_id,
@@ -183,6 +184,7 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         "organization_id": org_id,
         "modules": list(modules.values()),
         "dashboard": dashboard_cfg,
+        "features": org_cfg.get("features") or {},
         "has_org_config": bool(org_cfg),
     }
 

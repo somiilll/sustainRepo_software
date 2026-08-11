@@ -12,6 +12,8 @@ import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const LOGO_FALLBACK = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
 
+const ENV_MODULE_ICONS = { power: 'Zap', water: 'Droplets', steam: 'Cloud', energy: 'Zap', waste: 'Trash2' };
+
 function getIcon(name) {
   return LucideIcons[name] || null;
 }
@@ -92,12 +94,92 @@ function MenuItem(props) {
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const { hasAccess } = useModuleAccess();
   const [logoUrl, setLogoUrl] = useState(LOGO_FALLBACK);
+  const [resolvedConfig, setResolvedConfig] = useState(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
-  const activeConfig = isSuperAdmin ? superAdminSidebarConfig : sidebarConfig;
+
+  // Fetch resolved org config for dynamic environment sidebar
+  useEffect(() => {
+    if (!token || isSuperAdmin) return;
+    axios.get(`${API}/sustainability-config/resolved`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => setResolvedConfig(r.data)).catch(() => null);
+  }, [token, isSuperAdmin]);
+
+  // Build the active sidebar config, replacing Environment children if org has custom config
+  const activeConfig = useMemo(() => {
+    if (isSuperAdmin) return superAdminSidebarConfig;
+    if (!resolvedConfig?.has_org_config) return sidebarConfig;
+
+    const modules = resolvedConfig.modules || [];
+    if (modules.length === 0) return sidebarConfig;
+
+    // Build dynamic environment children from resolved config
+    const envChildren = [
+      // Always keep GHG Module
+      { key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
+          { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg' },
+          { key: 'environment.ghg.sinks', label: 'Sinks', icon: 'TreeDeciduous', path: '/sinks' },
+          { key: 'environment.ghg.base_year', label: 'Base Year', icon: 'CalendarDays', path: '/ghg/base-year' },
+          { key: 'environment.ghg.analysis', label: 'Analysis', icon: 'BarChart3', path: '/ghg/analysis' },
+      ] },
+    ];
+
+    // Add dynamic modules from resolved config
+    modules.forEach(mod => {
+      const modIcon = ENV_MODULE_ICONS[mod.module_code] || 'Leaf';
+      const subcats = mod.subcategories || [];
+
+      if (subcats.length === 0) {
+        // Module with no subcategories (e.g., Steam alone)
+        envChildren.push({
+          key: `environment.${mod.module_code}`,
+          label: mod.module_name,
+          icon: modIcon,
+          children: [
+            { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
+            { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
+          ],
+        });
+      } else if (subcats.length === 1 && subcats[0].subcategory_code === mod.module_code) {
+        // Module with single self-named subcat (e.g., Steam > Steam)
+        envChildren.push({
+          key: `environment.${mod.module_code}`,
+          label: mod.module_name,
+          icon: modIcon,
+          children: [
+            { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
+            { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
+          ],
+        });
+      } else {
+        // Module with multiple subcategories (e.g., Power > Electricity, DG Sets, Solar)
+        const subChildren = subcats.map(sub => ({
+          key: `environment.${mod.module_code}.${sub.subcategory_code}`,
+          label: sub.subcategory_name,
+          icon: 'FileText',
+          path: `/environment/${mod.module_code}/${sub.subcategory_code}`,
+        }));
+        envChildren.push({
+          key: `environment.${mod.module_code}`,
+          label: mod.module_name,
+          icon: modIcon,
+          children: subChildren,
+        });
+      }
+    });
+
+    // Replace the environment item's children in sidebarConfig
+    return sidebarConfig.map(item => {
+      if (item.key === 'environment') {
+        return { ...item, children: envChildren };
+      }
+      return item;
+    });
+  }, [isSuperAdmin, resolvedConfig]);
 
   const buildExpanded = () => {
     const result = {};

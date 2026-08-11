@@ -43,6 +43,7 @@ async def get_org_config(
             "categories": {"custom": [], "disabled": []},
             "kpi_overrides": {},
             "dashboard": {"type": "standard"},
+            "features": {},
         }
     return cfg
 
@@ -64,6 +65,8 @@ async def update_org_config(
         payload["kpi_overrides"] = {k: v.model_dump(exclude_none=True) for k, v in data.kpi_overrides.items()}
     if data.dashboard is not None:
         payload["dashboard"] = data.dashboard.model_dump()
+    if data.features is not None:
+        payload["features"] = data.features.model_dump(exclude_none=True)
 
     result = await service.upsert_org_config(resolved_org, payload, current_user["id"])
     return result

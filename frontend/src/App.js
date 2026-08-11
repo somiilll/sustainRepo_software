@@ -41,6 +41,7 @@ import Scope3EF from './pages/Scope3EF';
 import AuditTrails from './pages/AuditTrails';
 import BulkUpload from './pages/BulkUpload';
 import Environment from './pages/Environment';
+import OrgEnvironmentKPI from './pages/OrgEnvironmentKPI';
 import Social from './pages/Social';
 import HRWorkforce from './pages/HRWorkforce';
 import SBTiTargets from './pages/SBTiTargets';
@@ -291,6 +292,9 @@ const AppRoutes = () => {
           <Route path="environment/energy/analysis" element={<EnergyAnalysis />} />
           <Route path="environment/water/analysis" element={<WaterAnalysis />} />
           <Route path="environment/waste/analysis" element={<WasteAnalysis />} />
+          {/* Catch-all for org-specific environment modules (Power, Steam, etc.) */}
+          <Route path="environment/:moduleCode/:subcatCode" element={<OrgEnvironmentKPI />} />
+          <Route path="environment/:moduleCode" element={<OrgEnvironmentKPI />} />
           <Route path="social" element={<Social />} />
           <Route path="social/analysis" element={<SocialAnalysis />} />
           <Route path="hr-workforce" element={<HRWorkforce />} />

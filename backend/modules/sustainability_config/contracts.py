@@ -78,9 +78,14 @@ class CategoriesConfig(BaseModel):
     disabled: List[str] = []  # subcategory codes to hide
 
 
+class FeaturesConfig(BaseModel):
+    set_target: Optional[Dict[str, Any]] = None  # {"enabled": true, "modules": ["power","water","steam"]}
+
+
 class OrganizationConfigUpdate(BaseModel):
     """Payload for creating/updating the organization config."""
     modules: Optional[ModulesConfig] = None
     categories: Optional[CategoriesConfig] = None
     kpi_overrides: Optional[Dict[str, KPIOverride]] = None  # key = subcategory code
     dashboard: Optional[DashboardConfig] = None
+    features: Optional[FeaturesConfig] = None
