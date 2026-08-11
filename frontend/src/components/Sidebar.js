@@ -128,48 +128,18 @@ export default function Sidebar() {
       ] },
     ];
 
-    // Add dynamic modules from resolved config
+    // Add dynamic modules from resolved config — each shows KPI + Analysis
     modules.forEach(mod => {
       const modIcon = ENV_MODULE_ICONS[mod.module_code] || 'Leaf';
-      const subcats = mod.subcategories || [];
-
-      if (subcats.length === 0) {
-        // Module with no subcategories (e.g., Steam alone)
-        envChildren.push({
-          key: `environment.${mod.module_code}`,
-          label: mod.module_name,
-          icon: modIcon,
-          children: [
-            { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
-            { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
-          ],
-        });
-      } else if (subcats.length === 1 && subcats[0].subcategory_code === mod.module_code) {
-        // Module with single self-named subcat (e.g., Steam > Steam)
-        envChildren.push({
-          key: `environment.${mod.module_code}`,
-          label: mod.module_name,
-          icon: modIcon,
-          children: [
-            { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
-            { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
-          ],
-        });
-      } else {
-        // Module with multiple subcategories (e.g., Power > Electricity, DG Sets, Solar)
-        const subChildren = subcats.map(sub => ({
-          key: `environment.${mod.module_code}.${sub.subcategory_code}`,
-          label: sub.subcategory_name,
-          icon: 'FileText',
-          path: `/environment/${mod.module_code}/${sub.subcategory_code}`,
-        }));
-        envChildren.push({
-          key: `environment.${mod.module_code}`,
-          label: mod.module_name,
-          icon: modIcon,
-          children: subChildren,
-        });
-      }
+      envChildren.push({
+        key: `environment.${mod.module_code}`,
+        label: mod.module_name,
+        icon: modIcon,
+        children: [
+          { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
+          { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
+        ],
+      });
     });
 
     // Replace the environment item's children in sidebarConfig
