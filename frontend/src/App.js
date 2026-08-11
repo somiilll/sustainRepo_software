@@ -267,6 +267,11 @@ const AppRoutes = () => {
                 <KPIDefinitions />
               </SuperAdminRoute>
             } />
+            <Route path="org-config" element={
+              <SuperAdminRoute>
+                <SustainabilityConfig />
+              </SuperAdminRoute>
+            } />
           </Route>
           
           {/* Admin & User Routes */}
@@ -372,9 +377,9 @@ const AppRoutes = () => {
             </AdminRoute>
           } />
           <Route path="sustainability-config" element={
-            <AdminRoute>
+            <SuperAdminRoute>
               <SustainabilityConfig />
-            </AdminRoute>
+            </SuperAdminRoute>
           } />
         </Route>
       </Routes>

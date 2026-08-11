@@ -1,8 +1,9 @@
 /**
- * SustainabilityConfig — Admin UI for Organization Configuration Overrides
+ * Org Config — SuperAdmin UI for Organization-Specific Configuration
  *
- * Single-collection approach: global defaults + org overrides = final config.
- * Sections: Enabled Modules | Disabled Categories | KPI Overrides | Custom Categories
+ * SuperAdmin selects an org, then configures:
+ *   - Module mode: Default / Default + Custom / Custom Only
+ *   - KPI overrides, custom categories, features
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -22,26 +23,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { toast } from 'sonner';
 import {
   Plus, Trash2, Edit2, Save, Settings2, Layers, BarChart3,
-  FileText, Eye, EyeOff, ChevronRight, ChevronLeft, X, Check,
-  ArrowUp, ArrowDown,
+  FileText, Eye, EyeOff, ChevronRight, X, Check, Building2,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const RESPONSE_TYPES = [
-  { value: 'text', label: 'Text' },
-  { value: 'number', label: 'Number' },
-  { value: 'integer', label: 'Integer' },
-  { value: 'decimal', label: 'Decimal' },
-  { value: 'percentage', label: 'Percentage' },
-  { value: 'currency', label: 'Currency' },
-  { value: 'yes_no', label: 'Yes/No' },
-  { value: 'dropdown', label: 'Dropdown' },
-  { value: 'multi_select', label: 'Multi-Select' },
-  { value: 'date', label: 'Date' },
-  { value: 'month', label: 'Month' },
-  { value: 'facility', label: 'Facility' },
+  { value: 'text', label: 'Text' }, { value: 'number', label: 'Number' },
+  { value: 'integer', label: 'Integer' }, { value: 'decimal', label: 'Decimal' },
+  { value: 'percentage', label: 'Percentage' }, { value: 'currency', label: 'Currency' },
+  { value: 'yes_no', label: 'Yes/No' }, { value: 'dropdown', label: 'Dropdown' },
+  { value: 'multi_select', label: 'Multi-Select' }, { value: 'date', label: 'Date' },
+  { value: 'month', label: 'Month' }, { value: 'facility', label: 'Facility' },
   { value: 'file', label: 'File/Evidence' },
+];
+
+const MODULE_MODES = [
+  { value: 'default', label: 'Default Modules', desc: 'Use only global/standard modules' },
+  { value: 'default_custom', label: 'Default + Custom', desc: 'Global modules plus org-specific additions' },
+  { value: 'custom', label: 'Custom Only', desc: 'Entirely org-specific module structure' },
 ];
 
 function toCode(name) {
@@ -52,157 +52,245 @@ export default function SustainabilityConfig() {
   const { token } = useAuth();
   const headers = { Authorization: `Bearer ${token}` };
 
+  const [organizations, setOrganizations] = useState([]);
+  const [selectedOrgId, setSelectedOrgId] = useState('');
   const [orgConfig, setOrgConfig] = useState(null);
-  const [resolvedConfig, setResolvedConfig] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [defaultModules, setDefaultModules] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const fetchConfig = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [raw, resolved] = await Promise.all([
-        axios.get(`${API}/sustainability-config/org-config`, { headers }),
-        axios.get(`${API}/sustainability-config/resolved`, { headers }),
-      ]);
-      setOrgConfig(raw.data);
-      setResolvedConfig(resolved.data);
-    } catch { toast.error('Failed to load configuration'); }
-    setLoading(false);
+  // Derived: module mode from org config
+  const getModuleMode = (cfg) => {
+    if (!cfg || !cfg.modules?.enabled) return 'default';
+    const hasCustom = (cfg.categories?.custom || []).length > 0;
+    const hasEnabled = Array.isArray(cfg.modules.enabled);
+    if (hasEnabled && hasCustom) return cfg.modules.enabled.length === 0 ? 'custom' : 'default_custom';
+    if (hasEnabled) return 'custom';
+    if (hasCustom) return 'default_custom';
+    return 'default';
+  };
+
+  // Fetch org list
+  useEffect(() => {
+    if (!token) return;
+    axios.get(`${API}/sustainability-config/organizations`, { headers })
+      .then(r => setOrganizations(r.data || []))
+      .catch(() => toast.error('Failed to load organizations'));
   }, [token]);
 
-  useEffect(() => { if (token) fetchConfig(); }, [token, fetchConfig]);
+  // Fetch org config + default modules when org selected
+  const fetchConfig = useCallback(async () => {
+    if (!selectedOrgId) return;
+    setLoading(true);
+    try {
+      const [cfgRes, defaultRes] = await Promise.all([
+        axios.get(`${API}/sustainability-config/org-config?org_id=${selectedOrgId}`, { headers }),
+        axios.get(`${API}/sustainability-config/default-modules/environment`, { headers }),
+      ]);
+      setOrgConfig(cfgRes.data);
+      setDefaultModules(defaultRes.data || []);
+    } catch (err) { toast.error('Failed to load config'); }
+    setLoading(false);
+  }, [selectedOrgId, token]);
+
+  useEffect(() => { fetchConfig(); }, [fetchConfig]);
 
   const saveConfig = async (updates) => {
+    if (!selectedOrgId) return;
     setSaving(true);
     try {
-      await axios.put(`${API}/sustainability-config/org-config`, updates, { headers });
+      await axios.put(`${API}/sustainability-config/org-config?org_id=${selectedOrgId}`, updates, { headers });
       toast.success('Configuration saved');
       await fetchConfig();
     } catch (err) { toast.error(err.response?.data?.detail || 'Failed to save'); }
     setSaving(false);
   };
 
-  if (loading) return <div className="flex justify-center py-20"><Settings2 className="h-8 w-8 animate-spin text-stone-400" /></div>;
+  const selectedOrgName = organizations.find(o => o.id === selectedOrgId)?.name || '';
 
   return (
-    <div className="space-y-6 p-1" data-testid="sustainability-config-page">
+    <div className="space-y-6 p-1" data-testid="org-config-page">
       <div>
-        <h1 className="text-2xl font-bold text-stone-900" data-testid="config-page-title">Sustainability Configuration</h1>
-        <p className="text-sm text-stone-500 mt-1">Configure module overrides for your organization. Global defaults apply unless overridden.</p>
+        <h1 className="text-2xl font-bold text-stone-900" data-testid="config-page-title">Org Config</h1>
+        <p className="text-sm text-stone-500 mt-1">Configure organization-specific sustainability modules, KPI overrides, and features.</p>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="modules">Modules</TabsTrigger>
-          <TabsTrigger value="kpi-overrides">KPI Overrides</TabsTrigger>
-          <TabsTrigger value="custom-categories">Custom Categories</TabsTrigger>
-          <TabsTrigger value="features">Features</TabsTrigger>
-        </TabsList>
+      {/* Org Selector */}
+      <Card className="p-4">
+        <div className="flex items-center gap-4">
+          <Building2 className="h-5 w-5 text-stone-500 shrink-0" />
+          <div className="flex-1">
+            <Label className="text-sm font-medium">Select Organization</Label>
+            <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
+              <SelectTrigger className="mt-1" data-testid="org-selector">
+                <SelectValue placeholder="Choose an organization to configure" />
+              </SelectTrigger>
+              <SelectContent>
+                {organizations.map(org => (
+                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedOrgName && <Badge className="mt-6">{selectedOrgName}</Badge>}
+        </div>
+      </Card>
 
-        <TabsContent value="overview" className="mt-4">
-          <ResolvedOverview resolved={resolvedConfig} />
-        </TabsContent>
+      {/* Config panel (only when org selected) */}
+      {selectedOrgId && !loading && orgConfig && (
+        <Tabs defaultValue="modules">
+          <TabsList>
+            <TabsTrigger value="modules">Modules</TabsTrigger>
+            <TabsTrigger value="kpi-overrides">KPI Overrides</TabsTrigger>
+            <TabsTrigger value="custom-categories">Custom Categories</TabsTrigger>
+            <TabsTrigger value="features">Features</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="modules" className="mt-4">
-          <ModulesTab orgConfig={orgConfig} resolved={resolvedConfig} onSave={saveConfig} saving={saving} />
-        </TabsContent>
+          <TabsContent value="modules" className="mt-4">
+            <ModulesTab orgConfig={orgConfig} defaultModules={defaultModules} onSave={saveConfig} saving={saving} />
+          </TabsContent>
+          <TabsContent value="kpi-overrides" className="mt-4">
+            <KPIOverridesTab orgConfig={orgConfig} defaultModules={defaultModules} onSave={saveConfig} saving={saving} />
+          </TabsContent>
+          <TabsContent value="custom-categories" className="mt-4">
+            <CustomCategoriesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
+          </TabsContent>
+          <TabsContent value="features" className="mt-4">
+            <FeaturesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
+          </TabsContent>
+        </Tabs>
+      )}
 
-        <TabsContent value="kpi-overrides" className="mt-4">
-          <KPIOverridesTab orgConfig={orgConfig} resolved={resolvedConfig} onSave={saveConfig} saving={saving} />
-        </TabsContent>
+      {selectedOrgId && loading && (
+        <div className="flex justify-center py-12"><Settings2 className="h-8 w-8 animate-spin text-stone-400" /></div>
+      )}
 
-        <TabsContent value="custom-categories" className="mt-4">
-          <CustomCategoriesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
-        </TabsContent>
-
-        <TabsContent value="features" className="mt-4">
-          <FeaturesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
-        </TabsContent>
-      </Tabs>
+      {!selectedOrgId && (
+        <Card className="p-12 text-center text-stone-400">
+          <Building2 className="h-12 w-12 mx-auto mb-3 text-stone-300" />
+          <p className="font-medium">Select an organization to configure</p>
+        </Card>
+      )}
     </div>
   );
 }
 
 
 // ============================================================
-// Overview — Show resolved config
+// Modules Tab — Module mode + default module selection
 // ============================================================
-function ResolvedOverview({ resolved }) {
-  if (!resolved) return null;
-  return (
-    <Card className="p-6" data-testid="resolved-overview">
-      <h2 className="text-lg font-semibold mb-4">Resolved Configuration</h2>
-      <p className="text-sm text-stone-500 mb-4">This is what your organization sees after applying overrides to global defaults.</p>
-      {resolved.modules?.map(mod => (
-        <div key={mod.module_code} className="mb-4">
-          <h3 className="font-medium text-stone-800">{mod.module_name}</h3>
-          <div className="ml-4 mt-1 space-y-1">
-            {mod.subcategories?.map(sub => (
-              <div key={sub.subcategory_code} className="flex items-center gap-2 text-sm">
-                <span className="text-stone-600">{sub.subcategory_name}</span>
-                {sub.has_override && <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">Overridden</Badge>}
-                {sub.is_custom && <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">Custom</Badge>}
-                <span className="text-xs text-stone-400">{sub.fields?.length || 0} fields</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-      {resolved.modules?.length === 0 && <p className="text-stone-400">No modules configured. Using all global defaults.</p>}
-    </Card>
+function ModulesTab({ orgConfig, defaultModules, onSave, saving }) {
+  const currentEnabled = orgConfig?.modules?.enabled;
+  const customs = orgConfig?.categories?.custom || [];
+  const hasCustom = customs.length > 0;
+
+  // Determine current mode
+  const currentMode = (() => {
+    if (currentEnabled === null || currentEnabled === undefined) return hasCustom ? 'default_custom' : 'default';
+    if (Array.isArray(currentEnabled)) {
+      // Check if any enabled module exists in defaults
+      const defaultCodes = new Set(defaultModules.map(m => m.module_code));
+      const hasDefaultEnabled = currentEnabled.some(e => defaultCodes.has(e));
+      if (hasDefaultEnabled && hasCustom) return 'default_custom';
+      if (!hasDefaultEnabled && hasCustom) return 'custom';
+      if (hasDefaultEnabled) return 'default';
+      return currentEnabled.length === 0 && hasCustom ? 'custom' : 'default';
+    }
+    return 'default';
+  })();
+
+  const [mode, setMode] = useState(currentMode);
+  const [enabledDefaults, setEnabledDefaults] = useState(
+    Array.isArray(currentEnabled) ? new Set(currentEnabled.filter(e => defaultModules.some(m => m.module_code === e))) : new Set(defaultModules.map(m => m.module_code))
   );
-}
 
+  const handleModeChange = (newMode) => {
+    setMode(newMode);
+    if (newMode === 'default') {
+      setEnabledDefaults(new Set(defaultModules.map(m => m.module_code)));
+    }
+  };
 
-// ============================================================
-// Modules Tab — Enable/disable top-level modules
-// ============================================================
-function ModulesTab({ orgConfig, resolved, onSave, saving }) {
-  const allModules = resolved?.modules?.map(m => m.module_code) || [];
-  const enabledList = orgConfig?.modules?.enabled;
-  const isAllEnabled = enabledList === null || enabledList === undefined;
-
-  const [enabled, setEnabled] = useState(
-    isAllEnabled ? new Set(allModules) : new Set(enabledList || [])
-  );
-  const [useAll, setUseAll] = useState(isAllEnabled);
-
-  const toggle = (code) => {
-    setEnabled(prev => {
+  const toggleDefault = (code) => {
+    setEnabledDefaults(prev => {
       const next = new Set(prev);
       next.has(code) ? next.delete(code) : next.add(code);
       return next;
     });
-    setUseAll(false);
   };
 
   const handleSave = () => {
-    onSave({ modules: { enabled: useAll ? null : Array.from(enabled) } });
+    if (mode === 'default') {
+      onSave({ modules: { enabled: null } });
+    } else if (mode === 'default_custom') {
+      // Enabled = selected defaults + custom module codes
+      const customModuleCodes = [...new Set(customs.map(c => c.module_code))];
+      const all = [...enabledDefaults, ...customModuleCodes.filter(c => !enabledDefaults.has(c))];
+      onSave({ modules: { enabled: all } });
+    } else {
+      // Custom only — enabled = only custom module codes
+      const customModuleCodes = [...new Set(customs.map(c => c.module_code))];
+      onSave({ modules: { enabled: customModuleCodes.length > 0 ? customModuleCodes : [] } });
+    }
   };
 
   return (
     <Card className="p-6" data-testid="modules-tab">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Enabled Modules</h2>
+        <h2 className="text-lg font-semibold">Module Configuration</h2>
         <Button size="sm" onClick={handleSave} disabled={saving} data-testid="save-modules-btn">
           <Save className="h-4 w-4 mr-1" /> Save
         </Button>
       </div>
 
-      <label className="flex items-center gap-2 mb-4 text-sm">
-        <Switch checked={useAll} onCheckedChange={(v) => { setUseAll(v); if (v) setEnabled(new Set(allModules)); }} />
-        Use all global modules (default)
-      </label>
-
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {allModules.map(code => (
-          <label key={code} className="flex items-center gap-3 p-3 rounded-lg border border-stone-200 cursor-pointer hover:bg-stone-50">
-            <Switch checked={useAll || enabled.has(code)} onCheckedChange={() => toggle(code)} disabled={useAll} data-testid={`module-toggle-${code}`} />
-            <span className="text-sm font-medium capitalize">{code.replace(/_/g, ' ')}</span>
-          </label>
-        ))}
+      {/* Mode selector */}
+      <div className="space-y-3 mb-6">
+        <Label className="text-sm font-medium">Module Mode</Label>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {MODULE_MODES.map(m => (
+            <button
+              key={m.value}
+              onClick={() => handleModeChange(m.value)}
+              className={`p-3 rounded-lg border-2 text-left transition-all ${mode === m.value ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`}
+              data-testid={`mode-${m.value}`}
+            >
+              <div className="font-medium text-sm">{m.label}</div>
+              <div className="text-xs text-stone-500 mt-0.5">{m.desc}</div>
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Default modules (shown for 'default' and 'default_custom' modes) */}
+      {(mode === 'default' || mode === 'default_custom') && (
+        <div>
+          <Label className="text-sm font-medium mb-2 block">
+            Default Modules {mode === 'default' ? '(all enabled)' : '(select which defaults to include)'}
+          </Label>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {defaultModules.map(mod => (
+              <label key={mod.module_code} className="flex items-center gap-3 p-3 rounded-lg border border-stone-200 cursor-pointer hover:bg-stone-50">
+                <Switch
+                  checked={mode === 'default' || enabledDefaults.has(mod.module_code)}
+                  onCheckedChange={() => toggleDefault(mod.module_code)}
+                  disabled={mode === 'default'}
+                  data-testid={`default-mod-${mod.module_code}`}
+                />
+                <div>
+                  <span className="text-sm font-medium">{mod.module_name}</span>
+                  <span className="text-xs text-stone-400 ml-1">({mod.subcategories?.length || 0} subcategories)</span>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {mode === 'custom' && (
+        <div className="text-sm text-stone-500 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <strong>Custom Only</strong> — This org will see only custom categories (configured in the Custom Categories tab). No global defaults will appear.
+        </div>
+      )}
     </Card>
   );
 }
@@ -211,25 +299,23 @@ function ModulesTab({ orgConfig, resolved, onSave, saving }) {
 // ============================================================
 // KPI Overrides Tab
 // ============================================================
-function KPIOverridesTab({ orgConfig, resolved, onSave, saving }) {
+function KPIOverridesTab({ orgConfig, defaultModules, onSave, saving }) {
   const overrides = orgConfig?.kpi_overrides || {};
   const [editingSubcat, setEditingSubcat] = useState(null);
   const [editFields, setEditFields] = useState([]);
 
-  // Flat list of all subcategories
-  const allSubcats = (resolved?.modules || []).flatMap(m =>
-    (m.subcategories || []).filter(s => !s.is_custom).map(s => ({ ...s, module: m.module_name }))
+  const allSubcats = defaultModules.flatMap(m =>
+    (m.subcategories || []).map(s => ({ ...s, module: m.module_name }))
   );
 
   const startEdit = (sub) => {
-    const existing = overrides[sub.subcategory_code]?.fields;
-    setEditFields(existing || sub.fields?.map(f => ({ ...f })) || []);
+    setEditFields(overrides[sub.subcategory_code]?.fields || []);
     setEditingSubcat(sub);
   };
 
-  const removeOverride = (subcatCode) => {
+  const removeOverride = (code) => {
     const next = { ...overrides };
-    delete next[subcatCode];
+    delete next[code];
     onSave({ kpi_overrides: next });
   };
 
@@ -245,15 +331,13 @@ function KPIOverridesTab({ orgConfig, resolved, onSave, saving }) {
     <>
       <Card className="p-6" data-testid="kpi-overrides-tab">
         <h2 className="text-lg font-semibold mb-2">KPI Question Overrides</h2>
-        <p className="text-sm text-stone-500 mb-4">Override the default questions for any subcategory. Orgs without overrides use global defaults.</p>
-
+        <p className="text-sm text-stone-500 mb-4">Override the default questions for global subcategories. Org-specific questions replace global defaults.</p>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Module</TableHead>
               <TableHead>Subcategory</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Fields</TableHead>
               <TableHead className="w-32">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -261,16 +345,14 @@ function KPIOverridesTab({ orgConfig, resolved, onSave, saving }) {
             {allSubcats.map(sub => {
               const hasOverride = !!overrides[sub.subcategory_code];
               return (
-                <TableRow key={sub.subcategory_code} data-testid={`subcat-row-${sub.subcategory_code}`}>
+                <TableRow key={sub.subcategory_code}>
                   <TableCell className="text-sm">{sub.module}</TableCell>
                   <TableCell className="text-sm font-medium">{sub.subcategory_name}</TableCell>
                   <TableCell>
                     {hasOverride
                       ? <Badge className="text-xs bg-amber-100 text-amber-700">Overridden</Badge>
-                      : <Badge variant="outline" className="text-xs">Global Default</Badge>
-                    }
+                      : <Badge variant="outline" className="text-xs">Default</Badge>}
                   </TableCell>
-                  <TableCell className="text-xs text-stone-500">{sub.fields?.length || 0}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="sm" onClick={() => startEdit(sub)} data-testid={`edit-override-${sub.subcategory_code}`}>
@@ -290,7 +372,6 @@ function KPIOverridesTab({ orgConfig, resolved, onSave, saving }) {
         </Table>
       </Card>
 
-      {/* Field editor dialog */}
       {editingSubcat && (
         <FieldEditorDialog
           title={`Override: ${editingSubcat.subcategory_name}`}
@@ -317,8 +398,8 @@ function CustomCategoriesTab({ orgConfig, onSave, saving }) {
 
   const startAdd = () => {
     setEditCat({
-      module_code: 'energy', category_code: '', category_name: '',
-      display_order: customs.length + 1, fields: [],
+      module_code: '', module_name: '', category_code: '', category_name: '',
+      section: 'environment', display_order: customs.length + 1, fields: [],
     });
     setEditingIdx(-1);
   };
@@ -329,24 +410,20 @@ function CustomCategoriesTab({ orgConfig, onSave, saving }) {
   };
 
   const saveCat = () => {
-    if (!editCat.category_code || !editCat.category_name) {
-      toast.error('Name and code are required');
+    if (!editCat.category_code || !editCat.category_name || !editCat.module_code) {
+      toast.error('Module code, category name and code are required');
       return;
     }
+    if (!editCat.module_name) editCat.module_name = editCat.module_code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     const next = [...customs];
-    if (editingIdx >= 0) {
-      next[editingIdx] = editCat;
-    } else {
-      next.push(editCat);
-    }
+    if (editingIdx >= 0) { next[editingIdx] = editCat; } else { next.push(editCat); }
     onSave({ categories: { custom: next, disabled } });
     setEditCat(null);
   };
 
   const removeCat = (idx) => {
     if (!window.confirm('Remove this custom category?')) return;
-    const next = customs.filter((_, i) => i !== idx);
-    onSave({ categories: { custom: next, disabled } });
+    onSave({ categories: { custom: customs.filter((_, i) => i !== idx), disabled } });
   };
 
   return (
@@ -354,23 +431,23 @@ function CustomCategoriesTab({ orgConfig, onSave, saving }) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-semibold">Custom Categories</h2>
-          <p className="text-sm text-stone-500">Add categories that don't exist in the global configuration.</p>
+          <p className="text-sm text-stone-500">Add org-specific categories with their own fields.</p>
         </div>
         <Button size="sm" onClick={startAdd} data-testid="add-custom-cat-btn">
-          <Plus className="h-4 w-4 mr-1" /> Add Custom Category
+          <Plus className="h-4 w-4 mr-1" /> Add
         </Button>
       </div>
 
       {customs.length === 0 ? (
-        <p className="text-center py-6 text-stone-400 text-sm">No custom categories. Your org uses global defaults only.</p>
+        <p className="text-center py-6 text-stone-400 text-sm">No custom categories.</p>
       ) : (
         <div className="space-y-2">
           {customs.map((cat, idx) => (
             <div key={idx} className="flex items-center justify-between p-3 border rounded-lg" data-testid={`custom-cat-${cat.category_code}`}>
               <div>
-                <div className="font-medium text-sm">{cat.category_name}</div>
+                <div className="font-medium text-sm">{cat.module_name || cat.module_code} &gt; {cat.category_name}</div>
                 <div className="text-xs text-stone-500">
-                  Module: {cat.module_code} · Code: {cat.category_code} · {cat.fields?.length || 0} fields
+                  Section: {cat.section || 'environment'} · Code: {cat.category_code} · {cat.fields?.length || 0} fields
                 </div>
               </div>
               <div className="flex gap-1">
@@ -389,18 +466,35 @@ function CustomCategoriesTab({ orgConfig, onSave, saving }) {
               <DialogTitle>{editingIdx >= 0 ? 'Edit' : 'Add'} Custom Category</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Section</Label>
+                  <Select value={editCat.section || 'environment'} onValueChange={v => setEditCat(c => ({ ...c, section: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="environment">Environment</SelectItem>
+                      <SelectItem value="social">Social</SelectItem>
+                      <SelectItem value="governance">Governance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Module Name</Label>
+                  <Input value={editCat.module_name || ''} onChange={e => setEditCat(c => ({ ...c, module_name: e.target.value, module_code: editingIdx >= 0 ? c.module_code : toCode(e.target.value) }))} placeholder="e.g. Power, Workforce" data-testid="custom-cat-module-name" />
+                </div>
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label>Module Code</Label>
-                  <Input value={editCat.module_code} onChange={e => setEditCat(c => ({ ...c, module_code: e.target.value }))} data-testid="custom-cat-module" />
+                  <Input value={editCat.module_code} onChange={e => setEditCat(c => ({ ...c, module_code: e.target.value }))} disabled={editingIdx >= 0} className="text-xs font-mono" />
                 </div>
                 <div>
                   <Label>Category Name</Label>
-                  <Input value={editCat.category_name} onChange={e => setEditCat(c => ({ ...c, category_name: e.target.value, category_code: editingIdx >= 0 ? c.category_code : toCode(e.target.value) }))} data-testid="custom-cat-name" />
+                  <Input value={editCat.category_name} onChange={e => setEditCat(c => ({ ...c, category_name: e.target.value, category_code: editingIdx >= 0 ? c.category_code : toCode(e.target.value) }))} placeholder="e.g. Electricity, DG Sets" data-testid="custom-cat-name" />
                 </div>
                 <div>
                   <Label>Category Code</Label>
-                  <Input value={editCat.category_code} onChange={e => setEditCat(c => ({ ...c, category_code: e.target.value }))} disabled={editingIdx >= 0} data-testid="custom-cat-code" />
+                  <Input value={editCat.category_code} onChange={e => setEditCat(c => ({ ...c, category_code: e.target.value }))} disabled={editingIdx >= 0} className="text-xs font-mono" data-testid="custom-cat-code" />
                 </div>
               </div>
 
@@ -459,7 +553,60 @@ function CustomCategoriesTab({ orgConfig, onSave, saving }) {
 
 
 // ============================================================
-// Shared: Field Editor Dialog (for KPI overrides)
+// Features Tab
+// ============================================================
+function FeaturesTab({ orgConfig, onSave, saving }) {
+  const features = orgConfig?.features || {};
+  const setTarget = features.set_target || {};
+  const [enabled, setEnabled] = useState(!!setTarget.enabled);
+  const [modules, setModules] = useState(setTarget.modules || []);
+
+  const ALL_SECTIONS = ['power', 'water', 'steam', 'energy', 'waste', 'social', 'governance'];
+
+  const toggleModule = (code) => {
+    setModules(prev => prev.includes(code) ? prev.filter(s => s !== code) : [...prev, code]);
+  };
+
+  const handleSave = () => {
+    onSave({ features: { set_target: { enabled, modules } } });
+  };
+
+  return (
+    <Card className="p-6" data-testid="features-tab">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">Feature Flags</h2>
+        <Button size="sm" onClick={handleSave} disabled={saving} data-testid="save-features-btn">
+          <Save className="h-4 w-4 mr-1" /> Save
+        </Button>
+      </div>
+      <div className="border rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="font-medium text-stone-800">Set Target Tab</h3>
+            <p className="text-xs text-stone-500">Adds a "Set Target" tab to KPI pages</p>
+          </div>
+          <Switch checked={enabled} onCheckedChange={setEnabled} data-testid="feature-set-target-toggle" />
+        </div>
+        {enabled && (
+          <div>
+            <Label className="text-sm mb-2 block">Enabled for modules:</Label>
+            <div className="flex flex-wrap gap-2">
+              {ALL_SECTIONS.map(code => (
+                <Button key={code} size="sm" variant={modules.includes(code) ? 'default' : 'outline'} onClick={() => toggleModule(code)}>
+                  {code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+
+// ============================================================
+// Field Editor Dialog (shared)
 // ============================================================
 function FieldEditorDialog({ title, fields, setFields, onSave, onClose, saving }) {
   const addField = () => {
@@ -473,144 +620,49 @@ function FieldEditorDialog({ title, fields, setFields, onSave, onClose, saving }
     setFields(prev => {
       const next = [...prev];
       next[idx] = { ...next[idx], [key]: value };
-      if (key === 'label' && !next[idx]._codeEdited) {
-        next[idx].field_code = toCode(value);
-      }
+      if (key === 'label' && !next[idx]._codeEdited) next[idx].field_code = toCode(value);
       return next;
     });
   };
 
-  const removeField = (idx) => {
-    setFields(prev => prev.filter((_, i) => i !== idx));
-  };
+  const removeField = (idx) => setFields(prev => prev.filter((_, i) => i !== idx));
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto" data-testid="field-editor-dialog">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>Customize the questions for this KPI. These override the global defaults.</DialogDescription>
+          <DialogDescription>Customize questions for this KPI.</DialogDescription>
         </DialogHeader>
-
         <div className="space-y-2">
           {fields.map((f, idx) => (
-            <div key={idx} className="grid grid-cols-7 gap-2 items-end p-2 border rounded" data-testid={`override-field-${idx}`}>
-              <div>
-                <Label className="text-xs">Label</Label>
-                <Input value={f.label || ''} onChange={e => updateField(idx, 'label', e.target.value)} className="text-sm" />
-              </div>
-              <div>
-                <Label className="text-xs">Code</Label>
-                <Input value={f.field_code || ''} onChange={e => { updateField(idx, 'field_code', e.target.value); updateField(idx, '_codeEdited', true); }} className="text-xs font-mono" />
-              </div>
-              <div>
-                <Label className="text-xs">Type</Label>
+            <div key={idx} className="grid grid-cols-7 gap-2 items-end p-2 border rounded">
+              <div><Label className="text-xs">Label</Label><Input value={f.label || ''} onChange={e => updateField(idx, 'label', e.target.value)} className="text-sm" /></div>
+              <div><Label className="text-xs">Code</Label><Input value={f.field_code || ''} onChange={e => { updateField(idx, 'field_code', e.target.value); updateField(idx, '_codeEdited', true); }} className="text-xs font-mono" /></div>
+              <div><Label className="text-xs">Type</Label>
                 <Select value={f.response_type || 'text'} onValueChange={v => updateField(idx, 'response_type', v)}>
                   <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>{RESPONSE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-xs">Unit</Label>
-                <Input value={f.unit || ''} onChange={e => updateField(idx, 'unit', e.target.value)} className="text-xs" />
-              </div>
-              <div>
-                <Label className="text-xs">Field Type</Label>
+              <div><Label className="text-xs">Unit</Label><Input value={f.unit || ''} onChange={e => updateField(idx, 'unit', e.target.value)} className="text-xs" /></div>
+              <div><Label className="text-xs">Field</Label>
                 <Select value={f.field_type || 'input'} onValueChange={v => updateField(idx, 'field_type', v)}>
                   <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="input">Input</SelectItem>
-                    <SelectItem value="calculated">Calculated</SelectItem>
-                  </SelectContent>
+                  <SelectContent><SelectItem value="input">Input</SelectItem><SelectItem value="calculated">Calculated</SelectItem></SelectContent>
                 </Select>
               </div>
-              <label className="flex items-center gap-1 text-xs pb-1">
-                <Switch checked={f.required || false} onCheckedChange={v => updateField(idx, 'required', v)} /> Required
-              </label>
-              <Button variant="ghost" size="sm" className="text-red-500" onClick={() => removeField(idx)}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              <label className="flex items-center gap-1 text-xs pb-1"><Switch checked={f.required || false} onCheckedChange={v => updateField(idx, 'required', v)} /> Req</label>
+              <Button variant="ghost" size="sm" className="text-red-500" onClick={() => removeField(idx)}><Trash2 className="h-3.5 w-3.5" /></Button>
             </div>
           ))}
         </div>
-
-        <Button variant="outline" size="sm" onClick={addField} className="mt-2" data-testid="add-override-field-btn">
-          <Plus className="h-3 w-3 mr-1" /> Add Field
-        </Button>
-
+        <Button variant="outline" size="sm" onClick={addField} className="mt-2"><Plus className="h-3 w-3 mr-1" /> Add Field</Button>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={onSave} disabled={saving} data-testid="save-override-btn">
-            <Save className="h-4 w-4 mr-1" /> Save Override
-          </Button>
+          <Button onClick={onSave} disabled={saving} data-testid="save-override-btn"><Save className="h-4 w-4 mr-1" /> Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-
-
-// ============================================================
-// Features Tab — Toggle org feature flags (Set Target, etc.)
-// ============================================================
-function FeaturesTab({ orgConfig, onSave, saving }) {
-  const features = orgConfig?.features || {};
-  const setTarget = features.set_target || {};
-  const [enabled, setEnabled] = useState(!!setTarget.enabled);
-  const [sections, setSections] = useState(setTarget.modules || []);
-
-  const ALL_SECTIONS = ['power', 'water', 'steam', 'energy', 'waste', 'social', 'governance'];
-
-  const toggleSection = (code) => {
-    setSections(prev => prev.includes(code) ? prev.filter(s => s !== code) : [...prev, code]);
-  };
-
-  const handleSave = () => {
-    onSave({ features: { set_target: { enabled, modules: sections } } });
-  };
-
-  return (
-    <Card className="p-6" data-testid="features-tab">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Feature Flags</h2>
-        <Button size="sm" onClick={handleSave} disabled={saving} data-testid="save-features-btn">
-          <Save className="h-4 w-4 mr-1" /> Save
-        </Button>
-      </div>
-
-      <div className="space-y-6">
-        {/* Set Target */}
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="font-medium text-stone-800">Set Target Tab</h3>
-              <p className="text-xs text-stone-500">Adds a "Set Target" tab to KPI pages (Metrics Logs, Add Metric, Set Target)</p>
-            </div>
-            <Switch checked={enabled} onCheckedChange={setEnabled} data-testid="feature-set-target-toggle" />
-          </div>
-
-          {enabled && (
-            <div>
-              <Label className="text-sm mb-2 block">Enabled for modules:</Label>
-              <div className="flex flex-wrap gap-2">
-                {ALL_SECTIONS.map(code => (
-                  <Button
-                    key={code}
-                    size="sm"
-                    variant={sections.includes(code) ? 'default' : 'outline'}
-                    onClick={() => toggleSection(code)}
-                    data-testid={`feature-module-${code}`}
-                  >
-                    {code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                  </Button>
-                ))}
-              </div>
-              <p className="text-xs text-stone-400 mt-2">Select which modules show the Set Target tab</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </Card>
   );
 }

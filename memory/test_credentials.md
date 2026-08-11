@@ -6,6 +6,11 @@
 - **Role**: admin
 - **Organization ID**: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
 
+## Super Admin Account
+- **Email**: superadmin@ecotrack.com
+- **Password**: TestUser123!
+- **Role**: super_admin
+
 ## Supplier Account
 - **Email**: goyalsomil+919@hotmail.com
 - **Password**: TestUser123!
