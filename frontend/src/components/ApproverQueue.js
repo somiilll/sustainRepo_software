@@ -277,6 +277,7 @@ export default function ApproverQueue() {
           recordApprovals = recordApprovals.map(item => {
             if (item._needs_config) {
               const cfg = configMap[item.entity_id] || configMap[item.entity_id?.replace(/_[^_]+$/, '')];
+              if (!cfg) return { ...item, disclosure_name: questionDisplayName(configMap, item.entity_id) };
               // Get framework from config if not already set
               const cfgFramework = cfg.framework || (cfg.frameworks && cfg.frameworks[0]);
               return {

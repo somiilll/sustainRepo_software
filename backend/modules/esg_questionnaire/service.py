@@ -1535,8 +1535,9 @@ class ESGQuestionnaireService:
             "updated_by_name": changed_by_user_name,
         }
         
+        # Always write approval_status so admin direct-saves clear stale statuses
+        update_fields["approval_status"] = approval_status
         if approval_status:
-            update_fields["approval_status"] = approval_status
             update_fields["submitted_at"] = now_iso
             update_fields["submitted_by"] = changed_by_user_id
         
@@ -1575,6 +1576,7 @@ class ESGQuestionnaireService:
         changed_by_user_name: Optional[str] = None,
         changed_by_user_email: Optional[str] = None,
         status: str = "saved",  # "draft" or "saved"
+        is_admin: bool = False,
     ) -> dict:
         """
         Save a single GRI disclosure response.
@@ -1639,6 +1641,10 @@ class ESGQuestionnaireService:
             use_direct_save = await self._should_use_direct_save(
                 org_id, question_key, reporting_period
             )
+            
+            # Admin always bypasses approval (direct save)
+            if is_admin:
+                use_direct_save = True
             
             if not use_direct_save:
                 # APPROVAL WORKFLOW - Save to unified collection with pending_approval status
@@ -1743,6 +1749,73 @@ class ESGQuestionnaireService:
             await self._clear_user_draft_for_question(
                 org_id, question_key, reporting_period, changed_by_user_id
             )
+        
+        # Admin direct-save: cancel pending approval requests and update V2 assignment
+        if is_admin and status == "saved" and not value_is_empty:
+            try:
+                # 1. Cancel any pending approval_request for this exact question_key
+                await db.approval_requests.update_many(
+                    {
+                        "organization_id": org_id,
+                        "entity_id": question_key,
+                        "entity_type": "esg_response",
+                        "status": "pending",
+                        "entity_snapshot.reporting_year": reporting_period,
+                    },
+                    {
+                        "$set": {
+                            "status": "cancelled",
+                            "resolution_comment": "Superseded by admin direct save",
+                            "resolved_at": now_iso,
+                            "resolved_by": changed_by_user_id,
+                            "updated_at": now_iso,
+                        }
+                    }
+                )
+                # 2. Cancel matching pending submission
+                await db.esg_response_submissions.update_many(
+                    {
+                        "organization_id": org_id,
+                        "question_key": question_key,
+                        "reporting_period": reporting_period,
+                        "status": "pending_approval",
+                    },
+                    {
+                        "$set": {
+                            "status": "superseded",
+                            "updated_at": now,
+                        }
+                    }
+                )
+                # 3. Update V2 assignment status to completed
+                assignment = await db.esg_assignments.find_one({
+                    "organization_id": org_id,
+                    "entity_id": question_key,
+                    "entity_type": "question",
+                    "reporting_period": reporting_period,
+                }, {"_id": 0, "id": 1})
+                if not assignment and "_" in question_key:
+                    # Try parent key for subpart questions
+                    parts = question_key.rsplit("_", 1)
+                    while len(parts) > 1 and not assignment:
+                        parent_key = parts[0]
+                        assignment = await db.esg_assignments.find_one({
+                            "organization_id": org_id,
+                            "entity_id": parent_key,
+                            "entity_type": "question",
+                            "reporting_period": reporting_period,
+                        }, {"_id": 0, "id": 1})
+                        if not assignment:
+                            parts = parent_key.rsplit("_", 1)
+                if assignment:
+                    await self._update_assignment_status(
+                        assignment_id=assignment["id"],
+                        status="completed",
+                        approval_status="not_required",
+                        completed_by_user_id=changed_by_user_id,
+                    )
+            except Exception as e:
+                print(f"Warning: Admin post-save cleanup for {question_key}: {e}")
         
         # Log to audit trail for version history (only if value is not empty)
         if result_acknowledged and not value_is_empty:

@@ -300,7 +300,8 @@ async def save_gri_response(
         changed_by_user_id=current_user.get("id"),
         changed_by_user_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
         changed_by_user_email=current_user.get("email"),
-        status=status
+        status=status,
+        is_admin=is_admin,
     )
     
     # Handle submitted for approval response
