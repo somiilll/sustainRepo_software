@@ -17,6 +17,16 @@ from .contracts import (
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
 
 
+def previous_applied_version(versions: List[Dict[str, Any]], index: int) -> Optional[Dict[str, Any]]:
+    """Return the previous applied snapshot, excluding display-only rejected proposals."""
+    for candidate in versions[index + 1:]:
+        if candidate.get("record_was_changed") is False:
+            continue
+        if isinstance(candidate.get("snapshot"), dict):
+            return candidate
+    return None
+
+
 class ESGRecordsService:
     """Service for managing ESG records with versioning."""
     
@@ -2140,9 +2150,10 @@ class ESGRecordsService:
             # Use stored changed_fields paths to compute diffs from snapshots
             if v.get("field_diffs") is not None:
                 continue
-            if v.get("version", 1) > 1 and i + 1 < len(versions):
+            previous = previous_applied_version(versions, i)
+            if v.get("version", 1) > 1 and previous:
                 # Compute from snapshots using utility
-                prev_snapshot = versions[i + 1].get("snapshot", {})
+                prev_snapshot = previous.get("snapshot", {})
                 curr_snapshot = v.get("snapshot", {})
                 changes = compare_versions(prev_snapshot, curr_snapshot)
                 v["field_diffs"] = [
