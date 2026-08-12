@@ -47,6 +47,7 @@ import {
   CollapsibleTrigger,
 } from './ui/collapsible';
 import { toast } from 'sonner';
+import { QuestionVersionHistory } from './QuestionVersionHistory';
 import { 
   Loader2, 
   Save, 
@@ -395,7 +396,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null }) {
+export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null }) {
   const { formatDateTime } = useDateFormatter();
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
   const [showVersions, setShowVersions] = useState(false);
@@ -860,6 +861,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
 
   // Helper to render version history - detailed view with old/new values, approvals, rejections
   const renderVersionHistory = () => {
+    if (onOpenTimeline) return null;
     const hasHistory = versionHistory && versionHistory.length > 0;
     
     // Format complex values into human-readable text with conditional field handling
@@ -1059,7 +1061,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       <Button
         variant="ghost"
         size="sm"
-        onClick={handleToggleVersions}
+        onClick={onOpenTimeline || handleToggleVersions}
         className={`h-7 px-2 text-xs ${!hasHistory && !onFetchVersionHistory ? 'opacity-50' : ''}`}
         title={hasHistory ? `${versionHistory.length} version(s)` : 'View history'}
       >
@@ -3402,6 +3404,7 @@ export default function ESGQuestionnaire({
   const [historicalData, setHistoricalData] = useState(null);
   const [questionStatuses, setQuestionStatuses] = useState({});
   const [questionVersions, setQuestionVersions] = useState({});
+  const [timelineQuestionKey, setTimelineQuestionKey] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -3663,9 +3666,17 @@ export default function ESGQuestionnaire({
                     versionHistory={questionVersions[config.question_key]}
                     onSaveQuestion={saveQuestion}
                     onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
+                    onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
                   />
                 ))}
               </div>
+      <QuestionVersionHistory
+        open={Boolean(timelineQuestionKey)}
+        onOpenChange={(open) => !open && setTimelineQuestionKey(null)}
+        framework={framework}
+        questionKey={timelineQuestionKey}
+        reportingYear={reportingYear}
+      />
             </div>
           ))}
         </div>

@@ -43,6 +43,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { QuestionVersionHistory } from './QuestionVersionHistory';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -67,7 +68,6 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const [reportingPeriod, setReportingPeriod] = useState(null);
   const [reportingYears, setReportingYears] = useState([]);
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
-  const [loadingHistory, setLoadingHistory] = useState(false);
   const [userDrafts, setUserDrafts] = useState({});  // Drafts keyed by disclosure_id
   const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics
 
@@ -459,23 +459,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
 
   // Fetch version history for a question
   const fetchHistory = async (questionKey) => {
-    setLoadingHistory(true);
-    try {
-      const res = await axios.get(
-        `${API}/api/esg-questionnaire/history/${questionKey}?reporting_period=${encodeURIComponent(reportingPeriod)}`,
-        { headers: getAuthHeader() }
-      );
-      setHistoryDialog({
-        open: true,
-        questionKey: questionKey,
-        history: res.data.history || []
-      });
-    } catch (error) {
-      console.error('Failed to fetch history:', error);
-      toast.error('Failed to load version history');
-    } finally {
-      setLoadingHistory(false);
-    }
+    setHistoryDialog({ open: true, questionKey, history: [] });
   };
 
   // Get status badge for a question or disclosure
@@ -581,21 +565,16 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           {/* Status Badge & History Button */}
           <div className="flex items-center gap-2 shrink-0">
             {getStatusBadge(question.status)}
-            <Button
+            {!hasSubQuestions && <Button
               variant="ghost"
               size="sm"
               onClick={() => fetchHistory(question.question_key)}
-              disabled={loadingHistory}
               className="h-7 px-2 text-xs text-stone-500 hover:text-blue-600"
               title="View version history"
               data-testid={`history-${question.question_key}`}
             >
-              {loadingHistory ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <History className="w-4 h-4" />
-              )}
-            </Button>
+              <History className="w-4 h-4" />
+            </Button>}
           </div>
         </div>
         
@@ -604,10 +583,22 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           <div className="ml-8 space-y-4 border-l-2 border-blue-100 pl-4">
             {question.sub_questions.map((sub) => (
               <div key={sub.response_key} className="space-y-2">
-                <Label className="text-sm text-text-secondary flex items-start gap-2">
-                  <span className="text-blue-600 font-mono text-xs shrink-0">{sub.sub_key}.</span>
-                  <span>{sub.label}</span>
-                </Label>
+                <div className="flex items-start justify-between gap-2">
+                  <Label className="text-sm text-text-secondary flex items-start gap-2">
+                    <span className="text-blue-600 font-mono text-xs shrink-0">{sub.sub_key}.</span>
+                    <span>{sub.label}</span>
+                  </Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fetchHistory(sub.response_key)}
+                    className="h-7 px-2 text-xs text-stone-500 hover:text-blue-600 shrink-0"
+                    title="View subquestion version history"
+                    data-testid={`history-${sub.response_key}`}
+                  >
+                    <History className="w-4 h-4" />
+                  </Button>
+                </div>
                 
                 {isEditing ? (
                   <div className="space-y-2">
@@ -1028,7 +1019,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       })}
 
       {/* Version History Dialog */}
-      <Dialog open={historyDialog.open} onOpenChange={(open) => !open && setHistoryDialog({ open: false, questionKey: null, history: [] })}>
+      <Dialog open={false}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1152,6 +1143,13 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           )}
         </DialogContent>
       </Dialog>
+      <QuestionVersionHistory
+        open={historyDialog.open}
+        onOpenChange={(open) => !open && setHistoryDialog({ open: false, questionKey: null, history: [] })}
+        framework="GRI"
+        questionKey={historyDialog.questionKey}
+        reportingYear={reportingPeriod}
+      />
     </div>
   );
 }

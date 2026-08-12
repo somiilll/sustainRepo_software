@@ -15,6 +15,7 @@ from modules.esg_questionnaire.contracts import (
     NGRBC_PRINCIPLES,
 )
 from modules.esg_questionnaire.service import esg_questionnaire_service
+from modules.esg_questionnaire.timeline_service import question_response_timeline_service
 
 router = APIRouter(prefix="/esg-questionnaire", tags=["ESG Questionnaire"])
 
@@ -1047,6 +1048,26 @@ async def get_response_summary(
         section=section
     )
     return summary
+
+
+@router.get("/timeline/{framework}/{question_key}/{reporting_year}")
+async def get_question_response_timeline(
+    framework: str,
+    question_key: str,
+    reporting_year: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Read-only BRSR/GRI response timeline with organization and reporting-year isolation."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    try:
+        timeline = await question_response_timeline_service.get_timeline(
+            org_id, framework, question_key, reporting_year
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return timeline.model_dump()
 
 
 @router.get("/responses/{framework}/{section}/years")

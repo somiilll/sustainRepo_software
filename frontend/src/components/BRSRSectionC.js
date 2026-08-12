@@ -15,6 +15,7 @@ import {
   Loader2, Save, CheckCircle2, AlertCircle, ChevronDown, FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { QuestionVersionHistory } from './QuestionVersionHistory';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -47,6 +48,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
   const [allResponses, setAllResponses] = useState({});
   const [approvalStatuses, setApprovalStatuses] = useState({});
   const [versionHistories, setVersionHistories] = useState({});
+  const [timelineQuestionKey, setTimelineQuestionKey] = useState(null);
   const [expanded, setExpanded] = useState({});
 
   const fetchData = useCallback(async () => {
@@ -346,6 +348,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                       versionHistory={versionHistories[config.question_key]}
                       onSaveQuestion={isEditing ? saveQuestion : null}
                       onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
+                      onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
                     />
                   ))}
                 </div>
@@ -398,6 +401,13 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
           </Button>
         </div>
       )}
+      <QuestionVersionHistory
+        open={Boolean(timelineQuestionKey)}
+        onOpenChange={(open) => !open && setTimelineQuestionKey(null)}
+        framework={framework}
+        questionKey={timelineQuestionKey}
+        reportingYear={reportingYear}
+      />
     </div>
   );
 }

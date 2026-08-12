@@ -47,6 +47,24 @@ def _now_iso() -> str:
     return _now().isoformat()
 
 
+async def _create_question_response_version_event(
+    *, organization_id: str, framework: str, question_key: str, reporting_year: str,
+    snapshot: dict, action: str, actor: dict, submitted_value: Any = None,
+    final_value: Any = None, rejection_reason: Optional[str] = None,
+    approver_edited: bool = False,
+) -> None:
+    """Write future BRSR/GRI version events with their full natural identity."""
+    await db.esg_responses_versions.insert_one({
+        "id": str(uuid.uuid4()), "record_id": question_key,
+        "organization_id": organization_id, "framework": framework,
+        "reporting_year": reporting_year, "snapshot": snapshot,
+        "change_type": action, "created_at": _now_iso(),
+        "actor_id": actor.get("id"), "actor_name": actor.get("full_name", actor.get("email", "")),
+        "submitted_value": submitted_value, "final_value": final_value,
+        "approver_edited": approver_edited, "rejection_reason": rejection_reason,
+    })
+
+
 def _split_question_key(question_key: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Split a question key into parent and sub-key for nested storage.
@@ -1387,13 +1405,14 @@ class ApprovalWorkflowService:
                         }
                     )
                     
-                    # Create version snapshot
-                    await _create_approval_version_snapshot(
-                        collection_name="organization_esg_responses",
-                        record_id=question_key,
-                        action="approved",
-                        user_id=approver.get("id"),
-                        changed_fields=["approval_status", "value"] if updated_data else ["approval_status"],
+                    approved_snapshot = await db.organization_esg_responses.find_one(
+                        {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year}, {"_id": 0}
+                    )
+                    await _create_question_response_version_event(
+                        organization_id=org_id, framework=framework, question_key=question_key,
+                        reporting_year=reporting_year, snapshot=approved_snapshot or {}, action="approved",
+                        actor=approver, submitted_value=entity_snapshot.get("value"), final_value=final_value,
+                        approver_edited=bool(updated_data and "value" in updated_data),
                     )
                     
                     # Write to question_audit_log for version history display
@@ -1401,6 +1420,8 @@ class ApprovalWorkflowService:
                         "id": str(uuid.uuid4()),
                         "question_key": question_key,
                         "reporting_period": reporting_year,
+                        "reporting_year": reporting_year,
+                        "framework": framework,
                         "organization_id": org_id,
                         "action": "submission_approved",
                         "timestamp": _now_iso(),
@@ -2625,18 +2646,13 @@ class ApprovalWorkflowService:
             {"$set": update_data}
         )
         
-        # Create version snapshot
-        await _create_approval_version_snapshot(
-            collection_name="esg_responses",
-            record_id=question_key,
-            action="rejected",
-            user_id=rejector.get("id"),
-            rejection_reason=reason,
-            extra_metadata={
-                "question_key": question_key,
-                "framework": response.get("framework"),
-                "reporting_year": response.get("reporting_year"),
-            }
+        rejected_snapshot = await db.organization_esg_responses.find_one(
+            {"org_id": org_id, "question_key": question_key, "reporting_year": response.get("reporting_year")}, {"_id": 0}
+        )
+        await _create_question_response_version_event(
+            organization_id=org_id, framework=response.get("framework", ""), question_key=question_key,
+            reporting_year=response.get("reporting_year"), snapshot=rejected_snapshot or {}, action="rejected",
+            actor=rejector, submitted_value=response.get("value"), rejection_reason=reason,
         )
         
         # Record in approval history
@@ -2671,6 +2687,8 @@ class ApprovalWorkflowService:
             "id": str(uuid.uuid4()),
             "question_key": question_key,
             "reporting_period": response.get("reporting_year"),
+            "reporting_year": response.get("reporting_year"),
+            "framework": response.get("framework"),
             "organization_id": org_id,
             "action": "rejected",
             "timestamp": datetime.now(timezone.utc),
