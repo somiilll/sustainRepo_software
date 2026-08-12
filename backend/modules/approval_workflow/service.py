@@ -2232,7 +2232,7 @@ class ApprovalWorkflowService:
                 
                 if subq_label and subq_key and parent_description:
                     parent_desc_clean = parent_description.rstrip(':').rstrip()
-                    full_question_text = f"{parent_desc_clean}: {subq_key}. {subq_label}"
+                    full_question_text = f"{parent_desc_clean} → {subq_label}"
                 elif parent_description:
                     full_question_text = parent_description
                 else:

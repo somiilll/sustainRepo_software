@@ -49,6 +49,22 @@ import { getCurrentReportingYear, generateReportingYears } from '../utils/report
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+const questionConfigLookupKeys = (keys) => [...new Set(keys.flatMap((key) => {
+  const parts = key?.split('_') || [];
+  return [key, parts.slice(0, -1).join('_'), parts.slice(0, -2).join('_')].filter(Boolean);
+}))];
+
+const questionDisplayName = (configMap, questionKey) => {
+  const exact = configMap[questionKey];
+  if (exact) return exact.description || exact.label || exact.question || questionKey;
+  const parentKey = questionKey?.replace(/_[^_]+$/, '');
+  const parent = configMap[parentKey];
+  const subKey = questionKey?.split('_').pop();
+  const sub = parent?.sub_questions?.find((item) => item.sub_key === subKey);
+  if (parent && sub) return `${(parent.description || parent.label || parent.question || parentKey).replace(/:\s*$/, '')} → ${sub.label}`;
+  return questionKey;
+};
+
 /**
  * ApproverQueue - Dashboard for approvers to review pending submissions
  * 
@@ -246,7 +262,7 @@ export default function ApproverQueue() {
       const brsrItems = recordApprovals.filter(r => r._needs_config);
       if (brsrItems.length > 0) {
         try {
-          const questionKeys = brsrItems.map(r => r.entity_id).filter(Boolean);
+          const questionKeys = questionConfigLookupKeys(brsrItems.map(r => r.entity_id).filter(Boolean));
           const configRes = await axios.post(
             `${API}/api/esg-questionnaire/configs/batch`,
             { question_keys: questionKeys },
@@ -259,13 +275,13 @@ export default function ApproverQueue() {
           
           // Enrich BRSR items with config data
           recordApprovals = recordApprovals.map(item => {
-            if (item._needs_config && configMap[item.entity_id]) {
-              const cfg = configMap[item.entity_id];
+            if (item._needs_config) {
+              const cfg = configMap[item.entity_id] || configMap[item.entity_id?.replace(/_[^_]+$/, '')];
               // Get framework from config if not already set
               const cfgFramework = cfg.framework || (cfg.frameworks && cfg.frameworks[0]);
               return {
                 ...item,
-                disclosure_name: cfg.description || cfg.label || cfg.question || item.entity_id,
+                disclosure_name: questionDisplayName(configMap, item.entity_id),
                 framework: item.framework || cfgFramework,  // Use existing or from config
               };
             }
@@ -329,7 +345,7 @@ export default function ApproverQueue() {
       const brsrItems = allHistory.filter(r => r.entity_type === 'esg_response');
       if (brsrItems.length > 0) {
         try {
-          const questionKeys = brsrItems.map(r => r.entity_id).filter(Boolean);
+          const questionKeys = questionConfigLookupKeys(brsrItems.map(r => r.entity_id).filter(Boolean));
           const uniqueKeys = [...new Set(questionKeys)];
           const configRes = await axios.post(
             `${API}/api/esg-questionnaire/configs/batch`,
@@ -343,9 +359,8 @@ export default function ApproverQueue() {
           
           // Enrich items with disclosure names
           allHistory.forEach(item => {
-            if (item.entity_type === 'esg_response' && configMap[item.entity_id]) {
-              const cfg = configMap[item.entity_id];
-              item._disclosure_name = cfg.description || cfg.label || cfg.question || item.entity_id;
+            if (item.entity_type === 'esg_response') {
+              item._disclosure_name = questionDisplayName(configMap, item.entity_id);
             }
           });
         } catch (configErr) {
@@ -1910,7 +1925,7 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       const desc = questionConfig.description || questionConfig.label || questionConfig.question || item.entity_id;
       if (questionConfig.resolved_from_parent && questionConfig.matched_sub_question) {
         const sub = questionConfig.matched_sub_question;
-        return `${desc} → ${sub.sub_key}. ${sub.label}`;
+        return `${desc} → ${sub.label}`;
       }
       return desc;
     }
