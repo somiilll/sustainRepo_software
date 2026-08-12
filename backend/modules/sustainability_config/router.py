@@ -277,19 +277,28 @@ async def get_target_fields(
     current_user: dict = Depends(get_current_user),
 ):
     """Return the target-specific fields for a subcategory.
-    Falls back to default target fields if no org override exists."""
+    Priority: custom category target_fields → org target_overrides → defaults."""
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
 
     org_cfg = await service.get_org_config(org_id) or {}
+
+    # 1. Check custom categories for inline target_fields
+    custom_cats = (org_cfg.get("categories") or {}).get("custom") or []
+    for cat in custom_cats:
+        if cat.get("category_code") == subcategory_code:
+            t_fields = cat.get("target_fields") or []
+            if t_fields:
+                return {"subcategory_code": subcategory_code, "fields": t_fields, "source": "custom_category"}
+
+    # 2. Check target_overrides for global subcategories
     target_overrides = org_cfg.get("target_overrides") or {}
     override = target_overrides.get(subcategory_code)
-
     if override and override.get("fields"):
         return {"subcategory_code": subcategory_code, "fields": override["fields"], "source": "org_override"}
 
-    # Default target fields
+    # 3. Default target fields
     return {
         "subcategory_code": subcategory_code,
         "fields": [

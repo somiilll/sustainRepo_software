@@ -8,13 +8,15 @@ import { MODULE_MODES } from './constants';
 
 export function ModulesTab({ orgConfig, defaultModules, onSave, saving }) {
   const currentEnabled = orgConfig?.modules?.enabled;
+  const storedMode = orgConfig?.modules?.mode;
   const customs = orgConfig?.categories?.custom || [];
-  const hasCustom = customs.length > 0;
 
-  const currentMode = (() => {
-    if (currentEnabled === null || currentEnabled === undefined) return hasCustom ? 'default_custom' : 'default';
+  // Use stored mode if available; otherwise fall back to inference for legacy data
+  const currentMode = storedMode || (() => {
+    if (currentEnabled === null || currentEnabled === undefined) return 'default';
     const defaultCodes = new Set(defaultModules.map(m => m.module_code));
     const hasDefaultEnabled = Array.isArray(currentEnabled) && currentEnabled.some(e => defaultCodes.has(e));
+    const hasCustom = customs.length > 0;
     if (hasDefaultEnabled && hasCustom) return 'default_custom';
     if (!hasDefaultEnabled && hasCustom) return 'custom';
     return 'default';
@@ -31,13 +33,14 @@ export function ModulesTab({ orgConfig, defaultModules, onSave, saving }) {
     setEnabledDefaults(prev => { const n = new Set(prev); n.has(code) ? n.delete(code) : n.add(code); return n; });
 
   const handleSave = () => {
-    if (mode === 'default') onSave({ modules: { enabled: null } });
-    else if (mode === 'default_custom') {
+    if (mode === 'default') {
+      onSave({ modules: { enabled: null, mode: 'default' } });
+    } else if (mode === 'default_custom') {
       const customCodes = [...new Set(customs.map(c => c.module_code))];
-      onSave({ modules: { enabled: [...enabledDefaults, ...customCodes.filter(c => !enabledDefaults.has(c))] } });
+      onSave({ modules: { enabled: [...enabledDefaults, ...customCodes.filter(c => !enabledDefaults.has(c))], mode: 'default_custom' } });
     } else {
       const customCodes = [...new Set(customs.map(c => c.module_code))];
-      onSave({ modules: { enabled: customCodes.length > 0 ? customCodes : [] } });
+      onSave({ modules: { enabled: customCodes.length > 0 ? customCodes : [], mode: 'custom' } });
     }
   };
 

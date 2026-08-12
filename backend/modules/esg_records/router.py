@@ -276,6 +276,7 @@ def _apply_org_overrides(categories: list, org_cfg: dict, section: str = "enviro
     modules_cfg = org_cfg.get("modules") or {}
     cats_cfg = org_cfg.get("categories") or {}
     kpi_overrides = org_cfg.get("kpi_overrides") or {}
+    mode = modules_cfg.get("mode")  # "default" | "default_custom" | "custom"
 
     # Section-specific enabled modules: check modules.enabled (env) or modules.social_enabled, etc.
     section_key = f"{section}_enabled" if section != "environment" else "enabled"
@@ -284,49 +285,56 @@ def _apply_org_overrides(categories: list, org_cfg: dict, section: str = "enviro
     custom_cats = cats_cfg.get("custom") or []
 
     result = []
-    for cat in categories:
-        mod_code = _to_code(cat.get("category", ""))
-        subcat_code = _to_code(cat.get("subcategory") or cat.get("category", ""))
 
-        # Filter by enabled modules (only if explicitly configured for this section)
-        if enabled_modules is not None and mod_code not in enabled_modules:
-            continue
+    # Include global categories unless mode is explicitly "custom"
+    if mode != "custom":
+        for cat in categories:
+            mod_code = _to_code(cat.get("category", ""))
+            subcat_code = _to_code(cat.get("subcategory") or cat.get("category", ""))
 
-        # Filter by disabled subcategories
-        if subcat_code in disabled_subcats:
-            continue
-
-        # Apply KPI field override
-        override = kpi_overrides.get(subcat_code)
-        if override:
-            if override.get("visible") is False:
+            # Filter by enabled modules (only if explicitly configured for this section)
+            if enabled_modules is not None and mod_code not in enabled_modules:
                 continue
-            if override.get("fields"):
-                cat = {**cat, "fields": [_map_custom_field(f) for f in override["fields"]]}
-            if override.get("kpi_name"):
-                cat = {**cat, "subcategory": override["kpi_name"]}
 
-        result.append(cat)
+            # Filter by disabled subcategories
+            if subcat_code in disabled_subcats:
+                continue
 
-    # Add custom categories as virtual entries — only for this section
-    for custom in custom_cats:
-        cat_section = custom.get("section", "environment")
-        if cat_section != section:
-            continue
-        raw_fields = custom.get("fields") or []
-        mapped_fields = [_map_custom_field(f) for f in raw_fields]
-        result.append({
-            "id": f"custom_{custom.get('category_code', 'unknown')}",
-            "section": section,
-            "category": (custom.get("module_name") or custom.get("module_code", "")).replace("_", " ").title(),
-            "subcategory": custom.get("category_name"),
-            "is_active": True,
-            "fields": mapped_fields,
-            "order": custom.get("display_order", 99),
-            "is_custom": True,
-            "module_code": custom.get("module_code"),
-            "category_code": custom.get("category_code"),
-        })
+            # Apply KPI field override
+            override = kpi_overrides.get(subcat_code)
+            if override:
+                if override.get("visible") is False:
+                    continue
+                if override.get("fields"):
+                    cat = {**cat, "fields": [_map_custom_field(f) for f in override["fields"]]}
+                if override.get("kpi_name"):
+                    cat = {**cat, "subcategory": override["kpi_name"]}
+
+            # Attach derived category_code so frontend can use it directly
+            cat = {**cat, "category_code": cat.get("category_code") or subcat_code}
+
+            result.append(cat)
+
+    # Add custom categories unless mode is explicitly "default"
+    if mode != "default":
+        for custom in custom_cats:
+            cat_section = custom.get("section", "environment")
+            if cat_section != section:
+                continue
+            raw_fields = custom.get("fields") or []
+            mapped_fields = [_map_custom_field(f) for f in raw_fields]
+            result.append({
+                "id": f"custom_{custom.get('category_code', 'unknown')}",
+                "section": section,
+                "category": (custom.get("module_name") or custom.get("module_code", "")).replace("_", " ").title(),
+                "subcategory": custom.get("category_name"),
+                "is_active": True,
+                "fields": mapped_fields,
+                "order": custom.get("display_order", 99),
+                "is_custom": True,
+                "module_code": custom.get("module_code"),
+                "category_code": custom.get("category_code"),
+            })
 
     result.sort(key=lambda c: c.get("order", 0))
     return result

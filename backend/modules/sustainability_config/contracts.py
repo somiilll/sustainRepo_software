@@ -41,6 +41,7 @@ class CustomCategory(BaseModel):
     module_name: Optional[str] = None  # display name override for module
     display_order: int = 99
     fields: List[FieldDefinition] = []
+    target_fields: List[FieldDefinition] = []  # Set Target questions for this custom category
     calculation: Optional[Dict[str, Any]] = None  # controlled calc config
     target_config: Optional[Dict[str, Any]] = None
 
@@ -73,6 +74,7 @@ class DashboardConfig(BaseModel):
 
 class ModulesConfig(BaseModel):
     enabled: Optional[List[str]] = None  # None = all, [] = none, ["energy","water"] = those
+    mode: Optional[str] = None  # "default" | "default_custom" | "custom" — persisted user choice
 
 
 class CategoriesConfig(BaseModel):

@@ -78,8 +78,11 @@ export default function SetTargetForm({ section = 'environment', preFilterCatego
   // Fetch target fields when subcategory changes
   useEffect(() => {
     if (!token || !selectedSubcategory) return;
-    const toCode = (n) => (n || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-    const subCode = toCode(selectedSubcategory);
+    // Use category_code from the API response directly; fall back to toCode derivation
+    const match = categories.find(c => (c.subcategory || c.category) === selectedSubcategory);
+    const subCode = match?.category_code
+      || (selectedSubcategory || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    if (!subCode) return;
     axios.get(`${API}/sustainability-config/target-fields/${subCode}`, { headers })
       .then(res => {
         setTargetFields(res.data?.fields || []);
@@ -90,7 +93,7 @@ export default function SetTargetForm({ section = 'environment', preFilterCatego
         setTargetFields([]);
         setFieldSource('default');
       });
-  }, [token, selectedSubcategory]);
+  }, [token, selectedSubcategory, categories]);
 
   // Fetch existing target records
   const fetchRecords = useCallback(async () => {
