@@ -17,10 +17,20 @@ from modules.internal_data_ai.executor import execute_plan
 from modules.internal_data_ai.response_builder import build_response
 from modules.internal_data_ai.embedding_service import find_similar_entities, precompute_embeddings
 from modules.internal_data_ai.reporting_periods import extract_explicit_period
+from modules.internal_data_ai.query_understanding import understand_query
+from modules.internal_data_ai.conversation_context import apply_follow_up_context, context_from_plan, get_session_context
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def authorized_facility_scope(current_user: dict) -> Optional[list]:
+    """Keep organization admins broad while preserving explicit empty scopes for restricted users."""
+    if current_user.get("role") in {"admin", "super_admin"}:
+        return None
+    assigned_facilities = current_user.get("assigned_facilities")
+    return list(assigned_facilities) if assigned_facilities is not None else None
 
 
 class ChatRequest(BaseModel):
@@ -38,6 +48,7 @@ class ChatResponse(BaseModel):
     chart: Optional[dict] = None
     evidence: Optional[list] = None
     intent: Optional[str] = None
+    query_type: Optional[str] = None
 
 
 @router.post("/internal-ai/chat", response_model=ChatResponse)
@@ -51,8 +62,7 @@ async def internal_ai_chat(
         raise HTTPException(status_code=400, detail="No organization")
 
     # Get user's assigned facilities for permission filtering
-    assigned_facilities = current_user.get("assigned_facilities")
-    facility_ids = list(assigned_facilities) if assigned_facilities else None
+    facility_ids = authorized_facility_scope(current_user)
     session_id = request.session_id or str(uuid.uuid4())
 
     # 1. Auto-precompute embeddings if missing
@@ -99,25 +109,29 @@ async def internal_ai_chat(
         if match["score"] > 0.5:
             if match["entity_type"] == "facility" and not entities.get("facility"):
                 entities["facility"] = match.get("metadata", {}).get("name")
-            elif match["entity_type"] == "fuel" and not entities.get("fuel_type"):
-                entities["fuel_type"] = match.get("metadata", {}).get("fuel_name")
     intent_result["entities"] = entities
 
-    # 3. Plan service calls
-    plan = plan_service_calls(intent_result)
+    # 3. Build the validated structured plan. Session context may fill only omitted dimensions.
+    structured_plan = await understand_query(request.message, intent_result, explicit_period, db)
+    session_context = await get_session_context(db, session_id, org_id, current_user.get("id"))
+    structured_plan = apply_follow_up_context(structured_plan, request.message, session_context)
 
-    # 4. Execute plan
-    service_data = await execute_plan(plan, org_id, facility_ids if facility_ids else None)
+    # 4. Plan service calls
+    plan = plan_service_calls(intent_result, structured_plan)
 
-    # 5. Build response
+    # 5. Execute plan
+    service_data = await execute_plan(plan, org_id, facility_ids)
+
+    # 6. Build response
     formatted = await build_response(
         question=request.message,
         intent=intent_result,
         service_data=service_data,
         response_type=response_type,
+        query_plan=structured_plan,
     )
 
-    # 6. Save to conversation history
+    # 7. Save to conversation history
     await db.internal_ai_conversations.insert_one({
         "id": str(uuid.uuid4()),
         "session_id": session_id,
@@ -127,6 +141,7 @@ async def internal_ai_chat(
         "intent": intent_name,
         "response": formatted.get("answer", ""),
         "response_type": response_type,
+        "context": context_from_plan(structured_plan),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
@@ -148,6 +163,7 @@ async def internal_ai_chat(
         chart=formatted.get("chart"),
         evidence=evidence_files,
         intent=intent_name,
+        query_type=structured_plan.query_type.value,
     )
 
 

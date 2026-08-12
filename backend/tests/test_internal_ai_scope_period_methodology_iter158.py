@@ -368,14 +368,14 @@ class TestRouterPeriodAuthority:
         async def fake_find_similar_entities(message, org_id, db, top_k=3):
             return {"matches": []}
 
-        def fake_plan_service_calls(intent_result):
+        def fake_plan_service_calls(intent_result, query_plan=None):
             captured["entities"] = intent_result.get("entities", {})
             return []
 
         async def fake_execute_plan(plan, org_id, facility_ids=None):
             return {}
 
-        async def fake_build_response(question, intent, service_data, response_type):
+        async def fake_build_response(question, intent, service_data, response_type, query_plan=None):
             return {"answer": "ok", "response_type": "text"}
 
         monkeypatch.setattr(internal_router, "db", fake_db)
@@ -412,14 +412,14 @@ class TestRouterPeriodAuthority:
         async def fake_find_similar_entities(message, org_id, db, top_k=3):
             return {"matches": []}
 
-        def fake_plan_service_calls(intent_result):
+        def fake_plan_service_calls(intent_result, query_plan=None):
             captured["entities"] = intent_result.get("entities", {})
             return []
 
         async def fake_execute_plan(plan, org_id, facility_ids=None):
             return {}
 
-        async def fake_build_response(question, intent, service_data, response_type):
+        async def fake_build_response(question, intent, service_data, response_type, query_plan=None):
             return {"answer": "ok", "response_type": "text"}
 
         monkeypatch.setattr(internal_router, "db", fake_db)

@@ -2,6 +2,8 @@
 import re
 from typing import Any, Dict, Iterable, Optional
 
+from modules.internal_data_ai.data_normalization import resolve_record_quantity
+
 
 def no_access_filter(identifier_field: str = "id") -> Dict[str, Any]:
     return {identifier_field: {"$in": []}}
@@ -81,24 +83,10 @@ def scope_filter(scope: Any) -> Dict[str, Any]:
     The returned regex matches any of these case-insensitively.
     """
     num = normalize_scope(scope)
-    return {"scope": {"$regex": rf"^(scope\s*)?{num}$", "$options": "i"}}
+    return {"scope": {"$regex": rf"^{num}$|^scope\s*{num}$", "$options": "i"}}
 
 
 def extract_consumption(record: dict) -> tuple:
-    """Extract (quantity, unit) from ``dynamic_field_values.qty``.
-
-    Returns ``(None, None)`` when the data is absent or malformed.
-    Numeric strings are coerced to their numeric equivalent.
-    """
-    dfv = record.get("dynamic_field_values") or {}
-    qty_data = dfv.get("qty") or {}
-    value = qty_data.get("value")
-    unit = qty_data.get("unit")
-    if isinstance(value, str):
-        try:
-            value = float(value)
-            if value == int(value):
-                value = int(value)
-        except (ValueError, TypeError):
-            value = None
-    return value, unit
+    """Backward-compatible tuple wrapper for the centralized quantity resolver."""
+    resolved = resolve_record_quantity(record)
+    return resolved["value"], resolved["unit"]

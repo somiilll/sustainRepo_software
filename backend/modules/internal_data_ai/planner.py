@@ -5,6 +5,8 @@ No LLM involved — pure logic routing.
 import logging
 from typing import List, Dict, Any
 
+from modules.internal_data_ai.query_contracts import QueryType, StructuredQueryPlan
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,8 +24,82 @@ def _has_operational_data_dimension(entities: dict) -> bool:
     ])
 
 
-def plan_service_calls(intent_result: dict) -> List[Dict[str, Any]]:
+def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, Any]]:
+    """Map validated query types to fixed service routes; no model-provided route is executed."""
+    if query_plan.entity and query_plan.entity.type == "fuel" and not query_plan.entity.canonical_value:
+        return [{
+            "service": "evidence_state",
+            "method": "validate",
+            "params": {
+                "period": query_plan.period.model_dump(),
+                "entity_resolution": {"status": query_plan.entity.resolution},
+            },
+        }]
+    params = {
+        "fuel_type": query_plan.entity.canonical_value if query_plan.entity else None,
+        "facility": query_plan.facility,
+        "scope": query_plan.scope,
+        "period": query_plan.period.model_dump(),
+    }
+    params = {key: value for key, value in params.items() if value is not None}
+    relationship_types = {
+        QueryType.METHODOLOGY_LOOKUP,
+        QueryType.FORMULA_LOOKUP,
+        QueryType.CALCULATION_AUDIT_LOOKUP,
+    }
+    if query_plan.query_type == QueryType.FORMULA_VERSION_HISTORY:
+        return [{
+            "service": "evidence_state",
+            "method": "validate",
+            "params": {"period": query_plan.period.model_dump(), "supported": False},
+        }]
+    if query_plan.query_type == QueryType.RECORD_VERSION_HISTORY:
+        return [
+            {"service": "emissions", "method": "search_records", "params": params},
+            {"service": "record_history", "method": "get_emission_history", "params": params},
+            {"service": "evidence_state", "method": "validate", "params": params},
+        ]
+    if query_plan.query_type in {QueryType.CONSUMPTION_LOOKUP, QueryType.RECORD_LOOKUP}:
+        return [
+            {"service": "emissions", "method": "search_records", "params": params},
+            {"service": "evidence_state", "method": "validate", "params": params},
+        ]
+    if query_plan.query_type == QueryType.EMISSION_LOOKUP:
+        return [
+            {"service": "emissions", "method": "search_records", "params": params},
+            {"service": "relationships", "method": "resolve", "params": params},
+            {"service": "evidence_state", "method": "validate", "params": params},
+        ]
+    if query_plan.query_type in relationship_types:
+        return [
+            {"service": "emissions", "method": "search_records", "params": params},
+            {"service": "relationships", "method": "resolve", "params": params},
+            {"service": "evidence_state", "method": "validate", "params": params},
+        ]
+    if query_plan.query_type == QueryType.EMISSION_FACTOR_LOOKUP:
+        return [
+            {"service": "emissions", "method": "search_records", "params": params},
+            {"service": "relationships", "method": "resolve", "params": params},
+            {"service": "emission_factors", "method": "lookup", "params": params},
+            {"service": "evidence_state", "method": "validate", "params": params},
+        ]
+    if query_plan.query_type == QueryType.ANALYTICS_LOOKUP:
+        return [{"service": "analytics", "method": "query", "params": params}]
+    if query_plan.query_type == QueryType.TARGET_LOOKUP:
+        return [{"service": "targets", "method": "get_progress", "params": params}]
+    if query_plan.query_type == QueryType.APPROVAL_HISTORY:
+        return [{"service": "approvals", "method": "get_history", "params": params}]
+    if query_plan.query_type == QueryType.ASSIGNMENT_HISTORY:
+        return [{"service": "assignments", "method": "get_history", "params": params}]
+    return []
+
+
+def plan_service_calls(intent_result: dict, query_plan: StructuredQueryPlan = None) -> List[Dict[str, Any]]:
     """Convert intent + entities into ordered service call plan."""
+    if query_plan and query_plan.query_type != QueryType.UNKNOWN:
+        plan = _plan_structured_query(query_plan)
+        logger.info("plan_service_calls — structured query type=%s pipeline=%s", query_plan.query_type.value, plan)
+        return plan
     intent = intent_result.get("intent", "summary")
     entities = intent_result.get("entities", {})
 

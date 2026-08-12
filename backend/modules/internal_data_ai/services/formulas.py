@@ -76,6 +76,36 @@ def _global_or_org_scope(org_id: str) -> dict:
     return {"$or": [{"organization_id": org_id}, {"organization_id": {"$exists": False}}, {"organization_id": None}]}
 
 
+async def get_formulas_by_ids(org_id: str, formula_ids: list[str]) -> list[dict]:
+    """Return only global or organization-owned formulas linked from authorized records."""
+    if not formula_ids:
+        return []
+    return await db.ce_formulas.find(
+        and_filters({"id": {"$in": formula_ids}}, _global_or_org_scope(org_id)),
+        {"_id": 0},
+    ).to_list(100)
+
+
+async def get_formula_versions(formula_ids: list[str]) -> list[dict]:
+    """Formula versions are reachable only through formula IDs already authorized upstream."""
+    if not formula_ids:
+        return []
+    return await db.ce_formula_versions.find(
+        {"formula_id": {"$in": formula_ids}},
+        {"_id": 0},
+    ).sort("effective_from", -1).to_list(500)
+
+
+async def get_calculation_audits(org_id: str, emission_record_ids: list[str]) -> list[dict]:
+    """Retrieve calculation audits only for authorized records within the authenticated organization."""
+    if not emission_record_ids:
+        return []
+    return await db.ce_calculation_audit_logs.find(
+        {"org_id": org_id, "emission_record_id": {"$in": emission_record_ids}},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(500)
+
+
 async def explain(org_id: str, **kwargs) -> dict:
     """Trace authorized emission records to their exact stored formula IDs.
 

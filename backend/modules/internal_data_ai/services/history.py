@@ -61,6 +61,34 @@ async def get_changes(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     return {"total": len(results), "history": results[:30]}
 
 
+async def get_emission_record_history(
+    org_id: str,
+    facility_ids: list = None,
+    emission_records: list = None,
+    **_kwargs,
+) -> dict:
+    """Return history only for emission records already authorized by the retrieval pipeline."""
+    emission_records = list(emission_records or [])
+    record_ids = [record.get("id") for record in emission_records if record.get("id")]
+    if not record_ids:
+        return {"total": 0, "history": []}
+    docs = await db.emission_history.find(
+        _id_filter("emission_id", record_ids),
+        {"_id": 0, "emission_id": 1, "changed_at": 1, "changes": 1, "changed_by": 1},
+    ).sort("changed_at", -1).to_list(100)
+    return {
+        "total": len(docs),
+        "history": [
+            {
+                "changed_at": item.get("changed_at"),
+                "changes": item.get("changes"),
+                "changed_by": item.get("changed_by"),
+            }
+            for item in docs
+        ],
+    }
+
+
 async def get_framework_version_history(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     framework = kwargs.get("entity_name") or ""
     source_query = {"organization_id": org_id}

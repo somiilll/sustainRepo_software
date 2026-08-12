@@ -7,6 +7,8 @@ import json
 import logging
 from openai import OpenAI
 
+from modules.internal_data_ai.query_contracts import QueryType, StructuredQueryPlan
+
 logger = logging.getLogger(__name__)
 
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -17,18 +19,19 @@ You receive structured data retrieved from the database and must format it into 
 
 Rules:
 - ONLY use the provided data. Never invent or guess information.
-- If data is empty or null, say "No data found for this query."
+- Use the supplied evidence state exactly: NOT_FOUND means no authorized data; AMBIGUOUS means request clarification; NOT_SUPPORTED means the underlying capability is unavailable; RELATIONSHIP_MISSING and FOUND_PARTIAL must identify the missing or partial evidence.
 - Prefer bullet points, short sentences over long paragraphs.
 - When showing numbers, include units.
 - For emission factors, always include source, unit, and database version.
 - For calculations, show the formula and steps.
-- For methodology questions, show only the exact retrieved formula_id and stored definition. Never infer a formula, variable, factor, conversion, or calculation step. Clearly state when a linked formula or audit input is unavailable.
-- For evidence, mention file name, upload date, and linked record.
+- Never display internal record IDs, formula IDs, or formula-version identifiers/timelines. Never infer a formula, variable, factor, conversion, or calculation step. Clearly state when a linked formula or audit input is unavailable.
+- Mention evidence file names and upload dates only when evidence-file data is actually provided.
 - Keep responses under 300 words unless the data requires more.
 - Always mention the time period if the data is period-specific.
-- For emission-record consumption answers, treat `consumption_totals` as the authoritative total. Record `quantity` values are already allocated for the requested period; explain any `allocation_notes` clearly and never recalculate from `stored_quantity`.
-- For emissions totals or facility comparisons, use the supplied `emissions_totals` or `facility_emissions` values and their stated unit. Never say an emissions unit is missing when the data provides `tCO2e`.
-- For methodology questions without an explicit request for audit inputs, record-level detail, or calculation substitutions: use only `methodology_summaries`. Show the methodology name and plain-language formula steps. Do not show formula IDs, linked records, raw variable keys, input/property lists, technical units, output schemas, or audit-availability messages.
+- For consumption answers, treat `consumption_totals` and `facility_consumption` as authoritative. Record quantities may be allocated for the requested period; explain any annual allocation explicitly.
+- For emissions answers, only display an emissions unit supplied in the evidence. Never infer `tCO2e` from a metric name or numeric value. Each record's `emissions_value` is already allocated for the requested period when needed; never apply an allocation factor to it again.
+- If period evidence is `ANNUAL_VALUE_ALLOCATED_TO_MONTH`, state that the displayed figure is derived from a stored annual record and give the allocation factor; never describe it as a directly stored monthly record.
+- For methodology, formula, record-history, and audit questions, use only the stored relationship evidence. Never mention formula-version history, version timelines, or internal formula versions in the final response. Never invent formula inputs, audit substitutions, factors, effective dates, or output units.
 
 Return a JSON object:
 {
@@ -52,18 +55,71 @@ IMPORTANT for chart:
 - Omit chart if data has fewer than 2 items or is not numeric."""
 
 
+def _evidence_formatter_data(query_plan: StructuredQueryPlan, service_data: dict) -> dict:
+    emissions = service_data.get("emissions", {})
+    evidence = service_data.get("evidence_state", {})
+    relationships = service_data.get("relationships", {})
+    relationship_by_record = {item.get("record_id"): item for item in relationships.get("relationships", [])}
+    period_by_record = {item.get("record_id"): item for item in evidence.get("record_evidence", [])}
+    records = []
+    for record in emissions.get("records", []):
+        relationship = relationship_by_record.get(record.get("id"), {})
+        unit_evidence = relationship.get("emission_unit") or {}
+        records.append({
+            "facility": record.get("facility"),
+            "fuel_type": record.get("fuel_type"),
+            "scope": record.get("scope"),
+            "reporting_period": record.get("reporting_period"),
+            "quantity": record.get("quantity"),
+            "quantity_unit": record.get("unit"),
+            "quantity_source": record.get("quantity_source"),
+            "emissions_value": record.get("emissions_value"),
+            "emissions_unit": unit_evidence.get("unit"),
+            "emissions_unit_source": unit_evidence.get("source"),
+            "period_evidence": period_by_record.get(record.get("id")),
+        })
+
+    payload = {
+        "query": query_plan.model_dump(),
+        "evidence": evidence,
+        "records": records,
+        "consumption_totals": emissions.get("consumption_totals", []),
+        "facility_consumption": emissions.get("facility_consumption", []),
+        "relationships": [
+            {
+                "formula": {
+                    "name": (item.get("formula") or {}).get("name"),
+                    "description": (item.get("formula") or {}).get("description"),
+                    "definition": (item.get("formula") or {}).get("definition"),
+                } if item.get("formula") else None,
+                "calculation_audit_available": bool(item.get("calculation_audits")),
+                "emission_unit": item.get("emission_unit"),
+                "evidence_state": item.get("evidence_state"),
+                "missing": item.get("missing", []),
+            }
+            for item in relationships.get("relationships", [])
+        ],
+        "record_history": service_data.get("record_history", {}).get("history", []),
+        "emission_factors": service_data.get("emission_factors", {}).get("emission_factors", []),
+    }
+    if query_plan.query_type == QueryType.ANALYTICS_LOOKUP:
+        payload["analytics"] = service_data.get("analytics", {})
+    return payload
+
+
 async def build_response(
     question: str,
     intent: dict,
     service_data: dict,
     response_type: str = "text",
+    query_plan: StructuredQueryPlan = None,
 ) -> dict:
     """Format structured service data into a natural language response."""
     try:
-        formatter_data = service_data
+        formatter_data = _evidence_formatter_data(query_plan, service_data) if query_plan else service_data
         detailed_terms = ("audit", "record-level", "record level", "input value", "substitution", "calculation input")
         is_detailed_request = any(term in question.lower() for term in detailed_terms)
-        if intent.get("intent") == "formula_calculation" and not is_detailed_request:
+        if not query_plan and intent.get("intent") == "formula_calculation" and not is_detailed_request:
             formula_data = service_data.get("formulas", {})
             formatter_data = {
                 "formulas": {

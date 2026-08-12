@@ -60,7 +60,7 @@ class TestAnnualAllocation:
     @pytest.mark.asyncio
     async def test_diesel_query_keeps_mobile_and_allocates_fy_record(self, monkeypatch):
         records = [
-            {"id": "stationary-a", "organization_id": "org-a", "facility_id": "facility-e", "fuel_type": "Diesel", "category": "Stationary Combustion", "reporting_period": "2026-07", "co2e_emissions": 0.5, "dynamic_field_values": {"qty": {"value": 323, "unit": "L"}}},
+            {"id": "stationary-a", "organization_id": "org-a", "facility_id": "facility-e", "fuel_type": "Diesel", "category": "Stationary Combustion", "reporting_period": "2026-07", "co2e_emissions": 0.5, "co2e_unit": "tCO2e", "dynamic_field_values": {"qty": {"value": 323, "unit": "L"}}},
             {"id": "stationary-b", "organization_id": "org-a", "facility_id": "facility-e", "fuel_type": "Diesel", "category": "Stationary Combustion", "reporting_period": "2026-07", "dynamic_field_values": {"qty": {"value": 5177.2, "unit": "L"}}},
             {"id": "mobile", "organization_id": "org-a", "facility_id": "facility-e", "fuel_type": "Diesel", "category": "Mobile Combustion", "reporting_period": "2026-07", "dynamic_field_values": {"qty": {"value": 5678, "unit": "L"}}},
             {"id": "annual", "organization_id": "org-a", "facility_id": "facility-a", "fuel_type": "Diesel", "category": "Stationary Combustion", "reporting_period": "FY 2026-27", "dynamic_field_values": {"qty": {"value": 12000, "unit": "L"}}},

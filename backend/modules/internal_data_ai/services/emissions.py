@@ -1,6 +1,7 @@
 """Emissions service for Internal Data AI."""
 from shared.database.mongo import db
-from modules.internal_data_ai.query_scope import and_filters, extract_consumption, normalize_scope, organization_scope, resolve_authorized_facilities, scope_filter
+from modules.internal_data_ai.data_normalization import resolve_emission_unit, resolve_record_quantity
+from modules.internal_data_ai.query_scope import and_filters, normalize_scope, organization_scope, resolve_authorized_facilities, scope_filter
 from modules.internal_data_ai.reporting_periods import annual_record_allocation, emission_period_filter, latest_available_period, period_from_payload
 
 
@@ -45,15 +46,22 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     total_emissions = 0.0
     emission_record_count = 0
     emissions_by_facility = {}
+    consumption_by_facility = {}
     allocation_notes = []
     for r in records[:20]:
-        qty_value, qty_unit = extract_consumption(r)
+        quantity_evidence = resolve_record_quantity(r)
+        qty_value, qty_unit = quantity_evidence["value"], quantity_evidence["unit"]
         allocation_factor = annual_record_allocation(r.get("reporting_period"), period)
         allocated_quantity = round(qty_value * allocation_factor, 6) if isinstance(qty_value, (int, float)) else qty_value
         raw_emissions = r.get("co2e_emissions") if r.get("co2e_emissions") is not None else r.get("total_emissions")
         allocated_emissions = round(float(raw_emissions) * allocation_factor, 6) if isinstance(raw_emissions, (int, float)) else None
         if isinstance(allocated_quantity, (int, float)) and qty_unit:
             totals_by_unit[qty_unit] = totals_by_unit.get(qty_unit, 0) + allocated_quantity
+            facility_id = r.get("facility_id")
+            facility_name = fac_map.get(facility_id, facility_id)
+            item = consumption_by_facility.setdefault((facility_name, qty_unit), {"quantity": 0.0, "records": 0})
+            item["quantity"] += allocated_quantity
+            item["records"] += 1
         if allocated_emissions is not None:
             total_emissions += allocated_emissions
             emission_record_count += 1
@@ -75,10 +83,11 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
             "fuel_type": r.get("fuel_type"),
             "quantity": allocated_quantity,
             "unit": qty_unit,
+            "quantity_source": quantity_evidence["source"],
             "stored_quantity": qty_value,
             "allocation_factor": allocation_factor,
             "emissions_value": allocated_emissions,
-            "emissions_unit": "tCO2e" if allocated_emissions is not None else None,
+            "emissions_unit": resolve_emission_unit(r)["unit"] if allocated_emissions is not None else None,
             "total_emissions": r.get("total_emissions"),
             "co2e_emissions": r.get("co2e_emissions"),
             "formula_id": r.get("formula_id"),
@@ -101,6 +110,10 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         "facility_emissions": [
             {"facility": facility, "value": round(data["emissions"], 6), "unit": "tCO2e", "records": data["records"]}
             for facility, data in emissions_by_facility.items()
+        ],
+        "facility_consumption": [
+            {"facility": facility, "quantity": round(data["quantity"], 6), "unit": unit, "records": data["records"]}
+            for (facility, unit), data in consumption_by_facility.items()
         ],
         "allocation_notes": allocation_notes,
     }

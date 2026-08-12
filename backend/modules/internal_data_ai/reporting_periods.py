@@ -201,6 +201,23 @@ def annual_period_allocation_map(period: ResolvedPeriod) -> Dict[str, float]:
     }
 
 
+def resolve_record_period_match(stored_period: object, requested_period: ResolvedPeriod) -> dict:
+    """Describe whether a record directly matches, derives from, or misses the requested period."""
+    value = str(stored_period or "").strip()
+    if re.match(r"^20\d{2}-(0[1-9]|1[0-2])$", value):
+        if requested_period.start_month <= value <= requested_period.end_month:
+            return {"period_match": "EXACT", "allocation_factor": 1.0}
+        return {"period_match": "MISMATCH", "allocation_factor": 0.0}
+
+    allocation_factor = annual_record_allocation(value, requested_period)
+    if allocation_factor > 0:
+        return {
+            "period_match": "ANNUAL_VALUE_ALLOCATED_TO_MONTH" if allocation_factor < 1 else "EXACT",
+            "allocation_factor": allocation_factor,
+        }
+    return {"period_match": "MISMATCH", "allocation_factor": 0.0}
+
+
 def emission_period_filter(period: ResolvedPeriod) -> Dict[str, Any]:
     month_range = {"reporting_period": {"$gte": period.start_month, "$lte": period.end_month}}
     yearly_values = _annual_period_values(period)
