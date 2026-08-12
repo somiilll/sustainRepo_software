@@ -22,6 +22,10 @@ _SOURCES = {
     QueryType.RECORD_VERSION_HISTORY: ["emission_records", "emission_history"],
     QueryType.CALCULATION_AUDIT_LOOKUP: ["emission_records", "ce_formulas", "ce_formula_versions", "ce_calculation_audit_logs"],
     QueryType.EMISSION_FACTOR_LOOKUP: ["emission_records", "fuel_database", "emission_factors"],
+    QueryType.CALCULATION_PROPERTY_LOOKUP: ["emission_records", "calculation_inputs"],
+    QueryType.BRSR_LOOKUP: ["esg_responses", "esg_response_submissions", "esg_question_configs"],
+    QueryType.APPROVAL_STATUS_LOOKUP: ["environment_records", "approval_requests"],
+    QueryType.EVIDENCE_LOOKUP: ["emission_records", "uploaded_files"],
     QueryType.RECORD_LOOKUP: ["emission_records"],
     QueryType.ANALYTICS_LOOKUP: ["emission_records"],
     QueryType.TARGET_LOOKUP: ["esg_targets"],
@@ -54,6 +58,8 @@ def _period_contract(period: Optional[ResolvedPeriod]) -> QueryPeriod:
 
 def _metric_from_question(question: str) -> str:
     text = question.lower()
+    if re.search(r"\b(calorific value|calorific|\bcv\b)\b", text):
+        return "calorific_value"
     if re.search(r"\b(consumption|consumed|consume|usage|used|quantity)\b", text):
         return "consumption"
     if re.search(r"\b(co2e|co₂e|emission|emissions|ghg|carbon)\b", text):
@@ -67,6 +73,12 @@ def _metric_from_question(question: str) -> str:
 
 def _query_type(question: str, legacy_intent: str, metric: str) -> QueryType:
     text = question.lower()
+    if legacy_intent == "evidence_retrieval" or re.search(r"\b(attachment|attachments|evidence file|invoice)\b", text):
+        return QueryType.EVIDENCE_LOOKUP
+    if legacy_intent == "brsr_lookup" or re.search(r"\bbrsr\b", text):
+        return QueryType.BRSR_LOOKUP
+    if re.search(r"\b(awaiting approval|awaiting review|pending approval|pending review)\b", text):
+        return QueryType.APPROVAL_STATUS_LOOKUP
     if re.search(r"\bformula version\b", text):
         return QueryType.FORMULA_VERSION_HISTORY
     if re.search(r"\b(version history|record version|record history|previous version|what changed)\b", text):
@@ -79,6 +91,8 @@ def _query_type(question: str, legacy_intent: str, metric: str) -> QueryType:
         return QueryType.METHODOLOGY_LOOKUP
     if metric == "emission_factor" or legacy_intent == "emission_factor":
         return QueryType.EMISSION_FACTOR_LOOKUP
+    if metric == "calorific_value":
+        return QueryType.CALCULATION_PROPERTY_LOOKUP
     if metric == "consumption":
         return QueryType.CONSUMPTION_LOOKUP
     if metric == "co2e":
@@ -105,7 +119,7 @@ def build_query_plan(
     """Build a closed plan from model semantics plus deterministic normalization results."""
     entities = intent_result.get("entities") or {}
     legacy_intent = intent_result.get("intent", "")
-    metric = _metric_from_question(question)
+    metric = _metric_from_question(question) or entities.get("metric") or ""
     query_type = _query_type(question, legacy_intent, metric)
     raw_fuel = entities.get("fuel_type") or (fuel_resolution or {}).get("raw_value")
     entity = None
@@ -132,6 +146,8 @@ def build_query_plan(
         period=_period_contract(period),
         facility=entities.get("facility"),
         scope=entities.get("scope"),
+        category=entities.get("category") or (metric if entities.get("record_type") in {"environment", "social", "governance"} else None),
+        record_type=entities.get("record_type"),
         requested_metric=metric or None,
         sources_required=_SOURCES[query_type],
         evidence_state=evidence_state,

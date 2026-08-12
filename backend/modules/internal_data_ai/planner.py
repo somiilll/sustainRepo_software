@@ -39,6 +39,10 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
         "fuel_type": query_plan.entity.canonical_value if query_plan.entity else None,
         "facility": query_plan.facility,
         "scope": query_plan.scope,
+        "category": query_plan.category,
+        "record_type": query_plan.record_type,
+        "requested_metric": query_plan.requested_metric,
+        "metric": query_plan.requested_metric,
         "period": query_plan.period.model_dump(),
     }
     params = {key: value for key, value in params.items() if value is not None}
@@ -83,6 +87,18 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
             {"service": "emission_factors", "method": "lookup", "params": params},
             {"service": "evidence_state", "method": "validate", "params": params},
         ]
+    if query_plan.query_type == QueryType.CALCULATION_PROPERTY_LOOKUP:
+        return [
+            {"service": "emissions", "method": "search_records", "params": params},
+            {"service": "calculation_properties", "method": "lookup", "params": params},
+            {"service": "evidence_state", "method": "validate", "params": params},
+        ]
+    if query_plan.query_type == QueryType.BRSR_LOOKUP:
+        return [{"service": "brsr", "method": "get_responses", "params": params}]
+    if query_plan.query_type == QueryType.APPROVAL_STATUS_LOOKUP:
+        return [{"service": "approvals", "method": "get_pending_status", "params": params}]
+    if query_plan.query_type == QueryType.EVIDENCE_LOOKUP:
+        return [{"service": "evidence", "method": "find_files", "params": params}]
     if query_plan.query_type == QueryType.ANALYTICS_LOOKUP:
         return [{"service": "analytics", "method": "query", "params": params}]
     if query_plan.query_type == QueryType.TARGET_LOOKUP:

@@ -120,4 +120,4 @@ async def find_files(org_id: str, facility_ids: list = None, **kwargs) -> dict:
                         results.append(preview)
                         seen_ids.add(file_id)
 
-    return {"total_files": len(results), "files": results}
+    return {"total_files": len(results), "files": results, "period": resolved_period.label if resolved_period else None, "period_resolved": resolved_period is not None}

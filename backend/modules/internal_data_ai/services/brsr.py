@@ -4,6 +4,16 @@ from shared.database.mongo import db
 _FW_VARIANTS = ["brsr", "BRSR"]
 
 
+def _period_values(period: object) -> list[str]:
+    if not isinstance(period, dict) or period.get("type") != "financial_year":
+        return []
+    start = str(period.get("start_month", ""))[:4]
+    end = str(period.get("end_month", ""))[:4]
+    if not (start.isdigit() and end.isdigit()):
+        return []
+    return list({f"FY {start}-{end}", f"FY {start}-{end[-2:]}", f"FY {start}–{end[-2:]}", f"{start}-{end}", f"{start}-{end[-2:]}"})
+
+
 async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     """Fetch BRSR filled values, submission statuses, and section progress."""
     section = kwargs.get("category") or ""
@@ -11,6 +21,9 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
 
     # 1. Primary data — esg_responses (actual filled values, incl. Section A)
     resp_query = {"organization_id": org_id, "framework": {"$in": _FW_VARIANTS}}
+    period_values = _period_values(kwargs.get("period"))
+    if period_values:
+        resp_query["$or"] = [{"reporting_year": {"$in": period_values}}, {"reporting_period": {"$in": period_values}}]
     if section:
         resp_query["section"] = {"$regex": section, "$options": "i"}
     if keyword:
@@ -89,6 +102,7 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
             for s in section_stats
         ],
         "responses": records[:30],
+        "period": (kwargs.get("period") or {}).get("label") if isinstance(kwargs.get("period"), dict) else None,
     }
 
 

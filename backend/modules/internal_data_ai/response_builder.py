@@ -33,6 +33,7 @@ Rules:
 - If period evidence is `ANNUAL_VALUE_ALLOCATED_TO_MONTH`, state that the displayed figure is derived from a stored annual record and give the allocation factor; never describe it as a directly stored monthly record.
 - For methodology, formula, record-history, and audit questions, use only the stored relationship evidence. Never mention formula-version history, version timelines, or internal formula versions in the final response. Never invent formula inputs, audit substitutions, factors, effective dates, or output units.
 - For record history, use `changed_by_name` when it is present. Never expose an internal user ID and never claim the updater name is unavailable when a stored display name is provided.
+- For BRSR, approval-status, calculation-property, and attachment questions, use their supplied service evidence directly. Never describe supplied data as pending merely because it is from a non-emissions service.
 
 Return a JSON object:
 {
@@ -102,6 +103,10 @@ def _evidence_formatter_data(query_plan: StructuredQueryPlan, service_data: dict
         ],
         "record_history": service_data.get("record_history", {}).get("history", []),
         "emission_factors": service_data.get("emission_factors", {}).get("emission_factors", []),
+        "calculation_properties": service_data.get("calculation_properties", {}),
+        "brsr": service_data.get("brsr", {}),
+        "approval_status": service_data.get("approvals", {}),
+        "evidence_files": service_data.get("evidence", {}),
     }
     if query_plan.query_type == QueryType.ANALYTICS_LOOKUP:
         payload["analytics"] = service_data.get("analytics", {})

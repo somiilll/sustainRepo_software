@@ -1,5 +1,32 @@
 # ESG Platform - Product Requirements Document
 
+## Change Log — Aug 12, 2026: Internal Data AI Evidence Routing
+
+### Implemented
+- Added a phased Internal Data AI foundation without new ESG data collections: normalized quantity/unit readers, structured query contracts, deterministic fuel/period planning, relationship traversal (record → formula → version → audit), evidence states, and session context stored in `internal_ai_conversations`.
+- Added deterministic month aliases (`aug`, `sept`) and explicit query routes for calculation properties, BRSR response counts, environment approval status, and evidence/attachments.
+- Added record-safe evidence presentation: stored updater display names are retained; internal user/record/formula/version identifiers are not exposed in AI answers.
+- Fixed query outputs for:
+  - Diesel calorific value in August 2026: reads stored `dynamic_field_values.cv` (`0.1 TJ/kg` for Facility E).
+  - BRSR questions filled for FY 2026–27: returns an actual count rather than a placeholder state.
+  - Water entries awaiting approval: returns a concrete count rather than routing to emissions analytics.
+  - Petrol/Motor Gasoline attachment lookup for September 2025: uses the resolved reporting-period filter.
+
+### Verification
+- Testing-agent report: `/app/test_reports/iteration_163.json`.
+- Focused local + live verification passed: **23/23** (22 focused tests plus one authenticated four-query live test).
+- Live test validated query types: `calculation_property_lookup`, `brsr_lookup`, `approval_status_lookup`, and `evidence_lookup`.
+
+### Current Architecture
+- Internal AI keeps organization/facility authorization server-owned and never accepts an organization ID from model output.
+- Structured plans dispatch to existing services/collections only; no `ai_records`, `module_records`, or duplicate ESG storage was introduced.
+- Response generation receives only retrieval evidence relevant to the structured plan.
+
+### Prioritized Follow-up
+- **P1:** Constrain BRSR submission-status merging by `(question_key, reporting period)` to prevent cross-period status bleed.
+- **P1:** Deduplicate pending approval requests by `entity_id` before presenting “entries awaiting approval.”
+- **P2:** Extend structured query routing to additional ESG/social/governance analytics and approval questions as requested.
+
 ## Original Problem Statement
 Complete the Materiality Assessment UI, design premium ESG Dashboards, fix analytics mapping bugs, build missing UI, redesign the Assignment dialog into a step-by-step wizard, implement BRSR/GRI comprehensive questionnaire approval workflows.
 

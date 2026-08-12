@@ -7,7 +7,7 @@ from typing import Dict, Any, List
 from modules.internal_data_ai.services import (
     organization, emissions, emission_factors, targets,
     evidence, analytics, history, esg_records, formulas,
-    brsr, gri, supplier_assessment, data_status, evidence_state,
+    brsr, gri, supplier_assessment, data_status, evidence_state, calculation_properties,
 )
 from modules.internal_data_ai.relationship_resolver import resolve_calculation_relationships
 
@@ -44,6 +44,7 @@ SERVICE_MAP = {
     },
     "approvals": {
         "get_history": history.get_approval_history,
+        "get_pending_status": history.get_pending_status,
     },
     "assignments": {
         "get_history": history.get_assignment_history,
@@ -63,6 +64,9 @@ SERVICE_MAP = {
     },
     "evidence_state": {
         "validate": evidence_state.validate,
+    },
+    "calculation_properties": {
+        "lookup": calculation_properties.lookup,
     },
     "brsr": {
         "get_responses": brsr.get_responses,
@@ -96,6 +100,8 @@ async def execute_plan(plan: List[Dict[str, Any]], org_id: str, facility_ids: li
             params["emission_records"] = merged.get("emissions", {}).get("records", [])
             params["relationships"] = merged.get("relationships")
         elif service_name == "record_history":
+            params["emission_records"] = merged.get("emissions", {}).get("records", [])
+        elif service_name == "calculation_properties":
             params["emission_records"] = merged.get("emissions", {}).get("records", [])
 
         service = SERVICE_MAP.get(service_name)

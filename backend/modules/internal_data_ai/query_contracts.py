@@ -14,6 +14,10 @@ class QueryType(str, Enum):
     RECORD_VERSION_HISTORY = "record_version_history"
     CALCULATION_AUDIT_LOOKUP = "calculation_audit_lookup"
     EMISSION_FACTOR_LOOKUP = "emission_factor_lookup"
+    CALCULATION_PROPERTY_LOOKUP = "calculation_property_lookup"
+    BRSR_LOOKUP = "brsr_lookup"
+    APPROVAL_STATUS_LOOKUP = "approval_status_lookup"
+    EVIDENCE_LOOKUP = "evidence_lookup"
     RECORD_LOOKUP = "record_lookup"
     ANALYTICS_LOOKUP = "analytics_lookup"
     TARGET_LOOKUP = "target_lookup"
@@ -62,6 +66,8 @@ class StructuredQueryPlan(BaseModel):
     period: QueryPeriod = Field(default_factory=QueryPeriod)
     facility: Optional[str] = None
     scope: Optional[str] = None
+    category: Optional[str] = None
+    record_type: Optional[str] = None
     requested_metric: Optional[str] = None
     sources_required: list[str] = Field(default_factory=list)
     evidence_state: EvidenceState = EvidenceState.PENDING

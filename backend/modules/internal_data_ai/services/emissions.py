@@ -84,6 +84,10 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
             "quantity": allocated_quantity,
             "unit": qty_unit,
             "quantity_source": quantity_evidence["source"],
+            "calculation_inputs": {
+                key: value for key, value in (r.get("dynamic_field_values") or {}).items()
+                if key != "qty" and isinstance(value, dict)
+            },
             "stored_quantity": qty_value,
             "allocation_factor": allocation_factor,
             "emissions_value": allocated_emissions,

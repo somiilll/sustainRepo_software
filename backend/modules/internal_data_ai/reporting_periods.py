@@ -13,6 +13,11 @@ from shared.utils.period_utils import period_variants
 
 
 MONTH_LOOKUP = {name.lower(): index for index, name in enumerate(calendar.month_name) if name}
+MONTH_LOOKUP.update({
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10,
+    "nov": 11, "dec": 12,
+})
 
 
 @dataclass(frozen=True)

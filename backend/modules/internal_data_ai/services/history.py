@@ -126,6 +126,41 @@ async def get_approval_history(org_id: str, facility_ids: list = None, **kwargs)
     return {"approval_events": [{"action": h.get("action"), "actor": h.get("actor_email"), "entity_type": h.get("entity_type"), "entity_id": h.get("entity_id"), "remarks": h.get("remarks"), "timestamp": h.get("created_at")} for h in history], "pending_requests": [{"type": r.get("request_type"), "entity_type": r.get("entity_type"), "submitted_by": r.get("submitted_by_name") or r.get("submitted_by_email"), "submitted_at": r.get("submitted_at"), "status": r.get("status")} for r in requests if r.get("status") == "pending"]}
 
 
+async def get_pending_status(org_id: str, facility_ids: list = None, **kwargs) -> dict:
+    """Count pending approvals for an authorized ESG record type/category."""
+    record_type = (kwargs.get("record_type") or "environment").lower()
+    collection = {"environment": "environment_records", "social": "social_records", "governance": "governance_records"}.get(record_type)
+    if not collection:
+        return {"record_type": record_type, "category": kwargs.get("category"), "records_found": 0, "awaiting_approval": 0, "entries": []}
+    category = kwargs.get("category") or ""
+    record_query = and_filters(
+        {"$or": [{"organization_id": org_id}, {"org_id": org_id}]},
+        organization_scope(org_id, facility_ids, organization_field="org_id"),
+    )
+    if category:
+        record_query = and_filters(record_query, {"$or": [
+            {"category": {"$regex": category, "$options": "i"}},
+            {"subcategory": {"$regex": category, "$options": "i"}},
+        ]})
+    records = await db[collection].find(record_query, {"_id": 0, "id": 1, "category": 1, "subcategory": 1, "facility_id": 1}).to_list(500)
+    record_ids = [record["id"] for record in records if record.get("id")]
+    pending = await db.approval_requests.find(
+        {"organization_id": org_id, "entity_id": {"$in": record_ids}, "status": "pending"},
+        {"_id": 0, "entity_id": 1, "status": 1},
+    ).to_list(500) if record_ids else []
+    pending_ids = {item.get("entity_id") for item in pending}
+    return {
+        "record_type": record_type,
+        "category": category or None,
+        "records_found": len(records),
+        "awaiting_approval": len(pending),
+        "entries": [
+            {"category": record.get("category"), "subcategory": record.get("subcategory"), "facility_id": record.get("facility_id"), "status": "pending"}
+            for record in records if record.get("id") in pending_ids
+        ],
+    }
+
+
 async def get_assignment_history(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     query = organization_scope(org_id, facility_ids)
     assignments = await db.esg_assignments.find(query, {"_id": 0}).to_list(30)
