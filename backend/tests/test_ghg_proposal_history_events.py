@@ -1,4 +1,4 @@
-from modules.approval_workflow.proposal_service import build_emission_proposal_history_event
+from modules.approval_workflow.proposal_service import build_emission_proposal_history_event, build_rejected_emission_preview
 from modules.approval_workflow import proposal_service
 import pytest
 
@@ -40,8 +40,14 @@ def test_approved_proposal_history_event_is_linked_and_contains_actual_changes()
 
 def test_rejected_proposal_history_event_keeps_the_record_unchanged_and_records_reason():
     current = _record(200, 0.525238683, 3)
+    rejected_preview = build_rejected_emission_preview(current, {
+        "entity_snapshot": {"proposed_changes": {
+            "inputs": {"qty": {"value": 300, "unit": "L"}},
+            "outputs": {"co2e": {"value": 0.03, "unit": "tCO2e"}},
+        }}
+    })
     event = build_emission_proposal_history_event(
-        current, current, {"id": "proposal-2", "request_type": "update"},
+        current, rejected_preview, {"id": "proposal-2", "request_type": "update"},
         action="rejected",
         actor_id="approver-1",
         actor_email="approver@example.com",
@@ -54,6 +60,8 @@ def test_rejected_proposal_history_event_keeps_the_record_unchanged_and_records_
     assert event["changes_summary"] == "Update Rejected"
     assert event["changes"]["rejection_reason"] == "Missing evidence"
     assert event["approved_by_name"] is None
+    assert event["field_changes"][0]["old_value"]["value"] == 200
+    assert event["field_changes"][0]["new_value"]["value"] == 300
 
 
 class _EmissionRecords:

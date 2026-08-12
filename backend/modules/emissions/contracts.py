@@ -231,3 +231,4 @@ class EmissionHistoryResponse(BaseModel):
     requested_by_email: Optional[str] = None
     requested_by_name: Optional[str] = None
     requested_at: Optional[str] = None
+    rejected_proposed_values: Optional[Dict[str, Any]] = None

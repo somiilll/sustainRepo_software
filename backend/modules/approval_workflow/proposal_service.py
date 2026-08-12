@@ -96,6 +96,30 @@ def build_emission_proposal_history_event(
     }
 
 
+def build_rejected_emission_preview(current: Dict[str, Any], proposal: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a display-only rejected proposal state without changing the approved record."""
+    preview = {**current, "dynamic_field_values": {**(current.get("dynamic_field_values") or {})}}
+    snapshot = proposal.get("entity_snapshot") or {}
+    proposed = snapshot.get("proposed_changes") or proposal.get("proposed_changes") or {}
+    for key, value in (proposed.get("inputs") or {}).items():
+        preview["dynamic_field_values"][key] = value
+    outputs = proposed.get("outputs") or {}
+    output_fields = {
+        "co2": "co2_emissions",
+        "ch4": "ch4_emissions",
+        "n2o": "n2o_emissions",
+        "co2e": "co2e_emissions",
+    }
+    for output_key, record_field in output_fields.items():
+        value = outputs.get(output_key)
+        if isinstance(value, dict) and value.get("value") is not None:
+            preview[record_field] = value["value"]
+    co2e = outputs.get("co2e")
+    if isinstance(co2e, dict) and co2e.get("value") is not None:
+        preview["total_emissions"] = co2e["value"]
+    return preview
+
+
 class NoApproverConfiguredError(Exception):
     """Raised when no approver is configured for an assignment."""
     def __init__(self, assignment_id: str):
@@ -608,9 +632,10 @@ class ProposalService:
         if proposal.get("entity_type") == "emission_record":
             current = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0})
             if current:
+                rejected_preview = build_rejected_emission_preview(current, proposal)
                 history_event = build_emission_proposal_history_event(
                     current,
-                    current,
+                    rejected_preview,
                     proposal,
                     action="rejected",
                     actor_id=approver_id,
@@ -619,6 +644,7 @@ class ProposalService:
                     timestamp=now,
                     rejection_reason=rejection_reason,
                 )
+                history_event["record_was_changed"] = False
                 await db.emission_history.insert_one(history_event)
         
         # Notify the submitter

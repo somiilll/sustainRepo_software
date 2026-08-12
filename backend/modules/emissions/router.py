@@ -1584,13 +1584,15 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
         if proposal_id and not entry.get("requested_by"):
             proposal = await db.approval_requests.find_one(
                 {"id": proposal_id},
-                {"_id": 0, "submitted_by": 1, "submitted_by_email": 1, "submitted_by_name": 1, "submitted_at": 1},
+                {"_id": 0, "submitted_by": 1, "submitted_by_email": 1, "submitted_by_name": 1, "submitted_at": 1, "entity_snapshot.proposed_changes": 1, "proposed_changes": 1},
             )
             if proposal:
                 entry["requested_by"] = proposal.get("submitted_by")
                 entry["requested_by_email"] = proposal.get("submitted_by_email")
                 entry["requested_by_name"] = proposal.get("submitted_by_name")
                 entry["requested_at"] = proposal.get("submitted_at")
+                if (entry.get("changes") or {}).get("action") == "rejected":
+                    entry["rejected_proposed_values"] = ((proposal.get("entity_snapshot") or {}).get("proposed_changes") or proposal.get("proposed_changes"))
                 if proposal.get("submitted_by") and not entry.get("requested_by_email"):
                     requester = await db.users.find_one(
                         {"id": proposal["submitted_by"]},

@@ -364,6 +364,32 @@ export default function EmissionHistoryDialog({
                     oldIsOverride: fc.old_is_override,
                     newIsOverride: fc.new_is_override
                   }));
+              } else if (isRejection && history.rejected_proposed_values) {
+                const rejectedInputs = history.rejected_proposed_values.inputs || {};
+                const currentInputs = oldValues.dynamic_field_values || {};
+                const proposedInputs = { ...currentInputs, ...rejectedInputs };
+                if (JSON.stringify(currentInputs) !== JSON.stringify(proposedInputs)) {
+                  changedFields.push({
+                    label: 'Input Values',
+                    oldValue: currentInputs,
+                    newValue: proposedInputs,
+                    field: 'input_values',
+                    fieldType: 'input_values',
+                    isComplex: true,
+                  });
+                }
+                const rejectedCo2e = history.rejected_proposed_values.outputs?.co2e?.value;
+                const currentTotal = oldValues.total_emissions ?? oldValues.co2e_emissions;
+                if (rejectedCo2e !== undefined && currentTotal !== rejectedCo2e) {
+                  changedFields.push({
+                    label: 'Total Emissions (tCO₂e)',
+                    oldValue: currentTotal,
+                    newValue: rejectedCo2e,
+                    field: 'total_emissions',
+                    fieldType: 'simple',
+                    isComplex: false,
+                  });
+                }
               } else if (!isCreation && oldValues && newValues) {
                 // Fallback: Legacy format - compute from old_values/new_values
                 const getEmissionValue = (obj, primaryKey, fallbackKey) => {
@@ -499,7 +525,7 @@ export default function EmissionHistoryDialog({
                       {/* Show changed fields for updates only */}
                       {!isCreation && changedFields.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-stone-200">
-                          <p className="text-xs font-semibold text-text-muted uppercase mb-3">Changes Made</p>
+                          <p className="text-xs font-semibold text-text-muted uppercase mb-3">{isRejection ? 'Rejected Changes' : 'Changes Made'}</p>
                           <div className="space-y-2">
                             {changedFields.map((field, fieldIdx) => (
                               <div key={fieldIdx} className="bg-stone-50 rounded-lg p-3">
@@ -520,7 +546,7 @@ export default function EmissionHistoryDialog({
                                 <div className="grid grid-cols-2 gap-3 text-sm">
                                   <div className="bg-red-50 p-2 rounded border border-red-100">
                                     <span className="text-xs text-red-600 font-medium block mb-1">
-                                      Old Value
+                                      {isRejection ? 'Current Approved Value' : 'Old Value'}
                                       {field.oldIsOverride === false && field.fieldType === 'input_values' && (
                                         <span className="ml-1 text-stone-500 font-normal">(default)</span>
                                       )}
@@ -534,7 +560,7 @@ export default function EmissionHistoryDialog({
                                   </div>
                                   <div className="bg-green-50 p-2 rounded border border-green-100">
                                     <span className="text-xs text-green-600 font-medium block mb-1">
-                                      New Value
+                                      {isRejection ? 'Rejected Proposed Value' : 'New Value'}
                                       {field.newIsOverride === false && field.fieldType === 'input_values' && (
                                         <span className="ml-1 text-stone-500 font-normal">(default)</span>
                                       )}
