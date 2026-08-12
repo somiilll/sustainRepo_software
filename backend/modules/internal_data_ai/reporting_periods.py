@@ -21,9 +21,16 @@ class ResolvedPeriod:
     end_month: str
     label: str
     source: str
+    fiscal_start_month: int = 1
 
     def as_dict(self) -> Dict[str, str]:
-        return {"start_month": self.start_month, "end_month": self.end_month, "label": self.label, "source": self.source}
+        return {
+            "start_month": self.start_month,
+            "end_month": self.end_month,
+            "label": self.label,
+            "source": self.source,
+            "fiscal_start_month": self.fiscal_start_month,
+        }
 
 
 def period_from_payload(value: Any) -> Optional[ResolvedPeriod]:
@@ -34,16 +41,23 @@ def period_from_payload(value: Any) -> Optional[ResolvedPeriod]:
         return None
     if not re.match(r"^20\d{2}-(0[1-9]|1[0-2])$", start_month) or not re.match(r"^20\d{2}-(0[1-9]|1[0-2])$", end_month):
         return None
-    return ResolvedPeriod(start_month, end_month, label, value.get("source", "explicit"))
+    fiscal_start_month = value.get("fiscal_start_month", 1)
+    try:
+        fiscal_start_month = int(fiscal_start_month)
+    except (TypeError, ValueError):
+        fiscal_start_month = 1
+    if not 1 <= fiscal_start_month <= 12:
+        fiscal_start_month = 1
+    return ResolvedPeriod(start_month, end_month, label, value.get("source", "explicit"), fiscal_start_month)
 
 
-def _month_period(year: int, month: int, label: str, source: str) -> ResolvedPeriod:
+def _month_period(year: int, month: int, label: str, source: str, fiscal_start_month: int = 1) -> ResolvedPeriod:
     value = f"{year:04d}-{month:02d}"
-    return ResolvedPeriod(value, value, label, source)
+    return ResolvedPeriod(value, value, label, source, fiscal_start_month)
 
 
-def _range_period(start: date, end: date, label: str, source: str) -> ResolvedPeriod:
-    return ResolvedPeriod(start.strftime("%Y-%m"), end.strftime("%Y-%m"), label, source)
+def _range_period(start: date, end: date, label: str, source: str, fiscal_start_month: int = 1) -> ResolvedPeriod:
+    return ResolvedPeriod(start.strftime("%Y-%m"), end.strftime("%Y-%m"), label, source, fiscal_start_month)
 
 
 def extract_explicit_period(question: str, organization: Optional[Dict[str, Any]]) -> Optional[ResolvedPeriod]:
@@ -55,12 +69,12 @@ def extract_explicit_period(question: str, organization: Optional[Dict[str, Any]
     if month_match:
         month_name, year = month_match.groups()
         month = MONTH_LOOKUP[month_name.lower()]
-        return _month_period(int(year), month, f"{calendar.month_name[month]} {year}", "explicit")
+        return _month_period(int(year), month, f"{calendar.month_name[month]} {year}", "explicit", service.fiscal_start_month)
 
     iso_month = re.search(r"\b(20\d{2})-(0[1-9]|1[0-2])\b", text)
     if iso_month:
         year, month = map(int, iso_month.groups())
-        return _month_period(year, month, f"{calendar.month_name[month]} {year}", "explicit")
+        return _month_period(year, month, f"{calendar.month_name[month]} {year}", "explicit", service.fiscal_start_month)
 
     fy_match = re.search(r"\bFY\s*(20\d{2})(?:\s*[-–]\s*(?:20)?\d{2})?\b", text, re.IGNORECASE)
     cy_match = re.search(r"\bCY\s*(20\d{2})\b", text, re.IGNORECASE)
@@ -71,21 +85,21 @@ def extract_explicit_period(question: str, organization: Optional[Dict[str, Any]
         start_month = 1 if calendar_type.upper() == "CY" else service.fiscal_start_month
         start = date(int(year), start_month, 1) + relativedelta(months=(int(quarter) - 1) * 3)
         end = start + relativedelta(months=3) - relativedelta(days=1)
-        return _range_period(start, end, f"Q{quarter} {calendar_type.upper()} {year}", "explicit")
+        return _range_period(start, end, f"Q{quarter} {calendar_type.upper()} {year}", "explicit", service.fiscal_start_month)
 
     if fy_match:
         year = int(fy_match.group(1))
         start = date(year, service.fiscal_start_month, 1)
         end = start + relativedelta(years=1) - relativedelta(days=1)
-        return _range_period(start, end, f"FY {year}–{str(end.year)[-2:]}", "explicit")
+        return _range_period(start, end, f"FY {year}–{str(end.year)[-2:]}", "explicit", service.fiscal_start_month)
 
     if cy_match:
         year = int(cy_match.group(1))
-        return _range_period(date(year, 1, 1), date(year, 12, 31), f"CY {year}", "explicit")
+        return _range_period(date(year, 1, 1), date(year, 12, 31), f"CY {year}", "explicit", service.fiscal_start_month)
 
     if re.search(r"\bcurrent\s+(FY|CY|reporting period)\b", text, re.IGNORECASE):
         start, end, label = service.calendar_range()
-        return _range_period(start, end, label, "explicit_current")
+        return _range_period(start, end, label, "explicit_current", service.fiscal_start_month)
     return None
 
 
@@ -126,14 +140,62 @@ async def latest_available_period(db, collection_name: str, scope: Dict[str, Any
     return _month_period(year, month, f"{calendar.month_name[month]} {year}", "latest_available")
 
 
+def _month_date(month_value: str) -> date:
+    year, month = map(int, month_value.split("-"))
+    return date(year, month, 1)
+
+
+def _annual_window(stored_period: object, fiscal_start_month: int) -> Optional[tuple[date, date]]:
+    value = str(stored_period or "").strip()
+    if re.match(r"^20\d{2}-(0[1-9]|1[0-2])$", value):
+        return None
+    match = re.match(r"^(?:FY\s*)?(20\d{2})\s*[-–]\s*(?:20)?\d{2}$", value, re.IGNORECASE)
+    if match:
+        start = date(int(match.group(1)), fiscal_start_month, 1)
+        return start, start + relativedelta(months=11)
+    match = re.match(r"^CY\s*(20\d{2})$", value, re.IGNORECASE)
+    if match:
+        start = date(int(match.group(1)), 1, 1)
+        return start, date(start.year, 12, 1)
+    return None
+
+
+def annual_record_allocation(stored_period: object, requested_period: ResolvedPeriod) -> float:
+    """Allocate an annual FY/CY value to the requested month range without altering stored data."""
+    annual_window = _annual_window(stored_period, requested_period.fiscal_start_month)
+    if annual_window is None:
+        return 1.0
+    annual_start, annual_end = annual_window
+    request_start = _month_date(requested_period.start_month)
+    request_end = _month_date(requested_period.end_month)
+    overlap_start = max(annual_start, request_start)
+    overlap_end = min(annual_end, request_end)
+    if overlap_start > overlap_end:
+        return 0.0
+    overlapping_months = (overlap_end.year - overlap_start.year) * 12 + overlap_end.month - overlap_start.month + 1
+    return overlapping_months / 12
+
+
+def _annual_period_values(period: ResolvedPeriod) -> list[str]:
+    start = _month_date(period.start_month)
+    end = _month_date(period.end_month)
+    fiscal_years, calendar_years = set(), set()
+    cursor = start
+    while cursor <= end:
+        calendar_years.add(cursor.year)
+        fiscal_years.add(cursor.year if cursor.month >= period.fiscal_start_month else cursor.year - 1)
+        cursor += relativedelta(months=1)
+    values = []
+    for year in sorted(fiscal_years):
+        values.extend(period_variants(year, "FY"))
+    for year in sorted(calendar_years):
+        values.extend(period_variants(year, "CY"))
+    return values
+
+
 def emission_period_filter(period: ResolvedPeriod) -> Dict[str, Any]:
     month_range = {"reporting_period": {"$gte": period.start_month, "$lte": period.end_month}}
-    start_year = int(period.start_month[:4])
-    end_year = int(period.end_month[:4])
-    yearly_values = []
-    for year in range(start_year, end_year + 1):
-        yearly_values.extend(period_variants(year, "FY"))
-        yearly_values.extend(period_variants(year, "CY"))
+    yearly_values = _annual_period_values(period)
     return {"$or": [month_range, {"reporting_period": {"$in": yearly_values}}]}
 
 

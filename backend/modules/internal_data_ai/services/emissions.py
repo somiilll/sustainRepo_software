@@ -1,7 +1,7 @@
 """Emissions service for Internal Data AI."""
 from shared.database.mongo import db
 from modules.internal_data_ai.query_scope import and_filters, extract_consumption, normalize_scope, organization_scope, resolve_authorized_facilities, scope_filter
-from modules.internal_data_ai.reporting_periods import emission_period_filter, latest_available_period, period_from_payload
+from modules.internal_data_ai.reporting_periods import annual_record_allocation, emission_period_filter, latest_available_period, period_from_payload
 
 
 async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> dict:
@@ -30,7 +30,8 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         return {"total_found": 0, "showing": 0, "period": "No reporting period available", "records": []}
     query = and_filters(query, emission_period_filter(period))
 
-    records = await db.emission_records.find(query, {"_id": 0}).sort("created_at", -1).to_list(50)
+    raw_records = await db.emission_records.find(query, {"_id": 0}).sort("created_at", -1).to_list(50)
+    records = [record for record in raw_records if annual_record_allocation(record.get("reporting_period"), period) > 0]
 
     # Also get facility names for context
     fac_ids = list(set(r.get("facility_id") for r in records if r.get("facility_id")))
@@ -40,8 +41,18 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         fac_map = {f["id"]: f["name"] for f in facs}
 
     summary = []
+    totals_by_unit = {}
+    allocation_notes = []
     for r in records[:20]:
         qty_value, qty_unit = extract_consumption(r)
+        allocation_factor = annual_record_allocation(r.get("reporting_period"), period)
+        allocated_quantity = round(qty_value * allocation_factor, 6) if isinstance(qty_value, (int, float)) else qty_value
+        if isinstance(allocated_quantity, (int, float)) and qty_unit:
+            totals_by_unit[qty_unit] = totals_by_unit.get(qty_unit, 0) + allocated_quantity
+        if allocation_factor < 1:
+            allocation_notes.append(
+                f"{r.get('reporting_period')} value allocated at {allocation_factor:g} of its stored amount for {period.label}."
+            )
         summary.append({
             "id": r.get("id"),
             "facility": fac_map.get(r.get("facility_id"), r.get("facility_id")),
@@ -49,8 +60,10 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
             "category": r.get("category"),
             "sub_category": r.get("sub_category"),
             "fuel_type": r.get("fuel_type"),
-            "quantity": qty_value,
+            "quantity": allocated_quantity,
             "unit": qty_unit,
+            "stored_quantity": qty_value,
+            "allocation_factor": allocation_factor,
             "total_emissions": r.get("total_emissions"),
             "co2e_emissions": r.get("co2e_emissions"),
             "formula_id": r.get("formula_id"),
@@ -65,4 +78,9 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         "showing": len(summary),
         "period": period.label,
         "records": summary,
+        "consumption_totals": [
+            {"quantity": round(quantity, 6), "unit": unit, "records": len(records)}
+            for unit, quantity in totals_by_unit.items()
+        ],
+        "allocation_notes": allocation_notes,
     }

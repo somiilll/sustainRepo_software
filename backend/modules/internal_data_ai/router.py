@@ -10,6 +10,7 @@ from typing import Optional, List
 
 from shared.database.mongo import db
 from modules.auth.dependencies import get_current_user
+from modules.internal_data_ai.entity_guards import category_is_explicitly_mentioned
 from modules.internal_data_ai.intent_detector import detect_intent
 from modules.internal_data_ai.planner import plan_service_calls
 from modules.internal_data_ai.executor import execute_plan
@@ -88,6 +89,9 @@ async def internal_ai_chat(
 
     # Enrich entities from embedding matches
     entities = intent_result.get("entities", {})
+    if entities.get("category") and not category_is_explicitly_mentioned(request.message, entities["category"]):
+        logger.info("Discarded inferred emission category not explicitly requested: %s", entities["category"])
+        entities["category"] = None
     explicit_period = extract_explicit_period(request.message, organization)
     # The parser is authoritative: an LLM cannot invent a reporting period.
     entities["period"] = explicit_period.as_dict() if explicit_period else None

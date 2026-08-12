@@ -116,11 +116,11 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
         ],
         "consumption_breakdown": [
             {
-                "fuel_type": c["_id"].get("fuel_type"),
-                "unit": c["_id"].get("unit"),
-                "total_quantity": round(c["total_quantity"], 2),
-                "total_emissions": round(c["total_emissions"], 2),
-                "records": c["record_count"],
+                "fuel_type": (c.get("_id") or {}).get("fuel_type") if isinstance(c.get("_id"), dict) else None,
+                "unit": (c.get("_id") or {}).get("unit") if isinstance(c.get("_id"), dict) else None,
+                "total_quantity": round(c.get("total_quantity", 0), 2),
+                "total_emissions": round(c.get("total_emissions", 0), 2),
+                "records": c.get("record_count", 0),
             }
             for c in consumption_data
         ],

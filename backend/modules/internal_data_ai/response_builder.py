@@ -26,6 +26,7 @@ Rules:
 - For evidence, mention file name, upload date, and linked record.
 - Keep responses under 300 words unless the data requires more.
 - Always mention the time period if the data is period-specific.
+- For emission-record consumption answers, treat `consumption_totals` as the authoritative total. Record `quantity` values are already allocated for the requested period; explain any `allocation_notes` clearly and never recalculate from `stored_quantity`.
 
 Return a JSON object:
 {
