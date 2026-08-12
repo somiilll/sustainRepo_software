@@ -193,6 +193,14 @@ def _annual_period_values(period: ResolvedPeriod) -> list[str]:
     return values
 
 
+def annual_period_allocation_map(period: ResolvedPeriod) -> Dict[str, float]:
+    """Return matching annual stored-period variants with their requested-period allocation factor."""
+    return {
+        stored_period: annual_record_allocation(stored_period, period)
+        for stored_period in _annual_period_values(period)
+    }
+
+
 def emission_period_filter(period: ResolvedPeriod) -> Dict[str, Any]:
     month_range = {"reporting_period": {"$gte": period.start_month, "$lte": period.end_month}}
     yearly_values = _annual_period_values(period)

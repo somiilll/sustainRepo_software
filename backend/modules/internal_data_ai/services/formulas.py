@@ -1,5 +1,6 @@
 """Formula-linked methodology retrieval for Internal Data AI."""
 from typing import Any, Iterable
+import re
 
 from shared.database.mongo import db
 from modules.internal_data_ai.query_scope import and_filters, extract_consumption
@@ -20,6 +21,54 @@ def _formula_reference_values(formula: dict, keys: Iterable[str]) -> set[str]:
     for key in keys:
         values.update(_string_values(formula.get(key)))
     return values
+
+
+def _definition_reference_values(definition: Any) -> set[str]:
+    if not isinstance(definition, dict):
+        return set()
+    values = set()
+    for section in ("inputs", "properties", "outputs"):
+        for item in definition.get(section, []):
+            if isinstance(item, dict) and item.get("variable"):
+                values.add(str(item["variable"]))
+    for step in definition.get("steps", []):
+        if isinstance(step, dict) and step.get("name"):
+            values.add(str(step["name"]))
+    return values
+
+
+def _fallback_label(key: str) -> str:
+    known_labels = {"co2": "CO₂", "ch4": "CH₄", "n2o": "N₂O", "co2e": "CO₂e"}
+    return known_labels.get(key, key.replace("_", " ").title())
+
+
+def _humanize_expression(expression: str, labels: dict[str, str]) -> str:
+    return re.sub(
+        r"\b[a-zA-Z_][a-zA-Z0-9_]*\b",
+        lambda match: labels.get(match.group(0), _fallback_label(match.group(0))),
+        expression or "",
+    )
+
+
+def build_methodology_summary(formula: dict, variables: list[dict], properties: list[dict]) -> dict:
+    """Create a business-readable formula view without IDs, raw schema, or units."""
+    labels = {
+        item["key"]: item.get("label") or _fallback_label(item["key"])
+        for item in [*variables, *properties]
+        if item.get("key")
+    }
+    definition = formula.get("definition")
+    if not isinstance(definition, dict):
+        return {"name": formula.get("name") or "Calculation methodology", "formula": str(definition or "")}
+    steps = []
+    for step in definition.get("steps", []):
+        if not isinstance(step, dict) or not step.get("name") or not step.get("expression"):
+            continue
+        steps.append({
+            "result": labels.get(step["name"], _fallback_label(step["name"])),
+            "formula": _humanize_expression(step["expression"], labels),
+        })
+    return {"name": formula.get("name") or "Calculation methodology", "steps": steps}
 
 
 def _global_or_org_scope(org_id: str) -> dict:
@@ -74,8 +123,9 @@ async def explain(org_id: str, **kwargs) -> dict:
             })
             continue
 
-        variable_keys = _formula_reference_values(formula, ("variable_ids", "variables", "input_variables"))
-        property_keys = _formula_reference_values(formula, ("property_keys", "properties"))
+        definition_keys = _definition_reference_values(formula.get("definition"))
+        variable_keys = _formula_reference_values(formula, ("variable_ids", "variables", "input_variables")) | definition_keys
+        property_keys = _formula_reference_values(formula, ("property_keys", "properties")) | definition_keys
         variables = []
         if variable_keys:
             variables = await db.ce_variables.find(
@@ -129,9 +179,19 @@ async def explain(org_id: str, **kwargs) -> dict:
                 "formula_version_id": audit.get("formula_version_id"),
             } if audit else None,
             "audit_message": None if audit else "Detailed calculation inputs are not available.",
+            "presentation": build_methodology_summary(formula, variables, properties),
         })
 
+    methodology_summaries = []
+    seen_summaries = set()
+    for item in methodologies:
+        summary = item.get("presentation") if item.get("formula_available") else None
+        fingerprint = repr(summary)
+        if summary and fingerprint not in seen_summaries:
+            methodology_summaries.append(summary)
+            seen_summaries.add(fingerprint)
     return {
         "reporting_period": period.get("label") if isinstance(period, dict) else None,
         "methodologies": methodologies,
+        "methodology_summaries": methodology_summaries,
     }

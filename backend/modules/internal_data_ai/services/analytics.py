@@ -1,7 +1,44 @@
 """Analytics service for Internal Data AI — aggregations, rankings, summaries."""
 from shared.database.mongo import db
 from modules.internal_data_ai.query_scope import and_filters, normalize_scope, organization_scope, resolve_authorized_facilities, scope_filter
-from modules.internal_data_ai.reporting_periods import emission_period_filter, latest_available_period, period_from_payload
+from modules.internal_data_ai.reporting_periods import annual_period_allocation_map, emission_period_filter, latest_available_period, period_from_payload
+
+
+def _allocation_stages(period) -> list[dict]:
+    allocation_groups = {}
+    for stored_period, factor in annual_period_allocation_map(period).items():
+        allocation_groups.setdefault(factor, []).append(stored_period)
+    branches = [
+        {"case": {"$in": ["$reporting_period", stored_periods]}, "then": factor}
+        for factor, stored_periods in allocation_groups.items()
+    ]
+    return [
+        {"$addFields": {
+            "_internal_ai_allocation_factor": {
+                "$switch": {"branches": branches, "default": 1}
+            }
+        }},
+        {"$addFields": {
+            "_internal_ai_allocated_emissions": {"$multiply": [
+                {"$convert": {
+                    "input": {"$ifNull": ["$co2e_emissions", "$total_emissions"]},
+                    "to": "double",
+                    "onError": 0,
+                    "onNull": 0,
+                }},
+                "$_internal_ai_allocation_factor",
+            ]},
+            "_internal_ai_allocated_quantity": {"$multiply": [
+                {"$convert": {
+                    "input": "$dynamic_field_values.qty.value",
+                    "to": "double",
+                    "onError": 0,
+                    "onNull": 0,
+                }},
+                "$_internal_ai_allocation_factor",
+            ]},
+        }},
+    ]
 
 
 async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
@@ -29,13 +66,15 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     if period is None:
         return {"total_records": 0, "unit": "tCO2e", "period": "No reporting period available", "facility_rankings": [], "category_breakdown": [], "scope_breakdown": []}
     match_stage = and_filters(match_stage, emission_period_filter(period))
+    allocation_stages = _allocation_stages(period)
 
     # Facility-wise emissions
     pipeline = [
         {"$match": match_stage},
+        *allocation_stages,
         {"$group": {
             "_id": "$facility_id",
-            "total_emissions": {"$sum": {"$toDouble": {"$ifNull": ["$co2e_emissions", "$total_emissions"]}}},
+            "total_emissions": {"$sum": "$_internal_ai_allocated_emissions"},
             "record_count": {"$sum": 1},
         }},
         {"$sort": {"total_emissions": -1}},
@@ -53,9 +92,10 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     # Category-wise emissions
     cat_pipeline = [
         {"$match": match_stage},
+        *allocation_stages,
         {"$group": {
             "_id": "$category",
-            "total_emissions": {"$sum": {"$toDouble": {"$ifNull": ["$co2e_emissions", "$total_emissions"]}}},
+            "total_emissions": {"$sum": "$_internal_ai_allocated_emissions"},
             "record_count": {"$sum": 1},
         }},
         {"$sort": {"total_emissions": -1}},
@@ -66,9 +106,10 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     # Scope-wise breakdown
     scope_pipeline = [
         {"$match": match_stage},
+        *allocation_stages,
         {"$group": {
             "_id": "$scope",
-            "total_emissions": {"$sum": {"$toDouble": {"$ifNull": ["$co2e_emissions", "$total_emissions"]}}},
+            "total_emissions": {"$sum": "$_internal_ai_allocated_emissions"},
             "record_count": {"$sum": 1},
         }},
         {"$sort": {"_id": 1}},
@@ -79,15 +120,11 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     # Quantity lives in dynamic_field_values.qty.value; unit in dynamic_field_values.qty.unit
     consumption_pipeline = [
         {"$match": match_stage},
+        *allocation_stages,
         {"$group": {
             "_id": {"fuel_type": "$fuel_type", "unit": "$dynamic_field_values.qty.unit"},
-            "total_quantity": {"$sum": {"$convert": {
-                "input": "$dynamic_field_values.qty.value",
-                "to": "double",
-                "onError": 0,
-                "onNull": 0,
-            }}},
-            "total_emissions": {"$sum": {"$toDouble": {"$ifNull": ["$co2e_emissions", "$total_emissions"]}}},
+            "total_quantity": {"$sum": "$_internal_ai_allocated_quantity"},
+            "total_emissions": {"$sum": "$_internal_ai_allocated_emissions"},
             "record_count": {"$sum": 1},
         }},
         {"$sort": {"total_quantity": -1}},

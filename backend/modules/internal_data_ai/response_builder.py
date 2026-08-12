@@ -27,6 +27,8 @@ Rules:
 - Keep responses under 300 words unless the data requires more.
 - Always mention the time period if the data is period-specific.
 - For emission-record consumption answers, treat `consumption_totals` as the authoritative total. Record `quantity` values are already allocated for the requested period; explain any `allocation_notes` clearly and never recalculate from `stored_quantity`.
+- For emissions totals or facility comparisons, use the supplied `emissions_totals` or `facility_emissions` values and their stated unit. Never say an emissions unit is missing when the data provides `tCO2e`.
+- For methodology questions without an explicit request for audit inputs, record-level detail, or calculation substitutions: use only `methodology_summaries`. Show the methodology name and plain-language formula steps. Do not show formula IDs, linked records, raw variable keys, input/property lists, technical units, output schemas, or audit-availability messages.
 
 Return a JSON object:
 {
@@ -58,7 +60,18 @@ async def build_response(
 ) -> dict:
     """Format structured service data into a natural language response."""
     try:
-        data_str = json.dumps(service_data, default=str)
+        formatter_data = service_data
+        detailed_terms = ("audit", "record-level", "record level", "input value", "substitution", "calculation input")
+        is_detailed_request = any(term in question.lower() for term in detailed_terms)
+        if intent.get("intent") == "formula_calculation" and not is_detailed_request:
+            formula_data = service_data.get("formulas", {})
+            formatter_data = {
+                "formulas": {
+                    "reporting_period": formula_data.get("reporting_period"),
+                    "methodology_summaries": formula_data.get("methodology_summaries", []),
+                }
+            }
+        data_str = json.dumps(formatter_data, default=str)
         # Truncate if too large to avoid token limits
         if len(data_str) > 15000:
             data_str = data_str[:15000] + "... [truncated]"

@@ -42,13 +42,26 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
 
     summary = []
     totals_by_unit = {}
+    total_emissions = 0.0
+    emission_record_count = 0
+    emissions_by_facility = {}
     allocation_notes = []
     for r in records[:20]:
         qty_value, qty_unit = extract_consumption(r)
         allocation_factor = annual_record_allocation(r.get("reporting_period"), period)
         allocated_quantity = round(qty_value * allocation_factor, 6) if isinstance(qty_value, (int, float)) else qty_value
+        raw_emissions = r.get("co2e_emissions") if r.get("co2e_emissions") is not None else r.get("total_emissions")
+        allocated_emissions = round(float(raw_emissions) * allocation_factor, 6) if isinstance(raw_emissions, (int, float)) else None
         if isinstance(allocated_quantity, (int, float)) and qty_unit:
             totals_by_unit[qty_unit] = totals_by_unit.get(qty_unit, 0) + allocated_quantity
+        if allocated_emissions is not None:
+            total_emissions += allocated_emissions
+            emission_record_count += 1
+            facility_id = r.get("facility_id")
+            facility_name = fac_map.get(facility_id, facility_id)
+            item = emissions_by_facility.setdefault(facility_name, {"emissions": 0.0, "records": 0})
+            item["emissions"] += allocated_emissions
+            item["records"] += 1
         if allocation_factor < 1:
             allocation_notes.append(
                 f"{r.get('reporting_period')} value allocated at {allocation_factor:g} of its stored amount for {period.label}."
@@ -64,6 +77,8 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
             "unit": qty_unit,
             "stored_quantity": qty_value,
             "allocation_factor": allocation_factor,
+            "emissions_value": allocated_emissions,
+            "emissions_unit": "tCO2e" if allocated_emissions is not None else None,
             "total_emissions": r.get("total_emissions"),
             "co2e_emissions": r.get("co2e_emissions"),
             "formula_id": r.get("formula_id"),
@@ -81,6 +96,11 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         "consumption_totals": [
             {"quantity": round(quantity, 6), "unit": unit, "records": len(records)}
             for unit, quantity in totals_by_unit.items()
+        ],
+        "emissions_totals": [{"value": round(total_emissions, 6), "unit": "tCO2e", "records": emission_record_count}] if emission_record_count else [],
+        "facility_emissions": [
+            {"facility": facility, "value": round(data["emissions"], 6), "unit": "tCO2e", "records": data["records"]}
+            for facility, data in emissions_by_facility.items()
         ],
         "allocation_notes": allocation_notes,
     }

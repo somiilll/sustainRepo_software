@@ -1,7 +1,7 @@
 import pytest
 
 from modules.internal_data_ai.entity_guards import category_is_explicitly_mentioned
-from modules.internal_data_ai.reporting_periods import ResolvedPeriod, annual_record_allocation
+from modules.internal_data_ai.reporting_periods import ResolvedPeriod, annual_period_allocation_map, annual_record_allocation
 from modules.internal_data_ai.services import emissions
 
 
@@ -55,11 +55,12 @@ class TestAnnualAllocation:
         period = ResolvedPeriod("2026-07", "2026-07", "July 2026", "explicit", fiscal_start_month=4)
         assert annual_record_allocation("FY 2026-27", period) == pytest.approx(1 / 12)
         assert annual_record_allocation("FY 2025-26", period) == 0
+        assert annual_period_allocation_map(period)["FY 2026-27"] == pytest.approx(1 / 12)
 
     @pytest.mark.asyncio
     async def test_diesel_query_keeps_mobile_and_allocates_fy_record(self, monkeypatch):
         records = [
-            {"id": "stationary-a", "organization_id": "org-a", "facility_id": "facility-e", "fuel_type": "Diesel", "category": "Stationary Combustion", "reporting_period": "2026-07", "dynamic_field_values": {"qty": {"value": 323, "unit": "L"}}},
+            {"id": "stationary-a", "organization_id": "org-a", "facility_id": "facility-e", "fuel_type": "Diesel", "category": "Stationary Combustion", "reporting_period": "2026-07", "co2e_emissions": 0.5, "dynamic_field_values": {"qty": {"value": 323, "unit": "L"}}},
             {"id": "stationary-b", "organization_id": "org-a", "facility_id": "facility-e", "fuel_type": "Diesel", "category": "Stationary Combustion", "reporting_period": "2026-07", "dynamic_field_values": {"qty": {"value": 5177.2, "unit": "L"}}},
             {"id": "mobile", "organization_id": "org-a", "facility_id": "facility-e", "fuel_type": "Diesel", "category": "Mobile Combustion", "reporting_period": "2026-07", "dynamic_field_values": {"qty": {"value": 5678, "unit": "L"}}},
             {"id": "annual", "organization_id": "org-a", "facility_id": "facility-a", "fuel_type": "Diesel", "category": "Stationary Combustion", "reporting_period": "FY 2026-27", "dynamic_field_values": {"qty": {"value": 12000, "unit": "L"}}},
@@ -72,4 +73,6 @@ class TestAnnualAllocation:
         assert [record["id"] for record in result["records"]] == ["stationary-a", "stationary-b", "mobile", "annual"]
         assert result["records"][-1]["quantity"] == 1000
         assert result["consumption_totals"] == [{"quantity": 12178.2, "unit": "L", "records": 4}]
+        assert result["records"][0]["emissions_unit"] == "tCO2e"
+        assert result["emissions_totals"] == [{"value": 0.5, "unit": "tCO2e", "records": 1}]
         assert "category" not in str(fake_db.emission_records.find_calls[0])
