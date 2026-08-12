@@ -101,9 +101,10 @@ async def test_approved_emission_proposal_writes_a_linked_post_apply_history_eve
         entity_subtype="scope1",
         apply_data={"proposed_changes": {
             "inputs": {"qty": {"value": 205, "unit": "L"}},
-            "outputs": {},
-            "co2e_emissions": 0.538369650,
-            "total_emissions": 0.538369650,
+            "outputs": {
+                "co2": {"value": 0.538369650, "unit": "tCO2"},
+                "co2e": {"value": 0.538369650, "unit": "tCO2e"},
+            },
         }},
         proposal={"id": "proposal-1", "request_type": "update", "submitted_by": "user-1"},
         approver_id="approver-1",
@@ -113,6 +114,7 @@ async def test_approved_emission_proposal_writes_a_linked_post_apply_history_eve
 
     assert record["version"] == 1
     assert record["dynamic_field_values"]["qty"]["value"] == 205
+    assert record["total_emissions"] == pytest.approx(0.538369650)
     assert len(fake_db.emission_history.events) == 1
     event = fake_db.emission_history.events[0]
     assert event["emission_id"] == "record-1"

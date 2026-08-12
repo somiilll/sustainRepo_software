@@ -352,18 +352,23 @@ export default function EmissionHistoryDialog({
                 // New format: backend provides field_changes array
                 changedFields = history.field_changes
                   .filter(fc => !skipFields.includes(fc.field))
-                  .map(fc => ({
-                    label: fc.display_name || fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                    oldValue: fc.old_value,
-                    newValue: fc.new_value,
-                    field: fc.field,
-                    fieldType: fc.field_type,
-                    employeeName: fc.employee_name,
-                    employeeId: fc.employee_id,
-                    isComplex: typeof fc.old_value === 'object' || typeof fc.new_value === 'object',
-                    oldIsOverride: fc.old_is_override,
-                    newIsOverride: fc.new_is_override
-                  }));
+                  .map(fc => {
+                    const isSingleInputDelta = fc.field === 'input_values' && fc.input_key;
+                    const oldValue = isSingleInputDelta ? { [fc.input_key]: fc.old_value } : fc.old_value;
+                    const newValue = isSingleInputDelta ? { [fc.input_key]: fc.new_value } : fc.new_value;
+                    return {
+                      label: fc.display_name || fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      oldValue,
+                      newValue,
+                      field: fc.field,
+                      fieldType: fc.field_type,
+                      employeeName: fc.employee_name,
+                      employeeId: fc.employee_id,
+                      isComplex: typeof oldValue === 'object' || typeof newValue === 'object',
+                      oldIsOverride: fc.old_is_override,
+                      newIsOverride: fc.new_is_override
+                    };
+                  });
               } else if (isRejection && history.rejected_proposed_values) {
                 const rejectedInputs = history.rejected_proposed_values.inputs || {};
                 const currentInputs = oldValues.dynamic_field_values || {};

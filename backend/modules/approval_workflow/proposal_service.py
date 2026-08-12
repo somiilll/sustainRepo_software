@@ -794,7 +794,21 @@ class ProposalService:
                 # Use values from proposal (original calculation or no recalc needed)
                 # IMPORTANT: Check proposed_changes.outputs FIRST as it contains the NEW calculated values
                 if "proposed_changes" in apply_data and "outputs" in apply_data.get("proposed_changes", {}):
-                    update_fields["outputs"] = apply_data["proposed_changes"]["outputs"]
+                    proposed_outputs = apply_data["proposed_changes"]["outputs"]
+                    update_fields["outputs"] = proposed_outputs
+                    output_field_map = {
+                        "co2": "co2_emissions",
+                        "ch4": "ch4_emissions",
+                        "n2o": "n2o_emissions",
+                        "co2e": "co2e_emissions",
+                    }
+                    for output_key, emission_field in output_field_map.items():
+                        output_value = proposed_outputs.get(output_key)
+                        if isinstance(output_value, dict) and output_value.get("value") is not None:
+                            update_fields[emission_field] = output_value["value"]
+                    co2e_output = proposed_outputs.get("co2e")
+                    if isinstance(co2e_output, dict) and co2e_output.get("value") is not None:
+                        update_fields["total_emissions"] = co2e_output["value"]
                     logger.info(f"[APPROVAL] Using proposed_changes.outputs for update")
                 elif "outputs" in apply_data:
                     update_fields["outputs"] = apply_data["outputs"]
