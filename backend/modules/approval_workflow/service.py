@@ -458,11 +458,20 @@ class ApprovalWorkflowService:
                 return (False, f"No active workflow found for {data.entity_type}", None)
         
         # Check if there's already a pending request for this entity
-        existing = await db[REQUESTS_COLLECTION].find_one({
+        entity_type_val = data.entity_type.value if hasattr(data.entity_type, 'value') else data.entity_type
+        pending_filter = {
             "organization_id": organization_id,
             "entity_id": data.entity_id,
             "status": {"$in": [ApprovalStatus.PENDING.value, ApprovalStatus.IN_REVIEW.value]},
-        })
+        }
+        if entity_type_val == "esg_response":
+            snapshot = data.entity_snapshot or {}
+            pending_filter.update({
+                "entity_type": "esg_response",
+                "entity_snapshot.framework": snapshot.get("framework"),
+                "entity_snapshot.reporting_year": snapshot.get("reporting_year"),
+            })
+        existing = await db[REQUESTS_COLLECTION].find_one(pending_filter)
         if existing:
             return (False, "Entity already has a pending approval request", None)
         
@@ -486,7 +495,6 @@ class ApprovalWorkflowService:
             deadline = _now() + timedelta(days=workflow["default_deadline_days"])
         
         # Create request
-        entity_type_val = data.entity_type.value if hasattr(data.entity_type, 'value') else data.entity_type
         request = ApprovalRequest(
             organization_id=organization_id,
             workflow_id=workflow["id"],
