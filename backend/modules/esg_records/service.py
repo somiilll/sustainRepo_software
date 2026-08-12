@@ -144,6 +144,7 @@ class ESGRecordsService:
                     sub_subcategory=data.sub_subcategory,
                     facility_id=data.facility_id,
                     reporting_period=data.reporting_period,
+                    assignment=assignment,
                 )
                 if not period_valid:
                     rp = data.reporting_period
@@ -404,6 +405,7 @@ class ESGRecordsService:
         sub_subcategory: Optional[str],
         facility_id: Optional[str],
         reporting_period: Any,
+        assignment: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Check if user has an active task for the given reporting period.
@@ -427,12 +429,16 @@ class ESGRecordsService:
             # Convert month name to number
             month_names = ["January", "February", "March", "April", "May", "June",
                           "July", "August", "September", "October", "November", "December"]
-            if isinstance(month, str) and month in month_names:
+            if isinstance(month, str) and month.strip().isdigit():
+                month_num = int(month.strip())
+            elif isinstance(month, str) and month in month_names:
                 month_num = month_names.index(month) + 1
             elif isinstance(month, int):
                 month_num = month
             else:
-                month_num = 1
+                return False
+            if not 1 <= month_num <= 12:
+                return False
             period_key = f"{year}-{str(month_num).zfill(2)}"
         elif rp_type == "quarterly" and quarter:
             q = quarter.replace("Q", "") if isinstance(quarter, str) else quarter
@@ -453,27 +459,45 @@ class ESGRecordsService:
             task_query["subcategory"] = subcategory
         if sub_subcategory:
             task_query["sub_subcategory"] = sub_subcategory
-        if facility_id:
-            task_query["facility_id"] = facility_id
-        
         matching_tasks = await db.esg_reporting_tasks.find(
             task_query,
-            {"_id": 0, "id": 1}
+            {"_id": 0, "id": 1, "facility_id": 1, "assignment_id": 1}
         ).to_list(100)
         
         if not matching_tasks:
             return False  # No tasks for this period
         
-        task_ids = [t["id"] for t in matching_tasks]
-        
-        # Step 2: Check if user is assigned to any of these tasks
-        assignee = await db.esg_task_assignees.find_one({
-            "task_id": {"$in": task_ids},
-            "user_id": user_id,
-            "is_active": True,
-        })
-        
-        return assignee is not None
+        async def has_active_task(task_ids: List[str]) -> bool:
+            if not task_ids:
+                return False
+            assignee = await db.esg_task_assignees.find_one({
+                "task_id": {"$in": task_ids},
+                "user_id": user_id,
+                "is_active": True,
+            })
+            return assignee is not None
+
+        if facility_id:
+            exact_facility_tasks = [task["id"] for task in matching_tasks if task.get("facility_id") == facility_id]
+            # A facility-specific task takes precedence and cannot be bypassed by an org task.
+            if exact_facility_tasks:
+                return await has_active_task(exact_facility_tasks)
+
+            snapshot_ids = ((assignment or {}).get("facility_snapshot") or {}).get("facility_ids") or []
+            is_covered_org_assignment = (
+                (assignment or {}).get("assignment_level") == "organization"
+                and facility_id in snapshot_ids
+            )
+            if not is_covered_org_assignment:
+                return False
+            org_task_ids = [
+                task["id"] for task in matching_tasks
+                if task.get("facility_id") is None and task.get("assignment_id") == (assignment or {}).get("id")
+            ]
+            return await has_active_task(org_task_ids)
+
+        org_task_ids = [task["id"] for task in matching_tasks if task.get("facility_id") is None]
+        return await has_active_task(org_task_ids)
 
     def _calculate_field_changes(
         self,

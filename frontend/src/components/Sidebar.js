@@ -143,8 +143,6 @@ export default function Sidebar() {
 
     // Environment: keep GHG Module, replace rest with org modules
     const envModules = resolvedConfig.modules || [];
-    const socialModules = resolvedConfig.social_modules || [];
-    const govModules = resolvedConfig.governance_modules || [];
 
     const ghgStatic = [
       { key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
@@ -156,13 +154,9 @@ export default function Sidebar() {
     ];
 
     const envChildren = envModules.length > 0 ? buildSectionChildren('environment', envModules, '/environment', null, ghgStatic) : null;
-    const socialChildren = socialModules.length > 0 ? buildSectionChildren('social', socialModules, '/social', null, null) : null;
-    const govChildren = govModules.length > 0 ? buildSectionChildren('governance', govModules, '/governance', null, null) : null;
 
     return sidebarConfig.map(item => {
       if (item.key === 'environment' && envChildren) return { ...item, children: envChildren };
-      if (item.key === 'social' && socialChildren) return { ...item, children: socialChildren };
-      if (item.key === 'governance' && govChildren) return { ...item, children: govChildren };
       return item;
     });
   }, [isSuperAdmin, resolvedConfig]);
