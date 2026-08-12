@@ -47,7 +47,7 @@ class ESGQuestionnaireService:
         configs = await self._configs.find(
             {"question_key": {"$in": question_keys}},
             {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
-             "section": 1, "framework": 1, "disclosure_name": 1}
+             "section": 1, "framework": 1, "disclosure_name": 1, "sub_questions": 1}
         ).to_list(500)
         return configs
 
