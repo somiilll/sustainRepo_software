@@ -18,6 +18,80 @@ from shared.database.mongo import db
 logger = logging.getLogger(__name__)
 
 
+def build_emission_proposal_history_event(
+    current: Dict[str, Any],
+    updated: Dict[str, Any],
+    proposal: Dict[str, Any],
+    *,
+    action: str,
+    actor_id: str,
+    actor_email: str,
+    actor_name: str,
+    timestamp: str,
+    rejection_reason: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build the linked post-resolution format expected by GHG version history."""
+    old_inputs = current.get("dynamic_field_values") or {}
+    new_inputs = updated.get("dynamic_field_values") or old_inputs
+    field_changes = []
+    for key in sorted(set(old_inputs) | set(new_inputs)):
+        if old_inputs.get(key) != new_inputs.get(key):
+            field_changes.append({
+                "field": "input_values",
+                "input_key": key,
+                "old_value": old_inputs.get(key),
+                "new_value": new_inputs.get(key),
+                "field_type": "input_values",
+            })
+    for field in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions"):
+        if current.get(field) != updated.get(field):
+            field_changes.append({
+                "field": field,
+                "old_value": current.get(field),
+                "new_value": updated.get(field),
+                "field_type": "simple",
+            })
+
+    changes = {
+        "action": action,
+        "request_type": proposal.get("request_type", "update"),
+        "proposal_id": proposal.get("id"),
+        "old_values": {
+            "dynamic_field_values": old_inputs,
+            "total_emissions": current.get("total_emissions"),
+            "co2e_emissions": current.get("co2e_emissions"),
+        },
+        "new_values": {
+            "dynamic_field_values": new_inputs,
+            "total_emissions": updated.get("total_emissions"),
+            "co2e_emissions": updated.get("co2e_emissions"),
+        },
+    }
+    if rejection_reason:
+        changes["rejection_reason"] = rejection_reason
+    approved = action == "approved"
+    return {
+        "id": str(uuid.uuid4()),
+        "emission_id": current.get("id"),
+        "facility_id": current.get("facility_id"),
+        "organization_id": current.get("organization_id"),
+        "scope": current.get("scope"),
+        "category": current.get("category"),
+        "changed_by": actor_id,
+        "changed_by_email": actor_email,
+        "changed_by_name": actor_name,
+        "changed_at": timestamp,
+        "version": updated.get("version", current.get("version")),
+        "field_changes": field_changes,
+        "changes_summary": "Update Approved" if approved else "Update Rejected",
+        "changes": changes,
+        "approved_by": actor_id if approved else None,
+        "approved_by_email": actor_email if approved else None,
+        "approved_by_name": actor_name if approved else None,
+        "approved_at": timestamp if approved else None,
+    }
+
+
 class NoApproverConfiguredError(Exception):
     """Raised when no approver is configured for an assignment."""
     def __init__(self, assignment_id: str):
@@ -377,6 +451,7 @@ class ProposalService:
             proposal=proposal,
             approver_id=approver_id,
             approver_email=approver_email,
+            approver_name=approver_name,
         )
         
         # 2. Mark this proposal as approved
@@ -525,6 +600,22 @@ class ProposalService:
                 "updated_at": now,
             }}
         )
+
+        if proposal.get("entity_type") == "emission_record":
+            current = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0})
+            if current:
+                history_event = build_emission_proposal_history_event(
+                    current,
+                    current,
+                    proposal,
+                    action="rejected",
+                    actor_id=approver_id,
+                    actor_email=approver_email,
+                    actor_name=approver_name,
+                    timestamp=now,
+                    rejection_reason=rejection_reason,
+                )
+                await db.emission_history.insert_one(history_event)
         
         # Notify the submitter
         try:
@@ -559,6 +650,7 @@ class ProposalService:
         proposal: Dict[str, Any],
         approver_id: str,
         approver_email: str,
+        approver_name: str,
     ):
         """
         Apply approved proposal data to the record.
@@ -595,22 +687,22 @@ class ProposalService:
         if not current:
             return
         
-        # Create version snapshot of current state
-        version_id = str(uuid.uuid4())
-        version_entry = {
-            **current,
-            "version_id": version_id,
-            "version_created_at": now,
-            "version_type": "proposal_approved",
-            "proposal_id": proposal.get("id"),
-            "proposed_by": proposal.get("submitted_by"),
-            "proposed_by_email": proposal.get("submitted_by_email"),
-            "approved_by": approver_id,
-            "approved_by_email": approver_email,
-            "was_approver_modified": proposal.get("approver_modified", False),
-        }
-        
-        await versions.insert_one(version_entry)
+        # ESG records retain their snapshot format. GHG records receive a linked,
+        # post-resolution emission_history event after their approved data is applied.
+        if entity_type != "emission_record":
+            version_entry = {
+                **current,
+                "version_id": str(uuid.uuid4()),
+                "version_created_at": now,
+                "version_type": "proposal_approved",
+                "proposal_id": proposal.get("id"),
+                "proposed_by": proposal.get("submitted_by"),
+                "proposed_by_email": proposal.get("submitted_by_email"),
+                "approved_by": approver_id,
+                "approved_by_email": approver_email,
+                "was_approver_modified": proposal.get("approver_modified", False),
+            }
+            await versions.insert_one(version_entry)
         
         # Update the record with approved data
         update_fields = {
@@ -622,6 +714,7 @@ class ProposalService:
         }
         
         if entity_type == "emission_record":
+            update_fields["version"] = (current.get("version") or 0) + 1
             # For emission records, copy all relevant fields from apply_data
             
             # Determine the final dynamic_field_values to use
@@ -715,6 +808,19 @@ class ProposalService:
             {"id": record_id},
             {"$set": update_fields}
         )
+        if entity_type == "emission_record":
+            updated = await collection.find_one({"id": record_id}, {"_id": 0})
+            history_event = build_emission_proposal_history_event(
+                current,
+                updated or {**current, **update_fields},
+                proposal,
+                action="approved",
+                actor_id=approver_id,
+                actor_email=approver_email,
+                actor_name=approver_name,
+                timestamp=now,
+            )
+            await db.emission_history.insert_one(history_event)
     
     async def count_pending_proposals(
         self,
