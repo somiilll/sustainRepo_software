@@ -27,6 +27,37 @@ def previous_applied_version(versions: List[Dict[str, Any]], index: int) -> Opti
     return None
 
 
+def enrich_proposal_diff_details(version: Dict[str, Any], proposal: Dict[str, Any]) -> None:
+    """Attach stored submitter/approver change stages for a proposal-backed ESG version event."""
+    snapshot = proposal.get("entity_snapshot") or {}
+    submitted = [
+        {
+            "field": item.get("field_key"),
+            "display_name": item.get("field_key", "").replace("_", " ").title(),
+            "old_value": item.get("old_value"),
+            "new_value": item.get("new_value"),
+        }
+        for item in snapshot.get("changes_summary", [])
+        if item.get("field_key")
+    ]
+    version["submitted_field_diffs"] = submitted
+    version["approver_edited"] = bool(snapshot.get("approver_edited") or proposal.get("approver_edited"))
+    final_values = (version.get("snapshot") or {}).get("field_values") or {}
+    version["approver_field_diffs"] = [
+        {
+            "field": item["field"],
+            "display_name": item["display_name"],
+            "old_value": item["new_value"],
+            "new_value": final_values.get(item["field"]),
+        }
+        for item in submitted
+        if final_values.get(item["field"]) != item["new_value"]
+    ] if version["approver_edited"] else []
+    version["requested_by"] = version.get("requested_by") or proposal.get("submitted_by")
+    version["requested_by_name"] = version.get("requested_by_name") or proposal.get("submitted_by_name")
+    version["requested_by_email"] = version.get("requested_by_email") or proposal.get("submitted_by_email")
+
+
 class ESGRecordsService:
     """Service for managing ESG records with versioning."""
     
@@ -2127,6 +2158,14 @@ class ESGRecordsService:
             {"_id": 0}
         ).sort([("version", -1), ("created_at", -1)])
         versions = await cursor.to_list(None)
+        proposal_ids = [version.get("proposal_id") for version in versions if version.get("proposal_id")]
+        proposals_by_id = {}
+        if proposal_ids:
+            proposals = await db.approval_requests.find(
+                {"id": {"$in": proposal_ids}},
+                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "entity_snapshot": 1},
+            ).to_list(None)
+            proposals_by_id = {proposal["id"]: proposal for proposal in proposals}
         
         # Collect user IDs for bulk lookup
         user_ids = list(set(v.get("created_by") for v in versions if v.get("created_by")))
@@ -2142,6 +2181,9 @@ class ESGRecordsService:
             
             # Add user name
             v["changed_by_name"] = v.get("changed_by_name") or user_map.get(v.get("created_by"), "Unknown")
+            proposal = proposals_by_id.get(v.get("proposal_id"))
+            if proposal and v.get("submitted_field_diffs") is None:
+                enrich_proposal_diff_details(v, proposal)
             
             # Keep stored change_type (approved/rejected/etc), only default if not present
             if not v.get("change_type"):

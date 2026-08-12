@@ -146,6 +146,28 @@ def build_esg_proposal_version_event(
         for key in sorted(set(old_values) | set(new_values))
         if old_values.get(key) != new_values.get(key)
     ]
+    snapshot = proposal.get("entity_snapshot") or {}
+    submitted_field_diffs = [
+        {
+            "field": item.get("field_key"),
+            "display_name": item.get("field_key", "").replace("_", " ").title(),
+            "old_value": item.get("old_value"),
+            "new_value": item.get("new_value"),
+        }
+        for item in snapshot.get("changes_summary", [])
+        if item.get("field_key")
+    ]
+    approver_edited = bool(snapshot.get("approver_edited") or proposal.get("approver_edited"))
+    approver_field_diffs = [
+        {
+            "field": item["field"],
+            "display_name": item["display_name"],
+            "old_value": item["new_value"],
+            "new_value": new_values.get(item["field"]),
+        }
+        for item in submitted_field_diffs
+        if new_values.get(item["field"]) != item["new_value"]
+    ] if approver_edited else []
     approved = action == "approved"
     return {
         "id": str(uuid.uuid4()),
@@ -155,6 +177,9 @@ def build_esg_proposal_version_event(
         "snapshot": updated,
         "change_type": action,
         "field_diffs": field_diffs,
+        "submitted_field_diffs": submitted_field_diffs,
+        "approver_edited": approver_edited,
+        "approver_field_diffs": approver_field_diffs,
         "changed_fields": [item["field"] for item in field_diffs],
         "change_reason": rejection_reason if not approved else proposal.get("resolution_comment"),
         "record_was_changed": approved,

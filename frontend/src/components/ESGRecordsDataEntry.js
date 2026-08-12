@@ -1611,7 +1611,8 @@ export default function ESGRecordsDataEntry({
                 const isApproved = version.change_type === 'approved' || approvalDiff?.new_value === 'approved';
                 const isRejected = version.change_type === 'rejected' || approvalDiff?.new_value === 'rejected';
                 const eventTitle = isRejected ? 'Update Rejected' : isApproved ? 'Update Approved' : version.change_type === 'created' ? 'Created' : 'Updated';
-                const visibleDiffs = (version.field_diffs || []).filter(diff => diff.field !== 'approval_status');
+                const hasApproverOverride = isApproved && version.approver_edited && (version.submitted_field_diffs || []).length > 0;
+                const visibleDiffs = hasApproverOverride ? [] : (version.field_diffs || []).filter(diff => diff.field !== 'approval_status');
                 return (
                 <Card key={version.id} className="p-4 border border-stone-200">
                   <div className="flex items-start gap-3">
@@ -1669,6 +1670,34 @@ export default function ESGRecordsDataEntry({
                               </div>
                             ))}
                           </div>
+                        </div>
+                      )}
+                      {hasApproverOverride && (
+                        <div className="mt-3 pt-3 border-t border-stone-200 space-y-3">
+                          <div>
+                            <p className="text-xs font-semibold text-text-muted uppercase mb-2">Submitted Changes</p>
+                            {(version.submitted_field_diffs || []).map((change, cIdx) => (
+                              <div key={`submitted-${cIdx}`} className="text-sm bg-blue-50 rounded p-2 mb-2">
+                                <p className="font-medium text-text-primary mb-1">{change.display_name}</p>
+                                <span className="text-red-600">Previous: {String(change.old_value ?? '(empty)')}</span>
+                                <span className="mx-2 text-text-muted">→</span>
+                                <span className="text-blue-700">Submitted by requester: {String(change.new_value ?? '(empty)')}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {(version.approver_field_diffs || []).length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-text-muted uppercase mb-2">Approver Modifications</p>
+                              {version.approver_field_diffs.map((change, cIdx) => (
+                                <div key={`approver-${cIdx}`} className="text-sm bg-green-50 rounded p-2 mb-2">
+                                  <p className="font-medium text-text-primary mb-1">{change.display_name}</p>
+                                  <span className="text-blue-700">Submitted: {String(change.old_value ?? '(empty)')}</span>
+                                  <span className="mx-2 text-text-muted">→</span>
+                                  <span className="text-green-700">Final approved by approver: {String(change.new_value ?? '(empty)')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

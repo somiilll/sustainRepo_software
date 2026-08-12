@@ -11,8 +11,8 @@ def _record(volume, version=1):
 
 def test_approved_esg_proposal_creates_standard_record_version_event():
     event = build_esg_proposal_version_event(
-        _record(2212, 1), _record(3000, 2),
-        {"id": "proposal-1", "submitted_by": "requester-1", "submitted_by_name": "Ravi", "submitted_at": "2026-08-12T09:48:10Z"},
+        _record(2212, 1), _record(4400, 2),
+        {"id": "proposal-1", "submitted_by": "requester-1", "submitted_by_name": "Ravi", "submitted_at": "2026-08-12T09:48:10Z", "entity_snapshot": {"approver_edited": True, "changes_summary": [{"field_key": "volume_of_spill", "old_value": 2212, "new_value": 3000}]}},
         section="environment", action="approved", actor_id="approver-1", actor_email="approver@example.com", actor_name="Somil", timestamp="2026-08-12T09:48:39Z",
     )
 
@@ -21,8 +21,11 @@ def test_approved_esg_proposal_creates_standard_record_version_event():
     assert event["change_type"] == "approved"
     assert event["requested_by_name"] == "Ravi"
     assert event["approved_by_name"] == "Somil"
+    assert event["approver_edited"] is True
+    assert event["submitted_field_diffs"][0]["new_value"] == 3000
+    assert event["approver_field_diffs"][0]["old_value"] == 3000
     assert event["field_diffs"] == [{
-        "field": "volume_of_spill", "display_name": "Volume Of Spill", "old_value": 2212, "new_value": 3000,
+        "field": "volume_of_spill", "display_name": "Volume Of Spill", "old_value": 2212, "new_value": 4400,
     }]
 
 
