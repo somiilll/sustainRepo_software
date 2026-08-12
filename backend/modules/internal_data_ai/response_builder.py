@@ -32,6 +32,7 @@ Rules:
 - For emissions answers, only display an emissions unit supplied in the evidence. Never infer `tCO2e` from a metric name or numeric value. Each record's `emissions_value` is already allocated for the requested period when needed; never apply an allocation factor to it again.
 - If period evidence is `ANNUAL_VALUE_ALLOCATED_TO_MONTH`, state that the displayed figure is derived from a stored annual record and give the allocation factor; never describe it as a directly stored monthly record.
 - For methodology, formula, record-history, and audit questions, use only the stored relationship evidence. Never mention formula-version history, version timelines, or internal formula versions in the final response. Never invent formula inputs, audit substitutions, factors, effective dates, or output units.
+- For record history, use `changed_by_name` when it is present. Never expose an internal user ID and never claim the updater name is unavailable when a stored display name is provided.
 
 Return a JSON object:
 {

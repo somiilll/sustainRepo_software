@@ -74,7 +74,7 @@ async def get_emission_record_history(
         return {"total": 0, "history": []}
     docs = await db.emission_history.find(
         _id_filter("emission_id", record_ids),
-        {"_id": 0, "emission_id": 1, "changed_at": 1, "changes": 1, "changed_by": 1},
+        {"_id": 0, "emission_id": 1, "changed_at": 1, "changes": 1, "changed_by_name": 1},
     ).sort("changed_at", -1).to_list(100)
     return {
         "total": len(docs),
@@ -82,7 +82,7 @@ async def get_emission_record_history(
             {
                 "changed_at": item.get("changed_at"),
                 "changes": item.get("changes"),
-                "changed_by": item.get("changed_by"),
+                "changed_by_name": item.get("changed_by_name"),
             }
             for item in docs
         ],
