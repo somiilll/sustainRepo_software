@@ -268,18 +268,18 @@ async def save_gri_response(
         
         assignment_ids = [a["assignment_id"] for a in assignee_records]
         
-        # Check if user is assigned to this question
+        # Check exact child assignment first, then permit child keys under an assigned parent.
         has_access = False
         if assignment_ids:
-            assignment = await db.esg_assignments.find_one({
+            assignments = await db.esg_assignments.find({
                 "id": {"$in": assignment_ids},
                 "entity_type": {"$in": ["question", "disclosure"]},
-                "$or": [
-                    {"entity_id": question_key},
-                    {"question_key": question_key},
-                ]
-            })
-            has_access = assignment is not None
+            }, {"_id": 0, "entity_id": 1, "question_key": 1}).to_list(500)
+            for assignment in assignments:
+                assigned_key = assignment.get("entity_id") or assignment.get("question_key")
+                if assigned_key and (assigned_key == question_key or question_key.startswith(f"{assigned_key}_")):
+                    has_access = True
+                    break
         
         if not has_access:
             raise HTTPException(
