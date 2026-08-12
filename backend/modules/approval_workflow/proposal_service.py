@@ -89,6 +89,10 @@ def build_emission_proposal_history_event(
         "approved_by_email": actor_email if approved else None,
         "approved_by_name": actor_name if approved else None,
         "approved_at": timestamp if approved else None,
+        "requested_by": proposal.get("submitted_by"),
+        "requested_by_email": proposal.get("submitted_by_email"),
+        "requested_by_name": proposal.get("submitted_by_name"),
+        "requested_at": proposal.get("submitted_at") or proposal.get("requested_at"),
     }
 
 

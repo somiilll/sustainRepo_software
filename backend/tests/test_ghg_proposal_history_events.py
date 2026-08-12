@@ -21,7 +21,7 @@ def test_approved_proposal_history_event_is_linked_and_contains_actual_changes()
     event = build_emission_proposal_history_event(
         _record(200, 0.525238683, 0),
         _record(205, 0.538369650, 1),
-        {"id": "proposal-1", "request_type": "update"},
+        {"id": "proposal-1", "request_type": "update", "submitted_by": "user-1", "submitted_by_email": "user@example.com", "submitted_by_name": "Request User", "submitted_at": "2026-08-12T08:00:00Z"},
         action="approved",
         actor_id="approver-1",
         actor_email="approver@example.com",
@@ -35,6 +35,7 @@ def test_approved_proposal_history_event_is_linked_and_contains_actual_changes()
     assert event["changes"]["old_values"]["dynamic_field_values"]["qty"]["value"] == 200
     assert event["changes"]["new_values"]["dynamic_field_values"]["qty"]["value"] == 205
     assert event["approved_by_name"] == "Approver"
+    assert event["requested_by_name"] == "Request User"
 
 
 def test_rejected_proposal_history_event_keeps_the_record_unchanged_and_records_reason():

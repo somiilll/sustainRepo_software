@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Card } from '../../../components/ui/card';
-import { History, Calendar as CalendarIcon, User, CheckCircle2 } from 'lucide-react';
+import { History, Calendar as CalendarIcon, User, CheckCircle2, XCircle } from 'lucide-react';
 
 /**
  * EmissionHistoryDialog
@@ -32,6 +32,9 @@ export default function EmissionHistoryDialog({
               const action = history.changes?.action || (hasOldValues ? 'updated' : 'created');
               const isCreation = action === 'created';
               const isDeletion = action === 'deleted';
+              const isApproval = action === 'approved';
+              const isRejection = action === 'rejected';
+              const eventTitle = isRejection ? 'Update Rejected' : isApproval ? 'Update Approved' : isDeletion ? 'Deleted' : isCreation ? 'Created' : 'Updated';
               const oldValues = history.changes?.old_values || {};
               const newValues = history.changes?.new_values || {};
 
@@ -413,10 +416,14 @@ export default function EmissionHistoryDialog({
                 <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg ${
+                      isRejection ? 'bg-red-100' :
+                      isApproval ? 'bg-green-100' :
                       isDeletion ? 'bg-red-100' :
                       isCreation ? 'bg-green-100' : 'bg-primary/10'
                     }`}>
                       <History className={`w-4 h-4 ${
+                        isRejection ? 'text-red-600' :
+                        isApproval ? 'text-green-600' :
                         isDeletion ? 'text-red-600' :
                         isCreation ? 'text-green-600' : 'text-primary'
                       }`} />
@@ -424,7 +431,7 @@ export default function EmissionHistoryDialog({
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-text-primary">
-                          {isDeletion ? 'Deleted' : isCreation ? 'Created' : 'Updated'}
+                          {eventTitle}
                         </p>
                         <span className={`text-xs px-2 py-1 rounded ${
                           idx === 0 ? 'bg-blue-100 text-blue-700' :
@@ -444,6 +451,23 @@ export default function EmissionHistoryDialog({
                         </p>
                         
                         {/* Show approval / requester info */}
+                        {isRejection && (
+                          <div className="mt-2 pt-2 border-t border-stone-100">
+                            <p className="text-sm text-red-600 flex items-center gap-2">
+                              <XCircle className="w-4 h-4" />
+                              <span>Rejected by <strong>{history.changed_by_name || history.changed_by_email || 'Admin'}</strong></span>
+                            </p>
+                            {history.requested_by && (
+                              <p className="text-xs text-text-muted mt-1 ml-6">
+                                Requested by <strong>{history.requested_by_name || history.requested_by_email || 'User'}</strong>
+                                {history.requested_at && <> at {new Date(history.requested_at).toLocaleString()}</>}
+                              </p>
+                            )}
+                            {history.changes?.rejection_reason && (
+                              <p className="text-xs text-red-700 mt-1 ml-6">Reason: {history.changes.rejection_reason}</p>
+                            )}
+                          </div>
+                        )}
                         {history.approved_by && (
                           <div className="mt-2 pt-2 border-t border-stone-100">
                             <p className="text-sm text-green-600 flex items-center gap-2">
