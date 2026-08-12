@@ -2115,7 +2115,7 @@ class ESGRecordsService:
         cursor = collection.find(
             {"record_id": record_id},
             {"_id": 0}
-        ).sort("version", -1)
+        ).sort([("version", -1), ("created_at", -1)])
         versions = await cursor.to_list(None)
         
         # Collect user IDs for bulk lookup
@@ -2131,13 +2131,15 @@ class ESGRecordsService:
                 v["snapshot"].pop("_id", None)
             
             # Add user name
-            v["changed_by_name"] = user_map.get(v.get("created_by"), "Unknown")
+            v["changed_by_name"] = v.get("changed_by_name") or user_map.get(v.get("created_by"), "Unknown")
             
             # Keep stored change_type (approved/rejected/etc), only default if not present
             if not v.get("change_type"):
                 v["change_type"] = "created" if v.get("version") == 1 else "updated"
             
             # Use stored changed_fields paths to compute diffs from snapshots
+            if v.get("field_diffs") is not None:
+                continue
             if v.get("version", 1) > 1 and i + 1 < len(versions):
                 # Compute from snapshots using utility
                 prev_snapshot = versions[i + 1].get("snapshot", {})

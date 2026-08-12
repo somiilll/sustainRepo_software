@@ -417,7 +417,7 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
             ) : records.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-stone-400">
-                  No records found. Click "Add Record" to create one.
+                  No records found. Click &quot;Add Record&quot; to create one.
                 </TableCell>
               </TableRow>
             ) : records.map(record => {
@@ -1674,9 +1674,9 @@ function VersionHistoryModal({ open, onClose, record, versions }) {
                       {new Date(v.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  {v.changed_fields?.length > 0 && (
+                  {v.changed_fields?.filter(field => field !== 'approval_status').length > 0 && (
                     <p className="text-xs text-text-muted mt-1">
-                      Changed: {v.changed_fields.join(', ')}
+                      Changed: {v.changed_fields.filter(field => field !== 'approval_status').join(', ')}
                     </p>
                   )}
                   {v.change_reason && (

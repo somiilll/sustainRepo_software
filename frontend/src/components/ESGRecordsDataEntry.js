@@ -1606,46 +1606,60 @@ export default function ESGRecordsDataEntry({
             {versions.length === 0 ? (
               <p className="text-center py-8 text-text-muted">No version history available</p>
             ) : (
-              versions.map((version, idx) => (
+              versions.map((version, idx) => {
+                const approvalDiff = version.field_diffs?.find(diff => diff.field === 'approval_status');
+                const isApproved = version.change_type === 'approved' || approvalDiff?.new_value === 'approved';
+                const isRejected = version.change_type === 'rejected' || approvalDiff?.new_value === 'rejected';
+                const eventTitle = isRejected ? 'Update Rejected' : isApproved ? 'Update Approved' : version.change_type === 'created' ? 'Created' : 'Updated';
+                const visibleDiffs = (version.field_diffs || []).filter(diff => diff.field !== 'approval_status');
+                return (
                 <Card key={version.id} className="p-4 border border-stone-200">
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${version.change_type === 'created' ? 'bg-green-100' : 'bg-blue-100'}`}>
-                      <History className={`w-4 h-4 ${version.change_type === 'created' ? 'text-green-600' : 'text-blue-600'}`} />
+                    <div className={`p-2 rounded-lg ${isRejected ? 'bg-red-100' : isApproved || version.change_type === 'created' ? 'bg-green-100' : 'bg-blue-100'}`}>
+                      <History className={`w-4 h-4 ${isRejected ? 'text-red-600' : isApproved || version.change_type === 'created' ? 'text-green-600' : 'text-blue-600'}`} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge className={version.change_type === 'created' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
-                          {version.change_type === 'created' ? 'Created' : 'Updated'}
+                        <Badge className={isRejected ? 'bg-red-100 text-red-700' : isApproved || version.change_type === 'created' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
+                          {eventTitle}
                         </Badge>
                         <span className="text-xs text-text-muted">
                           {new Date(version.created_at).toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-sm text-text-secondary">
-                        By: <span className="font-medium">{version.changed_by_name || 'Unknown'}</span>
-                      </p>
+                      {isRejected ? (
+                        <div className="text-sm text-text-secondary space-y-1">
+                          <p>Rejected by: <span className="font-medium">{version.rejected_by_name || version.changed_by_name || 'Unknown'}</span></p>
+                          {version.requested_by_name && <p>Requested by: <span className="font-medium">{version.requested_by_name}</span></p>}
+                        </div>
+                      ) : isApproved ? (
+                        <div className="text-sm text-text-secondary space-y-1">
+                          <p>Approved by: <span className="font-medium">{version.approved_by_name || version.changed_by_name || 'Unknown'}</span></p>
+                          {version.requested_by_name && <p>Requested by: <span className="font-medium">{version.requested_by_name}</span></p>}
+                        </div>
+                      ) : <p className="text-sm text-text-secondary">By: <span className="font-medium">{version.changed_by_name || 'Unknown'}</span></p>}
                       {version.change_reason && (
                         <p className="text-sm text-text-muted mt-1">Reason: {version.change_reason}</p>
                       )}
                       
                       {/* Field Diffs - computed on API, not stored */}
-                      {version.field_diffs && version.field_diffs.length > 0 && (
+                      {visibleDiffs.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-stone-200">
-                          <p className="text-xs font-semibold text-text-muted uppercase mb-2">Changes Made</p>
+                          <p className="text-xs font-semibold text-text-muted uppercase mb-2">{isRejected ? 'Rejected Changes' : isApproved ? 'Approved Changes' : 'Changes Made'}</p>
                           <div className="space-y-2">
-                            {version.field_diffs.map((change, cIdx) => (
+                            {visibleDiffs.map((change, cIdx) => (
                               <div key={cIdx} className="bg-stone-50 rounded-lg p-2 text-sm">
                                 <p className="font-medium text-text-primary mb-1">{change.display_name}</p>
                                 <div className="grid grid-cols-2 gap-2 text-xs">
                                   <div className="bg-red-50 p-2 rounded border border-red-100">
-                                    <span className="text-red-600 font-medium block mb-1">Old</span>
+                                    <span className="text-red-600 font-medium block mb-1">{isRejected ? 'Current Approved Value' : 'Old'}</span>
                                     <span className="text-red-800 break-words">
                                       {change.old_value === null || change.old_value === undefined ? '(empty)' : 
                                        typeof change.old_value === 'object' ? JSON.stringify(change.old_value) : String(change.old_value)}
                                     </span>
                                   </div>
                                   <div className="bg-green-50 p-2 rounded border border-green-100">
-                                    <span className="text-green-600 font-medium block mb-1">New</span>
+                                    <span className="text-green-600 font-medium block mb-1">{isRejected ? 'Rejected Proposed Value' : isApproved ? 'New Approved Value' : 'New'}</span>
                                     <span className="text-green-800 break-words">
                                       {change.new_value === null || change.new_value === undefined ? '(empty)' : 
                                        typeof change.new_value === 'object' ? JSON.stringify(change.new_value) : String(change.new_value)}
@@ -1660,7 +1674,7 @@ export default function ESGRecordsDataEntry({
                     </div>
                   </div>
                 </Card>
-              ))
+              )})
             )}
           </div>
         </DialogContent>
