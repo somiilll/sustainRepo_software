@@ -72,6 +72,16 @@ class QuestionResponseTimelineService:
                     source="question_audit_log",
                     evidence_state=TimelineEvidenceState.FOUND_PARTIAL if detail.get("submitted_by") is None else TimelineEvidenceState.FOUND,
                 ))
+            elif action in {"created", "updated"}:
+                actor = cls._actor(approver_data.get("name"), approver_data.get("email"))
+                events.append(QuestionTimelineEvent(
+                    event_type="CREATED" if action == "created" else "UPDATED",
+                    timestamp=cls._timestamp(audit.get("timestamp")),
+                    requester=actor,
+                    submitted_value=detail.get("old_value"),
+                    final_value=detail.get("new_value"),
+                    source="question_audit_log",
+                ))
 
         # Versions are included only when their snapshot is explicitly scoped to this reporting year.
         for version in version_events:

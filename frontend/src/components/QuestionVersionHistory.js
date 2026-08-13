@@ -166,6 +166,10 @@ const eventStyle = (eventType) => {
     return { label: 'Update Rejected', icon: XCircle, tone: 'text-red-700 bg-red-50 border-red-200' };
   if (eventType === 'SUBMITTED')
     return { label: 'Submitted for Approval', icon: Clock, tone: 'text-blue-700 bg-blue-50 border-blue-200' };
+  if (eventType === 'CREATED')
+    return { label: 'Response Created', icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
+  if (eventType === 'UPDATED')
+    return { label: 'Response Updated', icon: History, tone: 'text-indigo-700 bg-indigo-50 border-indigo-200' };
   return { label: eventType.replace(/_/g, ' '), icon: History, tone: 'text-stone-700 bg-stone-50 border-stone-200' };
 };
 
@@ -252,7 +256,7 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
                     {/* Actor info */}
                     <div className="mt-3 text-sm text-text-secondary space-y-0.5">
                       {event.requester && (
-                        <p>Requested by: <strong>{event.requester.name || event.requester.email}</strong></p>
+                        <p>{event.event_type === 'CREATED' || event.event_type === 'UPDATED' ? 'Saved by' : 'Requested by'}: <strong>{event.requester.name || event.requester.email}</strong></p>
                       )}
                       {event.approver && (
                         <p>
