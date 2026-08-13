@@ -39,8 +39,12 @@ class ESGRecordFieldConfig(BaseModel):
     options: Optional[List[str]] = None  # For dropdown/unit_selector/radio/checkbox_group
     default_value: Optional[Any] = None
     validation: Optional[Dict[str, Any]] = None  # e.g., {"min": 0, "max": 100}
+    # Unit support — attach allowed units to any number field
+    has_unit: Optional[bool] = False
+    allowed_units: Optional[List[str]] = None  # e.g., ["Litres", "Kilolitres", "MegaLitres"]
+    default_unit: Optional[str] = None
     # Table-specific config
-    table_columns: Optional[List[Dict[str, Any]]] = None  # For table type: [{"key": "col1", "label": "Column 1", "type": "text"}]
+    table_columns: Optional[List[Dict[str, Any]]] = None
     table_min_rows: Optional[int] = None
     table_max_rows: Optional[int] = None
 

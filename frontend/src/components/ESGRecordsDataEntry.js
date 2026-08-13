@@ -1160,6 +1160,11 @@ export default function ESGRecordsDataEntry({
                           ...prev,
                           field_values: { ...prev.field_values, [field.field_key]: val }
                         }))}
+                        unitValue={formData.field_values?.[`${field.field_key}_unit`]}
+                        onUnitChange={(unit) => setFormData(prev => ({
+                          ...prev,
+                          field_values: { ...prev.field_values, [`${field.field_key}_unit`]: unit }
+                        }))}
                       />
                     ))}
                   </div>

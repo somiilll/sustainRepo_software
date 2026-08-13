@@ -1530,8 +1530,9 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
 // Dynamic Field Renderer
 // =============================================================================
 
-export function DynamicFieldRenderer({ field, value, onChange }) {
+export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnitChange }) {
   const { field_key, type, label, required, options, placeholder } = field;
+  const hasUnit = field.has_unit && field.allowed_units?.length > 0;
 
   switch (type) {
     case 'text':
@@ -1565,14 +1566,37 @@ export function DynamicFieldRenderer({ field, value, onChange }) {
       return (
         <div>
           <Label>{label}{required && ' *'}</Label>
-          <Input
-            type="number"
-            value={value ?? ''}
-            onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-            className="mt-1"
-            min={field.validation?.min}
-            max={field.validation?.max}
-          />
+          {hasUnit ? (
+            <div className="flex gap-2 mt-1">
+              <Input
+                type="number"
+                value={value ?? ''}
+                onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+                className="flex-1"
+                min={field.validation?.min}
+                max={field.validation?.max}
+              />
+              <Select value={unitValue || field.default_unit || ''} onValueChange={onUnitChange}>
+                <SelectTrigger className="w-[140px] shrink-0">
+                  <SelectValue placeholder="Unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {field.allowed_units.map(u => (
+                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <Input
+              type="number"
+              value={value ?? ''}
+              onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+              className="mt-1"
+              min={field.validation?.min}
+              max={field.validation?.max}
+            />
+          )}
         </div>
       );
 
