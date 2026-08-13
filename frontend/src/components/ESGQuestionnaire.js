@@ -845,7 +845,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
       rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
       draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
-      saved: { label: 'Saved', className: 'bg-slate-100 text-slate-700' },
+      saved: { label: 'Saved', className: 'bg-green-100 text-green-800' },
       pending: { label: 'Pending', className: 'bg-stone-100 text-stone-600' },
     };
     
