@@ -977,17 +977,20 @@ export default function ESGRecordsDataEntry({
 
   // Render Add Metric Form
   if (mode === 'add') {
+    const hasFields = WORKFORCE_TABLE_MAP[formData.subcategory] || addFormCategory?.fields?.length > 0;
+    const yearLabel = reportingYearType === 'financial_year' ? 'Financial Year' : (formData.reporting_type === 'yearly' && reportingYearType === 'calendar_year' ? 'Calendar Year' : 'Year');
+
     return (
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Plus className="w-5 h-5 text-emerald-600" />
-          Add New Metric
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Category */}
+      <div className="flex gap-6 items-start" data-testid="add-metric-layout">
+        {/* ── Left Panel: Selection ── */}
+        <Card className="w-[320px] shrink-0 p-5 sticky top-4 space-y-4 bg-stone-50/70" data-testid="add-metric-left-panel">
+          <h3 className="text-base font-semibold flex items-center gap-2">
+            <Plus className="w-4 h-4 text-emerald-600" />
+            Add Metric
+          </h3>
+
           <div className="space-y-2">
-            <Label>Category *</Label>
+            <Label className="text-xs">Category *</Label>
             <Select 
               value={formData.category} 
               onValueChange={(v) => {
@@ -996,27 +999,21 @@ export default function ESGRecordsDataEntry({
               }}
               disabled={!!preFilterCategory && !isOthersCategory(preFilterCategory)}
             >
-              <SelectTrigger className={formErrors.category ? 'border-red-500' : ''}>
+              <SelectTrigger className={`h-9 ${formErrors.category ? 'border-red-500' : ''}`}>
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent>
-                {/* When preFilterCategory is "Others", show only the OTHERS_CATEGORIES */}
                 {isOthersCategory(preFilterCategory)
-                  ? OTHERS_CATEGORIES.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))
-                  : [...new Set(categories.map(c => c.category))].map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))
+                  ? OTHERS_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
+                  : [...new Set(categories.map(c => c.category))].map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
                 }
               </SelectContent>
             </Select>
             {formErrors.category && <p className="text-xs text-red-500">{formErrors.category}</p>}
           </div>
 
-          {/* Subcategory */}
           <div className="space-y-2">
-            <Label>Subcategory</Label>
+            <Label className="text-xs">Subcategory</Label>
             <Select 
               value={formData.subcategory} 
               onValueChange={(v) => {
@@ -1025,46 +1022,34 @@ export default function ESGRecordsDataEntry({
               }}
               disabled={!formData.category}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Select subcategory" />
-              </SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Select subcategory" /></SelectTrigger>
               <SelectContent>
-                {getSubcategories().map(sub => (
-                  <SelectItem key={sub} value={sub}>{sub}</SelectItem>
-                ))}
+                {getSubcategories().map(sub => <SelectItem key={sub} value={sub}>{sub}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Facility */}
           <div className="space-y-2">
-            <Label>Facility</Label>
+            <Label className="text-xs">Facility</Label>
             <Select 
               value={formData.facility_id} 
               onValueChange={(v) => setFormData(prev => ({ ...prev, facility_id: v }))}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Organization level" />
-              </SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Organization level" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="org_level">Organization Level</SelectItem>
-                {facilities.map(fac => (
-                  <SelectItem key={fac.id} value={fac.id}>{fac.name}</SelectItem>
-                ))}
+                {facilities.map(fac => <SelectItem key={fac.id} value={fac.id}>{fac.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Reporting Type */}
           <div className="space-y-2">
-            <Label>Reporting Period</Label>
+            <Label className="text-xs">Reporting Period</Label>
             <Select 
               value={formData.reporting_type} 
               onValueChange={(v) => setFormData(prev => ({ ...prev, reporting_type: v }))}
             >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="daily">Daily</SelectItem>
                 <SelectItem value="weekly">Weekly</SelectItem>
@@ -1075,35 +1060,31 @@ export default function ESGRecordsDataEntry({
             </Select>
           </div>
 
-          {/* Year (for monthly, quarterly, yearly) */}
           {['monthly', 'quarterly', 'yearly'].includes(formData.reporting_type) && (
-          <div className="space-y-2">
-            <Label>{reportingYearType === 'financial_year' ? 'Financial Year' : (formData.reporting_type === 'yearly' && reportingYearType === 'calendar_year' ? 'Calendar Year' : 'Year')}</Label>
-            <Select 
-              key={`year-${reportingYearType}-${formData.reporting_type}`}
-              value={String(formData.reporting_year)} 
-              onValueChange={(v) => setFormData(prev => ({ ...prev, reporting_year: parseInt(v) }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i + 1).map(year => (
-                  <SelectItem key={year} value={String(year)}>
-                    {/* For yearly: show FY/CY label. For monthly/quarterly: show FY label to help user know which FY they're entering */}
-                    {reportingYearType === 'financial_year' ? `FY ${year}-${year + 1}` : (formData.reporting_type === 'yearly' ? `CY ${year}` : year)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-2">
+              <Label className="text-xs">{yearLabel}</Label>
+              <Select 
+                key={`year-${reportingYearType}-${formData.reporting_type}`}
+                value={String(formData.reporting_year)} 
+                onValueChange={(v) => setFormData(prev => ({ ...prev, reporting_year: parseInt(v) }))}
+              >
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i + 1).map(year => (
+                    <SelectItem key={year} value={String(year)}>
+                      {reportingYearType === 'financial_year' ? `FY ${year}-${year + 1}` : (formData.reporting_type === 'yearly' ? `CY ${year}` : year)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
 
-          {/* Date picker for daily/weekly */}
           {['daily', 'weekly'].includes(formData.reporting_type) && (
             <div className="space-y-2">
-              <Label>Date</Label>
+              <Label className="text-xs">Date</Label>
               <Input 
+                className="h-9"
                 type="date" 
                 value={formData.reporting_date || ''} 
                 onChange={(e) => setFormData(prev => ({ ...prev, reporting_date: e.target.value }))}
@@ -1111,145 +1092,155 @@ export default function ESGRecordsDataEntry({
             </div>
           )}
 
-          {/* Month (if monthly) */}
           {formData.reporting_type === 'monthly' && (
             <div className="space-y-2">
-            <Label>Month *</Label>
+              <Label className="text-xs">Month *</Label>
               <Select 
                 value={formData.reporting_month} 
                 onValueChange={(v) => setFormData(prev => ({ ...prev, reporting_month: v }))}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select month" />
-                </SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select month" /></SelectTrigger>
                 <SelectContent>
-                  {MONTHS.map((month, idx) => (
-                    <SelectItem key={month} value={String(idx + 1)}>{month}</SelectItem>
-                  ))}
+                  {MONTHS.map((month, idx) => <SelectItem key={month} value={String(idx + 1)}>{month}</SelectItem>)}
                 </SelectContent>
               </Select>
-            {formErrors.reporting_month && <p className="text-xs text-red-500">{formErrors.reporting_month}</p>}
+              {formErrors.reporting_month && <p className="text-xs text-red-500">{formErrors.reporting_month}</p>}
             </div>
           )}
-        </div>
 
-        {/* Dynamic Category Fields — use table for workforce subcategories */}
-        {WORKFORCE_TABLE_MAP[formData.subcategory] ? (
-          <div className="mt-6 pt-4 border-t">
-            <WorkforceDataTable
-              config={WORKFORCE_TABLE_MAP[formData.subcategory]}
-              fieldValues={formData.field_values}
-              onChange={(fv) => setFormData(prev => ({ ...prev, field_values: fv }))}
-              isEditing={true}
-            />
-          </div>
-        ) : addFormCategory?.fields?.length > 0 && (
-          <div className="mt-6 pt-4 border-t space-y-4">
-            <p className="text-sm font-medium text-text-primary">Category Fields</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {addFormCategory.fields.map(field => (
-                <DynamicFieldRenderer
-                  key={field.field_key}
-                  field={field}
-                  value={formData.field_values?.[field.field_key]}
-                  onChange={(val) => setFormData(prev => ({
-                    ...prev,
-                    field_values: { ...prev.field_values, [field.field_key]: val }
-                  }))}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Common Fields */}
-        <div className="mt-6 pt-4 border-t grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Source of Information */}
-          <div className="space-y-2">
-            <Label>Source of Information</Label>
-            <Input
-              value={formData.source_of_information}
-              onChange={(e) => setFormData(prev => ({ ...prev, source_of_information: e.target.value }))}
-              placeholder="e.g., Utility Bill, Vendor Invoice..."
-            />
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-2 md:col-span-2">
-            <Label>Notes</Label>
-            <Textarea
-              value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Additional notes or comments..."
-              rows={3}
-            />
-          </div>
-        </div>
-
-        {/* Evidences */}
-        <div className="mt-4 space-y-3">
-          <Label className="flex items-center gap-2">
-            <Paperclip className="w-4 h-4" />
-            Evidence Files
-          </Label>
-          {formEvidences.length > 0 && (
+          {/* Quarter (if quarterly) */}
+          {formData.reporting_type === 'quarterly' && (
             <div className="space-y-2">
-              {formEvidences.map(ev => (
-                <div key={ev.id} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg text-sm">
-                  <FileText className="w-4 h-4 text-stone-400 flex-shrink-0" />
-                  <span className="flex-1 truncate">{ev.filename}</span>
-                  <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
-                  <a href={`${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
-                  <button type="button" onClick={() => removeEvidence(ev.id, false)} className="text-red-400 hover:text-red-600">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+              <Label className="text-xs">Quarter *</Label>
+              <Select 
+                value={formData.reporting_quarter} 
+                onValueChange={(v) => setFormData(prev => ({ ...prev, reporting_quarter: v }))}
+              >
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select quarter" /></SelectTrigger>
+                <SelectContent>
+                  {['Q1', 'Q2', 'Q3', 'Q4'].map(q => <SelectItem key={q} value={q}>{q}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           )}
-          <div
-            className="border-2 border-dashed border-stone-300 rounded-lg p-4 text-center hover:border-emerald-400 transition-colors cursor-pointer"
-            onClick={() => document.getElementById('add-evidence-upload')?.click()}
-          >
-            <input
-              id="add-evidence-upload"
-              type="file"
-              className="hidden"
-              multiple
-              onChange={(e) => { handleEvidenceUpload(e.target.files, false); e.target.value = ''; }}
-            />
-            {uploadingEvidence ? (
-              <Loader2 className="w-5 h-5 animate-spin mx-auto text-emerald-600" />
-            ) : (
-              <>
-                <Upload className="w-5 h-5 mx-auto text-stone-400 mb-1" />
-                <p className="text-xs text-stone-500">Drop files or click to upload (max 5MB each)</p>
-              </>
-            )}
-          </div>
-        </div>
+        </Card>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-          <Button
-            variant="outline"
-            onClick={() => handleSaveRecord(true)}
-            disabled={saving.form}
-            className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
-          >
-            {saving.form ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileEdit className="w-4 h-4 mr-2" />}
-            Save as Draft
-          </Button>
-          <Button
-            onClick={() => handleSaveRecord(false)}
-            disabled={saving.form}
-            className="bg-emerald-600 hover:bg-emerald-700"
-          >
-            {saving.form ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            Save Metric
-          </Button>
+        {/* ── Right Panel: Data Entry ── */}
+        <div className="flex-1 min-w-0" data-testid="add-metric-right-panel">
+          {!hasFields ? (
+            <Card className="p-10 text-center border-dashed">
+              <div className="text-stone-400 space-y-2">
+                <FileText className="w-10 h-10 mx-auto opacity-50" />
+                <p className="font-medium text-stone-500">Select a category to begin</p>
+                <p className="text-sm">Choose a category and subcategory from the left panel to load the data entry fields.</p>
+              </div>
+            </Card>
+          ) : (
+            <Card className="p-5 space-y-5">
+              {/* Dynamic Category Fields */}
+              {WORKFORCE_TABLE_MAP[formData.subcategory] ? (
+                <WorkforceDataTable
+                  config={WORKFORCE_TABLE_MAP[formData.subcategory]}
+                  fieldValues={formData.field_values}
+                  onChange={(fv) => setFormData(prev => ({ ...prev, field_values: fv }))}
+                  isEditing={true}
+                />
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm font-medium text-stone-700">
+                    {formData.subcategory || formData.category} Fields
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {addFormCategory.fields.map(field => (
+                      <DynamicFieldRenderer
+                        key={field.field_key}
+                        field={field}
+                        value={formData.field_values?.[field.field_key]}
+                        onChange={(val) => setFormData(prev => ({
+                          ...prev,
+                          field_values: { ...prev.field_values, [field.field_key]: val }
+                        }))}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Source & Notes */}
+              <div className="pt-4 border-t space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Source of Information</Label>
+                  <Input
+                    value={formData.source_of_information}
+                    onChange={(e) => setFormData(prev => ({ ...prev, source_of_information: e.target.value }))}
+                    placeholder="e.g., Utility Bill, Vendor Invoice..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Notes</Label>
+                  <Textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Additional notes or comments..."
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              {/* Evidence */}
+              <div className="pt-4 border-t space-y-3">
+                <Label className="text-xs flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5" /> Evidence Files
+                </Label>
+                {formEvidences.length > 0 && (
+                  <div className="space-y-1.5">
+                    {formEvidences.map(ev => (
+                      <div key={ev.id} className="flex items-center gap-2 p-2 bg-stone-50 rounded text-sm">
+                        <FileText className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                        <span className="flex-1 truncate">{ev.filename}</span>
+                        <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
+                        <a href={`${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                        <button type="button" onClick={() => removeEvidence(ev.id, false)} className="text-red-400 hover:text-red-600">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div
+                  className="border-2 border-dashed border-stone-300 rounded-lg p-3 text-center hover:border-emerald-400 transition-colors cursor-pointer"
+                  onClick={() => document.getElementById('add-evidence-upload')?.click()}
+                >
+                  <input id="add-evidence-upload" type="file" className="hidden" multiple
+                    onChange={(e) => { handleEvidenceUpload(e.target.files, false); e.target.value = ''; }}
+                  />
+                  {uploadingEvidence
+                    ? <Loader2 className="w-4 h-4 animate-spin mx-auto text-emerald-600" />
+                    : <>
+                        <Upload className="w-4 h-4 mx-auto text-stone-400 mb-1" />
+                        <p className="text-xs text-stone-500">Drop files or click to upload (max 5MB each)</p>
+                      </>
+                  }
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button variant="outline" onClick={() => handleSaveRecord(true)} disabled={saving.form}
+                  className="border-yellow-300 text-yellow-700 hover:bg-yellow-50">
+                  {saving.form ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileEdit className="w-4 h-4 mr-2" />}
+                  Save as Draft
+                </Button>
+                <Button onClick={() => handleSaveRecord(false)} disabled={saving.form}
+                  className="bg-emerald-600 hover:bg-emerald-700">
+                  {saving.form ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  Save Metric
+                </Button>
+              </div>
+            </Card>
+          )}
         </div>
-      </Card>
+      </div>
     );
   }
 
