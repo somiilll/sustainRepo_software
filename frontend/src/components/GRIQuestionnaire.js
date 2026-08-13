@@ -588,16 +588,19 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                     <span className="text-blue-600 font-mono text-xs shrink-0">{sub.sub_key}.</span>
                     <span>{sub.label}</span>
                   </Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => fetchHistory(sub.response_key)}
-                    className="h-7 px-2 text-xs text-stone-500 hover:text-blue-600 shrink-0"
-                    title="View subquestion version history"
-                    data-testid={`history-${sub.response_key}`}
-                  >
-                    <History className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {sub.response_status && sub.response_status !== 'pending' && getStatusBadge(sub.response_status)}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => fetchHistory(sub.response_key)}
+                      className="h-7 px-2 text-xs text-stone-500 hover:text-blue-600"
+                      title="View subquestion version history"
+                      data-testid={`history-${sub.response_key}`}
+                    >
+                      <History className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
                 
                 {isEditing ? (
