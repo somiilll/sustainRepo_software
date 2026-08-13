@@ -421,6 +421,7 @@ class ESGQuestionnaireService:
                 has_any_approved = False
                 all_approved = True
                 all_have_value = True
+                all_saved_or_approved = True
                 total_subparts = len(sub_questions)
                 filled_subparts = 0
                 
@@ -450,10 +451,12 @@ class ESGQuestionnaireService:
                         display_status = "draft"
                         has_any_user_draft = True
                         all_approved = False
+                        all_saved_or_approved = False
                     elif user_has_pending or sub_approval_status == "pending_approval":
                         display_status = "pending_approval"
                         has_any_pending_approval = True
                         all_approved = False
+                        all_saved_or_approved = False
                     elif sub_approval_status == "approved":
                         display_status = "approved"
                         has_any_approved = True
@@ -461,6 +464,7 @@ class ESGQuestionnaireService:
                     elif sub_approval_status == "rejected":
                         display_status = "rejected"
                         all_approved = False
+                        all_saved_or_approved = False
                     elif sub_status == "saved":
                         display_status = "saved"
                         has_any_saved = True
@@ -469,8 +473,10 @@ class ESGQuestionnaireService:
                         display_status = "draft"
                         has_any_draft = True
                         all_approved = False
+                        all_saved_or_approved = False
                     else:
                         all_approved = False
+                        all_saved_or_approved = False
                     
                     question_data["sub_questions"].append({
                         "sub_key": sub["sub_key"],
@@ -485,14 +491,15 @@ class ESGQuestionnaireService:
                     })
                 
                 # Overall status for the parent question
-                # Priority: draft > pending_approval > approved > saved > pending
+                # Completed = ALL sub-questions have values AND are saved/approved
+                # Approved = ALL sub-questions have values AND are approved
                 if has_any_user_draft:
                     question_data["status"] = "draft"
                 elif has_any_pending_approval:
                     question_data["status"] = "pending_approval"
                 elif all_approved and all_have_value and has_any_approved:
                     question_data["status"] = "approved"
-                elif has_any_saved:
+                elif all_saved_or_approved and all_have_value and (has_any_saved or has_any_approved):
                     question_data["status"] = "saved"
                 elif has_any_draft:
                     question_data["status"] = "draft"
