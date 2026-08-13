@@ -362,7 +362,10 @@ export default function ESGTrackingTab({
       }
     } catch (error) {
       console.error('Failed to fetch framework summary:', error);
-      toast.error('Failed to load tracking data');
+      // Don't show error toast for permission errors (non-admin users)
+      if (error.response?.status !== 403 && error.response?.status !== 401) {
+        toast.error('Failed to load tracking data');
+      }
     } finally {
       setLoading(false);
     }

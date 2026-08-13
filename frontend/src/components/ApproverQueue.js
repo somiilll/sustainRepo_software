@@ -2168,6 +2168,8 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   
   // Get value from multiple possible paths (entity_snapshot for new system, value for old system)
   const submittedValue = item.entity_snapshot?.value || item.value || item.submissions?.[0]?.value || '';
+  const previousValue = item.entity_snapshot?.previous_value ?? null;
+  const isCreate = item.request_type === 'create' || previousValue === null;
   const [editedValue, setEditedValue] = useState(submittedValue);
   
   // Track if value was edited
@@ -2332,6 +2334,9 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       <Card className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100">
         <div className="flex items-start gap-2 mb-2">
           <Badge variant="outline" className="shrink-0 bg-emerald-100 text-emerald-800">GRI</Badge>
+          <Badge variant="outline" className={`shrink-0 ${isCreate ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+            {isCreate ? 'Create' : 'Update'}
+          </Badge>
           {questionConfig?.disclosure_number && (
             <Badge variant="outline" className="shrink-0 bg-stone-100 text-stone-600">
               {questionConfig.disclosure_number}
@@ -2372,7 +2377,9 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       {/* Response Display */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-stone-700">Response</label>
+          <label className="text-sm font-medium text-stone-700">
+            {isCreate ? 'New Response' : 'Proposed Changes'}
+          </label>
           <Button
             variant={isEditing ? "default" : "outline"}
             size="sm"
@@ -2384,14 +2391,35 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           </Button>
         </div>
         
-        <Card className="p-4 bg-white border-stone-200">
-          {renderResponse()}
-        </Card>
+        {/* Old value (only for updates) */}
+        {!isCreate && previousValue !== null && (
+          <div>
+            <label className="text-xs font-medium text-stone-500 mb-1 block">Current saved value</label>
+            <Card className="p-4 bg-stone-50 border-stone-200">
+              {typeof previousValue === 'string' || typeof previousValue === 'number'
+                ? <p className="text-stone-600 whitespace-pre-wrap">{previousValue || <span className="text-stone-400 italic">Empty</span>}</p>
+                : typeof previousValue === 'object'
+                  ? <pre className="text-sm text-stone-600 overflow-auto">{JSON.stringify(previousValue, null, 2)}</pre>
+                  : <p className="text-stone-400 italic">No previous value</p>
+              }
+            </Card>
+          </div>
+        )}
+        
+        {/* Proposed / editable value */}
+        <div>
+          <label className="text-xs font-medium text-stone-500 mb-1 block">
+            {isCreate ? 'Submitted value' : 'Proposed value'}
+          </label>
+          <Card className="p-4 bg-white border-stone-200">
+            {renderResponse()}
+          </Card>
+        </div>
         
         {hasEdits && (
           <p className="text-xs text-amber-600 flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
-            Response has been modified
+            Response has been modified by approver
           </p>
         )}
       </div>

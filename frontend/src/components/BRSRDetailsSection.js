@@ -479,7 +479,7 @@ export default function BRSRDetailsSection({
     // Handle "not_required" as completed without approval
     if (approvalState === 'not_required' || (!approvalState && saveState === 'saved')) {
       return (
-        <Badge className="text-xs bg-slate-100 text-slate-700">
+        <Badge className="text-xs bg-green-100 text-green-800">
           Saved
         </Badge>
       );
@@ -490,7 +490,7 @@ export default function BRSRDetailsSection({
       approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
       rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
       draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
-      saved: { label: 'Saved', className: 'bg-slate-100 text-slate-700' },
+      saved: { label: 'Saved', className: 'bg-green-100 text-green-800' },
     };
     
     const cfg = statusConfig[approvalState] || statusConfig[saveState];
@@ -1684,6 +1684,7 @@ export default function BRSRDetailsSection({
     return (
       <div className="border rounded-lg bg-white">
         {content}
+        {renderHistoryModal()}
       </div>
     );
   }
