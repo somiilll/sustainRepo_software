@@ -1709,7 +1709,7 @@ class ESGQuestionnaireService:
         # Determine final status and approval_status
         final_status = status
         final_approval_status = None
-        if value_changed and status == "saved":
+        if value_changed and status == "saved" and not is_admin:
             final_approval_status = "pending_approval"
             # Notify approvers that a previously-approved answer was re-edited
             try:
