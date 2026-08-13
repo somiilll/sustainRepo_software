@@ -1564,7 +1564,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
 
     case 'number':
       return (
-        <div className={hasUnit ? '' : 'max-w-[200px]'}>
+        <div>
           <Label className="text-xs">{label}{required && ' *'}</Label>
           {hasUnit ? (
             <div className="flex gap-2 mt-1">
@@ -1572,12 +1572,12 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
                 type="number"
                 value={value ?? ''}
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-                className="w-[120px]"
+                className="flex-1 border-stone-300"
                 min={field.validation?.min}
                 max={field.validation?.max}
               />
               <Select value={unitValue || field.default_unit || ''} onValueChange={onUnitChange}>
-                <SelectTrigger className="w-[110px] shrink-0">
+                <SelectTrigger className="w-[120px] shrink-0 border-stone-300">
                   <SelectValue placeholder="Unit" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1592,7 +1592,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
               type="number"
               value={value ?? ''}
               onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-              className="mt-1"
+              className="mt-1 border-stone-300"
               min={field.validation?.min}
               max={field.validation?.max}
             />
