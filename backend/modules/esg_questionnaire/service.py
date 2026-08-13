@@ -776,6 +776,7 @@ class ESGQuestionnaireService:
         user_id: str,
         user_name: str,
         user_email: str,
+        previous_value: Any = None,
     ) -> dict:
         """
         Create a submission entry for approver review.
@@ -841,6 +842,7 @@ class ESGQuestionnaireService:
                 "submitted_by_user_email": user_email,
                 "submitted_at": now,
                 "value": value,
+                "previous_value": previous_value,
                 "status": "pending_approval",
                 "entity_type": entity_type,
                 "framework": framework,
@@ -1683,6 +1685,7 @@ class ESGQuestionnaireService:
                     user_id=changed_by_user_id,
                     user_name=changed_by_user_name,
                     user_email=changed_by_user_email,
+                    previous_value=previous_value,
                 )
                 
                 # Clear the user's draft when they submit for approval
@@ -2689,8 +2692,8 @@ class ESGQuestionnaireService:
             previous_val = previous_year_data.get(question_key)
             mode = response_modes.get(question_key, "fy_comparison")  # Default to fy_comparison for safety
             
-            # ATOMIC MODE: Preserve value as-is, use current year only
-            if mode == "atomic":
+            # ATOMIC / SINGLE MODE: Preserve value as-is, use current year only
+            if mode in ("atomic", "single"):
                 if current_val is not None:
                     merged[question_key] = current_val
                 elif previous_val is not None:

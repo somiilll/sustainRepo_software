@@ -40,7 +40,8 @@ class QuestionResponseTimelineService:
                 event_type="SUBMITTED",
                 timestamp=cls._timestamp(submission.get("submitted_at") or submission.get("created_at")),
                 requester=cls._actor(submission.get("submitted_by_user_name"), submission.get("submitted_by_user_email")),
-                submitted_value=submission.get("value"),
+                submitted_value=submission.get("previous_value"),
+                final_value=submission.get("value"),
                 source="esg_response_submissions",
                 evidence_state=TimelineEvidenceState.FOUND,
             ))
@@ -83,14 +84,20 @@ class QuestionResponseTimelineService:
                     source="question_audit_log",
                 ))
 
-        # Versions are included only when their snapshot is explicitly scoped to this reporting year.
+        # Versions are included ONLY as fallback when no audit event covers the same action.
+        # Audit events are richer (have actor, values), so they take precedence.
+        audit_event_types = {e.event_type for e in events}
         for version in version_events:
             snapshot = version.get("snapshot") or {}
             version_year = version.get("reporting_year") or snapshot.get("reporting_year")
             if version_year != reporting_year:
                 continue
+            vtype = str(version.get("change_type", "VERSION")).upper()
+            # Skip if audit already covers this event type
+            if vtype in audit_event_types:
+                continue
             events.append(QuestionTimelineEvent(
-                event_type=str(version.get("change_type", "VERSION")).upper(),
+                event_type=vtype,
                 timestamp=cls._timestamp(version.get("created_at")),
                 source="esg_responses_versions",
                 evidence_state=TimelineEvidenceState.FOUND_PARTIAL,

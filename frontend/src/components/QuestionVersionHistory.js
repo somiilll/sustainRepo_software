@@ -183,8 +183,9 @@ const actorLabel = (type) => {
 };
 
 const valueLabels = (type) => {
-  if (type === 'REJECTED')  return ['Current value', 'Rejected proposed value'];
-  if (type === 'SUBMITTED') return ['Proposed value', 'Awaiting approval'];
+  if (type === 'APPROVED')  return ['Proposed value', 'Final approved value'];
+  if (type === 'REJECTED')  return ['Proposed value', 'Rejected proposed value'];
+  if (type === 'SUBMITTED') return ['Old value', 'Proposed value'];
   return ['Old value', 'New value'];
 };
 
@@ -286,9 +287,9 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
                     </div>
 
                     {hasValues && (
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div className={`mt-3 grid gap-3 ${rightLabel ? 'sm:grid-cols-2' : ''}`}>
                         <ValueDisplay value={event.submitted_value} label={leftLabel} bgClass={leftBg.bg} borderClass={leftBg.border} />
-                        <ValueDisplay value={event.final_value} label={rightLabel} bgClass={rightBg.bg} borderClass={rightBg.border} />
+                        {rightLabel && <ValueDisplay value={event.final_value} label={rightLabel} bgClass={rightBg.bg} borderClass={rightBg.border} />}
                       </div>
                     )}
 
