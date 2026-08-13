@@ -458,7 +458,7 @@ class ESGQuestionnaireService:
                         all_approved = False
                         all_saved_or_approved = False
                     elif sub_approval_status == "approved":
-                        display_status = "approved"
+                        display_status = "saved_approved"
                         has_any_approved = True
                         has_any_saved = True
                     elif sub_approval_status == "rejected":
@@ -498,7 +498,7 @@ class ESGQuestionnaireService:
                 elif has_any_pending_approval:
                     question_data["status"] = "pending_approval"
                 elif all_approved and all_have_value and has_any_approved:
-                    question_data["status"] = "approved"
+                    question_data["status"] = "saved_approved"
                 elif all_saved_or_approved and all_have_value and (has_any_saved or has_any_approved):
                     question_data["status"] = "saved"
                 elif (has_any_saved or has_any_approved) and not all_have_value:

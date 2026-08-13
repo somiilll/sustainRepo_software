@@ -467,6 +467,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     switch (status) {
       case 'approved':
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
+      case 'saved_approved':
+        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Saved & Approved</Badge>;
       case 'saved':
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Saved</Badge>;
       case 'pending_approval':
@@ -499,9 +501,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     if (disclosure) {
       const hasAnyResponse = disclosure.questions.some(q => {
         if (q.sub_questions?.length > 0) {
-          return q.sub_questions.some(sub => sub.response_status === 'saved' || sub.response_status === 'approved');
+          return q.sub_questions.some(sub => sub.response_status === 'saved' || sub.response_status === 'approved' || sub.response_status === 'saved_approved');
         }
-        return q.status === 'saved' || q.status === 'approved';
+        return q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved';
       });
       if (hasAnyResponse) return 'saved';
     }
@@ -533,11 +535,11 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       if (q.sub_questions && q.sub_questions.length > 0) {
         total += q.sub_questions.length;
         completed += q.sub_questions.filter(sub => 
-          sub.response_status === 'saved' || sub.response_status === 'approved'
+          sub.response_status === 'saved' || sub.response_status === 'approved' || sub.response_status === 'saved_approved'
         ).length;
       } else {
         total += 1;
-        if (q.status === 'saved' || q.status === 'approved') {
+        if (q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved') {
           completed += 1;
         }
       }
