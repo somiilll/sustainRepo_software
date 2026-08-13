@@ -501,6 +501,8 @@ class ESGQuestionnaireService:
                     question_data["status"] = "approved"
                 elif all_saved_or_approved and all_have_value and (has_any_saved or has_any_approved):
                     question_data["status"] = "saved"
+                elif (has_any_saved or has_any_approved) and not all_have_value:
+                    question_data["status"] = "in_progress"
                 elif has_any_draft:
                     question_data["status"] = "draft"
                 else:

@@ -479,6 +479,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Clock className="w-3 h-3 mr-1" />Editing</Badge>;
       case 'rejected':
         return <Badge className="bg-red-100 text-red-800 border-red-200"><Circle className="w-3 h-3 mr-1" />Rejected</Badge>;
+      case 'in_progress':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Clock className="w-3 h-3 mr-1" />In Progress</Badge>;
       case 'superseded':
         return <Badge className="bg-gray-100 text-gray-500 border-gray-200"><Circle className="w-3 h-3 mr-1" />Superseded</Badge>;
       default:
