@@ -162,6 +162,15 @@ def _build_ghg_response(query_plan: StructuredQueryPlan, data: dict, response_ty
 
 def _build_esg_record_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
     """Return deterministic ESG-record answers so record state never depends on LLM phrasing."""
+    if data.get("error"):
+        return {
+            "answer": "The requested metric records could not be retrieved. No record count, value, or approval status was inferred.",
+            "highlights": [{"label": "State", "value": "STATUS_UNAVAILABLE"}],
+            "suggestion": None,
+            "response_type": response_type,
+            "chart": None,
+            "raw_data": {"error": data["error"]},
+        }
     category = data.get("category") or query_plan.category or query_plan.record_type or "ESG"
     metric = data.get("subcategory") or data.get("requested_metric")
     subject = f"{category} {str(metric).title()}" if metric and str(metric).lower() != str(category).lower() else str(category)

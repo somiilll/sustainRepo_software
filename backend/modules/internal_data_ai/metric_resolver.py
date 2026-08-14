@@ -138,7 +138,7 @@ def resolve_environment_metric(question: str) -> Optional[MetricResolution]:
             semantic_terms=_semantic_terms(text, ("nox", "sox", "pm", "particulate", "voc", "hap", "pap", "pollutant")),
             field_value_filter={"parameter": parameter} if parameter else None,
         )
-    if _contains_any(text, ("waste", "waste generated", "waste disposed", "waste recycled", "waste recovered", "waste treatment", "waste diversion", "waste reuse", "spill")):
+    if _contains_any(text, ("waste", "waste generated", "waste disposed", "waste recycled", "waste recovered", "waste treatment", "waste diversion", "waste reuse", "spill", "spillage")):
         subcategory = None
         if _contains_any(text, ("disposed", "disposal", "landfill", "incineration")):
             subcategory = "Disposal"
@@ -146,12 +146,15 @@ def resolve_environment_metric(question: str) -> Optional[MetricResolution]:
             subcategory = "Recovered / Diverted from disposal"
         elif _contains_any(text, ("generated", "generation")):
             subcategory = "Generated"
-        elif _contains_any(text, ("spill", "spills")):
+        elif _contains_any(text, ("spill", "spills", "spillage")):
             subcategory = "Spills"
-        return MetricResolution("environment", "Waste", subcategory, semantic_terms=_semantic_terms(text, (
+        terms = _semantic_terms(text, (
             "waste", "generated", "disposed", "disposal", "recycled", "recovered", "diverted", "hazardous",
-            "non-hazardous", "plastic", "e-waste", "incineration", "landfill", "spill",
-        )))
+            "non-hazardous", "plastic", "e-waste", "incineration", "landfill", "spill", "spillage",
+        ))
+        if subcategory == "Spills" and _contains_any(text, ("how", "amount", "quantity", "volume")):
+            terms = (*terms, "volume")
+        return MetricResolution("environment", "Waste", subcategory, semantic_terms=terms)
     if _contains_any(text, ("biodiversity", "habitat", "ecosystem", "protected areas", "restoration", "species")):
         return MetricResolution("environment", "Biodiversity", semantic_terms=_semantic_terms(text, (
             "biodiversity", "habitat", "ecosystem", "protected", "restoration", "rehabilitation", "species", "site",

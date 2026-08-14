@@ -383,8 +383,11 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Added stable test IDs for Edit Metric action, dialog, unit selector, discard, and save controls.
 - Independent regression verification passed: changing a Water quantity unit to `KiloLitres` persists after reload, numeric quantity remains unchanged, and the original production-like record was restored.
 - Internal Data AI routing work in progress: deterministic Water routes and the first router expansion for Environment, GHG, Social/Governance, and BRSR/GRI source selection are implemented but still require dedicated runtime verification.
+- Fixed Internal Data AI Water/Waste retrieval regression: corrected the configuration resolver’s `organization_id` call, stopped retrieval exceptions from being displayed as `NOT_FOUND`, and mapped Waste “spillage” amount questions to configured `Volume of spill`.
+- Regression verification passed (6/6): Water approved counts, `oct`/`october` Waste Spills approval routing, October spillage amount without an invented unit, retrieval-error state, and restricted-user scope.
 
 ## Prioritized Backlog Update
 - P0: Verify the expanded Internal Data AI router end-to-end before relying on it for Environment/GHG/Social/Governance/BRSR/GRI answers.
 - P1: Add organization-configurable topic aliases for broad Social/Governance themes such as board, risk management, and policies.
 - P1: Investigate dashboard chart container and React key-spread console warnings reported during Water unit regression testing; they were not reproduced in the current smoke log.
+- P2: Consider lazy OpenAI client initialization in `response_builder.py` to simplify isolated unit-test collection when no API key is configured.
