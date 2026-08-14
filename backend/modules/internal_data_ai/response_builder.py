@@ -77,7 +77,12 @@ def _format_metric_value(metric_value: dict) -> str:
         return "Value: Missing"
     unit = metric_value.get("unit")
     value = metric_value.get("value")
-    return f"{metric_value.get('field_label') or 'Value'}: {value}{f' {unit}' if unit else ' (unit not stored)'}"
+    label = metric_value.get("field_label") or metric_value.get("field_key") or "Value"
+    identifier = f"{metric_value.get('field_key') or ''} {label}".lower()
+    count_markers = ("count", "number", "no_of", "no of", "employee", "worker", "incident", "case", "director", "complaint", "grievance", "injury", "fatality")
+    is_dimensionless_count = bool(metric_value.get("is_count")) or any(marker in identifier for marker in count_markers)
+    suffix = f" {unit}" if unit else "" if is_dimensionless_count else " (unit not stored)"
+    return f"{label}: {value}{suffix}"
 
 
 def _display_status(record: dict) -> str:
@@ -316,12 +321,21 @@ def _build_esg_record_history_response(query_plan: StructuredQueryPlan, data: di
     history = data.get("history") or []
     period = data.get("period") or "the requested period"
     subject = " → ".join(item for item in [data.get("category") or query_plan.category, data.get("subcategory") or query_plan.subcategory] if item) or "ESG record"
+    period_context = "across all reporting periods" if period == "All reporting periods" else f"for records with reporting period {period}"
     if not history:
-        answer = f"No version history was found for {subject} in {period}."
+        answer = f"No version history was found for {subject} {period_context}."
     else:
-        lines = [f"{len(history)} version change(s) found for {subject} in {period}."]
+        lines = [f"{len(history)} version change(s) found for {subject} {period_context}."]
         for entry in history[:20]:
-            changed = ", ".join(entry.get("changed_fields") or []) or "No changed fields were recorded"
+            field_diffs = entry.get("field_diffs") or []
+            changes = []
+            for diff in field_diffs:
+                old_value = diff.get("old_value")
+                new_value = diff.get("new_value")
+                old_unit = f" {diff['old_unit']}" if diff.get("old_unit") else ""
+                new_unit = f" {diff['new_unit']}" if diff.get("new_unit") else ""
+                changes.append(f"{diff.get('field') or 'Field'}: {old_value}{old_unit} → {new_value}{new_unit}")
+            changed = "; ".join(changes) or ", ".join(entry.get("changed_fields") or []) or "No changed fields were recorded"
             detail = f"• {entry.get('changed_at') or 'Time unavailable'} — {entry.get('changed_by_name') or 'Unknown user'}: {entry.get('change_type') or 'Updated'} — {changed}."
             if entry.get("change_reason"):
                 detail += f" {entry['change_reason']}"

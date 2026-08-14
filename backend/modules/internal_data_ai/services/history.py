@@ -1,5 +1,6 @@
 """Scoped history, audit, approval, and assignment retrieval services."""
 from shared.database.mongo import db
+from modules.esg_records.version_utils import compare_versions, format_field_display_name
 from modules.internal_data_ai.query_scope import and_filters, organization_scope, resolve_authorized_facilities, scoped_record_ids
 from modules.internal_data_ai.reporting_periods import esg_period_filter, period_from_payload
 
@@ -94,6 +95,75 @@ def _history_field_label(field: object) -> str:
     return str(field or "").replace(".", " → ").replace("_", " ").strip().title()
 
 
+def _previous_applied_snapshot(versions: list[dict], index: int) -> dict | None:
+    """Return the prior applied snapshot from versions sorted newest first."""
+    for candidate in versions[index + 1:]:
+        if candidate.get("record_was_changed") is False:
+            continue
+        snapshot = candidate.get("snapshot")
+        if isinstance(snapshot, dict):
+            return snapshot
+    return None
+
+
+def _value_at_path(snapshot: dict, field_path: str):
+    value = snapshot
+    for part in str(field_path or "").split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
+def _unit_for_field(snapshot: dict, field_path: str):
+    parts = str(field_path or "").split(".")
+    if not parts:
+        return None
+    parent = _value_at_path(snapshot, ".".join(parts[:-1])) if len(parts) > 1 else snapshot
+    if not isinstance(parent, dict):
+        return None
+    field_key = parts[-1]
+    value = parent.get(field_key)
+    if isinstance(value, dict):
+        return value.get("unit")
+    return parent.get(f"{field_key}_unit") or parent.get("unit")
+
+
+def _history_diff(field: str, old_value, new_value, old_snapshot: dict, new_snapshot: dict, display_name: str = None) -> dict:
+    return {
+        "field": display_name or format_field_display_name(field),
+        "old_value": old_value,
+        "new_value": new_value,
+        "old_unit": _unit_for_field(old_snapshot, field),
+        "new_unit": _unit_for_field(new_snapshot, field),
+    }
+
+
+def _version_field_diffs(version: dict, previous_snapshot: dict | None) -> list[dict]:
+    """Normalize stored diffs or derive them from consecutive applied snapshots."""
+    current_snapshot = version.get("snapshot") if isinstance(version.get("snapshot"), dict) else {}
+    stored_diffs = version.get("field_diffs")
+    if isinstance(stored_diffs, list):
+        return [
+            _history_diff(
+                diff.get("field") or "",
+                diff.get("old_value", diff.get("old")),
+                diff.get("new_value", diff.get("new")),
+                previous_snapshot or {},
+                current_snapshot,
+                diff.get("display_name"),
+            )
+            for diff in stored_diffs
+            if isinstance(diff, dict) and diff.get("field")
+        ]
+    if not previous_snapshot or not current_snapshot:
+        return []
+    return [
+        _history_diff(change["field"], change["old"], change["new"], previous_snapshot, current_snapshot)
+        for change in compare_versions(previous_snapshot, current_snapshot)
+    ]
+
+
 async def get_esg_record_history(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     """Return safe, scoped version history for Environment, Social, or Governance records."""
     section = (kwargs.get("record_type") or "").lower()
@@ -132,7 +202,7 @@ async def get_esg_record_history(org_id: str, facility_ids: list = None, **kwarg
 
     versions = await db[versions_collection].find(
         _id_filter("record_id", list(record_by_id)),
-        {"_id": 0, "record_id": 1, "version": 1, "created_by": 1, "created_by_name": 1, "created_at": 1, "changed_fields": 1, "change_type": 1, "change_reason": 1},
+        {"_id": 0, "record_id": 1, "version": 1, "created_by": 1, "created_by_name": 1, "created_at": 1, "changed_fields": 1, "field_diffs": 1, "snapshot": 1, "record_was_changed": 1, "change_type": 1, "change_reason": 1},
     ).sort("created_at", -1).to_list(100)
     user_ids = list({item.get("created_by") for item in versions if item.get("created_by") and not item.get("created_by_name")})
     users = await db.users.find(
@@ -141,8 +211,10 @@ async def get_esg_record_history(org_id: str, facility_ids: list = None, **kwarg
     ).to_list(100) if user_ids else []
     names = {user["id"]: user.get("full_name") or user.get("name") or user.get("email") for user in users if user.get("id")}
     history = []
-    for version in versions:
+    for index, version in enumerate(versions):
         record = record_by_id.get(version.get("record_id"), {})
+        previous_snapshot = _previous_applied_snapshot(versions, index)
+        field_diffs = _version_field_diffs(version, previous_snapshot)
         history.append({
             "category": record.get("category"),
             "subcategory": record.get("subcategory"),
@@ -150,6 +222,7 @@ async def get_esg_record_history(org_id: str, facility_ids: list = None, **kwarg
             "changed_by_name": version.get("created_by_name") or names.get(version.get("created_by")) or "Unknown user",
             "changed_at": version.get("created_at"),
             "changed_fields": [_history_field_label(field) for field in version.get("changed_fields") or []],
+            "field_diffs": field_diffs,
             "change_type": version.get("change_type") or ("Created" if version.get("version") == 1 else "Updated"),
             "change_reason": version.get("change_reason"),
         })

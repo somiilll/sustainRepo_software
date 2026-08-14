@@ -211,6 +211,12 @@ def resolve_ghg_metric(question: str) -> Optional[MetricResolution]:
 def resolve_people_governance_metric(question: str) -> Optional[MetricResolution]:
     """Route common Social/Governance metrics to their stored subcategory and field."""
     text = (question or "").lower()
+    if _contains_any(text, ("women employees", "woman employees", "female employees", "female employee", "number of women", "number of female", "no of women", "no of female")):
+        return MetricResolution(
+            "social", "Employees/Worker", "Employee Diversity", "no_of_female", "Women employees",
+            ("no_of_female", "women employees", "female employees", "female employee", "number of female employees"),
+            semantic_terms=("women", "female", "employee", "employees"),
+        )
     if _contains_any(text, ("total employees", "number of employees", "no of employees", "how many employees")):
         return MetricResolution(
             "social", "Employees/Worker", "Employee Diversity", "no_of_employees", "Total employees",

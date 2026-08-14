@@ -387,6 +387,8 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Regression verification passed (6/6): Water approved counts, `oct`/`october` Waste Spills approval routing, October spillage amount without an invented unit, retrieval-error state, and restricted-user scope.
 
 ## Prioritized Backlog Update
+- **2026-08-14 — Internal Data AI history and people-metric fixes:** AI version-history retrieval now includes version snapshots and stored field diffs, derives before/after values from consecutive applied snapshots when needed, and presents value changes with available units. History copy now clarifies that a requested month filters the record reporting period, not the version-edit timestamp. Count metrics (employees, incidents, cases, and similar fields) no longer display the misleading `(unit not stored)` suffix. Deterministic routing now maps women/female employee questions to `Employee Diversity.no_of_female`.
+- **Verification:** Not run at the user's explicit request.
 - P0: Verify the expanded Internal Data AI router end-to-end before relying on it for Environment/GHG/Social/Governance/BRSR/GRI answers.
 - P1: Add organization-configurable topic aliases for broad Social/Governance themes such as board, risk management, and policies.
 - P1: Investigate dashboard chart container and React key-spread console warnings reported during Water unit regression testing; they were not reproduced in the current smoke log.
