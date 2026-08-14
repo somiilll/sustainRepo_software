@@ -68,9 +68,7 @@ class EnergyMetricsService:
         end_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get energy from GHG emission_records with renewable breakdown"""
-        from ...ghg_integration import get_ghg_integration_service
-        
-        ghg_service = get_ghg_integration_service(self.db)
+        from modules.internal_data_ai.services.emissions import get_renewable_energy_components
         
         result = {
             "fuel": {"renewable": 0, "non_renewable": 0, "total": 0},
@@ -82,43 +80,22 @@ class EnergyMetricsService:
         }
         
         try:
-            records = await ghg_service.get_energy_from_ghg(
-                org_id=org_id,
-                facility_ids=facility_ids,
-                start_date=start_date,
-                end_date=end_date
-            )
-            
-            for rec in records:
-                fv = rec.get("field_values", {})
-                energy_val = float(fv.get("total_energy", 0))
-                unit = fv.get("energy_unit", "MWh")
-                subcategory = (rec.get("subcategory") or "").lower()
-                sub_sub = (rec.get("sub_subcategory") or "").lower()
-                
-                # Convert TJ to MWh
-                if unit == "TJ":
-                    energy_val = energy_val * 277.778
-                
-                is_renewable = "renewable" in sub_sub and "non" not in sub_sub
-                
-                if "fuel" in subcategory:
-                    result["fuel"]["non_renewable"] += energy_val
-                    result["fuel"]["total"] += energy_val
-                    result["non_renewable_total"] += energy_val
-                elif "electricity" in subcategory:
-                    if is_renewable:
-                        result["electricity"]["renewable"] += energy_val
-                        result["renewable_total"] += energy_val
-                    else:
-                        result["electricity"]["non_renewable"] += energy_val
-                        result["non_renewable_total"] += energy_val
-                    result["electricity"]["total"] += energy_val
+            components = await get_renewable_energy_components(org_id, facility_ids, period={"start_month": start_date, "end_month": end_date, "label": f"{start_date} to {end_date}"} if start_date and end_date else None)
+            for fuel in components.get("scope1_calculations", []):
+                energy_val = fuel["energy_tj"] * 277.778
+                result["fuel"]["non_renewable"] += energy_val
+                result["fuel"]["total"] += energy_val
+                result["non_renewable_total"] += energy_val
+                result["total"] += energy_val
+            for electricity in components.get("scope2_electricity", []):
+                energy_val = to_mwh(electricity.get("quantity") or 0, electricity.get("unit"))
+                if electricity.get("renewable"):
+                    result["electricity"]["renewable"] += energy_val
+                    result["renewable_total"] += energy_val
                 else:
-                    result["other_sources"]["non_renewable"] += energy_val
-                    result["other_sources"]["total"] += energy_val
+                    result["electricity"]["non_renewable"] += energy_val
                     result["non_renewable_total"] += energy_val
-                
+                result["electricity"]["total"] += energy_val
                 result["total"] += energy_val
             
             # Round all values
@@ -185,9 +162,9 @@ class EnergyMetricsService:
                 ren_raw = float(fv.get("renewable_energy_consumption") or 0)
                 non_ren_raw = float(fv.get("non_renewable_energy_consumption") or 0)
             
-            # Renewable/non-renewable fields are stored in Joules
-            ren_qty = to_mwh(ren_raw, "J") if ren_raw else 0
-            non_ren_qty = to_mwh(non_ren_raw, "J") if non_ren_raw else 0
+            stored_unit = fv.get("quantity_unit") or fv.get("unit")
+            ren_qty = to_mwh(ren_raw, stored_unit) if ren_raw and stored_unit else 0
+            non_ren_qty = to_mwh(non_ren_raw, stored_unit) if non_ren_raw and stored_unit else 0
             
             # Fallback: use quantity field for legacy records
             if ren_qty == 0 and non_ren_qty == 0 and fv.get("quantity"):
@@ -195,9 +172,9 @@ class EnergyMetricsService:
                 is_renewable = (fv.get("is_renewable") or "").lower()
                 sub_sub = (fv.get("sub_subcategory") or fv.get("subsubcategory") or "").lower()
                 if "yes" in is_renewable or "renewable" in sub_sub or "renewable" in subcategory:
-                    ren_qty = to_mwh(old_qty, fv.get("unit"))
+                    ren_qty = to_mwh(old_qty, stored_unit)
                 else:
-                    non_ren_qty = to_mwh(old_qty, fv.get("unit"))
+                    non_ren_qty = to_mwh(old_qty, stored_unit)
             
             total_qty = ren_qty + non_ren_qty
             

@@ -41,6 +41,17 @@ ENERGY_FACTORS_TO_GJ = {
     "gwh": 3600.0,
 }
 
+ENERGY_FACTORS_TO_MWH = {
+    "j": 2.777777777777778e-10,
+    "kj": 2.777777777777778e-7,
+    "mj": 2.777777777777778e-4,
+    "gj": 0.2777777777777778,
+    "tj": 277.77777777777777,
+    "kwh": 0.001,
+    "mwh": 1.0,
+    "gwh": 1000.0,
+}
+
 
 @pytest.fixture(scope="module")
 def session() -> requests.Session:
@@ -109,6 +120,28 @@ def _to_gj(value: float, unit: str) -> float | None:
     if factor is None:
         return None
     return float(value) * factor
+
+
+def _to_mwh(value: float, unit: str) -> float | None:
+    key = (unit or "").strip().lower().replace(" ", "")
+    key = key.replace("kilojoule(kj)", "kj")
+    factor = ENERGY_FACTORS_TO_MWH.get(key)
+    if factor is None:
+        return None
+    return float(value) * factor
+
+
+def _dashboard_metrics(session: requests.Session, token: str, start_date: str, end_date: str) -> dict[str, Any]:
+    response = session.get(
+        f"{API}/esg-records/dashboard-metrics",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"start_date": start_date, "end_date": end_date},
+        timeout=120,
+    )
+    assert response.status_code == 200, f"dashboard-metrics failed: {response.status_code} {response.text[:500]}"
+    payload = response.json()
+    assert isinstance(payload.get("energy"), dict), f"Missing energy block in dashboard payload: {payload}"
+    return payload
 
 
 def _extract_result_percent(answer: str) -> float | None:
@@ -313,4 +346,85 @@ def test_scope2_rows_expose_identity_and_are_deduped_by_business_identity(
     assert len(business_keys) == len(set(business_keys)), (
         "Duplicate scope2 rows detected by business identity "
         "(facility_id + record_source + period + quantity + unit + renewable)"
+    )
+
+
+def test_dashboard_ghg_energy_breakdown_matches_internal_ai_component_math(
+    session: requests.Session, tokens: dict[str, str]
+):
+    ai_payload = _chat(session, tokens["admin"], "how much renewable energy % for FY 2026-2027")
+    _, ghg_data = _combined_raw_data(ai_payload)
+    dashboard_payload = _dashboard_metrics(session, tokens["admin"], "2026-04", "2027-03")
+    dashboard_energy = dashboard_payload.get("energy") or {}
+    emission = dashboard_energy.get("emission_records") or {}
+
+    expected_scope1_non_renewable_mwh = sum(float(row.get("energy_tj", 0.0)) * 277.778 for row in ghg_data.get("scope1_calculations") or [])
+
+    expected_scope2_renewable_mwh = 0.0
+    expected_scope2_non_renewable_mwh = 0.0
+    for row in ghg_data.get("scope2_electricity") or []:
+        qty = row.get("quantity")
+        unit = row.get("unit")
+        converted = _to_mwh(qty, unit) if isinstance(qty, (int, float)) else None
+        assert converted is not None, f"Unsupported scope2 source unit for mwh conversion: {row}"
+        if row.get("renewable"):
+            expected_scope2_renewable_mwh += converted
+        else:
+            expected_scope2_non_renewable_mwh += converted
+
+    # Dashboard rounds at 2 decimals; tolerance aligns with service contract.
+    assert math.isclose(
+        float(((emission.get("fuel") or {}).get("non_renewable") or 0.0)),
+        round(expected_scope1_non_renewable_mwh, 2),
+        rel_tol=0,
+        abs_tol=0.01,
+    )
+    assert math.isclose(
+        float(((emission.get("electricity") or {}).get("renewable") or 0.0)),
+        round(expected_scope2_renewable_mwh, 2),
+        rel_tol=0,
+        abs_tol=0.01,
+    )
+    assert math.isclose(
+        float(((emission.get("electricity") or {}).get("non_renewable") or 0.0)),
+        round(expected_scope2_non_renewable_mwh, 2),
+        rel_tol=0,
+        abs_tol=0.01,
+    )
+
+
+def test_dashboard_and_ai_combined_renewable_percentage_stay_in_parity_for_same_period(
+    session: requests.Session, tokens: dict[str, str]
+):
+    ai_payload = _chat(session, tokens["admin"], "how much renewable energy % for FY 2026-2027")
+    answer_pct = _extract_result_percent(ai_payload.get("answer") or "")
+    assert answer_pct is not None, f"Result percent not present in AI answer: {ai_payload}"
+
+    dashboard_payload = _dashboard_metrics(session, tokens["admin"], "2026-04", "2027-03")
+    dashboard_pct = float((dashboard_payload.get("energy") or {}).get("renewable_pct") or 0.0)
+
+    # Dashboard percentage is rounded to 2 decimals, AI to 6 decimals in narrative.
+    assert math.isclose(dashboard_pct, answer_pct, rel_tol=0, abs_tol=0.05), (
+        f"Dashboard vs AI renewable pct mismatch for same scope/period: dashboard={dashboard_pct}, ai={answer_pct}"
+    )
+
+
+def test_dashboard_facility_scope_is_not_equal_for_restricted_and_admin_users(
+    session: requests.Session, tokens: dict[str, str]
+):
+    admin = _dashboard_metrics(session, tokens["admin"], "2026-04", "2027-03")
+    restricted = _dashboard_metrics(session, tokens["restricted"], "2026-04", "2027-03")
+
+    admin_energy = admin.get("energy") or {}
+    restricted_energy = restricted.get("energy") or {}
+
+    assert float(restricted_energy.get("total") or 0.0) <= float(admin_energy.get("total") or 0.0), (
+        f"Restricted user energy.total exceeded admin total. restricted={restricted_energy.get('total')} "
+        f"admin={admin_energy.get('total')}"
+    )
+
+    # Restricted user is assigned only scope1@Facility E; scope2 electricity should not leak.
+    restricted_scope2_total = float(((restricted_energy.get("emission_records") or {}).get("electricity") or {}).get("total") or 0.0)
+    assert restricted_scope2_total == 0.0, (
+        f"Restricted user should not receive scope2 electricity in dashboard metrics. value={restricted_scope2_total}"
     )
