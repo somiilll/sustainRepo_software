@@ -34,6 +34,37 @@ _SOURCES = {
     QueryType.UNKNOWN: [],
 }
 
+_ESG_SECTIONS = {"environment", "social", "governance"}
+
+
+def _approval_status_filter(question: str) -> Optional[str]:
+    """Map only explicit approval-status wording to a stored status filter."""
+    text = (question or "").lower()
+    if re.search(r"\b(awaiting|pending)(?:\s+(?:for\s+)?approval|\s+review)?\b", text):
+        return "pending_approval"
+    if re.search(r"\bapproved\b", text):
+        return "approved"
+    return None
+
+
+def _resolve_esg_context(question: str, entities: dict) -> tuple[Optional[str], Optional[str]]:
+    """Derive ESG section/category from explicit user wording before using model hints."""
+    text = (question or "").lower()
+    record_type = (entities.get("record_type") or "").lower()
+    category = entities.get("category")
+
+    if re.search(r"\bwater\b", text):
+        return "environment", "Water"
+    if re.search(r"\benvironment(?:al)?\b", text):
+        return "environment", category
+    if re.search(r"\bsocial\b", text):
+        return "social", category
+    if re.search(r"\bgovernance\b", text):
+        return "governance", category
+    if record_type in _ESG_SECTIONS:
+        return record_type, category
+    return None, category
+
 
 def _period_contract(period: Optional[ResolvedPeriod]) -> QueryPeriod:
     if period is None:
@@ -77,7 +108,7 @@ def _query_type(question: str, legacy_intent: str, metric: str) -> QueryType:
         return QueryType.EVIDENCE_LOOKUP
     if legacy_intent == "brsr_lookup" or re.search(r"\bbrsr\b", text):
         return QueryType.BRSR_LOOKUP
-    if re.search(r"\b(awaiting approval|awaiting review|pending approval|pending review)\b", text):
+    if _approval_status_filter(question):
         return QueryType.APPROVAL_STATUS_LOOKUP
     if re.search(r"\bformula version\b", text):
         return QueryType.FORMULA_VERSION_HISTORY
@@ -121,6 +152,7 @@ def build_query_plan(
     legacy_intent = intent_result.get("intent", "")
     metric = _metric_from_question(question) or entities.get("metric") or ""
     query_type = _query_type(question, legacy_intent, metric)
+    record_type, category = _resolve_esg_context(question, entities)
     raw_fuel = entities.get("fuel_type") or (fuel_resolution or {}).get("raw_value")
     entity = None
     evidence_state = EvidenceState.PENDING
@@ -140,16 +172,25 @@ def build_query_plan(
         elif status == "NOT_FOUND":
             notes.append("Fuel is not present in the canonical fuel database.")
 
+    sources_required = _SOURCES[query_type]
+    if record_type in _ESG_SECTIONS and query_type in {
+        QueryType.CONSUMPTION_LOOKUP,
+        QueryType.RECORD_LOOKUP,
+        QueryType.APPROVAL_STATUS_LOOKUP,
+    }:
+        sources_required = [f"{record_type}_records"]
+
     return StructuredQueryPlan(
         query_type=query_type,
         entity=entity,
         period=_period_contract(period),
         facility=entities.get("facility"),
         scope=entities.get("scope"),
-        category=entities.get("category") or (metric if entities.get("record_type") in {"environment", "social", "governance"} else None),
-        record_type=entities.get("record_type"),
+        category=category or (metric if record_type in _ESG_SECTIONS else None),
+        record_type=record_type,
         requested_metric=metric or None,
-        sources_required=_SOURCES[query_type],
+        approval_status_filter=_approval_status_filter(question),
+        sources_required=sources_required,
         evidence_state=evidence_state,
         legacy_intent=legacy_intent or None,
         resolution_notes=notes,

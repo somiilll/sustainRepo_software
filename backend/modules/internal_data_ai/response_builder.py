@@ -57,6 +57,74 @@ IMPORTANT for chart:
 - Omit chart if data has fewer than 2 items or is not numeric."""
 
 
+def _format_record_values(values: dict) -> str:
+    if not values:
+        return "Value unavailable"
+    parts = []
+    for key, value in values.items():
+        if key == "unit" or key.endswith("_unit") or value in (None, "", [], {}):
+            continue
+        label = key.replace("_", " ").title()
+        unit = values.get(f"{key}_unit") or (values.get("unit") if key != "unit" else None)
+        rendered = json.dumps(value, ensure_ascii=False, default=str) if isinstance(value, (dict, list)) else str(value)
+        parts.append(f"{label}: {rendered}{f' {unit}' if unit and key != 'unit' else ''}")
+    return "; ".join(parts[:4]) or "Value unavailable"
+
+
+def _build_esg_record_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
+    """Return deterministic ESG-record answers so record state never depends on LLM phrasing."""
+    category = data.get("category") or query_plan.category or query_plan.record_type or "ESG"
+    metric = data.get("requested_metric")
+    subject = f"{category} {metric.title()}" if metric and metric.lower() != str(category).lower() else str(category)
+    period = data.get("period") or "All reporting periods"
+    state = data.get("state", "NOT_FOUND")
+    found = data.get("records_found", 0)
+    matching = data.get("matching_status_records", 0)
+    status_filter = data.get("approval_status_filter")
+    summary = data.get("approval_status_summary") or {}
+
+    if state == "NOT_FOUND":
+        answer = f"No {subject} metric records were found for {period}."
+    elif state == "STATUS_UNAVAILABLE":
+        answer = (
+            f"No approval-status data was provided for the {found} matching {subject} metric record(s) for {period}; "
+            "their approval state cannot be determined."
+        )
+    elif status_filter == "pending_approval" and matching == 0:
+        answer = f"No {str(category).lower()} metric records are pending approval. Records found: {found}. Awaiting approval: 0."
+    elif status_filter == "approved" and matching == 0:
+        answer = f"No {category} metric records currently have Approved status. Records found: {found}. Approved: 0."
+    else:
+        status_label = "pending approval" if state == "PENDING" else "approved" if state == "APPROVED" else "found"
+        answer = f"{matching if status_filter else found} {subject} metric record(s) {status_label} for {period}."
+        details = []
+        for record in data.get("records", [])[:10]:
+            details.append(
+                f"• {record.get('metric') or category} — {record.get('facility') or 'Organization level'}; "
+                f"{record.get('reporting_period')}; {_format_record_values(record.get('field_values') or {})}; "
+                f"status: {record.get('approval_status') or 'unavailable'}"
+            )
+        if details:
+            answer = f"{answer}\n" + "\n".join(details)
+
+    highlights = [
+        {"label": "State", "value": state},
+        {"label": "Records found", "value": str(found)},
+        {"label": "Pending", "value": str(summary.get("PENDING", 0))},
+        {"label": "Approved", "value": str(summary.get("APPROVED", 0))},
+    ]
+    if summary.get("STATUS_UNAVAILABLE"):
+        highlights.append({"label": "Status unavailable", "value": str(summary["STATUS_UNAVAILABLE"])})
+    return {
+        "answer": answer,
+        "highlights": highlights,
+        "suggestion": None,
+        "response_type": response_type,
+        "chart": None,
+        "raw_data": data,
+    }
+
+
 def _evidence_formatter_data(query_plan: StructuredQueryPlan, service_data: dict) -> dict:
     emissions = service_data.get("emissions", {})
     evidence = service_data.get("evidence_state", {})
@@ -122,6 +190,8 @@ async def build_response(
 ) -> dict:
     """Format structured service data into a natural language response."""
     try:
+        if query_plan and query_plan.record_type in {"environment", "social", "governance"} and service_data.get("esg_records"):
+            return _build_esg_record_response(query_plan, service_data["esg_records"], response_type)
         formatter_data = _evidence_formatter_data(query_plan, service_data) if query_plan else service_data
         detailed_terms = ("audit", "record-level", "record level", "input value", "substitution", "calculation input")
         is_detailed_request = any(term in question.lower() for term in detailed_terms)

@@ -47,10 +47,37 @@ def test_property_brsr_approval_and_attachment_queries_use_explicit_routes():
     assert brsr_plan.query_type == QueryType.BRSR_LOOKUP
     assert [step["service"] for step in plan_service_calls({}, brsr_plan)] == ["brsr"]
     assert approval_plan.query_type == QueryType.APPROVAL_STATUS_LOOKUP
-    assert approval_plan.category == "water"
-    assert [step["service"] for step in plan_service_calls({}, approval_plan)] == ["approvals"]
+    assert approval_plan.category == "Water"
+    assert [step["service"] for step in plan_service_calls({}, approval_plan)] == ["esg_records"]
     assert evidence_plan.query_type == QueryType.EVIDENCE_LOOKUP
     assert [step["service"] for step in plan_service_calls({}, evidence_plan)] == ["evidence"]
+
+
+def test_water_status_and_consumption_queries_use_authorized_environment_records():
+    pending_plan = build_query_plan(
+        "Which water metrics are pending approval?",
+        _intent("kpi_lookup", record_type="environment", metric="water"),
+        None,
+    )
+    approved_plan = build_query_plan(
+        "Which water metrics are approved?",
+        _intent("kpi_lookup", record_type="environment", metric="water"),
+        None,
+    )
+    consumption_plan = build_query_plan(
+        "What is water consumption for July 2026?",
+        _intent("kpi_lookup", record_type="environment", metric="water"),
+        extract_explicit_period("July 2026", None),
+    )
+
+    assert pending_plan.record_type == "environment"
+    assert pending_plan.category == "Water"
+    assert pending_plan.approval_status_filter == "pending_approval"
+    assert [step["service"] for step in plan_service_calls({}, pending_plan)] == ["esg_records"]
+    assert approved_plan.approval_status_filter == "approved"
+    assert [step["service"] for step in plan_service_calls({}, approved_plan)] == ["esg_records"]
+    assert consumption_plan.requested_metric == "consumption"
+    assert [step["service"] for step in plan_service_calls({}, consumption_plan)] == ["esg_records"]
 
 
 @pytest.mark.asyncio

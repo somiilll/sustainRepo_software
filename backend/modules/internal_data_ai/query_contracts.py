@@ -69,6 +69,7 @@ class StructuredQueryPlan(BaseModel):
     category: Optional[str] = None
     record_type: Optional[str] = None
     requested_metric: Optional[str] = None
+    approval_status_filter: Optional[str] = None
     sources_required: list[str] = Field(default_factory=list)
     evidence_state: EvidenceState = EvidenceState.PENDING
     legacy_intent: Optional[str] = None
