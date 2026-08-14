@@ -1,6 +1,6 @@
 """Closed, non-executable contracts for Internal Data AI query planning."""
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,6 +16,9 @@ class QueryType(str, Enum):
     EMISSION_FACTOR_LOOKUP = "emission_factor_lookup"
     CALCULATION_PROPERTY_LOOKUP = "calculation_property_lookup"
     BRSR_LOOKUP = "brsr_lookup"
+    GRI_LOOKUP = "gri_lookup"
+    BRSR_VERSION_HISTORY = "brsr_version_history"
+    GRI_VERSION_HISTORY = "gri_version_history"
     APPROVAL_STATUS_LOOKUP = "approval_status_lookup"
     EVIDENCE_LOOKUP = "evidence_lookup"
     RECORD_LOOKUP = "record_lookup"
@@ -75,6 +78,10 @@ class StructuredQueryPlan(BaseModel):
     metric_field_label: Optional[str] = None
     metric_field_aliases: list[str] = Field(default_factory=list)
     derived_metric: Optional[str] = None
+    data_source: Optional[str] = None
+    metric_terms: list[str] = Field(default_factory=list)
+    value_kind: Optional[str] = None
+    field_value_filter: Optional[Dict[str, str]] = None
     approval_status_filter: Optional[str] = None
     sources_required: list[str] = Field(default_factory=list)
     evidence_state: EvidenceState = EvidenceState.PENDING

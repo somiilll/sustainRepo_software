@@ -25,6 +25,9 @@ _SOURCES = {
     QueryType.EMISSION_FACTOR_LOOKUP: ["emission_records", "fuel_database", "emission_factors"],
     QueryType.CALCULATION_PROPERTY_LOOKUP: ["emission_records", "calculation_inputs"],
     QueryType.BRSR_LOOKUP: ["esg_responses", "esg_response_submissions", "esg_question_configs"],
+    QueryType.GRI_LOOKUP: ["esg_responses", "esg_response_submissions", "esg_question_configs"],
+    QueryType.BRSR_VERSION_HISTORY: ["esg_responses", "esg_responses_versions"],
+    QueryType.GRI_VERSION_HISTORY: ["esg_responses", "esg_responses_versions"],
     QueryType.APPROVAL_STATUS_LOOKUP: ["environment_records", "approval_requests"],
     QueryType.EVIDENCE_LOOKUP: ["emission_records", "uploaded_files"],
     QueryType.RECORD_LOOKUP: ["emission_records"],
@@ -108,8 +111,11 @@ def _query_type(question: str, legacy_intent: str, metric: str) -> QueryType:
     text = question.lower()
     if legacy_intent == "evidence_retrieval" or re.search(r"\b(attachment|attachments|evidence file|invoice)\b", text):
         return QueryType.EVIDENCE_LOOKUP
+    framework_history = re.search(r"\b(previous answer|changed answer|what was reported before|version|history|who changed|when it changed|compare versions)\b", text)
     if legacy_intent == "brsr_lookup" or re.search(r"\bbrsr\b", text):
-        return QueryType.BRSR_LOOKUP
+        return QueryType.BRSR_VERSION_HISTORY if framework_history else QueryType.BRSR_LOOKUP
+    if legacy_intent == "gri_lookup" or re.search(r"\bgri\b", text):
+        return QueryType.GRI_VERSION_HISTORY if framework_history else QueryType.GRI_LOOKUP
     if _approval_status_filter(question):
         return QueryType.APPROVAL_STATUS_LOOKUP
     if re.search(r"\bformula version\b", text):
@@ -158,7 +164,9 @@ def build_query_plan(
     record_type, category = _resolve_esg_context(question, entities)
     if metric_resolution:
         record_type, category = metric_resolution.section, metric_resolution.category
-        if query_type != QueryType.APPROVAL_STATUS_LOOKUP:
+        if metric_resolution.data_source == "ghg_emissions":
+            query_type = QueryType.EMISSION_LOOKUP if metric_resolution.value_kind == "emissions" else QueryType.CONSUMPTION_LOOKUP
+        elif query_type != QueryType.APPROVAL_STATUS_LOOKUP:
             query_type = QueryType.ESG_METRIC_LOOKUP
     raw_fuel = entities.get("fuel_type") or (fuel_resolution or {}).get("raw_value")
     entity = None
@@ -187,13 +195,15 @@ def build_query_plan(
         QueryType.ESG_METRIC_LOOKUP,
     }:
         sources_required = [f"{record_type}_records"]
+    elif metric_resolution and metric_resolution.data_source == "ghg_emissions":
+        sources_required = ["emission_records"]
 
     return StructuredQueryPlan(
         query_type=query_type,
         entity=entity,
         period=_period_contract(period),
         facility=entities.get("facility"),
-        scope=entities.get("scope"),
+        scope=metric_resolution.ghg_scope if metric_resolution and metric_resolution.ghg_scope else entities.get("scope"),
         category=category or (metric if record_type in _ESG_SECTIONS else None),
         record_type=record_type,
         requested_metric=metric or None,
@@ -202,6 +212,10 @@ def build_query_plan(
         metric_field_label=metric_resolution.field_label if metric_resolution else None,
         metric_field_aliases=list(metric_resolution.field_aliases) if metric_resolution else [],
         derived_metric=metric_resolution.derived_metric if metric_resolution else None,
+        data_source=metric_resolution.data_source if metric_resolution else None,
+        metric_terms=list(metric_resolution.semantic_terms) if metric_resolution else [],
+        value_kind=metric_resolution.value_kind if metric_resolution else None,
+        field_value_filter=metric_resolution.field_value_filter if metric_resolution else None,
         approval_status_filter=_approval_status_filter(question),
         sources_required=sources_required,
         evidence_state=evidence_state,

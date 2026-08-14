@@ -48,6 +48,10 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
         "metric_field_label": query_plan.metric_field_label,
         "metric_field_aliases": query_plan.metric_field_aliases,
         "derived_metric": query_plan.derived_metric,
+        "data_source": query_plan.data_source,
+        "metric_terms": query_plan.metric_terms,
+        "value_kind": query_plan.value_kind,
+        "field_value_filter": query_plan.field_value_filter,
         "approval_status_filter": query_plan.approval_status_filter,
         "period": query_plan.period.model_dump(),
     }
@@ -104,6 +108,12 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
         ]
     if query_plan.query_type == QueryType.BRSR_LOOKUP:
         return [{"service": "brsr", "method": "get_responses", "params": params}]
+    if query_plan.query_type == QueryType.GRI_LOOKUP:
+        return [{"service": "gri", "method": "get_responses", "params": params}]
+    if query_plan.query_type == QueryType.BRSR_VERSION_HISTORY:
+        return [{"service": "brsr", "method": "get_version_history", "params": params}]
+    if query_plan.query_type == QueryType.GRI_VERSION_HISTORY:
+        return [{"service": "gri", "method": "get_version_history", "params": params}]
     if query_plan.query_type == QueryType.APPROVAL_STATUS_LOOKUP:
         return [{"service": "esg_records", "method": "search_records", "params": params}]
     if query_plan.query_type == QueryType.EVIDENCE_LOOKUP:

@@ -7,12 +7,17 @@ from typing import Optional
 @dataclass(frozen=True)
 class MetricResolution:
     section: str
-    category: str
+    category: Optional[str]
     subcategory: Optional[str] = None
     field_key: Optional[str] = None
     field_label: Optional[str] = None
     field_aliases: tuple[str, ...] = ()
     derived_metric: Optional[str] = None
+    data_source: str = "esg_records"
+    semantic_terms: tuple[str, ...] = ()
+    ghg_scope: Optional[str] = None
+    value_kind: Optional[str] = None
+    field_value_filter: Optional[dict] = None
 
 
 _WATER_TERMS = (
@@ -112,9 +117,119 @@ def resolve_water_metric(question: str) -> Optional[MetricResolution]:
     return _field_definition(subcategory, "default")
 
 
+def _semantic_terms(text: str, terms: tuple[str, ...]) -> tuple[str, ...]:
+    """Keep only explicit domain terms for configuration-based field matching."""
+    return tuple(term for term in terms if term in text)
+
+
+def resolve_environment_metric(question: str) -> Optional[MetricResolution]:
+    """Route non-Water Environment topics while leaving evolving field schemas configuration-driven."""
+    text = (question or "").lower()
+    if _contains_any(text, ("carbon offsets", "ghg offsets", "offset credits", "emissions offsets", "offset")):
+        return MetricResolution("environment", "Other Emissions", "GHG Emissions - Offsets", semantic_terms=("offset",))
+    if _contains_any(text, ("carbon credits", "carbon credit")):
+        return MetricResolution("environment", "Other Emissions", "GHG Emissions - Carbon Credits", semantic_terms=("carbon", "credit"))
+    if _contains_any(text, ("ozone-depleting", "ozone depletion", "ods", "refrigerant")):
+        return MetricResolution("environment", "Other Emissions", "Ozone-depleting substances (ODS)", semantic_terms=("ozone", "ods", "refrigerant"))
+    if _contains_any(text, ("air emissions", "nox", "sox", "particulate", "voc", "hap", "pap", "air pollutants", "pollutants")):
+        parameter = next((term for term in ("nox", "sox", "pm", "particulate", "voc", "hap", "pap") if term in text), None)
+        return MetricResolution(
+            "environment", "Other Emissions", "Air Emissions", "quantity", "Emissions", ("quantity", "emissions"),
+            semantic_terms=_semantic_terms(text, ("nox", "sox", "pm", "particulate", "voc", "hap", "pap", "pollutant")),
+            field_value_filter={"parameter": parameter} if parameter else None,
+        )
+    if _contains_any(text, ("waste", "waste generated", "waste disposed", "waste recycled", "waste recovered", "waste treatment", "waste diversion", "waste reuse", "spill")):
+        subcategory = None
+        if _contains_any(text, ("disposed", "disposal", "landfill", "incineration")):
+            subcategory = "Disposal"
+        elif _contains_any(text, ("recycled", "recovered", "diverted", "reuse", "re-used")):
+            subcategory = "Recovered / Diverted from disposal"
+        elif _contains_any(text, ("generated", "generation")):
+            subcategory = "Generated"
+        elif _contains_any(text, ("spill", "spills")):
+            subcategory = "Spills"
+        return MetricResolution("environment", "Waste", subcategory, semantic_terms=_semantic_terms(text, (
+            "waste", "generated", "disposed", "disposal", "recycled", "recovered", "diverted", "hazardous",
+            "non-hazardous", "plastic", "e-waste", "incineration", "landfill", "spill",
+        )))
+    if _contains_any(text, ("biodiversity", "habitat", "ecosystem", "protected areas", "restoration", "species")):
+        return MetricResolution("environment", "Biodiversity", semantic_terms=_semantic_terms(text, (
+            "biodiversity", "habitat", "ecosystem", "protected", "restoration", "rehabilitation", "species", "site",
+        )))
+    if _contains_any(text, ("climate change", "climate risk", "climate impact", "climate-related", "climate opportunities", "climate strategy")):
+        return MetricResolution("environment", "Climate Change", semantic_terms=_semantic_terms(text, (
+            "climate", "risk", "impact", "opportunity", "strategy", "transition", "adaptation", "mitigation",
+        )))
+    if _contains_any(text, ("material", "materials used", "raw materials", "recycled material", "material consumption", "material sourcing")):
+        return MetricResolution("environment", "Material", semantic_terms=_semantic_terms(text, (
+            "material", "recycled", "raw", "consumption", "sourcing", "weight", "volume",
+        )))
+    if _contains_any(text, ("energy", "electricity", "renewable energy", "renewable electricity", "energy intensity", "power", "grid electricity", "purchased electricity")):
+        subcategory = "Electricity Within Organization" if _contains_any(text, ("electricity", "grid electricity", "purchased electricity")) else None
+        return MetricResolution("environment", "Energy", subcategory, semantic_terms=_semantic_terms(text, (
+            "energy", "electricity", "purchased", "grid", "renewable", "non-renewable", "intensity", "consumption",
+        )))
+    water = resolve_water_metric(question)
+    if water:
+        return water
+    return None
+
+
+def resolve_ghg_metric(question: str) -> Optional[MetricResolution]:
+    """Route explicit GHG activity and emissions requests without confusing them with Environment activity data."""
+    text = (question or "").lower()
+    explicit_emissions = _contains_any(text, ("co2e", "co₂e", "scope 1", "scope 2", "ghg emissions", "carbon emissions", "emissions caused"))
+    combustion = _contains_any(text, ("diesel", "petrol", "gasoline", "natural gas", "fuel", "stationary combustion", "mobile combustion"))
+    electricity_emissions = explicit_emissions and _contains_any(text, ("electricity", "power", "grid"))
+    if not (explicit_emissions or combustion):
+        return None
+    scope = "scope2" if electricity_emissions or "scope 2" in text else "scope1" if combustion or "scope 1" in text else None
+    category = "Purchased Electricity" if electricity_emissions else "Stationary Combustion" if "stationary" in text else "Mobile Combustion" if "mobile" in text else None
+    value_kind = "emissions" if explicit_emissions else "activity"
+    return MetricResolution(
+        section="ghg",
+        category=category,
+        data_source="ghg_emissions",
+        semantic_terms=_semantic_terms(text, ("diesel", "petrol", "gasoline", "natural gas", "electricity", "fuel")),
+        ghg_scope=scope,
+        value_kind=value_kind,
+    )
+
+
+def resolve_people_governance_metric(question: str) -> Optional[MetricResolution]:
+    """Route Social/Governance by category only; configured field labels resolve the metric."""
+    text = (question or "").lower()
+    social_routes = (
+        (("employee", "employees", "worker", "workforce", "diversity", "gender", "turnover", "benefit", "parental leave"), "Employees/Worker"),
+        (("training", "upskilling", "re-skilling"), "Training"),
+        (("health and safety", "health & safety", "occupational", "ltifr", "injury", "fatality"), "Health & Safety"),
+        (("grievance", "social complaint", "employee complaint", "human rights"), "Complaints"),
+        (("community", "social impact"), "Community"),
+    )
+    governance_routes = (
+        (("anti-corruption", "corruption", "bribery", "ethics"), "Anti-corruption"),
+        (("data privacy", "cybersecurity", "cyber security", "data breach"), "Incidents"),
+        (("non-compliance", "compliance", "whistleblower", "governance complaint"), "Incidents"),
+        (("procurement", "local suppliers"), "Financial & Procurement Metrics"),
+    )
+    for terms, category in social_routes:
+        if _contains_any(text, terms):
+            return MetricResolution("social", category, semantic_terms=_semantic_terms(text, terms))
+    for terms, category in governance_routes:
+        if _contains_any(text, terms):
+            return MetricResolution("governance", category, semantic_terms=_semantic_terms(text, terms))
+    return None
+
+
 def resolve_esg_metric(question: str) -> Optional[MetricResolution]:
-    """Entry point for deterministic core metric routing; new modules extend here."""
-    return resolve_water_metric(question)
+    """Entry point for deterministic routing; more sectors can extend this registry."""
+    environment = resolve_environment_metric(question)
+    if environment and environment.category != "Energy":
+        return environment
+    ghg = resolve_ghg_metric(question)
+    if ghg:
+        return ghg
+    return environment or resolve_people_governance_metric(question)
 
 
 async def configured_field_candidates(
@@ -165,3 +280,64 @@ async def configured_field_candidates(
     for item in ordered:
         unique.setdefault((item["key"], item["label"]), item)
     return list(unique.values())
+
+
+async def configured_semantic_field_candidates(
+    organization_id: str,
+    section: str,
+    category: str,
+    subcategory: Optional[str],
+    terms: list[str],
+) -> dict[str, list[dict]]:
+    """Use the resolved organization catalog to select only explicitly matching configured fields."""
+    if not terms:
+        return {}
+    from modules.sustainability_config.service import resolve_config
+
+    section_key = {"environment": "modules", "social": "social_modules", "governance": "governance_modules"}.get(section)
+    if not section_key:
+        return {}
+    normalize = lambda value: re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+    category_key, subcategory_key = normalize(category), normalize(subcategory)
+    normalized_terms = [normalize(term) for term in terms if normalize(term)]
+    grouped: dict[str, list[tuple[int, bool, dict]]] = {}
+    try:
+        config = await resolve_config(organization_id)
+        for module in config.get(section_key, []):
+            if not any(normalize(value) == category_key for value in (module.get("module_name"), module.get("module_code"))):
+                continue
+            for configured_subcategory in module.get("subcategories", []):
+                values = (
+                    configured_subcategory.get("subcategory_name"),
+                    configured_subcategory.get("original_subcategory"),
+                    configured_subcategory.get("subcategory_code"),
+                )
+                if subcategory_key and not any(normalize(value) == subcategory_key for value in values):
+                    continue
+                subcategory_name = configured_subcategory.get("original_subcategory") or configured_subcategory.get("subcategory_name")
+                if not subcategory_name:
+                    continue
+                for field in configured_subcategory.get("fields", []):
+                    if field.get("enabled") is False:
+                        continue
+                    key = field.get("field_key") or field.get("field_code")
+                    label = field.get("label") or key
+                    if not key:
+                        continue
+                    searchable = normalize(f"{key} {label}")
+                    score = sum(1 for term in normalized_terms if term in searchable)
+                    if score:
+                        grouped.setdefault(subcategory_name, []).append((score, bool(configured_subcategory.get("is_custom") or configured_subcategory.get("has_override")), {"key": key, "label": label}))
+    except Exception:
+        return {}
+
+    resolved = {}
+    for subcategory_name, candidates in grouped.items():
+        best_score = max(item[0] for item in candidates)
+        best = [item for item in candidates if item[0] == best_score]
+        best.sort(key=lambda item: not item[1])
+        unique = {}
+        for _, _, candidate in best:
+            unique.setdefault((candidate["key"], candidate["label"]), candidate)
+        resolved[subcategory_name] = list(unique.values())
+    return resolved

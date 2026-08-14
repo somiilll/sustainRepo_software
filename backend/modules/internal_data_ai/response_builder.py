@@ -111,6 +111,55 @@ def _build_water_recycling_response(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _build_ghg_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
+    """Render activity data separately from calculated GHG emissions."""
+    value_kind = data.get("value_kind") or query_plan.value_kind or "emissions"
+    category = data.get("category") or "all matching categories"
+    scope = data.get("scope") or query_plan.scope or "all scopes"
+    period = data.get("period") or "All reporting periods"
+    found = data.get("total_found", 0)
+    subject = "GHG emissions" if value_kind == "emissions" else "GHG activity data"
+    if not found:
+        answer = f"No authorized {subject} records were found for {scope} → {category} in {period}."
+    else:
+        answer = f"{found} {subject} record(s) found for {scope} → {category} in {period}."
+        if value_kind == "emissions":
+            totals, period_totals = data.get("emissions_totals") or [], data.get("period_emissions") or []
+            if period == "All reporting periods" and period_totals:
+                answer += "\nPeriod comparison:" + "".join(f"\n• {item['period']}: {item['value']} {item['unit']}" for item in period_totals[:12])
+            elif totals:
+                answer += "\nTotal emissions: " + ", ".join(f"{item['value']} {item['unit']}" for item in totals)
+        else:
+            totals, period_totals = data.get("consumption_totals") or [], data.get("period_consumption") or []
+            if period == "All reporting periods" and period_totals:
+                answer += "\nPeriod comparison:" + "".join(f"\n• {item['period']}: {item['quantity']} {item['unit']}" for item in period_totals[:12])
+            elif totals:
+                answer += "\nTotal activity: " + ", ".join(f"{item['quantity']} {item['unit']}" for item in totals)
+        details = []
+        for record in data.get("records", [])[:12]:
+            value = record.get("emissions_value") if value_kind == "emissions" else record.get("quantity")
+            unit = record.get("emissions_unit") if value_kind == "emissions" else record.get("unit")
+            details.append(
+                f"• {record.get('category') or 'Category'} — {record.get('facility') or 'Organization level'}; "
+                f"{record.get('reporting_period')}; {value if value is not None else 'Value missing'}"
+                f"{f' {unit}' if unit else ''}; Status: {record.get('status') or 'unavailable'}"
+            )
+        if details:
+            answer += "\nUnderlying records:\n" + "\n".join(details)
+    return {
+        "answer": answer,
+        "highlights": [
+            {"label": "Source", "value": f"GHG Emissions → {scope} → {category}"},
+            {"label": "Records found", "value": str(found)},
+            {"label": "Data type", "value": "Calculated emissions" if value_kind == "emissions" else "Activity data"},
+        ],
+        "suggestion": None,
+        "response_type": response_type,
+        "chart": None,
+        "raw_data": data,
+    }
+
+
 def _build_esg_record_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
     """Return deterministic ESG-record answers so record state never depends on LLM phrasing."""
     category = data.get("category") or query_plan.category or query_plan.record_type or "ESG"
@@ -226,6 +275,7 @@ def _evidence_formatter_data(query_plan: StructuredQueryPlan, service_data: dict
         "emission_factors": service_data.get("emission_factors", {}).get("emission_factors", []),
         "calculation_properties": service_data.get("calculation_properties", {}),
         "brsr": service_data.get("brsr", {}),
+        "gri": service_data.get("gri", {}),
         "approval_status": service_data.get("approvals", {}),
         "evidence_files": service_data.get("evidence", {}),
     }
@@ -243,6 +293,8 @@ async def build_response(
 ) -> dict:
     """Format structured service data into a natural language response."""
     try:
+        if query_plan and query_plan.data_source == "ghg_emissions" and service_data.get("emissions"):
+            return _build_ghg_response(query_plan, service_data["emissions"], response_type)
         if query_plan and query_plan.record_type in {"environment", "social", "governance"} and service_data.get("esg_records"):
             return _build_esg_record_response(query_plan, service_data["esg_records"], response_type)
         formatter_data = _evidence_formatter_data(query_plan, service_data) if query_plan else service_data

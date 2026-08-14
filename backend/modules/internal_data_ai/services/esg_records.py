@@ -5,7 +5,9 @@ from collections import defaultdict
 
 from shared.database.mongo import db
 from shared.unit_registry import convert_to_base, detect_unit_type
-from modules.internal_data_ai.metric_resolver import MetricResolution, configured_field_candidates, water_primary_metric
+from modules.internal_data_ai.metric_resolver import (
+    MetricResolution, configured_field_candidates, configured_semantic_field_candidates, water_primary_metric,
+)
 from modules.internal_data_ai.query_scope import and_filters, no_access_filter, resolve_authorized_facilities
 from modules.internal_data_ai.reporting_periods import esg_period_filter, period_from_payload
 
@@ -170,6 +172,16 @@ async def _field_candidates(org_id: str, kwargs: dict, subcategory: str | None =
     return await configured_field_candidates(org_id, definition)
 
 
+def _semantic_candidates_for_subcategory(candidates_by_subcategory: dict, subcategory: str | None) -> list[dict]:
+    if not subcategory:
+        return []
+    target = re.sub(r"[^a-z0-9]+", "", subcategory.lower())
+    for candidate_subcategory, candidates in candidates_by_subcategory.items():
+        if re.sub(r"[^a-z0-9]+", "", candidate_subcategory.lower()) == target:
+            return candidates
+    return []
+
+
 async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     section = (kwargs.get("section") or kwargs.get("record_type") or "environment").lower()
     collection_map = {"environment": "environment_records", "social": "social_records", "governance": "governance_records"}
@@ -189,6 +201,10 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     if category:
         query = and_filters(query, {"category": {"$regex": f"^{re.escape(category)}$", "$options": "i"}})
 
+    for field_key, expected_value in (kwargs.get("field_value_filter") or {}).items():
+        if expected_value:
+            query = and_filters(query, {f"field_values.{field_key}": {"$regex": re.escape(expected_value), "$options": "i"}})
+
     subcategory = kwargs.get("subcategory")
     derived_metric = kwargs.get("derived_metric")
     if derived_metric == "water_recycling_percentage":
@@ -207,19 +223,29 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     raw_records = await db[collection_map[section]].find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
     facility_names = await _facility_names(org_id, raw_records)
     regular_candidates = await _field_candidates(org_id, kwargs)
+    semantic_candidates = await configured_semantic_field_candidates(
+        org_id=org_id,
+        section=section,
+        category=category,
+        subcategory=subcategory,
+        terms=kwargs.get("metric_terms") or [],
+    ) if not regular_candidates and category else {}
     withdrawal_candidates = await _field_candidates(org_id, kwargs, "Withdrawal") if derived_metric else []
     mapped_records = []
     for record in raw_records:
         record_subcategory = record.get("subcategory")
         candidates = withdrawal_candidates if derived_metric and record_subcategory == "Withdrawal" else regular_candidates
+        if not candidates:
+            candidates = _semantic_candidates_for_subcategory(semantic_candidates, record_subcategory)
+        selected_value = _metric_value(record.get("field_values") or {}, candidates)
         mapped_records.append({
             "metric": record_subcategory or record.get("category"),
             "category": record.get("category"),
             "subcategory": record_subcategory,
             "facility": facility_names.get(record.get("facility_id"), "Organization level"),
             "reporting_period": _period_label(record.get("reporting_period")),
-            "metric_value": _metric_value(record.get("field_values") or {}, candidates),
-            "value_state": _value_state(record.get("field_values")),
+            "metric_value": selected_value,
+            "value_state": selected_value["state"] if candidates else _value_state(record.get("field_values")),
             "operational_status": record.get("status") or "unavailable",
             "approval_status": record.get("approval_status"),
             "state": _approval_state(record),

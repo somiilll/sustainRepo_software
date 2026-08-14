@@ -1,4 +1,5 @@
 """Emissions service for Internal Data AI."""
+import re
 from shared.database.mongo import db
 from modules.internal_data_ai.data_normalization import resolve_emission_unit, resolve_record_quantity
 from modules.internal_data_ai.query_scope import and_filters, normalize_scope, organization_scope, resolve_authorized_facilities, scope_filter
@@ -6,6 +7,7 @@ from modules.internal_data_ai.reporting_periods import annual_record_allocation,
 
 
 async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> dict:
+    deterministic_route = kwargs.get("data_source") == "ghg_emissions"
     resolved_facilities = await resolve_authorized_facilities(db, org_id, facility_ids, kwargs.get("facility"))
     query = organization_scope(org_id, resolved_facilities)
 
@@ -16,23 +18,27 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     category = kwargs.get("category")
     if category:
         query = and_filters(query, {"$or": [
-            {"category": {"$regex": category, "$options": "i"}},
-            {"sub_category": {"$regex": category, "$options": "i"}},
+            {"category": {"$regex": f"^{re.escape(category)}$", "$options": "i"}},
+            {"sub_category": {"$regex": f"^{re.escape(category)}$", "$options": "i"}},
         ]})
 
     fuel_type = kwargs.get("fuel_type")
     if fuel_type:
-        query = and_filters(query, {"fuel_type": {"$regex": fuel_type, "$options": "i"}})
+        query = and_filters(query, {"fuel_type": {"$regex": re.escape(fuel_type), "$options": "i"}})
 
     period = period_from_payload(kwargs.get("period"))
-    if period is None:
+    if period is None and not deterministic_route:
         period = await latest_available_period(db, "emission_records", query)
-    if period is None:
+    if period is None and not deterministic_route:
         return {"total_found": 0, "showing": 0, "period": "No reporting period available", "records": []}
-    query = and_filters(query, emission_period_filter(period))
+    if period is not None:
+        query = and_filters(query, emission_period_filter(period))
 
-    raw_records = await db.emission_records.find(query, {"_id": 0}).sort("created_at", -1).to_list(50)
-    records = [record for record in raw_records if annual_record_allocation(record.get("reporting_period"), period) > 0]
+    raw_records = await db.emission_records.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+    records = [
+        record for record in raw_records
+        if period is None or annual_record_allocation(record.get("reporting_period"), period) > 0
+    ]
 
     # Also get facility names for context
     fac_ids = list(set(r.get("facility_id") for r in records if r.get("facility_id")))
@@ -47,11 +53,13 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     emission_record_count = 0
     emissions_by_facility = {}
     consumption_by_facility = {}
+    period_consumption = {}
+    period_emissions = {}
     allocation_notes = []
-    for r in records[:20]:
+    for r in records:
         quantity_evidence = resolve_record_quantity(r)
         qty_value, qty_unit = quantity_evidence["value"], quantity_evidence["unit"]
-        allocation_factor = annual_record_allocation(r.get("reporting_period"), period)
+        allocation_factor = annual_record_allocation(r.get("reporting_period"), period) if period else 1
         allocated_quantity = round(qty_value * allocation_factor, 6) if isinstance(qty_value, (int, float)) else qty_value
         raw_emissions = r.get("co2e_emissions") if r.get("co2e_emissions") is not None else r.get("total_emissions")
         allocated_emissions = round(float(raw_emissions) * allocation_factor, 6) if isinstance(raw_emissions, (int, float)) else None
@@ -62,6 +70,8 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
             item = consumption_by_facility.setdefault((facility_name, qty_unit), {"quantity": 0.0, "records": 0})
             item["quantity"] += allocated_quantity
             item["records"] += 1
+            period_key = (str(r.get("reporting_period")), qty_unit)
+            period_consumption[period_key] = period_consumption.get(period_key, 0.0) + allocated_quantity
         if allocated_emissions is not None:
             total_emissions += allocated_emissions
             emission_record_count += 1
@@ -70,6 +80,8 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
             item = emissions_by_facility.setdefault(facility_name, {"emissions": 0.0, "records": 0})
             item["emissions"] += allocated_emissions
             item["records"] += 1
+            period_key = str(r.get("reporting_period"))
+            period_emissions[period_key] = period_emissions.get(period_key, 0.0) + allocated_emissions
         if allocation_factor < 1:
             allocation_notes.append(
                 f"{r.get('reporting_period')} value allocated at {allocation_factor:g} of its stored amount for {period.label}."
@@ -102,9 +114,14 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         })
 
     return {
+        "state": "FOUND" if records else "NOT_FOUND",
+        "deterministic_route": deterministic_route,
+        "value_kind": kwargs.get("value_kind"),
+        "scope": scope,
+        "category": category,
         "total_found": len(records),
         "showing": len(summary),
-        "period": period.label,
+        "period": period.label if period else "All reporting periods",
         "records": summary,
         "consumption_totals": [
             {"quantity": round(quantity, 6), "unit": unit, "records": len(records)}
@@ -118,6 +135,14 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         "facility_consumption": [
             {"facility": facility, "quantity": round(data["quantity"], 6), "unit": unit, "records": data["records"]}
             for (facility, unit), data in consumption_by_facility.items()
+        ],
+        "period_consumption": [
+            {"period": period_key, "quantity": round(quantity, 6), "unit": unit}
+            for (period_key, unit), quantity in period_consumption.items()
+        ],
+        "period_emissions": [
+            {"period": period_key, "value": round(value, 6), "unit": "tCO2e"}
+            for period_key, value in period_emissions.items()
         ],
         "allocation_notes": allocation_notes,
     }
