@@ -122,45 +122,83 @@ export default function Sidebar() {
     if (isSuperAdmin) return superAdminSidebarConfig;
     if (!resolvedConfig?.has_org_config) return sidebarConfig;
 
-    // When mode is "default" with no explicit module filtering, use the static sidebar
-    const modulesMode = resolvedConfig.modules_mode;
-    if (modulesMode === 'default' && !resolvedConfig.has_enabled_filter) return sidebarConfig;
+    const mode = resolvedConfig.modules_mode; // "default" | "default_custom" | "custom"
 
-    // Helper: build dynamic module children for a section
-    const buildSectionChildren = (sectionKey, modules, routePrefix, defaultChildren, keepStatic) => {
-      if (!modules || modules.length === 0) return null; // no override, keep default
-      const icons = _sectionIcons(sectionKey);
-      const children = keepStatic ? [...keepStatic] : [];
-      modules.forEach(mod => {
-        children.push({
-          key: `${sectionKey}.${mod.module_code}`,
-          label: mod.module_name,
-          icon: icons[mod.module_code] || 'Leaf',
-          children: [
-            { key: `${sectionKey}.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `${routePrefix}/${mod.module_code}` },
-            { key: `${sectionKey}.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `${routePrefix}/${mod.module_code}/analysis` },
-          ],
-        });
-      });
-      return children;
-    };
+    // Pure default → static sidebar as-is
+    if (mode === 'default' && !resolvedConfig.has_enabled_filter) return sidebarConfig;
 
-    // Environment: keep GHG Module, replace rest with org modules
-    const envModules = resolvedConfig.modules || [];
+    // Build environment children based on mode
+    const buildEnvChildren = () => {
+      const icons = _sectionIcons('environment');
+      const disabledModules = new Set((resolvedConfig.disabled_modules || []).map(m => m.toLowerCase()));
 
-    const ghgStatic = [
-      { key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
+      // GHG Module is always static
+      const ghg = {
+        key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
           { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg' },
           { key: 'environment.ghg.sinks', label: 'Sinks', icon: 'TreeDeciduous', path: '/sinks' },
           { key: 'environment.ghg.base_year', label: 'Base Year', icon: 'CalendarDays', path: '/ghg/base-year' },
           { key: 'environment.ghg.analysis', label: 'Analysis', icon: 'BarChart3', path: '/ghg/analysis' },
-      ] },
-    ];
+        ],
+      };
 
-    const envChildren = envModules.length > 0 ? buildSectionChildren('environment', envModules, '/environment', null, ghgStatic) : null;
+      if (mode === 'custom') {
+        // Custom only: GHG + custom modules
+        const customs = (resolvedConfig.modules || []).filter(m => m.is_custom);
+        const children = [ghg];
+        customs.forEach(mod => {
+          children.push({
+            key: `environment.${mod.module_code}`,
+            label: mod.module_name,
+            icon: icons[mod.module_code] || 'Leaf',
+            children: [
+              { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
+              { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
+            ],
+          });
+        });
+        return children;
+      }
 
+      // default_custom: static defaults (filtered) + custom modules before Others
+      const defaultItems = sidebarConfig.find(s => s.key === 'environment')?.children || [];
+
+      // Filter out disabled defaults; separate Others and Analysis (they go last)
+      const filtered = [];
+      let othersItem = null;
+      let analysisItem = null;
+      for (const item of defaultItems) {
+        const code = item.key.replace('environment.', '');
+        if (code === 'others') { othersItem = item; continue; }
+        if (code === 'analysis') { analysisItem = item; continue; }
+        if (disabledModules.has(code)) continue;
+        filtered.push(item);
+      }
+
+      // Insert custom modules before Others
+      const customs = (resolvedConfig.modules || []).filter(m => m.is_custom);
+      customs.forEach(mod => {
+        filtered.push({
+          key: `environment.${mod.module_code}`,
+          label: mod.module_name,
+          icon: icons[mod.module_code] || 'Leaf',
+          children: [
+            { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
+            { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
+          ],
+        });
+      });
+
+      if (othersItem) filtered.push(othersItem);
+      if (analysisItem) filtered.push(analysisItem);
+      return filtered;
+    };
+
+    // Social & Governance: never break into sub-modules, always use static config
     return sidebarConfig.map(item => {
-      if (item.key === 'environment' && envChildren) return { ...item, children: envChildren };
+      if (item.key === 'environment' && (mode === 'default_custom' || mode === 'custom')) {
+        return { ...item, children: buildEnvChildren() };
+      }
       return item;
     });
   }, [isSuperAdmin, resolvedConfig]);

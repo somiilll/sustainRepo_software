@@ -180,6 +180,8 @@ async def _resolve_section(section: str, org_cfg: dict) -> List[Dict]:
 
     for mod in modules.values():
         mod["subcategories"].sort(key=lambda s: s.get("order", 0))
+        # Mark module as custom if ALL its subcategories are custom
+        mod["is_custom"] = all(s.get("is_custom") for s in mod["subcategories"]) if mod["subcategories"] else False
 
     return list(modules.values())
 
@@ -197,6 +199,8 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
     governance_modules = await _resolve_section("governance", org_cfg)
 
     modules_cfg = org_cfg.get("modules") or {}
+    cats_cfg = org_cfg.get("categories") or {}
+    disabled_subcats = list(cats_cfg.get("disabled") or [])
     return {
         "organization_id": org_id,
         "modules": env_modules,
@@ -207,6 +211,7 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         "has_org_config": bool(org_cfg),
         "modules_mode": modules_cfg.get("mode", "default"),
         "has_enabled_filter": modules_cfg.get("enabled") is not None,
+        "disabled_modules": disabled_subcats,
     }
 
 
