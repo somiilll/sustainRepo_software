@@ -1458,7 +1458,7 @@ export default function ESGRecordsDataEntry({
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-text-muted">
-                      {record.updated_at ? formatDateTime(record.updated_at) : '-'}
+                      {formatDateTime(record.updated_at || record.created_at) || '-'}
                     </TableCell>
                     <TableCell className="text-right">
                       {isLocked ? (
