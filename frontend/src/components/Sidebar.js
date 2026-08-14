@@ -142,9 +142,12 @@ export default function Sidebar() {
         ],
       };
 
+      // Modules to never show as sidebar items (handled by static GHG Module)
+      const SIDEBAR_HIDDEN_MODULES = new Set(['ghg_emissions']);
+
       if (mode === 'custom') {
         // Custom only: GHG + custom modules
-        const customs = (resolvedConfig.modules || []).filter(m => m.is_custom);
+        const customs = (resolvedConfig.modules || []).filter(m => m.is_custom && !SIDEBAR_HIDDEN_MODULES.has(m.module_code));
         const children = [ghg];
         customs.forEach(mod => {
           children.push({
@@ -176,7 +179,7 @@ export default function Sidebar() {
       }
 
       // Insert custom modules before Others
-      const customs = (resolvedConfig.modules || []).filter(m => m.is_custom);
+      const customs = (resolvedConfig.modules || []).filter(m => m.is_custom && !SIDEBAR_HIDDEN_MODULES.has(m.module_code));
       customs.forEach(mod => {
         filtered.push({
           key: `environment.${mod.module_code}`,
