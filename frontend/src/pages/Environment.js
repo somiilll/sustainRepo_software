@@ -109,7 +109,15 @@ export default function Environment({ preFilterCategory }) {
           <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
             <Sprout className="w-5 h-5 text-emerald-600" />
           </div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">Environment</h1>
+          <h1 className="text-2xl font-heading font-bold text-text-primary">
+            {preFilterCategory ? (
+              <>
+                <span className="text-stone-400">Environment</span>
+                <span className="text-stone-300 mx-2">→</span>
+                {preFilterCategory}
+              </>
+            ) : 'Environment'}
+          </h1>
         </div>
       </div>
 
