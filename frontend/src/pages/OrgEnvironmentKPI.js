@@ -63,7 +63,11 @@ export default function OrgEnvironmentKPI() {
           <Sprout className="w-5 h-5 text-emerald-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">{resolvedNames.module}</h1>
+          <h1 className="text-2xl font-heading font-bold text-text-primary">
+            <span className="text-stone-400">Environment</span>
+            <span className="text-stone-300 mx-2">→</span>
+            {resolvedNames.module}
+          </h1>
           {resolvedNames.subcat && <p className="text-sm text-stone-500">{resolvedNames.subcat}</p>}
         </div>
       </div>
