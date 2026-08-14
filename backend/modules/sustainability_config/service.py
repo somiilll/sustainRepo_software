@@ -196,6 +196,7 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
     social_modules = await _resolve_section("social", org_cfg)
     governance_modules = await _resolve_section("governance", org_cfg)
 
+    modules_cfg = org_cfg.get("modules") or {}
     return {
         "organization_id": org_id,
         "modules": env_modules,
@@ -204,6 +205,8 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         "dashboard": dashboard_cfg,
         "features": org_cfg.get("features") or {},
         "has_org_config": bool(org_cfg),
+        "modules_mode": modules_cfg.get("mode", "default"),
+        "has_enabled_filter": modules_cfg.get("enabled") is not None,
     }
 
 

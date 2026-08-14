@@ -122,6 +122,10 @@ export default function Sidebar() {
     if (isSuperAdmin) return superAdminSidebarConfig;
     if (!resolvedConfig?.has_org_config) return sidebarConfig;
 
+    // When mode is "default" with no explicit module filtering, use the static sidebar
+    const modulesMode = resolvedConfig.modules_mode;
+    if (modulesMode === 'default' && !resolvedConfig.has_enabled_filter) return sidebarConfig;
+
     // Helper: build dynamic module children for a section
     const buildSectionChildren = (sectionKey, modules, routePrefix, defaultChildren, keepStatic) => {
       if (!modules || modules.length === 0) return null; // no override, keep default
