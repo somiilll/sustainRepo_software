@@ -1,0 +1,46 @@
+{
+  "summary": "Backend-only validation completed for combined Renewable Energy % flow via /api/internal-ai/chat using admin and restricted users. 6 targeted tests executed: 5 passed, 1 failed.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/internal-ai/chat",
+        "issue": "Combined renewable ledger includes duplicate Scope 1 source rows (8 rows returned, only 5 unique tuples), causing denominator inflation risk.",
+        "priority": "HIGH/CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_internal_ai_combined_renewable_iter173.py",
+    "/app/test_reports/pytest/iter173_combined_renewable.xml",
+    "/app/test_reports/pytest/iter173_baseline.xml"
+  ],
+  "action_items": [
+    "Deduplicate Scope 1 and Scope 2 sources before computing combined denominator/numerator in renewable ledger response path.",
+    "Ensure emissions.search_records excludes superseded/soft-deleted records (align with ESG active-record filtering) or dedupe by stable record identity before ledger aggregation.",
+    "Expose source identifiers (record id/facility) in ghg_energy components to make duplicate tracing/audit deterministic."
+  ],
+  "critical_code_review_comments": [
+    "modules/internal_data_ai/services/emissions.py::search_records does not apply active-record guard similar to ESG service; this can surface duplicate/superseded records into energy calculations.",
+    "modules/internal_data_ai/services/emissions.py::get_renewable_energy_components emits scope2_electricity rows without source identity fields, making duplicate detection and authorization audits harder.",
+    "modules/internal_data_ai/response_builder.py::_build_combined_renewable_energy_response aggregates rows as-is; no deduplication or source-level guard before final formula output."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_internal_ai_combined_renewable_iter173.py",
+    "/app/test_reports/iteration_168.json"
+  ],
+  "success_rate": {
+    "backend": "83%",
+    "frontend": "N/A (skipped by request)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Current live output still shows combined formula and expected Environment 500/10000 kJ source, scope2 energy activity units, and RBAC restriction for restricted user. Remaining blocker is duplicate source inclusion in combined ledger components.",
+  "rca of the issue": "Reproduction: Query admin with 'how much renewable energy % for FY 2026-2027' and inspect raw_data.ghg_energy.scope1_calculations. Identical tuples repeat (e.g., Residual Fuel Oil 2026-08, Natural Gas FY 2026-2027, Petrol 2026-06). Likely cause: emissions search path does not filter to active/current records and combined builder does not dedupe before sum, so duplicate rows are counted in denominator. Mitigation: apply active-record constraints in emissions lookup and/or dedupe by stable source key (record id + period + facility + fuel/electricity attributes) before aggregation."
+}
