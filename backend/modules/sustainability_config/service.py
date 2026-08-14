@@ -24,6 +24,23 @@ def _code(name: str) -> str:
     return s or "unknown"
 
 
+def _normalized(value: Any) -> str:
+    return re.sub(r'[^a-z0-9]+', '', str(value or '').lower())
+
+
+def _alias_values(alias_rules: list, section: str, category: str, subcategory: str = None, field_key: str = None) -> list:
+    values = []
+    for rule in alias_rules:
+        if rule.get("section") != section or _normalized(rule.get("category")) != _normalized(category):
+            continue
+        if _normalized(rule.get("subcategory")) != _normalized(subcategory):
+            continue
+        if _normalized(rule.get("field_key")) != _normalized(field_key):
+            continue
+        values.extend(rule.get("aliases") or [])
+    return list(dict.fromkeys(value.strip() for value in values if isinstance(value, str) and value.strip()))
+
+
 _coll = lambda: db["organization_config"]
 
 
@@ -62,6 +79,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             "target_overrides": data.get("target_overrides", {}),
             "dashboard": data.get("dashboard", {"type": "standard"}),
             "features": data.get("features", {}),
+            "ai_query_aliases": data.get("ai_query_aliases", []),
             "created_at": now,
             "updated_at": now,
             "created_by": user_id,
@@ -87,6 +105,7 @@ async def _resolve_section(section: str, org_cfg: dict) -> List[Dict]:
     cats_cfg = org_cfg.get("categories") or {}
     kpi_overrides = org_cfg.get("kpi_overrides") or {}
     custom_cats = cats_cfg.get("custom") or []
+    alias_rules = org_cfg.get("ai_query_aliases") or []
     disabled_subcats = set(cats_cfg.get("disabled") or [])
     mode = modules_cfg.get("mode")  # "default" | "default_custom" | "custom"
 
@@ -116,6 +135,7 @@ async def _resolve_section(section: str, org_cfg: dict) -> List[Dict]:
                 modules[mod_code] = {
                     "module_code": mod_code,
                     "module_name": mod_name,
+                    "aliases": _alias_values(alias_rules, section, mod_name),
                     "subcategories": [],
                 }
 
@@ -129,9 +149,13 @@ async def _resolve_section(section: str, org_cfg: dict) -> List[Dict]:
             if override and override.get("visible") is False:
                 continue
 
-            fields = cat.get("fields", [])
+            fields = [dict(field) for field in cat.get("fields", [])]
             if override and override.get("fields"):
-                fields = override["fields"]
+                fields = [dict(field) for field in override["fields"]]
+
+            for field in fields:
+                configured_aliases = _alias_values(alias_rules, section, mod_name, subcat_name, field.get("field_key") or field.get("field_code"))
+                field["aliases"] = list(dict.fromkeys([*(field.get("aliases") or []), *configured_aliases]))
 
             display_name = subcat_name
             if override and override.get("kpi_name"):
@@ -143,6 +167,7 @@ async def _resolve_section(section: str, org_cfg: dict) -> List[Dict]:
                 "subcategory_name": display_name,
                 "original_category": cat.get("category"),
                 "original_subcategory": cat.get("subcategory"),
+                "aliases": _alias_values(alias_rules, section, mod_name, subcat_name),
                 "fields": fields,
                 "has_override": bool(override and override.get("fields")),
                 "order": cat.get("order", 0),
@@ -163,14 +188,22 @@ async def _resolve_section(section: str, org_cfg: dict) -> List[Dict]:
                 modules[mod_code] = {
                     "module_code": mod_code,
                     "module_name": (custom.get("module_name") or custom.get("module_code", "")).replace("_", " ").title(),
+                    "aliases": _alias_values(alias_rules, section, custom.get("module_name") or custom.get("module_code", "")),
                     "subcategories": [],
                 }
+
+            custom_module_name = custom.get("module_name") or custom.get("module_code", "")
+            custom_fields = [dict(field) for field in custom.get("fields", [])]
+            for field in custom_fields:
+                configured_aliases = _alias_values(alias_rules, section, custom_module_name, custom.get("category_name"), field.get("field_key") or field.get("field_code"))
+                field["aliases"] = list(dict.fromkeys([*(field.get("aliases") or []), *configured_aliases]))
 
             modules[mod_code]["subcategories"].append({
                 "category_id": None,
                 "subcategory_code": custom.get("category_code"),
                 "subcategory_name": custom.get("category_name"),
-                "fields": custom.get("fields", []),
+                "fields": custom_fields,
+                "aliases": _alias_values(alias_rules, section, custom_module_name, custom.get("category_name")),
                 "calculation": custom.get("calculation"),
                 "target_config": custom.get("target_config"),
                 "has_override": False,
@@ -212,6 +245,7 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         "modules_mode": modules_cfg.get("mode", "default"),
         "has_enabled_filter": modules_cfg.get("enabled") is not None,
         "disabled_modules": disabled_subcats,
+        "ai_query_aliases": org_cfg.get("ai_query_aliases") or [],
     }
 
 

@@ -86,6 +86,14 @@ class FeaturesConfig(BaseModel):
     set_target: Optional[Dict[str, Any]] = None  # {"enabled": true, "modules": ["power","water","steam"]}
 
 
+class AIQueryAlias(BaseModel):
+    section: str
+    category: str
+    subcategory: Optional[str] = None
+    field_key: Optional[str] = None
+    aliases: List[str] = Field(default_factory=list)
+
+
 class OrganizationConfigUpdate(BaseModel):
     """Payload for creating/updating the organization config."""
     modules: Optional[ModulesConfig] = None
@@ -94,3 +102,4 @@ class OrganizationConfigUpdate(BaseModel):
     target_overrides: Optional[Dict[str, KPIOverride]] = None  # key = subcategory code, separate target questions
     dashboard: Optional[DashboardConfig] = None
     features: Optional[FeaturesConfig] = None
+    ai_query_aliases: Optional[List[AIQueryAlias]] = None

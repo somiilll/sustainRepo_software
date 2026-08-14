@@ -6,7 +6,7 @@ from collections import defaultdict
 from shared.database.mongo import db
 from shared.unit_registry import convert_to_base, detect_unit_type
 from modules.internal_data_ai.metric_resolver import (
-    MetricResolution, configured_field_candidates, configured_semantic_field_candidates, water_primary_metric,
+    MetricResolution, configured_category_alias_match, configured_field_candidates, configured_semantic_field_candidates, water_primary_metric,
 )
 from modules.internal_data_ai.query_scope import and_filters, no_access_filter, resolve_authorized_facilities
 from modules.internal_data_ai.reporting_periods import esg_period_filter, period_from_payload
@@ -197,7 +197,19 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     if resolved_facilities == []:
         query = and_filters(query, no_access_filter())
 
-    category = kwargs.get("category")
+    category = kwargs.get("category") or await configured_category_alias_match(
+        organization_id=org_id,
+        section=section,
+        terms=kwargs.get("metric_terms") or [],
+    )
+    if not category and section in {"social", "governance"} and kwargs.get("metric_terms"):
+        return {
+            "section": section,
+            "state": "NOT_FOUND",
+            "records_found": 0,
+            "records": [],
+            "reason": "No configured category alias matched this topic.",
+        }
     if category:
         query = and_filters(query, {"category": {"$regex": f"^{re.escape(category)}$", "$options": "i"}})
 

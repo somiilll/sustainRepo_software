@@ -214,6 +214,7 @@ def resolve_people_governance_metric(question: str) -> Optional[MetricResolution
         (("data privacy", "cybersecurity", "cyber security", "data breach"), "Incidents"),
         (("non-compliance", "compliance", "whistleblower", "governance complaint"), "Incidents"),
         (("procurement", "local suppliers"), "Financial & Procurement Metrics"),
+        (("board", "directors", "risk management", "risk register", "policy", "policies"), None),
     )
     for terms, category in social_routes:
         if _contains_any(text, terms):
@@ -259,18 +260,18 @@ async def configured_field_candidates(
         aliases.add(re.sub(r"[^a-z0-9]+", "", resolution.field_key.lower()))
 
         for module in section_modules:
-            module_values = (module.get("module_name"), module.get("module_code"))
+            module_values = (module.get("module_name"), module.get("module_code"), *(module.get("aliases") or []))
             module_matches = any(re.sub(r"[^a-z0-9]+", "", str(value or "").lower()) == category_key for value in module_values)
             if not module_matches:
                 continue
             for subcategory in module.get("subcategories", []):
-                sub_values = (subcategory.get("subcategory_name"), subcategory.get("original_subcategory"), subcategory.get("subcategory_code"))
+                sub_values = (subcategory.get("subcategory_name"), subcategory.get("original_subcategory"), subcategory.get("subcategory_code"), *(subcategory.get("aliases") or []))
                 if subcategory_key and not any(re.sub(r"[^a-z0-9]+", "", str(value or "").lower()) == subcategory_key for value in sub_values):
                     continue
                 for field in subcategory.get("fields", []):
                     key = field.get("field_key") or field.get("field_code")
                     label = field.get("label") or key
-                    normalized = {re.sub(r"[^a-z0-9]+", "", str(value or "").lower()) for value in (key, label)}
+                    normalized = {re.sub(r"[^a-z0-9]+", "", str(value or "").lower()) for value in (key, label, *(field.get("aliases") or []))}
                     if key and normalized.intersection(aliases):
                         target = organization_candidates if subcategory.get("is_custom") or subcategory.get("has_override") else standard_candidates
                         target.append({"key": key, "label": label})
@@ -307,13 +308,14 @@ async def configured_semantic_field_candidates(
     try:
         config = await resolve_config(organization_id)
         for module in config.get(section_key, []):
-            if not any(normalize(value) == category_key for value in (module.get("module_name"), module.get("module_code"))):
+            if not any(normalize(value) == category_key for value in (module.get("module_name"), module.get("module_code"), *(module.get("aliases") or []))):
                 continue
             for configured_subcategory in module.get("subcategories", []):
                 values = (
                     configured_subcategory.get("subcategory_name"),
                     configured_subcategory.get("original_subcategory"),
                     configured_subcategory.get("subcategory_code"),
+                    *(configured_subcategory.get("aliases") or []),
                 )
                 if subcategory_key and not any(normalize(value) == subcategory_key for value in values):
                     continue
@@ -327,7 +329,7 @@ async def configured_semantic_field_candidates(
                     label = field.get("label") or key
                     if not key:
                         continue
-                    searchable = normalize(f"{key} {label}")
+                    searchable = normalize(f"{key} {label} {' '.join(field.get('aliases') or [])}")
                     score = sum(1 for term in normalized_terms if term in searchable)
                     if score:
                         grouped.setdefault(subcategory_name, []).append((score, bool(configured_subcategory.get("is_custom") or configured_subcategory.get("has_override")), {"key": key, "label": label}))
@@ -344,3 +346,27 @@ async def configured_semantic_field_candidates(
             unique.setdefault((candidate["key"], candidate["label"]), candidate)
         resolved[subcategory_name] = list(unique.values())
     return resolved
+
+
+async def configured_category_alias_match(organization_id: str, section: str, terms: list[str]) -> Optional[str]:
+    """Resolve a Social/Governance category from organization-managed category aliases before querying records."""
+    if not terms:
+        return None
+    from modules.sustainability_config.service import resolve_config
+
+    section_key = {"social": "social_modules", "governance": "governance_modules"}.get(section)
+    if not section_key:
+        return None
+    normalize = lambda value: re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+    normalized_terms = {normalize(term) for term in terms if normalize(term)}
+    try:
+        config = await resolve_config(organization_id)
+        candidates = []
+        for module in config.get(section_key, []):
+            aliases = {normalize(value) for value in (module.get("aliases") or [])}
+            score = len(aliases.intersection(normalized_terms))
+            if score:
+                candidates.append((score, module.get("module_name")))
+        return max(candidates, default=(0, None), key=lambda item: item[0])[1]
+    except Exception:
+        return None
