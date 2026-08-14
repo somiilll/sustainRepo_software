@@ -111,6 +111,48 @@ def _build_water_recycling_response(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _build_renewable_energy_response(data: dict) -> str:
+    results = data.get("renewable_energy_results") or []
+    if not results:
+        return "Renewable Energy % could not be calculated because matching renewable and total energy values were not found."
+    lines = ["Renewable Energy %"]
+    for result in results[:12]:
+        unit = result.get("unit") or "unit not stored"
+        lines.append(f"Period: {result.get('period')}")
+        if result.get("state") == "FOUND":
+            lines.extend([
+                f"Renewable energy: {result.get('renewable_value')} {unit}",
+                f"Total energy: {result.get('total_value')} {unit}",
+                f"Formula: ({result.get('renewable_value')} / {result.get('total_value')}) × 100",
+                f"Result: {result.get('percentage')}%",
+            ])
+        else:
+            lines.append("Cannot calculate: total energy is zero.")
+    return "\n".join(lines)
+
+
+def _build_fuel_energy_response(energy: dict, fuel_energy: dict, response_type: str) -> dict:
+    lines = ["Fuel Energy"]
+    records = energy.get("records") or []
+    if records:
+        lines.append("Environment → Energy → Fuel Within Organization")
+        lines.extend(f"• {record.get('reporting_period')}: {_format_metric_value(record.get('metric_value') or {})}" for record in records[:12])
+    else:
+        lines.append("No authorized Environment → Energy → Fuel Within Organization record was found.")
+    calculations = fuel_energy.get("calculations") or []
+    if calculations:
+        lines.append("GHG → Scope 1 fuel activity energy")
+        for calculation in calculations[:12]:
+            lines.append(
+                f"• {calculation['fuel_type']} ({calculation['reporting_period']}): {calculation['quantity']} {calculation['quantity_unit']} × "
+                f"{calculation['density']} {calculation['density_unit']} ({calculation['density_source']}) × "
+                f"{calculation['ncv']} {calculation['ncv_unit']} ({calculation['ncv_source']}) = {calculation['energy_tj']} TJ"
+            )
+    else:
+        lines.append("No Scope 1 fuel record had the quantity, density, and NCV required for an energy calculation.")
+    return {"answer": "\n".join(lines), "highlights": [{"label": "Source", "value": "Environment Energy + GHG Scope 1"}], "suggestion": None, "response_type": response_type, "chart": None, "raw_data": {"energy": energy, "fuel_energy": fuel_energy}}
+
+
 def _build_ghg_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
     """Render activity data separately from calculated GHG emissions."""
     value_kind = data.get("value_kind") or query_plan.value_kind or "emissions"
@@ -194,6 +236,8 @@ def _build_esg_record_response(query_plan: StructuredQueryPlan, data: dict, resp
         answer = f"No {category} metric records currently have Approved status. Records found: {found}. Approved: 0."
     elif data.get("derived_metric") == "water_recycling_percentage":
         answer = _build_water_recycling_response(data)
+    elif data.get("derived_metric") == "renewable_energy_percentage":
+        answer = _build_renewable_energy_response(data)
     else:
         status_label = "pending approval" if state == "PENDING" else "approved" if state == "APPROVED" else "found"
         answer = f"{matching if status_filter else found} {subject} metric record(s) {status_label} for {period}."
@@ -302,6 +346,8 @@ async def build_response(
 ) -> dict:
     """Format structured service data into a natural language response."""
     try:
+        if query_plan and query_plan.query_type == QueryType.FUEL_ENERGY_LOOKUP:
+            return _build_fuel_energy_response(service_data.get("esg_records", {}), service_data.get("emissions", {}), response_type)
         if query_plan and query_plan.data_source == "ghg_emissions" and service_data.get("emissions"):
             return _build_ghg_response(query_plan, service_data["emissions"], response_type)
         if query_plan and query_plan.record_type in {"environment", "social", "governance"} and service_data.get("esg_records"):

@@ -231,4 +231,10 @@ def emission_period_filter(period: ResolvedPeriod) -> Dict[str, Any]:
 
 def esg_period_filter(period: ResolvedPeriod) -> Dict[str, Any]:
     conditions = build_date_filter(period.start_month, period.end_month)
+    annual_values = _annual_period_values(period)
+    if annual_values:
+        conditions.extend([
+            {"reporting_period.financial_year": {"$in": annual_values}},
+            {"reporting_period.calendar_year": {"$in": annual_values}},
+        ])
     return {"$or": conditions} if conditions else {"id": {"$in": []}}

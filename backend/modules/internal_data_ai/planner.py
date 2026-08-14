@@ -26,7 +26,7 @@ def _has_operational_data_dimension(entities: dict) -> bool:
 
 def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, Any]]:
     """Map validated query types to fixed service routes; no model-provided route is executed."""
-    if query_plan.entity and query_plan.entity.type == "fuel" and not query_plan.entity.canonical_value:
+    if query_plan.entity and query_plan.entity.type == "fuel" and not query_plan.entity.canonical_value and query_plan.query_type != QueryType.FUEL_ENERGY_LOOKUP:
         return [{
             "service": "evidence_state",
             "method": "validate",
@@ -82,6 +82,13 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
         return [
             {"service": "emissions", "method": "search_records", "params": params},
             {"service": "evidence_state", "method": "validate", "params": params},
+        ]
+    if query_plan.query_type == QueryType.FUEL_ENERGY_LOOKUP:
+        energy_params = {**params, "record_type": "environment", "category": "Energy", "subcategory": "Fuel Within Organization"}
+        ghg_params = {**params, "scope": "scope1", "category": None, "fuel_type": None, "data_source": "fuel_energy"}
+        return [
+            {"service": "esg_records", "method": "search_records", "params": energy_params},
+            {"service": "emissions", "method": "get_fuel_energy", "params": ghg_params},
         ]
     if query_plan.query_type == QueryType.EMISSION_LOOKUP:
         return [

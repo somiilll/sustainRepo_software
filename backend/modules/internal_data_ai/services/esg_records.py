@@ -143,6 +143,24 @@ def _water_recycling_percent(records: list[dict]) -> list[dict]:
     return results
 
 
+def _renewable_energy_percent(raw_records: list[dict]) -> list[dict]:
+    results = []
+    for record in raw_records:
+        values = record.get("field_values") or {}
+        renewable, total = _numeric(values.get("renewable_energy_consumption")), _numeric(values.get("quantity"))
+        if renewable is None or total is None:
+            continue
+        results.append({
+            "period": _period_label(record.get("reporting_period")),
+            "renewable_value": renewable,
+            "total_value": total,
+            "unit": values.get("quantity_unit"),
+            "percentage": round((renewable / total) * 100, 6) if total else None,
+            "state": "FOUND" if total else "ZERO_DENOMINATOR",
+        })
+    return results
+
+
 async def _facility_names(org_id: str, records: list[dict]) -> dict[str, str]:
     facility_ids = [record.get("facility_id") for record in records if record.get("facility_id")]
     if not facility_ids:
@@ -223,6 +241,8 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     derived_metric = kwargs.get("derived_metric")
     if derived_metric == "water_recycling_percentage":
         query = and_filters(query, {"subcategory": {"$in": ["Recycle", "Withdrawal"]}})
+    elif derived_metric == "renewable_energy_percentage":
+        query = and_filters(query, {"field_values.renewable_energy_consumption": {"$exists": True, "$ne": None}})
     elif subcategory:
         query = and_filters(query, {"subcategory": {"$regex": f"^{re.escape(subcategory)}$", "$options": "i"}})
     else:
@@ -300,6 +320,7 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         "approval_status_summary": status_counts,
         "aggregates": _aggregate(displayed_records, include_period),
         "derived_results": _water_recycling_percent(displayed_records) if derived_metric else [],
+        "renewable_energy_results": _renewable_energy_percent(raw_records) if derived_metric == "renewable_energy_percentage" else [],
         "records": displayed_records[:40],
     }
 

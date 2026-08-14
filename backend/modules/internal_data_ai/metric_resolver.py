@@ -173,7 +173,11 @@ def resolve_environment_metric(question: str) -> Optional[MetricResolution]:
             "material", "recycled", "raw", "consumption", "sourcing", "weight", "volume",
         )))
     if _contains_any(text, ("energy", "electricity", "renewable energy", "renewable electricity", "energy intensity", "power", "grid electricity", "purchased electricity")):
-        subcategory = "Electricity Within Organization" if _contains_any(text, ("electricity", "grid electricity", "purchased electricity")) else None
+        if "renewable energy %" in text or _contains_any(text, ("renewable energy percentage", "percentage renewable energy")):
+            return MetricResolution("environment", "Energy", derived_metric="renewable_energy_percentage")
+        subcategory = "Fuel Within Organization" if _contains_any(text, ("fuel energy", "energy from fuel")) else "Electricity Within Organization" if _contains_any(text, ("electricity", "grid electricity", "purchased electricity")) else None
+        if subcategory == "Fuel Within Organization":
+            return MetricResolution("environment", "Energy", subcategory, data_source="fuel_energy")
         return MetricResolution("environment", "Energy", subcategory, semantic_terms=_semantic_terms(text, (
             "energy", "electricity", "purchased", "grid", "renewable", "non-renewable", "intensity", "consumption",
         )))
@@ -187,7 +191,7 @@ def resolve_ghg_metric(question: str) -> Optional[MetricResolution]:
     """Route explicit GHG activity and emissions requests without confusing them with Environment activity data."""
     text = (question or "").lower()
     explicit_emissions = _contains_any(text, ("co2e", "co₂e", "scope 1", "scope 2", "ghg emissions", "carbon emissions", "emissions caused"))
-    combustion = _contains_any(text, ("diesel", "petrol", "gasoline", "natural gas", "fuel", "stationary combustion", "mobile combustion"))
+    combustion = _contains_any(text, ("diesel", "petrol", "gasoline", "natural gas", "stationary combustion", "mobile combustion"))
     electricity_emissions = explicit_emissions and _contains_any(text, ("electricity", "power", "grid"))
     if not (explicit_emissions or combustion):
         return None

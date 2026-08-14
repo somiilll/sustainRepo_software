@@ -27,6 +27,7 @@ class QueryType(str, Enum):
     APPROVAL_HISTORY = "approval_history"
     ASSIGNMENT_HISTORY = "assignment_history"
     ESG_METRIC_LOOKUP = "esg_metric_lookup"
+    FUEL_ENERGY_LOOKUP = "fuel_energy_lookup"
     UNKNOWN = "unknown"
 
 

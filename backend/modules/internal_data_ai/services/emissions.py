@@ -6,6 +6,48 @@ from modules.internal_data_ai.query_scope import and_filters, normalize_scope, o
 from modules.internal_data_ai.reporting_periods import annual_record_allocation, emission_period_filter, latest_available_period, period_from_payload
 
 
+def _density_kg_per_litre(value, unit):
+    if not isinstance(value, (int, float)):
+        return None
+    normalized = str(unit or "kg/L").lower().replace(" ", "")
+    if normalized in {"kg/l", "kg/litre", "kg/liter"}:
+        return float(value)
+    if normalized in {"kg/m3", "kg/m³"}:
+        return float(value) / 1000
+    return None
+
+
+def _ncv_tj_per_kg(value, unit, density_kg_litre=None):
+    if not isinstance(value, (int, float)):
+        return None
+    normalized = str(unit or "").lower().replace(" ", "")
+    factors = {"tj/kg": 1, "gj/kg": 1e-3, "mj/kg": 1e-6, "kj/kg": 1e-9}
+    if normalized in factors:
+        return float(value) * factors[normalized]
+    if normalized in {"mj/l", "mj/litre", "mj/liter"} and density_kg_litre:
+        return float(value) * 1e-6 / density_kg_litre
+    return None
+
+
+def _quantity_to_kg(quantity, unit, density_kg_litre=None):
+    if not isinstance(quantity, (int, float)):
+        return None
+    normalized = str(unit or "").lower().replace(" ", "")
+    if normalized in {"kg", "kilogram", "kilograms"}:
+        return float(quantity)
+    if normalized in {"t", "tonne", "tonnes", "metricton"}:
+        return float(quantity) * 1000
+    if normalized in {"g", "gram", "grams"}:
+        return float(quantity) / 1000
+    if normalized in {"l", "litre", "liter", "litres", "liters"} and density_kg_litre:
+        return float(quantity) * density_kg_litre
+    if normalized in {"ml", "millilitre", "milliliter"} and density_kg_litre:
+        return float(quantity) / 1000 * density_kg_litre
+    if normalized in {"kl", "kilolitre", "kiloliter", "kilolitres", "kiloliters"} and density_kg_litre:
+        return float(quantity) * 1000 * density_kg_litre
+    return None
+
+
 async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     deterministic_route = kwargs.get("data_source") == "ghg_emissions"
     resolved_facilities = await resolve_authorized_facilities(db, org_id, facility_ids, kwargs.get("facility"))
@@ -146,3 +188,39 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         ],
         "allocation_notes": allocation_notes,
     }
+
+
+async def get_fuel_energy(org_id: str, facility_ids: list = None, **kwargs) -> dict:
+    """Calculate Scope 1 fuel energy from stored quantity and override/default fuel properties."""
+    records_data = await search_records(org_id, facility_ids, scope="scope1", **{key: value for key, value in kwargs.items() if key != "scope"})
+    calculations = []
+    for record in records_data.get("records", []):
+        fuel_name = record.get("fuel_type")
+        if not fuel_name:
+            continue
+        fuel = await db.fuel_database.find_one({"fuel_name": {"$regex": f"^{re.escape(fuel_name)}$", "$options": "i"}}, {"_id": 0})
+        inputs = record.get("calculation_inputs") or {}
+        density_input, ncv_input = inputs.get("density") or {}, inputs.get("cv") or inputs.get("ncv") or {}
+        density_value = density_input.get("value") if density_input.get("value") is not None else (fuel or {}).get("density")
+        density_unit = density_input.get("unit") or (fuel or {}).get("density_unit") or "kg/L"
+        density = _density_kg_per_litre(density_value, density_unit)
+        ncv_value = ncv_input.get("value") if ncv_input.get("value") is not None else (fuel or {}).get("calorific_value")
+        ncv_unit = ncv_input.get("unit") or (fuel or {}).get("calorific_value_unit")
+        ncv = _ncv_tj_per_kg(ncv_value, ncv_unit, density)
+        quantity_kg = _quantity_to_kg(record.get("quantity"), record.get("unit"), density)
+        if density is None or ncv is None or quantity_kg is None:
+            continue
+        calculations.append({
+            "fuel_type": fuel_name,
+            "reporting_period": record.get("reporting_period"),
+            "quantity": record.get("quantity"),
+            "quantity_unit": record.get("unit"),
+            "density": density_value,
+            "density_unit": density_unit,
+            "density_source": "record override" if density_input.get("value") is not None else "fuel database default",
+            "ncv": ncv_value,
+            "ncv_unit": ncv_unit,
+            "ncv_source": "record override" if ncv_input.get("value") is not None else "fuel database default",
+            "energy_tj": round(quantity_kg * ncv, 10),
+        })
+    return {"records_found": records_data.get("total_found", 0), "period": records_data.get("period"), "calculations": calculations}

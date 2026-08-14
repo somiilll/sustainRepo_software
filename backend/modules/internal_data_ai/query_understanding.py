@@ -36,6 +36,7 @@ _SOURCES = {
     QueryType.APPROVAL_HISTORY: ["approval_requests", "approval_history"],
     QueryType.ASSIGNMENT_HISTORY: ["esg_assignments", "esg_reporting_tasks"],
     QueryType.ESG_METRIC_LOOKUP: ["environment_records"],
+    QueryType.FUEL_ENERGY_LOOKUP: ["environment_records", "emission_records", "fuel_database"],
     QueryType.UNKNOWN: [],
 }
 
@@ -164,7 +165,9 @@ def build_query_plan(
     record_type, category = _resolve_esg_context(question, entities)
     if metric_resolution:
         record_type, category = metric_resolution.section, metric_resolution.category
-        if metric_resolution.data_source == "ghg_emissions":
+        if metric_resolution.data_source == "fuel_energy":
+            query_type = QueryType.FUEL_ENERGY_LOOKUP
+        elif metric_resolution.data_source == "ghg_emissions":
             query_type = QueryType.EMISSION_LOOKUP if metric_resolution.value_kind == "emissions" else QueryType.CONSUMPTION_LOOKUP
         elif query_type != QueryType.APPROVAL_STATUS_LOOKUP:
             query_type = QueryType.ESG_METRIC_LOOKUP
@@ -197,6 +200,8 @@ def build_query_plan(
         sources_required = [f"{record_type}_records"]
     elif metric_resolution and metric_resolution.data_source == "ghg_emissions":
         sources_required = ["emission_records"]
+    elif metric_resolution and metric_resolution.data_source == "fuel_energy":
+        sources_required = ["environment_records", "emission_records", "fuel_database"]
 
     return StructuredQueryPlan(
         query_type=query_type,
