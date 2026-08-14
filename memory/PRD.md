@@ -377,3 +377,14 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 ## 3rd Party Integrations
 - Resend (Emails) - requires User API Key
 - OpenAI GPT 5.6 Sol / text-embedding-3-large (Repo Pilot) — uses Emergent LLM Key
+
+## Change Log — 2026-08-14
+- Fixed Water metric unit editing in `ESGRecordsDataEntry`: Edit Metric now supplies `unitValue` and `onUnitChange` to `DynamicFieldRenderer`, persisting `${field_key}_unit` with the field values.
+- Added stable test IDs for Edit Metric action, dialog, unit selector, discard, and save controls.
+- Independent regression verification passed: changing a Water quantity unit to `KiloLitres` persists after reload, numeric quantity remains unchanged, and the original production-like record was restored.
+- Internal Data AI routing work in progress: deterministic Water routes and the first router expansion for Environment, GHG, Social/Governance, and BRSR/GRI source selection are implemented but still require dedicated runtime verification.
+
+## Prioritized Backlog Update
+- P0: Verify the expanded Internal Data AI router end-to-end before relying on it for Environment/GHG/Social/Governance/BRSR/GRI answers.
+- P1: Add organization-configurable topic aliases for broad Social/Governance themes such as board, risk management, and policies.
+- P1: Investigate dashboard chart container and React key-spread console warnings reported during Water unit regression testing; they were not reproduced in the current smoke log.

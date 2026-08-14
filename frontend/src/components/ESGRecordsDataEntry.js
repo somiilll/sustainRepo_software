@@ -1167,6 +1167,7 @@ export default function ESGRecordsDataEntry({
                           ...prev,
                           field_values: { ...prev.field_values, [`${field.field_key}_unit`]: unit }
                         }))}
+                        testIdPrefix="add-metric-field"
                       />
                     ))}
                   </div>
@@ -1524,6 +1525,7 @@ export default function ESGRecordsDataEntry({
                             size="sm"
                             onClick={() => openEditModal(record)}
                             title="Edit Metric"
+                            data-testid={`edit-metric-button-${record.id}`}
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
@@ -1709,7 +1711,7 @@ export default function ESGRecordsDataEntry({
 
       {/* Edit Metric Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto" data-testid="edit-metric-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit2 className="w-5 h-5 text-emerald-600" />
@@ -1887,6 +1889,12 @@ export default function ESGRecordsDataEntry({
                       ...prev,
                       field_values: { ...prev.field_values, [field.field_key]: val }
                     }))}
+                    unitValue={editData.field_values?.[`${field.field_key}_unit`]}
+                    onUnitChange={(unit) => setEditData(prev => ({
+                      ...prev,
+                      field_values: { ...prev.field_values, [`${field.field_key}_unit`]: unit }
+                    }))}
+                    testIdPrefix="edit-metric-field"
                   />
                 ))}
               </div>
@@ -1964,6 +1972,7 @@ export default function ESGRecordsDataEntry({
               variant="outline"
               onClick={discardEdit}
               className="border-red-200 text-red-600 hover:bg-red-50"
+              data-testid="edit-metric-discard-button"
             >
               <X className="w-4 h-4 mr-2" />
               Discard
@@ -1981,6 +1990,7 @@ export default function ESGRecordsDataEntry({
               onClick={() => handleSaveEdit(false)}
               disabled={saving.edit}
               className="bg-emerald-600 hover:bg-emerald-700"
+              data-testid="edit-metric-save-button"
             >
               {saving.edit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
               Save

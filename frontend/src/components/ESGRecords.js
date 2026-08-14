@@ -1530,7 +1530,7 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
 // Dynamic Field Renderer
 // =============================================================================
 
-export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnitChange }) {
+export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnitChange, testIdPrefix = 'metric-field' }) {
   const { field_key, type, label, required, options, placeholder } = field;
   const hasUnit = field.has_unit && field.allowed_units?.length > 0;
 
@@ -1575,9 +1575,10 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
                 className="flex-1 border-stone-300"
                 min={field.validation?.min}
                 max={field.validation?.max}
+                data-testid={`${testIdPrefix}-${field_key}-input`}
               />
               <Select value={unitValue || field.default_unit || ''} onValueChange={onUnitChange}>
-                <SelectTrigger className="w-[120px] shrink-0 border-stone-300">
+                <SelectTrigger className="w-[120px] shrink-0 border-stone-300" data-testid={`${testIdPrefix}-${field_key}-unit-select`}>
                   <SelectValue placeholder="Unit" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1595,6 +1596,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
               className="mt-1 border-stone-300"
               min={field.validation?.min}
               max={field.validation?.max}
+              data-testid={`${testIdPrefix}-${field_key}-input`}
             />
           )}
         </div>
