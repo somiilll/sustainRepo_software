@@ -197,11 +197,13 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     if resolved_facilities == []:
         query = and_filters(query, no_access_filter())
 
-    category = kwargs.get("category") or await configured_category_alias_match(
+    alias_category = await configured_category_alias_match(
         organization_id=org_id,
         section=section,
         terms=kwargs.get("metric_terms") or [],
+        question_text=kwargs.get("question_text") or "",
     )
+    category = alias_category or kwargs.get("category")
     if not category and section in {"social", "governance"} and kwargs.get("metric_terms"):
         return {
             "section": section,
@@ -240,7 +242,8 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         section=section,
         category=category,
         subcategory=subcategory,
-        terms=kwargs.get("metric_terms") or [],
+        terms=kwargs.get("field_terms") or [],
+        question_text=kwargs.get("question_text") or "",
     ) if not regular_candidates and category else {}
     withdrawal_candidates = await _field_candidates(org_id, kwargs, "Withdrawal") if derived_metric else []
     mapped_records = []

@@ -82,6 +82,8 @@ class StructuredQueryPlan(BaseModel):
     metric_terms: list[str] = Field(default_factory=list)
     value_kind: Optional[str] = None
     field_value_filter: Optional[Dict[str, str]] = None
+    field_terms: list[str] = Field(default_factory=list)
+    question_text: Optional[str] = None
     approval_status_filter: Optional[str] = None
     sources_required: list[str] = Field(default_factory=list)
     evidence_state: EvidenceState = EvidenceState.PENDING

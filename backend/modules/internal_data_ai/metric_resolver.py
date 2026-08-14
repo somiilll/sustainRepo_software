@@ -18,6 +18,7 @@ class MetricResolution:
     ghg_scope: Optional[str] = None
     value_kind: Optional[str] = None
     field_value_filter: Optional[dict] = None
+    field_terms: tuple[str, ...] = ()
 
 
 _WATER_TERMS = (
@@ -148,13 +149,17 @@ def resolve_environment_metric(question: str) -> Optional[MetricResolution]:
             subcategory = "Generated"
         elif _contains_any(text, ("spill", "spills", "spillage")):
             subcategory = "Spills"
-        terms = _semantic_terms(text, (
+        routing_terms = _semantic_terms(text, (
             "waste", "generated", "disposed", "disposal", "recycled", "recovered", "diverted", "hazardous",
             "non-hazardous", "plastic", "e-waste", "incineration", "landfill", "spill", "spillage",
         ))
+        field_terms = _semantic_terms(text, (
+            "hazardous", "non-hazardous", "plastic", "e-waste", "battery", "radioactive", "bio-medical",
+            "onsite", "offsite", "construction", "demolition",
+        ))
         if subcategory == "Spills" and _contains_any(text, ("how", "amount", "quantity", "volume")):
-            terms = (*terms, "volume")
-        return MetricResolution("environment", "Waste", subcategory, semantic_terms=terms)
+            field_terms = (*field_terms, "volume")
+        return MetricResolution("environment", "Waste", subcategory, semantic_terms=routing_terms, field_terms=field_terms)
     if _contains_any(text, ("biodiversity", "habitat", "ecosystem", "protected areas", "restoration", "species")):
         return MetricResolution("environment", "Biodiversity", semantic_terms=_semantic_terms(text, (
             "biodiversity", "habitat", "ecosystem", "protected", "restoration", "rehabilitation", "species", "site",
@@ -292,10 +297,9 @@ async def configured_semantic_field_candidates(
     category: str,
     subcategory: Optional[str],
     terms: list[str],
+    question_text: str = "",
 ) -> dict[str, list[dict]]:
     """Use the resolved organization catalog to select only explicitly matching configured fields."""
-    if not terms:
-        return {}
     from modules.sustainability_config.service import resolve_config
 
     section_key = {"environment": "modules", "social": "social_modules", "governance": "governance_modules"}.get(section)
@@ -304,6 +308,7 @@ async def configured_semantic_field_candidates(
     normalize = lambda value: re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
     category_key, subcategory_key = normalize(category), normalize(subcategory)
     normalized_terms = [normalize(term) for term in terms if normalize(term)]
+    normalized_question = normalize(question_text)
     grouped: dict[str, list[tuple[int, bool, dict]]] = {}
     try:
         config = await resolve_config(organization_id)
@@ -330,7 +335,14 @@ async def configured_semantic_field_candidates(
                     if not key:
                         continue
                     searchable = normalize(f"{key} {label} {' '.join(field.get('aliases') or [])}")
-                    score = sum(1 for term in normalized_terms if term in searchable)
+                    alias_hits = [normalize(alias) for alias in (field.get("aliases") or []) if normalize(alias) and normalize(alias) in normalized_question]
+                    if normalized_terms:
+                        score = sum(1 for term in normalized_terms if term in searchable)
+                        score += 3 * len(alias_hits)
+                    else:
+                        field_type = str(field.get("type") or field.get("response_type") or "").lower()
+                        numeric = field_type in {"number", "integer", "decimal", "currency", "percentage"}
+                        score = 10 if alias_hits else 3 if field.get("is_primary") else 2 if field.get("required") and numeric else 1 if key == "quantity" else 0
                     if score:
                         grouped.setdefault(subcategory_name, []).append((score, bool(configured_subcategory.get("is_custom") or configured_subcategory.get("has_override")), {"key": key, "label": label}))
     except Exception:
@@ -348,10 +360,8 @@ async def configured_semantic_field_candidates(
     return resolved
 
 
-async def configured_category_alias_match(organization_id: str, section: str, terms: list[str]) -> Optional[str]:
+async def configured_category_alias_match(organization_id: str, section: str, terms: list[str], question_text: str = "") -> Optional[str]:
     """Resolve a Social/Governance category from organization-managed category aliases before querying records."""
-    if not terms:
-        return None
     from modules.sustainability_config.service import resolve_config
 
     section_key = {"social": "social_modules", "governance": "governance_modules"}.get(section)
@@ -359,12 +369,14 @@ async def configured_category_alias_match(organization_id: str, section: str, te
         return None
     normalize = lambda value: re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
     normalized_terms = {normalize(term) for term in terms if normalize(term)}
+    normalized_question = normalize(question_text)
     try:
         config = await resolve_config(organization_id)
         candidates = []
         for module in config.get(section_key, []):
             aliases = {normalize(value) for value in (module.get("aliases") or [])}
             score = len(aliases.intersection(normalized_terms))
+            score += sum(3 for alias in aliases if alias and alias in normalized_question)
             if score:
                 candidates.append((score, module.get("module_name")))
         return max(candidates, default=(0, None), key=lambda item: item[0])[1]

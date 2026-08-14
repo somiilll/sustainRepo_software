@@ -216,6 +216,8 @@ def build_query_plan(
         metric_terms=list(metric_resolution.semantic_terms) if metric_resolution else [],
         value_kind=metric_resolution.value_kind if metric_resolution else None,
         field_value_filter=metric_resolution.field_value_filter if metric_resolution else None,
+        field_terms=list(metric_resolution.field_terms) if metric_resolution else [],
+        question_text=question,
         approval_status_filter=_approval_status_filter(question),
         sources_required=sources_required,
         evidence_state=evidence_state,

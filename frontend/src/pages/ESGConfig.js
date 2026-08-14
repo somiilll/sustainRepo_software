@@ -735,6 +735,7 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
     type: 'text',
     label: '',
     required: false,
+    is_primary: false,
     placeholder: '',
     options: [],
     default_value: null,
@@ -756,6 +757,7 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
         type: field.type || 'text',
         label: field.label || '',
         required: field.required || false,
+        is_primary: field.is_primary || false,
         placeholder: field.placeholder || '',
         options: field.options || [],
         default_value: field.default_value || null,
@@ -775,6 +777,7 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
         type: 'text',
         label: '',
         required: false,
+        is_primary: false,
         placeholder: '',
         options: [],
         default_value: null,
@@ -951,6 +954,17 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
             />
             <Label>Required field</Label>
           </div>
+
+          {canHaveUnit && (
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={formData.is_primary}
+                onCheckedChange={(value) => handleChange('is_primary', value)}
+                data-testid="field-is-primary-switch"
+              />
+              <Label>Primary value for general AI queries</Label>
+            </div>
+          )}
 
           {/* Unit Support (for number/text fields) */}
           {canHaveUnit && (

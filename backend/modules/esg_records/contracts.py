@@ -35,6 +35,8 @@ class ESGRecordFieldConfig(BaseModel):
     ]
     label: str
     required: bool = False
+    is_primary: bool = False
+    aliases: List[str] = []
     placeholder: Optional[str] = None
     options: Optional[List[str]] = None  # For dropdown/unit_selector/radio/checkbox_group
     default_value: Optional[Any] = None

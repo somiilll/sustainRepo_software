@@ -20,6 +20,8 @@ class FieldDefinition(BaseModel):
     response_type: str = "text"  # text|number|integer|decimal|percentage|currency|yes_no|dropdown|multi_select|date|month|facility|file
     unit: Optional[str] = None
     required: bool = False
+    is_primary: bool = False
+    aliases: List[str] = []
     help_text: Optional[str] = None
     validation: Optional[Dict[str, Any]] = None
     options: Optional[List[str]] = None

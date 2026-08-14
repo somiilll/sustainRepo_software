@@ -52,6 +52,8 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
         "metric_terms": query_plan.metric_terms,
         "value_kind": query_plan.value_kind,
         "field_value_filter": query_plan.field_value_filter,
+        "field_terms": query_plan.field_terms,
+        "question_text": query_plan.question_text,
         "approval_status_filter": query_plan.approval_status_filter,
         "period": query_plan.period.model_dump(),
     }
