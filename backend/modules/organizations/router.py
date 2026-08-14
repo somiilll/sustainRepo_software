@@ -12,7 +12,7 @@ from shared.utils.timezone_utils import get_common_timezones, get_default_timezo
 
 router = APIRouter()
 
-# Software asset keys stored in R2 (org_facility bucket, software-images folder)
+# Software asset keys stored in R2 (software_images bucket)
 SOFTWARE_ASSETS = {
     "logo": "logos/sustainrepo_logo.png",
 }
