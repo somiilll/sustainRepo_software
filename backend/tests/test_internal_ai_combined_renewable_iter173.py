@@ -281,3 +281,36 @@ def test_combined_sources_have_no_duplicates_or_unitless_entries(
 
     assert len(scope1_keys) == len(set(scope1_keys)), "Duplicate scope1 source rows detected"
     assert len(scope2_keys) == len(set(scope2_keys)), "Duplicate scope2 source rows detected"
+
+
+def test_scope2_rows_expose_identity_and_are_deduped_by_business_identity(
+    session: requests.Session, tokens: dict[str, str]
+):
+    payload = _chat(session, tokens["admin"], "how much renewable energy % for FY 2026-2027")
+    _, ghg_data = _combined_raw_data(payload)
+    scope2_rows = ghg_data.get("scope2_electricity") or []
+
+    assert scope2_rows, f"No scope2 electricity rows found. payload={payload}"
+
+    for row in scope2_rows:
+        # Regression guard for iter173+ patch: identity fields must be present in payload.
+        assert "id" in row, f"Missing id in scope2 row: {row}"
+        assert "facility_id" in row, f"Missing facility_id in scope2 row: {row}"
+        assert "record_source" in row, f"Missing record_source in scope2 row: {row}"
+
+    # Business identity dedupe key should avoid false positives across facilities/sources.
+    business_keys = [
+        (
+            row.get("facility_id"),
+            row.get("record_source"),
+            row.get("period"),
+            row.get("quantity"),
+            row.get("unit"),
+            row.get("renewable"),
+        )
+        for row in scope2_rows
+    ]
+    assert len(business_keys) == len(set(business_keys)), (
+        "Duplicate scope2 rows detected by business identity "
+        "(facility_id + record_source + period + quantity + unit + renewable)"
+    )

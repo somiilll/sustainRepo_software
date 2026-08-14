@@ -52,6 +52,7 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     deterministic_route = kwargs.get("data_source") == "ghg_emissions"
     resolved_facilities = await resolve_authorized_facilities(db, org_id, facility_ids, kwargs.get("facility"))
     query = organization_scope(org_id, resolved_facilities)
+    query = and_filters(query, {"is_current": {"$ne": False}}, {"$or": [{"deleted_at": {"$exists": False}}, {"deleted_at": None}]})
 
     scope = kwargs.get("scope")
     if scope:
@@ -130,7 +131,8 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
             )
         summary.append({
             "id": r.get("id"),
-            "id": r.get("id"),
+            "facility_id": r.get("facility_id"),
+            "record_source": r.get("record_source") or r.get("source_of_information") or r.get("evidence_url"),
             "facility": fac_map.get(r.get("facility_id"), r.get("facility_id")),
             "scope": r.get("scope"),
             "category": r.get("category"),
@@ -197,7 +199,8 @@ async def get_fuel_energy(org_id: str, facility_ids: list = None, **kwargs) -> d
     calculations = []
     seen_records = set()
     for record in records_data.get("records", []):
-        record_identity = record.get("id") or (record.get("fuel_type"), str(record.get("reporting_period")), record.get("quantity"), record.get("unit"))
+        inputs = record.get("calculation_inputs") or {}
+        record_identity = (record.get("facility_id"), record.get("scope"), record.get("category"), record.get("sub_category"), record.get("fuel_type"), str(record.get("reporting_period")), record.get("quantity"), record.get("unit"), (inputs.get("density") or {}).get("value"), (inputs.get("cv") or inputs.get("ncv") or {}).get("value"), record.get("record_source"))
         if record_identity in seen_records:
             continue
         seen_records.add(record_identity)
@@ -205,7 +208,6 @@ async def get_fuel_energy(org_id: str, facility_ids: list = None, **kwargs) -> d
         if not fuel_name:
             continue
         fuel = await db.fuel_database.find_one({"fuel_name": {"$regex": f"^{re.escape(fuel_name)}$", "$options": "i"}}, {"_id": 0})
-        inputs = record.get("calculation_inputs") or {}
         density_input, ncv_input = inputs.get("density") or {}, inputs.get("cv") or inputs.get("ncv") or {}
         density_value = density_input.get("value") if density_input.get("value") is not None else (fuel or {}).get("density")
         density_unit = density_input.get("unit") or (fuel or {}).get("density_unit") or "kg/L"
@@ -237,11 +239,18 @@ async def get_renewable_energy_components(org_id: str, facility_ids: list = None
     scope2 = await search_records(org_id, facility_ids, scope="scope2", category="Purchased Electricity", **{key: value for key, value in kwargs.items() if key not in {"scope", "category"}})
     scope1 = await get_fuel_energy(org_id, facility_ids, **kwargs)
     electricity = []
+    seen_electricity = set()
     for record in scope2.get("records", []):
         energy_input = next((value for value in (record.get("calculation_inputs") or {}).values() if isinstance(value, dict) and value.get("unit") and str(value.get("unit")).lower() in {"kwh", "mwh", "gwh", "kj", "mj", "gj", "tj"}), None)
+        quantity = energy_input.get("value") if energy_input else record.get("quantity")
+        unit = energy_input.get("unit") if energy_input else record.get("unit")
+        identity = (record.get("facility_id"), record.get("scope"), record.get("category"), record.get("sub_category"), str(record.get("reporting_period")), quantity, unit, record.get("record_source"))
+        if identity in seen_electricity:
+            continue
+        seen_electricity.add(identity)
         electricity.append({
-            "quantity": energy_input.get("value") if energy_input else record.get("quantity"),
-            "unit": energy_input.get("unit") if energy_input else record.get("unit"),
+            "id": record.get("id"), "facility_id": record.get("facility_id"), "record_source": record.get("record_source"),
+            "quantity": quantity, "unit": unit,
             "renewable": "renewable" in str(record.get("sub_category") or "").lower() and "non-renewable" not in str(record.get("sub_category") or "").lower(),
             "period": record.get("reporting_period"),
         })
