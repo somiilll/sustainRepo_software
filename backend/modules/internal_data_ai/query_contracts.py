@@ -23,6 +23,7 @@ class QueryType(str, Enum):
     TARGET_LOOKUP = "target_lookup"
     APPROVAL_HISTORY = "approval_history"
     ASSIGNMENT_HISTORY = "assignment_history"
+    ESG_METRIC_LOOKUP = "esg_metric_lookup"
     UNKNOWN = "unknown"
 
 
@@ -69,6 +70,11 @@ class StructuredQueryPlan(BaseModel):
     category: Optional[str] = None
     record_type: Optional[str] = None
     requested_metric: Optional[str] = None
+    subcategory: Optional[str] = None
+    metric_field_key: Optional[str] = None
+    metric_field_label: Optional[str] = None
+    metric_field_aliases: list[str] = Field(default_factory=list)
+    derived_metric: Optional[str] = None
     approval_status_filter: Optional[str] = None
     sources_required: list[str] = Field(default_factory=list)
     evidence_state: EvidenceState = EvidenceState.PENDING

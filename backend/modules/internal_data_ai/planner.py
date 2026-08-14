@@ -43,6 +43,11 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
         "record_type": query_plan.record_type,
         "requested_metric": query_plan.requested_metric,
         "metric": query_plan.requested_metric,
+        "subcategory": query_plan.subcategory,
+        "metric_field_key": query_plan.metric_field_key,
+        "metric_field_label": query_plan.metric_field_label,
+        "metric_field_aliases": query_plan.metric_field_aliases,
+        "derived_metric": query_plan.derived_metric,
         "approval_status_filter": query_plan.approval_status_filter,
         "period": query_plan.period.model_dump(),
     }
@@ -65,7 +70,7 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
             {"service": "evidence_state", "method": "validate", "params": params},
         ]
     is_esg_record_query = query_plan.record_type in {"environment", "social", "governance"}
-    if query_plan.query_type in {QueryType.CONSUMPTION_LOOKUP, QueryType.RECORD_LOOKUP}:
+    if query_plan.query_type in {QueryType.CONSUMPTION_LOOKUP, QueryType.RECORD_LOOKUP, QueryType.ESG_METRIC_LOOKUP}:
         if is_esg_record_query:
             return [{"service": "esg_records", "method": "search_records", "params": params}]
         return [

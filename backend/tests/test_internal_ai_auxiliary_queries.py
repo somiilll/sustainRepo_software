@@ -76,6 +76,10 @@ def test_water_status_and_consumption_queries_use_authorized_environment_records
     assert [step["service"] for step in plan_service_calls({}, pending_plan)] == ["esg_records"]
     assert approved_plan.approval_status_filter == "approved"
     assert [step["service"] for step in plan_service_calls({}, approved_plan)] == ["esg_records"]
+    assert consumption_plan.query_type == QueryType.ESG_METRIC_LOOKUP
+    assert consumption_plan.subcategory == "Consumption"
+    assert consumption_plan.metric_field_key == "quantity"
+    assert consumption_plan.metric_field_label == "Total Water Consumed"
     assert consumption_plan.requested_metric == "consumption"
     assert [step["service"] for step in plan_service_calls({}, consumption_plan)] == ["esg_records"]
 

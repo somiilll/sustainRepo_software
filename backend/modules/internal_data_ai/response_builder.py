@@ -71,11 +71,51 @@ def _format_record_values(values: dict) -> str:
     return "; ".join(parts[:4]) or "Value unavailable"
 
 
+def _format_metric_value(metric_value: dict) -> str:
+    if not metric_value or metric_value.get("state") != "AVAILABLE":
+        return "Value: Missing"
+    unit = metric_value.get("unit")
+    value = metric_value.get("value")
+    return f"{metric_value.get('field_label') or 'Value'}: {value}{f' {unit}' if unit else ' (unit not stored)'}"
+
+
+def _display_status(record: dict) -> str:
+    approval = record.get("approval_status")
+    if approval == "not_required":
+        return "Not applicable"
+    if approval:
+        return str(approval).replace("_", " ").title()
+    operational = record.get("operational_status")
+    return f"Approval status unavailable; record status: {operational}"
+
+
+def _build_water_recycling_response(data: dict) -> str:
+    results = data.get("derived_results") or []
+    if not results:
+        return "Water Recycling % could not be calculated because matching current Recycle and Withdrawal values were not found."
+    lines = ["Water Recycling %"]
+    for result in results[:12]:
+        lines.append(f"Period: {result.get('period')}")
+        if result.get("state") == "FOUND":
+            unit = result.get("unit") or "stored unit"
+            lines.extend([
+                f"Recycled water: {result.get('recycled_value')} {unit}",
+                f"Water withdrawal: {result.get('withdrawal_value')} {unit}",
+                f"Formula: ({result.get('recycled_value')} / {result.get('withdrawal_value')}) × 100",
+                f"Result: {result.get('percentage')}%",
+            ])
+        elif result.get("state") == "ZERO_DENOMINATOR":
+            lines.append("Cannot calculate: Water withdrawal is zero.")
+        else:
+            lines.append("Cannot calculate: recycled water or water withdrawal value is missing or has no compatible stored unit.")
+    return "\n".join(lines)
+
+
 def _build_esg_record_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
     """Return deterministic ESG-record answers so record state never depends on LLM phrasing."""
     category = data.get("category") or query_plan.category or query_plan.record_type or "ESG"
-    metric = data.get("requested_metric")
-    subject = f"{category} {metric.title()}" if metric and metric.lower() != str(category).lower() else str(category)
+    metric = data.get("subcategory") or data.get("requested_metric")
+    subject = f"{category} {str(metric).title()}" if metric and str(metric).lower() != str(category).lower() else str(category)
     period = data.get("period") or "All reporting periods"
     state = data.get("state", "NOT_FOUND")
     found = data.get("records_found", 0)
@@ -94,18 +134,29 @@ def _build_esg_record_response(query_plan: StructuredQueryPlan, data: dict, resp
         answer = f"No {str(category).lower()} metric records are pending approval. Records found: {found}. Awaiting approval: 0."
     elif status_filter == "approved" and matching == 0:
         answer = f"No {category} metric records currently have Approved status. Records found: {found}. Approved: 0."
+    elif data.get("derived_metric") == "water_recycling_percentage":
+        answer = _build_water_recycling_response(data)
     else:
         status_label = "pending approval" if state == "PENDING" else "approved" if state == "APPROVED" else "found"
         answer = f"{matching if status_filter else found} {subject} metric record(s) {status_label} for {period}."
+        aggregates = data.get("aggregates") or []
+        if aggregates:
+            if period == "All reporting periods":
+                answer += "\nPeriod comparison:"
+                for total in aggregates[:12]:
+                    answer += f"\n• {total.get('period')}: {total.get('value')} {total.get('unit')} across {len(total.get('facilities') or [])} location(s)."
+            else:
+                total = aggregates[0]
+                answer += f"\nTotal: {total.get('value')} {total.get('unit')} across {len(total.get('facilities') or [])} location(s)."
         details = []
-        for record in data.get("records", [])[:10]:
+        for record in data.get("records", [])[:12]:
             details.append(
                 f"• {record.get('metric') or category} — {record.get('facility') or 'Organization level'}; "
-                f"{record.get('reporting_period')}; {_format_record_values(record.get('field_values') or {})}; "
-                f"status: {record.get('approval_status') or 'unavailable'}"
+                f"{record.get('reporting_period')}; {_format_metric_value(record.get('metric_value') or {})}; "
+                f"Status: {_display_status(record)}"
             )
         if details:
-            answer = f"{answer}\n" + "\n".join(details)
+            answer = f"{answer}\nUnderlying records:\n" + "\n".join(details)
 
     highlights = [
         {"label": "State", "value": state},
@@ -113,6 +164,8 @@ def _build_esg_record_response(query_plan: StructuredQueryPlan, data: dict, resp
         {"label": "Pending", "value": str(summary.get("PENDING", 0))},
         {"label": "Approved", "value": str(summary.get("APPROVED", 0))},
     ]
+    if data.get("source_path"):
+        highlights.append({"label": "Source", "value": data["source_path"]})
     if summary.get("STATUS_UNAVAILABLE"):
         highlights.append({"label": "Status unavailable", "value": str(summary["STATUS_UNAVAILABLE"])})
     return {

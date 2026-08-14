@@ -3,6 +3,7 @@ import re
 from typing import Optional
 
 from modules.internal_data_ai.entity_resolution import resolve_fuel_entity, resolve_fuel_from_question
+from modules.internal_data_ai.metric_resolver import resolve_esg_metric
 from modules.internal_data_ai.query_contracts import (
     EvidenceState,
     QueryEntity,
@@ -31,6 +32,7 @@ _SOURCES = {
     QueryType.TARGET_LOOKUP: ["esg_targets"],
     QueryType.APPROVAL_HISTORY: ["approval_requests", "approval_history"],
     QueryType.ASSIGNMENT_HISTORY: ["esg_assignments", "esg_reporting_tasks"],
+    QueryType.ESG_METRIC_LOOKUP: ["environment_records"],
     QueryType.UNKNOWN: [],
 }
 
@@ -152,7 +154,12 @@ def build_query_plan(
     legacy_intent = intent_result.get("intent", "")
     metric = _metric_from_question(question) or entities.get("metric") or ""
     query_type = _query_type(question, legacy_intent, metric)
+    metric_resolution = resolve_esg_metric(question)
     record_type, category = _resolve_esg_context(question, entities)
+    if metric_resolution:
+        record_type, category = metric_resolution.section, metric_resolution.category
+        if query_type != QueryType.APPROVAL_STATUS_LOOKUP:
+            query_type = QueryType.ESG_METRIC_LOOKUP
     raw_fuel = entities.get("fuel_type") or (fuel_resolution or {}).get("raw_value")
     entity = None
     evidence_state = EvidenceState.PENDING
@@ -177,6 +184,7 @@ def build_query_plan(
         QueryType.CONSUMPTION_LOOKUP,
         QueryType.RECORD_LOOKUP,
         QueryType.APPROVAL_STATUS_LOOKUP,
+        QueryType.ESG_METRIC_LOOKUP,
     }:
         sources_required = [f"{record_type}_records"]
 
@@ -189,6 +197,11 @@ def build_query_plan(
         category=category or (metric if record_type in _ESG_SECTIONS else None),
         record_type=record_type,
         requested_metric=metric or None,
+        subcategory=metric_resolution.subcategory if metric_resolution else None,
+        metric_field_key=metric_resolution.field_key if metric_resolution else None,
+        metric_field_label=metric_resolution.field_label if metric_resolution else None,
+        metric_field_aliases=list(metric_resolution.field_aliases) if metric_resolution else [],
+        derived_metric=metric_resolution.derived_metric if metric_resolution else None,
         approval_status_filter=_approval_status_filter(question),
         sources_required=sources_required,
         evidence_state=evidence_state,
