@@ -57,6 +57,17 @@ async def get_all_units(current_user: dict = Depends(get_current_user)):
     units = await db.units.find({"is_active": True}, {"_id": 0}).to_list(1000)
     return [UnitResponse(**u) for u in units]
 
+@router.get("/units/registry")
+async def get_unit_registry(current_user: dict = Depends(get_current_user)):
+    """Get the centralized unit registry with conversion factors."""
+    from shared.unit_registry import get_all_unit_types, get_units_for_type
+    result = []
+    for ut in get_all_unit_types():
+        units = get_units_for_type(ut["type"])
+        result.append({**ut, "units": units})
+    return result
+
+
 @router.get("/units/by-type/{unit_type}", response_model=List[UnitResponse])
 async def get_units_by_type(unit_type: str, current_user: dict = Depends(get_current_user)):
     """Get units filtered by type (mass or volume)"""

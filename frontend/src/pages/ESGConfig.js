@@ -29,7 +29,6 @@ const FIELD_TYPES = [
   { value: 'checkbox_group', label: 'Checkbox Group', icon: '☑️' },
   { value: 'yes_no', label: 'Yes/No', icon: '✓✗' },
   { value: 'date', label: 'Date', icon: '📅' },
-  { value: 'unit_selector', label: 'Unit Selector', icon: '📏' },
   { value: 'table', label: 'Table', icon: '▦' },
   { value: 'file_upload', label: 'File Upload', icon: '📎' },
 ];
@@ -816,7 +815,7 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
     const fieldData = { ...formData };
     
     // Parse options from text
-    if (['dropdown', 'radio', 'checkbox_group', 'unit_selector'].includes(formData.type)) {
+    if (['dropdown', 'radio', 'checkbox_group'].includes(formData.type)) {
       fieldData.options = optionsText.split('\n').map(o => o.trim()).filter(Boolean);
     }
 
@@ -832,7 +831,7 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
     onSave(fieldData);
   };
 
-  const needsOptions = ['dropdown', 'radio', 'checkbox_group', 'unit_selector'].includes(formData.type);
+  const needsOptions = ['dropdown', 'radio', 'checkbox_group'].includes(formData.type);
   const canHaveUnit = ['number', 'text'].includes(formData.type);
   const isTable = formData.type === 'table';
 

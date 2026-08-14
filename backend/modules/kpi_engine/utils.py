@@ -200,23 +200,23 @@ def extract_field_value(record: Dict[str, Any], field_key: str) -> Any:
     Checks in this order:
     1. Root-level record fields (category, subcategory, facility_id, etc.)
     2. field_values nested object
-    
-    Args:
-        record: The ESG record document
-        field_key: The key to extract
-        
-    Returns:
-        The field value, or None if not found
     """
-    # First check root-level fields
     if field_key in record:
         return record.get(field_key)
-    
-    # Then check field_values
     field_values = record.get("field_values", {})
     if field_values:
         return field_values.get(field_key)
-    
+    return None
+
+
+def extract_field_unit(record: Dict[str, Any], field_key: str) -> Optional[str]:
+    """
+    Extract the unit for a field from a record.
+    Looks for {field_key}_unit in field_values.
+    """
+    field_values = record.get("field_values", {})
+    if field_values:
+        return field_values.get(f"{field_key}_unit")
     return None
 
 

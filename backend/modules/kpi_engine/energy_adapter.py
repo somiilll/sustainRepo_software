@@ -13,70 +13,19 @@ All values converted to GJ (Gigajoules) as the standard unit.
 
 from typing import Any, Dict, List, Optional
 from shared.database.mongo import db
+from shared.unit_registry import convert as unit_convert
 from .utils import format_result
 
 
 # =============================================================================
-# Unit Conversion Functions
+# Unit Conversion — delegates to shared unit_registry
 # =============================================================================
 
-def tj_to_gj(value: float) -> float:
-    """Convert TJ to GJ: 1 TJ = 1000 GJ"""
-    return value * 1000
-
-def mwh_to_gj(value: float) -> float:
-    """Convert MWh to GJ: 1 MWh = 3.6 GJ"""
-    return value * 3.6
-
-def kwh_to_gj(value: float) -> float:
-    """Convert kWh to GJ: 1 kWh = 0.0036 GJ"""
-    return value * 0.0036
-
-def j_to_gj(value: float) -> float:
-    """Convert J to GJ: 1 GJ = 1e9 J"""
-    return value * 1e-9
-
 def to_gj(value: float, unit: str) -> float:
-    """Convert any energy unit to GJ."""
+    """Convert any energy unit to GJ using the centralized unit registry."""
     if not value or not unit:
         return 0
-    
-    unit_lower = unit.lower().strip()
-    
-    # TJ conversions
-    if "tj" in unit_lower:
-        return tj_to_gj(value)
-    
-    # GJ - no conversion
-    if "gj" in unit_lower:
-        return value
-    
-    # MJ conversions
-    if "mj" in unit_lower:
-        return value * 0.001  # 1 MJ = 0.001 GJ
-    
-    # kJ conversions
-    if "kj" in unit_lower:
-        return value * 1e-6  # 1 kJ = 1e-6 GJ
-    
-    # GWh conversions
-    if "gwh" in unit_lower:
-        return value * 3600  # 1 GWh = 3600 GJ
-    
-    # MWh conversions
-    if "mwh" in unit_lower:
-        return mwh_to_gj(value)
-    
-    # kWh conversions
-    if "kwh" in unit_lower:
-        return kwh_to_gj(value)
-    
-    # Joules
-    if unit_lower == "j" or "joule" in unit_lower:
-        return j_to_gj(value)
-    
-    # Default: assume MWh
-    return mwh_to_gj(value)
+    return unit_convert(value, unit, "GJ")
 
 
 # =============================================================================

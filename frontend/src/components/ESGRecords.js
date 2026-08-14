@@ -1601,7 +1601,6 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
       );
 
     case 'dropdown':
-    case 'unit_selector':
       return (
         <div>
           <Label>{label}{required && ' *'}</Label>

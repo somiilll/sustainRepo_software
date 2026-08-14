@@ -31,7 +31,7 @@ class ESGRecordFieldConfig(BaseModel):
     field_key: str
     type: Literal[
         "text", "textarea", "number", "dropdown", "yes_no", "date", 
-        "file_upload", "unit_selector", "table", "radio", "checkbox_group"
+        "file_upload", "table", "radio", "checkbox_group"
     ]
     label: str
     required: bool = False
