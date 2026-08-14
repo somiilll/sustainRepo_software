@@ -77,6 +77,11 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
         ]
     is_esg_record_query = query_plan.record_type in {"environment", "social", "governance"}
     if query_plan.query_type in {QueryType.CONSUMPTION_LOOKUP, QueryType.RECORD_LOOKUP, QueryType.ESG_METRIC_LOOKUP}:
+        if query_plan.derived_metric == "renewable_energy_percentage":
+            return [
+                {"service": "esg_records", "method": "search_records", "params": params},
+                {"service": "emissions", "method": "get_renewable_energy_components", "params": {**params, "category": None}},
+            ]
         if is_esg_record_query:
             return [{"service": "esg_records", "method": "search_records", "params": params}]
         return [

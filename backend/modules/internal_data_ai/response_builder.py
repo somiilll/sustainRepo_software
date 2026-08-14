@@ -8,6 +8,7 @@ import logging
 from openai import OpenAI
 
 from modules.internal_data_ai.query_contracts import QueryType, StructuredQueryPlan
+from shared.unit_registry import convert_to_base, detect_unit_type
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,36 @@ def _build_renewable_energy_response(data: dict) -> str:
             ])
         else:
             lines.append("Cannot calculate: total energy is zero.")
+    return "\n".join(lines)
+
+
+def _build_combined_renewable_energy_response(data: dict, components: dict) -> str:
+    environment_renewable = environment_total = scope2_renewable = scope2_total = scope1_total = 0.0
+    unavailable = []
+    for result in data.get("renewable_energy_results") or []:
+        unit = result.get("unit")
+        if detect_unit_type(unit or "") != "energy":
+            unavailable.append("Environment → Energy (stored unit unavailable)")
+            continue
+        environment_renewable += convert_to_base(result["renewable_value"], unit)[0]
+        environment_total += convert_to_base(result["total_value"], unit)[0]
+    for record in components.get("scope2_electricity", []):
+        if not isinstance(record.get("quantity"), (int, float)) or detect_unit_type(record.get("unit") or "") != "energy":
+            unavailable.append("Scope 2 electricity (stored unit unavailable)")
+            continue
+        value = convert_to_base(record["quantity"], record["unit"])[0]
+        scope2_total += value
+        if record.get("renewable"):
+            scope2_renewable += value
+    scope1_total = sum(item.get("energy_tj", 0) * 1000 for item in components.get("scope1_calculations", []))
+    denominator = environment_total + scope2_total + scope1_total
+    lines = ["Renewable Energy % — combined energy ledger", f"Environment renewable energy: {environment_renewable} GJ", f"Scope 2 renewable electricity: {scope2_renewable} GJ", f"Scope 1 Fuel Energy: {scope1_total} GJ", f"Scope 2 electricity energy: {scope2_total} GJ", f"Environment total energy: {environment_total} GJ"]
+    if denominator:
+        lines.extend([f"Formula: ({environment_renewable} + {scope2_renewable}) / ({scope1_total} + {scope2_total} + {environment_total}) × 100", f"Result: {round((environment_renewable + scope2_renewable) / denominator * 100, 6)}%"])
+    else:
+        lines.append("Cannot calculate: no usable total-energy source was available.")
+    if unavailable:
+        lines.append("Excluded sources: " + "; ".join(sorted(set(unavailable))))
     return "\n".join(lines)
 
 
@@ -351,6 +382,11 @@ async def build_response(
         if query_plan and query_plan.data_source == "ghg_emissions" and service_data.get("emissions"):
             return _build_ghg_response(query_plan, service_data["emissions"], response_type)
         if query_plan and query_plan.record_type in {"environment", "social", "governance"} and service_data.get("esg_records"):
+            if query_plan.derived_metric == "renewable_energy_percentage":
+                response = _build_esg_record_response(query_plan, service_data["esg_records"], response_type)
+                response["answer"] = _build_combined_renewable_energy_response(service_data["esg_records"], service_data.get("emissions") or {})
+                response["raw_data"] = {"environment_energy": service_data["esg_records"], "ghg_energy": service_data.get("emissions") or {}}
+                return response
             return _build_esg_record_response(query_plan, service_data["esg_records"], response_type)
         formatter_data = _evidence_formatter_data(query_plan, service_data) if query_plan else service_data
         detailed_terms = ("audit", "record-level", "record level", "input value", "substitution", "calculation input")

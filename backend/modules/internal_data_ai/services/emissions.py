@@ -224,3 +224,18 @@ async def get_fuel_energy(org_id: str, facility_ids: list = None, **kwargs) -> d
             "energy_tj": round(quantity_kg * ncv, 10),
         })
     return {"records_found": records_data.get("total_found", 0), "period": records_data.get("period"), "calculations": calculations}
+
+
+async def get_renewable_energy_components(org_id: str, facility_ids: list = None, **kwargs) -> dict:
+    """Return Scope 1 fuel-energy calculations plus Scope 2 electricity activity for a combined energy ledger."""
+    scope2 = await search_records(org_id, facility_ids, scope="scope2", category="Purchased Electricity", **{key: value for key, value in kwargs.items() if key not in {"scope", "category"}})
+    scope1 = await get_fuel_energy(org_id, facility_ids, **kwargs)
+    electricity = []
+    for record in scope2.get("records", []):
+        electricity.append({
+            "quantity": record.get("quantity"),
+            "unit": record.get("unit"),
+            "renewable": "renewable" in str(record.get("sub_category") or "").lower() and "non-renewable" not in str(record.get("sub_category") or "").lower(),
+            "period": record.get("reporting_period"),
+        })
+    return {"scope1_calculations": scope1.get("calculations", []), "scope2_electricity": electricity, "period": scope2.get("period") or scope1.get("period")}

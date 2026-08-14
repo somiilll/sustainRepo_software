@@ -20,6 +20,7 @@ SERVICE_MAP = {
     "emissions": {
         "search_records": emissions.search_records,
         "get_fuel_energy": emissions.get_fuel_energy,
+        "get_renewable_energy_components": emissions.get_renewable_energy_components,
     },
     "emission_factors": {
         "lookup": emission_factors.lookup,
