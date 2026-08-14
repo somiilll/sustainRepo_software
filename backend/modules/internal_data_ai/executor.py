@@ -53,6 +53,7 @@ SERVICE_MAP = {
     },
     "record_history": {
         "get_emission_history": history.get_emission_record_history,
+        "get_esg_record_history": history.get_esg_record_history,
     },
     "esg_records": {
         "search_records": esg_records.search_records,

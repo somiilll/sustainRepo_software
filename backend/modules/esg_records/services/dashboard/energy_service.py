@@ -9,7 +9,6 @@ Note:
 - Electricity has sub-subcategory: Renewable/Non-renewable
 """
 from typing import Optional, List, Dict, Any
-from .date_utils import build_date_filter
 from .unit_utils import to_mwh
 
 
@@ -19,6 +18,23 @@ class EnergyMetricsService:
     
     def __init__(self, db):
         self.db = db
+
+    @staticmethod
+    def _ledger_period(start_date: Optional[str], end_date: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Mirror the Internal Data AI's financial-year period contract for ledger parity."""
+        if not start_date or not end_date:
+            return None
+        start_year, start_month = start_date[:4], start_date[5:7]
+        end_year, end_month = end_date[:4], end_date[5:7]
+        is_financial_year = start_month == "04" and end_month == "03" and int(end_year) == int(start_year) + 1
+        return {
+            "type": "financial_year" if is_financial_year else "calendar_month",
+            "start_month": start_date,
+            "end_month": end_date,
+            "label": f"FY {start_year}-{end_year}" if is_financial_year else f"{start_date} to {end_date}",
+            "source": "explicit",
+            "fiscal_start_month": 4,
+        }
     
     async def get_metrics(
         self,
@@ -31,10 +47,11 @@ class EnergyMetricsService:
         """Get aggregated energy metrics with renewable/non-renewable breakdown"""
         
         # GHG energy from emission_records
-        ghg_energy = await self._get_ghg_energy_breakdown(org_id, facility_ids, start_date, end_date)
+        ledger_period = self._ledger_period(start_date, end_date)
+        ghg_energy = await self._get_ghg_energy_breakdown(org_id, facility_ids, ledger_period)
         
         # ESG energy from environment_records
-        esg_energy = await self._get_esg_energy_breakdown(org_id, facility_ids, start_date, end_date)
+        esg_energy = await self._get_esg_energy_breakdown(org_id, facility_ids, ledger_period)
         
         # Calculate totals
         emission_total = ghg_energy["total"]
@@ -64,8 +81,7 @@ class EnergyMetricsService:
         self,
         org_id: str,
         facility_ids: Optional[List[str]],
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        period: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Get energy from GHG emission_records with renewable breakdown"""
         from modules.internal_data_ai.services.emissions import get_renewable_energy_components
@@ -80,7 +96,7 @@ class EnergyMetricsService:
         }
         
         try:
-            components = await get_renewable_energy_components(org_id, facility_ids, period={"start_month": start_date, "end_month": end_date, "label": f"{start_date} to {end_date}"} if start_date and end_date else None)
+            components = await get_renewable_energy_components(org_id, facility_ids, period=period)
             for fuel in components.get("scope1_calculations", []):
                 energy_val = fuel["energy_tj"] * 277.778
                 result["fuel"]["non_renewable"] += energy_val
@@ -115,8 +131,7 @@ class EnergyMetricsService:
         self,
         org_id: str,
         facility_ids: Optional[List[str]],
-        start_date: Optional[str],
-        end_date: Optional[str]
+        period: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Get energy from ESG records with renewable breakdown"""
         result = {
@@ -128,55 +143,21 @@ class EnergyMetricsService:
             "non_renewable_total": 0,
         }
         
-        base_query = {
-            "org_id": org_id,
-            "is_current": {"$ne": False},
-            "status": {"$ne": "draft"},
-            "category": {"$regex": "^Energy$", "$options": "i"}
-        }
-        if facility_ids:
-            base_query["facility_id"] = {"$in": facility_ids}
-        
-        if start_date and end_date:
-            date_filter = self._build_date_filter(start_date, end_date)
-            if date_filter:
-                query = {"$and": [base_query, {"$or": date_filter}]}
-            else:
-                query = base_query
-        else:
-            query = base_query
-        
-        records = await self.db.environment_records.find(
-            query, {"_id": 0, "subcategory": 1, "field_values": 1}
-        ).to_list(10000)
-        
-        for rec in records:
-            fv = rec.get("field_values", {})
-            subcategory = (rec.get("subcategory") or "").lower()
-            
-            # Heating uses different field keys than others
-            if "heating" in subcategory:
-                ren_raw = float(fv.get("renewable_heating_consumption") or 0)
-                non_ren_raw = float(fv.get("non_renewable_heating_consumption") or 0)
-            else:
-                ren_raw = float(fv.get("renewable_energy_consumption") or 0)
-                non_ren_raw = float(fv.get("non_renewable_energy_consumption") or 0)
-            
-            stored_unit = fv.get("quantity_unit") or fv.get("unit")
-            ren_qty = to_mwh(ren_raw, stored_unit) if ren_raw and stored_unit else 0
-            non_ren_qty = to_mwh(non_ren_raw, stored_unit) if non_ren_raw and stored_unit else 0
-            
-            # Fallback: use quantity field for legacy records
-            if ren_qty == 0 and non_ren_qty == 0 and fv.get("quantity"):
-                old_qty = float(fv.get("quantity") or 0)
-                is_renewable = (fv.get("is_renewable") or "").lower()
-                sub_sub = (fv.get("sub_subcategory") or fv.get("subsubcategory") or "").lower()
-                if "yes" in is_renewable or "renewable" in sub_sub or "renewable" in subcategory:
-                    ren_qty = to_mwh(old_qty, stored_unit)
-                else:
-                    non_ren_qty = to_mwh(old_qty, stored_unit)
-            
-            total_qty = ren_qty + non_ren_qty
+        from modules.internal_data_ai.services.esg_records import search_records
+
+        ledger = await search_records(
+            org_id,
+            facility_ids,
+            record_type="environment",
+            category="Energy",
+            derived_metric="renewable_energy_percentage",
+            period=period,
+        )
+        for row in ledger.get("renewable_energy_results") or []:
+            subcategory = (row.get("subcategory") or "").lower()
+            ren_qty = to_mwh(row.get("renewable_value") or 0, row.get("unit"))
+            total_qty = to_mwh(row.get("total_value") or 0, row.get("unit"))
+            non_ren_qty = max(0, total_qty - ren_qty)
             
             result["renewable_total"] += ren_qty
             result["non_renewable_total"] += non_ren_qty
@@ -208,5 +189,3 @@ class EnergyMetricsService:
         
         return result
         
-    def _build_date_filter(self, start_date: str, end_date: str) -> List[Dict]:
-        return build_date_filter(start_date, end_date)

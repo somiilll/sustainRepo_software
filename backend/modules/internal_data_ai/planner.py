@@ -70,6 +70,11 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
             "params": {"period": query_plan.period.model_dump(), "supported": False},
         }]
     if query_plan.query_type == QueryType.RECORD_VERSION_HISTORY:
+        if query_plan.record_type in {"environment", "social", "governance"}:
+            return [
+                {"service": "esg_records", "method": "search_records", "params": params},
+                {"service": "record_history", "method": "get_esg_record_history", "params": params},
+            ]
         return [
             {"service": "emissions", "method": "search_records", "params": params},
             {"service": "record_history", "method": "get_emission_history", "params": params},

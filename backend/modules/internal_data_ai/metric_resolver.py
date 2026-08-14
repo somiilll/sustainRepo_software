@@ -91,7 +91,7 @@ def water_primary_metric(subcategory: str) -> MetricResolution:
 
 def resolve_water_metric(question: str) -> Optional[MetricResolution]:
     """Resolve Water wording to a fixed category, subcategory, and field contract."""
-    text = (question or "").lower()
+    text = re.sub(r"\brecyle(?=\b|d\b|ing\b)", "recycle", (question or "").lower())
     if not _contains_any(text, _WATER_TERMS):
         return None
 
@@ -209,8 +209,26 @@ def resolve_ghg_metric(question: str) -> Optional[MetricResolution]:
 
 
 def resolve_people_governance_metric(question: str) -> Optional[MetricResolution]:
-    """Route Social/Governance by category only; configured field labels resolve the metric."""
+    """Route common Social/Governance metrics to their stored subcategory and field."""
     text = (question or "").lower()
+    if _contains_any(text, ("total employees", "number of employees", "no of employees", "how many employees")):
+        return MetricResolution(
+            "social", "Employees/Worker", "Employee Diversity", "no_of_employees", "Total employees",
+            ("no_of_employees", "total employees", "number of employees"),
+            semantic_terms=("employee", "employees"),
+        )
+    if _contains_any(text, ("health and safety", "health & safety")) and _contains_any(text, ("incident", "incidents")):
+        return MetricResolution(
+            "social", "Health & Safety", "Health & Safety Incidents", "total_no_of_incidents", "Total health & safety incidents",
+            ("total_no_of_incidents", "health and safety incidents", "health & safety incidents"),
+            semantic_terms=("health", "safety", "incident"),
+        )
+    if _contains_any(text, ("anti-corruption", "anti corruption", "corruption", "coruption", "bribery")) and _contains_any(text, ("case", "cases", "incident", "incidents")):
+        return MetricResolution(
+            "governance", "Anti-corruption", "Confirmed Corruption Incidents", "no_of_confirmed_corruption_incidents", "Confirmed corruption incidents",
+            ("no_of_confirmed_corruption_incidents", "corruption cases", "corruption incidents", "anti-corruption cases"),
+            semantic_terms=("anti-corruption", "corruption", "coruption", "incident"),
+        )
     social_routes = (
         (("employee", "employees", "worker", "workforce", "diversity", "gender", "turnover", "benefit", "parental leave"), "Employees/Worker"),
         (("training", "upskilling", "re-skilling"), "Training"),
@@ -219,7 +237,7 @@ def resolve_people_governance_metric(question: str) -> Optional[MetricResolution
         (("community", "social impact"), "Community"),
     )
     governance_routes = (
-        (("anti-corruption", "corruption", "bribery", "ethics"), "Anti-corruption"),
+        (("anti-corruption", "anti corruption", "corruption", "coruption", "bribery", "ethics"), "Anti-corruption"),
         (("data privacy", "cybersecurity", "cyber security", "data breach"), "Incidents"),
         (("non-compliance", "compliance", "whistleblower", "governance complaint"), "Incidents"),
         (("procurement", "local suppliers"), "Financial & Procurement Metrics"),

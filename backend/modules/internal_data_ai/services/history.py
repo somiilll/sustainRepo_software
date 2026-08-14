@@ -1,6 +1,7 @@
 """Scoped history, audit, approval, and assignment retrieval services."""
 from shared.database.mongo import db
-from modules.internal_data_ai.query_scope import and_filters, organization_scope, scoped_record_ids
+from modules.internal_data_ai.query_scope import and_filters, organization_scope, resolve_authorized_facilities, scoped_record_ids
+from modules.internal_data_ai.reporting_periods import esg_period_filter, period_from_payload
 
 
 def _id_filter(field: str, values: list) -> dict:
@@ -86,6 +87,79 @@ async def get_emission_record_history(
             }
             for item in docs
         ],
+    }
+
+
+def _history_field_label(field: object) -> str:
+    return str(field or "").replace(".", " → ").replace("_", " ").strip().title()
+
+
+async def get_esg_record_history(org_id: str, facility_ids: list = None, **kwargs) -> dict:
+    """Return safe, scoped version history for Environment, Social, or Governance records."""
+    section = (kwargs.get("record_type") or "").lower()
+    collection_map = {
+        "environment": ("environment_records", "environment_record_versions"),
+        "social": ("social_records", "social_record_versions"),
+        "governance": ("governance_records", "governance_record_versions"),
+    }
+    if section not in collection_map:
+        return {"section": section, "total": 0, "history": []}
+
+    records_collection, versions_collection = collection_map[section]
+    resolved_facilities = await resolve_authorized_facilities(db, org_id, facility_ids, kwargs.get("facility"))
+    record_query = and_filters(
+        {"$or": [{"organization_id": org_id}, {"org_id": org_id}]},
+        {"is_current": {"$ne": False}},
+        {"$or": [{"deleted_at": {"$exists": False}}, {"deleted_at": None}]},
+        {"facility_id": {"$in": resolved_facilities}} if resolved_facilities is not None else None,
+    )
+    category, subcategory = kwargs.get("category"), kwargs.get("subcategory")
+    if category:
+        record_query = and_filters(record_query, {"category": {"$regex": f"^{category}$", "$options": "i"}})
+    if subcategory:
+        record_query = and_filters(record_query, {"subcategory": {"$regex": f"^{subcategory}$", "$options": "i"}})
+    period = period_from_payload(kwargs.get("period"))
+    if period is not None:
+        record_query = and_filters(record_query, esg_period_filter(period))
+
+    records = await db[records_collection].find(
+        record_query,
+        {"_id": 0, "id": 1, "category": 1, "subcategory": 1, "reporting_period": 1},
+    ).to_list(200)
+    record_by_id = {record["id"]: record for record in records if record.get("id")}
+    if not record_by_id:
+        return {"section": section, "category": category, "subcategory": subcategory, "period": period.label if period else "All reporting periods", "total": 0, "history": []}
+
+    versions = await db[versions_collection].find(
+        _id_filter("record_id", list(record_by_id)),
+        {"_id": 0, "record_id": 1, "version": 1, "created_by": 1, "created_by_name": 1, "created_at": 1, "changed_fields": 1, "change_type": 1, "change_reason": 1},
+    ).sort("created_at", -1).to_list(100)
+    user_ids = list({item.get("created_by") for item in versions if item.get("created_by") and not item.get("created_by_name")})
+    users = await db.users.find(
+        {"id": {"$in": user_ids}, "$or": [{"organization_id": org_id}, {"organization_id": {"$exists": False}}]},
+        {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1},
+    ).to_list(100) if user_ids else []
+    names = {user["id"]: user.get("full_name") or user.get("name") or user.get("email") for user in users if user.get("id")}
+    history = []
+    for version in versions:
+        record = record_by_id.get(version.get("record_id"), {})
+        history.append({
+            "category": record.get("category"),
+            "subcategory": record.get("subcategory"),
+            "version": version.get("version"),
+            "changed_by_name": version.get("created_by_name") or names.get(version.get("created_by")) or "Unknown user",
+            "changed_at": version.get("created_at"),
+            "changed_fields": [_history_field_label(field) for field in version.get("changed_fields") or []],
+            "change_type": version.get("change_type") or ("Created" if version.get("version") == 1 else "Updated"),
+            "change_reason": version.get("change_reason"),
+        })
+    return {
+        "section": section,
+        "category": category,
+        "subcategory": subcategory,
+        "period": period.label if period else "All reporting periods",
+        "total": len(history),
+        "history": history,
     }
 
 

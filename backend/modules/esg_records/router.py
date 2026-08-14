@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 import uuid
 import hashlib
 
-from core_platform.auth import get_current_user
+from modules.auth.dependencies import get_current_user
 from .service import esg_records_service
 from .ghg_integration import get_ghg_integration_service
 from .category_config_service import category_config_service
@@ -28,6 +28,17 @@ from shared.database import get_database
 from shared.database.mongo import db
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
+
+
+def _dashboard_facility_scope(current_user: dict, requested_facilities: Optional[List[str]]) -> Optional[List[str]]:
+    """Keep dashboard metrics fail-closed for non-admin users and ignore unauthorized query filters."""
+    if current_user.get("role") in {"admin", "super_admin"}:
+        return requested_facilities
+    allowed = current_user.get("assigned_facilities")
+    if allowed is None:
+        return []
+    allowed_ids = set(allowed)
+    return [facility_id for facility_id in requested_facilities if facility_id in allowed_ids] if requested_facilities is not None else list(allowed_ids)
 
 
 # =============================================================================
@@ -950,6 +961,8 @@ async def get_dashboard_metrics(
         except (ValueError, IndexError):
             pass
     
+    fac_list = _dashboard_facility_scope(current_user, fac_list)
+
     # Get metrics from service
     service = get_dashboard_metrics_service(db)
     metrics = await service.get_dashboard_metrics(org_id, fac_list, financial_year, start_date, end_date)

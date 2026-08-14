@@ -152,6 +152,8 @@ def _renewable_energy_percent(raw_records: list[dict]) -> list[dict]:
             continue
         results.append({
             "period": _period_label(record.get("reporting_period")),
+            "subcategory": record.get("subcategory"),
+            "facility_id": record.get("facility_id"),
             "renewable_value": renewable,
             "total_value": total,
             "unit": values.get("quantity_unit"),
@@ -245,7 +247,7 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         query = and_filters(query, {"field_values.renewable_energy_consumption": {"$exists": True, "$ne": None}})
     elif subcategory:
         query = and_filters(query, {"subcategory": {"$regex": f"^{re.escape(subcategory)}$", "$options": "i"}})
-    else:
+    elif section == "environment":
         requested_metric = (kwargs.get("requested_metric") or kwargs.get("metric") or "").strip()
         if requested_metric and requested_metric.lower() not in {"water", category.lower() if category else ""}:
             query = and_filters(query, {"subcategory": {"$regex": re.escape(requested_metric), "$options": "i"}})

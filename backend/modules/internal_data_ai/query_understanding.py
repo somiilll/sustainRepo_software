@@ -121,7 +121,7 @@ def _query_type(question: str, legacy_intent: str, metric: str) -> QueryType:
         return QueryType.APPROVAL_STATUS_LOOKUP
     if re.search(r"\bformula version\b", text):
         return QueryType.FORMULA_VERSION_HISTORY
-    if re.search(r"\b(version history|record version|record history|previous version|what changed)\b", text):
+    if legacy_intent == "version_history" or re.search(r"\b(version history|record version|record history|previous version|what changed|who.*what.*changed)\b", text):
         return QueryType.RECORD_VERSION_HISTORY
     if re.search(r"\b(calculation audit|audit detail|show.*calculation)\b", text):
         return QueryType.CALCULATION_AUDIT_LOOKUP
@@ -165,11 +165,20 @@ def build_query_plan(
     record_type, category = _resolve_esg_context(question, entities)
     if metric_resolution:
         record_type, category = metric_resolution.section, metric_resolution.category
-        if metric_resolution.data_source == "fuel_energy":
+        preserve_query_type = query_type in {
+            QueryType.RECORD_VERSION_HISTORY,
+            QueryType.METHODOLOGY_LOOKUP,
+            QueryType.FORMULA_LOOKUP,
+            QueryType.FORMULA_VERSION_HISTORY,
+            QueryType.CALCULATION_AUDIT_LOOKUP,
+            QueryType.EMISSION_FACTOR_LOOKUP,
+            QueryType.CALCULATION_PROPERTY_LOOKUP,
+        }
+        if not preserve_query_type and metric_resolution.data_source == "fuel_energy":
             query_type = QueryType.FUEL_ENERGY_LOOKUP
-        elif metric_resolution.data_source == "ghg_emissions":
+        elif not preserve_query_type and metric_resolution.data_source == "ghg_emissions":
             query_type = QueryType.EMISSION_LOOKUP if metric_resolution.value_kind == "emissions" else QueryType.CONSUMPTION_LOOKUP
-        elif query_type != QueryType.APPROVAL_STATUS_LOOKUP:
+        elif not preserve_query_type and query_type not in {QueryType.APPROVAL_STATUS_LOOKUP, QueryType.RECORD_VERSION_HISTORY}:
             query_type = QueryType.ESG_METRIC_LOOKUP
     raw_fuel = entities.get("fuel_type") or (fuel_resolution or {}).get("raw_value")
     entity = None
@@ -191,16 +200,18 @@ def build_query_plan(
             notes.append("Fuel is not present in the canonical fuel database.")
 
     sources_required = _SOURCES[query_type]
-    if record_type in _ESG_SECTIONS and query_type in {
+    if record_type in _ESG_SECTIONS and query_type == QueryType.RECORD_VERSION_HISTORY:
+        sources_required = [f"{record_type}_records", f"{record_type}_record_versions"]
+    elif record_type in _ESG_SECTIONS and query_type in {
         QueryType.CONSUMPTION_LOOKUP,
         QueryType.RECORD_LOOKUP,
         QueryType.APPROVAL_STATUS_LOOKUP,
         QueryType.ESG_METRIC_LOOKUP,
     }:
         sources_required = [f"{record_type}_records"]
-    elif metric_resolution and metric_resolution.data_source == "ghg_emissions":
+    elif metric_resolution and metric_resolution.data_source == "ghg_emissions" and not preserve_query_type:
         sources_required = ["emission_records"]
-    elif metric_resolution and metric_resolution.data_source == "fuel_energy":
+    elif metric_resolution and metric_resolution.data_source == "fuel_energy" and not preserve_query_type:
         sources_required = ["environment_records", "emission_records", "fuel_database"]
 
     return StructuredQueryPlan(
@@ -208,7 +219,7 @@ def build_query_plan(
         entity=entity,
         period=_period_contract(period),
         facility=entities.get("facility"),
-        scope=metric_resolution.ghg_scope if metric_resolution and metric_resolution.ghg_scope else entities.get("scope"),
+        scope=entities.get("scope") or (metric_resolution.ghg_scope if metric_resolution else None),
         category=category or (metric if record_type in _ESG_SECTIONS else None),
         record_type=record_type,
         requested_metric=metric or None,

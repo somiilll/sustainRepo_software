@@ -311,6 +311,32 @@ def _build_esg_record_response(query_plan: StructuredQueryPlan, data: dict, resp
     }
 
 
+def _build_esg_record_history_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
+    """Render ESG version history without exposing internal record or user identifiers."""
+    history = data.get("history") or []
+    period = data.get("period") or "the requested period"
+    subject = " → ".join(item for item in [data.get("category") or query_plan.category, data.get("subcategory") or query_plan.subcategory] if item) or "ESG record"
+    if not history:
+        answer = f"No version history was found for {subject} in {period}."
+    else:
+        lines = [f"{len(history)} version change(s) found for {subject} in {period}."]
+        for entry in history[:20]:
+            changed = ", ".join(entry.get("changed_fields") or []) or "No changed fields were recorded"
+            detail = f"• {entry.get('changed_at') or 'Time unavailable'} — {entry.get('changed_by_name') or 'Unknown user'}: {entry.get('change_type') or 'Updated'} — {changed}."
+            if entry.get("change_reason"):
+                detail += f" {entry['change_reason']}"
+            lines.append(detail)
+        answer = "\n".join(lines)
+    return {
+        "answer": answer,
+        "highlights": [{"label": "History entries", "value": str(len(history))}, {"label": "Source", "value": subject}],
+        "suggestion": None,
+        "response_type": response_type,
+        "chart": None,
+        "raw_data": data,
+    }
+
+
 def _evidence_formatter_data(query_plan: StructuredQueryPlan, service_data: dict) -> dict:
     emissions = service_data.get("emissions", {})
     evidence = service_data.get("evidence_state", {})
@@ -381,6 +407,8 @@ async def build_response(
             return _build_fuel_energy_response(service_data.get("esg_records", {}), service_data.get("emissions", {}), response_type)
         if query_plan and query_plan.data_source == "ghg_emissions" and service_data.get("emissions"):
             return _build_ghg_response(query_plan, service_data["emissions"], response_type)
+        if query_plan and query_plan.query_type == QueryType.RECORD_VERSION_HISTORY and query_plan.record_type in {"environment", "social", "governance"}:
+            return _build_esg_record_history_response(query_plan, service_data.get("record_history") or {}, response_type)
         if query_plan and query_plan.record_type in {"environment", "social", "governance"} and service_data.get("esg_records"):
             if query_plan.derived_metric == "renewable_energy_percentage":
                 response = _build_esg_record_response(query_plan, service_data["esg_records"], response_type)
