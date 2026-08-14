@@ -49,6 +49,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { toast } from 'sonner';
 import { ImportedRecordModal, DynamicFieldRenderer } from './ESGRecords';
 import { OperationalStatusBadge, ApprovalStatusBadge } from './tasks/StatusBadge';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { 
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
@@ -108,6 +109,7 @@ export default function ESGRecordsDataEntry({
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState([]);
+  const { formatDateTime } = useDateFormatter();
   const [drafts, setDrafts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [facilities, setFacilities] = useState([]);
@@ -1456,7 +1458,7 @@ export default function ESGRecordsDataEntry({
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-text-muted">
-                      {record.updated_at ? new Date(record.updated_at).toLocaleDateString() : '-'}
+                      {record.updated_at ? formatDateTime(record.updated_at) : '-'}
                     </TableCell>
                     <TableCell className="text-right">
                       {isLocked ? (
