@@ -1,4 +1,7 @@
 """Scoped history, audit, approval, and assignment retrieval services."""
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from shared.database.mongo import db
 from modules.esg_records.version_utils import compare_versions, format_field_display_name
 from modules.internal_data_ai.query_scope import and_filters, organization_scope, resolve_authorized_facilities, scoped_record_ids
@@ -129,6 +132,36 @@ def _unit_for_field(snapshot: dict, field_path: str):
     return parent.get(f"{field_key}_unit") or parent.get("unit")
 
 
+def _is_unit_field(field_path: object) -> bool:
+    """Identify unit metadata that should support a value diff, not become one."""
+    field_key = str(field_path or "").split(".")[-1].lower()
+    return field_key == "unit" or field_key.endswith("_unit")
+
+
+def _localized_history_timestamp(value, organization_timezone: str | None):
+    """Convert stored UTC history timestamps to the organization's IANA timezone."""
+    if not value or not organization_timezone:
+        return value
+    try:
+        target_timezone = ZoneInfo(organization_timezone)
+    except ZoneInfoNotFoundError:
+        return value
+
+    if isinstance(value, datetime):
+        timestamp = value
+    elif isinstance(value, str):
+        try:
+            timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return value
+    else:
+        return value
+
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.astimezone(target_timezone).isoformat()
+
+
 def _history_diff(field: str, old_value, new_value, old_snapshot: dict, new_snapshot: dict, display_name: str = None) -> dict:
     return {
         "field": display_name or format_field_display_name(field),
@@ -154,19 +187,21 @@ def _version_field_diffs(version: dict, previous_snapshot: dict | None) -> list[
                 diff.get("display_name"),
             )
             for diff in stored_diffs
-            if isinstance(diff, dict) and diff.get("field")
+            if isinstance(diff, dict) and diff.get("field") and not _is_unit_field(diff.get("field"))
         ]
     if not previous_snapshot or not current_snapshot:
         return []
     return [
         _history_diff(change["field"], change["old"], change["new"], previous_snapshot, current_snapshot)
         for change in compare_versions(previous_snapshot, current_snapshot)
+        if not _is_unit_field(change.get("field"))
     ]
 
 
 async def get_esg_record_history(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     """Return safe, scoped version history for Environment, Social, or Governance records."""
     section = (kwargs.get("record_type") or "").lower()
+    organization_timezone = kwargs.get("organization_timezone")
     collection_map = {
         "environment": ("environment_records", "environment_record_versions"),
         "social": ("social_records", "social_record_versions"),
@@ -220,8 +255,12 @@ async def get_esg_record_history(org_id: str, facility_ids: list = None, **kwarg
             "subcategory": record.get("subcategory"),
             "version": version.get("version"),
             "changed_by_name": version.get("created_by_name") or names.get(version.get("created_by")) or "Unknown user",
-            "changed_at": version.get("created_at"),
-            "changed_fields": [_history_field_label(field) for field in version.get("changed_fields") or []],
+            "changed_at": _localized_history_timestamp(version.get("created_at"), organization_timezone),
+            "changed_fields": [
+                _history_field_label(field)
+                for field in version.get("changed_fields") or []
+                if not _is_unit_field(field)
+            ],
             "field_diffs": field_diffs,
             "change_type": version.get("change_type") or ("Created" if version.get("version") == 1 else "Updated"),
             "change_reason": version.get("change_reason"),

@@ -89,7 +89,7 @@ async def internal_ai_chat(
 
     organization = await db.organizations.find_one(
         {"id": org_id},
-        {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1},
+        {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1, "timezone": 1},
     )
 
     # 2. Intent detection
@@ -120,7 +120,12 @@ async def internal_ai_chat(
     plan = plan_service_calls(intent_result, structured_plan)
 
     # 5. Execute plan
-    service_data = await execute_plan(plan, org_id, facility_ids)
+    service_data = await execute_plan(
+        plan,
+        org_id,
+        facility_ids,
+        organization_timezone=(organization or {}).get("timezone"),
+    )
 
     # 6. Build response
     formatted = await build_response(

@@ -88,7 +88,12 @@ SERVICE_MAP = {
 }
 
 
-async def execute_plan(plan: List[Dict[str, Any]], org_id: str, facility_ids: list = None) -> dict:
+async def execute_plan(
+    plan: List[Dict[str, Any]],
+    org_id: str,
+    facility_ids: list = None,
+    organization_timezone: str = None,
+) -> dict:
     """Execute all service calls in the plan and merge results."""
     merged = {}
     for step in plan:
@@ -104,6 +109,7 @@ async def execute_plan(plan: List[Dict[str, Any]], org_id: str, facility_ids: li
             params["relationships"] = merged.get("relationships")
         elif service_name == "record_history":
             params["emission_records"] = merged.get("emissions", {}).get("records", [])
+            params["organization_timezone"] = organization_timezone
         elif service_name == "calculation_properties":
             params["emission_records"] = merged.get("emissions", {}).get("records", [])
 
