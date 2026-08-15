@@ -27,6 +27,19 @@
 - **P1:** Deduplicate pending approval requests by `entity_id` before presenting “entries awaiting approval.”
 - **P2:** Extend structured query routing to additional ESG/social/governance analytics and approval questions as requested.
 
+## Change Log — Aug 15, 2026: Internal Data AI Evidence and BRSR Routing Repair
+
+### Implemented
+- Preserved explicit `evidence_lookup`, BRSR, and GRI query types when the metric resolver recognizes a related ESG topic; Water-consumption evidence now remains on the linked-file retrieval path.
+- Added native parsing for `financial year 2026-2027` and BRSR-aware routing: P1 maps to `section_c` plus the `p1_` question-key prefix, while training and awareness programme wording maps to `p1_training_awareness_coverage`.
+- Scoped BRSR response, submission, unified-response, draft, progress, and question-config filters by section, reporting year, and question key. Unified BRSR data now accepts both legacy `framework` and current `frameworks` schemas and only counts non-empty values.
+- Added a standalone `evidence` lexical fallback and a credentials-from-environment live regression test to prevent future route drift without storing credentials in code.
+
+### Verification
+- Focused backend tests passed: **11/11** (`test_internal_ai_auxiliary_queries.py`, `test_internal_ai_phase2_query_understanding.py`).
+- Direct live service checks found 1 Water evidence file, 3 filled P1 records, and the stored FY 2026-2027 BRSR training coverage.
+- Independent live regression passed: evidence lookup returned the linked Water file; P1 returned **3**; coverage returned BoD **100%**, KMP **83%**, employees **50%**, workers **10%** (`/app/test_reports/iteration_172.json`). **MOCKED APIs: NONE.**
+
 ## Original Problem Statement
 Complete the Materiality Assessment UI, design premium ESG Dashboards, fix analytics mapping bugs, build missing UI, redesign the Assignment dialog into a step-by-step wizard, implement BRSR/GRI comprehensive questionnaire approval workflows.
 

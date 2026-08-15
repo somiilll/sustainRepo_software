@@ -81,7 +81,7 @@ def extract_explicit_period(question: str, organization: Optional[Dict[str, Any]
         year, month = map(int, iso_month.groups())
         return _month_period(year, month, f"{calendar.month_name[month]} {year}", "explicit", service.fiscal_start_month)
 
-    fy_match = re.search(r"\bFY\s*(20\d{2})(?:\s*[-–]\s*(?:20)?\d{2})?\b", text, re.IGNORECASE)
+    fy_match = re.search(r"\b(?:FY|financial\s+year)\s*(20\d{2})(?:\s*[-–]\s*(?:20)?\d{2})?\b", text, re.IGNORECASE)
     cy_match = re.search(r"\bCY\s*(20\d{2})\b", text, re.IGNORECASE)
     quarter_match = re.search(r"\bQ([1-4])\s+(FY|CY)\s*(20\d{2})(?:\s*[-–]\s*(?:20)?\d{2})?\b", text, re.IGNORECASE)
 

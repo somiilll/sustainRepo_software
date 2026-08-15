@@ -110,7 +110,7 @@ def _metric_from_question(question: str) -> str:
 
 def _query_type(question: str, legacy_intent: str, metric: str) -> QueryType:
     text = question.lower()
-    if legacy_intent == "evidence_retrieval" or re.search(r"\b(attachment|attachments|evidence file|invoice)\b", text):
+    if legacy_intent == "evidence_retrieval" or re.search(r"\b(attachment|attachments|evidence|invoice)\b", text):
         return QueryType.EVIDENCE_LOOKUP
     framework_history = re.search(r"\b(previous answer|changed answer|what was reported before|version|history|who changed|when it changed|compare versions)\b", text)
     if legacy_intent == "brsr_lookup" or re.search(r"\bbrsr\b", text):
@@ -150,6 +150,22 @@ def _query_type(question: str, legacy_intent: str, metric: str) -> QueryType:
     return QueryType.UNKNOWN
 
 
+def _brsr_context(question: str, fallback_metric: str) -> tuple[Optional[str], str]:
+    """Resolve explicit BRSR principle and question wording to stored response keys."""
+    text = (question or "").lower()
+    principle_match = re.search(r"\bp\s*([1-9])\b", text)
+    section = "section_c" if principle_match else None
+    question_key = ""
+
+    if re.search(r"\btraining\s*(?:and|&)\s*awareness\s*program(?:me)?s?\b", text):
+        return "section_c", "p1_training_awareness_coverage"
+    if principle_match:
+        question_key = f"p{principle_match.group(1)}"
+    elif fallback_metric and fallback_metric.lower() not in {"question", "questions", "filled question", "filled questions"}:
+        question_key = fallback_metric
+    return section, question_key
+
+
 def build_query_plan(
     question: str,
     intent_result: dict,
@@ -163,9 +179,20 @@ def build_query_plan(
     query_type = _query_type(question, legacy_intent, metric)
     metric_resolution = resolve_esg_metric(question)
     record_type, category = _resolve_esg_context(question, entities)
+    framework_query = query_type in {
+        QueryType.BRSR_LOOKUP,
+        QueryType.BRSR_VERSION_HISTORY,
+        QueryType.GRI_LOOKUP,
+        QueryType.GRI_VERSION_HISTORY,
+    }
     if metric_resolution:
         record_type, category = metric_resolution.section, metric_resolution.category
         preserve_query_type = query_type in {
+            QueryType.EVIDENCE_LOOKUP,
+            QueryType.BRSR_LOOKUP,
+            QueryType.BRSR_VERSION_HISTORY,
+            QueryType.GRI_LOOKUP,
+            QueryType.GRI_VERSION_HISTORY,
             QueryType.RECORD_VERSION_HISTORY,
             QueryType.METHODOLOGY_LOOKUP,
             QueryType.FORMULA_LOOKUP,
@@ -180,6 +207,13 @@ def build_query_plan(
             query_type = QueryType.EMISSION_LOOKUP if metric_resolution.value_kind == "emissions" else QueryType.CONSUMPTION_LOOKUP
         elif not preserve_query_type and query_type not in {QueryType.APPROVAL_STATUS_LOOKUP, QueryType.RECORD_VERSION_HISTORY}:
             query_type = QueryType.ESG_METRIC_LOOKUP
+
+    if framework_query:
+        record_type = None
+        category = None
+        if query_type in {QueryType.BRSR_LOOKUP, QueryType.BRSR_VERSION_HISTORY}:
+            category, metric = _brsr_context(question, metric)
+        metric_resolution = None
     raw_fuel = entities.get("fuel_type") or (fuel_resolution or {}).get("raw_value")
     entity = None
     evidence_state = EvidenceState.PENDING

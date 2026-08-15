@@ -42,6 +42,11 @@ def test_property_brsr_approval_and_attachment_queries_use_explicit_routes():
         _intent("evidence_retrieval", fuel_type="Diesel", record_type="emission"),
         extract_explicit_period("sept 2025", None), _fuel(),
     )
+    standalone_evidence_plan = build_query_plan(
+        "show evidence for water consumption",
+        _intent("kpi_lookup", record_type="environment", metric="water consumption"),
+        None,
+    )
     assert property_plan.query_type == QueryType.CALCULATION_PROPERTY_LOOKUP
     assert [step["service"] for step in plan_service_calls({}, property_plan)] == ["emissions", "calculation_properties", "evidence_state"]
     assert brsr_plan.query_type == QueryType.BRSR_LOOKUP
@@ -51,6 +56,35 @@ def test_property_brsr_approval_and_attachment_queries_use_explicit_routes():
     assert [step["service"] for step in plan_service_calls({}, approval_plan)] == ["esg_records"]
     assert evidence_plan.query_type == QueryType.EVIDENCE_LOOKUP
     assert [step["service"] for step in plan_service_calls({}, evidence_plan)] == ["evidence"]
+    assert standalone_evidence_plan.query_type == QueryType.EVIDENCE_LOOKUP
+    assert [step["service"] for step in plan_service_calls({}, standalone_evidence_plan)] == ["evidence"]
+
+
+def test_brsr_specific_questions_preserve_framework_routing_and_scope():
+    period = extract_explicit_period("financial year 2026-2027", {"financial_year_start_month": 4})
+    p1_count_plan = build_query_plan(
+        "how many brsr questions in P1 are filled",
+        _intent("brsr_lookup", metric="questions"),
+        None,
+    )
+    training_plan = build_query_plan(
+        "percentage coverage by training and awareness programmes in brsr for financial year 2026-2027",
+        _intent("brsr_lookup", metric="training and awareness programmes"),
+        period,
+    )
+    water_evidence_plan = build_query_plan(
+        "show evidence for water consumption",
+        _intent("evidence_retrieval", record_type="environment", metric="water consumption"),
+        None,
+    )
+
+    assert (period.start_month, period.end_month, period.label) == ("2026-04", "2027-03", "FY 2026–27")
+    assert p1_count_plan.query_type == QueryType.BRSR_LOOKUP
+    assert (p1_count_plan.category, p1_count_plan.requested_metric) == ("section_c", "p1")
+    assert training_plan.query_type == QueryType.BRSR_LOOKUP
+    assert (training_plan.category, training_plan.requested_metric) == ("section_c", "p1_training_awareness_coverage")
+    assert water_evidence_plan.query_type == QueryType.EVIDENCE_LOOKUP
+    assert (water_evidence_plan.record_type, water_evidence_plan.category) == ("environment", "Water")
 
 
 def test_water_status_and_consumption_queries_use_authorized_environment_records():
