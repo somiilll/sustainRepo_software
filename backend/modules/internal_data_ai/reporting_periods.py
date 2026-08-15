@@ -82,6 +82,7 @@ def extract_explicit_period(question: str, organization: Optional[Dict[str, Any]
         return _month_period(year, month, f"{calendar.month_name[month]} {year}", "explicit", service.fiscal_start_month)
 
     fy_match = re.search(r"\b(?:FY|financial\s+year)\s*(20\d{2})(?:\s*[-–]\s*(?:20)?\d{2})?\b", text, re.IGNORECASE)
+    bare_year_range_match = re.search(r"\b(20\d{2})\s*[-–]\s*(20\d{2})\b", text)
     cy_match = re.search(r"\bCY\s*(20\d{2})\b", text, re.IGNORECASE)
     quarter_match = re.search(r"\bQ([1-4])\s+(FY|CY)\s*(20\d{2})(?:\s*[-–]\s*(?:20)?\d{2})?\b", text, re.IGNORECASE)
 
@@ -97,6 +98,13 @@ def extract_explicit_period(question: str, organization: Optional[Dict[str, Any]
         start = date(year, service.fiscal_start_month, 1)
         end = start + relativedelta(years=1) - relativedelta(days=1)
         return _range_period(start, end, f"FY {year}–{str(end.year)[-2:]}", "explicit", service.fiscal_start_month)
+
+    if bare_year_range_match:
+        start_year, end_year = map(int, bare_year_range_match.groups())
+        if end_year == start_year + 1:
+            start = date(start_year, service.fiscal_start_month, 1)
+            end = start + relativedelta(years=1) - relativedelta(days=1)
+            return _range_period(start, end, f"FY {start_year}–{str(end.year)[-2:]}", "explicit", service.fiscal_start_month)
 
     if cy_match:
         year = int(cy_match.group(1))

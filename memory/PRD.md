@@ -1,5 +1,22 @@
 # ESG Platform - Product Requirements Document
 
+## Change Log — Aug 15, 2026: Internal Data AI BRSR Query Repair
+
+### Implemented
+- Fixed generic BRSR count routing so phrases such as “BRSR questions filled” no longer become a literal `question_key` filter.
+- Added deterministic support for bare annual ranges such as `2026-2027`, resolving them as the organization’s financial year.
+- Updated BRSR version-history retrieval to resolve response keys from the active `organization_esg_responses` collection and match version records stored by question key.
+- Increased BRSR retrieval bounds from 50 to 1,000 records so broad filled-count answers do not silently undercount larger questionnaires.
+
+### Verification
+- Focused deterministic regression tests: **3/3 passed** (`backend/tests/test_internal_ai_brsr_regressions.py`).
+- Authenticated live Internal AI regression: **1/1 passed** across all three reported prompts (`/app/test_reports/iteration_173.json`).
+- Verified live results: generic and FY 2026–27 count prompts return **6 filled / 165 configured**; training coverage history returns **1 approved event**. **MOCKED APIs: NONE.**
+
+### Prioritized Follow-up
+- **P1:** Reset BRSR Section A form data when reporting year changes to prevent stale values appearing in the UI.
+- **P2:** Stabilize Playwright selectors for Shadcn Select controls.
+
 ## Change Log — Aug 12, 2026: Internal Data AI Evidence Routing
 
 ### Implemented

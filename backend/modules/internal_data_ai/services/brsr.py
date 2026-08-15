@@ -64,7 +64,7 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
 
     resp_query = {"$and": [{"organization_id": org_id}, *common_filters]}
 
-    filled = await db.esg_responses.find(resp_query, {"_id": 0}).sort("updated_at", -1).to_list(50)
+    filled = await db.esg_responses.find(resp_query, {"_id": 0}).sort("updated_at", -1).to_list(1000)
 
     # 2. Submission statuses (Section B/C approval flow)
     sub_query = {"$and": [{"organization_id": org_id}, *common_filters]}
@@ -79,7 +79,7 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
     # 3. Unified collection data (organization_esg_responses)
     unified = await db.organization_esg_responses.find(
         {"$and": [{"$or": [{"org_id": org_id}, {"organization_id": org_id}]}, *common_filters]}, {"_id": 0}
-    ).to_list(50)
+    ).to_list(1000)
     unified_map = {
         (u.get("question_key"), u.get("reporting_year") or u.get("reporting_period")): u
         for u in unified if u.get("question_key") and _is_filled(u)
@@ -151,14 +151,35 @@ async def get_version_history(org_id: str, facility_ids: list = None, **kwargs) 
     """BRSR response version history."""
     question_key = kwargs.get("metric") or kwargs.get("entity_name") or ""
 
-    source_query = {"organization_id": org_id, "framework": {"$in": _FW_VARIANTS}}
+    source_filters = [
+        {"$or": [{"org_id": org_id}, {"organization_id": org_id}]},
+        _framework_filter(),
+    ]
+    period_values = _period_values(kwargs.get("period"))
+    if period_values:
+        source_filters.append(_period_filter(period_values))
     if question_key:
-        source_query["question_key"] = {"$regex": question_key, "$options": "i"}
+        source_filters.append(_question_key_filter(question_key) or {})
+    source_query = {"$and": source_filters}
 
-    responses = await db.esg_responses.find(source_query, {"_id": 0, "id": 1, "question_key": 1}).to_list(1000)
+    responses = await db.organization_esg_responses.find(
+        source_query, {"_id": 0, "id": 1, "question_key": 1}
+    ).to_list(1000)
     record_ids = [response["id"] for response in responses if response.get("id")]
     question_keys = [response["question_key"] for response in responses if response.get("question_key")]
-    query = {"organization_id": org_id, "$or": [{"record_id": {"$in": record_ids}}, {"question_key": {"$in": question_keys}}]}
+    version_record_ids = list(set(record_ids + question_keys))
+    version_filters = [
+        {"organization_id": org_id},
+        {"$or": [{"record_id": {"$in": version_record_ids}}, {"question_key": {"$in": question_keys}}]},
+    ]
+    if period_values:
+        version_filters.append({
+            "$or": [
+                {"reporting_year": {"$in": period_values}},
+                {"snapshot.reporting_year": {"$in": period_values}},
+            ]
+        })
+    query = {"$and": version_filters}
 
     versions = await db.esg_responses_versions.find(
         query, {"_id": 0}
@@ -168,7 +189,7 @@ async def get_version_history(org_id: str, facility_ids: list = None, **kwargs) 
         "total": len(versions),
         "history": [
             {
-                "question_key": v.get("question_key"),
+                "question_key": v.get("question_key") or v.get("record_id"),
                 "version": v.get("version"),
                 "change_type": v.get("change_type"),
                 "changed_fields": v.get("changed_fields"),

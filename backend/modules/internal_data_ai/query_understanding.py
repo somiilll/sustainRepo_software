@@ -41,6 +41,26 @@ _SOURCES = {
 }
 
 _ESG_SECTIONS = {"environment", "social", "governance"}
+_GENERIC_BRSR_METRIC_TERMS = {
+    "all",
+    "brsr",
+    "completion",
+    "completed",
+    "configured",
+    "count",
+    "fill",
+    "filled",
+    "many",
+    "number",
+    "of",
+    "question",
+    "questions",
+    "questionnaire",
+    "response",
+    "responses",
+    "status",
+    "total",
+}
 
 
 def _approval_status_filter(question: str) -> Optional[str]:
@@ -161,9 +181,15 @@ def _brsr_context(question: str, fallback_metric: str) -> tuple[Optional[str], s
         return "section_c", "p1_training_awareness_coverage"
     if principle_match:
         question_key = f"p{principle_match.group(1)}"
-    elif fallback_metric and fallback_metric.lower() not in {"question", "questions", "filled question", "filled questions"}:
+    elif fallback_metric and not _is_generic_brsr_metric(fallback_metric):
         question_key = fallback_metric
     return section, question_key
+
+
+def _is_generic_brsr_metric(value: str) -> bool:
+    """Keep broad BRSR count wording from becoming a question-key filter."""
+    terms = re.findall(r"[a-z0-9]+", (value or "").lower())
+    return bool(terms) and all(term in _GENERIC_BRSR_METRIC_TERMS for term in terms)
 
 
 def build_query_plan(
