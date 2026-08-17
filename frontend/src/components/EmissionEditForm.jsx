@@ -544,6 +544,7 @@ export default function EmissionEditForm(props) {
                             onValueChange={(v) => {
                               setEditProcessType(v);
                               setEditCalcMethodology('using_heat_basis_ncv');
+                              markFormDirty();
                             }}
                           >
                             <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-process-type-select">
@@ -568,7 +569,10 @@ export default function EmissionEditForm(props) {
                           <Label>Calculation Methodology</Label>
                           <Select
                             value={editCalcMethodology || 'using_heat_basis_ncv'}
-                            onValueChange={(v) => setEditCalcMethodology(v)}
+                            onValueChange={(v) => {
+                              setEditCalcMethodology(v);
+                              markFormDirty();
+                            }}
                           >
                             <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-calculation-methodology-select">
                               <SelectValue placeholder="Select methodology" />

@@ -47,8 +47,17 @@ const ACTIVITY_TYPE_TO_FORMULA_TERMS = {
 
 const METHOD_TO_FORMULA_TERMS = {
   spend_basis: ['spend', 'Spent'],
+  spend_based: ['spend', 'Spent'],
   activity_basis: ['activity'],
   supplier_basis: ['supplier', 'Supplier'],
+};
+
+const SUBCATEGORY_TO_FORMULA_TERMS = {
+  fugitive_emissions: ['fugitive'],
+  stationary_combustion: ['stationary'],
+  mobile_combustion: ['mobile'],
+  energy: ['energy', 'electricity'],
+  electricity: ['energy', 'electricity'],
 };
 
 // Custom fuel handles these per month in CustomFuelMonthFields, so they are
@@ -62,7 +71,13 @@ const findByNameTerms = (formulas, terms) =>
   });
 
 const resolveScope3Formula = (formConfig, context) => {
-  const { scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct } = context;
+  const {
+    scope3Method,
+    scope3ActivityType,
+    scope3Subcategory,
+    typeOfProduct,
+    savedFormulaId,
+  } = context;
   let matchedFormula = null;
 
   if (formConfig.decision_tree) {
@@ -75,6 +90,21 @@ const resolveScope3Formula = (formConfig, context) => {
     if (formulaId) {
       matchedFormula = formConfig.formulas.find((f) => f.id === formulaId);
     }
+  }
+
+  // Some historical Scope 3 records predate complete decision-tree metadata.
+  // Keep their category-specific fallback in the shared resolver rather than in
+  // the Edit component, so both flows retain one canonical derivation path.
+  if (
+    !matchedFormula &&
+    scope3Method === 'activity_basis' &&
+    scope3Subcategory &&
+    SUBCATEGORY_TO_FORMULA_TERMS[scope3Subcategory]
+  ) {
+    matchedFormula = findByNameTerms(
+      formConfig.formulas,
+      SUBCATEGORY_TO_FORMULA_TERMS[scope3Subcategory],
+    );
   }
 
   // Nested trees (C6/C7) may need matching on the activity type instead.
@@ -90,6 +120,22 @@ const resolveScope3Formula = (formConfig, context) => {
     );
   }
 
+  // Hydrated records retain their saved formula only when it still belongs to
+  // the current method or selected subcategory. This prevents a saved formula
+  // from surviving an Edit-time method/category change.
+  if (!matchedFormula && savedFormulaId) {
+    const savedFormula = formConfig.formulas.find((formula) => formula.id === savedFormulaId);
+    const methodMatches = METHOD_TO_FORMULA_TERMS[scope3Method] || [];
+    const subcategoryMatches = SUBCATEGORY_TO_FORMULA_TERMS[scope3Subcategory] || [];
+    if (
+      savedFormula &&
+      (findByNameTerms([savedFormula], methodMatches) ||
+        findByNameTerms([savedFormula], subcategoryMatches))
+    ) {
+      matchedFormula = savedFormula;
+    }
+  }
+
   if (!matchedFormula) {
     matchedFormula = findByNameTerms(
       formConfig.formulas,
@@ -101,7 +147,12 @@ const resolveScope3Formula = (formConfig, context) => {
 };
 
 const resolveScope12Formula = (formConfig, context) => {
-  const { decisionFieldValues, isBiogenicScope1, isStationaryMobileOrFlaringCategory } = context;
+  const {
+    decisionFieldValues,
+    isBiogenicScope1,
+    isStationaryMobileOrFlaringCategory,
+    savedFormulaId,
+  } = context;
   let matchedFormula = null;
 
   if (formConfig.decision_tree) {
@@ -116,6 +167,11 @@ const resolveScope12Formula = (formConfig, context) => {
   }
 
   if (matchedFormula) return matchedFormula;
+
+  if (savedFormulaId) {
+    const savedFormula = formConfig.formulas.find((formula) => formula.id === savedFormulaId);
+    if (savedFormula) return savedFormula;
+  }
 
   if (isBiogenicScope1) {
     matchedFormula = formConfig.formulas.find((f) =>

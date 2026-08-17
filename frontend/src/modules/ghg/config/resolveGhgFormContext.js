@@ -29,6 +29,7 @@ export const resolveGhgFormContext = ({
   decisionFieldValues = {},
   useCustomFuel = false,
   selectedFuel = null,
+  savedFormulaId = null,
 } = {}) => {
   const isBiogenicScope1 = scope === 'biogenic' && biogenicScopeSelection === 'scope1';
   const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
@@ -69,6 +70,9 @@ export const resolveGhgFormContext = ({
 
     useCustomFuel,
     selectedFuel,
+    // Existing-record hydration may supply the saved formula as a compatibility
+    // fallback. Create leaves this null, so its empty-state behaviour is unchanged.
+    savedFormulaId,
 
     isProcessCategory: isProcessCategory(categoryName),
     isStationaryMobileOrFlaringCategory: isStationaryMobileOrFlaringCategory(

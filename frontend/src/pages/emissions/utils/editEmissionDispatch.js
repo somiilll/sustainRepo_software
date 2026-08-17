@@ -23,7 +23,7 @@ export async function editEmissionDispatch(emission, ctx) {
     // Setters
     setEditEmployees, setEditEmployeeMonthlyTotals, setEditEmployeeYearlyTotal,
     setDynamicFieldValues, setExistingEvidences, setEditingEmissionId,
-    setEmissionAuditLog, setIsEditLoading, setDialogOpen,
+    setEmissionAuditLog, setIsEditLoading, setDialogOpen, setIsFormDirty,
     setScope3Method, setScope3ActivityId, setScope3ActivityType,
     setScope3Subcategory, setTypeOfProduct, setScope3CustomActivity, setUseCustomActivity,
     setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
@@ -52,6 +52,7 @@ export async function editEmissionDispatch(emission, ctx) {
     // =====================
     // Apply hydrated values to state setters
     // =====================
+    setIsFormDirty(false);
     setEditingEmission(emission);
     setEditFrequencyType(hydrated.frequencyType);
     

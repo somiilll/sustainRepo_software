@@ -99,6 +99,14 @@ Reference documents:
 - Read-only verified: `emission_records` 840, `ce_calculation_audit_logs` 1339, `emission_history` 1754 unchanged
 - Untouched as instructed: Edit flow, C7, inflation, evidence, approval, frontend evaluator, dead code
 
+### Phase 2 — Edit-flow field derivation (Jun 2026) — COMPLETE
+
+- Removed the duplicated Edit-only field derivation in `pages/Emissions.js`; Edit now uses the same `resolveGhgFormContext → resolveGhgConfig → deriveGhgFields` pipeline as Create.
+- Existing record hydration is retained separately in `hydrateEmissionForm`, `editEmissionDispatch`, and the dynamic-value/audit hydration effect. Saved formula fallback is explicit context and only applies while compatible with the current selection.
+- Regression: backend golden **497 passed / 9 skipped**; frontend golden **145 passed / 63 snapshots**; full frontend **1,134 passed / 63 snapshots**; Phase 1 equivalence remains **785 assertions, 0 differences**; new Edit shared-derivation checks **185 passed**.
+- Read-only UI QA verified Scope 1/2/3/Biogenic hydration, Scope 3 method changes, Biogenic selection, and custom fuel. Added a narrow guard preventing an unnecessary legacy calculation request during hydration; no calculator API payload or calculation behavior was changed.
+- No snapshots, golden calculations, database schema, API contracts, C7, inflation, emission factors, formulas, units, evidence, approval, evaluator, or dead code were changed. See `GHG_PHASE2_REPORT.md` and `GHG_PHASE2_EDIT_BASELINE.md`.
+
 ### Phase status
 
 | Phase | Description | Status |
@@ -108,7 +116,7 @@ Reference documents:
 | 0c | Inflation/PPP reconciliation analysis | **DONE (Jun 2026)** — proposal awaiting approval; implementation deliberately deferred to after Phase 2 |
 | 0d | Coverage dashboard | **DONE (Jun 2026)** |
 | 1 | Create-flow field-derivation extraction | **DONE (Jun 2026)** — `modules/ghg/config/`; 785 equivalence assertions; 1 production file changed (−262/+62) |
-| 2 | Edit-flow field-derivation extraction | NOT STARTED (gated on Phase 1 review) |
+| 2 | Edit-flow field-derivation extraction | **DONE (Jun 2026)** — one shared Create/Edit derivation pipeline; hydration retained separately; golden parity verified |
 | 3 | Capability config replaces category string sniffing | NOT STARTED |
 | 4 | Service extraction (units, EF, calc, evidence, API client) | NOT STARTED |
 | 5 | Unified form state + record adapters | NOT STARTED |
