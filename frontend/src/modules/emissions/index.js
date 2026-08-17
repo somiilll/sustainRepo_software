@@ -11,6 +11,7 @@
  */
 
 import { categoryRegistry } from './core/CategoryRegistry';
+import { resolveGhgCapabilities } from '../ghg/config/resolveGhgCapabilities';
 
 // Core
 export { categoryRegistry, createCategoryModule } from './core/CategoryRegistry';
@@ -109,20 +110,29 @@ export function initializeCategoryModules() {
   FLAT_FIELD_SCOPE3_CATEGORIES.forEach((id) => attachStep3(categoryRegistry.get(id)));
   attachStep3(categoryRegistry.get('c7'));
 
-  // Wire category capabilities from the static definitions.
-  // Capabilities are derived from `scope3-definitions.js` flags so the page
-  // can query `module.hasCapability('asset-name')` instead of maintaining
-  // hard-coded `['c8','c13','c14','c15'].some(...)` chains in JSX.
-  const { CATEGORY_CONFIGS } = require('./categories/scope3-definitions');
-  Object.entries(CATEGORY_CONFIGS).forEach(([id, cfg]) => {
+  // Registry behavior consumes the same canonical capability resolver as the UI.
+  const registryCapabilityNames = {
+    subcategory: 'subcategory',
+    assetName: 'asset-name',
+    journeyLocations: 'journey-locations',
+    activityType: 'activity-types',
+    multiEmployee: 'multi-employee',
+    typeOfProduct: 'type-of-product',
+    customerCounterparty: 'customer-counterparty',
+    flightDetails: 'flight-details',
+    supplierBasisOtherActivity: 'supplier-basis-other-activity',
+  };
+  [...FLAT_FIELD_SCOPE3_CATEGORIES, 'c7'].forEach((id) => {
     const mod = categoryRegistry.get(id);
     if (!mod) return;
     const caps = new Set(mod.capabilities || []);
-    if (cfg.requiresAssetName) caps.add('asset-name');
-    if (cfg.requiresLocation) caps.add('journey-locations');
-    if (cfg.requiresSubcategory) caps.add('subcategory');
-    if (cfg.activityTypes) caps.add('activity-types');
-    if (cfg.supportsMultiEmployee) caps.add('multi-employee');
+    const canonicalCapabilities = resolveGhgCapabilities({
+      categoryCode: id,
+      scopeCode: 'scope3',
+    }).capabilities;
+    Object.entries(registryCapabilityNames).forEach(([key, capabilityName]) => {
+      if (canonicalCapabilities[key]) caps.add(capabilityName);
+    });
     mod.capabilities = Array.from(caps);
     mod.hasCapability = (cap) => mod.capabilities.includes(cap);
   });

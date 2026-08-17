@@ -17,6 +17,8 @@ import {
   SubmitButtonSection,
 } from '../pages/emissions/EditFormSections';
 import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/CustomFuelMonthFields';
+import { resolveGhgUiState } from '../modules/ghg/config/resolveGhgUiState';
+import FlightDetailsSection from './FlightDetailsSection';
 import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
 import {
@@ -142,6 +144,7 @@ export default function EmissionEditForm(props) {
     availableScope3Methods,
     availableScope3ActivityTypes,
     capabilities = {},
+    fieldOptions = {},
     requiresSubcategory,
     availableSubcategories,
     filteredScope3Activities,
@@ -169,18 +172,24 @@ export default function EmissionEditForm(props) {
     isApprovalMode = false,
   } = props;
 
+  const ghgUiState = resolveGhgUiState({
+    capabilities,
+    scope: formData.scope,
+    biogenicScopeSelection,
+    processType: editProcessType,
+    scope3ActivityType,
+    frequencyType: editFrequencyType,
+    hasCategory: Boolean(selectedCategory || formData.category),
+  });
+
   // ─────────────────────────────────────────────────────────────────────
   // Data-based loading gate for C7 Employee Commuting (has deeply nested
   // employee data). Lifted verbatim from the legacy inline IIFE in
   // pages/Emissions.js.
   // ─────────────────────────────────────────────────────────────────────
-  const isC7Category =
-    formData.category?.toLowerCase()?.includes('c7') ||
-    formData.category?.toLowerCase()?.includes('employee commuting');
-
   // For C7, check that employees are populated with valid data
   const isC7DataReady =
-    !isC7Category || (editEmployees.length > 0 && editEmployees[0]?.id);
+    !isEditC7EmployeeCommuting || (editEmployees.length > 0 && editEmployees[0]?.id);
 
   // Show loading if explicitly loading OR if C7 data isn't ready yet
   if (isEditLoading || !isC7DataReady) {
@@ -459,13 +468,10 @@ export default function EmissionEditForm(props) {
                               )}
                             </div>
                           </>
-                        ) : selectedCategory?.toLowerCase().includes('process') ? null : (
+                        ) : !ghgUiState.showFuelSelection ? null : (
                           <div className="space-y-3">
                             {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
-                            {(selectedCategory?.toLowerCase().includes('stationary') || 
-                              selectedCategory?.toLowerCase().includes('mobile') || 
-                              selectedCategory?.toLowerCase().includes('fugitive') ||
-                              selectedCategory?.toLowerCase().includes('flaring')) && (
+                            {ghgUiState.showCustomFuel && (
                               <div className="flex items-center justify-between">
                                 <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -491,10 +497,7 @@ export default function EmissionEditForm(props) {
                             
                             {!editUseCustomFuel ? (
                               <div className="space-y-1.5">
-                                {!(selectedCategory?.toLowerCase().includes('stationary') || 
-                                  selectedCategory?.toLowerCase().includes('mobile') || 
-                                  selectedCategory?.toLowerCase().includes('fugitive') ||
-                                  selectedCategory?.toLowerCase().includes('flaring')) && (
+                                {!ghgUiState.showCustomFuel && (
                                   <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
                                 )}
                                 <select
@@ -536,8 +539,7 @@ export default function EmissionEditForm(props) {
                       </div>
                       
                       {/* Process Type - For Process Emissions (Scope 1) */}
-                      {selectedCategory && selectedCategory.toLowerCase().includes('process') &&
-                       (formData.scope === 'scope1' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+                      {ghgUiState.showProcessType && (
                         <div className="space-y-1.5" data-testid="edit-process-type-section">
                           <Label>Process Type <span className="text-red-500">*</span></Label>
                           <Select
@@ -561,11 +563,7 @@ export default function EmissionEditForm(props) {
                       )}
 
                       {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
-                      {selectedCategory && (
-                        (selectedCategory.toLowerCase().includes('stationary') || selectedCategory.toLowerCase().includes('mobile') || selectedCategory.toLowerCase().includes('flaring')) ||
-                        (selectedCategory.toLowerCase().includes('process') && editProcessType === 'venting')
-                      ) &&
-                       (formData.scope === 'scope1' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+                      {ghgUiState.showCalculationMethodology && (
                         <div className="space-y-1.5" data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
                           <Select
@@ -841,7 +839,7 @@ export default function EmissionEditForm(props) {
                       )}
 
                       {/* Employee Commuting specific fields (optional) */}
-                      {formData.scope === 'scope3' && formData.category === 'Employee Commuting' && (
+                      {ghgUiState.showEmployeeFields && (
                         <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
                           <h4 className="font-medium mb-2 text-purple-800 text-sm">Employee Information (Optional)</h4>
                           <div className="grid grid-cols-2 gap-4">
@@ -921,6 +919,18 @@ export default function EmissionEditForm(props) {
                             </div>
                           </div>
                         </div>
+                      )}
+
+                      {ghgUiState.showFlightDetails && (
+                        <FlightDetailsSection
+                          monthKey={editFrequencyType === 'yearly' ? 'yearly' : (formData.reporting_period_start || 'edit')}
+                          data={formData}
+                          updateMonthData={(_, field, value) => {
+                            setFormData((previous) => ({ ...previous, [field]: value }));
+                            if (field === 'km_travelled') updateDynamicFieldValue('km_travelled', value);
+                            markFormDirty?.();
+                          }}
+                        />
                       )}
                   
                     </>
@@ -1518,6 +1528,7 @@ export default function EmissionEditForm(props) {
                       markFormDirty?.();
                     }}
                     calculationMethodology={editCalcMethodology || 'using_heat_basis_ncv'}
+                    fieldOptions={fieldOptions}
                   />
                 )}
 
@@ -1543,7 +1554,7 @@ export default function EmissionEditForm(props) {
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {/* HIDDEN when using dynamic input fields (overrides are handled there) or loading */}
-                {!editFormConfigLoading && dynamicInputFields.length === 0 && true && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
+                {!editFormConfigLoading && dynamicInputFields.length === 0 && formData.fuel_id && formData.scope !== 'scope2' && ghgUiState.showManualFactorOverrides && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
                     {/* Calorific Value Override */}
                     <div>

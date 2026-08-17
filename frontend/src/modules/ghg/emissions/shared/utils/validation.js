@@ -19,6 +19,7 @@ export const validateStep1 = ({
   useCustomActivity,
   scope3CustomActivity,
   biogenicScopeSelection,
+  capabilities = { requiresFuel: true },
   useCustomFuel,
   fuelId,
   customFuelName,
@@ -56,9 +57,7 @@ export const validateStep1 = ({
     return { valid: false, message: 'Please select a biogenic emission type (Scope 1 or Scope 3)' };
   }
 
-  // Process Emissions - no fuel required
-  const isProcessEmissions = category?.toLowerCase().includes('process');
-  if (isProcessEmissions) {
+  if (!capabilities.requiresFuel) {
     return { valid: true };
   }
 

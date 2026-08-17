@@ -114,6 +114,7 @@ export const Step3YearMonthlyData = ({
   scope,
   category,
   capabilities = {},
+  fieldOptions = {},
   biogenicScopeSelection,
   useCustomFuel,
   selectedFuel,
@@ -512,6 +513,7 @@ export const Step3YearMonthlyData = ({
                             data={data}
                             updateMonthData={updateMonthData}
                             calculationMethodology={calculationMethodology}
+                            fieldOptions={fieldOptions}
                           />
                         </>
                       )}
@@ -603,7 +605,7 @@ export const Step3YearMonthlyData = ({
                       </div>
 
                       {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
-                      {!formConfig && (scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
+                      {!formConfig && (scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides && (
                         <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
                           <div className="flex items-center gap-2">
                             <input
@@ -762,6 +764,8 @@ export const Step3YearMonthlyData = ({
           scope3Method={scope3Method}
           scope3ActivityType={scope3ActivityType}
           category={category}
+          capabilities={capabilities}
+          fieldOptions={fieldOptions}
           getFieldUnitsForYearly={getFieldUnitsForYearly}
           centralizedUnits={centralizedUnits}
           defaultUnit={defaultUnit}
@@ -791,6 +795,7 @@ const YearlyDataEntry = ({
   scope3ActivityType,
   category,
   capabilities = {},
+  fieldOptions = {},
   getFieldUnitsForYearly,
   centralizedUnits,
   defaultUnit,
@@ -1074,6 +1079,7 @@ const YearlyDataEntry = ({
                 data={yearlyData}
                 updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
                 calculationMethodology={calculationMethodology}
+              fieldOptions={fieldOptions}
               />
             )}
             
@@ -1212,6 +1218,7 @@ const YearlyDataEntry = ({
                 data={yearlyData}
                 updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
                 calculationMethodology={calculationMethodology}
+              fieldOptions={fieldOptions}
               />
             )}
 

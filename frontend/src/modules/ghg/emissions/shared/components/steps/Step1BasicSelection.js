@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '../../../../../../components/ui/select';
 import { Search, X } from 'lucide-react';
+import { resolveGhgUiState } from '../../../../config/resolveGhgUiState';
 
 /**
  * Step 1 Basic Selection Component
@@ -114,6 +115,14 @@ export const Step1BasicSelection = ({
   decisionFieldValues = {},
   setDecisionFieldValues,
 }) => {
+  const ghgUiState = resolveGhgUiState({
+    capabilities,
+    scope,
+    biogenicScopeSelection,
+    processType: decisionFieldValues.process_type,
+    scope3ActivityType,
+    hasCategory: Boolean(category),
+  });
   // Activity type display labels
   const activityTypeLabels = {
     'car_travel': 'Car Travel',
@@ -628,8 +637,7 @@ export const Step1BasicSelection = ({
       )}
       
       {/* Process Type - Only for Process Emissions (Scope 1) */}
-      {category && category.toLowerCase().includes('process') && 
-       (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+      {ghgUiState.showProcessType && (
         <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="process-type-section">
           <Label>Process Type <span className="text-red-500">*</span></Label>
           <Select
@@ -649,11 +657,7 @@ export const Step1BasicSelection = ({
       )}
 
       {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
-      {category && (
-        (category.toLowerCase().includes('stationary') || category.toLowerCase().includes('mobile') || category.toLowerCase().includes('flaring')) ||
-        (category.toLowerCase().includes('process') && decisionFieldValues.process_type === 'venting')
-      ) && 
-       (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+      {ghgUiState.showCalculationMethodology && (
         <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="calculation-methodology-section">
           <Label>Calculation Methodology</Label>
           <Select
@@ -673,15 +677,12 @@ export const Step1BasicSelection = ({
       )}
 
       {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3, non-Process Emissions */}
-      {category && !category.toLowerCase().includes('process') && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
+      {ghgUiState.showFuelSelection && (
         <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
           <div className="flex items-center justify-between">
             <Label>Fuel Type <span className="text-red-500">*</span></Label>
             {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
-            {(category.toLowerCase().includes('stationary') || 
-              category.toLowerCase().includes('mobile') || 
-              category.toLowerCase().includes('fugitive') ||
-              category.toLowerCase().includes('flaring')) && (
+            {ghgUiState.showCustomFuel && (
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -808,7 +809,7 @@ export const Step1BasicSelection = ({
       )}
 
       {/* Employee Commuting specific fields (optional) */}
-      {scope === 'scope3' && category === 'Employee Commuting' && (
+      {ghgUiState.showEmployeeFields && (
         <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
           <h4 className="font-medium mb-3 text-purple-800">Employee Information (Optional)</h4>
           <div className="grid grid-cols-2 gap-4">

@@ -214,7 +214,7 @@ export function validateCreateSubmission(ctx) {
   }
 
   // Fuel selection — Process Emissions don't require fuel
-  const isProcessEmissions = ctx.category?.toLowerCase().includes('process');
+  const isProcessEmissions = Boolean(ctx.capabilities?.processType);
   if (!isProcessEmissions) {
     if (!fuelId && !useCustomFuel) {
       return { valid: false, errorMessage: 'Please select a fuel from the database' };

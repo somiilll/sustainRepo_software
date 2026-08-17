@@ -6,11 +6,12 @@ import {
   isDensityRequiredForQtyBasis,
   isDensityRequiredForCarbonComposition,
 } from '../utils/unitHelpers';
+import {
+  GHG_FIELD_OPTION_KEYS,
+  resolveStandardGhgFieldOptions,
+} from '../../../config/standardGhgFormConfig';
 
-const ENERGY_UNITS = ['TJ', 'MJ'];
-const MASS_UNITS = ['kg', 'g', 't'];
-const VOLUME_UNITS = ['L', 'kL', 'ml', 'm3', 'cm3'];
-const ALL_QTY_UNITS = [...MASS_UNITS, ...VOLUME_UNITS];
+const DEFAULT_FIELD_OPTIONS = resolveStandardGhgFieldOptions();
 
 /**
  * Per-month custom fuel fields rendered inside Step 3's month accordion.
@@ -22,7 +23,21 @@ const ALL_QTY_UNITS = [...MASS_UNITS, ...VOLUME_UNITS];
  *   Qty Basis EF:       custom_ef, custom_ef_unit
  *   Carbon Composition: custom_carbon_content, custom_oxidation_factor
  */
-const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMethodology }) => {
+const CustomFuelMonthFields = ({
+  monthKey,
+  data,
+  updateMonthData,
+  calculationMethodology,
+  fieldOptions = DEFAULT_FIELD_OPTIONS,
+}) => {
+  const quantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
+    || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
+  const heatEfUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT]
+    || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT];
+  const heatCvUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT]
+    || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT];
+  const quantityEfUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT]
+    || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT];
   const qtyUnit = data.custom_qty_unit || 'kg';
 
   const qtyUnitSelector = (
@@ -34,7 +49,7 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
         className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
         data-testid={`month-${monthKey}-custom-qty-unit`}
       >
-        {ALL_QTY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+        {quantityUnits.map(u => <option key={u} value={u}>{u}</option>)}
       </select>
     </div>
   );
@@ -90,7 +105,7 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
               className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
               data-testid={`month-${monthKey}-custom-ef-unit`}
             >
-              {ENERGY_UNITS.map(u => <option key={u} value={`tCO2/${u}`}>tCO2/{u}</option>)}
+              {heatEfUnits.map(unit => <option key={unit} value={unit}>{unit}</option>)}
             </select>
           </div>
         </div>
@@ -113,11 +128,7 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
               className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
               data-testid={`month-${monthKey}-custom-cv-unit`}
             >
-              {ENERGY_UNITS.flatMap(num =>
-                ALL_QTY_UNITS.map(den => (
-                  <option key={`${num}/${den}`} value={`${num}/${den}`}>{num}/{den}</option>
-                ))
-              )}
+              {heatCvUnits.map(unit => <option key={unit} value={unit}>{unit}</option>)}
             </select>
           </div>
         </div>
@@ -153,7 +164,7 @@ const CustomFuelMonthFields = ({ monthKey, data, updateMonthData, calculationMet
               className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
               data-testid={`month-${monthKey}-custom-ef-unit`}
             >
-              {ALL_QTY_UNITS.map(u => <option key={u} value={`kgCO2/${u}`}>kgCO2/{u}</option>)}
+              {quantityEfUnits.map(unit => <option key={unit} value={unit}>{unit}</option>)}
             </select>
           </div>
         </div>

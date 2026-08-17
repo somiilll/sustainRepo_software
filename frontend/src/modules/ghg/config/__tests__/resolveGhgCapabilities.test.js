@@ -33,4 +33,23 @@ describe('GHG capability baseline parity', () => {
     expect(resolved.capabilities.subcategory).toBe(false);
     expect(resolved.capabilities.assetName).toBe(true);
   });
+
+  it('resolves Process UI and validation capabilities without display-name sniffing', () => {
+    const resolved = resolveGhgCapabilities({ categoryCode: 'process_emissions', scopeCode: 'scope1' });
+    expect(resolved.capabilities).toMatchObject({
+      processType: true,
+      calculationMethodology: true,
+      requiresFuel: false,
+      customFuel: false,
+    });
+  });
+
+  it('keeps Fugitive fuel controls while disabling manual overrides', () => {
+    const resolved = resolveGhgCapabilities({ categoryCode: 'fugitive_emissions', scopeCode: 'scope1' });
+    expect(resolved.capabilities).toMatchObject({
+      requiresFuel: true,
+      customFuel: true,
+      manualFactorOverrides: false,
+    });
+  });
 });

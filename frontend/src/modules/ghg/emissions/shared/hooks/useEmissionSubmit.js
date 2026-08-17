@@ -48,6 +48,7 @@ export function useEmissionSubmit(ctx) {
       onSuccess, getActualYearForMonth, evaluateFormula,
       buildDecisionInputs, editingEmission,
       decisionFieldValues,
+      capabilities,
       // Optional supplier context
       supplierContext = null,
       // OCR context for finalize-import
@@ -342,6 +343,7 @@ export function useEmissionSubmit(ctx) {
               overrideJustification: '',
               scope,
               category,
+              capabilities,
               buildDecisionInputs,
             });
             if (!yModValidation.valid) {
@@ -351,7 +353,7 @@ export function useEmissionSubmit(ctx) {
             }
 
             const yBaseCtx = {
-              scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+              scope, category, capabilities, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
               recordSource,
               biogenicScopeSelection,
               scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
@@ -717,6 +719,7 @@ export function useEmissionSubmit(ctx) {
           overrideJustification: '',
           scope,
           category,
+          capabilities,
           buildDecisionInputs,
         });
         if (!modValidation.valid) {
@@ -733,7 +736,7 @@ export function useEmissionSubmit(ctx) {
           const reportingPeriod = `${actualYear}-${monthKey}`;
 
           const baseCtx = {
-            scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+            scope, category, capabilities, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
             recordSource,
             biogenicScopeSelection,
             scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,

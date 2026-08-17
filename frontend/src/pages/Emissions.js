@@ -32,9 +32,9 @@ import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/
 import { categoryRegistry } from '../modules/emissions';
 import {
   deriveGhgFields,
-  resolveGhgConfig,
   resolveGhgFormContext,
-  resolveGhgCapabilities,
+  resolveGhgFormArchitecture,
+  GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
@@ -42,7 +42,7 @@ import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-export default function Emissions() {
+export default function Emissions({ organizationGhgOverrides = null }) {
   // ============================================================================
   // CORE DATA - Fetched via custom hook (Phase 1 refactor)
   // ============================================================================
@@ -415,6 +415,7 @@ export default function Emissions() {
         scope: formData.scope,
         biogenicScopeSelection,
         categoryName: formData.category || selectedCategory,
+        categoryCode: editingEmission?.category_code || null,
         categories: dynamicCategories,
         scopes: dynamicScopes,
         scope3Method,
@@ -430,6 +431,7 @@ export default function Emissions() {
       formData.scope,
       formData.category,
       selectedCategory,
+      editingEmission?.category_code,
       biogenicScopeSelection,
       dynamicCategories,
       dynamicScopes,
@@ -444,19 +446,18 @@ export default function Emissions() {
     ],
   );
 
-  const editCapabilities = useMemo(
-    () => resolveGhgCapabilities({
-      categoryCode: editGhgFormContext.categoryDefinition?.code,
-      scopeCode: editGhgFormContext.effectiveScopeCode,
+  const editGhgFormArchitecture = useMemo(
+    () => resolveGhgFormArchitecture({
+      standardConfig: editFormConfig,
+      organizationOverrides: organizationGhgOverrides,
+      formContext: editGhgFormContext,
       biogenicScopeSelection,
-    }).capabilities,
-    [editGhgFormContext, biogenicScopeSelection],
+    }),
+    [editFormConfig, organizationGhgOverrides, editGhgFormContext, biogenicScopeSelection],
   );
-
-  const resolvedEditGhgConfig = useMemo(
-    () => resolveGhgConfig({ standardConfig: editFormConfig, organizationOverrides: null }),
-    [editFormConfig],
-  );
+  const editCapabilities = editGhgFormArchitecture.capabilities;
+  const editGhgFieldOptions = editGhgFormArchitecture.resolvedFieldOptions;
+  const resolvedEditGhgConfig = editGhgFormArchitecture.resolvedConfig;
 
   const dynamicInputFieldsResult = useMemo(
     () => deriveGhgFields({ formConfig: resolvedEditGhgConfig, context: editGhgFormContext }),
@@ -1376,15 +1377,11 @@ export default function Emissions() {
     // Get subcategory labels from configLabels (fetched from backend)
     const subcategoryLabelsMap = configLabels.subcategories || {};
     
-    const subcategories = [
-      { value: 'stationary_combustion', label: subcategoryLabelsMap['stationary_combustion'] || 'Stationary Combustion' },
-      { value: 'mobile_combustion', label: subcategoryLabelsMap['mobile_combustion'] || 'Mobile Combustion' },
-      { value: 'fugitive_emissions', label: subcategoryLabelsMap['fugitive_emissions'] || 'Fugitive Emissions' },
-      { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
-    ];
-    
-    return subcategories;
-  }, [requiresSubcategory, scope3Method, configLabels.subcategories]);
+    return (editGhgFieldOptions[GHG_FIELD_OPTION_KEYS.SUBCATEGORY] || []).map((option) => ({
+      ...option,
+      label: subcategoryLabelsMap[option.value] || option.label,
+    }));
+  }, [requiresSubcategory, scope3Method, configLabels.subcategories, editGhgFieldOptions]);
 
   // Filter Scope 3 activities based on category, method, activity_type, subcategory, industry sector
   const filteredScope3Activities = useMemo(() => {
@@ -1404,10 +1401,7 @@ export default function Emissions() {
     // Get facility for sector filtering
     const facility = facilities.find(f => f.id === formData.facility_id);
     const catLower = selectedCategory?.toLowerCase() || '';
-    const isSubcategoryCategory = resolveGhgCapabilities({
-      categoryCode: editGhgFormContext.categoryDefinition?.code,
-      scopeCode: editGhgFormContext.effectiveScopeCode,
-    }).capabilities.subcategory;
+    const isSubcategoryCategory = editCapabilities.subcategory;
     
     // For BIOGENIC scope3, skip subcategory handling - just filter by category directly
     // Biogenic C8/C10/C11/C13/C14 should work like C3 (direct activity selection)
@@ -1540,7 +1534,7 @@ export default function Emissions() {
     });
     
     return uniqueActivities;
-  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, activeScope, biogenicScopeSelection]);
+  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, activeScope, biogenicScopeSelection, editCapabilities]);
 
   // Get unique categories for the scope
   const getCategoriesForScope = useMemo(() => {
@@ -1799,8 +1793,7 @@ export default function Emissions() {
         return;
       }
     } else {
-      const isProcessEmissions = (formData.category || selectedCategory || '').toLowerCase().includes('process');
-      if (!isProcessEmissions && !editUseCustomFuel && !selectedFuel) {
+      if (editCapabilities.requiresFuel && !editUseCustomFuel && !selectedFuel) {
         setBackendCalcResult(null);
         return;
       }
@@ -2052,7 +2045,7 @@ export default function Emissions() {
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, scope3ActivityId, filteredScope3Activities,
     useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection,
-    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType
+    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel
   ]);
   
   // Use backend calculation engine result exclusively
@@ -2223,6 +2216,7 @@ export default function Emissions() {
         processNames: formData.process_names,
         effectiveCalculatedEmissions,
         formData,
+        capabilities: editCapabilities,
         // Scope 1 props
         isOverrideCV,
         isOverrideDensity,
@@ -2252,6 +2246,7 @@ export default function Emissions() {
           useCustomActivity,
           // Common
           formData,
+          capabilities: editCapabilities,
           editingEmission,
           biogenicScopeSelection,
           dynamicInputFields,
@@ -3149,6 +3144,7 @@ export default function Emissions() {
                   getAuthHeader={getAuthHeader}
                   configLabels={configLabels}
                   organization={organization}
+                  organizationGhgOverrides={organizationGhgOverrides}
                   onFormChange={markFormDirty}
                   kpiAccessInfo={kpiAccessInfo}
                   kpiCanAccessScope={kpiCanAccessScope}
@@ -3259,6 +3255,7 @@ export default function Emissions() {
                   availableScope3Methods={availableScope3Methods}
                   availableScope3ActivityTypes={availableScope3ActivityTypes}
                   capabilities={editCapabilities}
+                  fieldOptions={editGhgFieldOptions}
                   requiresSubcategory={requiresSubcategory}
                   availableSubcategories={availableSubcategories}
                   filteredScope3Activities={filteredScope3Activities}

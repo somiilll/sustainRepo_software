@@ -89,6 +89,7 @@ Reference documents:
 - `/app/memory/GHG_COVERAGE_DASHBOARD.md` — per-category regression coverage matrix
 - `/app/memory/GHG_PHASE1_REPORT.md` — Phase 1 Create-flow refactor result and remaining coupling
 - `/app/memory/GHG_POST_PHASE4_ARCHITECTURE_AUDIT.md` — read-only post-Phase-4 capability completeness and organization-readiness audit
+- `/app/memory/GHG_PHASE4_1_CAPABILITY_CLOSEOUT_REPORT.md` — minimum capability closeout, parity tests, final exceptions, and stop-gate evidence
 
 ### Phase 1 — Create-flow field derivation (Jun 2026) — COMPLETE
 
@@ -123,6 +124,16 @@ Reference documents:
 - Verification remained exact: backend golden **506 passed / 9 skipped**; frontend **1,159 passed / 63 snapshots**; capability/equivalence **810 passed**; DB counts unchanged at `840 / 1339 / 1763`. Production files changed: **0** during the audit.
 - Inflation implementation remains gated pending explicit review of `GHG_POST_PHASE4_ARCHITECTURE_AUDIT.md`.
 
+### Phase 4.1 — Capability closeout (Aug 2026) — COMPLETE; REVIEW GATE
+
+- Fixed the Edit `effectiveScopeCode` mismatch by routing both forms through `resolveGhgFormArchitecture`, which consumes canonical `formContext.effectiveScope`.
+- Active Process/fuel/custom-fuel/Fugitive/C7 UI and validation decisions now consume centralized capabilities; C6 monthly/yearly flight propagation and Edit flight fields are wired through the same path.
+- Active subcategory and custom-fuel options are centralized and support the existing `fieldOptions` organization override key; one optional override input now reaches Create and Edit.
+- Scope 3 registry capability flags and capability names derive from `resolveGhgCapabilities`; calculation methods, labels/options, schemas, and payload metadata intentionally remain domain metadata.
+- Verification: backend **506 passed / 9 skipped**; frontend **1,189 passed / 63 unchanged snapshots**; capability/equivalence/live path **840 passed**; Phase 1 **785 passed**; C7 **9 passed**; production build compiled. Independent QA found and the agent fixed one capability TDZ issue; live Scope 1 → Scope 3 transition passed after the fix.
+- DB read check: records/audit unchanged at `840 / 1339`; history `1763 → 1764` from a concurrent external C7 edit at `2026-08-17T16:10:19Z`, not from the read-only test flows. No cleanup write was performed.
+- STOP: inflation, evaluator/dead-code cleanup, C7 production refactor, backend/API/schema, and unrelated GHG work remain untouched.
+
 ### Phase status
 
 | Phase | Description | Status |
@@ -134,7 +145,7 @@ Reference documents:
 | 1 | Create-flow field-derivation extraction | **DONE (Jun 2026)** — `modules/ghg/config/`; 785 equivalence assertions; 1 production file changed (−262/+62) |
 | 2 | Edit-flow field-derivation extraction | **DONE (Jun 2026)** — one shared Create/Edit derivation pipeline; hydration retained separately; golden parity verified |
 | 3 | C7 safety-net phase | **DONE (Jun 2026)** — test-only; production C7 untouched |
-| 4 | Capability config replaces category string sniffing | **APPROVED SCOPE COMPLETE; POST-AUDIT PARTIAL** — follow-up decision required before inflation |
+| 4 | Capability config replaces category string sniffing | **DONE (Aug 2026)** — Phase 4.1 closeout complete; review required before inflation |
 | 5 | Service extraction (units, EF, calc, evidence, API client) | NOT STARTED |
 | 6 | Unified form state + record adapters | NOT STARTED |
 | 7 | Field registry + one shared `<GhgForm mode>` | NOT STARTED |
@@ -171,11 +182,11 @@ Reference documents:
 - MIS Schedule Preview & Report Bookmarks
 
 ## Future/Backlog Tasks
-- **P0 (approval pending)**: Post-Phase-4 capability closeout — review the read-only audit findings before any implementation; minimum findings are Edit `effectiveScope` wiring, remaining static Process/custom-fuel/fugitive/C7 decisions, yearly C6 capability propagation, and duplicate registry capability ownership.
+- **P0 (review gate)**: Review `GHG_PHASE4_1_CAPABILITY_CLOSEOUT_REPORT.md`; do not start inflation until explicit approval.
 - **P1 (approval pending)**: Inflation/PPP single source of truth — fix the 2 `ce_property_source_mappings` rows, always populate `context.reporting_period`, retire the router injection path, replace the silent 1.0 default. Will require an approved re-capture of 4 spend-basis baselines. Scheduled AFTER Phase 2.
 - **P1**: Resolve categories by `(code, scope_code)` instead of `(name, scope_code)` — folded into Phase 1
 - **P2**: C7 Employee Commuting has zero calculation coverage (94 records, no audit log by design) — needs its own E2E test before any C7 restructuring
-- **P2**: C6 airport / flight-distance fields not calculation-protected
+- **P2**: C6 airport / flight-distance UI capability propagation is protected; calculation-specific coverage remains a separate workstream
 - **P2**: Evidence upload and approval workflow are structurally protected only (write paths)
 - **P3**: Pre-existing unrelated backend test failures — `test_calc_engine_phase3.py` (8 errors, empty `BASE_URL`) and `test_phase_b5_emissions_refactor.py` (8 failures, stale hardcoded counts: 20 vs 35 modules, 40 vs 337 records)
 - **P3**: Radix Select hydration warning on the Add Emission modal (`<span> cannot be a child of <option>`) — pre-existing, pollutes console during automation

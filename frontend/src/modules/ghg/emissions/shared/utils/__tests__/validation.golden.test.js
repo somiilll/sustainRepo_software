@@ -92,8 +92,12 @@ describe('validateStep1 — selection gate', () => {
     ).toEqual({ valid: false, message: 'Please select a biogenic activity' });
   });
 
-  it('skips the fuel requirement for process categories (name sniffing)', () => {
-    expect(step1({ category: 'Process Emissions', fuelId: '' })).toEqual({ valid: true });
+  it('skips the fuel requirement when the resolved capability disables it', () => {
+    expect(step1({
+      category: 'Process Emissions',
+      fuelId: '',
+      capabilities: { requiresFuel: false },
+    })).toEqual({ valid: true });
   });
 
   it('requires a fuel, or a custom fuel name when custom fuel is on', () => {

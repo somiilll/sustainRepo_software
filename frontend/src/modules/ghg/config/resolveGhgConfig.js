@@ -99,4 +99,12 @@ export const resolveGhgConfig = ({ standardConfig, organizationOverrides } = {})
   };
 };
 
+/** Resolve presentation option overrides through the existing fieldOptions key. */
+export const resolveGhgFieldOptions = ({ standardFieldOptions = {}, organizationOverrides } = {}) => {
+  if (!hasAnyOverride(organizationOverrides)) return standardFieldOptions;
+  const { valid } = validateGhgOverrides(organizationOverrides);
+  if (!valid || !organizationOverrides.fieldOptions) return standardFieldOptions;
+  return { ...standardFieldOptions, ...organizationOverrides.fieldOptions };
+};
+
 export default resolveGhgConfig;

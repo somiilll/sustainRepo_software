@@ -196,7 +196,7 @@ export function validateEditSubmission(ctx) {
   }
 
   // 5. Fuel selection — Process Emissions don't require fuel
-  const isProcessEmissions = formData.category?.toLowerCase().includes('process');
+  const isProcessEmissions = Boolean(ctx.capabilities?.processType);
   if (isProcessEmissions && !editProcessType) {
     return { valid: false, errorMessage: 'Please select a process type' };
   }

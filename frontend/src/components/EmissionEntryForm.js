@@ -48,10 +48,10 @@ import {
 // Shared GHG configuration layer: resolved config + explicit context -> fields
 import {
   deriveGhgFields,
-  resolveGhgConfig,
   resolveGhgFormContext,
   resolveEffectiveScopeCode,
-  resolveGhgCapabilities,
+  resolveGhgFormArchitecture,
+  GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
 
@@ -761,6 +761,29 @@ export default function EmissionEntryForm({
   // useEmissionFormState (F2 integration). The corresponding inline useEffects
   // were removed here.
 
+  const ghgCapabilityContext = useMemo(() => resolveGhgFormContext({
+    scope,
+    biogenicScopeSelection,
+    categoryName: category,
+    categories: dynamicCategories,
+    scopes: dynamicScopes,
+  }), [
+    scope,
+    biogenicScopeSelection,
+    category,
+    dynamicCategories,
+    dynamicScopes,
+  ]);
+  const ghgFormArchitecture = useMemo(() => resolveGhgFormArchitecture({
+    standardConfig: formConfig,
+    organizationOverrides: organizationGhgOverrides,
+    formContext: ghgCapabilityContext,
+    biogenicScopeSelection,
+  }), [formConfig, organizationGhgOverrides, ghgCapabilityContext, biogenicScopeSelection]);
+  const resolvedCapabilities = ghgFormArchitecture.capabilities;
+  const resolvedGhgFieldOptions = ghgFormArchitecture.resolvedFieldOptions;
+  const hasSubcategoryCapability = resolvedCapabilities.subcategory;
+
   // Filter Scope 3 activities based on category, method, industry sector, and year
   // Note: selectedFacility is defined below after fuelDatabase useMemo
   const filteredScope3Activities = useMemo(() => {
@@ -910,24 +933,7 @@ export default function EmissionEntryForm({
     });
     
     return uniqueActivities;
-  }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, facilityId, biogenicScopeSelection]);
-
-  const resolvedCapabilities = useMemo(() => {
-    const effectiveScopeCode = resolveEffectiveScopeCode(scope, biogenicScopeSelection);
-    const categoryDefinition = dynamicCategories.find((item) =>
-      item.name === category && item.scope_code === effectiveScopeCode,
-    );
-    return resolveGhgCapabilities({
-      categoryCode: categoryDefinition?.code,
-      scopeCode: effectiveScopeCode,
-      biogenicScopeSelection,
-    }).capabilities;
-  }, [scope, category, biogenicScopeSelection, dynamicCategories]);
-  const hasSubcategoryCapability = useMemo(() => {
-    const effectiveScopeCode = resolveEffectiveScopeCode(scope, biogenicScopeSelection);
-    const definition = dynamicCategories.find((item) => item.name === category && item.scope_code === effectiveScopeCode);
-    return resolveGhgCapabilities({ categoryCode: definition?.code, scopeCode: effectiveScopeCode }).capabilities.subcategory;
-  }, [scope, category, biogenicScopeSelection, dynamicCategories]);
+  }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, facilityId, biogenicScopeSelection, hasSubcategoryCapability]);
 
   // Get available activity types for categories configured with that capability.
   const availableScope3ActivityTypes = useMemo(() => {
@@ -1046,16 +1052,11 @@ export default function EmissionEntryForm({
     // Get subcategory labels from configLabels (fetched from backend)
     const subcategoryLabelsMap = configLabels?.subcategories || {};
     
-    // Define available subcategories based on method
-    const subcategories = [
-      { value: 'stationary_combustion', label: subcategoryLabelsMap['stationary_combustion'] || 'Stationary Combustion' },
-      { value: 'mobile_combustion', label: subcategoryLabelsMap['mobile_combustion'] || 'Mobile Combustion' },
-      { value: 'fugitive_emissions', label: subcategoryLabelsMap['fugitive_emissions'] || 'Fugitive Emissions' },
-      { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
-    ];
-    
-    return subcategories;
-  }, [requiresSubcategory, scope3Method, configLabels?.subcategories]);
+    return (resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.SUBCATEGORY] || []).map((option) => ({
+      ...option,
+      label: subcategoryLabelsMap[option.value] || option.label,
+    }));
+  }, [requiresSubcategory, scope3Method, configLabels?.subcategories, resolvedGhgFieldOptions]);
 
   // Get available methods for selected category from Scope 3 EF
   // Always include supplier_basis as an option (except for biogenic)
@@ -1099,39 +1100,24 @@ export default function EmissionEntryForm({
     return orderedMethods;
   }, [scope, scope3EFData, category, biogenicScopeSelection]);
 
-  // Emission factor unit to quantity unit mapping
-  const EMISSION_FACTOR_UNITS = [
-    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/g', label: 'tCO₂/g', quantityUnit: 'g', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh', forScope: ['scope2'] },
-    { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh', forScope: ['scope2'] },
-  ];
-  
-  // Custom fuel units - restricted to mass-based units (kg, g, t) per user requirement
-  const CUSTOM_FUEL_UNITS = [
-    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg' },
-    { value: 'tCO2/g', label: 'tCO₂/g', quantityUnit: 'g' },
-    { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't' },
-  ];
+  const emissionFactorUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.EMISSION_FACTOR_UNIT] || [];
+  const customFuelUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_EMISSION_FACTOR_UNIT] || [];
 
   // Get available EF units based on scope
   const getAvailableEFUnits = (currentScope, isCustomFuel = false) => {
     if (isCustomFuel) {
-      return CUSTOM_FUEL_UNITS;
+      return customFuelUnits;
     }
-    return EMISSION_FACTOR_UNITS.filter(u => u.forScope.includes(currentScope));
+    return emissionFactorUnits.filter(u => !u.forScope || u.forScope.includes(currentScope));
   };
 
   // Get quantity unit based on emission factor unit for custom fuels
   const getQuantityUnitFromEFUnit = (efUnit) => {
     // Check custom fuel units first
-    const customMapping = CUSTOM_FUEL_UNITS.find(u => u.value === efUnit);
+    const customMapping = customFuelUnits.find(u => u.value === efUnit);
     if (customMapping) return customMapping.quantityUnit;
     // Fallback to standard units
-    const mapping = EMISSION_FACTOR_UNITS.find(u => u.value === efUnit);
+    const mapping = emissionFactorUnits.find(u => u.value === efUnit);
     return mapping?.quantityUnit || 'kg';
   };
 
@@ -1259,14 +1245,7 @@ export default function EmissionEntryForm({
   // (modules/ghg/config) so Create, and later Edit, use one implementation.
   //   resolved config + explicit context -> fields + resolved formula
   // ============================================================================
-  const resolvedGhgConfig = useMemo(
-    () =>
-      resolveGhgConfig({
-        standardConfig: formConfig,
-        organizationOverrides: organizationGhgOverrides,
-      }),
-    [formConfig, organizationGhgOverrides],
-  );
+  const resolvedGhgConfig = ghgFormArchitecture.resolvedConfig;
 
   const ghgFormContext = useMemo(
     () =>
@@ -2455,6 +2434,7 @@ export default function EmissionEntryForm({
     facilityId, scope, category,
     scope3Method, scope3ActivityId, useCustomActivity, scope3CustomActivity,
     biogenicScopeSelection,
+    capabilities: resolvedCapabilities,
     useCustomFuel, fuelId, customFuelName, customEmissionFactor, customSource,
     // Step 2 params
     processNames, responsiblePerson, requiresAssetName, assetName,
@@ -2737,7 +2717,7 @@ export default function EmissionEntryForm({
     // Setters
     setIsSaving,
     // Computed
-    isC7EmployeeCommuting, requiresSubcategory, selectedFuel,
+    isC7EmployeeCommuting, requiresSubcategory, selectedFuel, capabilities: resolvedCapabilities,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     // Helpers
     canProceedToStep, getAuthHeader, onSuccess, getActualYearForMonth,
@@ -2995,6 +2975,7 @@ export default function EmissionEntryForm({
           BACKEND_URL={BACKEND_URL}
           category={category}
           capabilities={resolvedCapabilities}
+          fieldOptions={resolvedGhgFieldOptions}
         />
         );
       })()}

@@ -3,10 +3,24 @@ const NONE = Object.freeze({
   subcategory: false, assetName: false, journeyLocations: false,
   activityType: false, multiEmployee: false, typeOfProduct: false,
   customerCounterparty: false, flightDetails: false, customFuel: false,
-  supplierBasisOtherActivity: false,
+  supplierBasisOtherActivity: false, processType: false,
+  calculationMethodology: false, requiresFuel: true,
+  manualFactorOverrides: true,
 });
 
-const scope3 = (caps = {}) => ({ ...NONE, ...caps });
+const scope3 = (caps = {}) => ({
+  ...NONE,
+  requiresFuel: false,
+  manualFactorOverrides: false,
+  ...caps,
+});
+
+const directFuel = (caps = {}) => ({
+  ...NONE,
+  calculationMethodology: true,
+  customFuel: true,
+  ...caps,
+});
 
 export const STANDARD_GHG_CAPABILITIES = Object.freeze({
   'upstream_transportation_distribution|scope3': scope3({ journeyLocations: true }),
@@ -19,12 +33,13 @@ export const STANDARD_GHG_CAPABILITIES = Object.freeze({
   'downstream_leased_assets|scope3': scope3({ subcategory: true, assetName: true }),
   'franchises|scope3': scope3({ subcategory: true, assetName: true }),
   'investments|scope3': scope3({ assetName: true }),
-  'stationary_combustion|scope1': { ...NONE, customFuel: true },
-  'mobile_combustion|scope1': { ...NONE, customFuel: true },
-  'fugitive_emissions|scope1': { ...NONE, customFuel: true },
-  'flaring__stationary_combustion|scope1': { ...NONE, customFuel: true },
-  'stationary_combustion|biogenic': { ...NONE, customFuel: true },
-  'mobile_combustion|biogenic': { ...NONE, customFuel: true },
+  'stationary_combustion|scope1': directFuel(),
+  'mobile_combustion|scope1': directFuel(),
+  'fugitive_emissions|scope1': directFuel({ calculationMethodology: false, manualFactorOverrides: false }),
+  'flaring__stationary_combustion|scope1': directFuel(),
+  'process_emissions|scope1': { ...NONE, processType: true, calculationMethodology: true, requiresFuel: false },
+  'stationary_combustion|biogenic': directFuel(),
+  'mobile_combustion|biogenic': directFuel(),
 });
 
 // Transitional aliases only for the existing Scope 3 module registry. The
@@ -43,7 +58,8 @@ export const resolveGhgCapabilities = ({
   categoryCode,
   scopeCode,
   biogenicScopeSelection,
-  organizationOverrides,
+  fieldOptions = {},
+  organizationOverridesApplied = false,
 } = {}) => {
   const code = MODULE_CODE_ALIASES[categoryCode] || categoryCode;
   const base = STANDARD_GHG_CAPABILITIES[`${code}|${scopeCode}`] || NONE;
@@ -52,9 +68,7 @@ export const resolveGhgCapabilities = ({
   const capabilities = biogenicScopeSelection === 'scope3'
     ? { ...base, subcategory: false }
     : { ...base };
-  // Capability overrides are deliberately reserved for a future organization
-  // document; no organization conditional or override behavior exists today.
-  return { code, scopeCode, capabilities, organizationOverridesApplied: false };
+  return { code, scopeCode, capabilities, fieldOptions, organizationOverridesApplied };
 };
 
 export default resolveGhgCapabilities;
