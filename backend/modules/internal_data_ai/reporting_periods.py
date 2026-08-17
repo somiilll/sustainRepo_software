@@ -117,12 +117,13 @@ def extract_explicit_period(question: str, organization: Optional[Dict[str, Any]
 
 
 def extract_comparison_periods(question: str, organization: Optional[Dict[str, Any]]) -> list[ResolvedPeriod]:
-    """Resolve two explicitly stated calendar months for a comparison request.
+    """Resolve all explicitly stated calendar months for a comparison request.
 
-    A month without a year inherits the one explicit year in the comparison,
-    allowing natural phrasing such as ``July vs June 2026``. This resolver is
-    intentionally limited to month comparisons so it cannot reinterpret a
-    financial-year range as two independent periods.
+    Months without an adjacent year inherit the one explicit year in the
+    comparison, allowing phrasing such as ``July vs June vs May 2026``.
+    When every month supplies a year, comparisons across calendar years are
+    also supported. A partially specified multi-year comparison is rejected
+    rather than guessing which year belongs to an unqualified month.
     """
     text = question or ""
     if not re.search(r"\b(?:vs\.?|versus|compared\s+(?:with|to)|comparison\s+(?:with|to))\b", text, re.IGNORECASE):
@@ -136,18 +137,24 @@ def extract_comparison_periods(question: str, organization: Optional[Dict[str, A
     if len(matches) < 2:
         return []
 
-    selected = matches[:2]
-    years = {int(match.group(2)) for match in selected if match.group(2)}
-    if len(years) > 1 or not years:
+    explicit_years = {int(match.group(2)) for match in matches if match.group(2)}
+    has_unqualified_month = any(not match.group(2) for match in matches)
+    if not explicit_years or (has_unqualified_month and len(explicit_years) != 1):
         return []
 
-    year = years.pop()
     fiscal_start_month = ReportingPeriodService(organization, datetime.now(timezone.utc)).fiscal_start_month
-    periods = []
-    for match in selected:
+    inherited_year = next(iter(explicit_years)) if len(explicit_years) == 1 else None
+    periods: list[ResolvedPeriod] = []
+    seen_months: set[str] = set()
+    for match in matches:
+        year = int(match.group(2)) if match.group(2) else inherited_year
         month = MONTH_LOOKUP[match.group(1).lower()]
-        periods.append(_month_period(year, month, f"{calendar.month_name[month]} {year}", "explicit_comparison", fiscal_start_month))
-    return periods if periods[0].start_month != periods[1].start_month else []
+        resolved = _month_period(year, month, f"{calendar.month_name[month]} {year}", "explicit_comparison", fiscal_start_month)
+        if resolved.start_month in seen_months:
+            return []
+        seen_months.add(resolved.start_month)
+        periods.append(resolved)
+    return periods
 
 
 def _period_candidate(value: Any) -> Optional[str]:

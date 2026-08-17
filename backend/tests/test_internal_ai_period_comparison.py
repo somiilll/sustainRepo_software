@@ -20,6 +20,22 @@ def test_extracts_two_months_and_inherits_single_explicit_year():
     ]
 
 
+def test_extracts_any_number_of_months_and_inherits_a_trailing_year():
+    periods = extract_comparison_periods("Scope 1 in July vs June vs May 2026", {"financial_year_start_month": 4})
+
+    assert [(period.start_month, period.label) for period in periods] == [
+        ("2026-07", "July 2026"),
+        ("2026-06", "June 2026"),
+        ("2026-05", "May 2026"),
+    ]
+
+
+def test_extracts_any_number_of_explicit_cross_year_months():
+    periods = extract_comparison_periods("Scope 1 in July 2026 vs June 2025 vs May 2024", None)
+
+    assert [period.start_month for period in periods] == ["2026-07", "2025-06", "2024-05"]
+
+
 def test_comparison_requires_an_explicit_year_for_ambiguous_months():
     assert extract_comparison_periods("Scope 1 in July vs June", {"financial_year_start_month": 4}) == []
 
@@ -68,6 +84,29 @@ async def test_executor_runs_each_comparison_period_as_an_exact_independent_quer
     assert [item["data"]["period"] for item in result["emissions"]["comparison"]["periods"]] == ["July 2026", "June 2026"]
 
 
+@pytest.mark.asyncio
+async def test_executor_runs_every_requested_comparison_period(monkeypatch):
+    calls = []
+
+    async def fake_emissions(org_id, facility_ids=None, **kwargs):
+        calls.append(kwargs)
+        return {"period": kwargs["period"]["label"], "records": []}
+
+    monkeypatch.setitem(executor.SERVICE_MAP["emissions"], "search_records", fake_emissions)
+    periods = [
+        QueryPeriod(start_month="2026-07", end_month="2026-07", label="July 2026").model_dump(),
+        QueryPeriod(start_month="2026-06", end_month="2026-06", label="June 2026").model_dump(),
+        QueryPeriod(start_month="2026-05", end_month="2026-05", label="May 2026").model_dump(),
+    ]
+    result = await execute_plan([
+        {"service": "emissions", "method": "search_records", "params": {"comparison_periods": periods}}
+    ], "org-a")
+
+    assert [call["period"]["label"] for call in calls] == ["July 2026", "June 2026", "May 2026"]
+    assert all(call["strict_period"] is True for call in calls)
+    assert len(result["emissions"]["comparison"]["periods"]) == 3
+
+
 def test_deduplicates_repeated_current_record_before_aggregation():
     records = [
         {"id": "record-1", "facility_id": "facility-a", "reporting_period": "2026-07", "dynamic_field_values": {"qty": {"value": 10}}},
@@ -111,3 +150,37 @@ async def test_comparison_response_includes_totals_categories_and_variance_table
     assert "| Stationary Combustion | tCO2e | 12 | 10 | 2 | 20.00% |" in response["answer"]
     assert "Unit not stored" not in response["answer"]
     assert response["chart"]["type"] == "bar"
+
+
+@pytest.mark.asyncio
+async def test_comparison_response_renders_every_period_with_reference_variances():
+    query_plan = StructuredQueryPlan(
+        query_type=QueryType.EMISSION_LOOKUP,
+        scope="scope1",
+        comparison_periods=[
+            QueryPeriod(start_month="2026-07", end_month="2026-07", label="July 2026"),
+            QueryPeriod(start_month="2026-06", end_month="2026-06", label="June 2026"),
+            QueryPeriod(start_month="2026-05", end_month="2026-05", label="May 2026"),
+        ],
+    )
+    service_data = {"emissions": {"comparison": {"periods": [
+        {"period": {"label": "July 2026"}, "data": {"records": [
+            {"category": "Stationary Combustion", "emissions_value": 12.0, "emissions_unit": "tCO2e"},
+        ]}},
+        {"period": {"label": "June 2026"}, "data": {"records": [
+            {"category": "Stationary Combustion", "emissions_value": 10.0, "emissions_unit": "tCO2e"},
+        ]}},
+        {"period": {"label": "May 2026"}, "data": {"records": [
+            {"category": "Stationary Combustion", "emissions_value": 8.0, "emissions_unit": "tCO2e"},
+        ]}},
+    ]}}}
+
+    response = await build_response("Scope 1 in July vs June vs May 2026", {}, service_data, query_plan=query_plan)
+
+    assert "| Category | Unit | July 2026 | June 2026 | May 2026 |" in response["answer"]
+    assert "Variance (July 2026 − June 2026)" in response["answer"]
+    assert "variance % (july 2026 vs june 2026)" in response["answer"].lower()
+    assert "Variance (July 2026 − May 2026)" in response["answer"]
+    assert "variance % (july 2026 vs may 2026)" in response["answer"].lower()
+    assert "| Total | tCO2e | 12 | 10 | 8 | 2 | 20.00% | 4 | 50.00% |" in response["answer"]
+    assert [item["name"] for item in response["chart"]["data"]] == ["July 2026", "June 2026", "May 2026"]

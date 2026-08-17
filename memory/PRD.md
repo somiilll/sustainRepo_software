@@ -1,5 +1,23 @@
 # ESG Platform - Product Requirements Document
 
+## Change Log — Aug 17, 2026: Internal Data AI Unlimited Month Comparisons
+
+### Implemented
+- Extended deterministic comparison-period parsing from a two-month limit to any number of explicitly named calendar months. A single stated year is inherited across every unqualified month, so `July vs June vs May 2026` resolves to all three exact periods.
+- Added support for fully explicit cross-year month lists, while rejecting partially specified multi-year comparisons rather than guessing a year.
+- Comparison retrieval continues to execute an independent strict-month query for every selected period, retaining record deduplication and excluding annual/FY values from exact-month comparisons.
+- Comparison tables now render all requested period columns and reference-period variance/variance-percent columns for every later month. Bar charts include every compared period. Calculated emissions retain the required `tCO2e` standard.
+- Added parser, executor, formatter, and authenticated live API coverage for three-month comparisons; existing two-month behavior remains covered.
+
+### Verification
+- Focused backend regressions passed: **21/21** (`test_internal_ai_period_comparison.py`, `test_internal_ai_phase2_query_understanding.py`, `test_internal_ai_phase6_planner_executor.py`).
+- Authenticated live `/api/internal-ai/chat` self-check passed for `Scope 1 emissions in July vs June vs May 2026`, returning three exact months, `tCO2e` totals, reference variances, and a three-point chart.
+- Independent backend validation passed: **13/13** live two-month and three-month comparison checks (`/app/test_reports/iteration_176.json`). **MOCKED APIs: NONE.**
+
+### Prioritized Follow-up
+- **P1:** Reset BRSR Section A form data when the reporting year changes to prevent stale values appearing.
+- **P2:** Split the 900+ line `response_builder.py` into focused formatter modules; expand live Internal AI comparison coverage to additional ESG metrics.
+
 ## Change Log — Aug 17, 2026: Internal Data AI Exact-Month Period Comparisons
 
 ### Implemented

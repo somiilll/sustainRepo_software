@@ -263,11 +263,11 @@ def _format_comparison_number(value: float | None) -> str:
 
 
 def _build_period_comparison_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
-    """Render a two-month variance table from independently retrieved exact-month records."""
-    comparisons = ((data.get("comparison") or {}).get("periods") or [])[:2]
-    if len(comparisons) != 2:
+    """Render exact-month comparison values and reference-period variances."""
+    comparisons = (data.get("comparison") or {}).get("periods") or []
+    if len(comparisons) < 2:
         return {
-            "answer": "The requested period comparison could not be completed from two explicit reporting periods.",
+            "answer": "The requested period comparison could not be completed from at least two explicit reporting periods.",
             "highlights": [{"label": "State", "value": "NOT_FOUND"}],
             "suggestion": None,
             "response_type": response_type,
@@ -290,15 +290,12 @@ def _build_period_comparison_response(query_plan: StructuredQueryPlan, data: dic
             values[key] = values.get(key, 0.0) + value
         period_values.append(values)
 
-    keys = set(period_values[0]) | set(period_values[1])
+    keys = set().union(*period_values)
     if not keys:
         subject = "activity data" if value_kind == "consumption" else "emissions"
         return {
-            "answer": f"No authorized {subject} with stored values were found for {labels[0]} or {labels[1]}.",
-            "highlights": [
-                {"label": "Period 1", "value": labels[0]},
-                {"label": "Period 2", "value": labels[1]},
-            ],
+            "answer": f"No authorized {subject} with stored values were found for {', '.join(labels)}.",
+            "highlights": [{"label": f"Period {index + 1}", "value": label} for index, label in enumerate(labels)],
             "suggestion": None,
             "response_type": response_type,
             "chart": None,
@@ -307,32 +304,37 @@ def _build_period_comparison_response(query_plan: StructuredQueryPlan, data: dic
 
     rows = []
     for category, unit in sorted(keys):
-        first, second = period_values[0].get((category, unit), 0.0), period_values[1].get((category, unit), 0.0)
-        variance = first - second
-        variance_pct = None if second == 0 else (variance / abs(second)) * 100
-        rows.append({
+        values = [period_value.get((category, unit), 0.0) for period_value in period_values]
+        row = {
             "Category": category,
             "Unit": unit,
-            labels[0]: _format_comparison_number(first),
-            labels[1]: _format_comparison_number(second),
-            f"Variance ({labels[0]} − {labels[1]})": _format_comparison_number(variance),
-            "Variance %": "—" if variance_pct is None else f"{variance_pct:,.2f}%",
-        })
+        }
+        row.update({label: _format_comparison_number(value) for label, value in zip(labels, values)})
+        for index, value in enumerate(values[1:], start=1):
+            variance = values[0] - value
+            variance_pct = None if value == 0 else (variance / abs(value)) * 100
+            row[f"Variance ({labels[0]} − {labels[index]})"] = _format_comparison_number(variance)
+            row["Variance %" if len(comparisons) == 2 else f"Variance % ({labels[0]} vs {labels[index]})"] = (
+                "—" if variance_pct is None else f"{variance_pct:,.2f}%"
+            )
+        rows.append(row)
 
     units = sorted({unit for _, unit in keys})
     for unit in units:
-        first = sum(value for (category, row_unit), value in period_values[0].items() if row_unit == unit)
-        second = sum(value for (category, row_unit), value in period_values[1].items() if row_unit == unit)
-        variance = first - second
-        variance_pct = None if second == 0 else (variance / abs(second)) * 100
-        rows.insert(0, {
+        values = [sum(value for (category, row_unit), value in period_value.items() if row_unit == unit) for period_value in period_values]
+        total_row = {
             "Category": "Total",
             "Unit": unit,
-            labels[0]: _format_comparison_number(first),
-            labels[1]: _format_comparison_number(second),
-            f"Variance ({labels[0]} − {labels[1]})": _format_comparison_number(variance),
-            "Variance %": "—" if variance_pct is None else f"{variance_pct:,.2f}%",
-        })
+        }
+        total_row.update({label: _format_comparison_number(value) for label, value in zip(labels, values)})
+        for index, value in enumerate(values[1:], start=1):
+            variance = values[0] - value
+            variance_pct = None if value == 0 else (variance / abs(value)) * 100
+            total_row[f"Variance ({labels[0]} − {labels[index]})"] = _format_comparison_number(variance)
+            total_row["Variance %" if len(comparisons) == 2 else f"Variance % ({labels[0]} vs {labels[index]})"] = (
+                "—" if variance_pct is None else f"{variance_pct:,.2f}%"
+            )
+        rows.insert(0, total_row)
 
     scope = query_plan.scope or "all scopes"
     subject = "activity comparison" if value_kind == "consumption" else "emissions comparison"
@@ -341,10 +343,10 @@ def _build_period_comparison_response(query_plan: StructuredQueryPlan, data: dic
         unit = units[0]
         chart = {
             "type": "bar",
-            "title": f"{scope.title()} {subject}: {labels[0]} vs {labels[1]}",
+            "title": f"{scope.title()} {subject}: {' vs '.join(labels)}",
             "data": [
-                {"name": labels[0], "value": round(sum(period_values[0].values()), 6)},
-                {"name": labels[1], "value": round(sum(period_values[1].values()), 6)},
+                {"name": label, "value": round(sum(period_value.values()), 6)}
+                for label, period_value in zip(labels, period_values)
             ],
             "xKey": "name",
             "yKey": "value",
@@ -353,9 +355,8 @@ def _build_period_comparison_response(query_plan: StructuredQueryPlan, data: dic
     return {
         "answer": f"**{scope.title()} {subject}**\n\n" + _format_list_of_dicts_as_table(rows),
         "highlights": [
-            {"label": "Period 1", "value": labels[0]},
-            {"label": "Period 2", "value": labels[1]},
-            {"label": "Comparison", "value": f"{labels[0]} − {labels[1]}"},
+            *[{"label": f"Period {index + 1}", "value": label} for index, label in enumerate(labels)],
+            {"label": "Reference period", "value": labels[0]},
         ],
         "suggestion": None,
         "response_type": response_type,
