@@ -5,6 +5,7 @@ from modules.internal_data_ai.question_registry import (
     RESPONSE_CONFIGURED_NO_RESPONSE,
     RESPONSE_EMPTY,
     RESPONSE_FOUND,
+    RESPONSE_MAPPING_NOT_FOUND,
     RESPONSE_NOT_CONFIGURED,
 )
 from shared.database.mongo import db
@@ -62,9 +63,10 @@ def _determine_response_state(
 
     States:
       FOUND — response exists and is non-empty
-      RESPONSE EMPTY — response exists but value is empty/null
-      CONFIGURED — RESPONSE NOT FOUND — question is configured but no response submitted
-      NOT CONFIGURED — question does not exist in configuration
+      RESPONSE_EMPTY — response exists but value is empty/null
+      CONFIGURED_NO_RESPONSE — question is configured but no response submitted
+      NOT_CONFIGURED — question does not exist in configuration
+      MAPPING_NOT_FOUND — question likely exists but resolver couldn't map
     """
     target_key = framework_question_key or question_key
     if not target_key:

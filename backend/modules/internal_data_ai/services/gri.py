@@ -5,6 +5,7 @@ from modules.internal_data_ai.question_registry import (
     RESPONSE_CONFIGURED_NO_RESPONSE,
     RESPONSE_EMPTY,
     RESPONSE_FOUND,
+    RESPONSE_MAPPING_NOT_FOUND,
     RESPONSE_NOT_CONFIGURED,
 )
 from shared.database.mongo import db

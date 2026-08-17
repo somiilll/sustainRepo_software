@@ -12,6 +12,7 @@ from modules.internal_data_ai.question_registry import (
     RESPONSE_CONFIGURED_NO_RESPONSE,
     RESPONSE_EMPTY,
     RESPONSE_FOUND,
+    RESPONSE_MAPPING_NOT_FOUND,
     RESPONSE_NOT_CONFIGURED,
 )
 from shared.unit_registry import convert_to_base, detect_unit_type
@@ -414,6 +415,177 @@ def _evidence_formatter_data(query_plan: StructuredQueryPlan, service_data: dict
     return payload
 
 
+def _format_list_of_dicts_as_table(items: list[dict]) -> str:
+    """Format a list of dictionaries as a Markdown table."""
+    if not items or not isinstance(items[0], dict):
+        return ""
+    # Collect all keys preserving order from first item
+    headers = list(items[0].keys())
+    for item in items[1:]:
+        for key in item:
+            if key not in headers:
+                headers.append(key)
+
+    # Build readable header labels
+    labels = [h.replace("_", " ").title() for h in headers]
+
+    # Header row
+    lines = ["| " + " | ".join(labels) + " |"]
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+
+    # Data rows (limit to 20)
+    for item in items[:20]:
+        cells = []
+        for h in headers:
+            val = item.get(h)
+            if val is None or val == "":
+                cells.append("-")
+            elif isinstance(val, bool):
+                cells.append("Yes" if val else "No")
+            elif isinstance(val, (dict, list)):
+                cells.append(str(val)[:60])
+            else:
+                cells.append(str(val))
+        lines.append("| " + " | ".join(cells) + " |")
+
+    return "\n".join(lines)
+
+
+_NGRBC_REASON_LABELS = {
+    "not_material": "The entity does not consider the Principles material to its business.",
+    "not_ready": "The entity is not at a stage where it is in a position to formulate and implement the policies on specified principles.",
+    "no_resources": "The entity does not have the financial or/human and technical resources available for the task.",
+    "planned_next_fy": "It is planned to be done in the next financial year.",
+    "other": "Any other reason",
+}
+
+
+def _format_markdown_cell(value) -> str:
+    """Render a compact, safe scalar for a Markdown table cell."""
+    if value in (None, "", [], {}):
+        return "-"
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, list):
+        value = ", ".join(str(item) for item in value if item not in (None, ""))
+    return str(value).replace("|", "\\|").replace("\n", " ").strip() or "-"
+
+
+def _format_ngrbc_policy_matrix(value: dict) -> str:
+    """Present NGRBC policy coverage without exposing stored reason codes or booleans."""
+    mode = value.get("mode") or "together"
+    is_together = mode in {"together", "all_together", "combined"}
+    mode_label = "Fill All Principles Together" if is_together else "Fill Principle-wise Separately"
+    lines = [f"Mode: {mode_label}"]
+
+    if is_together:
+        coverage = value.get("all_together") if isinstance(value.get("all_together"), dict) else value
+        covered = coverage.get("covered")
+        lines.append(f"Policies cover NGRBCs: {_format_markdown_cell(covered)}")
+        if covered is True:
+            if "board_approved" in coverage:
+                lines.append(f"Board approved: {_format_markdown_cell(coverage.get('board_approved'))}")
+            if coverage.get("web_link"):
+                lines.append(f"Policy web link: {_format_markdown_cell(coverage['web_link'])}")
+        elif covered is False:
+            reasons = coverage.get("reasons") or {}
+            selected_reasons = []
+            for key, saved_value in reasons.items():
+                if not saved_value:
+                    continue
+                label = _NGRBC_REASON_LABELS.get(key, key.replace("_", " ").capitalize())
+                if key == "other" and isinstance(saved_value, str) and saved_value.strip().lower() not in {"true", "yes"}:
+                    label = f"{label}: {saved_value.strip()}"
+                selected_reasons.append(label)
+            if selected_reasons:
+                lines.append("Reasons:")
+                lines.extend(f"- {reason}" for reason in selected_reasons)
+        return "\n".join(lines)
+
+    principles = value.get("principle_wise") or value.get("principles") or {}
+    rows = []
+    for principle, coverage in principles.items():
+        if not isinstance(coverage, dict):
+            continue
+        reasons = coverage.get("reasons") or {}
+        selected_reasons = [
+            _NGRBC_REASON_LABELS.get(key, key.replace("_", " ").capitalize())
+            for key, saved_value in reasons.items()
+            if saved_value
+        ]
+        rows.append({
+            "Principle": principle,
+            "Covered": _format_markdown_cell(coverage.get("covered")),
+            "Board Approved": _format_markdown_cell(coverage.get("board_approved")),
+            "Reasons": "; ".join(selected_reasons) or "-",
+        })
+    return "\n".join([*lines, _format_list_of_dicts_as_table(rows)]) if rows else "\n".join(lines)
+
+
+def _format_training_awareness_coverage(value: dict) -> str:
+    """Render the fixed BRSR training-coverage fields as the questionnaire table."""
+    group_labels = (
+        ("bod", "Board of Directors"),
+        ("kmp", "Key Managerial Personnel"),
+        ("employees", "Employees other than BoD and KMP"),
+        ("workers", "Workers"),
+    )
+    rows = []
+    for prefix, group_label in group_labels:
+        programs = value.get(f"{prefix}_programs", value.get(f"{prefix}_programmes"))
+        topics = value.get(f"{prefix}_topics")
+        coverage = value.get(f"{prefix}_coverage")
+        if all(item in (None, "", [], {}) for item in (programs, topics, coverage)):
+            continue
+        rendered_coverage = _format_markdown_cell(coverage)
+        if rendered_coverage != "-" and isinstance(coverage, (int, float)):
+            rendered_coverage = f"{rendered_coverage}%"
+        rows.append({
+            "Category": group_label,
+            "Programmes Conducted": _format_markdown_cell(programs),
+            "Topics Covered": _format_markdown_cell(topics),
+            "Coverage": rendered_coverage,
+        })
+
+    if rows:
+        return _format_list_of_dicts_as_table(rows)
+
+    nested_group_labels = (
+        ("bod", "Board of Directors"),
+        ("kmp", "Key Managerial Personnel"),
+        ("employees", "Employees other than BoD and KMP"),
+        ("employees_other_than_bod_kmp", "Employees other than BoD and KMP"),
+        ("workers", "Workers"),
+    )
+    nested_rows = []
+    rendered_groups = set()
+    for key, group_label in nested_group_labels:
+        group = value.get(key)
+        if not isinstance(group, dict) or group_label in rendered_groups:
+            continue
+        total = group.get("total", group.get("total_persons"))
+        trained = group.get("trained", group.get("covered"))
+        coverage = group.get("pct", group.get("coverage"))
+        if all(item in (None, "", [], {}) for item in (total, trained, coverage)):
+            continue
+        rendered_groups.add(group_label)
+        rendered_coverage = _format_markdown_cell(coverage)
+        if rendered_coverage != "-" and str(rendered_coverage).replace(".", "", 1).isdigit():
+            rendered_coverage = f"{rendered_coverage}%"
+        nested_rows.append({
+            "Category": group_label,
+            "Total Persons": _format_markdown_cell(total),
+            "Persons Covered": _format_markdown_cell(trained),
+            "Coverage": rendered_coverage,
+        })
+
+    if nested_rows:
+        return _format_list_of_dicts_as_table(nested_rows)
+    if isinstance(value.get("rows"), list) and value["rows"] and isinstance(value["rows"][0], dict):
+        return _format_list_of_dicts_as_table(value["rows"])
+    return "Value unavailable"
+
+
 def _build_framework_question_response(
     query_plan: StructuredQueryPlan,
     framework_data: dict,
@@ -423,9 +595,10 @@ def _build_framework_question_response(
 
     Uses standardized response states:
       FOUND — value + source
-      CONFIGURED — RESPONSE NOT FOUND — question exists, no response
-      NOT CONFIGURED — question not in system
-      RESPONSE EMPTY — response exists but blank
+      CONFIGURED_NO_RESPONSE — question exists, no response
+      NOT_CONFIGURED — question not in system
+      MAPPING_NOT_FOUND — question likely exists but resolver can't map
+      RESPONSE_EMPTY — response exists but blank
     """
     state = framework_data.get("response_state", RESPONSE_NOT_CONFIGURED)
     qkey = query_plan.framework_question_key or query_plan.requested_metric or ""
@@ -444,13 +617,20 @@ def _build_framework_question_response(
             value = record.get("value")
             approval = record.get("approval_status")
             # Format value based on type
-            if isinstance(value, dict):
+            if qkey == "ngrbc_policy_matrix" and isinstance(value, dict):
+                formatted_value = _format_ngrbc_policy_matrix(value)
+            elif qkey == "p1_training_awareness_coverage" and isinstance(value, dict):
+                formatted_value = _format_training_awareness_coverage(value)
+            elif isinstance(value, dict):
                 value_lines = []
                 for k, v in value.items():
                     if v in (None, "", [], {}):
                         continue
-                    if isinstance(v, dict):
-                        # Nested dict (e.g. policy fields) — flatten
+                    if isinstance(v, list) and v and isinstance(v[0], dict):
+                        # Nested list of dicts → Markdown table
+                        value_lines.append(f"**{k.replace('_', ' ').title()}**\n")
+                        value_lines.append(_format_list_of_dicts_as_table(v))
+                    elif isinstance(v, dict):
                         for nk, nv in v.items():
                             if nv not in (None, "", [], {}):
                                 value_lines.append(f"{nk.replace('_', ' ').title()}: {nv}")
@@ -462,12 +642,10 @@ def _build_framework_question_response(
                 formatted_value = "\n".join(value_lines) if value_lines else str(value)
             elif isinstance(value, list):
                 if value and isinstance(value[0], dict):
-                    formatted_value = "\n".join(
-                        "  • " + ", ".join(f"{dk.replace('_',' ').title()}: {dv}" for dk, dv in item.items() if dv not in (None, "", [], {}))
-                        for item in value[:10]
-                    )
+                    # List of dicts → Markdown table
+                    formatted_value = _format_list_of_dicts_as_table(value)
                 else:
-                    formatted_value = "\n".join(f"  • {item}" for item in value[:10])
+                    formatted_value = "\n".join(f"  - {item}" for item in value[:20])
             else:
                 formatted_value = str(value)
 
@@ -492,6 +670,14 @@ def _build_framework_question_response(
             f"**{label}**\n\n"
             f"A response exists but the value is empty.\n\n"
             f"Status: Empty response\n"
+            f"Source: {source_path}"
+        )
+    elif state == RESPONSE_MAPPING_NOT_FOUND:
+        answer = (
+            f"**{label}**\n\n"
+            f"A matching question likely exists in the {framework_name} configuration, "
+            f"but the system could not map your question to its canonical key.\n\n"
+            f"Status: Mapping not found\n"
             f"Source: {source_path}"
         )
     else:

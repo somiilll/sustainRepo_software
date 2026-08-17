@@ -12,7 +12,7 @@ from modules.internal_data_ai.query_contracts import (
     QueryType,
     StructuredQueryPlan,
 )
-from modules.internal_data_ai.question_registry import resolve_esg_query
+from modules.internal_data_ai.question_registry import resolve_esg_query, DataState
 from modules.internal_data_ai.reporting_periods import ResolvedPeriod
 
 logger = logging.getLogger(__name__)
@@ -196,11 +196,12 @@ def _is_generic_brsr_metric(value: str) -> bool:
     return bool(terms) and all(term in _GENERIC_BRSR_METRIC_TERMS for term in terms)
 
 
-def build_query_plan(
+async def build_query_plan(
     question: str,
     intent_result: dict,
     period: Optional[ResolvedPeriod],
     fuel_resolution: Optional[dict] = None,
+    org_id: str = "",
 ) -> StructuredQueryPlan:
     """Build a closed plan from model semantics plus deterministic normalization results.
 
@@ -216,7 +217,7 @@ def build_query_plan(
     query_type = _query_type(question, legacy_intent, metric)
 
     # ── Step 1: Question Registry (framework precedence) ─────────────
-    framework_resolution = resolve_esg_query(question)
+    framework_resolution = await resolve_esg_query(question, org_id)
     framework_question_key = None
     framework_source_path = None
     framework_confidence = None
@@ -375,8 +376,8 @@ def build_query_plan(
     )
 
 
-async def understand_query(question: str, intent_result: dict, period: Optional[ResolvedPeriod], db) -> StructuredQueryPlan:
+async def understand_query(question: str, intent_result: dict, period: Optional[ResolvedPeriod], db, org_id: str = "") -> StructuredQueryPlan:
     """Resolve a model-extracted fuel name against server-owned canonical data."""
     raw_fuel = (intent_result.get("entities") or {}).get("fuel_type")
     fuel_resolution = await resolve_fuel_entity(db, raw_fuel) if raw_fuel else await resolve_fuel_from_question(db, question)
-    return build_query_plan(question, intent_result, period, fuel_resolution)
+    return await build_query_plan(question, intent_result, period, fuel_resolution, org_id=org_id)

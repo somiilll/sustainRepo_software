@@ -113,9 +113,17 @@ async def internal_ai_chat(
     intent_result["entities"] = entities
 
     # 3. Build the validated structured plan. Session context may fill only omitted dimensions.
-    structured_plan = await understand_query(request.message, intent_result, explicit_period, db)
+    structured_plan = await understand_query(request.message, intent_result, explicit_period, db, org_id=org_id)
     session_context = await get_session_context(db, session_id, org_id, current_user.get("id"))
     structured_plan = apply_follow_up_context(structured_plan, request.message, session_context)
+
+    # Log diagnostic info for framework queries
+    if structured_plan.framework_question_key:
+        logger.info(
+            "framework_resolution_diagnostic org=%s key=%s confidence=%s query_type=%s",
+            org_id, structured_plan.framework_question_key,
+            structured_plan.framework_confidence, structured_plan.query_type.value,
+        )
 
     # 4. Plan service calls
     plan = plan_service_calls(intent_result, structured_plan)

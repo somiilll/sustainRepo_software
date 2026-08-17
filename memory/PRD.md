@@ -1,5 +1,20 @@
 # ESG Platform - Product Requirements Document
 
+## Change Log — Aug 17, 2026: Internal Data AI BRSR Answer Formatting
+
+### Implemented
+- Added deterministic NGRBC Policy Coverage Matrix rendering that converts stored boolean values to Yes/No and saved reason codes to their full BRSR reason text.
+- Added deterministic Markdown-table rendering for P1 Training Awareness Coverage, supporting both current flat fields and legacy nested group values.
+- Added focused formatter regression coverage that does not require an external AI credential.
+
+### Verification
+- Focused Python regression suite passed: **41/41** (`test_internal_ai_framework_formatting.py`, `test_question_registry.py`).
+- Authenticated live `/api/internal-ai/chat` checks passed for the NGRBC policy answer and Training Awareness Coverage table. **MOCKED APIs: NONE.**
+
+### Prioritized Follow-up
+- **P1:** Reset BRSR Section A form data when the reporting year changes to prevent stale values appearing.
+- **P2:** Stabilize Playwright Select locators and add live Internal AI API test coverage.
+
 ## Change Log — Aug 17, 2026: Internal Data AI Response and CSR Reporting P0
 
 ### Implemented
