@@ -416,7 +416,7 @@ def _evidence_formatter_data(query_plan: StructuredQueryPlan, service_data: dict
 
 def _build_framework_question_response(
     query_plan: StructuredQueryPlan,
-    brsr_data: dict,
+    framework_data: dict,
     response_type: str,
 ) -> dict:
     """Deterministic response for registry-resolved framework questions.
@@ -427,12 +427,13 @@ def _build_framework_question_response(
       NOT CONFIGURED — question not in system
       RESPONSE EMPTY — response exists but blank
     """
-    state = brsr_data.get("response_state", RESPONSE_NOT_CONFIGURED)
+    state = framework_data.get("response_state", RESPONSE_NOT_CONFIGURED)
     qkey = query_plan.framework_question_key or query_plan.requested_metric or ""
-    source_path = query_plan.framework_source_path or f"{brsr_data.get('framework', 'BRSR')}"
-    period = brsr_data.get("period") or "current period"
-    responses = brsr_data.get("responses") or []
-    label = qkey.replace("_", " ").replace("brsr a ", "").replace("p1 ", "P1 ").title()
+    framework_name = framework_data.get("framework", "BRSR")
+    source_path = query_plan.framework_source_path or framework_name
+    period = framework_data.get("period") or "current period"
+    responses = framework_data.get("responses") or []
+    label = query_plan.framework_display_label or qkey.replace("_", " ").replace("brsr a ", "").replace("p1 ", "P1 ").title()
 
     if state == RESPONSE_FOUND:
         matching = [r for r in responses if r.get("question_key") == qkey]
@@ -481,7 +482,7 @@ def _build_framework_question_response(
     elif state == RESPONSE_CONFIGURED_NO_RESPONSE:
         answer = (
             f"**{label}**\n\n"
-            f"The question is configured for {brsr_data.get('framework', 'BRSR')}, "
+            f"The question is configured for {framework_name}, "
             f"but no response has been submitted for this organization.\n\n"
             f"Status: Not answered\n"
             f"Source: {source_path}"
@@ -503,7 +504,6 @@ def _build_framework_question_response(
 
     highlights = [
         {"label": "State", "value": state},
-        {"label": "Question", "value": qkey},
         {"label": "Source", "value": source_path},
     ]
     if period and period != "current period":
@@ -515,7 +515,7 @@ def _build_framework_question_response(
         "suggestion": None,
         "response_type": response_type,
         "chart": None,
-        "raw_data": brsr_data,
+        "raw_data": framework_data,
     }
 
 
@@ -531,8 +531,10 @@ async def build_response(
         if query_plan and query_plan.query_type == QueryType.FUEL_ENERGY_LOOKUP:
             return _build_fuel_energy_response(service_data.get("esg_records", {}), service_data.get("emissions", {}), response_type)
         # Framework question registry — deterministic response (no LLM)
-        if query_plan and query_plan.framework_question_key and service_data.get("brsr"):
-            return _build_framework_question_response(query_plan, service_data["brsr"], response_type)
+        if query_plan and query_plan.framework_question_key:
+            framework_data = service_data.get("brsr") or service_data.get("gri")
+            if framework_data:
+                return _build_framework_question_response(query_plan, framework_data, response_type)
         if query_plan and query_plan.data_source == "ghg_emissions" and service_data.get("emissions"):
             return _build_ghg_response(query_plan, service_data["emissions"], response_type)
         if query_plan and query_plan.query_type == QueryType.RECORD_VERSION_HISTORY and query_plan.record_type in {"environment", "social", "governance"}:

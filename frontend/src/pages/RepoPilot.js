@@ -130,6 +130,13 @@ function ChatMessage({ msg, documents }) {
             ))}
           </div>
         )}
+        {msg.source === 'internal' && typeof msg.framework_confidence === 'number' && (
+          <div className="mt-2" data-testid="internal-ai-registry-confidence">
+            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+              Registry confidence: {Math.round(msg.framework_confidence * 100)}%
+            </Badge>
+          </div>
+        )}
         {/* Internal Data AI Chart */}
         {msg.chart && msg.chart.data?.length > 0 && (
           <div className="mt-3 pt-2 border-t border-stone-200/50">
@@ -350,6 +357,7 @@ export default function RepoPilotPage() {
           chart: res.data.chart,
           evidence: res.data.evidence,
           intent: res.data.intent,
+          framework_confidence: res.data.framework_confidence,
           source: 'internal',
         }]);
       } else {

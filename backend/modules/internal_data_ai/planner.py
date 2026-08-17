@@ -125,14 +125,14 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
             {"service": "calculation_properties", "method": "lookup", "params": params},
             {"service": "evidence_state", "method": "validate", "params": params},
         ]
-    if query_plan.query_type == QueryType.BRSR_LOOKUP:
-        brsr_params = {**params}
+    if query_plan.query_type in {QueryType.BRSR_LOOKUP, QueryType.GRI_LOOKUP}:
+        framework_params = {**params}
         if query_plan.framework_question_key:
-            brsr_params["framework_question_key"] = query_plan.framework_question_key
-            brsr_params["framework_source_path"] = query_plan.framework_source_path
-        return [{"service": "brsr", "method": "get_responses", "params": brsr_params}]
-    if query_plan.query_type == QueryType.GRI_LOOKUP:
-        return [{"service": "gri", "method": "get_responses", "params": params}]
+            framework_params["framework_question_key"] = query_plan.framework_question_key
+            framework_params["framework_source_path"] = query_plan.framework_source_path
+            framework_params["framework_display_label"] = query_plan.framework_display_label
+        service = "brsr" if query_plan.query_type == QueryType.BRSR_LOOKUP else "gri"
+        return [{"service": service, "method": "get_responses", "params": framework_params}]
     if query_plan.query_type == QueryType.BRSR_VERSION_HISTORY:
         return [{"service": "brsr", "method": "get_version_history", "params": params}]
     if query_plan.query_type == QueryType.GRI_VERSION_HISTORY:

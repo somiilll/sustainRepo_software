@@ -220,6 +220,7 @@ def build_query_plan(
     framework_question_key = None
     framework_source_path = None
     framework_confidence = None
+    framework_display_label = None
 
     if framework_resolution and framework_resolution.confidence >= 0.5:
         logger.info(
@@ -231,6 +232,7 @@ def build_query_plan(
         framework_question_key = framework_resolution.question_key
         framework_source_path = framework_resolution.source_path
         framework_confidence = framework_resolution.confidence
+        framework_display_label = framework_resolution.display_label
 
         # Override routing to the correct framework lookup
         if framework_resolution.framework == "BRSR":
@@ -269,6 +271,7 @@ def build_query_plan(
             framework_question_key=framework_question_key,
             framework_source_path=framework_source_path,
             framework_confidence=framework_confidence,
+            framework_display_label=framework_display_label,
         )
 
     # ── Step 2+3: Existing metric resolver + framework text routing ──

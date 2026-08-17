@@ -1,5 +1,21 @@
 # ESG Platform - Product Requirements Document
 
+## Change Log — Aug 17, 2026: Internal Data AI Response and CSR Reporting P0
+
+### Implemented
+- Removed the visible internal framework-question highlight from deterministic Internal Data AI responses; chat answers now show only user-facing labels, state, and source.
+- Added `framework_confidence` to `/api/internal-ai/chat` and a visible **Registry confidence** badge in Repo Pilot's Internal Data AI mode.
+- Added explicit GRI routing for **areas of biodiversity importance** to configured disclosure `GRI 101-5-a(i)`, including exact sub-disclosure response retrieval and user-friendly formatting.
+- Updated Reporting → BRSR → CSR Applicability to always show CSR under Section 135, Turnover (INR), and Net Worth (INR), with saved values safely merged against defaults.
+
+### Verification
+- Independent backend/frontend validation passed in `/app/test_reports/iteration_174.json`: 32 registry and live API tests passed; live Repo Pilot and BRSR CSR edit/save flows passed. **MOCKED APIs: NONE.**
+- User subsequently requested no further testing; no additional verification should be run unless requested.
+
+### Prioritized Follow-up
+- **P1:** Reset BRSR Section A form data when the reporting year changes to prevent stale values appearing.
+- **P2:** Stabilize Playwright Select locators; address existing Recharts sizing and React `key` console warnings.
+
 ## Change Log — Aug 15, 2026: Internal Data AI BRSR Query Repair
 
 ### Implemented

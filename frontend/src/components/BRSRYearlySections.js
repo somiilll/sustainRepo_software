@@ -243,7 +243,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     
     // CSR
     if (responses.brsr_a_csr_applicability) {
-      setCSRApplicability(responses.brsr_a_csr_applicability);
+      setCSRApplicability({ ...DEFAULT_CSR, ...responses.brsr_a_csr_applicability });
     } else {
       setCSRApplicability({ ...DEFAULT_CSR });
     }
@@ -738,21 +738,27 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-3 border rounded bg-stone-50">
               <Label className="text-xs">CSR under Section 135?</Label>
               {isEditing && canEditQuestion('brsr_a_csr_applicability') ? (
                 <div className="flex items-center gap-2 mt-2">
-                  <Switch checked={csrApplicability.is_applicable} onCheckedChange={(v) => setCSRApplicability(p => ({ ...p, is_applicable: v }))} />
+                  <Switch checked={csrApplicability.is_applicable} onCheckedChange={(v) => setCSRApplicability(p => ({ ...p, is_applicable: v }))} data-testid="brsr-csr-applicability-switch" />
                   <span className="text-xs">{csrApplicability.is_applicable ? 'Yes' : 'No'}</span>
                 </div>
               ) : <p className="text-sm font-medium mt-1">{csrApplicability.is_applicable ? 'Yes' : 'No'}</p>}
             </div>
             <div className="p-3 border rounded">
-              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Net Worth</Label>
+              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Turnover (INR)</Label>
               {isEditing && canEditQuestion('brsr_a_csr_applicability') ? (
-                <Input type="number" min="0" value={csrApplicability.net_worth_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, net_worth_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" />
-              ) : <p className="text-sm font-medium mt-1">{formatINR(csrApplicability.net_worth_inr)}</p>}
+                <Input type="number" min="0" value={csrApplicability.turnover_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, turnover_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" data-testid="brsr-csr-turnover-input" />
+              ) : <p className="text-sm font-medium mt-1" data-testid="brsr-csr-turnover-value">{formatINR(csrApplicability.turnover_inr)}</p>}
+            </div>
+            <div className="p-3 border rounded">
+              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Net Worth (INR)</Label>
+              {isEditing && canEditQuestion('brsr_a_csr_applicability') ? (
+                <Input type="number" min="0" value={csrApplicability.net_worth_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, net_worth_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" data-testid="brsr-csr-net-worth-input" />
+              ) : <p className="text-sm font-medium mt-1" data-testid="brsr-csr-net-worth-value">{formatINR(csrApplicability.net_worth_inr)}</p>}
             </div>
           </div>
         </CollapsibleContent>

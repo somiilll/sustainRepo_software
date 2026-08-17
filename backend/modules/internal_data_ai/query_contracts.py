@@ -94,3 +94,4 @@ class StructuredQueryPlan(BaseModel):
     framework_question_key: Optional[str] = None
     framework_source_path: Optional[str] = None
     framework_confidence: Optional[float] = None
+    framework_display_label: Optional[str] = None

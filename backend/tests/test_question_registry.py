@@ -104,6 +104,28 @@ class TestAntiCorruptionRouting:
         assert r.question_key == "p1_anticorruption_policy"
 
 
+class TestGRIBiodiversityRouting:
+    """Configured biodiversity wording must take GRI precedence over generic ESG modules."""
+
+    def test_areas_of_biodiversity_importance(self):
+        resolution = resolve_esg_query("Which sites are in areas of biodiversity importance?")
+        assert resolution is not None
+        assert resolution.question_key == "gri_101_5_a_i"
+        assert resolution.framework == "GRI"
+        assert resolution.section == "environment"
+        assert resolution.display_label == "Areas of Biodiversity Importance"
+
+    def test_biodiversity_plan_uses_gri_lookup(self):
+        plan = build_query_plan(
+            "Which sites are in areas of biodiversity importance?",
+            {"intent": "kpi_lookup", "entities": {"record_type": "environment"}},
+            None,
+        )
+        assert plan.query_type == QueryType.GRI_LOOKUP
+        assert plan.framework_question_key == "gri_101_5_a_i"
+        assert plan.framework_display_label == "Areas of Biodiversity Importance"
+
+
 class TestNonFrameworkFallthrough:
     """Questions that don't match the registry should return None (fall through to ESG modules)."""
 

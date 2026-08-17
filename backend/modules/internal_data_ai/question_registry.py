@@ -29,6 +29,7 @@ class RegisteredQuestion:
     synonyms: tuple[str, ...]
     concept_type: str
     key_terms: tuple[str, ...] = ()
+    display_label: Optional[str] = None
 
 
 # ── Response States ──────────────────────────────────────────────────
@@ -341,6 +342,24 @@ QUESTION_REGISTRY: dict[str, RegisteredQuestion] = {
         concept_type="metric",
         key_terms=("training", "awareness", "programme", "coverage"),
     ),
+    "gri_101_5_a_i": RegisteredQuestion(
+        question_key="gri_101_5_a_i",
+        framework="GRI",
+        section="environment",
+        principle=None,
+        category="Locations with biodiversity impacts",
+        source_collection="organization_esg_responses",
+        synonyms=(
+            "areas of biodiversity importance",
+            "area of biodiversity importance",
+            "sites in areas of biodiversity importance",
+            "sites near areas of biodiversity importance",
+            "locations with biodiversity impacts",
+        ),
+        concept_type="disclosure",
+        key_terms=("biodiversity importance", "ecologically sensitive area"),
+        display_label="Areas of Biodiversity Importance",
+    ),
 }
 
 
@@ -376,6 +395,7 @@ class FrameworkResolution:
     confidence: float
     matched_synonym: Optional[str] = None
     source_path: Optional[str] = None
+    display_label: Optional[str] = None
 
 
 def _score_question(text: str, question: RegisteredQuestion) -> tuple[float, Optional[str]]:
@@ -470,4 +490,5 @@ def resolve_esg_query(question: str) -> Optional[FrameworkResolution]:
         confidence=top_score,
         matched_synonym=top_match,
         source_path=source_path,
+        display_label=top_q.display_label,
     )

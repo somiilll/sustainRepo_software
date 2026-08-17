@@ -49,6 +49,7 @@ class ChatResponse(BaseModel):
     evidence: Optional[list] = None
     intent: Optional[str] = None
     query_type: Optional[str] = None
+    framework_confidence: Optional[float] = None
 
 
 @router.post("/internal-ai/chat", response_model=ChatResponse)
@@ -169,6 +170,7 @@ async def internal_ai_chat(
         evidence=evidence_files,
         intent=intent_name,
         query_type=structured_plan.query_type.value,
+        framework_confidence=structured_plan.framework_confidence,
     )
 
 
