@@ -370,6 +370,21 @@ export default function EmissionEntryForm({
             monthData.calculatedCO2 = editingEmission.co2_emissions;
           }
           
+          // Hydrate flight/airport data if present
+          if (editingEmission.from_airport) {
+            monthData.from_airport = editingEmission.from_airport;
+          }
+          if (editingEmission.to_airport) {
+            monthData.to_airport = editingEmission.to_airport;
+          }
+          if (editingEmission.flight_distance) {
+            const fd = editingEmission.flight_distance;
+            monthData.flight_distance = typeof fd === 'object' ? fd.value : fd;
+            monthData.flight_distance_method = typeof fd === 'object' ? fd.method : null;
+            monthData.flight_distance_overridden = typeof fd === 'object' ? fd.overridden : false;
+            monthData.flight_distance_manual = typeof fd === 'object' ? fd.method === 'MANUAL' : false;
+          }
+          
           setMonthlyData(prev => ({
             ...prev,
             [monthKey]: monthData
@@ -406,6 +421,21 @@ export default function EmissionEntryForm({
         }
         if (editingEmission.co2_emissions !== undefined) {
           yearData.calculatedCO2 = editingEmission.co2_emissions;
+        }
+        
+        // Hydrate flight/airport data if present
+        if (editingEmission.from_airport) {
+          yearData.from_airport = editingEmission.from_airport;
+        }
+        if (editingEmission.to_airport) {
+          yearData.to_airport = editingEmission.to_airport;
+        }
+        if (editingEmission.flight_distance) {
+          const fd = editingEmission.flight_distance;
+          yearData.flight_distance = typeof fd === 'object' ? fd.value : fd;
+          yearData.flight_distance_method = typeof fd === 'object' ? fd.method : null;
+          yearData.flight_distance_overridden = typeof fd === 'object' ? fd.overridden : false;
+          yearData.flight_distance_manual = typeof fd === 'object' ? fd.method === 'MANUAL' : false;
         }
         
         setYearlyData(prev => ({

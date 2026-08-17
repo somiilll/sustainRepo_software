@@ -332,6 +332,22 @@ export function buildEditPayload(ctx) {
         to_location: formData.to_location || null,
       }),
     }),
+
+    // Flight details (airport data for C6 air_travel)
+    ...(formData.from_airport && {
+      from_airport: formData.from_airport,
+    }),
+    ...(formData.to_airport && {
+      to_airport: formData.to_airport,
+    }),
+    ...(formData.flight_distance != null && {
+      flight_distance: {
+        value: formData.flight_distance,
+        unit: 'km',
+        method: formData.flight_distance_method || (formData.flight_distance_manual ? 'MANUAL' : 'HAVERSINE'),
+        overridden: !!formData.flight_distance_overridden,
+      },
+    }),
   };
 }
 

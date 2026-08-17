@@ -116,6 +116,7 @@ from modules.esg_assignments.router import router as esg_assignments_router
 from modules.esg_targets.router import router as esg_targets_router
 from modules.esg_kpi_definitions.router import router as esg_kpi_definitions_router
 from modules.materiality.router import router as materiality_router
+from modules.airports.router import router as airports_router
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
@@ -225,6 +226,9 @@ api_router.include_router(brsr_report_router, tags=["BRSR Report"])
 # OCR Invoice Extractor Module (Scope 1 & 2 emissions from utility invoices)
 from modules.ocr_invoice.router import router as ocr_invoice_router
 api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"])
+
+# Airports reference data (search + distance calculation)
+api_router.include_router(airports_router, tags=["Airports"])
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
@@ -3717,6 +3721,11 @@ async def startup_event():
     await seed_calc_engine(db)
     from modules.sustainability_config.service import ensure_indexes as ensure_sustainability_indexes
     await ensure_sustainability_indexes()
+    # Seed airport reference data from CSV
+    from modules.airports.service import seed_airports_from_csv
+    import os
+    csv_path = os.path.join(os.path.dirname(__file__), "modules", "airports", "airports.csv")
+    await seed_airports_from_csv(csv_path)
     global mis_reports_scheduler_task
     mis_reports_scheduler_task = asyncio.create_task(run_mis_reports_scheduler())
 

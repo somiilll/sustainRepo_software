@@ -386,9 +386,25 @@ export function buildCreatePayload(monthData, ctx) {
 
       // Capability-aware: journey locations (C4/C6/C9)
       ...(module?.hasCapability?.('journey-locations') && {
-        from_location: fromLocation || null,
-        to_location: toLocation || null,
+        from_location: monthData?.from_location || fromLocation || null,
+        to_location: monthData?.to_location || toLocation || null,
       }),
+    }),
+
+    // Flight details (per-month airport data for C6 air_travel)
+    ...(monthData?.from_airport && {
+      from_airport: monthData.from_airport,
+    }),
+    ...(monthData?.to_airport && {
+      to_airport: monthData.to_airport,
+    }),
+    ...(monthData?.flight_distance != null && {
+      flight_distance: {
+        value: monthData.flight_distance,
+        unit: 'km',
+        method: monthData.flight_distance_method || (monthData.flight_distance_manual ? 'MANUAL' : 'HAVERSINE'),
+        overridden: !!monthData.flight_distance_overridden,
+      },
     }),
   };
 }

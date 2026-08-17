@@ -40,6 +40,9 @@ const FIELD_HELP = {
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
 import { isQuantityField } from '../../utils/unitHelpers';
 
+// Import FlightDetailsSection for C6 air travel per-month airport selection
+import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
+
 /**
  * Step 3 Year & Monthly Data Component
  * 
@@ -512,6 +515,17 @@ export const Step3YearMonthlyData = ({
                         />
                       )}
 
+                      {/* Flight Details — C6 Business Travel + air_travel only */}
+                      {category && scope3ActivityType === 'air_travel' &&
+                        category.toLowerCase().includes('c6') && (
+                        <FlightDetailsSection
+                          monthKey={monthKey}
+                          data={data}
+                          updateMonthData={updateMonthData}
+                          disabled={isDisabled}
+                        />
+                      )}
+
                       {/* Evidence Upload */}
                       <div className="space-y-2">
                         <Label>Evidence(s)</Label>
@@ -756,6 +770,8 @@ export const Step3YearMonthlyData = ({
           yearlyData={yearlyData}
           setYearlyData={setYearlyData}
           scope3Method={scope3Method}
+          scope3ActivityType={scope3ActivityType}
+          category={category}
           getFieldUnitsForYearly={getFieldUnitsForYearly}
           centralizedUnits={centralizedUnits}
           defaultUnit={defaultUnit}
@@ -782,6 +798,8 @@ const YearlyDataEntry = ({
   yearlyData,
   setYearlyData,
   scope3Method,
+  scope3ActivityType,
+  category,
   getFieldUnitsForYearly,
   centralizedUnits,
   defaultUnit,
@@ -1228,6 +1246,17 @@ const YearlyDataEntry = ({
               </div>
             )}
           </div>
+        )}
+
+        {/* Flight Details — C6 Business Travel + air_travel (yearly mode) */}
+        {category && scope3ActivityType === 'air_travel' &&
+          category.toLowerCase().includes('c6') && (
+          <FlightDetailsSection
+            monthKey="yearly"
+            data={yearlyData}
+            updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
+            disabled={false}
+          />
         )}
       </div>
     </div>
