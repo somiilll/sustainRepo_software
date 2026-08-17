@@ -284,7 +284,7 @@ def _build_period_comparison_response(query_plan: StructuredQueryPlan, data: dic
             value, unit = _comparison_value(record, value_kind)
             if value is None:
                 continue
-            unit = unit or "Unit not stored"
+            unit = unit or ("tCO2e" if value_kind == "emissions" else "Unit not stored")
             category = record.get("category") or record.get("sub_category") or "Uncategorised"
             key = (str(category), str(unit))
             values[key] = values.get(key, 0.0) + value
@@ -350,9 +350,8 @@ def _build_period_comparison_response(query_plan: StructuredQueryPlan, data: dic
             "yKey": "value",
             "color": "#0f766e",
         }
-    unit_note = "\n\nSome category records have no stored emissions unit; those values are shown as **Unit not stored** and are not assigned an inferred unit." if "Unit not stored" in units else ""
     return {
-        "answer": f"**{scope.title()} {subject}**\n\n" + _format_list_of_dicts_as_table(rows) + unit_note,
+        "answer": f"**{scope.title()} {subject}**\n\n" + _format_list_of_dicts_as_table(rows),
         "highlights": [
             {"label": "Period 1", "value": labels[0]},
             {"label": "Period 2", "value": labels[1]},

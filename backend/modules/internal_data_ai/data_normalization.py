@@ -56,7 +56,10 @@ def resolve_emission_unit(
         if output.get("variable") == "co2e" and output.get("unit"):
             return {"unit": output["unit"], "source": "formula_definition"}
 
-    for field in ("co2e_unit", "emissions_unit", "unit"):
+    for field in ("co2e_unit", "emissions_unit"):
         if record.get(field):
             return {"unit": record[field], "source": f"record.{field}"}
-    return {"unit": None, "source": "unavailable"}
+    # Every calculated emissions output in the GHG engine is expressed as
+    # tonnes of CO₂ equivalent, including legacy records that omitted a
+    # per-record unit field.
+    return {"unit": "tCO2e", "source": "calculated_emissions_standard"}

@@ -7,6 +7,7 @@ from modules.internal_data_ai.query_contracts import QueryPeriod, QueryType, Str
 from modules.internal_data_ai.query_understanding import build_query_plan
 from modules.internal_data_ai.reporting_periods import extract_comparison_periods
 from modules.internal_data_ai.response_builder import build_response
+from modules.internal_data_ai.data_normalization import resolve_emission_unit
 from modules.internal_data_ai.services.emissions import _deduplicate_records
 
 
@@ -77,6 +78,11 @@ def test_deduplicates_repeated_current_record_before_aggregation():
     assert [record["id"] for record in _deduplicate_records(records)] == ["record-1", "record-2"]
 
 
+def test_calculated_emissions_default_to_the_platform_tco2e_standard():
+    assert resolve_emission_unit({}) == {"unit": "tCO2e", "source": "calculated_emissions_standard"}
+    assert resolve_emission_unit({"unit": "L"}) == {"unit": "tCO2e", "source": "calculated_emissions_standard"}
+
+
 @pytest.mark.asyncio
 async def test_comparison_response_includes_totals_categories_and_variance_table():
     query_plan = StructuredQueryPlan(
@@ -90,7 +96,7 @@ async def test_comparison_response_includes_totals_categories_and_variance_table
     service_data = {"emissions": {"comparison": {"periods": [
         {"period": {"label": "July 2026"}, "data": {"records": [
             {"category": "Stationary Combustion", "emissions_value": 12.0, "emissions_unit": "tCO2e"},
-            {"category": "Mobile Combustion", "emissions_value": 3.0, "emissions_unit": "tCO2e"},
+            {"category": "Mobile Combustion", "emissions_value": 3.0, "emissions_unit": None},
         ]}},
         {"period": {"label": "June 2026"}, "data": {"records": [
             {"category": "Stationary Combustion", "emissions_value": 10.0, "emissions_unit": "tCO2e"},
@@ -103,4 +109,5 @@ async def test_comparison_response_includes_totals_categories_and_variance_table
     assert "| Category | Unit | July 2026 | June 2026 | Variance (July 2026 − June 2026) | Variance % |" in response["answer"]
     assert "| Total | tCO2e | 15 | 15 | 0 | 0.00% |" in response["answer"]
     assert "| Stationary Combustion | tCO2e | 12 | 10 | 2 | 20.00% |" in response["answer"]
+    assert "Unit not stored" not in response["answer"]
     assert response["chart"]["type"] == "bar"

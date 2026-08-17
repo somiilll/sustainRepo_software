@@ -61,6 +61,8 @@ def test_live_scope1_july_vs_june_2026_period_comparison_contract():
     assert "| Variance % |" in answer
     assert "| Total |" in answer
     assert "July 2026" in answer and "June 2026" in answer
+    assert "| Total | tCO2e |" in answer
+    assert "Unit not stored" not in answer
 
     table_rows = [line for line in answer.splitlines() if line.strip().startswith("|")]
     assert len(table_rows) >= 4, "Expected markdown table with header, divider, total row, and category rows"
