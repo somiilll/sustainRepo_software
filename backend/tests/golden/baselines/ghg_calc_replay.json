@@ -1,0 +1,4204 @@
+{
+ "bucket_count": 55,
+ "fixture_count": 89,
+ "fixtures": [
+  {
+   "audit_log_id": "8181179d-0783-4365-ad71-24aaea8f7acf",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.7720366196
+    }
+   },
+   "bucket": "biogenic|C10 - Processing of Sold Products|activity_basis|yearly|standard_fuel|scope3|-",
+   "context": {
+    "category": "C10 - Processing of Sold Products",
+    "reporting_period": "FY 2025-26",
+    "scope": "biogenic"
+   },
+   "emission_record_id": "511601e9-0d12-4b25-937f-44ee13c14d54",
+   "fixture_id": "biogenic_c10_processing_of_sold_products_activity_basis_yearly_standard_fuel_scope3__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "m3",
+     "value": 912.02
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.7720366196
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "18f1ffab-3ab2-4314-a3c2-fb20e97226d5",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.097149
+    }
+   },
+   "bucket": "biogenic|C11 - Use of Sold Products|activity_basis|monthly|standard_fuel|scope3|-",
+   "context": {
+    "category": "C11 - Use of Sold Products",
+    "reporting_period": "2025-07",
+    "scope": "biogenic"
+   },
+   "emission_record_id": "fd0fc632-5e16-414b-b894-7d0ed1fe72b7",
+   "fixture_id": "biogenic_c11_use_of_sold_products_activity_basis_monthly_standard_fuel_scope3__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "m3",
+     "value": 50
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.097149
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "836547ff-95de-41e3-8c6c-075c8c481092",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 13.173404399999999
+    }
+   },
+   "bucket": "biogenic|C8 - Upstream Leased Assets|activity_basis|yearly|standard_fuel|scope3|-",
+   "context": {
+    "category": "C8 - Upstream Leased Assets",
+    "reporting_period": "FY 2025-26",
+    "scope": "biogenic"
+   },
+   "emission_record_id": "ca596c3a-dae4-4abb-a376-792eac44c8f8",
+   "fixture_id": "biogenic_c8_upstream_leased_assets_activity_basis_yearly_standard_fuel_scope3__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "L",
+     "value": 6780
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 13.173404399999999
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "890f006f-028d-406f-8e03-f77ee0fb1050",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 2.25
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 2.25
+    }
+   },
+   "bucket": "biogenic|Mobile Combustion|-|monthly|standard_fuel|scope1|-",
+   "context": {
+    "category": "Mobile Combustion",
+    "fuel_id": "3de308f5-5dad-4404-afa3-60f642ca874d",
+    "fuel_name": "Biogasoline/Biopetrol",
+    "scope": "biogenic"
+   },
+   "emission_record_id": "f30b90fe-6c90-4b3b-9d78-c6c606d9fcbb",
+   "fixture_id": "biogenic_mobile_combustion_monthly_standard_fuel_scope1__0",
+   "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c",
+   "formula_name": "Quantity Based",
+   "formula_version_id": "46b2ca84-a12f-4783-b1cf-d31b8a7db2f8",
+   "inputs": {
+    "ef_quantity": {
+     "unit": "kgCO2/kg",
+     "value": 45
+    },
+    "qty": {
+     "unit": "kg",
+     "value": 50
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 2.25
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 2.25
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "3e13d657-b391-42f1-a9e6-dd96b2944e29",
+   "baseline_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 0.0468
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 174.72
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 177.68712
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 0.00624
+    }
+   },
+   "bucket": "biogenic|Stationary Combustion|-|monthly|standard_fuel|scope1|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "fuel_id": "39da11e4-aeda-47df-b782-8836af0baf5d",
+    "fuel_name": "Wood / Wood Waste",
+    "reporting_period": "2026-01",
+    "scope": "biogenic"
+   },
+   "emission_record_id": "1e5eb50e-2be8-4d5c-9953-0a4e1278c3a9",
+   "fixture_id": "biogenic_stationary_combustion_monthly_standard_fuel_scope1__0",
+   "formula_id": "d5c88230-db1c-4b7d-b357-6fa6c791a938",
+   "formula_name": "Stationary Combustion - Heat Basis - Biogenic",
+   "formula_version_id": "2c73b9b4-15a3-47a8-b713-64c7585fe8c5",
+   "inputs": {
+    "qty": {
+     "unit": "t",
+     "value": 100
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 0.0468
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 174.72
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 177.68712
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 0.00624
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "2ba74c30-3ef7-41d5-81ed-2ab2f6dae9af",
+   "baseline_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 0.007281171
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 171.83563560000002
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 172.4297791536
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 0.0014562342
+    }
+   },
+   "bucket": "biogenic|Stationary Combustion|-|monthly|standard_fuel|scope1|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "fuel_id": "3de308f5-5dad-4404-afa3-60f642ca874d",
+    "fuel_name": "Biogasoline/Biopetrol",
+    "reporting_period": "2025-12",
+    "scope": "biogenic"
+   },
+   "emission_record_id": "914e4f76-1407-4f26-926c-eddda64c8ea0",
+   "fixture_id": "biogenic_stationary_combustion_monthly_standard_fuel_scope1__1",
+   "formula_id": "d5c88230-db1c-4b7d-b357-6fa6c791a938",
+   "formula_name": "Stationary Combustion - Heat Basis - Biogenic",
+   "formula_version_id": "2c73b9b4-15a3-47a8-b713-64c7585fe8c5",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 89891
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 0.007281171
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 171.83563560000002
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 172.4297791536
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 0.0014562342
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "f6436a01-2d0c-4b6b-9563-b83ed3f3a599",
+   "baseline_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 4.05e-06
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.09557999999999998
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.09591047999999998
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 8.099999999999999e-07
+    }
+   },
+   "bucket": "biogenic|Stationary Combustion|-|monthly|standard_fuel|scope1|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "fuel_id": "3de308f5-5dad-4404-afa3-60f642ca874d",
+    "fuel_name": "Biogasoline/Biopetrol",
+    "scope": "biogenic"
+   },
+   "emission_record_id": "933f2e4c-9258-443a-a1a8-001bcdf720e2",
+   "fixture_id": "biogenic_stationary_combustion_monthly_standard_fuel_scope1__2",
+   "formula_id": "d5c88230-db1c-4b7d-b357-6fa6c791a938",
+   "formula_name": "Stationary Combustion - Heat Basis - Biogenic",
+   "formula_version_id": "2c73b9b4-15a3-47a8-b713-64c7585fe8c5",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 50
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 4.05e-06
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.09557999999999998
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.09591047999999998
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 8.099999999999999e-07
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "8b4401a5-f459-4a86-8ed6-cce10412a9af",
+   "baseline_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 0.001472736
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 4.90912
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 5.0024914624
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 0.0001963648
+    }
+   },
+   "bucket": "biogenic|Stationary Combustion|-|yearly|standard_fuel|scope1|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "fuel_id": "536dea93-3013-4862-80a3-daf1e4158b17",
+    "fuel_name": "Other Primary Solid Biomass",
+    "reporting_period": "FY 2025-26",
+    "scope": "biogenic"
+   },
+   "emission_record_id": "f01e314a-2ac8-42fb-bfae-aef60d049b66",
+   "fixture_id": "biogenic_stationary_combustion_yearly_standard_fuel_scope1__0",
+   "formula_id": "d5c88230-db1c-4b7d-b357-6fa6c791a938",
+   "formula_name": "Stationary Combustion - Heat Basis - Biogenic",
+   "formula_version_id": "2c73b9b4-15a3-47a8-b713-64c7585fe8c5",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 4232
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 0.001472736
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 4.90912
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 5.0024914624
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 0.0001963648
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "ca09153e-a8de-4cb7-80c8-2ec5864fcec7",
+   "baseline_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 0.0
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 10.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 10.0
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 0.0
+    }
+   },
+   "bucket": "scope1|Flaring (Stationary Combustion)|-|monthly|custom_fuel|-|-",
+   "context": {
+    "category": "Flaring (Stationary Combustion)",
+    "fuel_id": null,
+    "fuel_name": "Mixed fuels",
+    "is_custom_fuel": true,
+    "reporting_period": "2026-05",
+    "scope": "scope1"
+   },
+   "emission_record_id": "a6651e21-51cb-42f9-af31-47b2af1f9f77",
+   "fixture_id": "scope1_flaring_stationary_combustion_monthly_custom_fuel__0",
+   "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082",
+   "formula_name": "Stationary Combustion - Heat Basis - Scope 1",
+   "formula_version_id": "9cc480b0-275d-49d7-be0d-720e3c1b7498",
+   "inputs": {
+    "cv": {
+     "unit": "TJ/kg",
+     "value": 0.2
+    },
+    "ef_ch4": {
+     "unit": "kgCH4/TJ",
+     "value": 0
+    },
+    "ef_co2": {
+     "unit": "kgCO2/TJ",
+     "value": 100
+    },
+    "ef_n2o": {
+     "unit": "kgN2O/TJ",
+     "value": 0
+    },
+    "qty": {
+     "unit": "kg",
+     "value": 500
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 0.0
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 10.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 10.0
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 0.0
+    }
+   },
+   "user_overrides": {
+    "cv": {
+     "source_name": "User Override",
+     "unit": "TJ/kg",
+     "value": 0.2
+    },
+    "ef_ch4": {
+     "source_name": "User Override",
+     "unit": "kgCH4/TJ",
+     "value": 0
+    },
+    "ef_co2": {
+     "source_name": "User Override",
+     "unit": "kgCO2/TJ",
+     "value": 100
+    },
+    "ef_n2o": {
+     "source_name": "User Override",
+     "unit": "kgN2O/TJ",
+     "value": 0
+    }
+   }
+  },
+  {
+   "audit_log_id": "f2dda3ae-155f-4e94-975c-843a65c49210",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.6013333333333334
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.6013333333333334
+    }
+   },
+   "bucket": "scope1|Flaring (Stationary Combustion)|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Flaring (Stationary Combustion)",
+    "fuel_id": "4d338836-467c-4664-b2a2-e3619de6cf4c",
+    "fuel_name": "Orimulsion",
+    "reporting_period": "2026-07",
+    "scope": "scope1"
+   },
+   "emission_record_id": "a2d83dcf-2f4a-47f4-ad11-03764094f468",
+   "fixture_id": "scope1_flaring_stationary_combustion_monthly_standard_fuel__0",
+   "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b",
+   "formula_name": "Carbon Composition Formulae",
+   "formula_version_id": "5a87dfa7-e342-4c85-9f07-69e5d2a42074",
+   "inputs": {
+    "carbon_content": {
+     "unit": "%",
+     "value": 82
+    },
+    "oxidation_factor": {
+     "unit": "",
+     "value": 1
+    },
+    "qty": {
+     "unit": "kg",
+     "value": 200
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.6013333333333334
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.6013333333333334
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "0f44f1b5-9324-4516-97e1-4013763f0fbc",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 102.51
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 102.51
+    }
+   },
+   "bucket": "scope1|Fugitive Emissions|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Fugitive Emissions",
+    "fuel_id": "dfcec834-e7ab-4084-9349-89196b165f22",
+    "fuel_name": "HFC-134a/R-134a",
+    "reporting_period": "2025-07",
+    "scope": "scope1"
+   },
+   "emission_record_id": "1eea9fb6-773f-43d5-b22f-9257ee018b49",
+   "fixture_id": "scope1_fugitive_emissions_monthly_standard_fuel__1",
+   "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4",
+   "formula_name": "Fugitives - Scope 1",
+   "formula_version_id": "d7a4eba5-b2b6-4dd8-be1e-cc743862236c",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 67
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 102.51
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 102.51
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "2eb5963d-2d1a-4539-bd43-8762f642bda1",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 84.546
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 84.546
+    }
+   },
+   "bucket": "scope1|Fugitive Emissions|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Fugitive Emissions",
+    "fuel_id": "f79d880d-3653-40cc-98d3-d1d9a5e039bd",
+    "fuel_name": "HFC-134",
+    "reporting_period": "2026-04",
+    "scope": "scope1"
+   },
+   "emission_record_id": "bcc8283f-19d9-49d8-bff5-c19af7c04064",
+   "fixture_id": "scope1_fugitive_emissions_monthly_standard_fuel__2",
+   "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4",
+   "formula_name": "Fugitives - Scope 1",
+   "formula_version_id": "d7a4eba5-b2b6-4dd8-be1e-cc743862236c",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 67.1
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 84.546
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 84.546
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "ff816654-ea53-4832-9c9d-744efce62fd0",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.014338350000000001
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.014338350000000001
+    }
+   },
+   "bucket": "scope1|Mobile Combustion|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Mobile Combustion",
+    "fuel_id": "3a29c6f0-12ac-4c84-ba99-e7063c2bef12",
+    "fuel_name": "Diesel",
+    "scope": "scope1"
+   },
+   "emission_record_id": "1b6ca8f5-1db6-450d-aa07-72e67bf77427",
+   "fixture_id": "scope1_mobile_combustion_monthly_standard_fuel__0",
+   "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20",
+   "formula_name": "Mobile Combustion - Scope 1 and Biogenic - Heat Basis",
+   "formula_version_id": "dcc6958b-78d8-4cbd-9d86-de137c606926",
+   "inputs": {
+    "qty": {
+     "unit": "kl",
+     "value": 5
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.014338350000000001
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.014338350000000001
+    }
+   },
+   "user_overrides": {
+    "density": {
+     "source_name": "User Override",
+     "unit": "kg/m3",
+     "value": 0.9
+    }
+   }
+  },
+  {
+   "audit_log_id": "1efe15c9-f487-4dc1-961f-d62e3fad1f4f",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 6.822860370764169
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 6.822860370764169
+    }
+   },
+   "bucket": "scope1|Mobile Combustion|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Mobile Combustion",
+    "fuel_id": "9e6aa71c-562b-4d3e-9e32-16231a875b11",
+    "fuel_name": "Aviation Gasoline",
+    "reporting_period": "2026-05",
+    "scope": "scope1"
+   },
+   "emission_record_id": "2b6859b4-55ae-42f7-b736-616fddf4ee8a",
+   "fixture_id": "scope1_mobile_combustion_monthly_standard_fuel__1",
+   "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20",
+   "formula_name": "Mobile Combustion - Scope 1 and Biogenic - Heat Basis",
+   "formula_version_id": "dcc6958b-78d8-4cbd-9d86-de137c606926",
+   "inputs": {
+    "qty": {
+     "unit": "L",
+     "value": 3123.267
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 6.822860370764169
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 6.822860370764169
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "f98ebf20-a07d-46a9-8ee4-a80463740313",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 1.3464
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.3464
+    }
+   },
+   "bucket": "scope1|Mobile Combustion|-|yearly|standard_fuel|-|-",
+   "context": {
+    "category": "Mobile Combustion",
+    "fuel_id": "5f9d7c39-6582-4470-9364-bbce9c4fdb9e",
+    "fuel_name": "Natural Gas",
+    "reporting_period": "FY 2024-25",
+    "scope": "scope1"
+   },
+   "emission_record_id": "115a31ea-c40a-4e77-8336-2da0fd711510",
+   "fixture_id": "scope1_mobile_combustion_yearly_standard_fuel__0",
+   "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20",
+   "formula_name": "Mobile Combustion - Scope 1 and Biogenic - Heat Basis",
+   "formula_version_id": "dcc6958b-78d8-4cbd-9d86-de137c606926",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 500
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 1.3464
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.3464
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "063397b4-4eaa-422a-a870-fe0cb0385685",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 356.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 356.0
+    }
+   },
+   "bucket": "scope1|Process Emissions|-|monthly|standard_fuel|-|ch4_overall_combustion",
+   "context": {
+    "category": "Process Emissions",
+    "reporting_period": "2026-07",
+    "scope": "scope1"
+   },
+   "emission_record_id": "3da96ca5-9338-4149-8f52-1207883ffc43",
+   "fixture_id": "scope1_process_emissions_monthly_standard_fuel_ch4_overall_combustion__0",
+   "formula_id": "779782fb-3d57-4a48-a704-cf125d838206",
+   "formula_name": "Process Emissions - CH4",
+   "formula_version_id": "f3916ee8-fe9c-4ae5-9db6-4083d59ce51f",
+   "inputs": {
+    "Stationary_Combustion": {
+     "unit": "tCO2e",
+     "value": 78
+    },
+    "mobile_combustion": {
+     "unit": "tCO2e",
+     "value": 100
+    },
+    "perc_ch4": {
+     "unit": "",
+     "value": 2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 356.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 356.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "0b2091b5-93a2-4252-9b6b-6102a327ba93",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.013200000000000002
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.013200000000000002
+    }
+   },
+   "bucket": "scope1|Process Emissions|-|monthly|standard_fuel|-|venting",
+   "context": {
+    "category": "Process Emissions",
+    "reporting_period": "2026-05",
+    "scope": "scope1"
+   },
+   "emission_record_id": "98cce6e7-67cd-46d8-863d-ad2230379c0f",
+   "fixture_id": "scope1_process_emissions_monthly_standard_fuel_venting__0",
+   "formula_id": "ec751e3e-8d41-41d4-8806-b123eb314af3",
+   "formula_name": "Process Emissions - Carbon Composition",
+   "formula_version_id": "dbdd6f28-708a-4873-8412-983b4c1d8744",
+   "inputs": {
+    "carbon_content": {
+     "unit": "%",
+     "value": 2
+    },
+    "oxidation_factor": {
+     "unit": "",
+     "value": 0.9
+    },
+    "qty": {
+     "unit": "kg",
+     "value": 200
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.013200000000000002
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.013200000000000002
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "f8feface-c0d2-4919-81a3-346f47c92687",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.11733333333333333
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.11733333333333333
+    }
+   },
+   "bucket": "scope1|Stationary Combustion|-|monthly|custom_fuel|-|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "reporting_period": "2026-07",
+    "scope": "scope1"
+   },
+   "emission_record_id": "6669ef50-1fd7-4c19-b789-dd08fb446835",
+   "fixture_id": "scope1_stationary_combustion_monthly_custom_fuel__0",
+   "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b",
+   "formula_name": "Carbon Composition Formulae",
+   "formula_version_id": "5a87dfa7-e342-4c85-9f07-69e5d2a42074",
+   "inputs": {
+    "carbon_content": {
+     "unit": "%",
+     "value": 2
+    },
+    "oxidation_factor": {
+     "unit": "",
+     "value": 0.8
+    },
+    "qty": {
+     "unit": "kg",
+     "value": 2000
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.11733333333333333
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.11733333333333333
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "a1bdf9d2-3d25-427d-a1f3-7f731d61c5c1",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.16
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.16
+    }
+   },
+   "bucket": "scope1|Stationary Combustion|-|monthly|custom_fuel|-|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "fuel_id": null,
+    "fuel_name": "Mixed fuelss",
+    "is_custom_fuel": true,
+    "reporting_period": "2026-07",
+    "scope": "scope1"
+   },
+   "emission_record_id": "dc554413-e7e2-44be-84b0-aceac013380b",
+   "fixture_id": "scope1_stationary_combustion_monthly_custom_fuel__1",
+   "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c",
+   "formula_name": "Quantity Based",
+   "formula_version_id": "46b2ca84-a12f-4783-b1cf-d31b8a7db2f8",
+   "inputs": {
+    "ef_quantity": {
+     "unit": "kgCO2/kg",
+     "value": 0.4
+    },
+    "qty": {
+     "unit": "kg",
+     "value": 400
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.16
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.16
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "8a4a3055-249a-4c16-842e-d818ef5396b2",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.4003
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.4003
+    }
+   },
+   "bucket": "scope1|Stationary Combustion|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "fuel_id": "e28f4ffd-7d2c-4260-988c-c7063c935eac",
+    "fuel_name": "Crude Oil",
+    "is_custom_fuel": false,
+    "reporting_period": "2026-07",
+    "scope": "scope1"
+   },
+   "emission_record_id": "02207b4b-4cb4-4fc7-9401-ad386506a4ce",
+   "fixture_id": "scope1_stationary_combustion_monthly_standard_fuel__1",
+   "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c",
+   "formula_name": "Quantity Based",
+   "formula_version_id": "46b2ca84-a12f-4783-b1cf-d31b8a7db2f8",
+   "inputs": {
+    "ef_quantity": {
+     "unit": "kgCO2/L",
+     "value": 0.1
+    },
+    "qty": {
+     "unit": "L",
+     "value": 4003
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.4003
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.4003
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "4b77e653-e3d2-4777-a0d7-cdca6449d8c1",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.5383696501913033
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.5383696501913033
+    }
+   },
+   "bucket": "scope1|Stationary Combustion|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "fuel_id": "8323e54e-91bc-450b-a017-d94f96da3045",
+    "fuel_name": "Crude Oil",
+    "is_custom_fuel": false,
+    "reporting_period": "2026-07",
+    "scope": "scope1"
+   },
+   "emission_record_id": "0b08cf99-f93c-43be-892c-40cdb8d1871c",
+   "fixture_id": "scope1_stationary_combustion_monthly_standard_fuel__2",
+   "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b",
+   "formula_name": "Carbon Composition Formulae",
+   "formula_version_id": "5a87dfa7-e342-4c85-9f07-69e5d2a42074",
+   "inputs": {
+    "carbon_content": {
+     "unit": "%",
+     "value": 82
+    },
+    "oxidation_factor": {
+     "unit": "",
+     "value": 1
+    },
+    "qty": {
+     "unit": "L",
+     "value": 205
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.5383696501913033
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.5383696501913033
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "8683fe1c-860b-4675-9fc9-1998cc7596e2",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.0816801613878744
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.0816801613878744
+    }
+   },
+   "bucket": "scope1|Stationary Combustion|-|yearly|standard_fuel|-|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "fuel_id": "dc5a0bb3-7b4d-4021-a17a-cd2496ae93ed",
+    "fuel_name": "Jet Kerosene",
+    "reporting_period": "FY 2025-2026",
+    "scope": "scope1"
+   },
+   "emission_record_id": "84c948f5-f8f3-4ffd-acea-5fd1ae0e9759",
+   "fixture_id": "scope1_stationary_combustion_yearly_standard_fuel__0",
+   "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c",
+   "formula_name": "Quantity Based",
+   "formula_version_id": "46b2ca84-a12f-4783-b1cf-d31b8a7db2f8",
+   "inputs": {
+    "ef_quantity": {
+     "unit": "kgCO2/kg",
+     "value": 0.321
+    },
+    "qty": {
+     "unit": "L",
+     "value": 312
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.0816801613878744
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.0816801613878744
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "f63211da-c3aa-44c6-bf0a-014c079c9928",
+   "baseline_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 3.675771452995201e-05
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.9079155488898145
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.9110178999961425
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 7.351542905990401e-06
+    }
+   },
+   "bucket": "scope1|Stationary Combustion|-|yearly|standard_fuel|-|-",
+   "context": {
+    "category": "Stationary Combustion",
+    "fuel_id": "418089e1-29c2-42d8-b844-25d39d9ff854",
+    "fuel_name": "Diesel",
+    "reporting_period": "FY 2025-26",
+    "scope": "scope1"
+   },
+   "emission_record_id": "b7a89553-aea5-4d2d-9029-875a51b835e4",
+   "fixture_id": "scope1_stationary_combustion_yearly_standard_fuel__1",
+   "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082",
+   "formula_name": "Stationary Combustion - Heat Basis - Scope 1",
+   "formula_version_id": "9cc480b0-275d-49d7-be0d-720e3c1b7498",
+   "inputs": {
+    "qty": {
+     "unit": "L",
+     "value": 312
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "ch4": {
+     "unit": "tCH4",
+     "value": 3.675771452995201e-05
+    },
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.9079155488898145
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.9110178999961425
+    },
+    "n2o": {
+     "unit": "tN2O",
+     "value": 7.351542905990401e-06
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "d68b237e-c18e-490d-a1ca-9c7baa0511aa",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 22.862000000000002
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 22.862000000000002
+    }
+   },
+   "bucket": "scope2|Purchased Electricity|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Purchased Electricity",
+    "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+    "fuel_name": "Non-Renewable Electricity",
+    "reporting_period": "2026-06",
+    "scope": "scope2"
+   },
+   "emission_record_id": "0793a479-7baf-4717-80fb-b4a3d0fc271b",
+   "fixture_id": "scope2_purchased_electricity_monthly_standard_fuel__0",
+   "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+   "formula_name": "Electricity - Scope 2",
+   "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+   "inputs": {
+    "qty_energy": {
+     "unit": "MWh",
+     "value": 32.2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 22.862000000000002
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 22.862000000000002
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "2277e367-5892-41ef-9cc0-007c98c2a5be",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 21.299999999999997
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 21.299999999999997
+    }
+   },
+   "bucket": "scope2|Purchased Electricity|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Purchased Electricity",
+    "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+    "fuel_name": "Non-Renewable Electricity",
+    "reporting_period": "2025-08",
+    "scope": "scope2"
+   },
+   "emission_record_id": "326d1451-a372-4e2e-aaa7-c43cc391af40",
+   "fixture_id": "scope2_purchased_electricity_monthly_standard_fuel__2",
+   "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+   "formula_name": "Electricity - Scope 2",
+   "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+   "inputs": {
+    "qty_energy": {
+     "unit": "MWh",
+     "value": 30
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 21.299999999999997
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 21.299999999999997
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "841708ce-85c4-4173-b6ac-bdf453fb6f85",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 156.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 156.0
+    }
+   },
+   "bucket": "scope2|Purchased Electricity|-|yearly|standard_fuel|-|-",
+   "context": {
+    "category": "Purchased Electricity",
+    "fuel_id": "e15b5a60-5946-4e9c-a799-b9b40ba69563",
+    "fuel_name": "Renewable Electricity",
+    "reporting_period": "FY 2025-26",
+    "scope": "scope2"
+   },
+   "emission_record_id": "2e681b2c-ff15-4c1e-866b-b0c2464e8fe1",
+   "fixture_id": "scope2_purchased_electricity_yearly_standard_fuel__0",
+   "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+   "formula_name": "Electricity - Scope 2",
+   "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+   "inputs": {
+    "qty_energy": {
+     "unit": "kWh",
+     "value": 312
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 156.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 156.0
+    }
+   },
+   "user_overrides": {
+    "ef_quantity_electricity_co2": {
+     "source_name": "User Override",
+     "unit": "tCO2/KWh",
+     "value": 0.5
+    }
+   }
+  },
+  {
+   "audit_log_id": "3fa8ff07-9b8d-4616-95ba-cb00f479af04",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 250.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 250.0
+    }
+   },
+   "bucket": "scope2|Purchased Electricity|-|yearly|standard_fuel|-|-",
+   "context": {
+    "category": "Purchased Electricity",
+    "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+    "fuel_name": "Non-Renewable Electricity",
+    "scope": "scope2"
+   },
+   "emission_record_id": "702fe376-689b-4892-b97c-4755990a7b00",
+   "fixture_id": "scope2_purchased_electricity_yearly_standard_fuel__1",
+   "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+   "formula_name": "Electricity - Scope 2",
+   "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+   "inputs": {
+    "qty_energy": {
+     "unit": "MWh",
+     "value": 50
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 250.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 250.0
+    }
+   },
+   "user_overrides": {
+    "ef_quantity_electricity_co2": {
+     "source_name": "User Override",
+     "unit": "tCO2/MWh",
+     "value": 5
+    }
+   }
+  },
+  {
+   "audit_log_id": "394307c9-44c0-484d-8760-a49444bd0de1",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 20.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 20.0
+    }
+   },
+   "bucket": "scope2|Purchased Electricity|-|yearly|standard_fuel|-|-",
+   "context": {
+    "category": "Purchased Electricity",
+    "fuel_id": "e15b5a60-5946-4e9c-a799-b9b40ba69563",
+    "fuel_name": "Renewable Electricity",
+    "reporting_period": "FY 2025-26",
+    "scope": "scope2"
+   },
+   "emission_record_id": "d674a611-af6f-4f2e-8e74-6465f7edcf00",
+   "fixture_id": "scope2_purchased_electricity_yearly_standard_fuel__2",
+   "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+   "formula_name": "Electricity - Scope 2",
+   "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+   "inputs": {
+    "qty_energy": {
+     "unit": "kWh",
+     "value": 200
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 20.0
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 20.0
+    }
+   },
+   "user_overrides": {
+    "ef_quantity_electricity_co2": {
+     "source_name": "User Override",
+     "unit": "tCO2/KWh",
+     "value": 0.1
+    }
+   }
+  },
+  {
+   "audit_log_id": "692a2228-8b7f-4773-8545-57782a1fb941",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 73.79709
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 73.79709
+    }
+   },
+   "bucket": "scope2|Purchased Steam/Heat|-|monthly|standard_fuel|-|-",
+   "context": {
+    "category": "Purchased Steam/Heat",
+    "fuel_id": "660b1975-325f-49b7-9b50-67b143f8d8fc",
+    "fuel_name": "Purchased Heat/Steam",
+    "reporting_period": "2025-06",
+    "scope": "scope2"
+   },
+   "emission_record_id": "dddc7027-7615-4faa-9890-9ef45e85e3b6",
+   "fixture_id": "scope2_purchased_steam_heat_monthly_standard_fuel__0",
+   "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+   "formula_name": "Electricity - Scope 2",
+   "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+   "inputs": {
+    "qty_energy": {
+     "unit": "MWh",
+     "value": 421
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 73.79709
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 73.79709
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "9ded4b53-ccc2-4f74-99cd-eeea08b7a16d",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 2.3055927510000003
+    }
+   },
+   "bucket": "scope3|C1 - Purchased Goods and Services|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Recycled LDPE and LLDPE (incl. forming)",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C1 - Purchased Goods and Services",
+    "fuel_name": "Recycled LDPE and LLDPE (incl. forming)",
+    "reporting_period": "2022-03",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "t",
+    "scope3_ef_id": "115a3799-2758-4855-9475-4280ade00205"
+   },
+   "emission_record_id": "fa17f9d5-3a7f-4022-9bf6-7cad147c3528",
+   "fixture_id": "scope3_c1_purchased_goods_and_services_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "kg",
+     "value": 2100
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 2.3055927510000003
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "0a3034dc-5b81-479e-8cca-92cb5001a45b",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 137.69221317600002
+    }
+   },
+   "bucket": "scope3|C1 - Purchased Goods and Services|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Food and drink",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C1 - Purchased Goods and Services",
+    "fuel_name": "Food and drink",
+    "reporting_period": "FY 2025-26",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "t",
+    "scope3_ef_id": "0c678b36-2dfd-4f2f-a783-d8baa2798a2f"
+   },
+   "emission_record_id": "4bdb4437-69ac-447d-ab2d-48b8ed5f691a",
+   "fixture_id": "scope3_c1_purchased_goods_and_services_activity_basis_yearly_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "t",
+     "value": 37.2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 137.69221317600002
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "9413d811-b64f-45f3-a450-98c902785260",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 59.15302200000001
+    }
+   },
+   "bucket": "scope3|C1 - Purchased Goods and Services|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Mineral oil",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C1 - Purchased Goods and Services",
+    "fuel_name": "Mineral oil",
+    "reporting_period": "FY 2022-2023",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "t",
+    "scope3_ef_id": "b7772453-5c79-4dc9-8580-0f6741f863e5"
+   },
+   "emission_record_id": "cd39f6d9-c4dc-461d-b48d-be959141896d",
+   "fixture_id": "scope3_c1_purchased_goods_and_services_activity_basis_yearly_standard_fuel__1",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "kg",
+     "value": 42222
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 59.15302200000001
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "2e574641-20b8-4aa8-b506-402ce517a965",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.7719805820323307
+    }
+   },
+   "bucket": "scope3|C1 - Purchased Goods and Services|spend_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Wireless Telecommunications Carriers (except Satellite)",
+    "activity_type": null,
+    "calculation_method_scope3": "spend_basis",
+    "category": "C1 - Purchased Goods and Services",
+    "fuel_name": "Wireless Telecommunications Carriers (except Satellite)",
+    "reporting_period": "2025-04",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "INR",
+    "scope3_ef_id": "2eaa8290-455e-4721-958a-49e7fade25c9"
+   },
+   "emission_record_id": "65e1b323-590c-4d54-8043-ef01d909d48a",
+   "fixture_id": "scope3_c1_purchased_goods_and_services_spend_basis_monthly_standard_fuel__0",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 412221
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.7719805820323307
+    }
+   },
+   "user_overrides": {
+    "inflation_rate": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 1.1123
+    },
+    "ppp": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 20.078
+    }
+   }
+  },
+  {
+   "audit_log_id": "d9e2a2a3-8865-44f3-aae1-b4cbd4d15090",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.401041783199369
+    }
+   },
+   "bucket": "scope3|C1 - Purchased Goods and Services|spend_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Rice Farming",
+    "activity_type": null,
+    "calculation_method_scope3": "spend_basis",
+    "category": "C1 - Purchased Goods and Services",
+    "fuel_name": "Rice Farming",
+    "reporting_period": "2025-06",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "INR",
+    "scope3_ef_id": "ca0e9d18-e0af-4d66-8ce8-49fe2eb31220"
+   },
+   "emission_record_id": "b52a8904-3e6d-4108-85cf-dd0e112f4e5d",
+   "fixture_id": "scope3_c1_purchased_goods_and_services_spend_basis_monthly_standard_fuel__1",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 43124
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.401041783199369
+    }
+   },
+   "user_overrides": {
+    "inflation_rate": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 1.3
+    },
+    "ppp": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 20.078
+    }
+   }
+  },
+  {
+   "audit_log_id": "442ffb31-f157-44b4-8fc1-d4f249f0cb38",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.2128
+    }
+   },
+   "bucket": "scope3|C1 - Purchased Goods and Services|spend_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Oilseed (except Soybean) Farming",
+    "calculation_method_scope3": "spend_basis",
+    "category": "C1 - Purchased Goods and Services",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "INR",
+    "scope3_ef_id": "55770fb7-12da-444d-81da-8fbf40b9bec3"
+   },
+   "emission_record_id": "b8a3bbea-34aa-4705-a357-cc4689d46243",
+   "fixture_id": "scope3_c1_purchased_goods_and_services_spend_basis_monthly_standard_fuel__2",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 10000
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.2128
+    }
+   },
+   "user_overrides": {
+    "inflation_rate": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 1
+    },
+    "ppp": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 25
+    }
+   }
+  },
+  {
+   "audit_log_id": "e1bcd6d0-a447-42c2-b745-e87dd2451fbd",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 100.0
+    }
+   },
+   "bucket": "scope3|C1 - Purchased Goods and Services|supplier_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Compost derived from garden waste",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C1 - Purchased Goods and Services",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "t",
+    "scope3_ef_id": "a44bdd92-36c8-4d76-8605-e5b91d1ea3d8"
+   },
+   "emission_record_id": "3fb99549-657f-41e0-8ee6-0c1b236d4bda",
+   "fixture_id": "scope3_c1_purchased_goods_and_services_supplier_basis_yearly_standard_fuel__0",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "som",
+     "value": 50
+    },
+    "emission_factor_supplier_based": {
+     "unit": "ibijnmol;'",
+     "value": 2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 100.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "eb96df95-6363-44c6-8daa-63c995e94024",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.078
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.078
+    }
+   },
+   "bucket": "scope3|C10 - Processing of Sold Products|activity_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "HFO-1132a a",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C10 - Processing of Sold Products",
+    "fuel_name": "HFO-1132a a",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "kg",
+    "scope3_ef_id": "87739e8e-9f5b-465e-a791-872b9420f10c"
+   },
+   "emission_record_id": "45937ef0-6777-488b-9a04-1a728ff7292d",
+   "fixture_id": "scope3_c10_processing_of_sold_products_activity_basis_unspecified_standard_fuel__0",
+   "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4",
+   "formula_name": "Fugitives - Scope 1",
+   "formula_version_id": "d7a4eba5-b2b6-4dd8-be1e-cc743862236c",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 1500
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.078
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.078
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "7d5df6cd-c85c-49e9-bed6-9f88e8614456",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.052
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.052
+    }
+   },
+   "bucket": "scope3|C10 - Processing of Sold Products|activity_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "HFO-1132a a",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C10 - Processing of Sold Products",
+    "fuel_name": "HFO-1132a a",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "kg",
+    "scope3_ef_id": "87739e8e-9f5b-465e-a791-872b9420f10c"
+   },
+   "emission_record_id": "aadc65ec-b864-4b4c-afd5-8c20ab5adf37",
+   "fixture_id": "scope3_c10_processing_of_sold_products_activity_basis_unspecified_standard_fuel__1",
+   "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4",
+   "formula_name": "Fugitives - Scope 1",
+   "formula_version_id": "d7a4eba5-b2b6-4dd8-be1e-cc743862236c",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 1000
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 0.052
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.052
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "18f1e0cc-c56c-4e6e-b3e1-053760f707f4",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 4.1995536
+    }
+   },
+   "bucket": "scope3|C11 - Use of Sold Products|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "LNG",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C11 - Use of Sold Products",
+    "fuel_name": "LNG",
+    "reporting_period": "2025-06",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "L",
+    "scope3_ef_id": "7e176651-a4d8-4a80-af87-48ad0e3b6c4b"
+   },
+   "emission_record_id": "0aaf4666-253c-4557-a9c6-40d9f2e8fff8",
+   "fixture_id": "scope3_c11_use_of_sold_products_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c",
+   "formula_name": "Continuous energy/fuel consumption during product lifetime",
+   "formula_version_id": "fe93c5e6-fbdc-4e7b-9be0-b514f31242fd",
+   "inputs": {
+    "fuel_consumed_per_usage": {
+     "unit": "kl/min",
+     "value": 0.11
+    },
+    "products_expected_usage": {
+     "unit": "min",
+     "value": 8
+    },
+    "units_produced": {
+     "unit": "",
+     "value": 3
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 4.1995536
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "b1503313-b513-466c-ba77-4afc9641b216",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 8.76
+    }
+   },
+   "bucket": "scope3|C11 - Use of Sold Products|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "HFC-23/R-23",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C11 - Use of Sold Products",
+    "co2_gwp_fugitives": 14600.0,
+    "emission_factor": 14600.0,
+    "fuel_db_source_name": "IPCC AR6 2021",
+    "fuel_name": "HFC-23/R-23",
+    "gwp_fugitives": 14600.0,
+    "reporting_period": "2025-05",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "kg",
+    "scope3_ef_id": "d72a431f-d58a-48ce-926f-a02c16ed0987",
+    "source": "fuel_database"
+   },
+   "emission_record_id": "0e629228-3682-4179-b780-20ee36456608",
+   "fixture_id": "scope3_c11_use_of_sold_products_activity_basis_monthly_standard_fuel__1",
+   "formula_id": "c37889ec-b877-41f7-b719-3405e5f39dc9",
+   "formula_name": "Fugitives- Continuous Usage",
+   "formula_version_id": "4f41383f-7de6-47a8-b634-0932fbf60920",
+   "inputs": {
+    "gas_consumed_per_usage": {
+     "unit": "g/year",
+     "value": 3
+    },
+    "products_expected_usage": {
+     "unit": "year",
+     "value": 10
+    },
+    "units_produced": {
+     "unit": "",
+     "value": 20
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 8.76
+    }
+   },
+   "user_overrides": {
+    "co2_gwp_fugitives": {
+     "source_name": "User Override",
+     "unit": "kgCO2e/kg",
+     "value": 14600.0
+    }
+   }
+  },
+  {
+   "audit_log_id": "8df5dba8-d26c-4168-ad2d-338bbb6f3a98",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 22.668114239999998
+    }
+   },
+   "bucket": "scope3|C11 - Use of Sold Products|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Natural gas",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C11 - Use of Sold Products",
+    "fuel_name": "Natural gas",
+    "reporting_period": "2026-04",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "m3",
+    "scope3_ef_id": "35704c12-99b7-48af-9458-faf66f25ab95"
+   },
+   "emission_record_id": "26a07920-1987-45c1-a081-f3290c55332a",
+   "fixture_id": "scope3_c11_use_of_sold_products_activity_basis_monthly_standard_fuel__2",
+   "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c",
+   "formula_name": "Continuous energy/fuel consumption during product lifetime",
+   "formula_version_id": "fe93c5e6-fbdc-4e7b-9be0-b514f31242fd",
+   "inputs": {
+    "fuel_consumed_per_usage": {
+     "unit": "kl/years",
+     "value": 131
+    },
+    "products_expected_usage": {
+     "unit": "years",
+     "value": 8
+    },
+    "units_produced": {
+     "unit": "",
+     "value": 9
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 22.668114239999998
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "55448077-a75f-4e51-9a81-0efe29f559ff",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 5.1411738399999996
+    }
+   },
+   "bucket": "scope3|C12 - End-of-Life Treatment of Sold Products|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Mixed Plastics - Recycled",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C12 - End-of-Life Treatment of Sold Products",
+    "fuel_name": "Mixed Plastics - Recycled",
+    "reporting_period": "2025-04",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "t",
+    "scope3_ef_id": "8eee2ef3-2158-4b24-a26c-fd10ba1b94e4"
+   },
+   "emission_record_id": "ff3c10c7-7d16-4167-9cea-a3c61d039ffa",
+   "fixture_id": "scope3_c12_end_of_life_treatment_of_sold_products_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "47cdb8ef-4e5c-476f-b223-32a838403960",
+   "formula_name": "Activity based - tco2e ef",
+   "formula_version_id": "cd06dcc0-7897-4d92-a83b-1b360db1725b",
+   "inputs": {
+    "activity_value": {
+     "unit": "t",
+     "value": 21.2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 5.1411738399999996
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "0d700212-c59b-424a-9420-fec5374d5873",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 4.7736
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 4.7736
+    }
+   },
+   "bucket": "scope3|C13 - Downstream Leased Assets|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "HFC-134a/R-134a",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C13 - Downstream Leased Assets",
+    "co2_gwp_fugitives": 1530.0,
+    "emission_factor": 1530.0,
+    "fuel_db_source_name": "IPCC AR6 2021",
+    "fuel_name": "HFC-134a/R-134a",
+    "gwp_fugitives": 1530.0,
+    "reporting_period": "2025-04",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "kg",
+    "scope3_ef_id": "dfcec834-e7ab-4084-9349-89196b165f22",
+    "source": "fuel_database"
+   },
+   "emission_record_id": "9fea95b1-4934-4535-8aef-c223b3502c3a",
+   "fixture_id": "scope3_c13_downstream_leased_assets_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4",
+   "formula_name": "Fugitives - Scope 1",
+   "formula_version_id": "d7a4eba5-b2b6-4dd8-be1e-cc743862236c",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 3.12
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 4.7736
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 4.7736
+    }
+   },
+   "user_overrides": {
+    "co2_gwp_fugitives": {
+     "source_name": "User Override",
+     "unit": "kgCO2e/kg",
+     "value": 1530.0
+    }
+   }
+  },
+  {
+   "audit_log_id": "fc65fa71-afb7-4164-9a4d-7f352acd2dc0",
+   "baseline_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 15.1317
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 15.1317
+    }
+   },
+   "bucket": "scope3|C13 - Downstream Leased Assets|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "HFC-134a/R-134a",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C13 - Downstream Leased Assets",
+    "co2_gwp_fugitives": 1530.0,
+    "emission_factor": 1530.0,
+    "fuel_db_source_name": "IPCC AR6 2021",
+    "fuel_name": "HFC-134a/R-134a",
+    "gwp_fugitives": 1530.0,
+    "reporting_period": "2022-11",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "kg",
+    "scope3_ef_id": "dfcec834-e7ab-4084-9349-89196b165f22",
+    "source": "fuel_database"
+   },
+   "emission_record_id": "d4a52089-43e4-4a5a-a1fa-64b69ed5f708",
+   "fixture_id": "scope3_c13_downstream_leased_assets_activity_basis_monthly_standard_fuel__1",
+   "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4",
+   "formula_name": "Fugitives - Scope 1",
+   "formula_version_id": "d7a4eba5-b2b6-4dd8-be1e-cc743862236c",
+   "inputs": {
+    "qty": {
+     "unit": "kg",
+     "value": 9.89
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2": {
+     "unit": "tCO2",
+     "value": 15.1317
+    },
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 15.1317
+    }
+   },
+   "user_overrides": {
+    "co2_gwp_fugitives": {
+     "source_name": "User Override",
+     "unit": "kgCO2e/kg",
+     "value": 1530.0
+    }
+   }
+  },
+  {
+   "audit_log_id": "7875a2b7-9678-4580-be86-8f7304a2e773",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.12934104252
+    }
+   },
+   "bucket": "scope3|C14 - Franchises|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Natural gas (100% mineral blend)",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C14 - Franchises",
+    "fuel_name": "Natural gas (100% mineral blend)",
+    "reporting_period": "FY 2025-26",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "m3",
+    "scope3_ef_id": "2c5fce82-46ef-44ca-83d8-1b17953942de"
+   },
+   "emission_record_id": "dc05452c-5cef-46db-a9d9-49b7b5c90e27",
+   "fixture_id": "scope3_c14_franchises_activity_basis_yearly_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "L",
+     "value": 53322
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.12934104252
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "b665eba2-1991-4cb4-8060-1a9c308bd999",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 30.0
+    }
+   },
+   "bucket": "scope3|C15 - Investments|supplier_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "oina fkqo[",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C15 - Investments",
+    "reporting_period": "2026-02",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": ""
+   },
+   "emission_record_id": "45ad91f9-113f-46a8-a5bd-f98930cc75eb",
+   "fixture_id": "scope3_c15_investments_supplier_basis_monthly_standard_fuel__0",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "uihn io",
+     "value": 60
+    },
+    "emission_factor_supplier_based": {
+     "unit": "ino ",
+     "value": 0.5
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 30.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "903a8a39-292e-4155-a879-7cda882bd062",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 15.0
+    }
+   },
+   "bucket": "scope3|C15 - Investments|supplier_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "oina fkqo[",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C15 - Investments",
+    "reporting_period": "2026-05",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": ""
+   },
+   "emission_record_id": "72779370-c649-4893-a3bc-010da02505b0",
+   "fixture_id": "scope3_c15_investments_supplier_basis_monthly_standard_fuel__1",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "ybo j",
+     "value": 750
+    },
+    "emission_factor_supplier_based": {
+     "unit": "iuhn oui",
+     "value": 0.02
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 15.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "8db7d710-48b1-44eb-89ff-a16862c65af5",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 104.93818804
+    }
+   },
+   "bucket": "scope3|C2 - Capital Goods|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Bricks",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C2 - Capital Goods",
+    "fuel_name": "Bricks",
+    "reporting_period": "2025-04",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "t",
+    "scope3_ef_id": "b3e1bcd5-f73a-46cc-a1b5-568f0df46b5c"
+   },
+   "emission_record_id": "92b0d209-fad0-4dce-94eb-587510616236",
+   "fixture_id": "scope3_c2_capital_goods_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "t",
+     "value": 434
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 104.93818804
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "761a58c3-1d65-4d9d-b8a0-54ab4ec2cae4",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 18.90361272
+    }
+   },
+   "bucket": "scope3|C2 - Capital Goods|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Recycled plastics",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C2 - Capital Goods",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "t",
+    "scope3_ef_id": "cf6c8f38-ac60-4b82-ab23-ed2de6158ad3"
+   },
+   "emission_record_id": "6ec0992e-abdb-4757-ba76-ae78191b2b34",
+   "fixture_id": "scope3_c2_capital_goods_activity_basis_yearly_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "t",
+     "value": 12
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 18.90361272
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "5325a4d5-578d-4bd5-a9bf-ac81fa3d2b9d",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.361503191585004
+    }
+   },
+   "bucket": "scope3|C2 - Capital Goods|spend_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Potato Farming",
+    "calculation_method_scope3": "spend_basis",
+    "category": "C2 - Capital Goods",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "INR",
+    "scope3_ef_id": "928588e8-2e46-48b2-b0bf-caf14e547f26"
+   },
+   "emission_record_id": "5939b346-3008-4a3a-9183-6ebcff53b78b",
+   "fixture_id": "scope3_c2_capital_goods_spend_basis_monthly_standard_fuel__0",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 60000
+    }
+   },
+   "matches_stored": false,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.3583768365534687
+    }
+   },
+   "user_overrides": {
+    "ppp": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 25
+    }
+   }
+  },
+  {
+   "audit_log_id": "5d576600-2c92-49e5-8658-5002120e1f47",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 10.840022091310749
+    }
+   },
+   "bucket": "scope3|C2 - Capital Goods|spend_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Dry Pea and Bean Farming",
+    "activity_type": null,
+    "calculation_method_scope3": "spend_basis",
+    "category": "C2 - Capital Goods",
+    "fuel_name": "Dry Pea and Bean Farming",
+    "reporting_period": "2024-06",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "INR",
+    "scope3_ef_id": "68200cef-0166-421b-b0b7-310ef4a2dd5c"
+   },
+   "emission_record_id": "9de41cf2-d39a-4210-ac88-d793cd8fbcce",
+   "fixture_id": "scope3_c2_capital_goods_spend_basis_monthly_standard_fuel__1",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 333300
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 10.840022091310749
+    }
+   },
+   "user_overrides": {
+    "inflation_rate": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 1.0864
+    },
+    "ppp": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 24
+    }
+   }
+  },
+  {
+   "audit_log_id": "6071e4be-9722-48ac-b8f8-caeca6034611",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 283.77551356759864
+    }
+   },
+   "bucket": "scope3|C2 - Capital Goods|spend_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Wheat Farming",
+    "activity_type": null,
+    "calculation_method_scope3": "spend_basis",
+    "category": "C2 - Capital Goods",
+    "fuel_name": "Wheat Farming",
+    "reporting_period": "FY 2025-26",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "INR",
+    "scope3_ef_id": "d93a8ac9-b525-48bc-b644-6b411154d5cf"
+   },
+   "emission_record_id": "de2d1255-43d1-4b39-96ae-4803b68a7f0a",
+   "fixture_id": "scope3_c2_capital_goods_spend_basis_yearly_standard_fuel__0",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 7819210
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 283.77551356759864
+    }
+   },
+   "user_overrides": {
+    "inflation_rate": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 1.1486
+    },
+    "ppp": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 20.343
+    }
+   }
+  },
+  {
+   "audit_log_id": "280bd9c4-0f5a-44c2-af02-72d4c866e48f",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 100.0
+    }
+   },
+   "bucket": "scope3|C2 - Capital Goods|supplier_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "Paint and Coating Manufacturing",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C2 - Capital Goods",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "INR",
+    "scope3_ef_id": "83d42bbe-daba-4ee5-9666-01ec6444de06"
+   },
+   "emission_record_id": "0606a043-2ac4-4369-9621-c41b99e0c1ba",
+   "fixture_id": "scope3_c2_capital_goods_supplier_basis_unspecified_standard_fuel__0",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "t",
+     "value": 5000
+    },
+    "emission_factor_supplier_based": {
+     "unit": "tCO2",
+     "value": 0.02
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 100.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "b8395dd1-5a5a-415c-990e-e5cfb4e59302",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 200.0
+    }
+   },
+   "bucket": "scope3|C2 - Capital Goods|supplier_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "Paint and Coating Manufacturing",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C2 - Capital Goods",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "INR",
+    "scope3_ef_id": "83d42bbe-daba-4ee5-9666-01ec6444de06"
+   },
+   "emission_record_id": "6f927d8b-1246-4471-a049-fba2e5a869e3",
+   "fixture_id": "scope3_c2_capital_goods_supplier_basis_unspecified_standard_fuel__1",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "INR",
+     "value": 1000
+    },
+    "emission_factor_supplier_based": {
+     "unit": "tCO2e/INR",
+     "value": 0.2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 200.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "4234b2a0-3c97-4c77-b088-2126a9ebee0d",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 200.0
+    }
+   },
+   "bucket": "scope3|C2 - Capital Goods|supplier_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "Paint and Coating Manufacturing",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C2 - Capital Goods",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "INR",
+    "scope3_ef_id": "83d42bbe-daba-4ee5-9666-01ec6444de06"
+   },
+   "emission_record_id": "f1f7f347-e5ba-40ad-b09b-6b277cbb59e5",
+   "fixture_id": "scope3_c2_capital_goods_supplier_basis_unspecified_standard_fuel__2",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "2022_USD",
+     "value": 100
+    },
+    "emission_factor_supplier_based": {
+     "unit": "2022_USD",
+     "value": 2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 200.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "8b393d1f-20a9-4a5a-9e03-a395dc38b2ad",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 3.46459437
+    }
+   },
+   "bucket": "scope3|C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Other petroleum gas",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "fuel_name": "Other petroleum gas",
+    "reporting_period": "2025-06",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "L",
+    "scope3_ef_id": "c7c01375-ed15-42b5-97cf-8cbd54403548"
+   },
+   "emission_record_id": "151fd84e-bed4-4e22-8c75-efd729d10271",
+   "fixture_id": "scope3_c3_fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "",
+     "value": 31221
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 3.46459437
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "ba363cfe-e6b7-4c69-886d-994109ccc083",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 5.467439249999999
+    }
+   },
+   "bucket": "scope3|C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Aviation spirit",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "fuel_name": "Aviation spirit",
+    "reporting_period": "2025-06",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "L",
+    "scope3_ef_id": "575b9ad6-3666-496b-ae48-d71a6fd8b9d1"
+   },
+   "emission_record_id": "3b5e4d82-3932-408f-b410-0840a6c16a0e",
+   "fixture_id": "scope3_c3_fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2_activity_basis_monthly_standard_fuel__1",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "",
+     "value": 8901
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 5.467439249999999
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "b838af5b-24ad-40e0-b7ac-1ddb9f7e746a",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 8.81
+    }
+   },
+   "bucket": "scope3|C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Processed fuel oils - residual oil",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "L",
+    "scope3_ef_id": "80ea5c7d-826d-482b-9741-86853116db17"
+   },
+   "emission_record_id": "87a0d9ec-bf0a-4608-9e1b-de2438f7d9bf",
+   "fixture_id": "scope3_c3_fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2_activity_basis_monthly_standard_fuel__2",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "m3",
+     "value": 8
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 8.81
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "59ee2de9-4da3-40fe-b3e9-f406302e4851",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 303.32
+    }
+   },
+   "bucket": "scope3|C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Petrol (100% mineral petrol)",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "fuel_name": "Petrol (100% mineral petrol)",
+    "reporting_period": "FY 2026-27",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "L",
+    "scope3_ef_id": "3d095dc3-3896-468d-b50c-fb9fe7b2eeef"
+   },
+   "emission_record_id": "56133cba-7345-46aa-a71f-c4e1b3630637",
+   "fixture_id": "scope3_c3_fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2_activity_basis_yearly_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "kl",
+     "value": 500
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 303.32
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "10faa7b9-4ba7-41bd-a361-60494e8a54f7",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 89.0
+    }
+   },
+   "bucket": "scope3|C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2|supplier_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Processed fuel oils - residual oil",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "L",
+    "scope3_ef_id": "80ea5c7d-826d-482b-9741-86853116db17"
+   },
+   "emission_record_id": "2572b821-867e-4049-b12e-f553798c6a53",
+   "fixture_id": "scope3_c3_fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2_supplier_basis_monthly_standard_fuel__0",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "gtvu ihu",
+     "value": 89
+    },
+    "emission_factor_supplier_based": {
+     "unit": " ",
+     "value": 1
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 89.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "237ef97c-2446-423c-8d6e-c0b363d47545",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 10.0
+    }
+   },
+   "bucket": "scope3|C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2|supplier_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Natural gas",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "m3",
+    "scope3_ef_id": "19fb11d8-fa10-44a2-b076-229af9a0379f"
+   },
+   "emission_record_id": "911888be-a606-4698-962a-7f42ef077bf6",
+   "fixture_id": "scope3_c3_fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2_supplier_basis_monthly_standard_fuel__1",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "kjnml",
+     "value": 50
+    },
+    "emission_factor_supplier_based": {
+     "unit": "ikmol ",
+     "value": 0.2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 10.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "d7435b43-3c2f-49a1-b97b-0e1f1765988a",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 66.84065000000001
+    }
+   },
+   "bucket": "scope3|C4 - Upstream Transportation and Distribution|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Road - HDV (Capacity: 12-16 tonnes) - Diesel",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C4 - Upstream Transportation and Distribution",
+    "fuel_name": "Road - HDV (Capacity: 12-16 tonnes) - Diesel",
+    "reporting_period": "FY 2025-26",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "f9267119-c4dd-4bf9-b1ab-39f951fe3bae"
+   },
+   "emission_record_id": "3e411cf1-c05c-4de0-a259-02f87bce54f8",
+   "fixture_id": "scope3_c4_upstream_transportation_and_distribution_activity_basis_yearly_standard_fuel__0",
+   "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439",
+   "formula_name": "Activity Based (km travelled and qty of goods)",
+   "formula_version_id": "c42d4a7c-5d95-4ed8-924f-0f9c608e2da7",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 43123
+    },
+    "qty_travelled": {
+     "unit": "t",
+     "value": 31
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 66.84065000000001
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "5095ba05-da89-4bd4-945b-c334217ad6c2",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.4418280976062456
+    }
+   },
+   "bucket": "scope3|C4 - Upstream Transportation and Distribution|spend_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "Freight Air Transportation",
+    "calculation_method_scope3": "spend_basis",
+    "category": "C4 - Upstream Transportation and Distribution",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "USD",
+    "scope3_ef_id": "58875df6-5755-4911-8510-9559509ee56d"
+   },
+   "emission_record_id": "9b1c9532-1ac9-40f8-bacd-3a30da55e7d5",
+   "fixture_id": "scope3_c4_upstream_transportation_and_distribution_spend_basis_unspecified_standard_fuel__0",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 50000
+    }
+   },
+   "matches_stored": false,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.4385172963129247
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "ff6e114f-7fe4-4d84-a388-42bef0640563",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 3.57
+    }
+   },
+   "bucket": "scope3|C4 - Upstream Transportation and Distribution|spend_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Freight Truck Transportation",
+    "calculation_method_scope3": "spend_basis",
+    "category": "C4 - Upstream Transportation and Distribution",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "USD",
+    "scope3_ef_id": "ef6d70a5-b489-4f3d-8545-c4ea10168f63"
+   },
+   "emission_record_id": "75b4aa84-3a83-470e-bd0e-8f14471d303d",
+   "fixture_id": "scope3_c4_upstream_transportation_and_distribution_spend_basis_yearly_standard_fuel__0",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 150000
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 3.57
+    }
+   },
+   "user_overrides": {
+    "inflation_rate": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 1
+    },
+    "ppp": {
+     "source_name": "User Override",
+     "unit": "",
+     "value": 25
+    }
+   }
+  },
+  {
+   "audit_log_id": "0ca53092-fe62-4877-8fea-b2c53c3551c9",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 7.3882495684792096
+    }
+   },
+   "bucket": "scope3|C4 - Upstream Transportation and Distribution|spend_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Truck, Utility Trailer, and RV (Recreational Vehicle) Rental and Leasing",
+    "calculation_method_scope3": "spend_basis",
+    "category": "C4 - Upstream Transportation and Distribution",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "USD",
+    "scope3_ef_id": "ae2984cc-7a85-4540-990e-c46656769976"
+   },
+   "emission_record_id": "db0601c0-8cae-4194-9fde-782092bf1395",
+   "fixture_id": "scope3_c4_upstream_transportation_and_distribution_spend_basis_yearly_standard_fuel__1",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 1500000
+    }
+   },
+   "matches_stored": false,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 7.371284282348838
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "f4b7d91d-22aa-4d45-b8cc-6317a23d3b73",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.1711161902
+    }
+   },
+   "bucket": "scope3|C5 - Waste Generated in Operations|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Copper Wire - Landfilled",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C5 - Waste Generated in Operations",
+    "fuel_name": "Copper Wire - Landfilled",
+    "reporting_period": "2026-05",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "t",
+    "scope3_ef_id": "add6bad4-b8d6-4b6c-93bd-6dfb87ce99c8"
+   },
+   "emission_record_id": "fac3194a-69aa-4283-b275-cc53073c1582",
+   "fixture_id": "scope3_c5_waste_generated_in_operations_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "47cdb8ef-4e5c-476f-b223-32a838403960",
+   "formula_name": "Activity based - tco2e ef",
+   "formula_version_id": "cd06dcc0-7897-4d92-a83b-1b360db1725b",
+   "inputs": {
+    "activity_value": {
+     "unit": "kg",
+     "value": 53121
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.1711161902
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "83462b22-dc6f-4c14-971c-adee3ff015cb",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 5.0
+    }
+   },
+   "bucket": "scope3|C5 - Waste Generated in Operations|supplier_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "Leaves - Landfilled",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C5 - Waste Generated in Operations",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "t",
+    "scope3_ef_id": "3353e0bc-ef1f-4e34-bc11-2378577e17c0"
+   },
+   "emission_record_id": "a888a66c-e609-410d-bc18-6efbf14dbce1",
+   "fixture_id": "scope3_c5_waste_generated_in_operations_supplier_basis_unspecified_standard_fuel__0",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "kWh",
+     "value": 2000
+    },
+    "emission_factor_supplier_based": {
+     "unit": "tCO2e/MWh",
+     "value": 0.0025
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 5.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "425e84aa-5388-4ddc-91b5-30fedf58db09",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.2
+    }
+   },
+   "bucket": "scope3|C5 - Waste Generated in Operations|supplier_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "aefi nsaeofimj",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C5 - Waste Generated in Operations",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": ""
+   },
+   "emission_record_id": "b307f2da-ce73-4528-b6ad-07783ee4d1f3",
+   "fixture_id": "scope3_c5_waste_generated_in_operations_supplier_basis_yearly_standard_fuel__0",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "l/;wearg",
+     "value": 1
+    },
+    "emission_factor_supplier_based": {
+     "unit": "klsena",
+     "value": 0.2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.2
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "cdd15598-75ef-4d12-85f0-bd9e70e3e1a9",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.015531000000000001
+    }
+   },
+   "bucket": "scope3|C6 - Business Travel|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Local bus",
+    "activity_type": "bus_travel",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C6 - Business Travel",
+    "fuel_name": "Local bus",
+    "reporting_period": "2025-04",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "0c2fe06f-11fc-49f8-bcab-4cd6030d997f"
+   },
+   "emission_record_id": "680a0638-98ed-4006-b53d-47773ce28cc3",
+   "fixture_id": "scope3_c6_business_travel_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f",
+   "formula_name": "Activity Based - Passengers and distance",
+   "formula_version_id": "ad79fdd9-c522-49a8-8e66-c2e730d04e8e",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 31
+    },
+    "qty_days_travelled": {
+     "unit": "",
+     "value": 2
+    },
+    "qty_passenger": {
+     "unit": "",
+     "value": 2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.015531000000000001
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "89852ebf-0e67-49d1-8d59-ba4aacfba5c4",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.95753664
+    }
+   },
+   "bucket": "scope3|C6 - Business Travel|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Flights, Short-haul - Economy class",
+    "activity_type": "air_travel",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C6 - Business Travel",
+    "fuel_name": "Flights, Short-haul - Economy class",
+    "is_custom_fuel": false,
+    "reporting_period": "2026-07",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "1e8769b1-a868-4c95-9c1d-be3bb91744f7"
+   },
+   "emission_record_id": "98b0eb4a-39a3-4ce1-8393-df4fb7c6a566",
+   "fixture_id": "scope3_c6_business_travel_activity_basis_monthly_standard_fuel__2",
+   "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f",
+   "formula_name": "Activity Based - Passengers and distance",
+   "formula_version_id": "ad79fdd9-c522-49a8-8e66-c2e730d04e8e",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 1269
+    },
+    "qty_days_travelled": {
+     "unit": "",
+     "value": 2
+    },
+    "qty_passenger": {
+     "unit": "",
+     "value": 3
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.95753664
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "5544bbae-28f0-4f15-83a8-44479ab48b7e",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.30777179
+    }
+   },
+   "bucket": "scope3|C6 - Business Travel|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Flights, Short-haul - Business class",
+    "activity_type": "air_travel",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C6 - Business Travel",
+    "fuel_name": "Flights, Short-haul - Business class",
+    "reporting_period": "CY2026",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "62fbfdff-259c-4a0f-b330-9cc94e8b46c3"
+   },
+   "emission_record_id": "0071a73b-cd42-481f-a9ba-47e60cd4044b",
+   "fixture_id": "scope3_c6_business_travel_activity_basis_yearly_standard_fuel__0",
+   "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f",
+   "formula_name": "Activity Based - Passengers and distance",
+   "formula_version_id": "ad79fdd9-c522-49a8-8e66-c2e730d04e8e",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 2311
+    },
+    "qty_days_travelled": {
+     "unit": "",
+     "value": 1
+    },
+    "qty_passenger": {
+     "unit": "",
+     "value": 3
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.30777179
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "17fa90f3-59fb-4570-bf2a-94e2105f535a",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.9424
+    }
+   },
+   "bucket": "scope3|C6 - Business Travel|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Hotel stay - India",
+    "activity_type": "hotel_stay",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C6 - Business Travel",
+    "fuel_name": "Hotel stay - India",
+    "is_custom_fuel": false,
+    "reporting_period": "CY 2022",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "a3f3839e-0f51-484a-b5d5-c1373f9f335c"
+   },
+   "emission_record_id": "37161fad-2934-44c2-8187-a30dd0a5d080",
+   "fixture_id": "scope3_c6_business_travel_activity_basis_yearly_standard_fuel__1",
+   "formula_id": "c1531ff6-b7cd-4e86-9be1-f95444ac888a",
+   "formula_name": "Activity based - Hotel Stays",
+   "formula_version_id": "b90f802d-3d65-4fdb-91ce-2d0e87ad1532",
+   "inputs": {
+    "qty_nights": {
+     "unit": "",
+     "value": 4
+    },
+    "qty_room": {
+     "unit": "",
+     "value": 4
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.9424
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "bc2b5d32-64fc-4ada-a517-8ebc77fbf433",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.03127572
+    }
+   },
+   "bucket": "scope3|C6 - Business Travel|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Railways",
+    "activity_type": "rail_travel",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C6 - Business Travel",
+    "fuel_name": "Railways",
+    "reporting_period": "FY 2022-2023",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "0fcd5fac-3a5c-4689-979e-9f22cf56ac01"
+   },
+   "emission_record_id": "a327613f-6f81-418b-928f-b4edad4c9618",
+   "fixture_id": "scope3_c6_business_travel_activity_basis_yearly_standard_fuel__2",
+   "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f",
+   "formula_name": "Activity Based - Passengers and distance",
+   "formula_version_id": "ad79fdd9-c522-49a8-8e66-c2e730d04e8e",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 21
+    },
+    "qty_days_travelled": {
+     "unit": "",
+     "value": 21
+    },
+    "qty_passenger": {
+     "unit": "",
+     "value": 2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.03127572
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "7a204df1-dee5-43a0-a9d8-7d96ac156654",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 8.200000000000001
+    }
+   },
+   "bucket": "scope3|C6 - Business Travel|supplier_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "testing othersgrfdvdg",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C6 - Business Travel",
+    "reporting_period": "2025-05",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": ""
+   },
+   "emission_record_id": "41a481c0-41d3-4cc2-8de0-dadbd0e631b4",
+   "fixture_id": "scope3_c6_business_travel_supplier_basis_monthly_standard_fuel__0",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "t",
+     "value": 41
+    },
+    "emission_factor_supplier_based": {
+     "unit": "tCO2e/t",
+     "value": 0.2
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 8.200000000000001
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "7fff2228-a0b9-4ff0-889d-993ce79dae19",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 3.12
+    }
+   },
+   "bucket": "scope3|C6 - Business Travel|supplier_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Hotel stay - Canada",
+    "activity_type": "hotel_stay",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C6 - Business Travel",
+    "fuel_name": "Hotel stay - Canada",
+    "reporting_period": "2025-04",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "2c2ee58e-5e6a-4c51-956f-0eb2bdf50bcc"
+   },
+   "emission_record_id": "f95ef37a-876a-42b9-82a0-0be4e75b1b0c",
+   "fixture_id": "scope3_c6_business_travel_supplier_basis_monthly_standard_fuel__1",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "L",
+     "value": 312
+    },
+    "emission_factor_supplier_based": {
+     "unit": "tCO2e/L",
+     "value": 0.01
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 3.12
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "c14e0f8d-7f73-472e-9e6a-d8d0db2adc62",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 10.35168
+    }
+   },
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Propane",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C8 - Upstream Leased Assets",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "L",
+    "scope3_ef_id": "\ufffdi1\ufffdl\u0012B<\ufffd%\ufffdE\ufffd\ufffdr\ufffd"
+   },
+   "emission_record_id": "36e1847c-ea3e-41f6-9e5d-07d53c25dcb4",
+   "fixture_id": "scope3_c8_upstream_leased_assets_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "kl",
+     "value": 6
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 10.35168
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "da33fa43-d567-4177-b592-c52975f63996",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 9.8207
+    }
+   },
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Purchased Electricity",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C8 - Upstream Leased Assets",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "kWh",
+    "scope3_ef_id": "93f051fe-3fb3-4293-8c0f-6d0fafd7b9ce"
+   },
+   "emission_record_id": "8e3a2ad0-7c26-49f2-b463-c3bd543ac095",
+   "fixture_id": "scope3_c8_upstream_leased_assets_activity_basis_monthly_standard_fuel__1",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "kWh",
+     "value": 10000
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 9.8207
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "58998316-3f4b-4042-b5d4-836fa55a89f0",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 16.4282
+    }
+   },
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "Diesel (100% mineral diesel)",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C8 - Upstream Leased Assets",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "L",
+    "scope3_ef_id": "\ufffdO \ufffd\ufffd\ufffdF\t\ufffd\ufffd\u0017r\ufffdc"
+   },
+   "emission_record_id": "d9631a72-04be-4df4-a036-a71007e8d4c6",
+   "fixture_id": "scope3_c8_upstream_leased_assets_activity_basis_unspecified_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "kl",
+     "value": 5
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 16.4282
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "cfdadade-82d1-4f8d-84b0-274e2c1644a4",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1431.8235
+    }
+   },
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Diesel (average biofuel blend)",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C8 - Upstream Leased Assets",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "L",
+    "scope3_ef_id": "x\r\ufffd\ufffd\t\ufffdAW\ufffd\u0472Id\ufffd>M"
+   },
+   "emission_record_id": "5bb3f890-f838-431c-874e-faeb323e776f",
+   "fixture_id": "scope3_c8_upstream_leased_assets_activity_basis_yearly_standard_fuel__0",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "m3",
+     "value": 450
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1431.8235
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "645b258a-cbf2-4376-81d4-670ad1ebb8d5",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 4.91035
+    }
+   },
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Purchased Electricity",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C8 - Upstream Leased Assets",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "kWh",
+    "scope3_ef_id": "93f051fe-3fb3-4293-8c0f-6d0fafd7b9ce"
+   },
+   "emission_record_id": "91de062b-44bf-40f5-9c7e-2fb5002804fc",
+   "fixture_id": "scope3_c8_upstream_leased_assets_activity_basis_yearly_standard_fuel__1",
+   "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f",
+   "formula_name": "Activity Based",
+   "formula_version_id": "d61527cb-86b8-4efb-8980-e31b9168dbc0",
+   "inputs": {
+    "activity_value": {
+     "unit": "MWh",
+     "value": 5
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 4.91035
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "b25734c9-5eac-434a-bfb7-13e19830bb6c",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 24.0
+    }
+   },
+   "bucket": "scope3|C8 - Upstream Leased Assets|supplier_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "sea gwe f",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C8 - Upstream Leased Assets",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": ""
+   },
+   "emission_record_id": "f57d8a55-07f7-426a-a444-1de182e241c2",
+   "fixture_id": "scope3_c8_upstream_leased_assets_supplier_basis_monthly_standard_fuel__0",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "kg",
+     "value": 6
+    },
+    "emission_factor_supplier_based": {
+     "unit": "tCO2e/kg",
+     "value": 4
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 24.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "121f8b28-7604-4e6f-bf8b-3b34111811d6",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 25.0
+    }
+   },
+   "bucket": "scope3|C8 - Upstream Leased Assets|supplier_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "dfzbths hsh",
+    "calculation_method_scope3": "supplier_basis",
+    "category": "C8 - Upstream Leased Assets",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": ""
+   },
+   "emission_record_id": "199d3545-d1da-49b8-b8c9-4f2faec19589",
+   "fixture_id": "scope3_c8_upstream_leased_assets_supplier_basis_unspecified_standard_fuel__0",
+   "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea",
+   "formula_name": "Supplier Method",
+   "formula_version_id": "c44c007e-8d48-4de9-a947-27d928a62198",
+   "inputs": {
+    "activity_value_supplier_based": {
+     "unit": "GWh",
+     "value": 100
+    },
+    "emission_factor_supplier_based": {
+     "unit": "tCO2/KWh",
+     "value": 0.25
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 25.0
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "15453702-6481-4e80-8564-6334964a3618",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.6510635
+    }
+   },
+   "bucket": "scope3|C9 - Downstream Transportation and Distribution|activity_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Van, class II (1.305\u20131.74t) - Petrol",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C9 - Downstream Transportation and Distribution",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "c4e56413-ce09-4035-9040-0c237acf9a7c"
+   },
+   "emission_record_id": "7ce4dee1-7090-42a1-b787-1b9e5282c680",
+   "fixture_id": "scope3_c9_downstream_transportation_and_distribution_activity_basis_monthly_standard_fuel__0",
+   "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439",
+   "formula_name": "Activity Based (km travelled and qty of goods)",
+   "formula_version_id": "c42d4a7c-5d95-4ed8-924f-0f9c608e2da7",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 45
+    },
+    "qty_travelled": {
+     "unit": "t",
+     "value": 45
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.6510635
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "249f2adc-230e-4d80-8945-58d4fe70a15b",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.203468
+    }
+   },
+   "bucket": "scope3|C9 - Downstream Transportation and Distribution|activity_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "Inland Waterways  - Light Fuel Oil",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C9 - Downstream Transportation and Distribution",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "\ufffd\ufffd\ufffd\u001cZ7I\ufffd\ufffd\ufffd\u0003\u001d0\ufffd\ufffd\u007f"
+   },
+   "emission_record_id": "3e960286-8831-4c16-a551-8cabeaa51d17",
+   "fixture_id": "scope3_c9_downstream_transportation_and_distribution_activity_basis_unspecified_standard_fuel__0",
+   "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439",
+   "formula_name": "Activity Based (km travelled and qty of goods)",
+   "formula_version_id": "c42d4a7c-5d95-4ed8-924f-0f9c608e2da7",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 50
+    },
+    "qty_travelled": {
+     "unit": "t",
+     "value": 200
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.203468
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "2af438ad-0f6c-4253-8d73-4e1630b23345",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.5912000000000001
+    }
+   },
+   "bucket": "scope3|C9 - Downstream Transportation and Distribution|activity_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "Cargo ship, Bulk carrier - 0\u20139999 dwt",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C9 - Downstream Transportation and Distribution",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "4241423f-310f-4daf-965b-610f87bbf4f3"
+   },
+   "emission_record_id": "75731ece-9c35-47f0-af8a-421e06b6594a",
+   "fixture_id": "scope3_c9_downstream_transportation_and_distribution_activity_basis_unspecified_standard_fuel__1",
+   "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439",
+   "formula_name": "Activity Based (km travelled and qty of goods)",
+   "formula_version_id": "c42d4a7c-5d95-4ed8-924f-0f9c608e2da7",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 4000
+    },
+    "qty_travelled": {
+     "unit": "kg",
+     "value": 5000
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.5912000000000001
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "ee0ef4be-7b98-4a6b-b7b6-8be73034a302",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 8.059999999999999
+    }
+   },
+   "bucket": "scope3|C9 - Downstream Transportation and Distribution|activity_basis|unspecified|standard_fuel|-|-",
+   "context": {
+    "activity": "Cargo ship, Container ship - Unknown Size",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C9 - Downstream Transportation and Distribution",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "e0ec9ec6-7821-40c8-baa3-bfdb12cb0911"
+   },
+   "emission_record_id": "d6586a58-1fa6-47bf-9203-8a2a7d5e06a9",
+   "fixture_id": "scope3_c9_downstream_transportation_and_distribution_activity_basis_unspecified_standard_fuel__2",
+   "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439",
+   "formula_name": "Activity Based (km travelled and qty of goods)",
+   "formula_version_id": "c42d4a7c-5d95-4ed8-924f-0f9c608e2da7",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 5000
+    },
+    "qty_travelled": {
+     "unit": "t",
+     "value": 100
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 8.059999999999999
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "2b768e41-12b4-4da0-9401-10b23da852e7",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 3.8685
+    }
+   },
+   "bucket": "scope3|C9 - Downstream Transportation and Distribution|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Cargo ship, RoRo-Ferry - Unknown Size",
+    "calculation_method_scope3": "activity_basis",
+    "category": "C9 - Downstream Transportation and Distribution",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "d12eb971-7255-4b4f-a747-33ddf05dd9a2"
+   },
+   "emission_record_id": "91f578be-b525-4171-9763-f29b0f240ff3",
+   "fixture_id": "scope3_c9_downstream_transportation_and_distribution_activity_basis_yearly_standard_fuel__0",
+   "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439",
+   "formula_name": "Activity Based (km travelled and qty of goods)",
+   "formula_version_id": "c42d4a7c-5d95-4ed8-924f-0f9c608e2da7",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 5000
+    },
+    "qty_travelled": {
+     "unit": "kg",
+     "value": 15000
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 3.8685
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "9b5f8bd7-97b6-40c8-9deb-d444075765e0",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.21599999999999997
+    }
+   },
+   "bucket": "scope3|C9 - Downstream Transportation and Distribution|activity_basis|yearly|standard_fuel|-|-",
+   "context": {
+    "activity": "Rail freight transport",
+    "activity_type": null,
+    "calculation_method_scope3": "activity_basis",
+    "category": "C9 - Downstream Transportation and Distribution",
+    "fuel_name": "Rail freight transport",
+    "reporting_period": "FY 2022-2023",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "",
+    "scope3_ef_id": "537d8c27-ff2b-482e-ad13-eac308f88c49"
+   },
+   "emission_record_id": "c01592f0-72be-49d3-89c3-7769381182bf",
+   "fixture_id": "scope3_c9_downstream_transportation_and_distribution_activity_basis_yearly_standard_fuel__1",
+   "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439",
+   "formula_name": "Activity Based (km travelled and qty of goods)",
+   "formula_version_id": "c42d4a7c-5d95-4ed8-924f-0f9c608e2da7",
+   "inputs": {
+    "km_travelled": {
+     "unit": "km",
+     "value": 800
+    },
+    "qty_travelled": {
+     "unit": "t",
+     "value": 30
+    }
+   },
+   "matches_stored": true,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.21599999999999997
+    }
+   },
+   "user_overrides": {}
+  },
+  {
+   "audit_log_id": "d156310e-ec8c-4bc6-84e5-a5d69cc94905",
+   "baseline_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.07119585947807239
+    }
+   },
+   "bucket": "scope3|C9 - Downstream Transportation and Distribution|spend_basis|monthly|standard_fuel|-|-",
+   "context": {
+    "activity": "Commercial Air, Rail, and Water Transportation Equipment Rental and Leasing",
+    "calculation_method_scope3": "spend_basis",
+    "category": "C9 - Downstream Transportation and Distribution",
+    "scope": "scope3",
+    "scope3_ef_default_unit": "USD",
+    "scope3_ef_id": "fe16d752-965d-4506-afc6-8125fbbad811"
+   },
+   "emission_record_id": "4cba5271-40f7-4f13-b6bc-347b4f2775d5",
+   "fixture_id": "scope3_c9_downstream_transportation_and_distribution_spend_basis_monthly_standard_fuel__0",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "formula_name": "Spent Based",
+   "formula_version_id": "c837d08d-584d-4c8a-a0f8-1eedd2e50ee6",
+   "inputs": {
+    "spent_value": {
+     "unit": "INR",
+     "value": 15000
+    }
+   },
+   "matches_stored": false,
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.07103237581172517
+    }
+   },
+   "user_overrides": {}
+  }
+ ],
+ "generated_at": "2026-08-17T12:23:26.354034+00:00",
+ "note": "baseline_outputs = current engine behaviour at capture time. The refactor must reproduce baseline_outputs exactly. stored_outputs = value persisted on the record when it was created; differences are pre-existing drift, reported not fixed.",
+ "skipped": [
+  {
+   "bucket": "scope1|Fugitive Emissions|-|monthly|standard_fuel|-|-",
+   "reason": "replay_error: ValueError: Property 'co2_gwp_fugitives' could not be resolved for context {'fuel_name': 'HFC-134a', 'fuel_id': 'dfcec834-e7ab-4084-9349-89196b165f22', 'scope': 'scope1', 'category': 'Fugitive Emissions'}. Define a property_value, enable org override, or add it to the fuel database.",
+   "record_id": "1e11115f-f7db-4d64-8ded-78950ed93708"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "0fdbcdc5-b00c-4304-9465-ad184d464a19"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "4966800c-cc21-4b2a-bb4b-ca64fa073443"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "590fb496-421a-40cb-8e77-1f5dc17e1956"
+  },
+  {
+   "bucket": "scope1|Mobile Combustion|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "5ac4a935-41b7-472f-ae31-a01f2b348433"
+  },
+  {
+   "bucket": "scope1|Mobile Combustion|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "8e30ded5-d96d-40b4-9e8f-23025612eec2"
+  },
+  {
+   "bucket": "scope1|Mobile Combustion|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "e2e76506-3d04-453a-b114-31b791ba8efd"
+  },
+  {
+   "bucket": "scope1|Stationary Combustion|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "00eb73f1-ad64-47b2-a5cc-c4427a12017b"
+  },
+  {
+   "bucket": "scope1|Stationary Combustion|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "d2f96f73-beb3-4b5a-ac60-3d6c63c2c469"
+  },
+  {
+   "bucket": "scope2|Purchased Electricity|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "2904dd4b-3f09-449f-add9-316377c68d5b"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "03483b80-ce53-4992-a70e-4fa27f5afaf8"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "427b7708-e5dd-477f-9a84-f4263c797305"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "98693bc2-9b2b-4c1e-8bb6-beebbf2a58da"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|monthly|standard_fuel|-|-",
+   "reason": "replay_error: CalculationError: Missing required 'No. of Days Travelled'",
+   "record_id": "88e15837-de49-4a01-8b0a-ba0972707ae1"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "reason": "replay_error: CalculationError: Missing required 'No. of Days Travelled'",
+   "record_id": "4e999292-7a2e-4f6e-ae06-58375a01e7ad"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "reason": "replay_error: CalculationError: Missing required 'No. of Days Travelled'",
+   "record_id": "6c370f77-2a55-49f5-a9c8-23ede503d583"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "reason": "replay_error: CalculationError: Missing required 'No. of Days Travelled'",
+   "record_id": "aa28d419-d0aa-4cdd-9605-7fdeedd8e4b0"
+  }
+ ],
+ "stored_vs_replay_drift": [
+  {
+   "bucket": "scope3|C2 - Capital Goods|spend_basis|monthly|standard_fuel|-|-",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "record_id": "5939b346-3008-4a3a-9183-6ebcff53b78b",
+   "replayed_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.361503191585004
+    }
+   },
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.3583768365534687
+    }
+   }
+  },
+  {
+   "bucket": "scope3|C4 - Upstream Transportation and Distribution|spend_basis|unspecified|standard_fuel|-|-",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "record_id": "9b1c9532-1ac9-40f8-bacd-3a30da55e7d5",
+   "replayed_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.4418280976062456
+    }
+   },
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.4385172963129247
+    }
+   }
+  },
+  {
+   "bucket": "scope3|C4 - Upstream Transportation and Distribution|spend_basis|yearly|standard_fuel|-|-",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "record_id": "db0601c0-8cae-4194-9fde-782092bf1395",
+   "replayed_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 7.3882495684792096
+    }
+   },
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 7.371284282348838
+    }
+   }
+  },
+  {
+   "bucket": "scope3|C9 - Downstream Transportation and Distribution|spend_basis|monthly|standard_fuel|-|-",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "record_id": "4cba5271-40f7-4f13-b6bc-347b4f2775d5",
+   "replayed_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.07119585947807239
+    }
+   },
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.07103237581172517
+    }
+   }
+  }
+ ]
+}
