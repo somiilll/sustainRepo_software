@@ -1,0 +1,1 @@
+"""Focused deterministic formatters used by the Internal Data AI response builder."""

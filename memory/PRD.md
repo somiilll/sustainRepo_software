@@ -45,6 +45,13 @@ A full-stack ESG/Sustainability reporting platform (SustainRepo) with a Determin
 - Deterministic expansion for "compare … all months of FY [year]" into April–March strict-month comparisons
 - tCO2e unit enforcement throughout
 
+### Internal Data AI — Formatter Refactor & Live API Contracts (Aug 2026)
+- Split the 908-line `response_builder.py` into focused formatter modules for Markdown tables, GHG/fuel responses, comparisons, ESG records, framework responses, evidence payloads, and response safety.
+- Kept `build_response` as the orchestration boundary and preserved legacy private formatter exports for current regression tests and extensions.
+- Added authenticated `/api/internal-ai/chat` contracts for single-metric, year-over-year, and scope-breakdown questions.
+- Added recursive response-data sanitization so database identifiers are not returned in client-facing `raw_data`.
+- Verified with 33 focused backend tests, including live endpoint contracts; **MOCKED APIs: NONE**.
+
 ### Earlier Completed Features
 - Full GHG emission CRUD with Scope 1/2/3/Biogenic
 - Custom fuel support with per-month CV/density/EF overrides
@@ -64,7 +71,6 @@ A full-stack ESG/Sustainability reporting platform (SustainRepo) with a Determin
 ## Pending Issues
 1. **P1**: BRSR Section A stale form data on year switch
 2. **P2**: Playwright E2E locator timeouts on Shadcn Select elements
-3. **P2**: Expand live API integration tests for Internal AI
 
 ## Upcoming Tasks (P1)
 - Custom Dashboard: Wire ExecutiveAnalyticsDashboard to consume custom kpi_cards
@@ -77,14 +83,12 @@ A full-stack ESG/Sustainability reporting platform (SustainRepo) with a Determin
 ## Future/Backlog Tasks
 - **P2**: Decouple Add/Edit Emissions into unified EmissionDraft workflow
 - **P2**: Copy Month Values for Custom Fuel EF/CV values
-- **P2**: Split response_builder.py (>900 lines) into smaller modules
 - **P3**: Dashboard Scope 1 & 3 Emissions Deduplication
 - **P3**: Admin Disable UI for ESG subcategories per organization
 
 ## Refactoring Needs
 - `repo_pilot/router.py`: Standardize R2 bucket paths (org_id vs org_name)
 - `BRSRYearlySections.js`: Oversized, needs splitting
-- `response_builder.py`: >900 lines, needs modularization
 
 ## Key DB Collections
 - `organization_esg_responses`: Framework responses (BRSR, GRI)
