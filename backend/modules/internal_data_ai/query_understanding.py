@@ -1,4 +1,5 @@
 """Transform model-proposed semantics into deterministic, typed Internal AI query plans."""
+import logging
 import re
 from typing import Optional
 
@@ -11,7 +12,10 @@ from modules.internal_data_ai.query_contracts import (
     QueryType,
     StructuredQueryPlan,
 )
+from modules.internal_data_ai.question_registry import resolve_esg_query
 from modules.internal_data_ai.reporting_periods import ResolvedPeriod
+
+logger = logging.getLogger(__name__)
 
 
 _SOURCES = {
@@ -198,11 +202,76 @@ def build_query_plan(
     period: Optional[ResolvedPeriod],
     fuel_resolution: Optional[dict] = None,
 ) -> StructuredQueryPlan:
-    """Build a closed plan from model semantics plus deterministic normalization results."""
+    """Build a closed plan from model semantics plus deterministic normalization results.
+
+    Resolution hierarchy:
+      1. Question Registry (BRSR/GRI configured questions — highest priority)
+      2. Explicit framework mention (``brsr``/``gri`` in user text)
+      3. ESG metric resolver (Environment/Social/Governance/GHG module routing)
+      4. Legacy intent from LLM (lowest priority fallback)
+    """
     entities = intent_result.get("entities") or {}
     legacy_intent = intent_result.get("intent", "")
     metric = _metric_from_question(question) or entities.get("metric") or ""
     query_type = _query_type(question, legacy_intent, metric)
+
+    # ── Step 1: Question Registry (framework precedence) ─────────────
+    framework_resolution = resolve_esg_query(question)
+    framework_question_key = None
+    framework_source_path = None
+    framework_confidence = None
+
+    if framework_resolution and framework_resolution.confidence >= 0.5:
+        logger.info(
+            "question_registry matched: key=%s confidence=%.2f synonym=%s",
+            framework_resolution.question_key,
+            framework_resolution.confidence,
+            framework_resolution.matched_synonym,
+        )
+        framework_question_key = framework_resolution.question_key
+        framework_source_path = framework_resolution.source_path
+        framework_confidence = framework_resolution.confidence
+
+        # Override routing to the correct framework lookup
+        if framework_resolution.framework == "BRSR":
+            query_type = QueryType.BRSR_LOOKUP
+            metric = framework_resolution.question_key
+        elif framework_resolution.framework == "GRI":
+            query_type = QueryType.GRI_LOOKUP
+            metric = framework_resolution.question_key
+
+        # Build the plan directly — skip ESG metric resolver
+        return StructuredQueryPlan(
+            query_type=query_type,
+            entity=None,
+            period=_period_contract(period),
+            facility=entities.get("facility"),
+            scope=None,
+            category=framework_resolution.section,
+            record_type=None,
+            requested_metric=metric,
+            subcategory=None,
+            metric_field_key=None,
+            metric_field_label=None,
+            metric_field_aliases=[],
+            derived_metric=None,
+            data_source=framework_resolution.source_collection,
+            metric_terms=[],
+            value_kind=None,
+            field_value_filter=None,
+            field_terms=[],
+            question_text=question,
+            approval_status_filter=None,
+            sources_required=_SOURCES.get(query_type, []),
+            evidence_state=EvidenceState.PENDING,
+            legacy_intent=legacy_intent or None,
+            resolution_notes=[],
+            framework_question_key=framework_question_key,
+            framework_source_path=framework_source_path,
+            framework_confidence=framework_confidence,
+        )
+
+    # ── Step 2+3: Existing metric resolver + framework text routing ──
     metric_resolution = resolve_esg_metric(question)
     record_type, category = _resolve_esg_context(question, entities)
     framework_query = query_type in {
@@ -211,6 +280,7 @@ def build_query_plan(
         QueryType.GRI_LOOKUP,
         QueryType.GRI_VERSION_HISTORY,
     }
+    preserve_query_type = False
     if metric_resolution:
         record_type, category = metric_resolution.section, metric_resolution.category
         preserve_query_type = query_type in {

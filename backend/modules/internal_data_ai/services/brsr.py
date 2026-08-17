@@ -1,6 +1,12 @@
 """BRSR framework service for Internal Data AI."""
 import re
 
+from modules.internal_data_ai.question_registry import (
+    RESPONSE_CONFIGURED_NO_RESPONSE,
+    RESPONSE_EMPTY,
+    RESPONSE_FOUND,
+    RESPONSE_NOT_CONFIGURED,
+)
 from shared.database.mongo import db
 
 _FW_VARIANTS = ["brsr", "BRSR"]
@@ -44,6 +50,39 @@ def _question_key_filter(keyword: str) -> dict | None:
 
 def _is_filled(record: dict) -> bool:
     return record.get("value") not in (None, "", [], {})
+
+
+def _determine_response_state(
+    question_key: str,
+    configured_count: int,
+    filled_records: list,
+    framework_question_key: str = None,
+) -> str:
+    """Determine the standardized response state for a BRSR question lookup.
+
+    States:
+      FOUND — response exists and is non-empty
+      RESPONSE EMPTY — response exists but value is empty/null
+      CONFIGURED — RESPONSE NOT FOUND — question is configured but no response submitted
+      NOT CONFIGURED — question does not exist in configuration
+    """
+    target_key = framework_question_key or question_key
+    if not target_key:
+        # Broad query (no specific key) — use aggregate state
+        if filled_records:
+            return RESPONSE_FOUND
+        if configured_count:
+            return RESPONSE_CONFIGURED_NO_RESPONSE
+        return RESPONSE_NOT_CONFIGURED
+
+    # Specific question key requested
+    matching = [r for r in filled_records if r.get("question_key") == target_key]
+    if matching:
+        has_value = any(r.get("value") not in (None, "", [], {}) for r in matching)
+        return RESPONSE_FOUND if has_value else RESPONSE_EMPTY
+    if configured_count > 0:
+        return RESPONSE_CONFIGURED_NO_RESPONSE
+    return RESPONSE_NOT_CONFIGURED
 
 
 async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dict:
@@ -144,6 +183,14 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
         ],
         "responses": records[:30],
         "period": (kwargs.get("period") or {}).get("label") if isinstance(kwargs.get("period"), dict) else None,
+        "response_state": _determine_response_state(
+            question_key=keyword,
+            configured_count=brsr_questions,
+            filled_records=records,
+            framework_question_key=kwargs.get("framework_question_key"),
+        ),
+        "framework_question_key": kwargs.get("framework_question_key"),
+        "framework_source_path": kwargs.get("framework_source_path"),
     }
 
 

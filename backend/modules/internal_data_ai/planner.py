@@ -126,7 +126,11 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
             {"service": "evidence_state", "method": "validate", "params": params},
         ]
     if query_plan.query_type == QueryType.BRSR_LOOKUP:
-        return [{"service": "brsr", "method": "get_responses", "params": params}]
+        brsr_params = {**params}
+        if query_plan.framework_question_key:
+            brsr_params["framework_question_key"] = query_plan.framework_question_key
+            brsr_params["framework_source_path"] = query_plan.framework_source_path
+        return [{"service": "brsr", "method": "get_responses", "params": brsr_params}]
     if query_plan.query_type == QueryType.GRI_LOOKUP:
         return [{"service": "gri", "method": "get_responses", "params": params}]
     if query_plan.query_type == QueryType.BRSR_VERSION_HISTORY:

@@ -90,3 +90,7 @@ class StructuredQueryPlan(BaseModel):
     evidence_state: EvidenceState = EvidenceState.PENDING
     legacy_intent: Optional[str] = None
     resolution_notes: list[str] = Field(default_factory=list)
+    # Framework question registry resolution
+    framework_question_key: Optional[str] = None
+    framework_source_path: Optional[str] = None
+    framework_confidence: Optional[float] = None

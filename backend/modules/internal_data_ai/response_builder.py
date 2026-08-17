@@ -8,6 +8,12 @@ import logging
 from openai import OpenAI
 
 from modules.internal_data_ai.query_contracts import QueryType, StructuredQueryPlan
+from modules.internal_data_ai.question_registry import (
+    RESPONSE_CONFIGURED_NO_RESPONSE,
+    RESPONSE_EMPTY,
+    RESPONSE_FOUND,
+    RESPONSE_NOT_CONFIGURED,
+)
 from shared.unit_registry import convert_to_base, detect_unit_type
 
 logger = logging.getLogger(__name__)
@@ -408,6 +414,111 @@ def _evidence_formatter_data(query_plan: StructuredQueryPlan, service_data: dict
     return payload
 
 
+def _build_framework_question_response(
+    query_plan: StructuredQueryPlan,
+    brsr_data: dict,
+    response_type: str,
+) -> dict:
+    """Deterministic response for registry-resolved framework questions.
+
+    Uses standardized response states:
+      FOUND — value + source
+      CONFIGURED — RESPONSE NOT FOUND — question exists, no response
+      NOT CONFIGURED — question not in system
+      RESPONSE EMPTY — response exists but blank
+    """
+    state = brsr_data.get("response_state", RESPONSE_NOT_CONFIGURED)
+    qkey = query_plan.framework_question_key or query_plan.requested_metric or ""
+    source_path = query_plan.framework_source_path or f"{brsr_data.get('framework', 'BRSR')}"
+    period = brsr_data.get("period") or "current period"
+    responses = brsr_data.get("responses") or []
+    label = qkey.replace("_", " ").replace("brsr a ", "").replace("p1 ", "P1 ").title()
+
+    if state == RESPONSE_FOUND:
+        matching = [r for r in responses if r.get("question_key") == qkey]
+        if not matching:
+            matching = responses[:1]
+        if matching:
+            record = matching[0]
+            value = record.get("value")
+            approval = record.get("approval_status")
+            # Format value based on type
+            if isinstance(value, dict):
+                value_lines = []
+                for k, v in value.items():
+                    if v in (None, "", [], {}):
+                        continue
+                    if isinstance(v, dict):
+                        # Nested dict (e.g. policy fields) — flatten
+                        for nk, nv in v.items():
+                            if nv not in (None, "", [], {}):
+                                value_lines.append(f"{nk.replace('_', ' ').title()}: {nv}")
+                    elif isinstance(v, bool):
+                        readable = k.replace("_", " ").replace("has ", "").title()
+                        value_lines.append(f"{readable}: {'Yes' if v else 'No'}")
+                    else:
+                        value_lines.append(f"{k.replace('_', ' ').title()}: {v}")
+                formatted_value = "\n".join(value_lines) if value_lines else str(value)
+            elif isinstance(value, list):
+                if value and isinstance(value[0], dict):
+                    formatted_value = "\n".join(
+                        "  • " + ", ".join(f"{dk.replace('_',' ').title()}: {dv}" for dk, dv in item.items() if dv not in (None, "", [], {}))
+                        for item in value[:10]
+                    )
+                else:
+                    formatted_value = "\n".join(f"  • {item}" for item in value[:10])
+            else:
+                formatted_value = str(value)
+
+            answer = f"**{label}**\n\n{formatted_value}"
+            if period and period != "current period":
+                answer += f"\n\nPeriod: {period}"
+            answer += f"\nSource: {source_path}"
+            if approval:
+                answer += f"\nApproval Status: {str(approval).replace('_', ' ').title()}"
+        else:
+            answer = f"**{label}**\nValue found but could not be formatted.\n\nSource: {source_path}"
+    elif state == RESPONSE_CONFIGURED_NO_RESPONSE:
+        answer = (
+            f"**{label}**\n\n"
+            f"The question is configured for {brsr_data.get('framework', 'BRSR')}, "
+            f"but no response has been submitted for this organization.\n\n"
+            f"Status: Not answered\n"
+            f"Source: {source_path}"
+        )
+    elif state == RESPONSE_EMPTY:
+        answer = (
+            f"**{label}**\n\n"
+            f"A response exists but the value is empty.\n\n"
+            f"Status: Empty response\n"
+            f"Source: {source_path}"
+        )
+    else:
+        answer = (
+            f"**{label}**\n\n"
+            f"This question is not configured in the system.\n\n"
+            f"Status: Not configured\n"
+            f"Source: {source_path}"
+        )
+
+    highlights = [
+        {"label": "State", "value": state},
+        {"label": "Question", "value": qkey},
+        {"label": "Source", "value": source_path},
+    ]
+    if period and period != "current period":
+        highlights.append({"label": "Period", "value": period})
+
+    return {
+        "answer": answer,
+        "highlights": highlights,
+        "suggestion": None,
+        "response_type": response_type,
+        "chart": None,
+        "raw_data": brsr_data,
+    }
+
+
 async def build_response(
     question: str,
     intent: dict,
@@ -419,6 +530,9 @@ async def build_response(
     try:
         if query_plan and query_plan.query_type == QueryType.FUEL_ENERGY_LOOKUP:
             return _build_fuel_energy_response(service_data.get("esg_records", {}), service_data.get("emissions", {}), response_type)
+        # Framework question registry — deterministic response (no LLM)
+        if query_plan and query_plan.framework_question_key and service_data.get("brsr"):
+            return _build_framework_question_response(query_plan, service_data["brsr"], response_type)
         if query_plan and query_plan.data_source == "ghg_emissions" and service_data.get("emissions"):
             return _build_ghg_response(query_plan, service_data["emissions"], response_type)
         if query_plan and query_plan.query_type == QueryType.RECORD_VERSION_HISTORY and query_plan.record_type in {"environment", "social", "governance"}:
