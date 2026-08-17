@@ -49,6 +49,7 @@ export function buildDynamicValues(ctx) {
     : {};
 
   (dynamicInputFields || []).forEach((field) => {
+    if (field.presentationOnly) return;
     const variable = field.variable;
     const value = dynamicFieldValues[variable];
     const unit = getFieldUnitForSave(field, ctx);

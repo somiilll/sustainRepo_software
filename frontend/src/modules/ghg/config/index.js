@@ -15,6 +15,11 @@ export { resolveGhgConfig } from './resolveGhgConfig';
 export { resolveGhgFieldOptions } from './resolveGhgConfig';
 export { resolveGhgCapabilities, STANDARD_GHG_CAPABILITIES } from './resolveGhgCapabilities';
 export { resolveGhgFormArchitecture } from './resolveGhgFormArchitecture';
+export {
+  resolveGhgCategoryOptions,
+  resolveGhgSubcategoryOptions,
+  resolveGhgOrganizationUiConfig,
+} from './resolveGhgCategoryOptions';
 export { resolveGhgUiState } from './resolveGhgUiState';
 export {
   GHG_FIELD_OPTION_KEYS,
@@ -34,5 +39,6 @@ export {
   ALLOWED_OVERRIDE_KEYS,
   APPLIED_OVERRIDE_KEYS,
   RESERVED_OVERRIDE_KEYS,
+  BLOCKED_OVERRIDE_KEYS,
   validateGhgOverrides,
 } from './overrideSchema';

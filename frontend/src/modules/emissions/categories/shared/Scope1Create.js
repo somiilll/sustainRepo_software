@@ -55,6 +55,7 @@ export function extractInputsForCalcEngine(data, ctx) {
   let primaryUnit = ctx.defaultUnit || '';
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     if (value === undefined || value === null || value === '') return;
 
@@ -86,6 +87,7 @@ export function buildDynamicFieldValues(data, ctx) {
   const out = {};
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     const unit = resolveFieldUnit(field, data, ctx);
 

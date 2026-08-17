@@ -34,6 +34,8 @@ import {
   deriveGhgFields,
   resolveGhgFormContext,
   resolveGhgFormArchitecture,
+  resolveGhgCategoryOptions,
+  resolveEffectiveScopeCode,
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
@@ -1537,7 +1539,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, activeScope, biogenicScopeSelection, editCapabilities]);
 
   // Get unique categories for the scope
-  const getCategoriesForScope = useMemo(() => {
+  const standardCategoriesForScope = useMemo(() => {
     // For biogenic with scope3 selected, return only biogenic categories
     if (activeScope === 'biogenic' && biogenicScopeSelection === 'scope3') {
       return biogenicCategories.sort((a, b) => {
@@ -1598,6 +1600,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     
     return Array.from(cats).sort();
   }, [formData.scope, formData.category, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
+
+  const getCategoriesForScope = useMemo(() => resolveGhgCategoryOptions({
+    standardCategories: standardCategoriesForScope,
+    scopeCode: resolveEffectiveScopeCode(formData.scope, biogenicScopeSelection),
+    categoryDefinitions: dynamicCategories,
+    organizationOverrides: organizationGhgOverrides,
+  }), [standardCategoriesForScope, formData.scope, biogenicScopeSelection, dynamicCategories, organizationGhgOverrides]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {

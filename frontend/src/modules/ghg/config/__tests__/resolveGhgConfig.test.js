@@ -6,7 +6,8 @@
  * change existing behaviour for any organization.
  */
 import { resolveGhgConfig } from '../resolveGhgConfig';
-import { validateGhgOverrides, ALLOWED_OVERRIDE_KEYS } from '../overrideSchema';
+import { validateGhgOverrides } from '../overrideSchema';
+import { deriveGhgFields } from '../deriveGhgFields';
 
 const STANDARD = {
   has_decision_tree: true,
@@ -106,20 +107,29 @@ describe('resolveGhgConfig — applied overrides', () => {
     expect(result.input_field_mappings[0].options).toEqual(['A', 'B']);
   });
 
-  it('appends a custom field', () => {
+  it('keeps a valid custom field presentation-only', () => {
     const result = resolveGhgConfig({
       standardConfig: STANDARD,
       organizationOverrides: {
         customFields: [
-          { id: 'org1', field_key: 'cost_centre', field_label: 'Cost Centre', display_order: 9 },
+          { id: 'org1', field_key: 'cost_centre', field_label: 'Cost Centre', field_type: 'text', display_order: 9 },
         ],
       },
     });
-    expect(result.input_field_mappings.map((m) => m.field_key)).toEqual([
-      'qty',
-      'cv',
-      'cost_centre',
-    ]);
+    expect(result.input_field_mappings.map((m) => m.field_key)).toEqual(['qty', 'cv']);
+    const derived = deriveGhgFields({
+      formConfig: result,
+      context: {
+        scope: 'scope1',
+        decisionFieldValues: { calculation_methodology: 'using_heat_basis_ncv' },
+        selectedFuel: null,
+      },
+    });
+    expect(derived.fields.find((field) => field.variable === 'cost_centre')).toMatchObject({
+      label: 'Cost Centre',
+      presentationOnly: true,
+      unitSource: 'none',
+    });
   });
 
   it('leaves decision trees, formulas and allowed units untouched', () => {
@@ -154,15 +164,24 @@ describe('validateGhgOverrides', () => {
     expect(validateGhgOverrides(null)).toEqual({ valid: true, errors: [] });
   });
 
-  it('accepts every whitelisted key', () => {
-    const doc = ALLOWED_OVERRIDE_KEYS.reduce((acc, key) => ({ ...acc, [key]: [] }), {});
-    expect(validateGhgOverrides({ ...doc, fieldLabels: {}, fieldOptions: {}, fieldOverrides: {} }).valid).toBe(
-      true,
-    );
+  it('accepts all safe override shapes', () => {
+    expect(validateGhgOverrides({
+      hiddenFields: [],
+      requiredFields: [],
+      fieldLabels: {},
+      fieldOptions: {},
+      fieldOverrides: {},
+      customFields: [],
+      disabledScopes: [],
+      disabledCategories: [],
+      disabledSubcategories: [],
+      conditionalFields: {},
+      validationRules: {},
+    }).valid).toBe(true);
   });
 
   it('rejects keys that could change calculation behaviour', () => {
-    ['formulas', 'decision_tree', 'emissionFactors', 'units', 'organizationId'].forEach(
+    ['formulas', 'decision_tree', 'emissionFactors', 'units', 'organizationId', 'formulaOverrides', 'decisionTreeOverrides', 'emissionFactorOverrides', 'unitOverrides'].forEach(
       (key) => {
         const { valid, errors } = validateGhgOverrides({ [key]: 'anything' });
         expect(valid).toBe(false);
@@ -183,5 +202,12 @@ describe('validateGhgOverrides', () => {
     expect(validateGhgOverrides({ hiddenFields: 'cv' }).valid).toBe(false);
     expect(validateGhgOverrides({ customFields: {} }).valid).toBe(false);
     expect(validateGhgOverrides([]).valid).toBe(false);
+  });
+
+  it('rejects a unit-like field option and a calculation-shaped custom field', () => {
+    expect(validateGhgOverrides({ fieldOptions: { quantity_unit: ['kg'] } }).valid).toBe(false);
+    expect(validateGhgOverrides({
+      customFields: [{ field_key: 'unsafe', field_label: 'Unsafe', maps_to_variable: 'qty' }],
+    }).valid).toBe(false);
   });
 });

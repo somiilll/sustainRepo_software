@@ -1,6 +1,7 @@
 import { resolveGhgCapabilities } from './resolveGhgCapabilities';
 import { resolveGhgConfig, resolveGhgFieldOptions } from './resolveGhgConfig';
 import { resolveStandardGhgFieldOptions } from './standardGhgFormConfig';
+import { resolveGhgOrganizationUiConfig } from './resolveGhgCategoryOptions';
 
 /**
  * Live Create/Edit architecture seam.
@@ -21,7 +22,12 @@ export const resolveGhgFormArchitecture = ({
     standardFieldOptions,
     organizationOverrides,
   });
-  const organizationOverridesApplied = resolvedFieldOptions !== standardFieldOptions;
+  const organizationUiConfig = resolveGhgOrganizationUiConfig({ organizationOverrides });
+  const organizationOverridesApplied = resolvedConfig !== standardConfig
+    || resolvedFieldOptions !== standardFieldOptions
+    || organizationUiConfig.disabledScopes.length > 0
+    || organizationUiConfig.disabledCategories.length > 0
+    || organizationUiConfig.disabledSubcategories.length > 0;
   const capabilityResolution = resolveGhgCapabilities({
     categoryCode: formContext?.categoryDefinition?.code,
     scopeCode: formContext?.effectiveScope,
@@ -36,6 +42,7 @@ export const resolveGhgFormArchitecture = ({
     resolvedFieldOptions,
     capabilityResolution,
     capabilities: capabilityResolution.capabilities,
+    organizationUiConfig,
   };
 };
 

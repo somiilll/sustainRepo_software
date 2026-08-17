@@ -22,6 +22,7 @@ import {
   RESERVED_OVERRIDE_KEYS,
   validateGhgOverrides,
 } from './overrideSchema';
+import { resolveGhgSubcategoryOptions } from './resolveGhgCategoryOptions';
 
 const hasAnyOverride = (overrides) =>
   overrides != null &&
@@ -84,10 +85,9 @@ export const resolveGhgConfig = ({ standardConfig, organizationOverrides } = {})
         next = { ...next, is_required: true };
       }
       return next;
-    })
-    .concat(customFields.filter((f) => f && f.field_key && !hidden.has(f.field_key)));
+    });
 
-  const organizationMeta = RESERVED_OVERRIDE_KEYS.reduce((acc, key) => {
+  const organizationMeta = [...RESERVED_OVERRIDE_KEYS, 'disabledScopes', 'disabledCategories', 'disabledSubcategories'].reduce((acc, key) => {
     if (organizationOverrides[key] !== undefined) acc[key] = organizationOverrides[key];
     return acc;
   }, {});
@@ -95,6 +95,10 @@ export const resolveGhgConfig = ({ standardConfig, organizationOverrides } = {})
   return {
     ...standardConfig,
     input_field_mappings: mappings,
+    // Custom organization fields are deliberately separate from the engine's
+    // mappings. deriveGhgFields marks them presentation-only, so they render
+    // in both forms but never become formula inputs or persisted calc values.
+    presentation_custom_fields: customFields.filter((field) => !hidden.has(field.field_key)),
     organizationMeta,
   };
 };
@@ -103,8 +107,16 @@ export const resolveGhgConfig = ({ standardConfig, organizationOverrides } = {})
 export const resolveGhgFieldOptions = ({ standardFieldOptions = {}, organizationOverrides } = {}) => {
   if (!hasAnyOverride(organizationOverrides)) return standardFieldOptions;
   const { valid } = validateGhgOverrides(organizationOverrides);
-  if (!valid || !organizationOverrides.fieldOptions) return standardFieldOptions;
-  return { ...standardFieldOptions, ...organizationOverrides.fieldOptions };
+  if (!valid) return standardFieldOptions;
+  const fieldOptions = organizationOverrides.fieldOptions || {};
+  const resolved = { ...standardFieldOptions, ...fieldOptions };
+  if (resolved.scope3_subcategory) {
+    resolved.scope3_subcategory = resolveGhgSubcategoryOptions({
+      standardOptions: resolved.scope3_subcategory,
+      organizationOverrides,
+    });
+  }
+  return resolved;
 };
 
 export default resolveGhgConfig;

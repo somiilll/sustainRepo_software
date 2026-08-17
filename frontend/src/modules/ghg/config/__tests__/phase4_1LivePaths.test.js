@@ -161,7 +161,6 @@ describe('Phase 4.1 live Create/Edit capability paths', () => {
     const overrides = {
       fieldOptions: {
         [GHG_FIELD_OPTION_KEYS.SUBCATEGORY]: [{ value: 'org_option', label: 'Organization Option' }],
-        [GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT]: ['kgCO2/org-unit'],
       },
     };
     const create = resolveLivePath({

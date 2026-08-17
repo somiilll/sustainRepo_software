@@ -295,8 +295,28 @@ const toField = (m, { isQtyBasis, fuelQtyUnits }) => {
   return field;
 };
 
+const toPresentationField = (field, index) => ({
+  id: field.id || `organization-custom-${field.field_key}-${index}`,
+  variable: field.field_key,
+  fieldKey: field.field_key,
+  label: field.field_label,
+  expectedUnit: '',
+  required: Boolean(field.is_required),
+  isOverride: false,
+  fieldType: field.field_type || 'text',
+  allowedUnits: [],
+  unitSource: 'none',
+  compoundWithVariable: null,
+  placeholder: field.placeholder || `Enter ${field.field_label}`,
+  helpText: field.help_text || '',
+  options: field.options || [],
+  validationRules: field.validation_rules || {},
+  defaultValue: field.default_value,
+  presentationOnly: true,
+});
+
 export const deriveGhgFields = ({ formConfig, context } = {}) => {
-  if (!formConfig?.input_field_mappings?.length) {
+  if (!formConfig?.input_field_mappings?.length && !formConfig?.presentation_custom_fields?.length) {
     return { fields: [], formulaId: null, matchedFormula: null };
   }
 
@@ -318,7 +338,7 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
 
   const decisionFieldNames = (formConfig.decision_fields || []).map((d) => d.field_name);
 
-  const applicableMappings = formConfig.input_field_mappings.filter((mapping) =>
+  const applicableMappings = (formConfig.input_field_mappings || []).filter((mapping) =>
     isMappingApplicable({
       mapping,
       formConfig,
@@ -335,8 +355,15 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
     context.decisionFieldValues.calculation_methodology === 'using_qty_basis_ef';
   const fuelQtyUnits = context.selectedFuel?.allowed_units || [];
 
+  const calculationFields = applicableMappings.map((m) => toField(m, { isQtyBasis, fuelQtyUnits }));
+  // C7 is a dedicated multi-employee workflow with its own serialized input
+  // contract. Organization custom fields are intentionally unavailable there.
+  const presentationFields = context.categoryDefinition?.code === 'c7'
+    ? []
+    : (formConfig.presentation_custom_fields || []).map(toPresentationField);
+
   return {
-    fields: applicableMappings.map((m) => toField(m, { isQtyBasis, fuelQtyUnits })),
+    fields: [...calculationFields, ...presentationFields],
     formulaId: matchedFormula?.id || null,
     matchedFormula: matchedFormula || null,
   };

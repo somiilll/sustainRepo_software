@@ -163,7 +163,7 @@ export const DynamicFieldRenderer = ({
   const showSupplierUnitInput = !hideStandardQuantityUnit && isSupplierBasisField && !field.variable?.endsWith('_unit');
   // Freeform text unit input driven by admin config (independent of supplier basis).
   const showTextUnitInput = !hideStandardQuantityUnit && isTextUnitField && !field.variable?.endsWith('_unit');
-  const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
+  const showOverrideCheckbox = !field.presentationOnly && (field.isOverride || (!field.required && !field.isOverride));
   // Only enforce integer validation for pure count fields (e.g., "No. of rooms", "No. of days")
   // Fields with validation_rules.max <= 1 or percentage fields are NOT count fields
   const isUnitlessCountField = isNoUnitField && 

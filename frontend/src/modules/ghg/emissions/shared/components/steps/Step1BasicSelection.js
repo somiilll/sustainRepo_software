@@ -31,6 +31,7 @@ export const Step1BasicSelection = ({
   scope,
   setScope,
   dynamicScopes,
+  disabledScopes = [],
   hasScope3Access,
   setCategory,
   setFuelId,
@@ -157,7 +158,9 @@ export const Step1BasicSelection = ({
       { code: 'biogenic', name: 'Biogenic' },
     ];
     
-    let result = defaultScopes.filter(s => s.code !== 'scope3' || hasScope3Access);
+    let result = defaultScopes
+      .filter(s => s.code !== 'scope3' || hasScope3Access)
+      .filter(s => !disabledScopes.includes(s.code));
     
     // Apply KPI-based scope filtering if not full access
     if (!hasFullKPIAccess && kpiAllowedScopes && kpiAllowedScopes.length > 0) {
@@ -165,7 +168,7 @@ export const Step1BasicSelection = ({
     }
     
     return result;
-  }, [dynamicScopes, hasScope3Access, hasFullKPIAccess, kpiAllowedScopes]);
+  }, [dynamicScopes, disabledScopes, hasScope3Access, hasFullKPIAccess, kpiAllowedScopes]);
 
   return (
     <div className="space-y-4">

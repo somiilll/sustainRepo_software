@@ -247,7 +247,7 @@ export function useEmissionSubmit(ctx) {
             yearlyData[f.key] && parseFloat(yearlyData[f.key]) > 0
           );
         } else if (dynamicInputFields.length > 0) {
-          const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+          const requiredFields = dynamicInputFields.filter(f => !f.isOverride && !f.presentationOnly);
           hasYearlyData = requiredFields.some(f => {
             const value = yearlyData[f.variable] || yearlyData[f.fieldKey];
             return value && parseFloat(value) > 0;
@@ -471,7 +471,7 @@ export function useEmissionSubmit(ctx) {
         });
       } else if (dynamicInputFields.length > 0) {
         // For dynamic form config, check if any required field (non-override) has value
-        const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+        const requiredFields = dynamicInputFields.filter(f => !f.isOverride && !f.presentationOnly);
         monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
           return requiredFields.some(field => {
             const value = data?.[field.variable] || data?.[field.fieldKey];

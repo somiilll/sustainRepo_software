@@ -51,6 +51,7 @@ import {
   resolveGhgFormContext,
   resolveEffectiveScopeCode,
   resolveGhgFormArchitecture,
+  resolveGhgCategoryOptions,
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
@@ -1185,7 +1186,7 @@ export default function EmissionEntryForm({
 
   // Get categories for selected scope — prefer SuperAdmin-managed categories,
   // fall back to those inferred from the fuel database for compatibility.
-  const categoriesForScope = useMemo(() => {
+  const standardCategoriesForScope = useMemo(() => {
     // For biogenic with scope3 selected, return biogenic categories
     if (scope === 'biogenic' && biogenicScopeSelection === 'scope3') {
       return biogenicCategories.sort((a, b) => {
@@ -1238,6 +1239,13 @@ export default function EmissionEntryForm({
     
     return result;
   }, [fuelDatabase, scope, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
+
+  const categoriesForScope = useMemo(() => resolveGhgCategoryOptions({
+    standardCategories: standardCategoriesForScope,
+    scopeCode: resolveEffectiveScopeCode(scope, biogenicScopeSelection),
+    categoryDefinitions: dynamicCategories,
+    organizationOverrides: organizationGhgOverrides,
+  }), [standardCategoriesForScope, scope, biogenicScopeSelection, dynamicCategories, organizationGhgOverrides]);
 
   // ============================================================================
   // Dynamic Form Config - fields come from ce_input_field_mappings.
@@ -2798,6 +2806,7 @@ export default function EmissionEntryForm({
           scope={scope}
           setScope={setScope}
           dynamicScopes={dynamicScopes}
+          disabledScopes={ghgFormArchitecture.organizationUiConfig.disabledScopes}
           hasScope3Access={hasScope3Access}
           setCategory={setCategory}
           setFuelId={setFuelId}
