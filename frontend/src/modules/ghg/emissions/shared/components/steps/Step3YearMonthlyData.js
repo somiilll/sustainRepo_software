@@ -392,6 +392,17 @@ export const Step3YearMonthlyData = ({
                   {!isDisabled && (
                   <AccordionContent className="px-4 pb-4">
                     <div className="space-y-4">
+                      {/* Flight Details — C6 Business Travel + air_travel only */}
+                      {category && scope3ActivityType === 'air_travel' &&
+                        category.toLowerCase().includes('c6') && (
+                        <FlightDetailsSection
+                          monthKey={monthKey}
+                          data={data}
+                          updateMonthData={updateMonthData}
+                          disabled={isDisabled}
+                        />
+                      )}
+
                       {/* For Process Emissions: Show template required input field with fixed unit */}
                       {isProcessEmissions && selectedTemplate ? (
                         <div className="space-y-4">
@@ -512,17 +523,6 @@ export const Step3YearMonthlyData = ({
                         <LiveCalculationSummary
                           result={liveCalculationResults[monthKey]}
                           isCalculating={isLiveCalculationCalculating}
-                        />
-                      )}
-
-                      {/* Flight Details — C6 Business Travel + air_travel only */}
-                      {category && scope3ActivityType === 'air_travel' &&
-                        category.toLowerCase().includes('c6') && (
-                        <FlightDetailsSection
-                          monthKey={monthKey}
-                          data={data}
-                          updateMonthData={updateMonthData}
-                          disabled={isDisabled}
                         />
                       )}
 
@@ -818,6 +818,17 @@ const YearlyDataEntry = ({
       </div>
 
       <div className="p-4 border rounded-lg bg-stone-50 space-y-4">
+        {/* Flight Details — C6 Business Travel + air_travel (yearly mode) */}
+        {category && scope3ActivityType === 'air_travel' &&
+          category.toLowerCase().includes('c6') && (
+          <FlightDetailsSection
+            monthKey="yearly"
+            data={yearlyData}
+            updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
+            disabled={false}
+          />
+        )}
+
         {/* For Process Emissions: Show template required input field with fixed unit */}
         {isProcessEmissions && selectedTemplate ? (
           <div className="space-y-4">
@@ -1248,16 +1259,6 @@ const YearlyDataEntry = ({
           </div>
         )}
 
-        {/* Flight Details — C6 Business Travel + air_travel (yearly mode) */}
-        {category && scope3ActivityType === 'air_travel' &&
-          category.toLowerCase().includes('c6') && (
-          <FlightDetailsSection
-            monthKey="yearly"
-            data={yearlyData}
-            updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
-            disabled={false}
-          />
-        )}
       </div>
     </div>
   );

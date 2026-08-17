@@ -340,9 +340,9 @@ export function buildEditPayload(ctx) {
     ...(formData.to_airport && {
       to_airport: formData.to_airport,
     }),
-    ...(formData.flight_distance != null && {
+    ...(formData.km_travelled != null && formData.from_airport && {
       flight_distance: {
-        value: formData.flight_distance,
+        value: formData.km_travelled,
         unit: 'km',
         method: formData.flight_distance_method || (formData.flight_distance_manual ? 'MANUAL' : 'HAVERSINE'),
         overridden: !!formData.flight_distance_overridden,

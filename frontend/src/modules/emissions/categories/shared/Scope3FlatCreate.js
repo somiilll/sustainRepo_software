@@ -398,9 +398,9 @@ export function buildCreatePayload(monthData, ctx) {
     ...(monthData?.to_airport && {
       to_airport: monthData.to_airport,
     }),
-    ...(monthData?.flight_distance != null && {
+    ...(monthData?.km_travelled != null && monthData?.from_airport && {
       flight_distance: {
-        value: monthData.flight_distance,
+        value: monthData.km_travelled,
         unit: 'km',
         method: monthData.flight_distance_method || (monthData.flight_distance_manual ? 'MANUAL' : 'HAVERSINE'),
         overridden: !!monthData.flight_distance_overridden,

@@ -379,7 +379,7 @@ export default function EmissionEntryForm({
           }
           if (editingEmission.flight_distance) {
             const fd = editingEmission.flight_distance;
-            monthData.flight_distance = typeof fd === 'object' ? fd.value : fd;
+            monthData.km_travelled = typeof fd === 'object' ? fd.value : fd;
             monthData.flight_distance_method = typeof fd === 'object' ? fd.method : null;
             monthData.flight_distance_overridden = typeof fd === 'object' ? fd.overridden : false;
             monthData.flight_distance_manual = typeof fd === 'object' ? fd.method === 'MANUAL' : false;
@@ -432,7 +432,7 @@ export default function EmissionEntryForm({
         }
         if (editingEmission.flight_distance) {
           const fd = editingEmission.flight_distance;
-          yearData.flight_distance = typeof fd === 'object' ? fd.value : fd;
+          yearData.km_travelled = typeof fd === 'object' ? fd.value : fd;
           yearData.flight_distance_method = typeof fd === 'object' ? fd.method : null;
           yearData.flight_distance_overridden = typeof fd === 'object' ? fd.overridden : false;
           yearData.flight_distance_manual = typeof fd === 'object' ? fd.method === 'MANUAL' : false;
