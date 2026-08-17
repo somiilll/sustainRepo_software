@@ -141,6 +141,7 @@ export default function EmissionEditForm(props) {
     getFuelsForCategory,
     availableScope3Methods,
     availableScope3ActivityTypes,
+    capabilities = {},
     requiresSubcategory,
     availableSubcategories,
     filteredScope3Activities,
@@ -668,9 +669,7 @@ export default function EmissionEditForm(props) {
 
                           {/* C11 Type of Product (only for activity_basis) */}
                           {(() => {
-                            const catLower = (formData.category || '').toLowerCase();
-                            const isC11 = catLower.includes('c11');
-                            const showTypeOfProduct = isC11
+                            const showTypeOfProduct = capabilities.typeOfProduct
                               && scope3Method === 'activity_basis'
                               && requiresSubcategory
                               && !!scope3Subcategory;
@@ -813,26 +812,26 @@ export default function EmissionEditForm(props) {
                       {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
                       {formData.scope === 'scope3' && selectedCategory && (
                         <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium mb-2 text-blue-800 text-sm">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer' : 'Supplier'} Information (Optional)</h4>
+                          <h4 className="font-medium mb-2 text-blue-800 text-sm">{capabilities.customerCounterparty ? 'Customer' : 'Supplier'} Information (Optional)</h4>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                              <Label htmlFor="supplier_name" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Name' : 'Supplier Name'}</Label>
+                              <Label htmlFor="supplier_name" className="text-xs">{capabilities.customerCounterparty ? 'Customer Name' : 'Supplier Name'}</Label>
                               <Input
                                 id="supplier_name"
                                 value={formData.supplier_name}
                                 onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer name...' : 'Enter supplier name...'}
+                                placeholder={capabilities.customerCounterparty ? 'Enter customer name...' : 'Enter supplier name...'}
                                 className="bg-white h-9"
                                 data-testid="edit-supplier-name-input"
                               />
                             </div>
                             <div className="space-y-1.5">
-                              <Label htmlFor="supplier_code" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Code' : 'Supplier Code'}</Label>
+                              <Label htmlFor="supplier_code" className="text-xs">{capabilities.customerCounterparty ? 'Customer Code' : 'Supplier Code'}</Label>
                               <Input
                                 id="supplier_code"
                                 value={formData.supplier_code}
                                 onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
-                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer code...' : 'Enter supplier code...'}
+                                placeholder={capabilities.customerCounterparty ? 'Enter customer code...' : 'Enter supplier code...'}
                                 className="bg-white h-9"
                                 data-testid="edit-supplier-code-input"
                               />
@@ -874,7 +873,7 @@ export default function EmissionEditForm(props) {
 
                       {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
                       {/* Asset Name section — driven by module capability 'asset-name' (C8/C13/C14/C15) */}
-                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('asset-name') && (
+                      {formData.scope === 'scope3' && capabilities.assetName && (
                         <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                           <h4 className="font-medium mb-2 text-amber-800 text-sm">Asset Information</h4>
                           <div className="space-y-1.5">
@@ -894,7 +893,7 @@ export default function EmissionEditForm(props) {
 
                       {/* From/To Location for C4/C6/C9 (Transportation/Travel categories) */}
                       {/* Journey Details — driven by module capability 'journey-locations' (C4/C6/C9) */}
-                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('journey-locations') && !isEditC7EmployeeCommuting && (
+                      {formData.scope === 'scope3' && capabilities.journeyLocations && !isEditC7EmployeeCommuting && (
                         <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                           <h4 className="font-medium mb-2 text-blue-800 text-sm">Journey Details (Optional)</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

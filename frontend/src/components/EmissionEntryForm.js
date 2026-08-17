@@ -782,7 +782,7 @@ export default function EmissionEntryForm({
     
     // For subcategory-based categories (C8, C10, C11, C13, C14), handle specially
     const catLower = category?.toLowerCase() || '';
-    const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+    const isSubcategoryCategory = hasSubcategoryCapability;
     
     // For BIOGENIC scope3, skip subcategory handling - just filter by category directly
     // Biogenic C8/C10/C11/C13/C14 should work like C3 (direct activity selection)
@@ -2831,6 +2831,7 @@ export default function EmissionEntryForm({
           loadingBiogenicCategories={loadingBiogenicCategories}
           category={category}
           categoriesForScope={categoriesForScope}
+          capabilities={resolvedCapabilities}
           scope3Method={scope3Method}
           availableScope3Methods={availableScope3Methods}
           getMethodLabel={getMethodLabel}
@@ -2993,6 +2994,7 @@ export default function EmissionEntryForm({
           removeEvidence={removeEvidence}
           BACKEND_URL={BACKEND_URL}
           category={category}
+          capabilities={resolvedCapabilities}
         />
         );
       })()}

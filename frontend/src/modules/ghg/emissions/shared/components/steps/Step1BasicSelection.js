@@ -47,6 +47,7 @@ export const Step1BasicSelection = ({
   // Category props
   category,
   categoriesForScope,
+  capabilities = {},
   
   // Scope 3 Method props
   scope3Method,
@@ -495,9 +496,7 @@ export const Step1BasicSelection = ({
               Categories C11 needs this to pick between continuous_usage and
               one_time_use formulas. Shown after subcategory selection. */}
           {(() => {
-            const catLower = (category || '').toLowerCase();
-            const isC11 = catLower.includes('c11');
-            const showTypeOfProduct = isC11
+            const showTypeOfProduct = capabilities.typeOfProduct
               && scope3Method === 'activity_basis'
               && requiresSubcategory
               && !!scope3Subcategory;
@@ -595,16 +594,16 @@ export const Step1BasicSelection = ({
                       setScope3ActivityId(e.target.value);
                       setFuelSearchTerm('');
                     }}
-                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || ((category || '').toLowerCase().includes('c11') && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (capabilities.typeOfProduct && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     data-testid="scope3-activity-select"
-                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || ((category || '').toLowerCase().includes('c11') && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)}
+                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (capabilities.typeOfProduct && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)}
                   >
                     <option value="">
                       {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType)
                         ? 'Select activity type first'
                         : (requiresSubcategory && !scope3Subcategory)
                         ? 'Select sub-category first'
-                        : ((category || '').toLowerCase().includes('c11') && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)
+                        : (capabilities.typeOfProduct && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)
                         ? 'Select type of product first'
                         : `Select Activity (${filteredScope3Activities.filter(a => 
                             !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
@@ -782,24 +781,24 @@ export const Step1BasicSelection = ({
       {/* Scope 3 Supplier Information (optional) */}
       {scope === 'scope3' && category && (
         <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h4 className="font-medium mb-3 text-blue-800">{category?.toLowerCase()?.includes('c9') ? 'Customer' : 'Supplier'} Information (Optional)</h4>
+          <h4 className="font-medium mb-3 text-blue-800">{capabilities.customerCounterparty ? 'Customer' : 'Supplier'} Information (Optional)</h4>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>{category?.toLowerCase()?.includes('c9') ? 'Customer Name' : 'Supplier Name'}</Label>
+              <Label>{capabilities.customerCounterparty ? 'Customer Name' : 'Supplier Name'}</Label>
               <Input
                 value={supplierName}
                 onChange={(e) => setSupplierName(e.target.value)}
-                placeholder={category?.toLowerCase()?.includes('c9') ? 'Enter customer name...' : 'Enter supplier name...'}
+                placeholder={capabilities.customerCounterparty ? 'Enter customer name...' : 'Enter supplier name...'}
                 className="bg-white"
                 data-testid="supplier-name-input"
               />
             </div>
             <div className="space-y-2">
-              <Label>{category?.toLowerCase()?.includes('c9') ? 'Customer Code' : 'Supplier Code'}</Label>
+              <Label>{capabilities.customerCounterparty ? 'Customer Code' : 'Supplier Code'}</Label>
               <Input
                 value={supplierCode}
                 onChange={(e) => setSupplierCode(e.target.value)}
-                placeholder={category?.toLowerCase()?.includes('c9') ? 'Enter customer code...' : 'Enter supplier code...'}
+                placeholder={capabilities.customerCounterparty ? 'Enter customer code...' : 'Enter supplier code...'}
                 className="bg-white"
                 data-testid="supplier-code-input"
               />

@@ -3258,6 +3258,7 @@ export default function Emissions() {
                   getFuelsForCategory={getFuelsForCategory}
                   availableScope3Methods={availableScope3Methods}
                   availableScope3ActivityTypes={availableScope3ActivityTypes}
+                  capabilities={editCapabilities}
                   requiresSubcategory={requiresSubcategory}
                   availableSubcategories={availableSubcategories}
                   filteredScope3Activities={filteredScope3Activities}

@@ -113,6 +113,7 @@ export const Step3YearMonthlyData = ({
   // Override/fuel props
   scope,
   category,
+  capabilities = {},
   biogenicScopeSelection,
   useCustomFuel,
   selectedFuel,
@@ -390,8 +391,7 @@ export const Step3YearMonthlyData = ({
                   <AccordionContent className="px-4 pb-4">
                     <div className="space-y-4">
                       {/* Flight Details — C6 Business Travel + air_travel only */}
-                      {category && scope3ActivityType === 'air_travel' &&
-                        category.toLowerCase().includes('c6') && (
+                      {scope3ActivityType === 'air_travel' && capabilities.flightDetails && (
                         <FlightDetailsSection
                           monthKey={monthKey}
                           data={data}
@@ -790,6 +790,7 @@ const YearlyDataEntry = ({
   scope3Method,
   scope3ActivityType,
   category,
+  capabilities = {},
   getFieldUnitsForYearly,
   centralizedUnits,
   defaultUnit,
@@ -809,8 +810,7 @@ const YearlyDataEntry = ({
 
       <div className="p-4 border rounded-lg bg-stone-50 space-y-4">
         {/* Flight Details — C6 Business Travel + air_travel (yearly mode) */}
-        {category && scope3ActivityType === 'air_travel' &&
-          category.toLowerCase().includes('c6') && (
+        {scope3ActivityType === 'air_travel' && capabilities.flightDetails && (
           <FlightDetailsSection
             monthKey="yearly"
             data={yearlyData}
