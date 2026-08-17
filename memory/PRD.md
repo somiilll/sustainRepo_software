@@ -1,5 +1,21 @@
 # ESG Platform - Product Requirements Document
 
+## Change Log — Aug 17, 2026: Internal Data AI Implicit FY Month Comparisons
+
+### Implemented
+- Added deterministic support for comparative wording such as `Compare Scope 1 emissions of all months of FY 2026-2027` without requiring explicit `vs` separators.
+- The parser expands the request into the organization’s 12 fiscal months in fiscal-year order (April 2026 through March 2027 for an April-start financial year), then routes each month as an independent strict-month emissions lookup.
+- Existing comparison protections remain in force: current duplicate records are removed before aggregation, reference-period variances are calculated programmatically, annual/FY records are excluded from exact-month comparisons, and calculated-emissions tables retain the `tCO2e` standard.
+- Added parser/planner regression coverage and an authenticated live API contract test for the approved all-months FY wording.
+
+### Verification
+- Focused backend suite passed: **24/24** parser, planner, executor, unit-standard, and comparison-formatting checks.
+- Independent backend validation passed: **27/27** targeted checks, including authenticated `/api/internal-ai/chat` for the approved wording. It returned `emission_lookup`, all April-to-March columns, strict-month comparison data, variances, `tCO2e`, and a 12-point chart. **MOCKED APIs: NONE.** Report: `/app/test_reports/iteration_177.json`.
+
+### Prioritized Follow-up
+- **P1:** Reset BRSR Section A form data when reporting year changes.
+- **P2:** Split `response_builder.py` into focused formatter modules; expand Internal AI live coverage to additional ESG metrics and stabilize Shadcn Select automation.
+
 ## Change Log — Aug 17, 2026: Internal Data AI Unlimited Month Comparisons
 
 ### Implemented

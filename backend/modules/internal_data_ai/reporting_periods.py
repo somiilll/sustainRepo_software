@@ -117,17 +117,45 @@ def extract_explicit_period(question: str, organization: Optional[Dict[str, Any]
 
 
 def extract_comparison_periods(question: str, organization: Optional[Dict[str, Any]]) -> list[ResolvedPeriod]:
-    """Resolve all explicitly stated calendar months for a comparison request.
+    """Resolve deterministic monthly periods for a comparison request.
 
     Months without an adjacent year inherit the one explicit year in the
     comparison, allowing phrasing such as ``July vs June vs May 2026``.
     When every month supplies a year, comparisons across calendar years are
-    also supported. A partially specified multi-year comparison is rejected
-    rather than guessing which year belongs to an unqualified month.
+    also supported. ``Compare ... all months of FY 2026-2027`` expands to the
+    organization's twelve fiscal months in fiscal-year order. A partially
+    specified multi-year comparison is rejected rather than guessing which
+    year belongs to an unqualified month.
     """
     text = question or ""
-    if not re.search(r"\b(?:vs\.?|versus|compared\s+(?:with|to)|comparison\s+(?:with|to))\b", text, re.IGNORECASE):
+    comparison_request = re.search(
+        r"\b(?:compare|comparison|vs\.?|versus|compared\s+(?:with|to))\b",
+        text,
+        re.IGNORECASE,
+    )
+    if not comparison_request:
         return []
+
+    fiscal_months_match = re.search(
+        r"\ball\s+(?:the\s+)?months?\s+(?:of|in|for)\s+"
+        r"(?:FY|financial\s+year)\s*(20\d{2})(?:\s*[-–]\s*(?:20)?\d{2})?\b",
+        text,
+        re.IGNORECASE,
+    )
+    if fiscal_months_match:
+        fiscal_year = int(fiscal_months_match.group(1))
+        fiscal_start_month = ReportingPeriodService(organization, datetime.now(timezone.utc)).fiscal_start_month
+        fiscal_start = date(fiscal_year, fiscal_start_month, 1)
+        return [
+            _month_period(
+                month_date.year,
+                month_date.month,
+                f"{calendar.month_name[month_date.month]} {month_date.year}",
+                "implicit_fy_month_comparison",
+                fiscal_start_month,
+            )
+            for month_date in (fiscal_start + relativedelta(months=offset) for offset in range(12))
+        ]
 
     month_pattern = re.compile(
         r"\b(" + "|".join(sorted(MONTH_LOOKUP, key=len, reverse=True)) + r")\b(?:\s+(20\d{2}))?",

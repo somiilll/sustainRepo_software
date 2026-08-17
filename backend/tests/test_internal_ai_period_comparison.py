@@ -36,6 +36,30 @@ def test_extracts_any_number_of_explicit_cross_year_months():
     assert [period.start_month for period in periods] == ["2026-07", "2025-06", "2024-05"]
 
 
+def test_expands_all_fiscal_months_for_an_implicit_comparison_request():
+    periods = extract_comparison_periods(
+        "Compare Scope 1 emissions of all months of FY 2026-2027",
+        {"financial_year_start_month": 4},
+    )
+
+    assert [period.start_month for period in periods] == [
+        "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09",
+        "2026-10", "2026-11", "2026-12", "2027-01", "2027-02", "2027-03",
+    ]
+    assert [period.label for period in periods] == [
+        "April 2026", "May 2026", "June 2026", "July 2026", "August 2026", "September 2026",
+        "October 2026", "November 2026", "December 2026", "January 2027", "February 2027", "March 2027",
+    ]
+    assert all(period.source == "implicit_fy_month_comparison" for period in periods)
+
+
+def test_all_fiscal_months_without_comparison_wording_does_not_change_single_period_behavior():
+    assert extract_comparison_periods(
+        "Show Scope 1 emissions for all months of FY 2026-2027",
+        {"financial_year_start_month": 4},
+    ) == []
+
+
 def test_comparison_requires_an_explicit_year_for_ambiguous_months():
     assert extract_comparison_periods("Scope 1 in July vs June", {"financial_year_start_month": 4}) == []
 
@@ -60,6 +84,33 @@ async def test_scope_comparison_becomes_emissions_plan_even_without_emissions_wo
     calls = plan_service_calls({}, plan)
     assert [call["service"] for call in calls] == ["emissions"]
     assert len(calls[0]["params"]["comparison_periods"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_implicit_fy_month_comparison_becomes_a_strict_emissions_plan(monkeypatch):
+    async def no_registry_match(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr("modules.internal_data_ai.query_understanding.resolve_esg_query", no_registry_match)
+    periods = extract_comparison_periods(
+        "Compare Scope 1 emissions of all months of FY 2026-2027",
+        {"financial_year_start_month": 4},
+    )
+    plan = await build_query_plan(
+        "Compare Scope 1 emissions of all months of FY 2026-2027",
+        {"intent": "analytics", "entities": {"scope": "scope1"}},
+        periods[0],
+        comparison_periods=periods,
+    )
+
+    assert plan.query_type == QueryType.EMISSION_LOOKUP
+    assert plan.scope == "scope1"
+    assert len(plan.comparison_periods) == 12
+    assert plan.comparison_periods[0].label == "April 2026"
+    assert plan.comparison_periods[-1].label == "March 2027"
+    calls = plan_service_calls({}, plan)
+    assert [call["service"] for call in calls] == ["emissions"]
+    assert len(calls[0]["params"]["comparison_periods"]) == 12
 
 
 @pytest.mark.asyncio
