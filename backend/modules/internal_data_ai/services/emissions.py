@@ -48,6 +48,29 @@ def _quantity_to_kg(quantity, unit, density_kg_litre=None):
     return None
 
 
+def _deduplicate_records(records: list[dict]) -> list[dict]:
+    """Remove exact duplicate current entries before comparison aggregation."""
+    seen, unique = set(), []
+    for record in records:
+        identity = (
+            "content",
+            record.get("facility_id"),
+            record.get("scope"),
+            record.get("category"),
+            record.get("sub_category"),
+            record.get("fuel_type"),
+            record.get("reporting_period"),
+            str((record.get("dynamic_field_values") or {}).get("qty")),
+            record.get("co2e_emissions", record.get("total_emissions")),
+            record.get("record_source") or record.get("source_of_information") or record.get("evidence_url"),
+            str(sorted((record.get("dynamic_field_values") or {}).items())),
+        )
+        if identity not in seen:
+            seen.add(identity)
+            unique.append(record)
+    return unique
+
+
 async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     deterministic_route = kwargs.get("data_source") == "ghg_emissions"
     resolved_facilities = await resolve_authorized_facilities(db, org_id, facility_ids, kwargs.get("facility"))
@@ -70,18 +93,24 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
         query = and_filters(query, {"fuel_type": {"$regex": re.escape(fuel_type), "$options": "i"}})
 
     period = period_from_payload(kwargs.get("period"))
+    strict_period = bool(kwargs.get("strict_period"))
     if period is None and not deterministic_route:
         period = await latest_available_period(db, "emission_records", query)
     if period is None and not deterministic_route:
         return {"total_found": 0, "showing": 0, "period": "No reporting period available", "records": []}
     if period is not None:
-        query = and_filters(query, emission_period_filter(period))
+        period_filter = {"reporting_period": {"$gte": period.start_month, "$lte": period.end_month}} if strict_period else emission_period_filter(period)
+        query = and_filters(query, period_filter)
 
     raw_records = await db.emission_records.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
     records = [
         record for record in raw_records
-        if period is None or annual_record_allocation(record.get("reporting_period"), period) > 0
+        if period is None or (
+            period.start_month <= str(record.get("reporting_period") or "") <= period.end_month
+            if strict_period else annual_record_allocation(record.get("reporting_period"), period) > 0
+        )
     ]
+    records = _deduplicate_records(records)
 
     # Also get facility names for context
     fac_ids = list(set(r.get("facility_id") for r in records if r.get("facility_id")))

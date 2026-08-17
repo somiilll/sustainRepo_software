@@ -116,6 +116,40 @@ def extract_explicit_period(question: str, organization: Optional[Dict[str, Any]
     return None
 
 
+def extract_comparison_periods(question: str, organization: Optional[Dict[str, Any]]) -> list[ResolvedPeriod]:
+    """Resolve two explicitly stated calendar months for a comparison request.
+
+    A month without a year inherits the one explicit year in the comparison,
+    allowing natural phrasing such as ``July vs June 2026``. This resolver is
+    intentionally limited to month comparisons so it cannot reinterpret a
+    financial-year range as two independent periods.
+    """
+    text = question or ""
+    if not re.search(r"\b(?:vs\.?|versus|compared\s+(?:with|to)|comparison\s+(?:with|to))\b", text, re.IGNORECASE):
+        return []
+
+    month_pattern = re.compile(
+        r"\b(" + "|".join(sorted(MONTH_LOOKUP, key=len, reverse=True)) + r")\b(?:\s+(20\d{2}))?",
+        re.IGNORECASE,
+    )
+    matches = list(month_pattern.finditer(text))
+    if len(matches) < 2:
+        return []
+
+    selected = matches[:2]
+    years = {int(match.group(2)) for match in selected if match.group(2)}
+    if len(years) > 1 or not years:
+        return []
+
+    year = years.pop()
+    fiscal_start_month = ReportingPeriodService(organization, datetime.now(timezone.utc)).fiscal_start_month
+    periods = []
+    for match in selected:
+        month = MONTH_LOOKUP[match.group(1).lower()]
+        periods.append(_month_period(year, month, f"{calendar.month_name[month]} {year}", "explicit_comparison", fiscal_start_month))
+    return periods if periods[0].start_month != periods[1].start_month else []
+
+
 def _period_candidate(value: Any) -> Optional[str]:
     if isinstance(value, str):
         match = re.match(r"^(20\d{2})-(0[1-9]|1[0-2])$", value)

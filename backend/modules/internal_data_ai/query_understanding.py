@@ -132,6 +132,12 @@ def _metric_from_question(question: str) -> str:
     return ""
 
 
+def _scope_from_question(question: str) -> Optional[str]:
+    """Use explicitly written GHG scopes when the intent model omits them."""
+    match = re.search(r"\bscope\s*([1-3])\b", question or "", re.IGNORECASE)
+    return f"scope{match.group(1)}" if match else None
+
+
 def _query_type(question: str, legacy_intent: str, metric: str) -> QueryType:
     text = question.lower()
     if legacy_intent == "evidence_retrieval" or re.search(r"\b(attachment|attachments|evidence|invoice)\b", text):
@@ -202,6 +208,7 @@ async def build_query_plan(
     period: Optional[ResolvedPeriod],
     fuel_resolution: Optional[dict] = None,
     org_id: str = "",
+    comparison_periods: Optional[list[ResolvedPeriod]] = None,
 ) -> StructuredQueryPlan:
     """Build a closed plan from model semantics plus deterministic normalization results.
 
@@ -215,6 +222,10 @@ async def build_query_plan(
     legacy_intent = intent_result.get("intent", "")
     metric = _metric_from_question(question) or entities.get("metric") or ""
     query_type = _query_type(question, legacy_intent, metric)
+    explicit_scope = entities.get("scope") or _scope_from_question(question)
+    if comparison_periods and explicit_scope and query_type in {QueryType.ANALYTICS_LOOKUP, QueryType.UNKNOWN}:
+        query_type = QueryType.EMISSION_LOOKUP
+        metric = metric or "co2e"
 
     # ── Step 1: Question Registry (framework precedence) ─────────────
     framework_resolution = await resolve_esg_query(question, org_id)
@@ -248,8 +259,9 @@ async def build_query_plan(
             query_type=query_type,
             entity=None,
             period=_period_contract(period),
+            comparison_periods=[_period_contract(item) for item in (comparison_periods or [])],
             facility=entities.get("facility"),
-            scope=None,
+            scope=explicit_scope,
             category=framework_resolution.section,
             record_type=None,
             requested_metric=metric,
@@ -352,8 +364,9 @@ async def build_query_plan(
         query_type=query_type,
         entity=entity,
         period=_period_contract(period),
+        comparison_periods=[_period_contract(item) for item in (comparison_periods or [])],
         facility=entities.get("facility"),
-        scope=entities.get("scope") or (metric_resolution.ghg_scope if metric_resolution else None),
+        scope=explicit_scope or (metric_resolution.ghg_scope if metric_resolution else None),
         category=category or (metric if record_type in _ESG_SECTIONS else None),
         record_type=record_type,
         requested_metric=metric or None,
@@ -376,8 +389,22 @@ async def build_query_plan(
     )
 
 
-async def understand_query(question: str, intent_result: dict, period: Optional[ResolvedPeriod], db, org_id: str = "") -> StructuredQueryPlan:
+async def understand_query(
+    question: str,
+    intent_result: dict,
+    period: Optional[ResolvedPeriod],
+    db,
+    org_id: str = "",
+    comparison_periods: Optional[list[ResolvedPeriod]] = None,
+) -> StructuredQueryPlan:
     """Resolve a model-extracted fuel name against server-owned canonical data."""
     raw_fuel = (intent_result.get("entities") or {}).get("fuel_type")
     fuel_resolution = await resolve_fuel_entity(db, raw_fuel) if raw_fuel else await resolve_fuel_from_question(db, question)
-    return await build_query_plan(question, intent_result, period, fuel_resolution, org_id=org_id)
+    return await build_query_plan(
+        question,
+        intent_result,
+        period,
+        fuel_resolution,
+        org_id=org_id,
+        comparison_periods=comparison_periods,
+    )

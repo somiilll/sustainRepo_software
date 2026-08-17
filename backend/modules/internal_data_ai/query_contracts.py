@@ -69,6 +69,7 @@ class StructuredQueryPlan(BaseModel):
     query_type: QueryType
     entity: Optional[QueryEntity] = None
     period: QueryPeriod = Field(default_factory=QueryPeriod)
+    comparison_periods: list[QueryPeriod] = Field(default_factory=list)
     facility: Optional[str] = None
     scope: Optional[str] = None
     category: Optional[str] = None

@@ -245,6 +245,126 @@ def _build_ghg_response(query_plan: StructuredQueryPlan, data: dict, response_ty
     }
 
 
+def _comparison_value_kind(query_plan: StructuredQueryPlan) -> str:
+    return "consumption" if query_plan.query_type == QueryType.CONSUMPTION_LOOKUP else "emissions"
+
+
+def _comparison_value(record: dict, value_kind: str) -> tuple[float | None, str | None]:
+    value_key = "quantity" if value_kind == "consumption" else "emissions_value"
+    unit_key = "unit" if value_kind == "consumption" else "emissions_unit"
+    value = record.get(value_key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None, None
+    return float(value), record.get(unit_key)
+
+
+def _format_comparison_number(value: float | None) -> str:
+    return "—" if value is None else f"{value:,.6f}".rstrip("0").rstrip(".")
+
+
+def _build_period_comparison_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
+    """Render a two-month variance table from independently retrieved exact-month records."""
+    comparisons = ((data.get("comparison") or {}).get("periods") or [])[:2]
+    if len(comparisons) != 2:
+        return {
+            "answer": "The requested period comparison could not be completed from two explicit reporting periods.",
+            "highlights": [{"label": "State", "value": "NOT_FOUND"}],
+            "suggestion": None,
+            "response_type": response_type,
+            "chart": None,
+            "raw_data": None,
+        }
+
+    value_kind = _comparison_value_kind(query_plan)
+    labels = [item.get("period", {}).get("label") or f"Period {index + 1}" for index, item in enumerate(comparisons)]
+    period_values = []
+    for item in comparisons:
+        values = {}
+        for record in (item.get("data") or {}).get("records") or []:
+            value, unit = _comparison_value(record, value_kind)
+            if value is None:
+                continue
+            unit = unit or "Unit not stored"
+            category = record.get("category") or record.get("sub_category") or "Uncategorised"
+            key = (str(category), str(unit))
+            values[key] = values.get(key, 0.0) + value
+        period_values.append(values)
+
+    keys = set(period_values[0]) | set(period_values[1])
+    if not keys:
+        subject = "activity data" if value_kind == "consumption" else "emissions"
+        return {
+            "answer": f"No authorized {subject} with stored values were found for {labels[0]} or {labels[1]}.",
+            "highlights": [
+                {"label": "Period 1", "value": labels[0]},
+                {"label": "Period 2", "value": labels[1]},
+            ],
+            "suggestion": None,
+            "response_type": response_type,
+            "chart": None,
+            "raw_data": None,
+        }
+
+    rows = []
+    for category, unit in sorted(keys):
+        first, second = period_values[0].get((category, unit), 0.0), period_values[1].get((category, unit), 0.0)
+        variance = first - second
+        variance_pct = None if second == 0 else (variance / abs(second)) * 100
+        rows.append({
+            "Category": category,
+            "Unit": unit,
+            labels[0]: _format_comparison_number(first),
+            labels[1]: _format_comparison_number(second),
+            f"Variance ({labels[0]} − {labels[1]})": _format_comparison_number(variance),
+            "Variance %": "—" if variance_pct is None else f"{variance_pct:,.2f}%",
+        })
+
+    units = sorted({unit for _, unit in keys})
+    for unit in units:
+        first = sum(value for (category, row_unit), value in period_values[0].items() if row_unit == unit)
+        second = sum(value for (category, row_unit), value in period_values[1].items() if row_unit == unit)
+        variance = first - second
+        variance_pct = None if second == 0 else (variance / abs(second)) * 100
+        rows.insert(0, {
+            "Category": "Total",
+            "Unit": unit,
+            labels[0]: _format_comparison_number(first),
+            labels[1]: _format_comparison_number(second),
+            f"Variance ({labels[0]} − {labels[1]})": _format_comparison_number(variance),
+            "Variance %": "—" if variance_pct is None else f"{variance_pct:,.2f}%",
+        })
+
+    scope = query_plan.scope or "all scopes"
+    subject = "activity comparison" if value_kind == "consumption" else "emissions comparison"
+    chart = None
+    if len(units) == 1:
+        unit = units[0]
+        chart = {
+            "type": "bar",
+            "title": f"{scope.title()} {subject}: {labels[0]} vs {labels[1]}",
+            "data": [
+                {"name": labels[0], "value": round(sum(period_values[0].values()), 6)},
+                {"name": labels[1], "value": round(sum(period_values[1].values()), 6)},
+            ],
+            "xKey": "name",
+            "yKey": "value",
+            "color": "#0f766e",
+        }
+    unit_note = "\n\nSome category records have no stored emissions unit; those values are shown as **Unit not stored** and are not assigned an inferred unit." if "Unit not stored" in units else ""
+    return {
+        "answer": f"**{scope.title()} {subject}**\n\n" + _format_list_of_dicts_as_table(rows) + unit_note,
+        "highlights": [
+            {"label": "Period 1", "value": labels[0]},
+            {"label": "Period 2", "value": labels[1]},
+            {"label": "Comparison", "value": f"{labels[0]} − {labels[1]}"},
+        ],
+        "suggestion": None,
+        "response_type": response_type,
+        "chart": chart,
+        "raw_data": None,
+    }
+
+
 def _build_esg_record_response(query_plan: StructuredQueryPlan, data: dict, response_type: str) -> dict:
     """Return deterministic ESG-record answers so record state never depends on LLM phrasing."""
     if data.get("error"):
@@ -714,6 +834,8 @@ async def build_response(
 ) -> dict:
     """Format structured service data into a natural language response."""
     try:
+        if query_plan and query_plan.comparison_periods and service_data.get("emissions", {}).get("comparison"):
+            return _build_period_comparison_response(query_plan, service_data["emissions"], response_type)
         if query_plan and query_plan.query_type == QueryType.FUEL_ENERGY_LOOKUP:
             return _build_fuel_energy_response(service_data.get("esg_records", {}), service_data.get("emissions", {}), response_type)
         # Framework question registry — deterministic response (no LLM)

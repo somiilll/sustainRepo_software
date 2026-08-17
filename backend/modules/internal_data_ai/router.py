@@ -16,7 +16,7 @@ from modules.internal_data_ai.planner import plan_service_calls
 from modules.internal_data_ai.executor import execute_plan
 from modules.internal_data_ai.response_builder import build_response
 from modules.internal_data_ai.embedding_service import find_similar_entities, precompute_embeddings
-from modules.internal_data_ai.reporting_periods import extract_explicit_period
+from modules.internal_data_ai.reporting_periods import extract_comparison_periods, extract_explicit_period
 from modules.internal_data_ai.query_understanding import understand_query
 from modules.internal_data_ai.conversation_context import apply_follow_up_context, context_from_plan, get_session_context
 
@@ -103,7 +103,8 @@ async def internal_ai_chat(
     if entities.get("category") and not category_is_explicitly_mentioned(request.message, entities["category"]):
         logger.info("Discarded inferred emission category not explicitly requested: %s", entities["category"])
         entities["category"] = None
-    explicit_period = extract_explicit_period(request.message, organization)
+    comparison_periods = extract_comparison_periods(request.message, organization)
+    explicit_period = comparison_periods[0] if comparison_periods else extract_explicit_period(request.message, organization)
     # The parser is authoritative: an LLM cannot invent a reporting period.
     entities["period"] = explicit_period.as_dict() if explicit_period else None
     for match in matched_entities:
@@ -113,7 +114,14 @@ async def internal_ai_chat(
     intent_result["entities"] = entities
 
     # 3. Build the validated structured plan. Session context may fill only omitted dimensions.
-    structured_plan = await understand_query(request.message, intent_result, explicit_period, db, org_id=org_id)
+    structured_plan = await understand_query(
+        request.message,
+        intent_result,
+        explicit_period,
+        db,
+        org_id=org_id,
+        comparison_periods=comparison_periods,
+    )
     session_context = await get_session_context(db, session_id, org_id, current_user.get("id"))
     structured_plan = apply_follow_up_context(structured_plan, request.message, session_context)
 

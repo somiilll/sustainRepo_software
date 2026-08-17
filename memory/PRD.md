@@ -1,5 +1,22 @@
 # ESG Platform - Product Requirements Document
 
+## Change Log — Aug 17, 2026: Internal Data AI Exact-Month Period Comparisons
+
+### Implemented
+- Added deterministic parsing for two explicit calendar months in comparison wording, including natural phrasing such as `July vs June 2026` where one stated year is inherited by the other month.
+- Internal Data AI now routes explicit Scope 1/2/3 comparisons to independent, exact-month emissions retrievals. Financial-year records are excluded from these comparisons, and exact duplicate current entries are removed before aggregation.
+- Added deterministic Markdown comparison responses with total and category rows, two period columns, absolute variance, variance percentage, and a comparison chart. Responses do not expose internal record/formula identifiers; records without a stored emissions unit remain explicitly labeled `Unit not stored` rather than receiving an inferred unit.
+- Added focused parsing/planning/execution/formatting tests and an environment-configured authenticated live API contract test. Corrected older query-understanding tests to await the asynchronous planner.
+
+### Verification
+- Focused regression suite passed: **16/16** (`test_internal_ai_period_comparison.py`, `test_internal_ai_phase2_query_understanding.py`, `test_internal_ai_phase6_planner_executor.py`).
+- Authenticated live `/api/internal-ai/chat` verification passed: **1/1** for `Scope 1 in July vs June 2026`; it returned a July/June total and category variance table with `query_type=emission_lookup`. **MOCKED APIs: NONE.**
+
+### Prioritized Follow-up
+- **P1:** Reset BRSR Section A form data when the reporting year changes to prevent stale values appearing.
+- **P1:** Make per-record emissions units mandatory or reliably persisted so comparison tables can show stored units instead of `Unit not stored`.
+- **P2:** Stabilize Playwright Select locators; split `response_builder.py` into focused formatter modules; extend live Internal AI coverage to additional comparison wordings and ESG metric comparisons.
+
 ## Change Log — Aug 17, 2026: Internal Data AI BRSR Answer Formatting
 
 ### Implemented

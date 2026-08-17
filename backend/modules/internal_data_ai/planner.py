@@ -57,6 +57,8 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
         "approval_status_filter": query_plan.approval_status_filter,
         "period": query_plan.period.model_dump(),
     }
+    if query_plan.comparison_periods:
+        params["comparison_periods"] = [period.model_dump() for period in query_plan.comparison_periods]
     params = {key: value for key, value in params.items() if value is not None}
     relationship_types = {
         QueryType.METHODOLOGY_LOOKUP,
@@ -81,6 +83,11 @@ def _plan_structured_query(query_plan: StructuredQueryPlan) -> List[Dict[str, An
             {"service": "evidence_state", "method": "validate", "params": params},
         ]
     is_esg_record_query = query_plan.record_type in {"environment", "social", "governance"}
+    if query_plan.comparison_periods and query_plan.query_type in {
+        QueryType.CONSUMPTION_LOOKUP,
+        QueryType.EMISSION_LOOKUP,
+    }:
+        return [{"service": "emissions", "method": "search_records", "params": params}]
     if query_plan.query_type in {QueryType.CONSUMPTION_LOOKUP, QueryType.RECORD_LOOKUP, QueryType.ESG_METRIC_LOOKUP}:
         if query_plan.derived_metric == "renewable_energy_percentage":
             return [

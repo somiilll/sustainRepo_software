@@ -100,6 +100,7 @@ async def execute_plan(
         service_name = step.get("service")
         method_name = step.get("method")
         params = dict(step.get("params", {}))
+        comparison_periods = params.pop("comparison_periods", [])
         if service_name == "formulas":
             params["emission_records"] = merged.get("emissions", {}).get("records", [])
         elif service_name == "relationships":
@@ -126,7 +127,19 @@ async def execute_plan(
             continue
 
         try:
-            result = await func(org_id=org_id, facility_ids=facility_ids, **params)
+            if comparison_periods:
+                period_results = []
+                for period in comparison_periods:
+                    comparison_params = {
+                        **params,
+                        "period": period,
+                        "strict_period": True,
+                    }
+                    result = await func(org_id=org_id, facility_ids=facility_ids, **comparison_params)
+                    period_results.append({"period": period, "data": result})
+                result = {"comparison": {"periods": period_results}}
+            else:
+                result = await func(org_id=org_id, facility_ids=facility_ids, **params)
             merged[service_name] = result
         except Exception as e:
             logger.error(f"Service call failed: {service_name}.{method_name}: {e}")
