@@ -107,6 +107,13 @@ Reference documents:
 - Read-only UI QA verified Scope 1/2/3/Biogenic hydration, Scope 3 method changes, Biogenic selection, and custom fuel. Added a narrow guard preventing an unnecessary legacy calculation request during hydration; no calculator API payload or calculation behavior was changed.
 - No snapshots, golden calculations, database schema, API contracts, C7, inflation, emission factors, formulas, units, evidence, approval, evaluator, or dead code were changed. See `GHG_PHASE2_REPORT.md` and `GHG_PHASE2_EDIT_BASELINE.md`.
 
+### Phase 3 — C7 Employee Commuting safety net (Jun 2026) — COMPLETE
+
+- Added test-only C7 safety net: 7 sanitized production-shaped fixtures and 9 backend tests (50 assertions) under `backend/tests/golden/`. **No production files changed.**
+- Protects C7 identity, monthly/yearly contracts, employee shapes/counts, saved monthly/yearly/record aggregates, legacy full-year and zero-activity shapes, plus three authoritative calculator replays using `dry_run=true`.
+- Regression: dedicated C7 **9 passed**; backend golden **506 passed / 9 skipped**; frontend **1,134 passed / 63 unchanged snapshots**; Phase 1 equivalence stays **785 assertions / 0 differences**. Database counts before/after unchanged: `840 / 1339 / 1763`.
+- Deliberately untouched: all C7 production behavior, calculator, employees, totals, validation, API, persistence, UI, schema, C7 router, frontend C7 logic, inflation, and unrelated refactors. See `GHG_PHASE3_C7_SAFETY_NET_REPORT.md`.
+
 ### Phase status
 
 | Phase | Description | Status |
