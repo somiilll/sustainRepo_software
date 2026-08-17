@@ -403,10 +403,59 @@
    "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
   }
  ],
- "generated_at": "2026-08-17T12:23:30.382158+00:00",
+ "generated_at": "2026-08-17T12:46:08.421441+00:00",
  "note": "Observed pre-existing inconsistencies. Phase 0 reports them; it does not change behaviour.",
  "orphan_calculation_audit_logs": 412,
  "records_with_process_type_outside_process_emissions": 2,
+ "same_name_categories_explained": [
+  {
+   "definitions": [
+    {
+     "code": "mobile_combustion",
+     "id": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+     "is_active": true,
+     "scope_code": "scope1",
+     "scope_id": "8649468b-4fa7-4281-b842-b70bc084ec1b"
+    },
+    {
+     "code": "mobile_combustion",
+     "id": "1acae127-2693-4fea-a4ef-84c7568fdc54",
+     "is_active": true,
+     "scope_code": "biogenic",
+     "scope_id": "f868ced4-4f8d-487c-8977-6638aad3d396"
+    }
+   ],
+   "distinct_scope_codes": [
+    "biogenic",
+    "scope1"
+   ],
+   "name": "Mobile Combustion"
+  },
+  {
+   "definitions": [
+    {
+     "code": "stationary_combustion",
+     "id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+     "is_active": true,
+     "scope_code": "scope1",
+     "scope_id": "8649468b-4fa7-4281-b842-b70bc084ec1b"
+    },
+    {
+     "code": "stationary_combustion",
+     "id": "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+     "is_active": true,
+     "scope_code": "biogenic",
+     "scope_id": "f868ced4-4f8d-487c-8977-6638aad3d396"
+    }
+   ],
+   "distinct_scope_codes": [
+    "biogenic",
+    "scope1"
+   ],
+   "name": "Stationary Combustion"
+  }
+ ],
+ "same_name_categories_note": "NOT duplicates: each name exists once per scope (Scope 1 and Biogenic) with a distinct scope_id and its own decision tree. The application resolves categories by (name, scope_code), so runtime resolution is unambiguous. Only name-only resolution is ambiguous.",
  "scope3_records_with_legacy_uncoded_category": [
   "Business Travel",
   "Downstream Transportation and Distribution",

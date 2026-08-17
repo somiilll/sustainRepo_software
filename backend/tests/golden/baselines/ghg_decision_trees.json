@@ -1,5 +1,31 @@
 {
- "generated_at": "2026-08-17T12:23:26.404166+00:00",
+ "category_id_by_name_and_scope": {
+  "C1 - Purchased Goods and Services|scope3": "91ec37f6-940e-44c5-8dc1-0e685cfabfab",
+  "C10 - Processing of Sold Products|scope3": "9f54a99c-ac91-4997-99fc-fe7f714ff453",
+  "C11 - Use of Sold Products|scope3": "d0ebca6a-61cd-4646-8cf9-2d8501fe4471",
+  "C12 - End-of-Life Treatment of Sold Products|scope3": "84e37535-12bd-4f30-abd9-963bfa0a3198",
+  "C13 - Downstream Leased Assets|scope3": "87c47db3-89bc-432f-a36d-1f7d1dfacbf5",
+  "C14 - Franchises|scope3": "536069ee-251f-4772-9f4b-48b562a2859f",
+  "C15 - Investments|scope3": "522bda53-40e8-40f6-a774-bac643be2714",
+  "C2 - Capital Goods|scope3": "45c38f7b-20f0-4409-ac37-809d049ce7bd",
+  "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2|scope3": "26883677-56c0-447e-84bc-05aa54f250e3",
+  "C4 - Upstream Transportation and Distribution|scope3": "477d7fff-3074-4235-8172-6b54f6aa5050",
+  "C5 - Waste Generated in Operations|scope3": "361cd3ec-d500-43d3-bb08-eb0beceb1bcd",
+  "C6 - Business Travel|scope3": "58656681-b8c9-4015-ae29-097898f6d052",
+  "C7 - Employee Commuting|scope3": "e805180d-d3cc-4a7f-a71e-bf1d920d8919",
+  "C8 - Upstream Leased Assets|scope3": "aa482371-de52-43fb-8f59-17229e548d58",
+  "C9 - Downstream Transportation and Distribution|scope3": "b1cf4c93-e21b-4a7e-86d8-6cd1380e2fde",
+  "Flaring (Stationary Combustion)|scope1": "0d5c5aa7-8bec-4532-be9c-be94869829b9",
+  "Fugitive Emissions|scope1": "49eb5676-f90a-4294-aad1-e645dc79ea33",
+  "Mobile Combustion|biogenic": "1acae127-2693-4fea-a4ef-84c7568fdc54",
+  "Mobile Combustion|scope1": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+  "Process Emissions|scope1": "8f797a6a-fded-477c-8c3c-8dfa8905293c",
+  "Purchased Electricity|scope2": "cec39c99-70ae-47bd-abfd-1be5462243e3",
+  "Purchased Steam/Heat|scope2": "aa74a6b7-ce4a-4df9-be74-494541416ba8",
+  "Stationary Combustion|biogenic": "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+  "Stationary Combustion|scope1": "8d62f52d-0ca6-4737-9b14-dd60878c1f27"
+ },
+ "generated_at": "2026-08-17T12:46:04.295818+00:00",
  "selection_fixture_count": 83,
  "selection_fixtures": [
   {
@@ -915,7 +941,7 @@
   },
   {
    "bucket": "scope1|Stationary Combustion|-|monthly|custom_fuel|-|-",
-   "category_id": "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+   "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
    "category_name": "Stationary Combustion",
    "decision_inputs": {
     "calculation_methodology": "using_qty_basis_ef"
@@ -991,7 +1017,7 @@
   },
   {
    "bucket": "biogenic|Mobile Combustion|-|monthly|standard_fuel|scope1|-",
-   "category_id": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+   "category_id": "1acae127-2693-4fea-a4ef-84c7568fdc54",
    "category_name": "Mobile Combustion",
    "decision_inputs": {
     "calculation_methodology": "using_qty_basis_ef"

@@ -24,7 +24,7 @@
    "emission_record_id": "f30b90fe-6c90-4b3b-9d78-c6c606d9fcbb",
    "fixture_id": "http__biogenic_mobile_combustion_monthly_standard_fuel_scope1__0",
    "request": {
-    "category_id": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+    "category_id": "1acae127-2693-4fea-a4ef-84c7568fdc54",
     "context": {
      "category": "Mobile Combustion",
      "fuel_id": "3de308f5-5dad-4404-afa3-60f642ca874d",
@@ -786,7 +786,7 @@
    "emission_record_id": "dc554413-e7e2-44be-84b0-aceac013380b",
    "fixture_id": "http__scope1_stationary_combustion_monthly_custom_fuel__1",
    "request": {
-    "category_id": "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+    "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
     "context": {
      "category": "Stationary Combustion",
      "fuel_id": null,
@@ -3448,7 +3448,7 @@
    }
   }
  ],
- "generated_at": "2026-08-17T12:23:37.684372+00:00",
+ "generated_at": "2026-08-17T12:46:15.694337+00:00",
  "skipped": [
   {
    "bucket": "biogenic|C10 - Processing of Sold Products|activity_basis|yearly|standard_fuel|scope3|-",

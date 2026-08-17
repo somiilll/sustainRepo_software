@@ -325,10 +325,25 @@ async def capture_decision_trees(db) -> Dict[str, Any]:
     logs = await _latest_audit_log_by_record(db)
     records = {r["id"]: r async for r in db.emission_records.find({}, {"_id": 0})}
 
-    # name -> every category id sharing that name (duplicates exist in prod data)
+    # name -> every category id sharing that name, and (name, scope_code) -> id.
+    # The app resolves categories by (name, scope_code) — `Stationary Combustion`
+    # and `Mobile Combustion` each exist once under Scope 1 and once under
+    # Biogenic, so name alone is not an identity.
     ids_by_name: Dict[str, List[str]] = defaultdict(list)
+    ids_by_name_scope: Dict[tuple, str] = {}
+    scopes = {s["id"]: s async for s in db.scopes.find({}, {"_id": 0})}
     for cat_id, cat in cats.items():
         ids_by_name[cat["name"]].append(cat_id)
+        scope_code = (scopes.get(cat.get("scope_id")) or {}).get("code")
+        if scope_code:
+            ids_by_name_scope[(cat["name"], scope_code)] = cat_id
+
+    def scope_code_for(record: Dict[str, Any]) -> str:
+        """Mirror the frontend's effectiveScope resolution."""
+        raw = str(record.get("scope") or "").strip().lower().replace(" ", "")
+        if raw == "biogenic":
+            return "scope3" if record.get("biogenic_scope_selection") == "scope3" else "biogenic"
+        return raw
 
     # (category_id, formula_id) -> unique decision_inputs, when unambiguous
     leaves_by_cat_formula: Dict[str, Dict[str, List[Dict[str, Any]]]] = defaultdict(
@@ -358,7 +373,8 @@ async def capture_decision_trees(db) -> Dict[str, Any]:
             )
             continue
 
-        candidate_ids = ids_by_name.get(rec.get("category")) or []
+        scoped_id = ids_by_name_scope.get((rec.get("category"), scope_code_for(rec)))
+        candidate_ids = [scoped_id] if scoped_id else (ids_by_name.get(rec.get("category")) or [])
         if not candidate_ids:
             unresolvable.append(
                 {"record_id": rid, "bucket": bucket, "reason": "category_name_not_found"}
@@ -428,9 +444,14 @@ async def capture_decision_trees(db) -> Dict[str, Any]:
             }
         )
 
+    resolved_by_scope = {
+        f"{name}|{scope}": cid for (name, scope), cid in ids_by_name_scope.items()
+    }
+
     return {
         "generated_at": _now(),
         "tree_count": len(tree_snapshots),
+        "category_id_by_name_and_scope": resolved_by_scope,
         "trees": tree_snapshots,
         "selection_fixture_count": len(selection_fixtures),
         "selection_fixtures": selection_fixtures,
@@ -668,6 +689,36 @@ async def capture_findings(db, calc: Dict[str, Any], trees: Dict[str, Any]) -> D
     """Pre-existing inconsistencies observed while capturing. Reported, NOT fixed."""
     name_map = await _category_name_to_id(db)
 
+    # Same display name under different scopes is NOT a duplicate identity.
+    scope_docs = {s["id"]: s async for s in db.scopes.find({}, {"_id": 0})}
+    grouped_cats: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    async for c in db.emission_categories.find({}, {"_id": 0}):
+        grouped_cats[c["name"]].append(c)
+    same_name_different_scope = [
+        {
+            "name": nm,
+            "definitions": [
+                {
+                    "id": e["id"],
+                    "code": e.get("code"),
+                    "scope_id": e.get("scope_id"),
+                    "scope_code": (scope_docs.get(e.get("scope_id")) or {}).get("code"),
+                    "is_active": e.get("is_active"),
+                }
+                for e in sorted(entries, key=lambda x: str(x.get("created_at")))
+            ],
+            "distinct_scope_codes": sorted(
+                {
+                    str((scope_docs.get(e.get("scope_id")) or {}).get("code"))
+                    for e in entries
+                }
+            ),
+        }
+        for nm, entries in sorted(grouped_cats.items())
+        if len(entries) > 1
+    ]
+
+
     scopes = sorted(
         {
             str(d["_id"])
@@ -719,6 +770,13 @@ async def capture_findings(db, calc: Dict[str, Any], trees: Dict[str, Any]) -> D
         "generated_at": _now(),
         "note": "Observed pre-existing inconsistencies. Phase 0 reports them; it does not change behaviour.",
         "duplicate_active_category_names": name_map["duplicates"],
+        "same_name_categories_explained": same_name_different_scope,
+        "same_name_categories_note": (
+            "NOT duplicates: each name exists once per scope (Scope 1 and Biogenic) "
+            "with a distinct scope_id and its own decision tree. The application "
+            "resolves categories by (name, scope_code), so runtime resolution is "
+            "unambiguous. Only name-only resolution is ambiguous."
+        ),
         "distinct_scope_values_in_records": scopes,
         "distinct_scope3_method_values_in_records": methods,
         "distinct_frequency_type_values_in_records": freqs,

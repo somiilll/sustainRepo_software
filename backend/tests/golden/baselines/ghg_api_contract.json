@@ -153,5 +153,5 @@
   "version_history": "typing.Optional[typing.List[typing.Dict[str, typing.Any]]]",
   "yearly_total": "typing.Optional[typing.Dict[str, float]]"
  },
- "generated_at": "2026-08-17T12:23:30.371795+00:00"
+ "generated_at": "2026-08-17T12:46:08.409887+00:00"
 }

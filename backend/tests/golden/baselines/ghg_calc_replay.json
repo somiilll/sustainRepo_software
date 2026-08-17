@@ -4042,7 +4042,7 @@
    "user_overrides": {}
   }
  ],
- "generated_at": "2026-08-17T12:23:26.354034+00:00",
+ "generated_at": "2026-08-17T12:46:04.244285+00:00",
  "note": "baseline_outputs = current engine behaviour at capture time. The refactor must reproduce baseline_outputs exactly. stored_outputs = value persisted on the record when it was created; differences are pre-existing drift, reported not fixed.",
  "skipped": [
   {

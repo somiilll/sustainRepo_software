@@ -84,13 +84,19 @@ Reference documents:
 - `/app/memory/GHG_REFACTOR_AUDIT.md` — full A–S audit, target architecture, folder plan
 - `/app/memory/GHG_PHASE0_REPORT.md` — Phase 0 results, coverage, inconsistencies
 - `/app/memory/GHG_FRONTEND_EVALUATOR_INVESTIGATION.md` — frontend evaluator trace
+- `/app/memory/GHG_CATEGORY_IDENTITY_ANALYSIS.md` — same-name categories: not duplicates, no migration needed
+- `/app/memory/GHG_INFLATION_RECONCILIATION.md` — three inflation paths, proposed single source of truth
+- `/app/memory/GHG_COVERAGE_DASHBOARD.md` — per-category regression coverage matrix
 
 ### Phase status
 
 | Phase | Description | Status |
 |---|---|---|
-| 0 | Golden records + regression safety net | **DONE (Jun 2026) — awaiting user review** |
-| 1 | Create-flow field-derivation extraction | NOT STARTED (gated on Phase 0 review) |
+| 0 | Golden records + regression safety net | **DONE (Jun 2026)** |
+| 0b | Category identity impact analysis | **DONE (Jun 2026)** — not duplicates; canonical identity is `(code, scope_code)`; **no migration required** |
+| 0c | Inflation/PPP reconciliation analysis | **DONE (Jun 2026)** — proposal awaiting approval; implementation deliberately deferred to after Phase 2 |
+| 0d | Coverage dashboard | **DONE (Jun 2026)** |
+| 1 | Create-flow field-derivation extraction | NOT STARTED (gated on review of 0b–0d) |
 | 2 | Edit-flow field-derivation extraction | NOT STARTED |
 | 3 | Capability config replaces category string sniffing | NOT STARTED |
 | 4 | Service extraction (units, EF, calc, evidence, API client) | NOT STARTED |
@@ -129,8 +135,11 @@ Reference documents:
 - MIS Schedule Preview & Report Bookmarks
 
 ## Future/Backlog Tasks
-- **P1 (data decision, blocks Phase 1)**: Resolve duplicate active category ids for `Stationary Combustion` and `Mobile Combustion`
-- **P1**: Reconcile the two `inflation_rate` / `ppp` resolution paths for spend-basis Scope 3
+- **P1 (approval pending)**: Inflation/PPP single source of truth — fix the 2 `ce_property_source_mappings` rows, always populate `context.reporting_period`, retire the router injection path, replace the silent 1.0 default. Will require an approved re-capture of 4 spend-basis baselines. Scheduled AFTER Phase 2.
+- **P1**: Resolve categories by `(code, scope_code)` instead of `(name, scope_code)` — folded into Phase 1
+- **P2**: C7 Employee Commuting has zero calculation coverage (94 records, no audit log by design) — needs its own E2E test before any C7 restructuring
+- **P2**: C6 airport / flight-distance fields not calculation-protected
+- **P2**: Evidence upload and approval workflow are structurally protected only (write paths)
 - **P2**: Decouple Add/Edit Emissions into unified EmissionDraft workflow (superseded by the GHG Modularization Programme above)
 - **P2**: Copy Month Values for Custom Fuel EF/CV values
 - **P3**: Dashboard Scope 1 & 3 Emissions Deduplication
