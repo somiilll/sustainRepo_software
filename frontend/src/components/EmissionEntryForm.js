@@ -40,11 +40,18 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
 };
 
 // Density dimension-mismatch helpers (canonical source: shared/utils/unitHelpers.js)
+// isDensityRequiredForQtyBasis moved with the field derivation into modules/ghg/config.
 import {
-  isDensityRequiredForQtyBasis,
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+// Shared GHG configuration layer: resolved config + explicit context -> fields
+import {
+  deriveGhgFields,
+  resolveGhgConfig,
+  resolveGhgFormContext,
+  resolveEffectiveScopeCode,
+} from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
 
 // Helper to check if a month/year combination is in the future
@@ -98,6 +105,9 @@ export default function EmissionEntryForm({
   supplierContext = null,
   // OCR Prefill Data - from AI Invoice Extractor workflow
   ocrPrefillData = null,
+  // Future organization-specific GHG configuration. `null` today, which makes
+  // resolveGhgConfig return the standard configuration untouched.
+  organizationGhgOverrides = null,
 }) {
   // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
@@ -1205,9 +1215,10 @@ export default function EmissionEntryForm({
     
     // For biogenic with scope1 selected, use 'biogenic' scope from fuel_database
     // fuel_database has scope='biogenic' or 'Biogenic' for biogenic fuels
-    const effectiveScopeForCategories = (scope === 'biogenic' && biogenicScopeSelection === 'scope1') 
-      ? 'biogenic' 
-      : scope;
+    const effectiveScopeForCategories = resolveEffectiveScopeCode(
+      scope,
+      biogenicScopeSelection,
+    );
     
     const cats = new Set();
 
@@ -1247,267 +1258,56 @@ export default function EmissionEntryForm({
   }, [fuelDatabase, scope, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
 
   // ============================================================================
-  // Dynamic Form Config - Get input fields from ce_input_field_mappings
-  // These are the ACTUAL fields to show, with proper labels
-  // For Scope 3, filter fields based on the selected calculation method (formula)
+  // Dynamic Form Config - fields come from ce_input_field_mappings.
+  // Derivation is delegated to the shared, pure GHG config layer
+  // (modules/ghg/config) so Create, and later Edit, use one implementation.
+  //   resolved config + explicit context -> fields + resolved formula
   // ============================================================================
-  const dynamicInputFieldsResult = useMemo(() => {
-    if (!formConfig?.input_field_mappings?.length) return { fields: [], formulaId: null };
-    
-    // Determine effective scope for lookups
-    const isBiogenicScope1 = scope === 'biogenic' && biogenicScopeSelection === 'scope1';
-    const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-    const effectiveScope = isBiogenicScope3 ? 'scope3' : scope;
-    const isScope3Like = effectiveScope === 'scope3';
-    
-    // Get the category ID for filtering
-    const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
-    const categoryId = categoryObj?.id;
-    const scopeObj = dynamicScopes.find(s => s.code === effectiveScope);
-    const scopeId = scopeObj?.id;
-    
-    // For Scope 3 (or biogenic scope3), find the formula that matches the selected decision path
-    // For Scope 1/2/Biogenic Scope 1, also match formula to filter fields correctly
-    let requiredInputVars = null;
-    let matchedFormula = null;
-    
-    // Helper function to traverse decision tree and find formula_id
-    const traverseDecisionTree = (node, fieldValues) => {
-      if (!node) return null;
-      if (node.formula_id) return node.formula_id;
-      const fieldName = node.field_name;
-      if (!fieldName) return null;
-      const selectedValue = fieldValues[fieldName];
-      if (!selectedValue) return null;
-      const selectedOption = (node.options || {})[selectedValue];
-      if (!selectedOption) return null;
-      if (selectedOption.formula_id) return selectedOption.formula_id;
-      if (selectedOption.next) return traverseDecisionTree(selectedOption.next, fieldValues);
-      return null;
-    };
+  const resolvedGhgConfig = useMemo(
+    () =>
+      resolveGhgConfig({
+        standardConfig: formConfig,
+        organizationOverrides: organizationGhgOverrides,
+      }),
+    [formConfig, organizationGhgOverrides],
+  );
 
-    if (isScope3Like && scope3Method && formConfig?.formulas?.length) {
-      // Try to find formula using decision tree traversal
-      if (formConfig.decision_tree) {
-        const decisionValues = {
-          calculation_method_scope3: scope3Method,
-          activity_type: scope3ActivityType || undefined,
-          subcategory_selection: scope3Subcategory || undefined,
-          type_of_product: typeOfProduct || undefined,
-        };
-        
-        const formulaId = traverseDecisionTree(formConfig.decision_tree, decisionValues);
-        
-        if (formulaId) {
-          matchedFormula = formConfig.formulas.find(f => f.id === formulaId);
-        }
-      }
-      
-      // Fallback: For categories with nested decision trees (like C6/C7), 
-      // we need to match formula based on the full decision path
-      if (!matchedFormula) {
-        // Map activity_type values to formula name patterns
-        // Note: scope3_ef uses singular (hotel_stay)
-        const activityTypeToFormulaMap = {
-          'hotel_stay': ['hotel'],
-          'air_travel': ['passenger', 'distance'],
-          'water_travel': ['passenger', 'distance'],
-          'taxi_travel': ['passenger', 'distance'],
-          'bus_travel': ['passenger', 'distance'],
-          'rail_travel': ['passenger', 'distance'],
-          'car_travel': ['km travelled', 'km_travelled'],
-          'bike_travel': ['km travelled', 'km_travelled'],
-          'wfh': ['wfh', 'work from home']
-        };
-        
-        // If activity_type is selected (for C6/C7), find formula based on that
-        if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
-          const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
-          matchedFormula = formConfig.formulas.find(f => {
-            const formulaName = f.name?.toLowerCase() || '';
-            return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-          });
-        }
-      }
-      
-      // If no activity_type match, fall back to method-based matching
-      if (!matchedFormula) {
-        const methodToFormulaMap = {
-          'spend_basis': ['spend', 'Spent'],
-          'activity_basis': ['activity'],
-          'supplier_basis': ['supplier', 'Supplier']
-        };
-        
-        const searchTerms = methodToFormulaMap[scope3Method] || [];
-        matchedFormula = formConfig.formulas.find(f => {
-          const formulaName = f.name?.toLowerCase() || '';
-          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-        });
-      }
-      
-      if (matchedFormula?.inputs?.length) {
-        // Get the list of required input variables for this formula
-        // Note: form-config API returns inputs at top level (extracted from definition.inputs)
-        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-      }
-    }
-    // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula via decision tree first, then fallback to name
-    else if ((scope === 'scope1' || scope === 'scope2' || isBiogenicScope1) && formConfig?.formulas?.length) {
-      // Priority 0: Try decision tree traversal (handles calculation_methodology)
-      if (formConfig.decision_tree) {
-        const scope1DecisionValues = {
-          calculation_methodology: decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv',
-          ...decisionFieldValues,
-        };
-        const formulaId = traverseDecisionTree(formConfig.decision_tree, scope1DecisionValues);
-        if (formulaId) {
-          matchedFormula = formConfig.formulas.find(f => f.id === formulaId);
-        }
-      }
+  const ghgFormContext = useMemo(
+    () =>
+      resolveGhgFormContext({
+        scope,
+        biogenicScopeSelection,
+        categoryName: category,
+        categories: dynamicCategories,
+        scopes: dynamicScopes,
+        scope3Method,
+        scope3ActivityType,
+        scope3Subcategory,
+        typeOfProduct,
+        decisionFieldValues,
+        useCustomFuel,
+        selectedFuel,
+      }),
+    [
+      scope,
+      biogenicScopeSelection,
+      category,
+      dynamicCategories,
+      dynamicScopes,
+      scope3Method,
+      scope3ActivityType,
+      scope3Subcategory,
+      typeOfProduct,
+      decisionFieldValues,
+      useCustomFuel,
+      selectedFuel,
+    ],
+  );
 
-      // Fallback: name-based matching if tree didn't resolve
-      if (!matchedFormula) {
-        if (isBiogenicScope1) {
-          matchedFormula = formConfig.formulas.find(f => 
-            f.name?.toLowerCase().includes('biogenic')
-          );
-          if (!matchedFormula && formConfig.formulas.length > 0) {
-            matchedFormula = formConfig.formulas[0];
-          }
-        } else {
-          const currentCategoryName = (category || categoryObj?.name || '').toLowerCase();
-          const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
-          
-          if (isStationaryOrMobile) {
-            matchedFormula = formConfig.formulas.find(f => 
-              f.name?.toLowerCase().includes('heat basis') || f.name?.toLowerCase().includes('heat-basis')
-            );
-          }
-          if (!matchedFormula) {
-            matchedFormula = formConfig.formulas.find(f => 
-              f.properties?.length > 0 && f.properties.some(p => 
-                ['cv', 'density'].includes(p.variable?.toLowerCase() || p.key?.toLowerCase())
-              )
-            );
-          }
-          if (!matchedFormula) {
-            matchedFormula = formConfig.formulas.find(f => 
-              f.name?.toLowerCase().includes('quantity') || 
-              f.name?.toLowerCase().includes('activity')
-            );
-          }
-          if (!matchedFormula && formConfig.formulas.length > 0) {
-            matchedFormula = formConfig.formulas[0];
-          }
-        }
-      }
-      
-      if (matchedFormula?.inputs?.length) {
-        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-      }
-    }
-    
-    // Store the matched formula ID for use in saving
-    const formulaId = matchedFormula?.id || null;
-    
-    // Filter input field mappings that apply to this category and scope
-    // Uses formula-driven filtering: only show fields that the resolved formula needs.
-    // Decision fields (maps_to_context in decision tree) always shown so users can toggle tree paths.
-    const decisionFieldNames = (formConfig.decision_fields || []).map(d => d.field_name);
-    const applicableMappings = formConfig.input_field_mappings.filter(m => {
-      const appliesToCategory = !m.applies_to_categories?.length || 
-                                m.applies_to_categories.includes(categoryId);
-      const appliesToScope = !m.applies_to_scopes?.length || 
-                             m.applies_to_scopes.includes(scopeId);
-      if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
-      
-      // Custom fuel: suppress fields that CustomFuelMonthFields handles per-month.
-      // Only keep 'qty' (quantity input) from standard fields.
-      if (useCustomFuel) {
-        const handledByCustomFuel = ['density', 'cv', 'ef_quantity', 'carbon_content', 'oxidation_factor'];
-        if (handledByCustomFuel.includes(m.maps_to_variable)) return false;
-      }
-      
-      // Formula-driven filtering when a formula is resolved
-      if (matchedFormula && requiredInputVars?.length) {
-        if (m.is_override) {
-          // Override fields: show if declared as formula property
-          const formulaProperties = matchedFormula.properties || [];
-          if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
-            return true;
-          }
-          // Density: show when formula supports dimension conversion,
-          // OR when using Qty Basis EF and fuel's qty units could mismatch EF denominators
-          if (m.maps_to_variable === 'density') {
-            const calcMethod = decisionFieldValues.calculation_methodology;
-            if (calcMethod === 'using_qty_basis_ef') {
-              // Only show if dimension mismatch possible AND fuel has no density in DB
-              const fuelHasDensity = selectedFuel?.density != null && selectedFuel.density > 0;
-              if (fuelHasDensity) return false; // Calc engine uses fuel DB density
-              const efMapping = formConfig.input_field_mappings.find(fm => fm.maps_to_variable === 'ef_quantity');
-              const efAllowedUnits = efMapping?.allowed_units || [];
-              const qtyUnits = selectedFuel?.allowed_units || [];
-              return efAllowedUnits.some(eu => isDensityRequiredForQtyBasis(eu, qtyUnits));
-            }
-            return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
-          }
-          return false;
-        }
-        // Regular input fields: in formula inputs OR is a decision field in the tree
-        if (requiredInputVars.includes(m.maps_to_variable)) return true;
-        if (m.maps_to_context && decisionFieldNames.includes(m.maps_to_context)) return true;
-        return false;
-      }
-      
-      // Fallback: no formula resolved (e.g. no process_type selected yet) — hide all for Process
-      const currentCategoryName = (category || '').toLowerCase();
-      if ((scope === 'scope1' || scope === 'scope2') && currentCategoryName.includes('process')) {
-        return false;
-      }
-      
-      return true;
-    });
-    
-    // Sort by display_order
-    applicableMappings.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-    
-    // Map to field objects for rendering
-    const isQtyBasis = decisionFieldValues.calculation_methodology === 'using_qty_basis_ef';
-    const fuelQtyUnits = selectedFuel?.allowed_units || [];
-    const fields = applicableMappings.map(m => {
-      const field = {
-        id: m.id,
-        variable: m.maps_to_variable,
-        fieldKey: m.field_key,
-        label: m.field_label,
-        expectedUnit: m.default_unit,
-        required: m.is_required,
-        isOverride: m.is_override || false,
-        fieldType: m.field_type || 'number',
-        allowedUnits: m.allowed_units || [],
-        unitSource: m.unit_source || 'static',
-        compoundWithVariable: m.compound_with_variable || null,
-        placeholder: m.placeholder || `Enter ${m.field_label}`,
-        helpText: m.help_text || '',
-        mapsToContext: m.maps_to_context,
-        mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
-        mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
-        options: m.options || [],
-        validationRules: m.validation_rules || {},
-        defaultValue: m.default_value,
-      };
-      // For Qty Basis EF: attach fuel qty units on density so renderer can
-      // dynamically check if density is required based on selected EF unit
-      if (isQtyBasis && m.maps_to_variable === 'density') {
-        field.densityQtyBasisCheck = true;
-        field.fuelQtyUnits = fuelQtyUnits;
-      }
-      return field;
-    });
-    
-    // Return both fields and the matched formula ID
-    return { fields, formulaId };
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, decisionFieldValues, useCustomFuel, selectedFuel]);
+  const dynamicInputFieldsResult = useMemo(
+    () => deriveGhgFields({ formConfig: resolvedGhgConfig, context: ghgFormContext }),
+    [resolvedGhgConfig, ghgFormContext],
+  );
   
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];

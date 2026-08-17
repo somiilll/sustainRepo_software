@@ -87,6 +87,17 @@ Reference documents:
 - `/app/memory/GHG_CATEGORY_IDENTITY_ANALYSIS.md` — same-name categories: not duplicates, no migration needed
 - `/app/memory/GHG_INFLATION_RECONCILIATION.md` — three inflation paths, proposed single source of truth
 - `/app/memory/GHG_COVERAGE_DASHBOARD.md` — per-category regression coverage matrix
+- `/app/memory/GHG_PHASE1_REPORT.md` — Phase 1 Create-flow refactor result and remaining coupling
+
+### Phase 1 — Create-flow field derivation (Jun 2026) — COMPLETE
+
+- New pure config layer `frontend/src/modules/ghg/config/`: `deriveGhgFields`, `resolveGhgFormContext`, `resolveGhgConfig`, `categoryRules`, `overrideSchema`
+- Org override extension point in place: whitelisted keys, returns the standard config **by reference** when no overrides exist (no UI, no endpoint, no org conditionals)
+- Canonical category identity `(code, scope_code)` preferred, display name kept as fallback
+- Equivalence proven against a frozen copy of the pre-refactor logic: 24 categories × 158 decision paths × 4 fuel variants = **785 assertions**
+- Tests: backend 497 passed / 9 skipped (unchanged), frontend 950 passed / 63 snapshots (was 145), 0 failures, 0 snapshot changes, 0 calculation changes
+- Read-only verified: `emission_records` 840, `ce_calculation_audit_logs` 1339, `emission_history` 1754 unchanged
+- Untouched as instructed: Edit flow, C7, inflation, evidence, approval, frontend evaluator, dead code
 
 ### Phase status
 
@@ -96,8 +107,8 @@ Reference documents:
 | 0b | Category identity impact analysis | **DONE (Jun 2026)** — not duplicates; canonical identity is `(code, scope_code)`; **no migration required** |
 | 0c | Inflation/PPP reconciliation analysis | **DONE (Jun 2026)** — proposal awaiting approval; implementation deliberately deferred to after Phase 2 |
 | 0d | Coverage dashboard | **DONE (Jun 2026)** |
-| 1 | Create-flow field-derivation extraction | NOT STARTED (gated on review of 0b–0d) |
-| 2 | Edit-flow field-derivation extraction | NOT STARTED |
+| 1 | Create-flow field-derivation extraction | **DONE (Jun 2026)** — `modules/ghg/config/`; 785 equivalence assertions; 1 production file changed (−262/+62) |
+| 2 | Edit-flow field-derivation extraction | NOT STARTED (gated on Phase 1 review) |
 | 3 | Capability config replaces category string sniffing | NOT STARTED |
 | 4 | Service extraction (units, EF, calc, evidence, API client) | NOT STARTED |
 | 5 | Unified form state + record adapters | NOT STARTED |
@@ -140,6 +151,8 @@ Reference documents:
 - **P2**: C7 Employee Commuting has zero calculation coverage (94 records, no audit log by design) — needs its own E2E test before any C7 restructuring
 - **P2**: C6 airport / flight-distance fields not calculation-protected
 - **P2**: Evidence upload and approval workflow are structurally protected only (write paths)
+- **P3**: Pre-existing unrelated backend test failures — `test_calc_engine_phase3.py` (8 errors, empty `BASE_URL`) and `test_phase_b5_emissions_refactor.py` (8 failures, stale hardcoded counts: 20 vs 35 modules, 40 vs 337 records)
+- **P3**: Radix Select hydration warning on the Add Emission modal (`<span> cannot be a child of <option>`) — pre-existing, pollutes console during automation
 - **P2**: Decouple Add/Edit Emissions into unified EmissionDraft workflow (superseded by the GHG Modularization Programme above)
 - **P2**: Copy Month Values for Custom Fuel EF/CV values
 - **P3**: Dashboard Scope 1 & 3 Emissions Deduplication
