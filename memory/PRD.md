@@ -88,6 +88,7 @@ Reference documents:
 - `/app/memory/GHG_INFLATION_RECONCILIATION.md` — three inflation paths, proposed single source of truth
 - `/app/memory/GHG_COVERAGE_DASHBOARD.md` — per-category regression coverage matrix
 - `/app/memory/GHG_PHASE1_REPORT.md` — Phase 1 Create-flow refactor result and remaining coupling
+- `/app/memory/GHG_POST_PHASE4_ARCHITECTURE_AUDIT.md` — read-only post-Phase-4 capability completeness and organization-readiness audit
 
 ### Phase 1 — Create-flow field derivation (Jun 2026) — COMPLETE
 
@@ -114,6 +115,14 @@ Reference documents:
 - Regression: dedicated C7 **9 passed**; backend golden **506 passed / 9 skipped**; frontend **1,134 passed / 63 unchanged snapshots**; Phase 1 equivalence stays **785 assertions / 0 differences**. Database counts before/after unchanged: `840 / 1339 / 1763`.
 - Deliberately untouched: all C7 production behavior, calculator, employees, totals, validation, API, persistence, UI, schema, C7 router, frontend C7 logic, inflation, and unrelated refactors. See `GHG_PHASE3_C7_SAFETY_NET_REPORT.md`.
 
+### Phase 4 — Capability configuration (Aug 2026) — APPROVED SCOPE COMPLETE; AUDIT FOLLOW-UP REQUIRED
+
+- Centralized C11 product type, C9 customer labels, C6 flight details, asset/location, activity type, multi-employee, subcategory, and compatibility exports through `resolveGhgCapabilities`.
+- Post-phase read-only audit found remaining active Process/custom-fuel/fugitive/C7/static-option decisions outside the capability layer, a missing yearly C6 capability prop, duplicated registry capabilities, and an Edit call-site scope-property mismatch.
+- Organization overrides are not yet end-to-end: Create does not receive overrides from the active parent, Edit passes `null`, and registry capabilities have a separate authority.
+- Verification remained exact: backend golden **506 passed / 9 skipped**; frontend **1,159 passed / 63 snapshots**; capability/equivalence **810 passed**; DB counts unchanged at `840 / 1339 / 1763`. Production files changed: **0** during the audit.
+- Inflation implementation remains gated pending explicit review of `GHG_POST_PHASE4_ARCHITECTURE_AUDIT.md`.
+
 ### Phase status
 
 | Phase | Description | Status |
@@ -124,13 +133,14 @@ Reference documents:
 | 0d | Coverage dashboard | **DONE (Jun 2026)** |
 | 1 | Create-flow field-derivation extraction | **DONE (Jun 2026)** — `modules/ghg/config/`; 785 equivalence assertions; 1 production file changed (−262/+62) |
 | 2 | Edit-flow field-derivation extraction | **DONE (Jun 2026)** — one shared Create/Edit derivation pipeline; hydration retained separately; golden parity verified |
-| 3 | Capability config replaces category string sniffing | NOT STARTED |
-| 4 | Service extraction (units, EF, calc, evidence, API client) | NOT STARTED |
-| 5 | Unified form state + record adapters | NOT STARTED |
-| 6 | Field registry + one shared `<GhgForm mode>` | NOT STARTED |
-| 7 | Declarative validation engine | NOT STARTED |
-| 8 | Dead-code removal + frontend evaluator cleanup | NOT STARTED (deferred by user) |
-| 9 | Organization override layer (seed/JSON first, Super Admin UI later) | NOT STARTED |
+| 3 | C7 safety-net phase | **DONE (Jun 2026)** — test-only; production C7 untouched |
+| 4 | Capability config replaces category string sniffing | **APPROVED SCOPE COMPLETE; POST-AUDIT PARTIAL** — follow-up decision required before inflation |
+| 5 | Service extraction (units, EF, calc, evidence, API client) | NOT STARTED |
+| 6 | Unified form state + record adapters | NOT STARTED |
+| 7 | Field registry + one shared `<GhgForm mode>` | NOT STARTED |
+| 8 | Declarative validation engine | NOT STARTED |
+| 9 | Dead-code removal + frontend evaluator cleanup | NOT STARTED (deferred by user) |
+| 10 | Organization override layer (seed/JSON first, Super Admin UI later) | NOT STARTED |
 
 ### Phase 0 — Golden Safety Net (Jun 2026) — COMPLETE
 
@@ -161,6 +171,7 @@ Reference documents:
 - MIS Schedule Preview & Report Bookmarks
 
 ## Future/Backlog Tasks
+- **P0 (approval pending)**: Post-Phase-4 capability closeout — review the read-only audit findings before any implementation; minimum findings are Edit `effectiveScope` wiring, remaining static Process/custom-fuel/fugitive/C7 decisions, yearly C6 capability propagation, and duplicate registry capability ownership.
 - **P1 (approval pending)**: Inflation/PPP single source of truth — fix the 2 `ce_property_source_mappings` rows, always populate `context.reporting_period`, retire the router injection path, replace the silent 1.0 default. Will require an approved re-capture of 4 spend-basis baselines. Scheduled AFTER Phase 2.
 - **P1**: Resolve categories by `(code, scope_code)` instead of `(name, scope_code)` — folded into Phase 1
 - **P2**: C7 Employee Commuting has zero calculation coverage (94 records, no audit log by design) — needs its own E2E test before any C7 restructuring
