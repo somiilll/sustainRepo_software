@@ -12,6 +12,7 @@
 export { deriveGhgFields, traverseDecisionTree } from './deriveGhgFields';
 export { resolveGhgFormContext } from './resolveGhgFormContext';
 export { resolveGhgConfig } from './resolveGhgConfig';
+export { resolveGhgCapabilities, STANDARD_GHG_CAPABILITIES } from './resolveGhgCapabilities';
 export {
   findCategoryDefinition,
   findScopeDefinition,

@@ -51,6 +51,7 @@ import {
   resolveGhgConfig,
   resolveGhgFormContext,
   resolveEffectiveScopeCode,
+  resolveGhgCapabilities,
 } from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
 
@@ -911,17 +912,28 @@ export default function EmissionEntryForm({
     return uniqueActivities;
   }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, facilityId, biogenicScopeSelection]);
 
-  // Get available activity types for C6/C7 categories
+  const resolvedCapabilities = useMemo(() => {
+    const effectiveScopeCode = resolveEffectiveScopeCode(scope, biogenicScopeSelection);
+    const categoryDefinition = dynamicCategories.find((item) =>
+      item.name === category && item.scope_code === effectiveScopeCode,
+    );
+    return resolveGhgCapabilities({
+      categoryCode: categoryDefinition?.code,
+      scopeCode: effectiveScopeCode,
+      biogenicScopeSelection,
+    }).capabilities;
+  }, [scope, category, biogenicScopeSelection, dynamicCategories]);
+  const hasSubcategoryCapability = useMemo(() => {
+    const effectiveScopeCode = resolveEffectiveScopeCode(scope, biogenicScopeSelection);
+    const definition = dynamicCategories.find((item) => item.name === category && item.scope_code === effectiveScopeCode);
+    return resolveGhgCapabilities({ categoryCode: definition?.code, scopeCode: effectiveScopeCode }).capabilities.subcategory;
+  }, [scope, category, biogenicScopeSelection, dynamicCategories]);
+
+  // Get available activity types for categories configured with that capability.
   const availableScope3ActivityTypes = useMemo(() => {
     if (scope !== 'scope3' || !category) return [];
     
-    // Only show activity type filter for C6 and C7
-    const isC6 = category.toLowerCase().includes('c6') || 
-                 category.toLowerCase().includes('business travel');
-    const isC7 = category.toLowerCase().includes('c7') ||
-                 category.toLowerCase().includes('employee commuting');
-    
-    if (!isC6 && !isC7) return [];
+    if (!resolvedCapabilities.activityType) return [];
     
     const activityTypes = new Set();
     
@@ -938,32 +950,22 @@ export default function EmissionEntryForm({
     }
     
     // Add "Others" option for supplier_basis method - only for C6 (not C7)
-    if (scope3Method === 'supplier_basis' && isC6) {
+    if (scope3Method === 'supplier_basis' && resolvedCapabilities.supplierBasisOtherActivity) {
       activityTypes.add('others');
     }
     
     return Array.from(activityTypes).sort();
-  }, [scope, scope3EFData, category, scope3Method]);
-
-  // Categories that require subcategory selection (C8, C10, C11, C13, C14)
-  const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
-  
-  // Categories that require Asset Name field (C8, C13, C14, C15)
-  const assetNameCategories = ['c8', 'c13', 'c14', 'c15'];
+  }, [scope, scope3EFData, category, scope3Method, resolvedCapabilities]);
   
   // Check if current category requires Asset Name
   const requiresAssetName = useMemo(() => {
-    if (scope !== 'scope3' || !category) return false;
-    const catLower = category.toLowerCase();
-    return assetNameCategories.some(c => catLower.includes(c));
-  }, [scope, category]);
+    return scope === 'scope3' && Boolean(category) && resolvedCapabilities.assetName;
+  }, [scope, category, resolvedCapabilities]);
   
   // Check if current category is C7 (Employee Commuting) - supports multi-employee input
   const isC7EmployeeCommuting = useMemo(() => {
-    if (scope !== 'scope3' || !category) return false;
-    const catLower = category.toLowerCase();
-    return catLower.includes('c7') || catLower.includes('employee commuting');
-  }, [scope, category]);
+    return scope === 'scope3' && Boolean(category) && resolvedCapabilities.multiEmployee;
+  }, [scope, category, resolvedCapabilities]);
   
   // Check if current category requires subcategory
   // Note: Biogenic Scope 3 does NOT require subcategory - it uses direct activity selection like C3
@@ -972,9 +974,8 @@ export default function EmissionEntryForm({
     // Biogenic Scope 3 skips subcategory selection
     const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
     if (scope !== 'scope3' || isBiogenicScope3 || !category) return false;
-    const catLower = category.toLowerCase();
-    return subcategoryCategories.some(c => catLower.includes(c));
-  }, [scope, category, biogenicScopeSelection]);
+    return resolvedCapabilities.subcategory;
+  }, [scope, category, biogenicScopeSelection, resolvedCapabilities]);
 
   // Reset employee data when category changes away from C7
   useEffect(() => {
@@ -1025,15 +1026,10 @@ export default function EmissionEntryForm({
     }
   }, [requiresAssetName]);
 
-  // Categories that show From/To Location fields (C4, C6, C9 - transportation/travel categories)
-  const locationCategories = ['c4', 'c6', 'c9'];
-  
-  // Check if current category shows From/To Location fields
+  // Check if current category shows From/To Location fields.
   const showsLocationFields = useMemo(() => {
-    if (scope !== 'scope3' || !category) return false;
-    const catLower = category.toLowerCase();
-    return locationCategories.some(c => catLower.includes(c));
-  }, [scope, category]);
+    return scope === 'scope3' && Boolean(category) && resolvedCapabilities.journeyLocations;
+  }, [scope, category, resolvedCapabilities]);
 
   // Reset location fields when category changes away from C4/C6/C9
   useEffect(() => {
@@ -1646,7 +1642,7 @@ export default function EmissionEntryForm({
     // (biogenic skips subcategory UI but backend decision tree still expects it)
     if (isBiogenicScope3) {
       const catLower = category?.toLowerCase() || '';
-      const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+    const isSubcategoryCategory = hasSubcategoryCapability;
       if (isSubcategoryCategory && !decisionInputs['subcategory_selection']) {
         // Use 'biogenic' as subcategory - will be handled by decision tree
         decisionInputs['subcategory_selection'] = 'biogenic';

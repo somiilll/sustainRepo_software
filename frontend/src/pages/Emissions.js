@@ -34,6 +34,7 @@ import {
   deriveGhgFields,
   resolveGhgConfig,
   resolveGhgFormContext,
+  resolveGhgCapabilities,
 } from '../modules/ghg/config';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
@@ -443,6 +444,15 @@ export default function Emissions() {
     ],
   );
 
+  const editCapabilities = useMemo(
+    () => resolveGhgCapabilities({
+      categoryCode: editGhgFormContext.categoryDefinition?.code,
+      scopeCode: editGhgFormContext.effectiveScopeCode,
+      biogenicScopeSelection,
+    }).capabilities,
+    [editGhgFormContext, biogenicScopeSelection],
+  );
+
   const resolvedEditGhgConfig = useMemo(
     () => resolveGhgConfig({ standardConfig: editFormConfig, organizationOverrides: null }),
     [editFormConfig],
@@ -542,7 +552,7 @@ export default function Emissions() {
     // (biogenic skips subcategory UI but backend decision tree still expects it)
     if (isBiogenicScope3 && !decisionInputs['subcategory_selection']) {
       const catLower = (formData.category || selectedCategory)?.toLowerCase() || '';
-      const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+      const isSubcategoryCategory = editCapabilities.subcategory;
       if (isSubcategoryCategory) {
         decisionInputs['subcategory_selection'] = 'biogenic';
       }
@@ -558,7 +568,7 @@ export default function Emissions() {
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -1037,9 +1047,8 @@ export default function Emissions() {
   // Check if editing a C7 (Employee Commuting) category
   const isEditC7EmployeeCommuting = useMemo(() => {
     if (formData.scope !== 'scope3') return false;
-    const cat = formData.category?.toLowerCase() || '';
-    return cat.includes('c7') || cat.includes('employee commuting');
-  }, [formData.scope, formData.category]);
+    return editCapabilities.multiEmployee;
+  }, [formData.scope, formData.category, editCapabilities]);
 
   // Pluggable category renderer + edit-flow lookup. The page delegates
   // the dynamic-fields portion of the Scope 3 edit dialog to the module
@@ -1323,13 +1332,7 @@ export default function Emissions() {
   const availableScope3ActivityTypes = useMemo(() => {
     if (formData.scope !== 'scope3' || !selectedCategory) return [];
     
-    // Only show activity type filter for C6 and C7
-    const isC6 = selectedCategory.toLowerCase().includes('c6') || 
-                 selectedCategory.toLowerCase().includes('business travel');
-    const isC7 = selectedCategory.toLowerCase().includes('c7') ||
-                 selectedCategory.toLowerCase().includes('employee commuting');
-    
-    if (!isC6 && !isC7) return [];
+    if (!editCapabilities.activityType) return [];
     
     const activityTypes = new Set();
     
@@ -1346,15 +1349,12 @@ export default function Emissions() {
     }
     
     // Add "Others" option for supplier_basis method - only for C6 (not C7)
-    if (scope3Method === 'supplier_basis' && isC6) {
+    if (scope3Method === 'supplier_basis' && editCapabilities.supplierBasisOtherActivity) {
       activityTypes.add('others');
     }
     
     return Array.from(activityTypes).sort();
-  }, [formData.scope, scope3EFData, selectedCategory, scope3Method]);
-
-  // Check if current category requires subcategory selection (C8, C10, C11, C13, C14)
-  const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
+  }, [formData.scope, scope3EFData, selectedCategory, scope3Method, editCapabilities]);
   
   const requiresSubcategory = useMemo(() => {
     // Handle both regular scope3 and biogenic with scope3 selection
@@ -1366,9 +1366,8 @@ export default function Emissions() {
     // For biogenic, subcategory is not required (biogenic fuels are categorized by sub_scope, not subcategory)
     if (isBiogenicScope3) return false;
     
-    const catLower = selectedCategory.toLowerCase();
-    return subcategoryCategories.some(c => catLower.includes(c));
-  }, [formData.scope, selectedCategory, biogenicScopeSelection]);
+    return editCapabilities.subcategory;
+  }, [formData.scope, selectedCategory, biogenicScopeSelection, editCapabilities]);
 
   // Get available subcategories for C8/C10/C11/C13/C14
   const availableSubcategories = useMemo(() => {
@@ -1405,7 +1404,10 @@ export default function Emissions() {
     // Get facility for sector filtering
     const facility = facilities.find(f => f.id === formData.facility_id);
     const catLower = selectedCategory?.toLowerCase() || '';
-    const isSubcategoryCategory = subcategoryCategories.some(c => catLower.includes(c));
+    const isSubcategoryCategory = resolveGhgCapabilities({
+      categoryCode: editGhgFormContext.categoryDefinition?.code,
+      scopeCode: editGhgFormContext.effectiveScopeCode,
+    }).capabilities.subcategory;
     
     // For BIOGENIC scope3, skip subcategory handling - just filter by category directly
     // Biogenic C8/C10/C11/C13/C14 should work like C3 (direct activity selection)
