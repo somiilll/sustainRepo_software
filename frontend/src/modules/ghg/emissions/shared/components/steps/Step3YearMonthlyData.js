@@ -35,6 +35,59 @@ const FIELD_HELP = {
     'Accounts for country-specific purchasing power differences. If left empty, system defaults will be used. To disable this adjustment, input the USD/INR exchange rate for the reporting period.',
 };
 
+const MonthlyEvidenceCell = ({
+  monthKey,
+  evidences = [],
+  handleEvidenceUpload,
+  removeEvidence,
+  backendUrl,
+}) => (
+  <div className="min-w-0 space-y-3 lg:border-l lg:border-stone-200 lg:pl-6" data-testid={`month-${monthKey}-evidence-cell`}>
+    <Label>Evidence <span className="text-xs font-normal text-stone-500">(optional)</span></Label>
+    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/40 p-3 transition-colors hover:bg-slate-50" data-testid={`month-${monthKey}-evidence-upload-zone`}>
+      <input
+        type="file"
+        id={`evidence-${monthKey}`}
+        className="hidden"
+        multiple
+        onChange={async (event) => {
+          const files = Array.from(event.target.files || []);
+          for (const file of files) await handleEvidenceUpload(monthKey, file);
+          event.target.value = '';
+        }}
+        accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.gif,.webp"
+        data-testid={`month-${monthKey}-evidence-input`}
+      />
+      <label htmlFor={`evidence-${monthKey}`} className="flex cursor-pointer flex-col items-center gap-1.5 py-1 text-center" data-testid={`month-${monthKey}-evidence-upload-trigger`}>
+        <Upload className="h-6 w-6 text-stone-400" />
+        <span className="text-sm text-stone-600">Upload evidence</span>
+        <span className="text-xs text-stone-400">PDF, image, Excel, Word</span>
+      </label>
+    </div>
+    {evidences.length > 0 && (
+      <div className="space-y-2" data-testid={`month-${monthKey}-evidence-list`}>
+        {evidences.map((evidence, index) => {
+          const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
+          const fileId = fileIdMatch ? fileIdMatch[1] : null;
+          const viewUrl = fileId ? `${backendUrl}/api/files/${fileId}/view` : evidence.url;
+          const downloadUrl = fileId ? `${backendUrl}/api/files/${fileId}/download` : evidence.url;
+          return (
+            <div key={`${evidence.url || evidence.filename}-${index}`} className="flex min-w-0 items-center gap-2 rounded-md bg-green-50 p-2">
+              <FileText className="h-4 w-4 shrink-0 text-green-600" />
+              <span className="min-w-0 flex-1 truncate text-xs text-green-700" title={evidence.filename}>{evidence.filename}</span>
+              <div className="flex shrink-0 items-center gap-1">
+                <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="p-1 text-blue-600 hover:text-blue-800" title="View evidence" data-testid={`month-${monthKey}-evidence-view-${index}`}><Eye className="h-3.5 w-3.5" /></a>
+                {fileId && <button type="button" onClick={() => window.open(downloadUrl, '_blank')} className="p-1 text-green-700 hover:text-green-900" title="Download evidence" data-testid={`month-${monthKey}-evidence-download-${index}`}><Download className="h-3.5 w-3.5" /></button>}
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeEvidence(monthKey, index)} className="h-6 p-1 text-red-500 hover:bg-red-50 hover:text-red-700" title="Remove evidence" data-testid={`month-${monthKey}-evidence-remove-${index}`}><X className="h-3.5 w-3.5" /></Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);
+
 // Import volume unit helper
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
 import { isQuantityField } from '../../utils/unitHelpers';
@@ -136,15 +189,6 @@ export const Step3YearMonthlyData = ({
 }) => {
   return (
     <div className="space-y-8">
-      {/* Note about yearly aggregation */}
-      <div className="flex items-start gap-3 border-l-4 border-blue-500 bg-blue-50 p-4 text-blue-800" data-testid="emission-reporting-note">
-        <Info className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
-        <p className="text-sm text-blue-800">
-          <strong>Note:</strong> Each emission entry record is for <strong>1 year only</strong>. 
-          Monthly data entered below will be aggregated for the selected reporting year.
-        </p>
-      </div>
-
       {showReportingControls && (
         <ReportingPeriodControls
           reportingYearType={reportingYearType}
@@ -306,7 +350,9 @@ export const Step3YearMonthlyData = ({
                   </AccordionTrigger>
                   {!isDisabled && (
                   <AccordionContent className="px-4 pb-4">
-                    <div className="space-y-8">
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+                        <div className="min-w-0 space-y-6">
                       {/* Flight Details — C6 Business Travel + air_travel only */}
                       {scope3ActivityType === 'air_travel' && capabilities.flightDetails && (
                         <FlightDetailsSection
@@ -321,9 +367,9 @@ export const Step3YearMonthlyData = ({
                       {isProcessEmissions && selectedTemplate ? (
                         <div className="space-y-4">
                           {selectedTemplate.input_fields?.map((field) => (
-                            <div key={field.key} className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label>{field.label} {!field.is_optional && '*'}</Label>
+                            <div key={field.key} className="space-y-2">
+                              <Label>{field.label} {!field.is_optional && '*'}</Label>
+                              <div className="flex overflow-hidden rounded-md border border-stone-200 bg-stone-50 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                                 <Input
                                   type={field.data_type === 'number' ? 'number' : 'text'}
                                   step={field.data_type === 'number' ? 'any' : undefined}
@@ -331,16 +377,13 @@ export const Step3YearMonthlyData = ({
                                   placeholder={`Enter ${field.label.toLowerCase()}`}
                                   value={data[field.key] || ''}
                                   onChange={(e) => updateMonthData(monthKey, field.key, e.target.value)}
-                                  className="bg-stone-50"
+                                  className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
                                   data-testid={`month-${monthKey}-${field.key}`}
                                 />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Unit</Label>
                                 <select
                                   value={data[`${field.key}_unit`] || field.unit || 'kg'}
                                   onChange={(e) => updateMonthData(monthKey, `${field.key}_unit`, e.target.value)}
-                                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                  className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
                                   data-testid={`month-${monthKey}-${field.key}-unit`}
                                   dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
                                 />
@@ -358,19 +401,6 @@ export const Step3YearMonthlyData = ({
                             </div>
                           )}
                           
-                          {(dynamicInputFields.filter(f => f.isOverride).length > 0 || dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0) && (
-                            <details className="group border-t border-stone-200 pt-5" data-testid={`month-${monthKey}-additional-details`}>
-                              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-additional-details-trigger`}>
-                                <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
-                                Additional details
-                              </summary>
-                              <div className="space-y-8 pt-6" data-testid={`month-${monthKey}-additional-details-content`}>
-                                {dynamicInputFields.filter(f => f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                                {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                              </div>
-                            </details>
-                          )}
-                          
                           {/* Loading indicator */}
                           {loadingFormConfig && (
                             <div className="flex items-center gap-2 text-sm text-stone-500 p-3 bg-stone-100 rounded-lg">
@@ -381,36 +411,31 @@ export const Step3YearMonthlyData = ({
                         </div>
                       ) : (
                         /* Fallback: Simple Quantity and Unit (legacy) */
-                        <div className={useCustomFuel ? "" : "grid grid-cols-2 gap-4 items-end"}>
+                        <div className={useCustomFuel ? "" : "max-w-xl"}>
                           <div className="space-y-2">
                             <Label>Quantity</Label>
-                            <Input
-                              type="number"
-                              step="any"
-                              min="0"
-                              placeholder="Enter quantity"
-                              value={data.quantity || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === '' || parseFloat(val) >= 0) {
-                                  updateMonthData(monthKey, 'quantity', val);
-                                }
-                              }}
-                              onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                              className="bg-stone-50"
-                            />
+                            <div className="flex overflow-hidden rounded-md border border-stone-200 bg-stone-50 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+                              <Input
+                                type="number"
+                                step="any"
+                                min="0"
+                                placeholder="Enter quantity"
+                                value={data.quantity || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || parseFloat(val) >= 0) updateMonthData(monthKey, 'quantity', val);
+                                }}
+                                onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+                                className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+                              />
+                              {!useCustomFuel && <select
+                                value={data.unit || defaultUnit}
+                                onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
+                                className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
+                                dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(allowedUnits) }}
+                              />}
+                            </div>
                           </div>
-                          {!useCustomFuel && (
-                          <div className="space-y-2">
-                            <Label>Unit</Label>
-                            <select
-                              value={data.unit || defaultUnit}
-                              onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
-                              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(allowedUnits) }}
-                            />
-                          </div>
-                          )}
                         </div>
                       )}
 
@@ -426,94 +451,28 @@ export const Step3YearMonthlyData = ({
                           />
                         </>
                       )}
-
-                      {/* Evidence Upload */}
-                      <div className="space-y-3">
-                        <Label>Evidence(s) <span className="text-xs font-normal text-stone-500">(optional)</span></Label>
-                        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/40 p-4 transition-colors hover:bg-slate-50" data-testid={`month-${monthKey}-evidence-upload-zone`}>
-                          <input
-                            type="file"
-                            id={`evidence-${monthKey}`}
-                            className="hidden"
-                            multiple
-                            onChange={async (e) => {
-                              const files = Array.from(e.target.files || []);
-                              for (let i = 0; i < files.length; i++) {
-                                await handleEvidenceUpload(monthKey, files[i]);
-                              }
-                              e.target.value = '';
-                            }}
-                            accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.gif,.webp"
-                            data-testid={`month-${monthKey}-evidence-input`}
-                          />
-                          <label
-                            htmlFor={`evidence-${monthKey}`}
-                            className="flex cursor-pointer flex-col items-center gap-2"
-                            data-testid={`month-${monthKey}-evidence-upload-trigger`}
-                          >
-                            <Upload className="w-8 h-8 text-stone-400" />
-                            <span className="text-sm text-stone-500">Click to upload evidence</span>
-                            <span className="text-xs text-stone-400">PDF, Images, Excel, Word</span>
-                          </label>
                         </div>
-
-                        {/* Uploaded Evidences List */}
-                        {data.evidences && data.evidences.length > 0 && (
-                          <div className="mt-2 space-y-2">
-                            {data.evidences.map((evidence, idx) => {
-                              const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
-                              const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                              const viewUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/view` : evidence.url;
-                              const downloadUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/download` : evidence.url;
-                              
-                              return (
-                                <div key={idx} className="flex items-center gap-2 p-2 bg-green-50 rounded-lg">
-                                  <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
-                                  <span className="text-sm text-green-700 truncate flex-1" title={evidence.filename}>
-                                    {evidence.filename}
-                                  </span>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
-                                    <a
-                                      href={viewUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 px-2 py-1"
-                                      title="View file"
-                                    >
-                                      <Eye className="w-3 h-3" />
-                                      View
-                                    </a>
-                                    {fileId && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          window.open(downloadUrl, '_blank');
-                                        }}
-                                        className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 px-2 py-1"
-                                        title="Download file"
-                                      >
-                                        <Download className="w-3 h-3" />
-                                        Download
-                                      </button>
-                                    )}
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeEvidence(monthKey, idx)}
-                                      className="text-red-500 hover:text-red-700 p-1 h-auto"
-                                      title="Remove file"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                        <MonthlyEvidenceCell
+                          monthKey={monthKey}
+                          evidences={data.evidences}
+                          handleEvidenceUpload={handleEvidenceUpload}
+                          removeEvidence={removeEvidence}
+                          backendUrl={BACKEND_URL}
+                        />
                       </div>
+
+                      {formConfig && dynamicInputFields.length > 0 && (dynamicInputFields.some(field => field.isOverride || (!field.required && !field.isOverride))) && (
+                        <details className="group border-t border-stone-200 pt-5" data-testid={`month-${monthKey}-additional-details`}>
+                          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-additional-details-trigger`}>
+                            <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
+                            Additional details
+                          </summary>
+                          <div className="space-y-8 pt-6" data-testid={`month-${monthKey}-additional-details-content`}>
+                            {dynamicInputFields.filter(field => field.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                            {dynamicInputFields.filter(field => !field.required && !field.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                          </div>
+                        </details>
+                      )}
 
                       {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
                       {!formConfig && (scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides && (
@@ -755,9 +714,9 @@ const YearlyDataEntry = ({
         {isProcessEmissions && selectedTemplate ? (
           <div className="space-y-4">
             {selectedTemplate.input_fields?.map((field) => (
-              <div key={field.key} className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>{field.label} (Annual Total) {!field.is_optional && '*'}</Label>
+              <div key={field.key} className="space-y-2">
+                <Label>{field.label} (Annual Total) {!field.is_optional && '*'}</Label>
+                <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                   <Input
                     type={field.data_type === 'number' ? 'number' : 'text'}
                     step={field.data_type === 'number' ? 'any' : undefined}
@@ -765,16 +724,13 @@ const YearlyDataEntry = ({
                     placeholder={`Enter annual ${field.label.toLowerCase()}`}
                     value={yearlyData[field.key] || ''}
                     onChange={(e) => setYearlyData(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    className="bg-white"
+                    className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
                     data-testid={`yearly-${field.key}`}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>Unit</Label>
                   <select
                     value={yearlyData[`${field.key}_unit`] || field.unit || 'kg'}
                     onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.key}_unit`]: e.target.value }))}
-                    className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                    className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
                     data-testid={`yearly-${field.key}-unit`}
                     dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
                   />
@@ -836,7 +792,7 @@ const YearlyDataEntry = ({
                           }}
                         />
                       ) : (
-                        <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-3 gap-2" : ""}>
+                        <div className={showUnitSelector || showUnitTextInput ? "flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
                           <Input
                             type="number"
                             step={isUnitlessCountField ? "1" : "any"}
@@ -856,13 +812,13 @@ const YearlyDataEntry = ({
                                 setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                               }
                             }}
-                            className={showUnitSelector || showUnitTextInput ? "col-span-2 bg-white" : "bg-white"}
+                            className={showUnitSelector || showUnitTextInput ? "h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0" : "bg-white"}
                           />
                           {showUnitSelector && (
                             <select
                               value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                              className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                              className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
                               dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
                             />
                           )}
@@ -872,7 +828,7 @@ const YearlyDataEntry = ({
                               placeholder="Unit"
                               value={yearlyData[`${field.variable}_unit`] || ''}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                              className="bg-white"
+                              className="h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0"
                             />
                           )}
                         </div>
@@ -900,7 +856,7 @@ const YearlyDataEntry = ({
                   
                   return (
                     <div key={field.variable} className="space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Label className="flex items-center gap-2">
                           {field.label}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
@@ -923,7 +879,7 @@ const YearlyDataEntry = ({
                             </TooltipProvider>
                           )}
                         </Label>
-                        <div className="flex items-center gap-2">
+                        <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-amber-700">
                           <input
                             type="checkbox"
                             id={`yearly-override-${field.variable}`}
@@ -934,16 +890,12 @@ const YearlyDataEntry = ({
                               ...(e.target.checked ? {} : { [field.variable]: '', [`${field.variable}_unit`]: '' })
                             }))}
                             className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                            data-testid={`yearly-override-${field.variable}`}
                           />
-                          <label 
-                            htmlFor={`yearly-override-${field.variable}`} 
-                            className="text-xs text-amber-600 font-medium"
-                          >
-                            Override Default
-                          </label>
-                        </div>
+                          Override Default
+                        </label>
                       </div>
-                      <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-3 gap-2" : ""}>
+                      <div className={showUnitSelector || showUnitTextInput ? "flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
                         <Input
                           type="number"
                           step={isUnitlessCountField ? "1" : "any"}
@@ -964,14 +916,14 @@ const YearlyDataEntry = ({
                             }
                           }}
                           disabled={!isOverrideEnabled}
-                          className={`${showUnitSelector || showUnitTextInput ? "col-span-2" : ""} bg-white ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                          className={`${showUnitSelector || showUnitTextInput ? "h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0" : "bg-white"} ${!isOverrideEnabled ? "opacity-50" : ""}`}
                         />
                         {showUnitSelector && (
                           <select
                             value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
                             onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                             disabled={!isOverrideEnabled}
-                            className={`w-full h-10 bg-white border border-stone-200 rounded-lg px-3 ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                            className={`h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? "opacity-50" : ""}`}
                             dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
                           />
                         )}
@@ -982,7 +934,7 @@ const YearlyDataEntry = ({
                             value={yearlyData[`${field.variable}_unit`] || ''}
                             onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                             disabled={!isOverrideEnabled}
-                            className={`bg-white ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                            className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? "opacity-50" : ""}`}
                           />
                         )}
                       </div>
@@ -1014,7 +966,7 @@ const YearlyDataEntry = ({
                   
                   return (
                     <div key={field.variable} className="space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Label className="flex items-center gap-2">
                           {field.label}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
@@ -1037,7 +989,7 @@ const YearlyDataEntry = ({
                             </TooltipProvider>
                           )}
                         </Label>
-                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-amber-700">
                           <input
                             type="checkbox"
                             checked={isOverrideEnabled}
@@ -1046,13 +998,14 @@ const YearlyDataEntry = ({
                               [overrideKey]: e.target.checked,
                               ...(e.target.checked ? {} : { [field.variable]: '', [`${field.variable}_unit`]: '' })
                             }))}
-                            className="rounded border-stone-300"
+                            className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                            data-testid={`yearly-override-${field.variable}`}
                           />
-                          <span className="text-amber-600">Override Default</span>
+                          Override Default
                         </label>
                       </div>
                       
-                      <div className={showStandardExpectedUnit ? "grid grid-cols-3 gap-2" : ""}>
+                      <div className={showStandardExpectedUnit ? "flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
                         <Input
                           type="number"
                           step="any"
@@ -1066,7 +1019,7 @@ const YearlyDataEntry = ({
                               setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                             }
                           }}
-                          className={`${showStandardExpectedUnit ? 'col-span-2' : ''} bg-white ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                          className={`${showStandardExpectedUnit ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : 'bg-white'} ${!isOverrideEnabled ? 'opacity-50' : ''}`}
                         />
                         {showStandardExpectedUnit && (
                           fieldUnits.length > 1 ? (
@@ -1074,11 +1027,11 @@ const YearlyDataEntry = ({
                               value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
                               disabled={!isOverrideEnabled}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                              className={`w-full h-10 bg-white border border-stone-200 rounded-lg px-3 ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                              className={`h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? 'opacity-50' : ''}`}
                               dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
                             />
                           ) : (
-                            <div className={`flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 ${!isOverrideEnabled ? 'opacity-50' : ''}`}>
+                            <div className={`flex h-10 min-w-24 items-center border-l border-l-stone-200 bg-stone-100 px-3 text-sm text-stone-600 ${!isOverrideEnabled ? 'opacity-50' : ''}`}>
                               <span>{field.expectedUnit}</span>
                             </div>
                           )
@@ -1093,42 +1046,37 @@ const YearlyDataEntry = ({
         ) : (
           /* Legacy mode: Simple quantity/unit input for yearly */
           <div className="space-y-4">
-            <div className={useCustomFuel ? "" : "grid grid-cols-2 gap-4"}>
+            <div className={useCustomFuel ? "" : "max-w-xl"}>
               <div className="space-y-2">
                 <Label>Annual Quantity <span className="text-red-500">*</span></Label>
-                <Input
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="Enter annual total"
-                  value={yearlyData.quantity || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '' || parseFloat(val) >= 0) {
-                      setYearlyData(prev => ({ ...prev, quantity: val }));
-                    }
-                  }}
-                  className="bg-white"
-                  data-testid="yearly-quantity"
-                />
+                <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+                  <Input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="Enter annual total"
+                    value={yearlyData.quantity || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || parseFloat(val) >= 0) setYearlyData(prev => ({ ...prev, quantity: val }));
+                    }}
+                    className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+                    data-testid="yearly-quantity"
+                  />
+                  {!useCustomFuel && <select
+                    value={yearlyData.unit || defaultUnit}
+                    onChange={(e) => setYearlyData(prev => ({ ...prev, unit: e.target.value }))}
+                    className="h-10 min-w-28 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
+                    data-testid="yearly-unit"
+                    dangerouslySetInnerHTML={{
+                      __html: buildNativeOptionsHtml(centralizedUnits, {
+                        getValue: (unit) => unit.symbol,
+                        getLabel: (unit) => `${unit.symbol} (${unit.name})`,
+                      }),
+                    }}
+                  />}
+                </div>
               </div>
-              {!useCustomFuel && (
-              <div className="space-y-2">
-                <Label>Unit</Label>
-                <select
-                  value={yearlyData.unit || defaultUnit}
-                  onChange={(e) => setYearlyData(prev => ({ ...prev, unit: e.target.value }))}
-                  className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                  data-testid="yearly-unit"
-                  dangerouslySetInnerHTML={{
-                    __html: buildNativeOptionsHtml(centralizedUnits, {
-                      getValue: (unit) => unit.symbol,
-                      getLabel: (unit) => `${unit.symbol} (${unit.name})`,
-                    }),
-                  }}
-                />
-              </div>
-              )}
             </div>
 
             {useCustomFuel && (

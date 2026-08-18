@@ -2807,10 +2807,6 @@ export default function EmissionEntryForm({
       </EmissionFormSection>
 
       <EmissionFormSection
-        title={frequencyType === 'yearly' ? 'Annual data' : 'Monthly data'}
-        description={frequencyType === 'yearly'
-          ? 'Enter the total for the selected reporting year.'
-          : 'Open only the months you need and add their activity data.'}
         testId="emission-activity-data-section"
       >
         <CreateDataRenderer

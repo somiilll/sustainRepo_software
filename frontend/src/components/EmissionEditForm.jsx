@@ -13,9 +13,9 @@ import MultiEmployeeInput from './MultiEmployeeInput';
 import {
   FacilityScopeSection,
   BiogenicScopeSection,
-  NotesSection,
   SubmitButtonSection,
 } from '../pages/emissions/EditFormSections';
+import { EditOptionalFields } from '../pages/emissions/EditOptionalFields';
 import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/CustomFuelMonthFields';
 import { resolveGhgUiState } from '../modules/ghg/config/resolveGhgUiState';
 import {
@@ -27,7 +27,6 @@ import FlightDetailsSection from './FlightDetailsSection';
 import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
 import {
-  Plus,
   Trash2,
   Calendar as CalendarIcon,
   Eye,
@@ -799,68 +798,6 @@ export default function EmissionEditForm(props) {
                         </div>
                       )}
 
-                      {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
-                      {formData.scope === 'scope3' && selectedCategory && (
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium mb-2 text-blue-800 text-sm">{capabilities.customerCounterparty ? 'Customer' : 'Supplier'} Information (Optional)</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                              <Label htmlFor="supplier_name" className="text-xs">{capabilities.customerCounterparty ? 'Customer Name' : 'Supplier Name'}</Label>
-                              <Input
-                                id="supplier_name"
-                                value={formData.supplier_name}
-                                onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-                                placeholder={capabilities.customerCounterparty ? 'Enter customer name...' : 'Enter supplier name...'}
-                                className="bg-white h-9"
-                                data-testid="edit-supplier-name-input"
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="supplier_code" className="text-xs">{capabilities.customerCounterparty ? 'Customer Code' : 'Supplier Code'}</Label>
-                              <Input
-                                id="supplier_code"
-                                value={formData.supplier_code}
-                                onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
-                                placeholder={capabilities.customerCounterparty ? 'Enter customer code...' : 'Enter supplier code...'}
-                                className="bg-white h-9"
-                                data-testid="edit-supplier-code-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Employee Commuting specific fields (optional) */}
-                      {ghgUiState.showEmployeeFields && (
-                        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                          <h4 className="font-medium mb-2 text-purple-800 text-sm">Employee Information (Optional)</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="employee_name">Employee Name</Label>
-                              <Input
-                                id="employee_name"
-                                value={formData.employee_name}
-                                onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })}
-                                placeholder="Enter employee name..."
-                                className="bg-white"
-                                data-testid="edit-employee-name-input"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="employee_id">Employee ID</Label>
-                              <Input
-                                id="employee_id"
-                                value={formData.employee_id}
-                                onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                                placeholder="Enter employee ID..."
-                                className="bg-white"
-                                data-testid="edit-employee-id-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
                       {/* Asset Name section — driven by module capability 'asset-name' (C8/C13/C14/C15) */}
                       {formData.scope === 'scope3' && capabilities.assetName && (
@@ -881,38 +818,6 @@ export default function EmissionEditForm(props) {
                         </div>
                       )}
 
-                      {/* From/To Location for C4/C6/C9 (Transportation/Travel categories) */}
-                      {/* Journey Details — driven by module capability 'journey-locations' (C4/C6/C9) */}
-                      {formData.scope === 'scope3' && capabilities.journeyLocations && !isEditC7EmployeeCommuting && (
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium mb-2 text-blue-800 text-sm">Journey Details (Optional)</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <Label htmlFor="from_location" className="text-xs">From Location</Label>
-                              <Input
-                                id="from_location"
-                                value={formData.from_location}
-                                onChange={(e) => setFormData({ ...formData, from_location: e.target.value })}
-                                placeholder="E.g., City A, Warehouse"
-                                className="bg-white h-9"
-                                data-testid="edit-from-location-input"
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="to_location" className="text-xs">To Location</Label>
-                              <Input
-                                id="to_location"
-                                value={formData.to_location}
-                                onChange={(e) => setFormData({ ...formData, to_location: e.target.value })}
-                                placeholder="E.g., City B, Distribution Center"
-                                className="bg-white h-9"
-                                data-testid="edit-to-location-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
                       {ghgUiState.showFlightDetails && (
                         <FlightDetailsSection
                           monthKey={editFrequencyType === 'yearly' ? 'yearly' : (formData.reporting_period_start || 'edit')}
@@ -927,98 +832,6 @@ export default function EmissionEditForm(props) {
                   
                     </>
                   )}
-                </div>
-
-                {/* Process Names - Multiple entries with + button (comes after fuel selection) */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label>Name of Process(es) *</Label>
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="cursor-help">
-                            <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                          <p>Process in which the fuel is being used</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <div className="space-y-2">
-                    {formData.process_names.map((process, index) => (
-                      <div key={index} className="border border-stone-200 rounded-lg p-3 space-y-2 bg-stone-50">
-                        <div className="flex gap-2 items-start">
-                          <div className="flex-1 space-y-1.5">
-                            <Input
-                              value={typeof process === 'string' ? process : (process.name || '')}
-                              onChange={(e) => {
-                                const newProcessNames = [...formData.process_names];
-                                if (typeof newProcessNames[index] === 'string') {
-                                  newProcessNames[index] = { name: e.target.value, description: '' };
-                                } else {
-                                  newProcessNames[index] = { ...newProcessNames[index], name: e.target.value };
-                                }
-                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                              }}
-                              placeholder={`Process name ${index + 1}`}
-                              className="bg-white h-9"
-                            />
-                            <div className="space-y-1">
-                              <label className="text-xs text-stone-500">
-                                Description {(typeof process === 'string' ? process : process.name)?.trim() && <span className="text-red-500">*</span>}
-                              </label>
-                              <textarea
-                                value={typeof process === 'string' ? '' : (process.description || '')}
-                                onChange={(e) => {
-                                  const newProcessNames = [...formData.process_names];
-                                  if (typeof newProcessNames[index] === 'string') {
-                                    newProcessNames[index] = { name: newProcessNames[index], description: e.target.value };
-                                  } else {
-                                    newProcessNames[index] = { ...newProcessNames[index], description: e.target.value };
-                                  }
-                                  setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                                }}
-                                placeholder="Process Description (required if name is provided)"
-                                className={`w-full px-3 py-2 text-sm bg-white border rounded-lg resize-none ${
-                                  (typeof process === 'string' ? process : process.name)?.trim() && 
-                                  !(typeof process === 'string' ? '' : process.description)?.trim()
-                                    ? 'border-red-300 focus:border-red-500'
-                                    : 'border-stone-200'
-                                }`}
-                                rows={2}
-                              />
-                            </div>
-                          </div>
-                          {formData.process_names.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                const newProcessNames = formData.process_names.filter((_, i) => i !== index);
-                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                              }}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50 mt-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setFormData(prev => ({ ...prev, process_names: [...prev.process_names, { name: '', description: '' }] }))}
-                      className="mt-2"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Process
-                    </Button>
-                  </div>
                 </div>
 
                 {/* Quantity Input and Person Responsible - Same Row */}
@@ -1054,21 +867,6 @@ export default function EmissionEditForm(props) {
                       isEditMode={true}
                       frequencyType={editFrequencyType}
                     />
-                    {/* Record Source (Optional) — tracked in version
-                        history. Available for C7 edit flow too. */}
-                    <div className="space-y-2">
-                      <Label htmlFor="record_source_c7">
-                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
-                      </Label>
-                      <Input
-                        id="record_source_c7"
-                        value={formData.record_source || ''}
-                        onChange={(e) => setFormData({ ...formData, record_source: e.target.value })}
-                        className="bg-stone-50 h-10"
-                        placeholder="e.g., Survey #2024-Q1, HR commute records"
-                        data-testid="edit-record-source-input-c7"
-                      />
-                    </div>
                   </div>
                 )}
                 
@@ -1368,55 +1166,6 @@ export default function EmissionEditForm(props) {
                       })}
                     </div>
                     
-                    {/* Person Responsible fields below dynamic inputs */}
-                    <div className="grid grid-cols-3 gap-4 mt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="responsible_person">Person Responsible</Label>
-                        <Input
-                          id="responsible_person"
-                          value={formData.responsible_person}
-                          onChange={(e) => { setFormData({ ...formData, responsible_person: e.target.value }); markFormDirty(); }}
-                          className="bg-stone-50 h-10"
-                          placeholder="Name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="responsible_person_designation">Designation</Label>
-                        <Input
-                          id="responsible_person_designation"
-                          value={formData.responsible_person_designation}
-                          onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
-                          className="bg-stone-50 h-10"
-                          placeholder="e.g., Environmental Manager"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="responsible_person_contact">Contact</Label>
-                        <Input
-                          id="responsible_person_contact"
-                          value={formData.responsible_person_contact}
-                          onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
-                          className="bg-stone-50 h-10"
-                          placeholder="Email / Phone"
-                        />
-                      </div>
-                    </div>
-                    {/* Record Source (Optional) — tracked in version
-                        history. Visible/editable for all scopes/categories.
-                        Independent of auto-derived `source_of_information`. */}
-                    <div className="space-y-2 pt-2">
-                      <Label htmlFor="record_source">
-                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
-                      </Label>
-                      <Input
-                        id="record_source"
-                        value={formData.record_source || ''}
-                        onChange={(e) => { setFormData({ ...formData, record_source: e.target.value }); markFormDirty(); }}
-                        className="bg-stone-50 h-10"
-                        placeholder="e.g., Invoice #4521, meter reading from supplier portal"
-                        data-testid="edit-record-source-input"
-                      />
-                    </div>
                   </div>
                   )
                 ) : !isEditC7EmployeeCommuting ? (
@@ -1463,50 +1212,6 @@ export default function EmissionEditForm(props) {
                       ) : null}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="responsible_person">Person Responsible</Label>
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="cursor-help">
-                              <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                            <p>Person who is maintaining this data</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <Input
-                      id="responsible_person"
-                      value={formData.responsible_person}
-                      onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                      className="bg-stone-50 h-10"
-                      placeholder="Name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="responsible_person_designation">Designation</Label>
-                    <Input
-                      id="responsible_person_designation"
-                      value={formData.responsible_person_designation}
-                      onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
-                      className="bg-stone-50 h-10"
-                      placeholder="e.g., Environmental Manager"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="responsible_person_contact">Contact Details</Label>
-                    <Input
-                      id="responsible_person_contact"
-                      value={formData.responsible_person_contact}
-                      onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
-                      className="bg-stone-50 h-10"
-                      placeholder="Email or phone number"
-                    />
-                  </div>
                 </div>
                 ) : null}
 
@@ -1522,26 +1227,6 @@ export default function EmissionEditForm(props) {
                     calculationMethodology={editCalcMethodology || 'using_heat_basis_ncv'}
                     fieldOptions={fieldOptions}
                   />
-                )}
-
-                {/* Record Source (Optional) — legacy edit branch only.
-                    Dynamic branch (above) already renders its own field, so
-                    we gate this on the absence of dynamic input fields to
-                    avoid showing the input twice. */}
-                {!editFormConfigLoading && dynamicInputFields.length === 0 && !isEditC7EmployeeCommuting && (
-                <div className="space-y-2">
-                  <Label htmlFor="record_source_legacy">
-                    Source of Information <span className="text-xs text-stone-500">(Optional)</span>
-                  </Label>
-                  <Input
-                    id="record_source_legacy"
-                    value={formData.record_source || ''}
-                    onChange={(e) => setFormData({ ...formData, record_source: e.target.value })}
-                    className="bg-stone-50 h-10"
-                    placeholder="e.g., Invoice #4521, meter reading from supplier portal"
-                    data-testid="edit-record-source-input-legacy"
-                  />
-                </div>
                 )}
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
@@ -1741,6 +1426,15 @@ export default function EmissionEditForm(props) {
                   )
                 )}
 
+                <EditOptionalFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  markFormDirty={markFormDirty}
+                  capabilities={capabilities}
+                  selectedCategory={selectedCategory}
+                  isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
+                />
+
                 {/* Evidence Management Section */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -1827,12 +1521,6 @@ export default function EmissionEditForm(props) {
                     multiple={true}
                   />
                 </div>
-
-                {/* Notes - Extracted Component */}
-                <NotesSection
-                  formData={formData}
-                  setFormData={(newData) => { setFormData(newData); markFormDirty(); }}
-                />
 
                 {/* Submit Buttons - Extracted Component */}
                 {!hideSubmitButton && (
