@@ -2005,9 +2005,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       };
     }
     
-    // If editing and we have a saved audit log but no backend calc result yet,
-    // show partial result with the audit log
-    if (editingEmission && emissionAuditLog.length > 0) {
+    // Show persisted emission values from the record itself.
+    // The audit log enriches the trace panel but is not required for the
+    // summary numbers — records created before the audit-link fix will
+    // still display their saved CO₂/CH₄/N₂O/CO₂e immediately.
+    if (editingEmission) {
       return {
         auditLog: emissionAuditLog,
         co2Emissions: editingEmission.co2_emissions,

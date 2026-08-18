@@ -1965,6 +1965,27 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         return {"ok": True, **result}
 
     # ----------------------------------------------------------------
+
+    # ----------------------------------------------------------------
+    # LINK AUDIT LOG TO EMISSION RECORD
+    # Called after Create to associate the calc-engine audit entry
+    # (written during dry_run=false) with the newly created emission.
+    # ----------------------------------------------------------------
+    @router.post("/calc-engine/audit-log/link-emission")
+    async def link_audit_log_to_emission(
+        body: dict,
+        current_user: dict = Depends(get_current_user),
+    ):
+        audit_log_id = body.get("audit_log_id")
+        emission_record_id = body.get("emission_record_id")
+        if not audit_log_id or not emission_record_id:
+            raise HTTPException(status_code=400, detail="audit_log_id and emission_record_id are required")
+        result = await db.ce_calculation_audit_logs.update_one(
+            {"id": audit_log_id},
+            {"$set": {"emission_record_id": emission_record_id}},
+        )
+        return {"ok": result.modified_count > 0}
+
     # GET AUDIT LOG BY EMISSION RECORD ID
     # Used by Edit Emission dialog to populate dynamic fields
     # ----------------------------------------------------------------
