@@ -151,6 +151,14 @@ Reference documents:
 - Verified read-only: frontend **1,207 passed / 63 unchanged snapshots**; backend golden **506 passed / 9 skipped**; C7 safety **9/9**; authenticated Scope 3 smoke passed; DB counts unchanged at **840 / 1,339 / 1,764**.
 - Final report: `/app/memory/GHG_FINAL_REFACTOR_REPORT.md`. STOP: await final review; do not begin inflation or unrelated work.
 
+### Post-Refactor GHG Hardening (Aug 2026) — COMPLETE; PRODUCTION-READINESS GATE
+
+- Performed a read-only enforcement audit of the canonical Create/Edit configuration, capability, context, field derivation, Scope 3 option, UI-state, and organization override paths. No safe production refactor candidate was found.
+- Added permanent `postRefactorArchitectureContract.test.js` covering Scope 1/2/3/Biogenic parity (including C11), shared validation/UI metadata, Scope 3 options, representative organization overrides, and rejected calculation-domain override attempts.
+- Confirmed `evaluateFormula` remains active in process-template submission paths and retained it; legacy EF filtering, hydration, payload adapter, and module compatibility code were intentionally untouched.
+- Verified: frontend **1,223 passed / 63 unchanged snapshots** (the +16 tests are the new contract guard); backend **506 passed / 9 skipped**; DB counts unchanged at **840 / 1,339 / 1,764** with no writes.
+- Report: `/app/memory/GHG_POST_REFACTOR_HARDENING_REPORT.md`. STOP: do not begin another GHG, inflation, backend, C7, evidence/approval, or unrelated ESG phase without a new instruction.
+
 ### Phase status
 
 | Phase | Description | Status |
@@ -165,6 +173,7 @@ Reference documents:
 | 4 | Capability config replaces category string sniffing | **DONE (Aug 2026)** — Phase 4.1 closeout complete; review required before inflation |
 | 5 | Organization-ready frontend configuration boundary | **DONE (Aug 2026)** — review gate; SuperAdmin UI deferred |
 | Final | Shared GHG presentation/options completion + proven dead-code cleanup | **DONE (Aug 2026)** — final review gate |
+| Hardening | Post-refactor architecture contract and production-readiness audit | **DONE (Aug 2026)** — final review gate |
 | 6 | Unified form state + record adapters | NOT STARTED |
 | 7 | Field registry + one shared `<GhgForm mode>` | NOT STARTED |
 | 8 | Declarative validation engine | NOT STARTED |
@@ -200,7 +209,7 @@ Reference documents:
 - MIS Schedule Preview & Report Bookmarks
 
 ## Future/Backlog Tasks
-- **P0 (final review gate)**: Review `GHG_FINAL_REFACTOR_REPORT.md`; do not start inflation or unrelated work until explicit approval.
+- **P0 (final review gate)**: Review `GHG_POST_REFACTOR_HARDENING_REPORT.md`; do not start another phase until explicit approval.
 - **P1 (approval pending)**: Inflation/PPP single source of truth — fix the 2 `ce_property_source_mappings` rows, always populate `context.reporting_period`, retire the router injection path, replace the silent 1.0 default. Will require an approved re-capture of 4 spend-basis baselines. Scheduled AFTER Phase 2.
 - **P1**: Resolve categories by `(code, scope_code)` instead of `(name, scope_code)` — folded into Phase 1
 - **P2**: C7 Employee Commuting has zero calculation coverage (94 records, no audit log by design) — needs its own E2E test before any C7 restructuring
