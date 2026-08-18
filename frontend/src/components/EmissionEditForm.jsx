@@ -237,17 +237,6 @@ export default function EmissionEditForm(props) {
                 {/* Reporting Period - Handle both Monthly and Yearly records for editing */}
                 {editingEmission ? (
                   <div className="space-y-2">
-                    {/* Frequency Type Badge */}
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        editFrequencyType === 'yearly' 
-                          ? 'bg-purple-100 text-purple-700 border border-purple-200' 
-                          : 'bg-blue-100 text-blue-700 border border-blue-200'
-                      }`}>
-                        {editFrequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
-                      </span>
-                    </div>
-                    
                     {/* Yearly Record - Show read-only year display */}
                     {editFrequencyType === 'yearly' ? (
                       <div className="space-y-1.5">
@@ -258,9 +247,6 @@ export default function EmissionEditForm(props) {
                         <div className="flex items-center h-10 bg-purple-50 border border-purple-200 rounded-lg px-3 text-purple-700 font-medium">
                           {editingEmission.reporting_period || 'N/A'}
                         </div>
-                        <p className="text-xs text-purple-600">
-                          Annual entry - reporting period cannot be changed
-                        </p>
                       </div>
                     ) : (
                       /* Monthly Record - Show month/year picker */
@@ -283,7 +269,6 @@ export default function EmissionEditForm(props) {
                           placeholder="Select month"
                           className="bg-stone-50"
                         />
-                        <p className="text-xs text-text-muted">Each emission entry record is for a single month</p>
                       </div>
                     )}
                   </div>
@@ -901,10 +886,6 @@ export default function EmissionEditForm(props) {
                     />
                   ) : (
                   <div className="space-y-4">
-                    <div className="text-sm text-stone-500 mb-2 flex items-center gap-2">
-                      Input Fields (from calculation engine configuration)
-                    </div>
-                    
                     {/* Supplier Method Disclaimer - Only for Scope 3 with supplier_basis */}
                     {formData.scope === 'scope3' && scope3Method === 'supplier_basis' && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">

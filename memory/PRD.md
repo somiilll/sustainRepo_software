@@ -241,6 +241,12 @@ Reference documents:
 - Added three focused completion tests, including a partial-month case and zero-value handling. Save validation now reports the missing field for a partially entered month instead of a generic no-data message.
 - Verified: frontend **1,226 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**; authenticated browser check confirmed a Quantity-only month remains at **0 / 12** with no Done badge. **MOCKED APIs: NONE.**
 
+## GHG Edit Form — Copy Simplification (2026-08-18) — COMPLETE
+
+- Removed the edit-form helper labels: Input Fields configuration text, Monthly Entry, Annual Entry, the annual reporting-period restriction note, and the single-month explanatory note.
+- Preserved reporting-period, dynamic calculation-field, and all edit controls unchanged.
+- Verified: frontend **1,226 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**; authenticated browser check opened an existing record and confirmed all requested copy is absent. **MOCKED APIs: NONE.**
+
 ## Phase 9 — GHG Code Cleanliness (2026-08-18) — COMPLETE
 
 - Completed the frozen Phase 9 audit without changing calculation behaviour, backend logic, schemas, configuration architecture, or database data.
