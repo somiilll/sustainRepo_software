@@ -16,6 +16,36 @@ export const STANDARD_SUBCATEGORY_OPTIONS = Object.freeze([
   { value: 'energy', label: 'Energy' },
 ]);
 
+/** Shared display options for the active Create and Edit selection UI. */
+export const STANDARD_ACTIVITY_TYPE_OPTIONS = Object.freeze([
+  { value: 'car_travel', label: 'Car Travel' },
+  { value: 'bus_travel', label: 'Bus Travel' },
+  { value: 'rail_travel', label: 'Rail Travel' },
+  { value: 'air_travel', label: 'Air Travel' },
+  { value: 'taxi_travel', label: 'Taxi Travel' },
+  { value: 'bike_travel', label: 'Bike Travel' },
+  { value: 'wfh', label: 'Work From Home' },
+  { value: 'water_travel', label: 'Water Travel' },
+  { value: 'hotel_stay', label: 'Hotel Stay' },
+  { value: 'others', label: 'Others' },
+]);
+
+export const STANDARD_PROCESS_TYPE_OPTIONS = Object.freeze([
+  { value: 'venting', label: 'Venting' },
+  { value: 'n2o_overall_combustion', label: 'N2O from Overall Combustion' },
+  { value: 'ch4_overall_combustion', label: 'CH4 from Overall Combustion' },
+]);
+
+export const STANDARD_TYPE_OF_PRODUCT_OPTIONS = Object.freeze([
+  { value: 'continuous_usage', label: 'Energy-consuming product over lifetime' },
+  { value: 'one_time_use', label: 'One-time combustion' },
+]);
+
+export const getStandardActivityTypeLabel = (value) => (
+  STANDARD_ACTIVITY_TYPE_OPTIONS.find((option) => option.value === value)?.label
+  || String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+);
+
 export const STANDARD_EMISSION_FACTOR_UNITS = Object.freeze([
   { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
   { value: 'tCO2/g', label: 'tCO₂/g', quantityUnit: 'g', forScope: ['scope1', 'biogenic'] },

@@ -16,6 +16,11 @@ import {
 } from '../../../../../../components/ui/select';
 import { Search, X } from 'lucide-react';
 import { resolveGhgUiState } from '../../../../config/resolveGhgUiState';
+import {
+  getStandardActivityTypeLabel,
+  STANDARD_PROCESS_TYPE_OPTIONS,
+  STANDARD_TYPE_OF_PRODUCT_OPTIONS,
+} from '../../../../config/standardGhgFormConfig';
 
 /**
  * Step 1 Basic Selection Component
@@ -122,21 +127,11 @@ export const Step1BasicSelection = ({
     biogenicScopeSelection,
     processType: decisionFieldValues.process_type,
     scope3ActivityType,
+    scope3Method,
+    requiresSubcategory,
+    scope3Subcategory,
     hasCategory: Boolean(category),
   });
-  // Activity type display labels
-  const activityTypeLabels = {
-    'car_travel': 'Car Travel',
-    'bus_travel': 'Bus Travel',
-    'rail_travel': 'Rail Travel',
-    'air_travel': 'Air Travel',
-    'taxi_travel': 'Taxi Travel',
-    'bike_travel': 'Bike Travel',
-    'wfh': 'Work From Home',
-    'water_travel': 'Water Travel',
-    'hotel_stay': 'Hotel Stay',
-    'others': 'Others',
-  };
 
   // Filter facilities based on selected scope (if KPI access is restricted)
   const filteredFacilities = useMemo(() => {
@@ -467,7 +462,7 @@ export const Step1BasicSelection = ({
               >
                 <option value="">Select activity type...</option>
                 {availableScope3ActivityTypes.map(type => {
-                  const displayLabel = activityTypeLabels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                  const displayLabel = getStandardActivityTypeLabel(type);
                   return (
                     <option key={type} value={type}>
                       {displayLabel}
@@ -508,11 +503,7 @@ export const Step1BasicSelection = ({
               Categories C11 needs this to pick between continuous_usage and
               one_time_use formulas. Shown after subcategory selection. */}
           {(() => {
-            const showTypeOfProduct = capabilities.typeOfProduct
-              && scope3Method === 'activity_basis'
-              && requiresSubcategory
-              && !!scope3Subcategory;
-            if (!showTypeOfProduct) return null;
+            if (!ghgUiState.showTypeOfProduct) return null;
             return (
               <div className="space-y-2">
                 <Label>Type of Product <span className="text-red-500">*</span></Label>
@@ -526,8 +517,9 @@ export const Step1BasicSelection = ({
                   data-testid="scope3-type-of-product-select"
                 >
                   <option value="">Select type of product...</option>
-                  <option value="continuous_usage">Energy-consuming product over lifetime</option>
-                  <option value="one_time_use">One-time combustion</option>
+                  {STANDARD_TYPE_OF_PRODUCT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
             );
@@ -606,16 +598,16 @@ export const Step1BasicSelection = ({
                       setScope3ActivityId(e.target.value);
                       setFuelSearchTerm('');
                     }}
-                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (capabilities.typeOfProduct && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     data-testid="scope3-activity-select"
-                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (capabilities.typeOfProduct && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)}
+                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
                   >
                     <option value="">
                       {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType)
                         ? 'Select activity type first'
                         : (requiresSubcategory && !scope3Subcategory)
                         ? 'Select sub-category first'
-                        : (capabilities.typeOfProduct && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)
+                        : (ghgUiState.requiresTypeOfProduct && !typeOfProduct)
                         ? 'Select type of product first'
                         : `Select Activity (${filteredScope3Activities.filter(a => 
                             !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
@@ -651,9 +643,9 @@ export const Step1BasicSelection = ({
               <SelectValue placeholder="Select process type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="venting">Venting</SelectItem>
-              <SelectItem value="n2o_overall_combustion">N2O from Overall Combustion</SelectItem>
-              <SelectItem value="ch4_overall_combustion">CH4 from Overall Combustion</SelectItem>
+              {STANDARD_PROCESS_TYPE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

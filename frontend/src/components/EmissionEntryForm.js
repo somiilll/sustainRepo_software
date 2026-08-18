@@ -52,6 +52,7 @@ import {
   resolveEffectiveScopeCode,
   resolveGhgFormArchitecture,
   resolveGhgCategoryOptions,
+  resolveGhgScope3Options,
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
@@ -784,6 +785,20 @@ export default function EmissionEntryForm({
   const resolvedCapabilities = ghgFormArchitecture.capabilities;
   const resolvedGhgFieldOptions = ghgFormArchitecture.resolvedFieldOptions;
   const hasSubcategoryCapability = resolvedCapabilities.subcategory;
+  const scope3PresentationOptions = useMemo(() => resolveGhgScope3Options({
+    scope,
+    biogenicScopeSelection,
+    category,
+    scope3Method,
+    scope3EFData,
+    capabilities: resolvedCapabilities,
+    requiresSubcategory: scope === 'scope3' && Boolean(category) && hasSubcategoryCapability,
+    fieldOptions: resolvedGhgFieldOptions,
+    configLabels: configLabels?.subcategories || {},
+  }), [
+    scope, biogenicScopeSelection, category, scope3Method, scope3EFData,
+    resolvedCapabilities, hasSubcategoryCapability, resolvedGhgFieldOptions, configLabels?.subcategories,
+  ]);
 
   // Filter Scope 3 activities based on category, method, industry sector, and year
   // Note: selectedFacility is defined below after fuelDatabase useMemo
@@ -937,32 +952,7 @@ export default function EmissionEntryForm({
   }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, facilityId, biogenicScopeSelection, hasSubcategoryCapability]);
 
   // Get available activity types for categories configured with that capability.
-  const availableScope3ActivityTypes = useMemo(() => {
-    if (scope !== 'scope3' || !category) return [];
-    
-    if (!resolvedCapabilities.activityType) return [];
-    
-    const activityTypes = new Set();
-    
-    // Add activity types from scope3_ef data
-    if (scope3EFData.length) {
-      scope3EFData.forEach(ef => {
-        if (ef.category?.toLowerCase() === category.toLowerCase() && ef.activity_type) {
-          // Also filter by method if selected
-          if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
-            activityTypes.add(ef.activity_type);
-          }
-        }
-      });
-    }
-    
-    // Add "Others" option for supplier_basis method - only for C6 (not C7)
-    if (scope3Method === 'supplier_basis' && resolvedCapabilities.supplierBasisOtherActivity) {
-      activityTypes.add('others');
-    }
-    
-    return Array.from(activityTypes).sort();
-  }, [scope, scope3EFData, category, scope3Method, resolvedCapabilities]);
+  const availableScope3ActivityTypes = scope3PresentationOptions.activityTypes;
   
   // Check if current category requires Asset Name
   const requiresAssetName = useMemo(() => {
@@ -1047,59 +1037,11 @@ export default function EmissionEntryForm({
   }, [showsLocationFields]);
 
   // Get available subcategories for C8/C10/C11/C13/C14
-  const availableSubcategories = useMemo(() => {
-    if (!requiresSubcategory || !scope3Method) return [];
-    
-    // Get subcategory labels from configLabels (fetched from backend)
-    const subcategoryLabelsMap = configLabels?.subcategories || {};
-    
-    return (resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.SUBCATEGORY] || []).map((option) => ({
-      ...option,
-      label: subcategoryLabelsMap[option.value] || option.label,
-    }));
-  }, [requiresSubcategory, scope3Method, configLabels?.subcategories, resolvedGhgFieldOptions]);
+  const availableSubcategories = scope3PresentationOptions.subcategories;
 
   // Get available methods for selected category from Scope 3 EF
   // Always include supplier_basis as an option (except for biogenic)
-  const availableScope3Methods = useMemo(() => {
-    // Handle both regular scope3 and biogenic with scope3 selection
-    const isScope3 = scope === 'scope3';
-    const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-    
-    // Return empty if not scope3/biogenic-scope3 or no category selected
-    if ((!isScope3 && !isBiogenicScope3) || !category) return [];
-    
-    const methods = new Set();
-    
-    // For biogenic, filter by sub_scope='biogenic' first
-    let relevantData = isBiogenicScope3 
-      ? scope3EFData.filter(ef => ef.sub_scope === 'biogenic')
-      : scope3EFData;
-    
-    // Add methods from EF data
-    relevantData.forEach(ef => {
-      if (ef.category?.toLowerCase() === category.toLowerCase() && ef.method) {
-        methods.add(ef.method);
-      }
-    });
-    
-    // Always add supplier_basis for all Scope 3 categories (regular and biogenic)
-    // supplier_basis with custom activity doesn't require pre-existing EF records
-    methods.add('supplier_basis');
-    
-    // Return in preferred order: spend_basis, activity_basis, supplier_basis
-    const orderedMethods = [];
-    if (methods.has('spend_basis')) orderedMethods.push('spend_basis');
-    if (methods.has('activity_basis')) orderedMethods.push('activity_basis');
-    if (methods.has('supplier_basis')) orderedMethods.push('supplier_basis');
-    
-    // Add any other methods that might exist
-    methods.forEach(m => {
-      if (!orderedMethods.includes(m)) orderedMethods.push(m);
-    });
-    
-    return orderedMethods;
-  }, [scope, scope3EFData, category, biogenicScopeSelection]);
+  const availableScope3Methods = scope3PresentationOptions.methods;
 
   const emissionFactorUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.EMISSION_FACTOR_UNIT] || [];
   const customFuelUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_EMISSION_FACTOR_UNIT] || [];

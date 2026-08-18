@@ -5,6 +5,9 @@ export const resolveGhgUiState = ({
   biogenicScopeSelection,
   processType,
   scope3ActivityType,
+  scope3Method,
+  requiresSubcategory = false,
+  scope3Subcategory,
   frequencyType,
   hasCategory = true,
 } = {}) => {
@@ -16,6 +19,11 @@ export const resolveGhgUiState = ({
   const showFlightDetails = isScope3Like
     && capabilities.flightDetails
     && scope3ActivityType === 'air_travel';
+
+  const requiresTypeOfProduct = capabilities.typeOfProduct
+    && scope3Method === 'activity_basis'
+    && requiresSubcategory
+    && Boolean(scope3Subcategory);
 
   return {
     showProcessType: hasCategory && isDirectScope && capabilities.processType,
@@ -30,6 +38,8 @@ export const resolveGhgUiState = ({
     showFlightDetails,
     showMonthlyFlightDetails: showFlightDetails && frequencyType === 'monthly',
     showYearlyFlightDetails: showFlightDetails && frequencyType === 'yearly',
+    requiresTypeOfProduct,
+    showTypeOfProduct: requiresTypeOfProduct,
   };
 };
 

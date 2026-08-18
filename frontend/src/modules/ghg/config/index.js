@@ -26,8 +26,13 @@ export {
   STANDARD_SUBCATEGORY_OPTIONS,
   STANDARD_EMISSION_FACTOR_UNITS,
   STANDARD_CUSTOM_FUEL_EMISSION_FACTOR_UNITS,
+  STANDARD_ACTIVITY_TYPE_OPTIONS,
+  STANDARD_PROCESS_TYPE_OPTIONS,
+  STANDARD_TYPE_OF_PRODUCT_OPTIONS,
+  getStandardActivityTypeLabel,
   resolveStandardGhgFieldOptions,
 } from './standardGhgFormConfig';
+export { resolveGhgScope3Options } from './resolveGhgScope3Options';
 export {
   findCategoryDefinition,
   findScopeDefinition,

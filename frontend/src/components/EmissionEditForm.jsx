@@ -18,6 +18,11 @@ import {
 } from '../pages/emissions/EditFormSections';
 import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/CustomFuelMonthFields';
 import { resolveGhgUiState } from '../modules/ghg/config/resolveGhgUiState';
+import {
+  getStandardActivityTypeLabel,
+  STANDARD_PROCESS_TYPE_OPTIONS,
+  STANDARD_TYPE_OF_PRODUCT_OPTIONS,
+} from '../modules/ghg/config/standardGhgFormConfig';
 import FlightDetailsSection from './FlightDetailsSection';
 import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
@@ -178,6 +183,9 @@ export default function EmissionEditForm(props) {
     biogenicScopeSelection,
     processType: editProcessType,
     scope3ActivityType,
+    scope3Method,
+    requiresSubcategory,
+    scope3Subcategory,
     frequencyType: editFrequencyType,
     hasCategory: Boolean(selectedCategory || formData.category),
   });
@@ -554,9 +562,9 @@ export default function EmissionEditForm(props) {
                               <SelectValue placeholder="Select process type" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="venting">Venting</SelectItem>
-                              <SelectItem value="n2o_overall_combustion">N2O from Overall Combustion</SelectItem>
-                              <SelectItem value="ch4_overall_combustion">CH4 from Overall Combustion</SelectItem>
+                              {STANDARD_PROCESS_TYPE_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
@@ -615,22 +623,9 @@ export default function EmissionEditForm(props) {
                                   }
                                   return Array.from(allTypes).sort();
                                 })().map(type => {
-                                  // Display friendly labels for activity types (#9)
-                                  const activityTypeLabels = {
-                                    'car_travel': 'Car Travel',
-                                    'bus_travel': 'Bus Travel',
-                                    'rail_travel': 'Rail Travel',
-                                    'air_travel': 'Air Travel',
-                                    'taxi_travel': 'Taxi Travel',
-                                    'bike_travel': 'Bike Travel',
-                                    'wfh': 'Work From Home',
-                                    'hotel_stay': 'Hotel Stay',
-                                    'water_travel': 'Water Travel',
-                                    'others': 'Others',
-                                  };
                                   return (
                                     <option key={type} value={type}>
-                                      {activityTypeLabels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                      {getStandardActivityTypeLabel(type)}
                                     </option>
                                   );
                                 })}
@@ -667,11 +662,7 @@ export default function EmissionEditForm(props) {
 
                           {/* C11 Type of Product (only for activity_basis) */}
                           {(() => {
-                            const showTypeOfProduct = capabilities.typeOfProduct
-                              && scope3Method === 'activity_basis'
-                              && requiresSubcategory
-                              && !!scope3Subcategory;
-                            if (!showTypeOfProduct) return null;
+                            if (!ghgUiState.showTypeOfProduct) return null;
                             return (
                               <div className="space-y-1.5">
                                 <Label htmlFor="scope3_type_of_product_filter">Step 4: Type of Product *</Label>
@@ -688,8 +679,9 @@ export default function EmissionEditForm(props) {
                                   data-testid="scope3-type-of-product-filter"
                                 >
                                   <option value="">Select type of product...</option>
-                                  <option value="continuous_usage">Energy-consuming product over lifetime</option>
-                                  <option value="one_time_use">One-time combustion</option>
+                                  {STANDARD_TYPE_OF_PRODUCT_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
                                 </select>
                               </div>
                             );
@@ -795,7 +787,7 @@ export default function EmissionEditForm(props) {
                                 </select>
                                 {/* No match indicator */}
                                 {activitySearchTerm && filteredScope3Activities.filter(a => a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length === 0 && (
-                                  <p className="text-xs text-amber-600">No activities match "{activitySearchTerm}"</p>
+                                  <p className="text-xs text-amber-600">No activities match &quot;{activitySearchTerm}&quot;</p>
                                 )}
                               </div>
                             )}
@@ -1119,7 +1111,7 @@ export default function EmissionEditForm(props) {
                     {formData.scope === 'scope3' && scope3Method === 'supplier_basis' && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                         <p className="text-sm text-amber-800">
-                          <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                          <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the &quot;Quantity Used&quot; field.
                         </p>
                       </div>
                     )}

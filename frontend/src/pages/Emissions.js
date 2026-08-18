@@ -35,6 +35,7 @@ import {
   resolveGhgFormContext,
   resolveGhgFormArchitecture,
   resolveGhgCategoryOptions,
+  resolveGhgScope3Options,
   resolveEffectiveScopeCode,
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
@@ -1289,76 +1290,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // SCOPE 3 SPECIFIC COMPUTED PROPERTIES FOR INLINE EDIT FORM
   // ============================================================================
   
-  // Get available methods for selected category from Scope 3 EF
-  const availableScope3Methods = useMemo(() => {
-    // Handle both regular scope3 and biogenic with scope3 selection
-    const isScope3 = formData.scope === 'scope3';
-    const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-    
-    // Return empty if not scope3/biogenic-scope3 or no category selected
-    if ((!isScope3 && !isBiogenicScope3) || !selectedCategory) return [];
-    
-    const methods = new Set();
-    
-    // For biogenic, filter by sub_scope='biogenic' first
-    let relevantData = scope3EFData;
-    if (isBiogenicScope3) {
-      relevantData = scope3EFData.filter(ef => ef.sub_scope === 'biogenic');
-    }
-    
-    // Add methods from EF data
-    relevantData.forEach(ef => {
-    if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.method) {
-        methods.add(ef.method);
-      }
-    });
-    
-    // Always add supplier_basis for all Scope 3 categories (regular and biogenic)
-    // supplier_basis with custom activity doesn't require pre-existing EF records
-    methods.add('supplier_basis');
-    
-    // Return in preferred order: spend_basis, activity_basis, supplier_basis
-    const orderedMethods = [];
-    if (methods.has('spend_basis')) orderedMethods.push('spend_basis');
-    if (methods.has('activity_basis')) orderedMethods.push('activity_basis');
-    if (methods.has('supplier_basis')) orderedMethods.push('supplier_basis');
-    
-    // Add any other methods that might exist
-    methods.forEach(m => {
-      if (!orderedMethods.includes(m)) orderedMethods.push(m);
-    });
-    
-    return orderedMethods;
-  }, [formData.scope, scope3EFData, selectedCategory, biogenicScopeSelection]);
-
-  // Get available activity types for C6/C7 categories
-  const availableScope3ActivityTypes = useMemo(() => {
-    if (formData.scope !== 'scope3' || !selectedCategory) return [];
-    
-    if (!editCapabilities.activityType) return [];
-    
-    const activityTypes = new Set();
-    
-    // Add activity types from scope3_ef data
-    if (scope3EFData.length) {
-      scope3EFData.forEach(ef => {
-        if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.activity_type) {
-          // Also filter by method if selected
-          if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
-            activityTypes.add(ef.activity_type);
-          }
-        }
-      });
-    }
-    
-    // Add "Others" option for supplier_basis method - only for C6 (not C7)
-    if (scope3Method === 'supplier_basis' && editCapabilities.supplierBasisOtherActivity) {
-      activityTypes.add('others');
-    }
-    
-    return Array.from(activityTypes).sort();
-  }, [formData.scope, scope3EFData, selectedCategory, scope3Method, editCapabilities]);
-  
   const requiresSubcategory = useMemo(() => {
     // Handle both regular scope3 and biogenic with scope3 selection
     const isScope3 = formData.scope === 'scope3';
@@ -1372,18 +1303,26 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     return editCapabilities.subcategory;
   }, [formData.scope, selectedCategory, biogenicScopeSelection, editCapabilities]);
 
+  const editScope3PresentationOptions = useMemo(() => resolveGhgScope3Options({
+    scope: formData.scope,
+    biogenicScopeSelection,
+    category: selectedCategory,
+    scope3Method,
+    scope3EFData,
+    capabilities: editCapabilities,
+    requiresSubcategory,
+    fieldOptions: editGhgFieldOptions,
+    configLabels: configLabels?.subcategories || {},
+  }), [
+    formData.scope, biogenicScopeSelection, selectedCategory, scope3Method,
+    scope3EFData, editCapabilities, requiresSubcategory, editGhgFieldOptions, configLabels?.subcategories,
+  ]);
+
+  const availableScope3Methods = editScope3PresentationOptions.methods;
+  const availableScope3ActivityTypes = editScope3PresentationOptions.activityTypes;
+
   // Get available subcategories for C8/C10/C11/C13/C14
-  const availableSubcategories = useMemo(() => {
-    if (!requiresSubcategory || !scope3Method) return [];
-    
-    // Get subcategory labels from configLabels (fetched from backend)
-    const subcategoryLabelsMap = configLabels.subcategories || {};
-    
-    return (editGhgFieldOptions[GHG_FIELD_OPTION_KEYS.SUBCATEGORY] || []).map((option) => ({
-      ...option,
-      label: subcategoryLabelsMap[option.value] || option.label,
-    }));
-  }, [requiresSubcategory, scope3Method, configLabels.subcategories, editGhgFieldOptions]);
+  const availableSubcategories = editScope3PresentationOptions.subcategories;
 
   // Filter Scope 3 activities based on category, method, activity_type, subcategory, industry sector
   const filteredScope3Activities = useMemo(() => {
