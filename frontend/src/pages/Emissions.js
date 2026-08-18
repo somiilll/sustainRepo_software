@@ -3057,7 +3057,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
               </DialogTrigger>
               <DialogContent 
                 key={editingEmission?.id || 'new'}
-                className="max-w-6xl max-h-[90vh] overflow-y-auto"
+                className={`max-w-6xl max-h-[90vh] overflow-y-auto ${!editingEmission ? '!gap-2' : ''}`}
                 onInteractOutside={handleInteractOutside}
                 onEscapeKeyDown={handleEscapeKeyDown}
                 hideCloseButton={true}

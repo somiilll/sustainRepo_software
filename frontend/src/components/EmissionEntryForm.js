@@ -2693,7 +2693,7 @@ export default function EmissionEntryForm({
   const CreateDataRenderer = activeCreateModule?.Step3Renderer || Step3YearMonthlyData;
 
   return (
-    <div className="space-y-8" data-testid="single-page-emission-form">
+    <div className="space-y-6" data-testid="single-page-emission-form">
       {/* OCR Import Notice Banner */}
       {ocrPrefillData && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
@@ -2721,6 +2721,7 @@ export default function EmissionEntryForm({
         title="Primary information"
         description="Choose the facility, emission source, and calculation path."
         testId="emission-primary-information-section"
+        className="pb-5"
       >
         <Step1BasicSelection
           facilityId={facilityId}

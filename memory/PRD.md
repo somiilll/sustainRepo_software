@@ -230,6 +230,11 @@ Reference documents:
 - Inactive optional/override fields now visibly show their configured default or selected-fuel default value and matching unit (for example, calorific value and density) without writing an override or changing calculation behavior.
 - Verified: frontend **1,223 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**; authenticated browser smoke confirmed the Diesel monthly ledger renders aligned default values. **MOCKED APIs: NONE.**
 
+## GHG Add Form — Compact Section Spacing (2026-08-18) — COMPLETE
+
+- Reduced the Create dialog’s title-to-Primary Information gap and tightened the transition above Reporting Frequency without altering edit-dialog spacing or form behavior.
+- Verified: frontend **1,223 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**; authenticated browser screenshot confirmed the compact layout. **MOCKED APIs: NONE.**
+
 ## Phase 9 — GHG Code Cleanliness (2026-08-18) — COMPLETE
 
 - Completed the frozen Phase 9 audit without changing calculation behaviour, backend logic, schemas, configuration architecture, or database data.
