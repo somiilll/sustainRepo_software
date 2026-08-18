@@ -217,6 +217,13 @@ Reference documents:
 - Resolved Create-form console issues: safe escaped option output for dynamic selects, dynamic list keys, and dialog description. Authenticated Scope 1/3 browser flow is clean. **MOCKED APIs: NONE.**
 - Regression: frontend **1,223 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**. Updated report: `/app/memory/GHG_ADD_FORM_UX_CHANGE_REPORT.md`.
 
+## GHG Add Form — Monthly Ledger Layout (2026-08-18) — COMPLETE
+
+- Replaced the monthly accordion with a responsive ledger: **Month | Quantity | Evidence**. Each month is now immediately scannable, with its required data fields and evidence upload in one row.
+- Retained the existing dynamic inputs, custom-fuel fields, C6 flight fields, evidence upload flow, future-month handling, validation, and per-month **Additional details** disclosures. No calculation, unit-resolution, backend, API, or persistence behavior changed.
+- Added a small `MonthlyLedger` presentation boundary inside `Step3YearMonthlyData` to keep ledger framing separate from the existing field-rendering logic.
+- Verified: frontend **1,223 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**. **MOCKED APIs: NONE.**
+
 ## Phase 9 — GHG Code Cleanliness (2026-08-18) — COMPLETE
 
 - Completed the frozen Phase 9 audit without changing calculation behaviour, backend logic, schemas, configuration architecture, or database data.

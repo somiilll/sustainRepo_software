@@ -12,7 +12,6 @@ import React from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { Button } from '../../../../../../components/ui/button';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../../../../../components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
 import { Info, Check, Upload, Eye, Download, X, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -85,6 +84,17 @@ const MonthlyEvidenceCell = ({
         })}
       </div>
     )}
+  </div>
+);
+
+const MonthlyLedger = ({ children }) => (
+  <div className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="monthly-emissions-ledger">
+    <div className="hidden grid-cols-[9rem_minmax(0,1fr)_18rem] gap-6 border-b border-stone-200 bg-stone-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-stone-500 lg:grid">
+      <span>Month</span>
+      <span>Quantity</span>
+      <span>Evidence</span>
+    </div>
+    <div>{children}</div>
   </div>
 );
 
@@ -311,7 +321,7 @@ export const Step3YearMonthlyData = ({
             </div>
           )}
 
-          <Accordion type="multiple" value={expandedMonths} onValueChange={setExpandedMonths}>
+          <MonthlyLedger>
             {activeMonths.map(month => {
               const monthKey = month.key;
               const status = getMonthStatus(monthKey);
@@ -320,39 +330,32 @@ export const Step3YearMonthlyData = ({
               const displayYear = getActualYearForMonth(monthKey);
 
               return (
-                <AccordionItem 
+                <div
                   key={monthKey} 
-                  value={monthKey} 
-                  className={`border rounded-lg mb-2 ${isDisabled ? 'opacity-50' : ''}`}
-                  disabled={isDisabled}
+                  className={`border-b border-stone-200 px-5 py-5 last:border-b-0 ${isDisabled ? 'bg-stone-50/70 opacity-60' : ''}`}
+                  data-testid={`month-${monthKey}-ledger-row`}
                 >
-                  <AccordionTrigger 
-                    className={`px-4 py-3 hover:no-underline ${isDisabled ? 'cursor-not-allowed' : ''}`}
-                    disabled={isDisabled}
-                  >
-                    <div className="flex items-center justify-between w-full pr-4">
-                      <div className="flex items-center gap-3">
-                        <span className={`w-2 h-2 rounded-full ${
-                          isDisabled ? 'bg-stone-200' :
-                          status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
-                        }`} />
-                        <span className={`font-medium ${isDisabled ? 'text-stone-400' : ''}`}>
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-[9rem_minmax(0,1fr)_18rem]">
+                    <div className="flex items-start gap-3 pt-1" data-testid={`month-${monthKey}-ledger-month`}>
+                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                        isDisabled ? 'bg-stone-200' : status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
+                      }`} />
+                      <div>
+                        <p className={`font-medium ${isDisabled ? 'text-stone-400' : 'text-stone-800'}`}>
                           {month.name} {displayYear}
-                          {isDisabled && <span className="ml-2 text-xs text-stone-400">(Future)</span>}
-                        </span>
+                        </p>
+                        {isDisabled ? (
+                          <span className="text-xs text-stone-400">Future month</span>
+                        ) : status === 'filled' ? (
+                          <span className="flex items-center gap-1 text-xs text-green-700"><Check className="h-3.5 w-3.5" /> Complete</span>
+                        ) : (
+                          <span className="text-xs text-stone-400">Not entered</span>
+                        )}
                       </div>
-                      {status === 'filled' && !isDisabled && (
-                        <span className="text-sm text-green-600 flex items-center gap-1">
-                          <Check className="w-4 h-4" />
-                        </span>
-                      )}
                     </div>
-                  </AccordionTrigger>
-                  {!isDisabled && (
-                  <AccordionContent className="px-4 pb-4">
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-                        <div className="min-w-0 space-y-6">
+                    {!isDisabled ? (
+                      <>
+                        <div className="min-w-0 space-y-6" data-testid={`month-${monthKey}-ledger-quantity`}>
                       {/* Flight Details — C6 Business Travel + air_travel only */}
                       {scope3ActivityType === 'air_travel' && capabilities.flightDetails && (
                         <FlightDetailsSection
@@ -459,10 +462,16 @@ export const Step3YearMonthlyData = ({
                           removeEvidence={removeEvidence}
                           backendUrl={BACKEND_URL}
                         />
+                      </>
+                    ) : (
+                      <div className="col-span-2 flex items-center text-sm text-stone-400" data-testid={`month-${monthKey}-future-notice`}>
+                        This period is not available yet.
                       </div>
+                    )}
+                  </div>
 
-                      {formConfig && dynamicInputFields.length > 0 && (dynamicInputFields.some(field => field.isOverride || (!field.required && !field.isOverride))) && (
-                        <details className="group border-t border-stone-200 pt-5" data-testid={`month-${monthKey}-additional-details`}>
+                  {!isDisabled && formConfig && dynamicInputFields.length > 0 && (dynamicInputFields.some(field => field.isOverride || (!field.required && !field.isOverride))) && (
+                        <details className="group mt-5 border-t border-stone-200 pt-4" data-testid={`month-${monthKey}-additional-details`}>
                           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-additional-details-trigger`}>
                             <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
                             Additional details
@@ -475,8 +484,8 @@ export const Step3YearMonthlyData = ({
                       )}
 
                       {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
-                      {!formConfig && (scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides && (
-                        <details className="group border-t border-stone-200 pt-5" data-testid={`month-${monthKey}-fuel-additional-details`}>
+                      {!isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides && (
+                        <details className="group mt-5 border-t border-stone-200 pt-4" data-testid={`month-${monthKey}-fuel-additional-details`}>
                           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-fuel-additional-details-trigger`}>
                             <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
                             Additional details
@@ -581,8 +590,8 @@ export const Step3YearMonthlyData = ({
                       )}
 
                       {/* Override Options - Scope 2 */}
-                      {!formConfig && scope === 'scope2' && !useCustomFuel && (
-                        <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      {!isDisabled && !formConfig && scope === 'scope2' && !useCustomFuel && (
+                        <div className="mt-5 space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
                           <div className="flex items-center gap-2">
                             <input
                               type="checkbox"
@@ -626,13 +635,10 @@ export const Step3YearMonthlyData = ({
                           )}
                         </div>
                       )}
-                    </div>
-                  </AccordionContent>
-                  )}
-                </AccordionItem>
+                </div>
               );
             })}
-          </Accordion>
+          </MonthlyLedger>
         </div>
       )}
 
