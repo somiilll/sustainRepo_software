@@ -42,6 +42,7 @@ import {
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import { isMonthlyEntryComplete } from '../modules/ghg/emissions/shared/utils/monthlyCompletion';
 // Shared GHG configuration layer: resolved config + explicit context -> fields
 import {
   deriveGhgFields,
@@ -2297,25 +2298,9 @@ export default function EmissionEntryForm({
   const getMonthStatus = (monthKey) => {
     const data = monthlyData[monthKey];
     if (!data) return 'empty';
-    
-    // For Scope 3 with dynamic fields, check if required fields have values
-    if ((scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && dynamicInputFields.length > 0) {
-      const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
-      const hasRequiredData = requiredFields.some(field => {
-        const value = data[field.variable] || data[field.fieldKey];
-        return value !== '' && value !== null && value !== undefined && value !== '0' && parseFloat(value) > 0;
-      });
-      return hasRequiredData ? 'filled' : 'empty';
-    }
-    
-    // For Scope 1, Scope 2, Biogenic Direct with dynamic fields, check if required fields have values
-    if ((scope === 'scope1' || scope === 'scope2' || (scope === 'biogenic' && biogenicScopeSelection !== 'scope3')) && dynamicInputFields.length > 0) {
-      const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
-      const hasRequiredData = requiredFields.some(field => {
-        const value = data[field.variable] || data[field.fieldKey];
-        return value !== '' && value !== null && value !== undefined && value !== '0' && parseFloat(value) > 0;
-      });
-      return hasRequiredData ? 'filled' : 'empty';
+
+    if (dynamicInputFields.length > 0) {
+      return isMonthlyEntryComplete(data, dynamicInputFields) ? 'filled' : 'empty';
     }
     
     // For regular emissions without dynamic fields, check quantity
@@ -2354,15 +2339,11 @@ export default function EmissionEntryForm({
       return monthsWithData.size;
     }
     
-    // For dynamic form config, check if any required field (non-override) has value
+    // A month is complete only when every mandatory, non-override field has a value.
     if (dynamicInputFields.length > 0) {
-      const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
-      return Object.values(monthlyData).filter(m => {
-        return requiredFields.some(field => {
-          const value = m?.[field.variable] || m?.[field.fieldKey];
-          return value && parseFloat(value) > 0;
-        });
-      }).length;
+      return Object.values(monthlyData).filter((monthData) =>
+        isMonthlyEntryComplete(monthData, dynamicInputFields),
+      ).length;
     }
     
     // No dynamic fields loaded yet - return 0

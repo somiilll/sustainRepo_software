@@ -228,9 +228,6 @@ export const validateStep3 = ({
     return { valid: true };
   }
 
-  // Monthly mode validation
-  if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
-
   // Validate mandatory formula fields for each filled month
   if (dynamicInputFields.length > 0) {
     const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
@@ -348,6 +345,10 @@ export const validateStep3 = ({
       }
     }
   }
+
+  // Do this after inspecting partially-entered months so users receive the
+  // missing-field message instead of a generic no-data message.
+  if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
 
   return { valid: true };
 };

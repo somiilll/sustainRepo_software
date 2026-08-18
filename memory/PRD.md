@@ -235,6 +235,12 @@ Reference documents:
 - Reduced the Create dialog’s title-to-Primary Information gap and tightened the transition above Reporting Frequency without altering edit-dialog spacing or form behavior.
 - Verified: frontend **1,223 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**; authenticated browser screenshot confirmed the compact layout. **MOCKED APIs: NONE.**
 
+## GHG Add Form — Complete-Month Status (2026-08-18) — COMPLETE
+
+- Corrected monthly ledger status and the filled-month counter: a month is complete only after every mandatory, non-override field has an entered value; optional and override fields do not block completion.
+- Added three focused completion tests, including a partial-month case and zero-value handling. Save validation now reports the missing field for a partially entered month instead of a generic no-data message.
+- Verified: frontend **1,226 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**; authenticated browser check confirmed a Quantity-only month remains at **0 / 12** with no Done badge. **MOCKED APIs: NONE.**
+
 ## Phase 9 — GHG Code Cleanliness (2026-08-18) — COMPLETE
 
 - Completed the frozen Phase 9 audit without changing calculation behaviour, backend logic, schemas, configuration architecture, or database data.
