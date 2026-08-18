@@ -7,13 +7,6 @@
 import React, { useMemo } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../../../../../components/ui/select';
 import { Search, X } from 'lucide-react';
 import { resolveGhgUiState } from '../../../../config/resolveGhgUiState';
 import {
@@ -21,6 +14,13 @@ import {
   STANDARD_PROCESS_TYPE_OPTIONS,
   STANDARD_TYPE_OF_PRODUCT_OPTIONS,
 } from '../../../../config/standardGhgFormConfig';
+
+const escapeOptionHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
 
 /**
  * Step 1 Basic Selection Component
@@ -165,33 +165,45 @@ export const Step1BasicSelection = ({
     return result;
   }, [dynamicScopes, disabledScopes, hasScope3Access, hasFullKPIAccess, kpiAllowedScopes]);
 
+  const facilityOptionsHtml = useMemo(() => {
+    const options = filteredFacilities.length === 0
+      ? '<option value="_no_facilities" disabled>No facilities available for this scope</option>'
+      : filteredFacilities.map((facility) => (
+        `<option value="${escapeOptionHtml(facility.id)}">${escapeOptionHtml(facility.name)}${facility.country ? ` (${escapeOptionHtml(facility.country)})` : ''}</option>`
+      )).join('');
+    return `<option value="">Select Facility</option>${options}`;
+  }, [filteredFacilities]);
+
+  const categoryOptionsHtml = useMemo(() => {
+    const options = categoriesForScope.length === 0
+      ? '<option value="_no_categories" disabled>No categories available for this scope</option>'
+      : categoriesForScope.map((option) => `<option value="${escapeOptionHtml(option)}">${escapeOptionHtml(option)}</option>`).join('');
+    return `<option value="">Select Category</option>${options}`;
+  }, [categoriesForScope]);
+
+  const processTypeOptions = useMemo(() => [
+    React.createElement('option', { key: 'placeholder', value: '' }, 'Select process type'),
+    ...STANDARD_PROCESS_TYPE_OPTIONS.map((option) => React.createElement(
+      'option',
+      { key: option.value, value: option.value },
+      option.label,
+    )),
+  ], []);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        {/* Facility - Using shadcn Select for Safari compatibility */}
+        {/* Facility */}
         <div className="space-y-2">
-          <Label>Facility <span className="text-red-500">*</span></Label>
-          <Select value={facilityId} onValueChange={setFacilityId}>
-            <SelectTrigger 
-              className="w-full h-10 bg-stone-50 border border-stone-200"
-              data-testid="emission-facility-select"
-            >
-              <SelectValue placeholder="Select Facility" />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredFacilities.length === 0 ? (
-                <SelectItem value="_no_facilities" disabled>
-                  No facilities available for this scope
-                </SelectItem>
-              ) : (
-                filteredFacilities.map(f => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name} {f.country ? `(${f.country})` : ''}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="emission-facility-select">Facility <span className="text-red-500">*</span></Label>
+          <select
+            id="emission-facility-select"
+            value={facilityId}
+            onChange={(event) => setFacilityId(event.target.value)}
+            className="h-10 w-full border border-stone-200 bg-stone-50 px-3 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            data-testid="emission-facility-select"
+            dangerouslySetInnerHTML={{ __html: facilityOptionsHtml }}
+          />
           {!hasFullKPIAccess && filteredFacilities.length === 0 && scope && (
             <p className="text-xs text-amber-600">
               You don&apos;t have access to any facilities for {scope}. Contact your admin.
@@ -292,12 +304,14 @@ export const Step1BasicSelection = ({
         )}
       </div>
 
-      {/* Category - Using shadcn Select for Safari compatibility */}
+      {/* Category */}
       <div className="space-y-2">
-        <Label>Category <span className="text-red-500">*</span></Label>
-        <Select 
-          value={category} 
-          onValueChange={(value) => {
+        <Label htmlFor="emission-category-select">Category <span className="text-red-500">*</span></Label>
+        <select
+          id="emission-category-select"
+          value={category}
+          onChange={(event) => {
+            const value = event.target.value;
             setCategory(value);
             setFuelId('');
             setScope3Method('');
@@ -306,25 +320,10 @@ export const Step1BasicSelection = ({
             setTypeOfProduct?.('');
             setScope3ActivityId('');
           }}
-        >
-          <SelectTrigger 
-            className="w-full h-10 bg-stone-50 border border-stone-200"
-            data-testid="emission-category-select"
-          >
-            <SelectValue placeholder="Select Category" />
-          </SelectTrigger>
-          <SelectContent>
-            {categoriesForScope.length === 0 ? (
-              <SelectItem value="_no_categories" disabled>
-                No categories available for this scope
-              </SelectItem>
-            ) : (
-              categoriesForScope.map(cat => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
+          className="h-10 w-full border border-stone-200 bg-stone-50 px-3 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          data-testid="emission-category-select"
+          dangerouslySetInnerHTML={{ __html: categoryOptionsHtml }}
+        />
       </div>
 
       {/* Biogenic Indirect: Calculation Method */}
@@ -635,19 +634,14 @@ export const Step1BasicSelection = ({
       {ghgUiState.showProcessType && (
         <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="process-type-section">
           <Label>Process Type <span className="text-red-500">*</span></Label>
-          <Select
+          <select
             value={decisionFieldValues.process_type || ''}
-            onValueChange={(v) => setDecisionFieldValues(prev => ({ ...prev, process_type: v, calculation_methodology: '' }))}
+            onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, process_type: event.target.value, calculation_methodology: '' }))}
+            className="h-10 w-full border border-stone-200 bg-stone-50 px-3 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            data-testid="process-type-select"
           >
-            <SelectTrigger className="bg-stone-50 h-10" data-testid="process-type-select">
-              <SelectValue placeholder="Select process type" />
-            </SelectTrigger>
-            <SelectContent>
-              {STANDARD_PROCESS_TYPE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            {processTypeOptions}
+          </select>
         </div>
       )}
 
@@ -655,19 +649,16 @@ export const Step1BasicSelection = ({
       {ghgUiState.showCalculationMethodology && (
         <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="calculation-methodology-section">
           <Label>Calculation Methodology</Label>
-          <Select
+          <select
             value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
-            onValueChange={(v) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: v }))}
+            onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: event.target.value }))}
+            className="h-10 w-full border border-stone-200 bg-stone-50 px-3 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            data-testid="calculation-methodology-select"
           >
-            <SelectTrigger className="bg-stone-50 h-10" data-testid="calculation-methodology-select">
-              <SelectValue placeholder="Select methodology" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="using_heat_basis_ncv">Using Heat Basis (NCV)</SelectItem>
-              <SelectItem value="using_qty_basis_ef">Using Qty Basis EF</SelectItem>
-              <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
-            </SelectContent>
-          </Select>
+            <option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option>
+            <option value="using_qty_basis_ef">Using Qty Basis EF</option>
+            <option value="using_carbon_composition">Using Composition of Carbon</option>
+          </select>
         </div>
       )}
 

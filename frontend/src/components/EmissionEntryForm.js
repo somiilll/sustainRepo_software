@@ -1,20 +1,17 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText, Loader2, Search, Calculator } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
-import MultiEmployeeInput from './MultiEmployeeInput';
 
 // Import Step components for modular form rendering
 import { Step1BasicSelection } from '../modules/ghg/emissions/shared/components/steps/Step1BasicSelection';
 import { Step2ProcessResponsibility } from '../modules/ghg/emissions/shared/components/steps/Step2ProcessResponsibility';
 import { Step3YearMonthlyData } from '../modules/ghg/emissions/shared/components/steps/Step3YearMonthlyData';
 import { Step4Notes } from '../modules/ghg/emissions/shared/components/steps/Step4Notes';
+import { EmissionFormSection } from '../modules/ghg/emissions/shared/components/EmissionFormSection';
+import { ReportingPeriodControls } from '../modules/ghg/emissions/shared/components/ReportingPeriodControls';
 import { categoryRegistry } from '../modules/emissions';
 import {
   MONTHS,
@@ -139,9 +136,6 @@ export default function EmissionEntryForm({
   // ============================================================================
   const _formState = useEmissionFormState({ organization, editingEmission });
   const {
-    // Step navigation
-    currentStep, setCurrentStep,
-    totalSteps,
     // Step 1: Basic Selection
     facilityId, setFacilityId,
     scope, setScope,
@@ -1104,12 +1098,12 @@ export default function EmissionEntryForm({
   // Track form dirty state for unsaved changes protection (#19)
   useEffect(() => {
     // Only trigger after user interaction (not initial load)
-    if (currentStep > 1 || facilityId || category || fuelId || notes) {
+    if (facilityId || category || fuelId || notes) {
       if (typeof onFormChange === 'function') {
         onFormChange();
       }
     }
-  }, [currentStep, facilityId, category, fuelId, notes, scope3Method, scope3ActivityType, employees.length, onFormChange]);
+  }, [facilityId, category, fuelId, notes, scope3Method, scope3ActivityType, employees.length, onFormChange]);
   
   // Scope 3 specific optional fields — moved to useEmissionFormState (F2 integration).
 
@@ -2393,17 +2387,12 @@ export default function EmissionEntryForm({
   });
 
 
-  const handleNext = () => {
-    const validation = canProceedToStep(currentStep + 1);
-    if (!validation.valid) {
-      toast.error(validation.message);
-      return;
+  const validateFullForm = () => {
+    for (const step of [2, 3, 4]) {
+      const validation = canProceedToStep(step);
+      if (!validation.valid) return validation;
     }
-    setCurrentStep(Math.min(currentStep + 1, totalSteps));
-  };
-
-  const handlePrev = () => {
-    setCurrentStep(Math.max(currentStep - 1, 1));
+    return { valid: true };
   };
 
   // Handler for calculating emissions for a specific employee and month
@@ -2668,7 +2657,7 @@ export default function EmissionEntryForm({
     isC7EmployeeCommuting, requiresSubcategory, selectedFuel, capabilities: resolvedCapabilities,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     // Helpers
-    canProceedToStep, getAuthHeader, onSuccess, getActualYearForMonth,
+    canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
     evaluateFormula, buildDecisionInputs,
     // Decision state for custom fuel methodology
     decisionFieldValues,
@@ -2680,16 +2669,31 @@ export default function EmissionEntryForm({
     ocrPrefillData,
   });
 
-  // Step indicators
-  const steps = [
-    { num: 1, title: 'Selection', desc: 'Facility, Scope, Category, Fuel' },
-    { num: 2, title: 'Process', desc: 'Process names & Person responsible' },
-    { num: 3, title: frequencyType === 'yearly' ? 'Annual Data' : 'Monthly Data', desc: frequencyType === 'yearly' ? 'Year & annual quantity' : 'Year & monthly quantities' },
-    { num: 4, title: 'Notes', desc: 'Additional notes' }
-  ];
+  const activeCreateModule = useMemo(() => {
+    const categoryName = (category || '').toLowerCase();
+    if (scope === 'scope3') {
+      const categoryCode = categoryName.match(/^(c\d+)/)?.[1];
+      return categoryRegistry.get(categoryCode) || categoryRegistry.getGenericModule?.('scope3');
+    }
+    if (scope === 'scope1') {
+      if (categoryName.includes('stationary')) return categoryRegistry.get('stationary_combustion');
+      if (categoryName.includes('mobile')) return categoryRegistry.get('mobile_combustion');
+      if (categoryName.includes('fugitive')) return categoryRegistry.get('fugitive_emissions');
+      return categoryRegistry.getGenericModule?.('scope1');
+    }
+    if (scope === 'scope2') return categoryRegistry.getGenericModule?.('scope2');
+    if (scope === 'biogenic') {
+      return biogenicScopeSelection === 'scope3'
+        ? categoryRegistry.getGenericModule?.('scope3')
+        : categoryRegistry.getGenericModule?.('scope1');
+    }
+    return null;
+  }, [scope, category, biogenicScopeSelection]);
+
+  const CreateDataRenderer = activeCreateModule?.Step3Renderer || Step3YearMonthlyData;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8" data-testid="single-page-emission-form">
       {/* OCR Import Notice Banner */}
       {ocrPrefillData && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
@@ -2713,32 +2717,11 @@ export default function EmissionEntryForm({
         </div>
       )}
 
-      {/* Step Indicator */}
-      <div className="flex items-center justify-between mb-6">
-        {steps.map((step, idx) => (
-          <div key={step.num} className="flex items-center">
-            <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
-              currentStep >= step.num 
-                ? 'bg-primary text-white' 
-                : 'bg-stone-200 text-stone-500'
-            }`}>
-              {currentStep > step.num ? <Check className="w-4 h-4" /> : step.num}
-            </div>
-            <div className="ml-2 hidden sm:block">
-              <p className={`text-sm font-medium ${currentStep >= step.num ? 'text-primary' : 'text-stone-500'}`}>
-                {step.title}
-              </p>
-              <p className="text-xs text-stone-400">{step.desc}</p>
-            </div>
-            {idx < steps.length - 1 && (
-              <div className={`w-12 h-0.5 mx-2 ${currentStep > step.num ? 'bg-primary' : 'bg-stone-200'}`} />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Step 1: Basic Selection - Extracted to Step1BasicSelection component */}
-      {currentStep === 1 && (
+      <EmissionFormSection
+        title="Primary information"
+        description="Choose the facility, emission source, and calculation path."
+        testId="emission-primary-information-section"
+      >
         <Step1BasicSelection
           facilityId={facilityId}
           setFacilityId={setFacilityId}
@@ -2811,65 +2794,37 @@ export default function EmissionEntryForm({
           decisionFieldValues={decisionFieldValues}
           setDecisionFieldValues={setDecisionFieldValues}
         />
-      )}
+      </EmissionFormSection>
 
-      {/* Step 2: Process & Responsibility - Extracted to Step2ProcessResponsibility component */}
-      {currentStep === 2 && (
-        <Step2ProcessResponsibility
-          responsiblePerson={responsiblePerson}
-          setResponsiblePerson={setResponsiblePerson}
-          responsiblePersonDesignation={responsiblePersonDesignation}
-          setResponsiblePersonDesignation={setResponsiblePersonDesignation}
-          responsiblePersonContact={responsiblePersonContact}
-          setResponsiblePersonContact={setResponsiblePersonContact}
-          processNames={processNames}
-          addProcessName={addProcessName}
-          removeProcessName={removeProcessName}
-          updateProcessName={updateProcessName}
-          requiresAssetName={requiresAssetName}
-          assetName={assetName}
-          setAssetName={setAssetName}
-          showsLocationFields={showsLocationFields}
-          isC7EmployeeCommuting={isC7EmployeeCommuting}
-          fromLocation={fromLocation}
-          setFromLocation={setFromLocation}
-          toLocation={toLocation}
-          setToLocation={setToLocation}
-          recordSource={recordSource}
-          setRecordSource={setRecordSource}
+      <EmissionFormSection
+        title="Reporting frequency"
+        description="Set the reporting period and whether you are entering monthly or annual data."
+        testId="emission-reporting-frequency-section"
+      >
+        <ReportingPeriodControls
+          reportingYearType={reportingYearType}
+          setReportingYearType={setReportingYearType}
+          hasOrgYearTypePreference={hasOrgYearTypePreference}
+          reportingYear={reportingYear}
+          setReportingYear={setReportingYear}
+          frequencyType={frequencyType}
+          setFrequencyType={setFrequencyType}
+          editingEmission={editingEmission}
+          setMonthlyData={setMonthlyData}
+          setYearlyData={setYearlyData}
+          setExpandedMonths={setExpandedMonths}
         />
-      )}
+      </EmissionFormSection>
 
-      {/* Step 3: Year & Monthly Data — delegated to category module via the
-          registry. When a registered category exposes a `Step3Renderer`,
-          the page renders that instead of the default `Step3YearMonthlyData`.
-          The default is wired onto all categories during
-          `initializeCategoryModules()`, so this is a no-op visually today
-          but is the architectural hook for future per-category Step 3
-          experiences (grid, matrix, wizard, multi-employee). */}
-      {currentStep === 3 && (() => {
-        // Resolve the active module the same way Emissions.js EDIT does.
-        const catLower = (category || '').toLowerCase();
-        let activeModule = null;
-        if (scope === 'scope3') {
-          const codeMatch = catLower.match(/^(c\d+)/);
-          if (codeMatch) activeModule = categoryRegistry.get(codeMatch[1]);
-          if (!activeModule) activeModule = categoryRegistry.getGenericModule?.('scope3');
-        } else if (scope === 'scope1') {
-          if (catLower.includes('stationary')) activeModule = categoryRegistry.get('stationary_combustion');
-          else if (catLower.includes('mobile')) activeModule = categoryRegistry.get('mobile_combustion');
-          else if (catLower.includes('fugitive')) activeModule = categoryRegistry.get('fugitive_emissions');
-          activeModule = activeModule || categoryRegistry.getGenericModule?.('scope1');
-        } else if (scope === 'scope2') {
-          activeModule = categoryRegistry.getGenericModule?.('scope2');
-        } else if (scope === 'biogenic') {
-          activeModule = biogenicScopeSelection === 'scope3'
-            ? categoryRegistry.getGenericModule?.('scope3')
-            : categoryRegistry.getGenericModule?.('scope1');
-        }
-        const Step3 = activeModule?.Step3Renderer || Step3YearMonthlyData;
-        return (
-        <Step3
+      <EmissionFormSection
+        title={frequencyType === 'yearly' ? 'Annual data' : 'Monthly data'}
+        description={frequencyType === 'yearly'
+          ? 'Enter the total for the selected reporting year.'
+          : 'Open only the months you need and add their activity data.'}
+        testId="emission-activity-data-section"
+      >
+        <CreateDataRenderer
+          showReportingControls={false}
           reportingYearType={reportingYearType}
           setReportingYearType={setReportingYearType}
           hasOrgYearTypePreference={hasOrgYearTypePreference}
@@ -2926,11 +2881,38 @@ export default function EmissionEntryForm({
           capabilities={resolvedCapabilities}
           fieldOptions={resolvedGhgFieldOptions}
         />
-        );
-      })()}
+      </EmissionFormSection>
 
-      {/* Step 4: Notes - Extracted to Step4Notes component */}
-      {currentStep === 4 && (
+      <EmissionFormSection
+        title="Optional fields"
+        description="Add process ownership, locations, source references, and notes when relevant."
+        collapsible
+        defaultOpen={false}
+        testId="emission-optional-fields-section"
+      >
+        <Step2ProcessResponsibility
+          responsiblePerson={responsiblePerson}
+          setResponsiblePerson={setResponsiblePerson}
+          responsiblePersonDesignation={responsiblePersonDesignation}
+          setResponsiblePersonDesignation={setResponsiblePersonDesignation}
+          responsiblePersonContact={responsiblePersonContact}
+          setResponsiblePersonContact={setResponsiblePersonContact}
+          processNames={processNames}
+          addProcessName={addProcessName}
+          removeProcessName={removeProcessName}
+          updateProcessName={updateProcessName}
+          requiresAssetName={requiresAssetName}
+          assetName={assetName}
+          setAssetName={setAssetName}
+          showsLocationFields={showsLocationFields}
+          isC7EmployeeCommuting={isC7EmployeeCommuting}
+          fromLocation={fromLocation}
+          setFromLocation={setFromLocation}
+          toLocation={toLocation}
+          setToLocation={setToLocation}
+          recordSource={recordSource}
+          setRecordSource={setRecordSource}
+        />
         <Step4Notes
           notes={notes}
           setNotes={setNotes}
@@ -2957,44 +2939,30 @@ export default function EmissionEntryForm({
           biogenicScopeSelection={biogenicScopeSelection}
           getMethodLabel={getMethodLabel}
         />
-      )}
+      </EmissionFormSection>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between pt-4 border-t">
+      <div className="flex flex-col-reverse gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:items-center sm:justify-between" data-testid="emission-form-actions">
         <Button
           type="button"
           variant="outline"
-          onClick={currentStep === 1 ? onCancel : handlePrev}
+          onClick={onCancel}
+          data-testid="emission-form-cancel-button"
         >
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          {currentStep === 1 ? 'Cancel' : 'Previous'}
+          Cancel
         </Button>
-
-        {currentStep < totalSteps ? (
-          <Button type="button" onClick={handleNext}>
-            Next
-            <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
-        ) : (
-          <Button 
-            type="button" 
-            onClick={handleSubmit} 
-            className="bg-green-600 hover:bg-green-700"
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4 mr-1" />
-                {frequencyType === 'yearly' ? 'Save Annual Emissions' : `Save Emissions (${filledMonthsCount} months)`}
-              </>
-            )}
-          </Button>
-        )}
+        <Button
+          type="button"
+          onClick={handleSubmit}
+          className="bg-emerald-700 hover:bg-emerald-800"
+          disabled={isSaving}
+          data-testid="emission-form-save-button"
+        >
+          {isSaving ? (
+            <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Saving...</>
+          ) : (
+            <><Check className="mr-1 h-4 w-4" />{frequencyType === 'yearly' ? 'Save annual emissions' : `Save emissions (${filledMonthsCount} months)`}</>
+          )}
+        </Button>
       </div>
     </div>
   );

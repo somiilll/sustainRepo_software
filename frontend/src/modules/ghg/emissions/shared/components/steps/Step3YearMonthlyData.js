@@ -41,6 +41,7 @@ import { isQuantityField } from '../../utils/unitHelpers';
 
 // Import FlightDetailsSection for C6 air travel per-month airport selection
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
+import { ReportingPeriodControls } from '../ReportingPeriodControls';
 
 /**
  * Step 3 Year & Monthly Data Component
@@ -56,6 +57,7 @@ import { FlightDetailsSection } from '../../../../../../components/FlightDetails
  * - Override options
  */
 export const Step3YearMonthlyData = ({
+  showReportingControls = true,
   // Reporting period props
   reportingYearType,
   setReportingYearType,
@@ -144,104 +146,21 @@ export const Step3YearMonthlyData = ({
         </p>
       </div>
 
-      {/* Reporting Year Type, Year Selection, Data Entry Frequency - All in one row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Reporting Year Type Selection */}
-        <div>
-          <Label className="mb-2 block">Reporting Year Type <span className="text-red-500">*</span></Label>
-          {!hasOrgYearTypePreference ? (
-            <select
-              value={reportingYearType}
-              onChange={(e) => {
-                setReportingYearType(e.target.value);
-                setMonthlyData({});
-              }}
-              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-              data-testid="reporting-year-type-select"
-            >
-              <option value="calendar">Calendar Year (Jan-Dec)</option>
-              <option value="financial">Financial Year (Apr-Mar)</option>
-            </select>
-          ) : (
-            <div className="w-full h-10 flex items-center px-3 rounded-lg bg-stone-50 border border-stone-200">
-              <span className="text-sm">
-                {reportingYearType === 'financial' ? 'Financial Year' : 'Calendar Year'}
-              </span>
-              <span className="ml-2 text-xs text-text-muted">(From Org Settings)</span>
-            </div>
-          )}
-        </div>
-
-        {/* Year Selection */}
-        <div>
-          <Label className="mb-2 block">
-            {reportingYearType === 'financial' ? 'Financial Year' : 'Reporting Year'} <span className="text-red-500">*</span>
-          </Label>
-          <select
-            value={reportingYear}
-            onChange={(e) => {
-              setReportingYear(e.target.value);
-              setMonthlyData({});
-            }}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="reporting-year-select"
-          >
-            {Array.from({ length: 6 }, (_, i) => {
-              const year = new Date().getFullYear() - i;
-              return (
-                <option key={year} value={year}>
-                  {reportingYearType === 'financial' 
-                    ? `FY ${year}-${(year + 1).toString().slice(-2)}` 
-                    : year}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-
-        {/* Data Entry Frequency Selection */}
-        <div>
-          <Label className="mb-2 block">Data Entry Frequency <span className="text-red-500">*</span></Label>
-          <select
-            value={frequencyType}
-            onChange={(e) => {
-              const newFreq = e.target.value;
-              setFrequencyType(newFreq);
-              if (newFreq === 'monthly') {
-                setYearlyData({});
-              } else {
-                setMonthlyData({});
-                setExpandedMonths([]);
-              }
-            }}
-            disabled={!!editingEmission}
-            className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${editingEmission ? 'opacity-50 cursor-not-allowed' : ''}`}
-            data-testid="frequency-type-select"
-          >
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly (Annual Total)</option>
-          </select>
-          {editingEmission && (
-            <p className="text-xs text-amber-600 mt-1">Locked when editing</p>
-          )}
-        </div>
-      </div>
-
-      {/* Show badge indicating frequency type */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className={`px-2 py-1 rounded text-xs font-medium ${
-          frequencyType === 'yearly' 
-            ? 'bg-purple-100 text-purple-700' 
-            : 'bg-blue-100 text-blue-700'
-        }`}>
-          {frequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
-        </span>
-        <span className="text-sm text-stone-600">
-          {reportingYearType === 'financial' 
-            ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
-            : `CY${reportingYear}`}
-        </span>
-      </div>
+      {showReportingControls && (
+        <ReportingPeriodControls
+          reportingYearType={reportingYearType}
+          setReportingYearType={setReportingYearType}
+          hasOrgYearTypePreference={hasOrgYearTypePreference}
+          reportingYear={reportingYear}
+          setReportingYear={setReportingYear}
+          frequencyType={frequencyType}
+          setFrequencyType={setFrequencyType}
+          editingEmission={editingEmission}
+          setMonthlyData={setMonthlyData}
+          setYearlyData={setYearlyData}
+          setExpandedMonths={setExpandedMonths}
+        />
+      )}
 
       {/* Multi-Employee Input for C7 Employee Commuting */}
       {isC7EmployeeCommuting && (
@@ -250,7 +169,7 @@ export const Step3YearMonthlyData = ({
           {scope3Method === 'supplier_basis' && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
               <p className="text-sm text-amber-800">
-                <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the &quot;Quantity Used&quot; field.
               </p>
             </div>
           )}
@@ -346,7 +265,7 @@ export const Step3YearMonthlyData = ({
           {scope3Method === 'supplier_basis' && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm text-amber-800">
-                <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the &quot;Quantity Used&quot; field.
               </p>
             </div>
           )}
@@ -865,7 +784,7 @@ const YearlyDataEntry = ({
             {scope3Method === 'supplier_basis' && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-800">
-                  <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the &quot;Quantity Used&quot; field.
                 </p>
               </div>
             )}

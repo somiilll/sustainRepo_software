@@ -28,7 +28,6 @@ function GradientDef({ id, color }) {
 const renderSeries = (chartType, series, stacked) =>
   series.map((item, index) => {
     const commonProps = {
-      key: item.key,
       dataKey: item.key,
       name: item.label,
       stroke: item.color,
@@ -39,6 +38,7 @@ const renderSeries = (chartType, series, stacked) =>
     if (chartType === "bar") {
       return (
         <Bar
+          key={item.key}
           {...commonProps}
           fill={item.color}
           radius={index === series.length - 1 ? [4, 4, 0, 0] : 0}
@@ -49,6 +49,7 @@ const renderSeries = (chartType, series, stacked) =>
     if (chartType === "area") {
       return (
         <Area
+          key={item.key}
           {...commonProps}
           type="monotone"
           fill={`url(#grad-${item.key})`}
@@ -60,6 +61,7 @@ const renderSeries = (chartType, series, stacked) =>
 
     return (
       <Line
+        key={item.key}
         {...commonProps}
         type="monotone"
         dot={false}

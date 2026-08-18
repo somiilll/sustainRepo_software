@@ -200,6 +200,15 @@ Reference documents:
 1. **P1**: BRSR Section A stale form data on year switch
 2. **P2**: Playwright E2E locator timeouts on Shadcn Select elements
 
+## GHG Add Form — Single-Page Experience (2026-08-18) — COMPLETE
+
+- Replaced the four-step **Create Emission** wizard with a clean continuous form: Primary Information → Reporting Frequency → Monthly expandable entry / Yearly entry → collapsed Optional Fields.
+- Preserved the existing Create calculation, validation, payload, capability/configuration, evidence, custom fuel, C6 flight, C7 employee, and process-rendering paths. `EmissionEditForm.jsx`, backend engines, APIs, and schemas remain untouched.
+- Added focused layout modules: `EmissionFormSection.js` and `ReportingPeriodControls.js`; `Step3YearMonthlyData` now reuses its data renderer without duplicating period controls.
+- Restored equivalent wizard validation by evaluating the original Step 1 → Step 2 → Step 3 validation gates in order on the single Save action.
+- Resolved the preview DOM nesting warning from dynamic option instrumentation and a dashboard chart key-prop spread warning. Authenticated browser smoke: clean relevant console output; **MOCKED APIs: NONE**.
+- Regression: frontend **1,223 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**. Report: `/app/memory/GHG_ADD_FORM_UX_CHANGE_REPORT.md`.
+
 ## Phase 9 — GHG Code Cleanliness (2026-08-18) — COMPLETE
 
 - Completed the frozen Phase 9 audit without changing calculation behaviour, backend logic, schemas, configuration architecture, or database data.
