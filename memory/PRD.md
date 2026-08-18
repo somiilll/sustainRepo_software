@@ -177,7 +177,7 @@ Reference documents:
 | 6 | Unified form state + record adapters | NOT STARTED |
 | 7 | Field registry + one shared `<GhgForm mode>` | NOT STARTED |
 | 8 | Declarative validation engine | NOT STARTED |
-| 9 | Dead-code removal + frontend evaluator cleanup | NOT STARTED (deferred by user) |
+| 9 | Dead-code audit + safe cleanup + evaluator verification | COMPLETE (2026-08-18) |
 | 10 | Organization override SuperAdmin persistence/UI | NOT STARTED — explicit future phase |
 
 ### Phase 0 — Golden Safety Net (Jun 2026) — COMPLETE
@@ -199,6 +199,15 @@ Reference documents:
 ## Pending Issues
 1. **P1**: BRSR Section A stale form data on year switch
 2. **P2**: Playwright E2E locator timeouts on Shadcn Select elements
+
+## Phase 9 — GHG Code Cleanliness (2026-08-18) — COMPLETE
+
+- Completed the frozen Phase 9 audit without changing calculation behaviour, backend logic, schemas, configuration architecture, or database data.
+- Removed only seven proven inert fragments: five stale React Hooks lint suppressions, one `&& true` guard, and one literal-false JSX branch.
+- Verified `evaluateFormula` remains active exclusively in monthly/yearly process-template submission paths; retained all legacy EF filtering, hydration, payload adapters, C7 compatibility, and organization configuration boundaries.
+- Regression baseline remains exact: frontend **1,223 passed / 63 snapshots**, backend golden **506 passed / 9 skipped**, C7 **9/9**, Phase 1 equivalence **785/785**; database counts unchanged at **840 / 1,339 / 1,764** with **0 writes**.
+- Read-only browser smoke check rendered the application login screen successfully; no authenticated workflow or write endpoint was invoked.
+- Full details: `/app/memory/GHG_CODE_CLEANLINESS_AUDIT.md`.
 
 ## Upcoming Tasks (P1)
 - Custom Dashboard: Wire ExecutiveAnalyticsDashboard to consume custom kpi_cards

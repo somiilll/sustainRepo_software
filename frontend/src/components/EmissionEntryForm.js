@@ -462,7 +462,6 @@ export default function EmissionEntryForm({
       if (editingEmission.category) setCategory(editingEmission.category);
     });
     
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingEmission?.id, fuelDatabase]);
 
   // ============================================================================
@@ -1013,7 +1012,6 @@ export default function EmissionEntryForm({
       setC7FormulaId(null);
       setC7FormulaName('');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope3ActivityId, scope3ActivityType]); // Reset when activity changes
 
   // Reset asset name when category changes away from C8/C13/C14/C15

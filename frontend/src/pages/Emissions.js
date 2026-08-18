@@ -105,7 +105,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   
   useEffect(() => {
     if (pathScope && pathScope !== activeScope) setActiveScope(pathScope);
-  }, [pathScope]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathScope]);
   const [filterFacility, setFilterFacility] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterFrequency, setFilterFrequency] = useState(''); // 'monthly', 'yearly', or '' for all
@@ -1984,7 +1984,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       setBackendCalcResult(null);
       setCalcEngineUsed(false);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dialogOpen, editingEmission, isFormDirty, selectedFuel?.id, formData.quantity, formData.quantity_unit,
     formData.scope, formData.category, selectedCategory, formData.calorific_value,
@@ -2313,7 +2312,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     return () => {
       cancelled = true;
     };
-  }, [location.search, emissions, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.search, emissions, loading]);
 
   const handleDelete = async (id) => {
     try {

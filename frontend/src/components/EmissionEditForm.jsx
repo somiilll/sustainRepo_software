@@ -169,7 +169,7 @@ export default function EmissionEditForm(props) {
     handleDeleteAllEvidences,
     handleDialogChange,
 
-    // ---------- dead-reference fallback (never invoked at runtime) ----------
+    // ---------- custom-fuel quantity-unit display ----------
     getQuantityUnitFromEFUnit,
     
     // Optional props for approval mode
@@ -1084,7 +1084,7 @@ export default function EmissionEditForm(props) {
                       <span>Loading form configuration...</span>
                     </div>
                   </div>
-                ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 && true ? (
+                ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 ? (
                   /* Pluggable category renderer (PoC: C1 routes through registry). */
                   ModuleDynamicFieldsRenderer ? (
                     <ModuleDynamicFieldsRenderer
@@ -1424,7 +1424,7 @@ export default function EmissionEditForm(props) {
                   <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
                     <Label htmlFor="quantity">
-                      Quantity * {false && <span className="text-xs text-amber-600">(unit locked)</span>}
+                      Quantity *
                     </Label>
                     <div className="flex gap-2">
                       <Input
