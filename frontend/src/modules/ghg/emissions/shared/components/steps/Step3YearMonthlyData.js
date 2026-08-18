@@ -33,6 +33,35 @@ const FIELD_HELP = {
     'Accounts for country-specific purchasing power differences. If left empty, system defaults will be used. To disable this adjustment, input the USD/INR exchange rate for the reporting period.',
 };
 
+const FUEL_DEFAULT_VALUE_KEYS = {
+  cv: 'calorific_value',
+  density: 'density',
+  co2_ef: 'emission_factor_co2',
+  ch4_ef: 'emission_factor_ch4',
+  n2o_ef: 'emission_factor_n2o',
+  emission_factor_basis_quantity: 'emission_factor_basis_quantity',
+  co2_gwp_fugitives: 'gwp_fugitives',
+};
+
+const FUEL_DEFAULT_UNIT_KEYS = {
+  cv: 'calorific_value_unit',
+  density: 'density_unit',
+  emission_factor_basis_quantity: 'emission_factor_basis_unit',
+};
+
+const hasFieldValue = (value) => value !== undefined && value !== null && value !== '';
+
+const getFieldDefaultValue = (field, selectedFuel) => {
+  if (hasFieldValue(field.defaultValue)) return field.defaultValue;
+  const fuelKey = FUEL_DEFAULT_VALUE_KEYS[field.variable];
+  return fuelKey && hasFieldValue(selectedFuel?.[fuelKey]) ? selectedFuel[fuelKey] : '';
+};
+
+const getFieldDefaultUnit = (field, selectedFuel, fieldUnits) => {
+  const fuelKey = FUEL_DEFAULT_UNIT_KEYS[field.variable];
+  return selectedFuel?.[fuelKey] || field.expectedUnit || fieldUnits[0] || '';
+};
+
 /**
  * Compact evidence icon — upload trigger + badge showing file count.
  * Keeps rows aligned regardless of how many files are attached.
@@ -127,14 +156,14 @@ const deriveLedgerColumns = (dynamicInputFields, formConfig, isProcessEmissions,
     }));
   }
   if (formConfig && dynamicInputFields.length > 0) {
-    return dynamicInputFields
-      .filter(f => f.required && !f.isOverride)
-      .map(f => ({
-        key: f.variable,
-        label: f.label,
-        unit: null,
-        required: true,
-      }));
+    return dynamicInputFields.map(f => ({
+      key: f.variable,
+      label: f.label,
+      unit: null,
+      required: f.required && !f.isOverride,
+      isOverride: !!f.isOverride,
+      isOptional: !f.required && !f.isOverride,
+    }));
   }
   // Legacy fallback
   return [{ key: 'quantity', label: 'Quantity', unit: null, required: true }];
@@ -427,22 +456,55 @@ export const Step3YearMonthlyData = ({
                 const field = dynamicInputFields.find(f => f.variable === col.key);
                 if (!field) return null;
 
+                const isOverrideOrOptional = field.isOverride || (!field.required && !field.isOverride);
+                const overrideKey = `override_${field.variable}`;
+                const isEnabled = !isOverrideOrOptional || data[overrideKey];
+                const defaultValue = getFieldDefaultValue(field, selectedFuel);
+                const storedValue = data[field.variable] ?? data[field.fieldKey] ?? '';
+                const displayedValue = hasFieldValue(storedValue) ? storedValue : defaultValue;
+                const renderOverrideToggle = () => (
+                  <label
+                    className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-[10px] font-medium text-amber-700"
+                    title={`Override the default ${field.label.toLowerCase()}`}
+                    data-testid={`override-toggle-${field.fieldKey}-${monthKey}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!data[overrideKey]}
+                      onChange={(e) => {
+                        updateMonthData(monthKey, overrideKey, e.target.checked);
+                        if (!e.target.checked) {
+                          updateMonthData(monthKey, field.variable, '');
+                          updateMonthData(monthKey, `${field.variable}_unit`, '');
+                        }
+                      }}
+                      className="h-3 w-3 rounded border-amber-300 text-amber-600"
+                      data-testid={`override-${field.fieldKey}-${monthKey}`}
+                    />
+                    Override
+                  </label>
+                );
+
                 // Select field type
                 if (field.fieldType === 'select' && field.options?.length > 0) {
                   return (
-                    <select
-                      value={data[field.variable] || ''}
-                      onChange={(e) => updateMonthData(monthKey, field.variable, e.target.value)}
-                      className="h-8 w-full rounded border border-stone-200 bg-transparent px-2 text-sm outline-none"
-                      data-testid={`select-${field.fieldKey}-${monthKey}`}
-                      dangerouslySetInnerHTML={{
-                        __html: buildNativeOptionsHtml(field.options, {
-                          placeholder: `Select`,
-                          getValue: (option) => option.value || option,
-                          getLabel: (option) => option.label || option,
-                        }),
-                      }}
-                    />
+                    <div className="flex h-8 items-center gap-1">
+                      {isOverrideOrOptional && renderOverrideToggle()}
+                      <select
+                        value={displayedValue}
+                        onChange={(e) => updateMonthData(monthKey, field.variable, e.target.value)}
+                        disabled={!isEnabled}
+                        className={`h-8 min-w-0 flex-1 rounded border border-stone-200 bg-transparent px-2 text-sm outline-none ${!isEnabled ? 'bg-stone-50 text-stone-600' : ''}`}
+                        data-testid={`select-${field.fieldKey}-${monthKey}`}
+                        dangerouslySetInnerHTML={{
+                          __html: buildNativeOptionsHtml(field.options, {
+                            placeholder: `Select`,
+                            getValue: (option) => option.value || option,
+                            getLabel: (option) => option.label || option,
+                          }),
+                        }}
+                      />
+                    </div>
                   );
                 }
 
@@ -458,54 +520,64 @@ export const Step3YearMonthlyData = ({
                 const hideUnit = useCustomFuel && isQtyField;
                 const showUnitDropdown = !hideUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
                 const showTextUnit = !hideUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
+                const storedUnit = data[`${field.variable}_unit`] || data.unit || '';
+                const defaultUnitValue = getFieldDefaultUnit(field, selectedFuel, fieldUnits);
+                const displayedUnit = !hasFieldValue(storedValue) && hasFieldValue(defaultValue)
+                  ? defaultUnitValue
+                  : (storedUnit || defaultUnitValue);
 
                 return (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type={field.fieldType === 'text' ? 'text' : 'number'}
-                      step={field.fieldType === 'number' ? 'any' : undefined}
-                      min={field.fieldType === 'number' ? '0' : undefined}
-                      placeholder="—"
-                      value={data[field.variable] || data[field.fieldKey] || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (field.validationRules?.max !== undefined && val !== '' && parseFloat(val) > field.validationRules.max) {
-                          toast.error(`${field.label} cannot exceed ${field.validationRules.max}`);
-                          return;
-                        }
-                        if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
-                          updateMonthData(monthKey, field.variable, val);
-                        }
-                      }}
-                      onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
-                      className="h-8 w-full text-sm"
-                      data-testid={`input-${field.fieldKey}-${monthKey}`}
-                    />
-                    {showUnitDropdown && (
-                      <select
-                        value={(() => {
-                          const stored = data[`${field.variable}_unit`] || data.unit || '';
-                          return fieldUnits.find(u => u.toLowerCase() === stored.toLowerCase()) || fieldUnits[0];
-                        })()}
-                        onChange={(e) => {
-                          updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
-                          if (isQtyField) updateMonthData(monthKey, 'unit', e.target.value);
-                        }}
-                        className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
-                        data-testid={`unit-${field.fieldKey}-${monthKey}`}
-                        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
-                      />
-                    )}
-                    {showTextUnit && (
+                  <div className="flex h-8 items-center gap-1">
+                    {isOverrideOrOptional && renderOverrideToggle()}
+                    <div className={`flex min-w-0 flex-1 items-center gap-1 ${!isEnabled ? 'pointer-events-none' : ''}`}>
                       <Input
-                        type="text"
-                        placeholder="unit"
-                        value={data[`${field.variable}_unit`] || ''}
-                        onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
-                        className="h-8 w-16 shrink-0 text-xs"
-                        data-testid={`unit-text-${field.fieldKey}-${monthKey}`}
+                        type={field.fieldType === 'text' ? 'text' : 'number'}
+                        step={field.fieldType === 'number' ? 'any' : undefined}
+                        min={field.fieldType === 'number' ? '0' : undefined}
+                        placeholder="—"
+                        value={displayedValue}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (field.validationRules?.max !== undefined && val !== '' && parseFloat(val) > field.validationRules.max) {
+                            toast.error(`${field.label} cannot exceed ${field.validationRules.max}`);
+                            return;
+                          }
+                          if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
+                            updateMonthData(monthKey, field.variable, val);
+                          }
+                        }}
+                        onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
+                        disabled={!isEnabled}
+                        className={`h-8 w-full text-sm ${!isEnabled ? 'border-stone-200 bg-stone-50 text-stone-600' : ''}`}
+                        data-testid={`input-${field.fieldKey}-${monthKey}`}
                       />
-                    )}
+                      {showUnitDropdown && (
+                        <select
+                          value={(() => {
+                            return fieldUnits.find(u => u.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0];
+                          })()}
+                          onChange={(e) => {
+                            updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
+                            if (isQtyField) updateMonthData(monthKey, 'unit', e.target.value);
+                          }}
+                          disabled={!isEnabled}
+                          className={`h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none ${!isEnabled ? 'bg-stone-50 text-stone-600' : ''}`}
+                          data-testid={`unit-${field.fieldKey}-${monthKey}`}
+                          dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                        />
+                      )}
+                      {showTextUnit && (
+                        <Input
+                          type="text"
+                          placeholder="unit"
+                          value={displayedUnit}
+                          onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
+                          disabled={!isEnabled}
+                          className={`h-8 w-16 shrink-0 text-xs ${!isEnabled ? 'border-stone-200 bg-stone-50 text-stone-600' : ''}`}
+                          data-testid={`unit-text-${field.fieldKey}-${monthKey}`}
+                        />
+                      )}
+                    </div>
                   </div>
                 );
               }
@@ -551,12 +623,10 @@ export const Step3YearMonthlyData = ({
 
                   const hasFlightDetails = !isDisabled && scope3ActivityType === 'air_travel' && capabilities.flightDetails;
                   const hasCustomFuel = !isDisabled && useCustomFuel;
-                  const hasDynamicAdditionalDetails = !isDisabled && formConfig && dynamicInputFields.length > 0 &&
-                    dynamicInputFields.some(f => f.isOverride || (!f.required && !f.isOverride));
                   const hasLegacyOverrides = !isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') &&
                     !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides;
                   const hasScope2Override = !isDisabled && !formConfig && scope === 'scope2' && !useCustomFuel;
-                  const hasExpandableContent = hasFlightDetails || hasCustomFuel || hasDynamicAdditionalDetails || hasLegacyOverrides || hasScope2Override;
+                  const hasExpandableContent = hasFlightDetails || hasCustomFuel || hasLegacyOverrides || hasScope2Override;
 
                   return (
                     <React.Fragment key={monthKey}>
@@ -635,20 +705,6 @@ export const Step3YearMonthlyData = ({
                                   calculationMethodology={calculationMethodology}
                                   fieldOptions={fieldOptions}
                                 />
-                              )}
-
-                              {/* Dynamic additional details (overrides + optional fields) */}
-                              {hasDynamicAdditionalDetails && (
-                                <details className="group" data-testid={`month-${monthKey}-additional-details`}>
-                                  <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-additional-details-trigger`}>
-                                    <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
-                                    Additional details
-                                  </summary>
-                                  <div className="space-y-8 pt-4" data-testid={`month-${monthKey}-additional-details-content`}>
-                                    {dynamicInputFields.filter(field => field.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                                    {dynamicInputFields.filter(field => !field.required && !field.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                                  </div>
-                                </details>
                               )}
 
                               {/* Legacy Scope 1 / Biogenic overrides */}
