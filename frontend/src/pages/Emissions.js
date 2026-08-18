@@ -39,6 +39,11 @@ import {
   resolveEffectiveScopeCode,
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
+import {
+  createEmptyEmissionDraft,
+  updateDraftField,
+  updateDraftValues,
+} from '../modules/ghg/emissions/shared/domain';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
@@ -116,10 +121,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [sortBy, setSortBy] = useState('created_at'); // Sort options: date, facility, fuel, emissions
   const [sortOrder, setSortOrder] = useState('desc'); // asc or desc
   const [editingEmission, setEditingEmission] = useState(null);
-  const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
-  const [overrideDensity, setOverrideDensity] = useState(false);
-  const [overrideEmissionFactorHeat, setOverrideEmissionFactorHeat] = useState(false);
-  const [overrideJustification, setOverrideJustification] = useState(''); // #17: Override justification
   const [isCalculating, setIsCalculating] = useState(false); // Track calculation state for save button
   
   // Modal Protection State (#19 - Prevent accidental close)
@@ -127,43 +128,79 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false); // Confirmation dialog
   const [pendingCloseAction, setPendingCloseAction] = useState(null); // Store pending close action
   
-  const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
+  // Shared edit-domain state. It deliberately excludes dialog/loading/search
+  // state so the renderer and page can exchange actual emission values only.
+  const [editDraft, setEditDraft] = useState(() => createEmptyEmissionDraft());
+  const formData = editDraft.values;
+  const setFormData = useCallback((nextValuesOrUpdater) => {
+    setEditDraft((currentDraft) => updateDraftValues(currentDraft, nextValuesOrUpdater));
+  }, []);
+  const setDraftField = useCallback((field, nextValueOrUpdater) => {
+    setEditDraft((currentDraft) => updateDraftField(currentDraft, field, nextValueOrUpdater));
+  }, []);
+  const selectedCategory = editDraft.selectedCategory;
+  const setSelectedCategory = useCallback((value) => setDraftField('selectedCategory', value), [setDraftField]);
+  const overrideCalorificValue = editDraft.overrideCalorificValue;
+  const setOverrideCalorificValue = useCallback((value) => setDraftField('overrideCalorificValue', value), [setDraftField]);
+  const overrideDensity = editDraft.overrideDensity;
+  const setOverrideDensity = useCallback((value) => setDraftField('overrideDensity', value), [setDraftField]);
+  const overrideEmissionFactorHeat = editDraft.overrideEmissionFactorHeat;
+  const setOverrideEmissionFactorHeat = useCallback((value) => setDraftField('overrideEmissionFactorHeat', value), [setDraftField]);
+  const overrideJustification = editDraft.overrideJustification;
+  const setOverrideJustification = useCallback((value) => setDraftField('overrideJustification', value), [setDraftField]);
   
   // Scope 3 specific state for inline edit form
   // Initial data hydrated from useEmissionsCoreData (so dropdowns work for Edit
   // dialog regardless of whether user has touched the Add form / scope tab).
   const [scope3EFData, setScope3EFData] = useState([]);
-  const [scope3Method, setScope3Method] = useState('');
-  const [scope3ActivityId, setScope3ActivityId] = useState('');
-  const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
-  const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
-  const [typeOfProduct, setTypeOfProduct] = useState(''); // C11 only — continuous_usage / one_time_use
-  const [editCalcMethodology, setEditCalcMethodology] = useState('using_heat_basis_ncv'); // Stationary Combustion methodology
-  const [editProcessType, setEditProcessType] = useState(''); // Process Emissions type (venting/n2o/ch4)
-  const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
-  const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
-  const [editUseCustomFuel, setEditUseCustomFuel] = useState(false); // Toggle for custom fuel in edit mode
-  const [editCustomFuelName, setEditCustomFuelName] = useState(''); // Custom fuel name in edit mode
+  const scope3Method = editDraft.scope3Method;
+  const setScope3Method = useCallback((value) => setDraftField('scope3Method', value), [setDraftField]);
+  const scope3ActivityId = editDraft.scope3ActivityId;
+  const setScope3ActivityId = useCallback((value) => setDraftField('scope3ActivityId', value), [setDraftField]);
+  const scope3ActivityType = editDraft.scope3ActivityType;
+  const setScope3ActivityType = useCallback((value) => setDraftField('scope3ActivityType', value), [setDraftField]);
+  const scope3Subcategory = editDraft.scope3Subcategory;
+  const setScope3Subcategory = useCallback((value) => setDraftField('scope3Subcategory', value), [setDraftField]);
+  const typeOfProduct = editDraft.typeOfProduct;
+  const setTypeOfProduct = useCallback((value) => setDraftField('typeOfProduct', value), [setDraftField]);
+  const editCalcMethodology = editDraft.calculationMethodology;
+  const setEditCalcMethodology = useCallback((value) => setDraftField('calculationMethodology', value), [setDraftField]);
+  const editProcessType = editDraft.processType;
+  const setEditProcessType = useCallback((value) => setDraftField('processType', value), [setDraftField]);
+  const scope3CustomActivity = editDraft.scope3CustomActivity;
+  const setScope3CustomActivity = useCallback((value) => setDraftField('scope3CustomActivity', value), [setDraftField]);
+  const useCustomActivity = editDraft.useCustomActivity;
+  const setUseCustomActivity = useCallback((value) => setDraftField('useCustomActivity', value), [setDraftField]);
+  const editUseCustomFuel = editDraft.useCustomFuel;
+  const setEditUseCustomFuel = useCallback((value) => setDraftField('useCustomFuel', value), [setDraftField]);
+  const editCustomFuelName = editDraft.customFuelName;
+  const setEditCustomFuelName = useCallback((value) => setDraftField('customFuelName', value), [setDraftField]);
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   const [activitySearchTerm, setActivitySearchTerm] = useState(''); // Search filter for activities in edit dialog
   
   // Biogenic-specific state
-  const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic tab is active
+  const biogenicScopeSelection = editDraft.biogenicScopeSelection;
+  const setBiogenicScopeSelection = useCallback((value) => setDraftField('biogenicScopeSelection', value), [setDraftField]);
   const [biogenicCategories, setBiogenicCategories] = useState([]); // Categories that have biogenic entries
   const [loadingBiogenicCategories, setLoadingBiogenicCategories] = useState(false);
   
   // Multi-Employee state (for C7 Employee Commuting edit)
   // C7 always uses multi-employee mode - no toggle needed
-  const [editEmployees, setEditEmployees] = useState([]);
-  const [editEmployeeMonthlyTotals, setEditEmployeeMonthlyTotals] = useState({});
-  const [editEmployeeYearlyTotal, setEditEmployeeYearlyTotal] = useState({});
+  const editEmployees = editDraft.employees;
+  const setEditEmployees = useCallback((value) => setDraftField('employees', value), [setDraftField]);
+  const editEmployeeMonthlyTotals = editDraft.employeeMonthlyTotals;
+  const setEditEmployeeMonthlyTotals = useCallback((value) => setDraftField('employeeMonthlyTotals', value), [setDraftField]);
+  const editEmployeeYearlyTotal = editDraft.employeeYearlyTotal;
+  const setEditEmployeeYearlyTotal = useCallback((value) => setDraftField('employeeYearlyTotal', value), [setDraftField]);
   const [isCalculatingEditEmployee, setIsCalculatingEditEmployee] = useState(false);
-  const [editC7Month, setEditC7Month] = useState(null); // Single month for new C7 monthly model
+  const editC7Month = editDraft.c7Month;
+  const setEditC7Month = useCallback((value) => setDraftField('c7Month', value), [setDraftField]);
   
   // Frequency type state for edit mode (monthly vs yearly)
   // This is locked once a record is saved and cannot be changed
-  const [editFrequencyType, setEditFrequencyType] = useState('monthly');
+  const editFrequencyType = editDraft.frequencyType;
+  const setEditFrequencyType = useCallback((value) => setDraftField('frequencyType', value), [setDraftField]);
   
   // Backend calc engine hook
   const { 
@@ -183,7 +220,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [isEditLoading, setIsEditLoading] = useState(false);
   
   // Dynamic input field values for the edit form (keyed by field.field_key)
-  const [dynamicFieldValues, setDynamicFieldValues] = useState({});
+  const dynamicFieldValues = editDraft.dynamicFieldValues;
+  const setDynamicFieldValues = useCallback((value) => setDraftField('dynamicFieldValues', value), [setDraftField]);
   
   // Store the emission ID being edited (for fetching audit log)
   const [editingEmissionId, setEditingEmissionId] = useState(null);
@@ -196,50 +234,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [monthlyData, setMonthlyData] = useState({});
   const [formStep, setFormStep] = useState(1); // Step-based form
 
-  const [formData, setFormData] = useState({
-    facility_id: '',
-    reporting_period_start: '',
-    reporting_period_end: '',
-    scope: 'scope1',
-    category: '',
-    sub_category: '',
-    fuel_id: '',  // ID of selected fuel from database
-    fuel_type: '',
-    quantity: '',
-    quantity_unit: 'kg', // Default to kg
-    emission_factor_co2: '',
-    emission_factor_ch4: '',
-    emission_factor_n2o: '',
-    emission_factor_basis_quantity: '', // For Scope 2 electricity
-    emission_factor_basis_unit: '', // For Scope 2 electricity
-    calorific_value: '',
-    calorific_value_unit: '',
-    calorific_value_justification: '', // Justification when overriding calorific value
-    density: '',
-    density_unit: '',
-    density_justification: '', // Justification when overriding density
-    emission_factor_heat: '', // Override Custom CO2 Emission Factor (Heat Basis) - kg CO₂/TJ
-    emission_factor_heat_justification: '', // Justification when overriding EF heat basis
-    conversion_factor: '1',
-    source_of_information: '',
-    record_source: '',
-    justification: '',
-    notes: '',
-    responsible_person: '',
-    responsible_person_designation: '',
-    responsible_person_contact: '',
-    evidence_url: '',
-    process_names: [{ name: '', description: '' }], // Array for multiple process names with descriptions
-    process_descriptions: [], // For backward compatibility
-    // Scope 3 optional fields
-    supplier_name: '',
-    supplier_code: '',
-    employee_name: '',
-    employee_id: '',
-    asset_name: '', // Asset Name for C8/C13/C14/C15
-    from_location: '', // From Location for C4/C6/C7/C9
-    to_location: '', // To Location for C4/C6/C7/C9
-  });
 
   // CRITICAL: Use refs to always have fresh values in event handlers
   // This fixes stale closure issues with React state in async handlers
@@ -267,7 +261,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   }, [formData]);
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
-  const [existingEvidences, setExistingEvidences] = useState([]); // Track existing evidences when editing
+  const existingEvidences = editDraft.existingEvidences;
+  const setExistingEvidences = useCallback((value) => setDraftField('existingEvidences', value), [setDraftField]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [emissionToDelete, setEmissionToDelete] = useState(null);
 
@@ -2253,17 +2248,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     // State reads
     scope3EFData, fugitiveEmissionsData, fuelDatabase,
     // Setters
-    setEditEmployees, setEditEmployeeMonthlyTotals, setEditEmployeeYearlyTotal,
-    setDynamicFieldValues, setExistingEvidences, setEditingEmissionId,
+    setEditDraft, setEditingEmissionId,
     setEmissionAuditLog, setIsEditLoading, setDialogOpen, setIsFormDirty,
-    setScope3Method, setScope3ActivityId, setScope3ActivityType,
-    setScope3Subcategory, setTypeOfProduct, setScope3CustomActivity, setUseCustomActivity,
-    setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
-    setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
-    setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
-    setEditUseCustomFuel, setEditCustomFuelName,
-    // Helpers
-    getAuthHeader,
+    setEditingEmission,
   });
 
   // Deep-link from /ghg/approvals: open the edit dialog for ?edit=<id> once
@@ -2393,62 +2380,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
 
   const resetForm = () => {
     setEditingEmission(null);
-    setSelectedCategory(''); // Reset category selection
-    setDynamicFieldValues({}); // Clear dynamic field values
+    setEditDraft(createEmptyEmissionDraft(activeScope));
     setEditFormConfig(null); // Clear form config
-    setFormData({
-      facility_id: '',
-      reporting_period_start: '',
-      reporting_period_end: '',
-      scope: activeScope,
-      category: '',
-      sub_category: '',
-      fuel_id: '',
-      fuel_type: '',
-      custom_fuel_type: '',
-      custom_emission_factor: '',
-      quantity: '',
-      quantity_unit: 'kg', // Default to kg
-      emission_factor_co2: '',
-      emission_factor_ch4: '',
-      emission_factor_n2o: '',
-      calorific_value: '',
-      calorific_value_unit: '',
-      calorific_value_justification: '',
-      density: '',
-      density_unit: '',
-      density_justification: '',
-      conversion_factor: '1',
-      source_of_information: '',
-      record_source: '',
-      justification: '',
-      notes: '',
-      responsible_person: '',
-      responsible_person_designation: '',
-      responsible_person_contact: '',
-      evidence_url: '',
-      process_names: [{ name: '', description: '' }],
-      // Reset Scope 3 optional fields
-      supplier_name: '',
-      supplier_code: '',
-      employee_name: '',
-      employee_id: '',
-      asset_name: '', // Asset Name for C8/C13/C14/C15
-      from_location: '', // From Location for C4/C6/C7/C9
-      to_location: '', // To Location for C4/C6/C7/C9
-    });
     setUploadedEvidence(null);
-    setExistingEvidences([]); // Clear existing evidences
-    setOverrideCalorificValue(false);
-    setOverrideDensity(false);
-    setOverrideJustification(''); // Reset override justification (#17)
-    // Reset frequency type for edit mode
-    setEditFrequencyType('monthly');
-    // Reset C7 employee data
-    setEditEmployees([]);
-    setEditEmployeeMonthlyTotals({});
-    setEditEmployeeYearlyTotal({});
-    setEditC7Month(null); // Reset C7 month for new monthly model
   };
 
   // Handle dialog change with unsaved changes protection (#19)
@@ -3125,62 +3059,21 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 />
               ) : (
                 <EmissionEditForm
-                  // ---------- form state (read) ----------
-                  formData={formData}
+                  // Shared genuine form values. UI/loading state stays page-owned.
+                  draft={editDraft}
+                  onDraftChange={setEditDraft}
                   editingEmission={editingEmission}
-                  editFrequencyType={editFrequencyType}
-                  biogenicScopeSelection={biogenicScopeSelection}
-                  selectedCategory={selectedCategory}
-                  scope3Method={scope3Method}
-                  scope3ActivityType={scope3ActivityType}
-                  scope3Subcategory={scope3Subcategory}
-                  scope3ActivityId={scope3ActivityId}
-                  scope3CustomActivity={scope3CustomActivity}
-                  useCustomActivity={useCustomActivity}
-                  typeOfProduct={typeOfProduct}
-                  editCalcMethodology={editCalcMethodology}
-                  setEditCalcMethodology={setEditCalcMethodology}
-                  editProcessType={editProcessType}
-                  setEditProcessType={setEditProcessType}
-                  editUseCustomFuel={editUseCustomFuel}
-                  editCustomFuelName={editCustomFuelName}
                   activitySearchTerm={activitySearchTerm}
                   loadingScope3EF={loadingScope3EF}
                   loadingBiogenicCategories={loadingBiogenicCategories}
-                  editEmployees={editEmployees}
-                  editEmployeeMonthlyTotals={editEmployeeMonthlyTotals}
-                  editEmployeeYearlyTotal={editEmployeeYearlyTotal}
                   isCalculatingEditEmployee={isCalculatingEditEmployee}
                   isEditLoading={isEditLoading}
                   editFormConfigLoading={editFormConfigLoading}
                   dynamicInputFields={dynamicInputFields}
-                  dynamicFieldValues={dynamicFieldValues}
-                  existingEvidences={existingEvidences}
-                  overrideCalorificValue={overrideCalorificValue}
-                  overrideDensity={overrideDensity}
-                  overrideEmissionFactorHeat={overrideEmissionFactorHeat}
-                  overrideJustification={overrideJustification}
                   effectiveCalculatedEmissions={effectiveCalculatedEmissions}
                   isCalculating={isCalculating}
                   isSaving={isSaving}
-                  // ---------- setters ----------
-                  setFormData={setFormData}
-                  setBiogenicScopeSelection={setBiogenicScopeSelection}
-                  setScope3Method={setScope3Method}
-                  setScope3ActivityType={setScope3ActivityType}
-                  setScope3ActivityId={setScope3ActivityId}
-                  setScope3Subcategory={setScope3Subcategory}
-                  setScope3CustomActivity={setScope3CustomActivity}
-                  setUseCustomActivity={setUseCustomActivity}
-                  setEditUseCustomFuel={setEditUseCustomFuel}
-                  setEditCustomFuelName={setEditCustomFuelName}
-                  setTypeOfProduct={setTypeOfProduct}
                   setActivitySearchTerm={setActivitySearchTerm}
-                  setDynamicFieldValues={setDynamicFieldValues}
-                  setEditEmployees={setEditEmployees}
-                  setOverrideCalorificValue={setOverrideCalorificValue}
-                  setOverrideDensity={setOverrideDensity}
-                  setOverrideJustification={setOverrideJustification}
                   // ---------- core data ----------
                   facilities={facilities}
                   dynamicScopes={dynamicScopes}

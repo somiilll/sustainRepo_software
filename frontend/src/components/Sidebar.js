@@ -9,8 +9,9 @@ import { ChevronDown, ChevronRight, LogOut } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const LOGO_FALLBACK = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+const LOGO_FALLBACK = '/sustainrepo-logo.png';
 
 const ENV_MODULE_ICONS = { power: 'Zap', water: 'Droplets', steam: 'Cloud', energy: 'Zap', waste: 'Trash2' };
 const SOCIAL_MODULE_ICONS = { workforce: 'Users2', health_safety: 'HeartPulse', community: 'Building2', human_rights: 'Scale' };
@@ -235,7 +236,11 @@ export default function Sidebar() {
   }, [location.pathname, activeConfig]);
 
   useEffect(() => {
-    axios.get(`${API}/software-assets/logo`).then(r => { if (r.data?.url) setLogoUrl(r.data.url); }).catch(() => null);
+    axios.get(`${API}/software-assets/logo`).then((r) => {
+      const url = r.data?.url;
+      if (url?.startsWith(BACKEND_URL)) setLogoUrl(url);
+      if (url?.startsWith('/')) setLogoUrl(`${BACKEND_URL}${url}`);
+    }).catch(() => null);
   }, []);
 
   const toggleMenu = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));

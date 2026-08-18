@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -73,62 +73,64 @@ const isVolumeUnit = isVolumeUnitShared;
 export default function EmissionEditForm(props) {
   const {
     // ---------- form state (read) ----------
-    formData,
+    draft = null,
+    onDraftChange = null,
+    formData: legacyFormData,
     editingEmission,
-    editFrequencyType,
-    biogenicScopeSelection,
-    selectedCategory,
-    scope3Method,
-    scope3ActivityType,
-    scope3Subcategory,
-    scope3ActivityId,
-    scope3CustomActivity,
-    useCustomActivity,
-    typeOfProduct,
-    editCalcMethodology,
-    setEditCalcMethodology,
-    editProcessType,
-    setEditProcessType,
-    editUseCustomFuel,
-    editCustomFuelName,
+    editFrequencyType: legacyEditFrequencyType,
+    biogenicScopeSelection: legacyBiogenicScopeSelection,
+    selectedCategory: legacySelectedCategory,
+    scope3Method: legacyScope3Method,
+    scope3ActivityType: legacyScope3ActivityType,
+    scope3Subcategory: legacyScope3Subcategory,
+    scope3ActivityId: legacyScope3ActivityId,
+    scope3CustomActivity: legacyScope3CustomActivity,
+    useCustomActivity: legacyUseCustomActivity,
+    typeOfProduct: legacyTypeOfProduct,
+    editCalcMethodology: legacyEditCalcMethodology,
+    setEditCalcMethodology: legacySetEditCalcMethodology,
+    editProcessType: legacyEditProcessType,
+    setEditProcessType: legacySetEditProcessType,
+    editUseCustomFuel: legacyEditUseCustomFuel,
+    editCustomFuelName: legacyEditCustomFuelName,
     activitySearchTerm,
     loadingScope3EF,
     loadingBiogenicCategories,
-    editEmployees,
-    editEmployeeMonthlyTotals,
-    editEmployeeYearlyTotal,
+    editEmployees: legacyEditEmployees,
+    editEmployeeMonthlyTotals: legacyEditEmployeeMonthlyTotals,
+    editEmployeeYearlyTotal: legacyEditEmployeeYearlyTotal,
     isCalculatingEditEmployee,
     isEditLoading,
     editFormConfigLoading,
     dynamicInputFields,
-    dynamicFieldValues,
-    existingEvidences,
-    overrideCalorificValue,
-    overrideDensity,
-    overrideEmissionFactorHeat,
-    overrideJustification,
+    dynamicFieldValues: legacyDynamicFieldValues,
+    existingEvidences: legacyExistingEvidences,
+    overrideCalorificValue: legacyOverrideCalorificValue,
+    overrideDensity: legacyOverrideDensity,
+    overrideEmissionFactorHeat: legacyOverrideEmissionFactorHeat,
+    overrideJustification: legacyOverrideJustification,
     effectiveCalculatedEmissions,
     isCalculating,
     isSaving,
 
     // ---------- setters ----------
-    setFormData,
-    setBiogenicScopeSelection,
-    setScope3Method,
-    setScope3ActivityType,
-    setScope3ActivityId,
-    setScope3Subcategory,
-    setScope3CustomActivity,
-    setUseCustomActivity,
-    setEditUseCustomFuel,
-    setEditCustomFuelName,
-    setTypeOfProduct,
+    setFormData: legacySetFormData,
+    setBiogenicScopeSelection: legacySetBiogenicScopeSelection,
+    setScope3Method: legacySetScope3Method,
+    setScope3ActivityType: legacySetScope3ActivityType,
+    setScope3ActivityId: legacySetScope3ActivityId,
+    setScope3Subcategory: legacySetScope3Subcategory,
+    setScope3CustomActivity: legacySetScope3CustomActivity,
+    setUseCustomActivity: legacySetUseCustomActivity,
+    setEditUseCustomFuel: legacySetEditUseCustomFuel,
+    setEditCustomFuelName: legacySetEditCustomFuelName,
+    setTypeOfProduct: legacySetTypeOfProduct,
     setActivitySearchTerm,
-    setDynamicFieldValues,
-    setEditEmployees,
-    setOverrideCalorificValue,
-    setOverrideDensity,
-    setOverrideJustification,
+    setDynamicFieldValues: legacySetDynamicFieldValues,
+    setEditEmployees: legacySetEditEmployees,
+    setOverrideCalorificValue: legacySetOverrideCalorificValue,
+    setOverrideDensity: legacySetOverrideDensity,
+    setOverrideJustification: legacySetOverrideJustification,
 
     // ---------- core data ----------
     facilities,
@@ -175,6 +177,67 @@ export default function EmissionEditForm(props) {
     hideSubmitButton = false,
     isApprovalMode = false,
   } = props;
+
+  const setDraftField = useCallback((field, valueOrUpdater) => {
+    if (!onDraftChange) return;
+    onDraftChange((currentDraft) => ({
+      ...currentDraft,
+      [field]: typeof valueOrUpdater === 'function'
+        ? valueOrUpdater(currentDraft[field])
+        : valueOrUpdater,
+    }));
+  }, [onDraftChange]);
+  const setFormData = useCallback((valuesOrUpdater) => {
+    if (!onDraftChange) return legacySetFormData?.(valuesOrUpdater);
+    onDraftChange((currentDraft) => ({
+      ...currentDraft,
+      values: typeof valuesOrUpdater === 'function'
+        ? valuesOrUpdater(currentDraft.values)
+        : valuesOrUpdater,
+    }));
+  }, [onDraftChange, legacySetFormData]);
+
+  const formData = draft?.values || legacyFormData;
+  const editFrequencyType = draft?.frequencyType ?? legacyEditFrequencyType;
+  const biogenicScopeSelection = draft?.biogenicScopeSelection ?? legacyBiogenicScopeSelection;
+  const selectedCategory = draft?.selectedCategory ?? legacySelectedCategory;
+  const scope3Method = draft?.scope3Method ?? legacyScope3Method;
+  const scope3ActivityType = draft?.scope3ActivityType ?? legacyScope3ActivityType;
+  const scope3Subcategory = draft?.scope3Subcategory ?? legacyScope3Subcategory;
+  const scope3ActivityId = draft?.scope3ActivityId ?? legacyScope3ActivityId;
+  const scope3CustomActivity = draft?.scope3CustomActivity ?? legacyScope3CustomActivity;
+  const useCustomActivity = draft?.useCustomActivity ?? legacyUseCustomActivity;
+  const typeOfProduct = draft?.typeOfProduct ?? legacyTypeOfProduct;
+  const editCalcMethodology = draft?.calculationMethodology ?? legacyEditCalcMethodology;
+  const editProcessType = draft?.processType ?? legacyEditProcessType;
+  const editUseCustomFuel = draft?.useCustomFuel ?? legacyEditUseCustomFuel;
+  const editCustomFuelName = draft?.customFuelName ?? legacyEditCustomFuelName;
+  const editEmployees = draft?.employees ?? legacyEditEmployees;
+  const editEmployeeMonthlyTotals = draft?.employeeMonthlyTotals ?? legacyEditEmployeeMonthlyTotals;
+  const editEmployeeYearlyTotal = draft?.employeeYearlyTotal ?? legacyEditEmployeeYearlyTotal;
+  const dynamicFieldValues = draft?.dynamicFieldValues ?? legacyDynamicFieldValues;
+  const existingEvidences = draft?.existingEvidences ?? legacyExistingEvidences;
+  const overrideCalorificValue = draft?.overrideCalorificValue ?? legacyOverrideCalorificValue;
+  const overrideDensity = draft?.overrideDensity ?? legacyOverrideDensity;
+  const overrideEmissionFactorHeat = draft?.overrideEmissionFactorHeat ?? legacyOverrideEmissionFactorHeat;
+  const overrideJustification = draft?.overrideJustification ?? legacyOverrideJustification;
+  const setBiogenicScopeSelection = onDraftChange ? (value) => setDraftField('biogenicScopeSelection', value) : legacySetBiogenicScopeSelection;
+  const setScope3Method = onDraftChange ? (value) => setDraftField('scope3Method', value) : legacySetScope3Method;
+  const setScope3ActivityType = onDraftChange ? (value) => setDraftField('scope3ActivityType', value) : legacySetScope3ActivityType;
+  const setScope3ActivityId = onDraftChange ? (value) => setDraftField('scope3ActivityId', value) : legacySetScope3ActivityId;
+  const setScope3Subcategory = onDraftChange ? (value) => setDraftField('scope3Subcategory', value) : legacySetScope3Subcategory;
+  const setScope3CustomActivity = onDraftChange ? (value) => setDraftField('scope3CustomActivity', value) : legacySetScope3CustomActivity;
+  const setUseCustomActivity = onDraftChange ? (value) => setDraftField('useCustomActivity', value) : legacySetUseCustomActivity;
+  const setEditUseCustomFuel = onDraftChange ? (value) => setDraftField('useCustomFuel', value) : legacySetEditUseCustomFuel;
+  const setEditCustomFuelName = onDraftChange ? (value) => setDraftField('customFuelName', value) : legacySetEditCustomFuelName;
+  const setTypeOfProduct = onDraftChange ? (value) => setDraftField('typeOfProduct', value) : legacySetTypeOfProduct;
+  const setEditCalcMethodology = onDraftChange ? (value) => setDraftField('calculationMethodology', value) : legacySetEditCalcMethodology;
+  const setEditProcessType = onDraftChange ? (value) => setDraftField('processType', value) : legacySetEditProcessType;
+  const setDynamicFieldValues = onDraftChange ? (value) => setDraftField('dynamicFieldValues', value) : legacySetDynamicFieldValues;
+  const setEditEmployees = onDraftChange ? (value) => setDraftField('employees', value) : legacySetEditEmployees;
+  const setOverrideCalorificValue = onDraftChange ? (value) => setDraftField('overrideCalorificValue', value) : legacySetOverrideCalorificValue;
+  const setOverrideDensity = onDraftChange ? (value) => setDraftField('overrideDensity', value) : legacySetOverrideDensity;
+  const setOverrideJustification = onDraftChange ? (value) => setDraftField('overrideJustification', value) : legacySetOverrideJustification;
 
   const ghgUiState = resolveGhgUiState({
     capabilities,

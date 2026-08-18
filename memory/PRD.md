@@ -17,6 +17,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - `/app/backend/tests/golden/` — Golden-record regression fixtures.
 - `/app/frontend/src/modules/ghg/config/` — Centralized field-derivation, capabilities, UI state, override schemas.
 - `/app/frontend/src/modules/ghg/emissions/shared/hooks/useEmissionSubmit.js` — Create flow submission orchestration.
+- `/app/frontend/src/modules/ghg/emissions/shared/domain/` — Shared Phase 6 `EmissionDraft` model and pure record adapters.
 - `/app/frontend/src/pages/Emissions.js` — Edit flow state management.
 - `/app/frontend/src/components/EmissionEditForm.jsx` — Edit form rendering.
 
@@ -36,10 +37,15 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
   - Removed `emissionAuditLog.length > 0` gate so persisted values show on first Edit open
   - Added `audit_log_id` return from calc engine + link endpoint
   - Create flow now links audit logs to emission records after POST
+- **GHG Phase 6 — Unified Form State & Record Adapters** — DONE (2026-08-18)
+  - Added a JSDoc `EmissionDraft` model for genuine edit values only.
+  - Added pure stored-record ↔ draft adapters; existing category payload builders remain unchanged.
+  - Migrated `Emissions.js`, edit dispatch, and `EmissionEditForm.jsx` to a shared draft source of truth.
+  - Full regression preserved: frontend 1228 passed / 63 snapshots; backend golden 506 passed / 9 skipped.
 
 ### Regression Status
 - Backend golden: 506 passed / 9 skipped
-- Frontend: 1226 passed / 63 snapshots
+- Frontend: 1228 passed / 63 snapshots
 
 ## Known Issues
 
@@ -72,6 +78,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Supplier/Customer Org Onboarding Wizards
 - BRSR Word download (.docx) + "Previous Year Columns"
 - MIS Schedule Preview & Report Bookmarks
+- Extract remaining GHG edit calculation-preview orchestration into a dedicated controller (post-Phase 6; keep Phase 7 separate)
 
 ### P2
 - Copy Month Values for Custom Fuel EF/CV
