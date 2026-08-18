@@ -2854,6 +2854,7 @@ export default function EmissionEntryForm({
           centralizedUnits={centralizedUnits}
           defaultUnit={defaultUnit}
           allowedUnits={allowedUnits}
+          requiresSubcategory={requiresSubcategory}
           customEmissionFactorUnit={customEmissionFactorUnit}
           customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}

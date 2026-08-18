@@ -11,9 +11,8 @@
 import React from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
-import { Button } from '../../../../../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
-import { Info, Check, Upload, Eye, Download, X, FileText, Loader2 } from 'lucide-react';
+import { Info, Check, Upload, X, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Import CustomFuelMonthFields for per-month custom fuel inputs
@@ -34,16 +33,20 @@ const FIELD_HELP = {
     'Accounts for country-specific purchasing power differences. If left empty, system defaults will be used. To disable this adjustment, input the USD/INR exchange rate for the reporting period.',
 };
 
-const MonthlyEvidenceCell = ({
+/**
+ * Compact evidence icon — upload trigger + badge showing file count.
+ * Keeps rows aligned regardless of how many files are attached.
+ */
+const EvidenceIconCell = ({
   monthKey,
   evidences = [],
   handleEvidenceUpload,
   removeEvidence,
   backendUrl,
-}) => (
-  <div className="min-w-0 space-y-3 lg:border-l lg:border-stone-200 lg:pl-6" data-testid={`month-${monthKey}-evidence-cell`}>
-    <Label>Evidence <span className="text-xs font-normal text-stone-500">(optional)</span></Label>
-    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/40 p-3 transition-colors hover:bg-slate-50" data-testid={`month-${monthKey}-evidence-upload-zone`}>
+}) => {
+  const count = evidences.length;
+  return (
+    <div className="flex items-center justify-center" data-testid={`month-${monthKey}-evidence-cell`}>
       <input
         type="file"
         id={`evidence-${monthKey}`}
@@ -57,44 +60,106 @@ const MonthlyEvidenceCell = ({
         accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.gif,.webp"
         data-testid={`month-${monthKey}-evidence-input`}
       />
-      <label htmlFor={`evidence-${monthKey}`} className="flex cursor-pointer flex-col items-center gap-1.5 py-1 text-center" data-testid={`month-${monthKey}-evidence-upload-trigger`}>
-        <Upload className="h-6 w-6 text-stone-400" />
-        <span className="text-sm text-stone-600">Upload evidence</span>
-        <span className="text-xs text-stone-400">PDF, image, Excel, Word</span>
-      </label>
-    </div>
-    {evidences.length > 0 && (
-      <div className="space-y-2" data-testid={`month-${monthKey}-evidence-list`}>
-        {evidences.map((evidence, index) => {
-          const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
-          const fileId = fileIdMatch ? fileIdMatch[1] : null;
-          const viewUrl = fileId ? `${backendUrl}/api/files/${fileId}/view` : evidence.url;
-          const downloadUrl = fileId ? `${backendUrl}/api/files/${fileId}/download` : evidence.url;
-          return (
-            <div key={`${evidence.url || evidence.filename}-${index}`} className="flex min-w-0 items-center gap-2 rounded-md bg-green-50 p-2">
-              <FileText className="h-4 w-4 shrink-0 text-green-600" />
-              <span className="min-w-0 flex-1 truncate text-xs text-green-700" title={evidence.filename}>{evidence.filename}</span>
-              <div className="flex shrink-0 items-center gap-1">
-                <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="p-1 text-blue-600 hover:text-blue-800" title="View evidence" data-testid={`month-${monthKey}-evidence-view-${index}`}><Eye className="h-3.5 w-3.5" /></a>
-                {fileId && <button type="button" onClick={() => window.open(downloadUrl, '_blank')} className="p-1 text-green-700 hover:text-green-900" title="Download evidence" data-testid={`month-${monthKey}-evidence-download-${index}`}><Download className="h-3.5 w-3.5" /></button>}
-                <Button type="button" variant="ghost" size="sm" onClick={() => removeEvidence(monthKey, index)} className="h-6 p-1 text-red-500 hover:bg-red-50 hover:text-red-700" title="Remove evidence" data-testid={`month-${monthKey}-evidence-remove-${index}`}><X className="h-3.5 w-3.5" /></Button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-);
 
-const MonthlyLedger = ({ children }) => (
-  <div className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="monthly-emissions-ledger">
-    <div className="hidden grid-cols-[9rem_minmax(0,1fr)_18rem] gap-6 border-b border-stone-200 bg-stone-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-stone-500 lg:grid">
-      <span>Month</span>
-      <span>Quantity</span>
-      <span>Evidence</span>
+      {/* Upload trigger icon */}
+      <TooltipProvider delayDuration={100}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <label
+              htmlFor={`evidence-${monthKey}`}
+              className="relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-100 hover:text-emerald-600"
+              data-testid={`month-${monthKey}-evidence-upload-trigger`}
+            >
+              <Upload className="h-4 w-4" />
+              {count > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[10px] font-bold text-white">
+                  {count}
+                </span>
+              )}
+            </label>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="center" className="max-w-xs">
+            {count === 0 ? (
+              <span className="text-xs">Upload evidence (PDF, image, Excel, Word)</span>
+            ) : (
+              <div className="space-y-1.5 text-xs">
+                <span className="font-medium">{count} file{count > 1 ? 's' : ''} attached</span>
+                {evidences.map((evidence, index) => {
+                  const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
+                  const fileId = fileIdMatch ? fileIdMatch[1] : null;
+                  const viewUrl = fileId ? `${backendUrl}/api/files/${fileId}/view` : evidence.url;
+                  return (
+                    <div key={`${evidence.url || evidence.filename}-${index}`} className="flex items-center gap-1.5">
+                      <FileText className="h-3 w-3 shrink-0 text-green-600" />
+                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-blue-600 hover:underline" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>
+                        {evidence.filename}
+                      </a>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); removeEvidence(monthKey, index); }} className="shrink-0 text-red-400 hover:text-red-600" title="Remove" data-testid={`month-${monthKey}-evidence-remove-${index}`}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+                <span className="text-stone-400">Click icon to add more</span>
+              </div>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
-    <div>{children}</div>
+  );
+};
+
+/**
+ * Derive column definitions for the ledger header.
+ * Columns come from:
+ *   1. dynamicInputFields (required, non-override)
+ *   2. Process-emission template input_fields
+ *   3. Legacy fallback → single "Quantity" column
+ */
+const deriveLedgerColumns = (dynamicInputFields, formConfig, isProcessEmissions, selectedTemplate) => {
+  if (isProcessEmissions && selectedTemplate?.input_fields?.length > 0) {
+    return selectedTemplate.input_fields.map(f => ({
+      key: f.key,
+      label: f.label,
+      unit: null,
+      required: !f.is_optional,
+    }));
+  }
+  if (formConfig && dynamicInputFields.length > 0) {
+    return dynamicInputFields
+      .filter(f => f.required && !f.isOverride)
+      .map(f => ({
+        key: f.variable,
+        label: f.label,
+        unit: null,
+        required: true,
+      }));
+  }
+  // Legacy fallback
+  return [{ key: 'quantity', label: 'Quantity', unit: null, required: true }];
+};
+
+const MonthlyLedger = ({ columns, children }) => (
+  <div className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="monthly-emissions-ledger">
+    <table className="w-full text-sm">
+      <thead className="hidden border-b border-stone-200 bg-stone-50 lg:table-header-group">
+        <tr>
+          <th className="w-36 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Month</th>
+          {columns.map(col => (
+            <th key={col.key} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+              {col.label}
+              {col.unit && <span className="ml-1 font-normal normal-case text-stone-400">({col.unit})</span>}
+            </th>
+          ))}
+          <th className="w-14 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-500">
+            <span className="sr-only">Evidence</span>
+            <FileText className="mx-auto h-3.5 w-3.5 text-stone-400" />
+          </th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-stone-200">{children}</tbody>
+    </table>
   </div>
 );
 
@@ -102,6 +167,7 @@ const MonthlyLedger = ({ children }) => (
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
 import { isQuantityField } from '../../utils/unitHelpers';
 import { buildNativeOptionsHtml } from '../../utils/nativeSelectOptions';
+import { getFieldUnits } from '../DynamicFieldRenderer';
 
 // Import FlightDetailsSection for C6 air travel per-month airport selection
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
@@ -185,6 +251,7 @@ export const Step3YearMonthlyData = ({
   centralizedUnits,
   defaultUnit,
   allowedUnits,
+  requiresSubcategory,
   customEmissionFactorUnit,
   customFuelQtyUnit,
   calculationMethodology,
@@ -321,324 +388,354 @@ export const Step3YearMonthlyData = ({
             </div>
           )}
 
-          <MonthlyLedger>
-            {activeMonths.map(month => {
-              const monthKey = month.key;
-              const status = getMonthStatus(monthKey);
-              const data = monthlyData[monthKey] || {};
-              const isDisabled = isFutureMonth(monthKey, reportingYear, reportingYearType);
-              const displayYear = getActualYearForMonth(monthKey);
+          {(() => {
+            const ledgerColumns = deriveLedgerColumns(dynamicInputFields, formConfig, isProcessEmissions, selectedTemplate);
+            const totalCols = ledgerColumns.length + 2; // Month + fields + Evidence
 
-              return (
-                <div
-                  key={monthKey} 
-                  className={`border-b border-stone-200 px-5 py-5 last:border-b-0 ${isDisabled ? 'bg-stone-50/70 opacity-60' : ''}`}
-                  data-testid={`month-${monthKey}-ledger-row`}
-                >
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-[9rem_minmax(0,1fr)_18rem]">
-                    <div className="flex items-start gap-3 pt-1" data-testid={`month-${monthKey}-ledger-month`}>
-                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                        isDisabled ? 'bg-stone-200' : status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
-                      }`} />
-                      <div>
-                        <p className={`font-medium ${isDisabled ? 'text-stone-400' : 'text-stone-800'}`}>
-                          {month.name} {displayYear}
-                        </p>
-                        {isDisabled ? (
-                          <span className="text-xs text-stone-400">Future month</span>
-                        ) : status === 'filled' ? (
-                          <span className="flex items-center gap-1 text-xs text-green-700"><Check className="h-3.5 w-3.5" /> Complete</span>
-                        ) : (
-                          <span className="text-xs text-stone-400">Not entered</span>
-                        )}
-                      </div>
-                    </div>
-                    {!isDisabled ? (
-                      <>
-                        <div className="min-w-0 space-y-6" data-testid={`month-${monthKey}-ledger-quantity`}>
-                      {/* Flight Details — C6 Business Travel + air_travel only */}
-                      {scope3ActivityType === 'air_travel' && capabilities.flightDetails && (
-                        <FlightDetailsSection
-                          monthKey={monthKey}
-                          data={data}
-                          updateMonthData={updateMonthData}
-                          disabled={isDisabled}
-                        />
-                      )}
+            // Compact cell input renderer — no labels, just input + unit
+            const renderCellInput = (col, monthKey, data) => {
+              // Process emissions path
+              if (isProcessEmissions && selectedTemplate) {
+                const field = selectedTemplate.input_fields?.find(f => f.key === col.key);
+                if (!field) return null;
+                return (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type={field.data_type === 'number' ? 'number' : 'text'}
+                      step={field.data_type === 'number' ? 'any' : undefined}
+                      min="0"
+                      placeholder="—"
+                      value={data[field.key] || ''}
+                      onChange={(e) => updateMonthData(monthKey, field.key, e.target.value)}
+                      className="h-8 w-full text-sm"
+                      data-testid={`month-${monthKey}-${field.key}`}
+                    />
+                    <select
+                      value={data[`${field.key}_unit`] || field.unit || 'kg'}
+                      onChange={(e) => updateMonthData(monthKey, `${field.key}_unit`, e.target.value)}
+                      className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
+                      data-testid={`month-${monthKey}-${field.key}-unit`}
+                      dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
+                    />
+                  </div>
+                );
+              }
 
-                      {/* For Process Emissions: Show template required input field with fixed unit */}
-                      {isProcessEmissions && selectedTemplate ? (
-                        <div className="space-y-4">
-                          {selectedTemplate.input_fields?.map((field) => (
-                            <div key={field.key} className="space-y-2">
-                              <Label>{field.label} {!field.is_optional && '*'}</Label>
-                              <div className="flex overflow-hidden rounded-md border border-stone-200 bg-stone-50 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
-                                <Input
-                                  type={field.data_type === 'number' ? 'number' : 'text'}
-                                  step={field.data_type === 'number' ? 'any' : undefined}
-                                  min="0"
-                                  placeholder={`Enter ${field.label.toLowerCase()}`}
-                                  value={data[field.key] || ''}
-                                  onChange={(e) => updateMonthData(monthKey, field.key, e.target.value)}
-                                  className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-                                  data-testid={`month-${monthKey}-${field.key}`}
-                                />
-                                <select
-                                  value={data[`${field.key}_unit`] || field.unit || 'kg'}
-                                  onChange={(e) => updateMonthData(monthKey, `${field.key}_unit`, e.target.value)}
-                                  className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
-                                  data-testid={`month-${monthKey}-${field.key}-unit`}
-                                  dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : formConfig && dynamicInputFields.length > 0 ? (
-                        /* Dynamic Fields from ce_input_field_mappings */
-                        <div className="space-y-6">
-                          {/* Required Inputs Section */}
-                          {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
-                            <div className="space-y-6">
-                              {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                            </div>
-                          )}
-                          
-                          {/* Loading indicator */}
-                          {loadingFormConfig && (
-                            <div className="flex items-center gap-2 text-sm text-stone-500 p-3 bg-stone-100 rounded-lg">
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Loading form fields...
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        /* Fallback: Simple Quantity and Unit (legacy) */
-                        <div className={useCustomFuel ? "" : "max-w-xl"}>
-                          <div className="space-y-2">
-                            <Label>Quantity</Label>
-                            <div className="flex overflow-hidden rounded-md border border-stone-200 bg-stone-50 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
-                              <Input
-                                type="number"
-                                step="any"
-                                min="0"
-                                placeholder="Enter quantity"
-                                value={data.quantity || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val === '' || parseFloat(val) >= 0) updateMonthData(monthKey, 'quantity', val);
-                                }}
-                                onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                                className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-                              />
-                              {!useCustomFuel && <select
-                                value={data.unit || defaultUnit}
-                                onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
-                                className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
-                                dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(allowedUnits) }}
-                              />}
-                            </div>
-                          </div>
-                        </div>
-                      )}
+              // Dynamic fields path
+              if (formConfig && dynamicInputFields.length > 0) {
+                const field = dynamicInputFields.find(f => f.variable === col.key);
+                if (!field) return null;
 
-                      {/* Per-month custom fuel fields (EF, CV, carbon content etc.) */}
-                      {useCustomFuel && (
-                        <>
-                          <CustomFuelMonthFields
-                            monthKey={monthKey}
-                            data={data}
-                            updateMonthData={updateMonthData}
-                            calculationMethodology={calculationMethodology}
-                            fieldOptions={fieldOptions}
-                          />
-                        </>
-                      )}
-                        </div>
-                        <MonthlyEvidenceCell
-                          monthKey={monthKey}
-                          evidences={data.evidences}
-                          handleEvidenceUpload={handleEvidenceUpload}
-                          removeEvidence={removeEvidence}
-                          backendUrl={BACKEND_URL}
-                        />
-                      </>
-                    ) : (
-                      <div className="col-span-2 flex items-center text-sm text-stone-400" data-testid={`month-${monthKey}-future-notice`}>
-                        This period is not available yet.
-                      </div>
+                // Select field type
+                if (field.fieldType === 'select' && field.options?.length > 0) {
+                  return (
+                    <select
+                      value={data[field.variable] || ''}
+                      onChange={(e) => updateMonthData(monthKey, field.variable, e.target.value)}
+                      className="h-8 w-full rounded border border-stone-200 bg-transparent px-2 text-sm outline-none"
+                      data-testid={`select-${field.fieldKey}-${monthKey}`}
+                      dangerouslySetInnerHTML={{
+                        __html: buildNativeOptionsHtml(field.options, {
+                          placeholder: `Select`,
+                          getValue: (option) => option.value || option,
+                          getLabel: (option) => option.label || option,
+                        }),
+                      }}
+                    />
+                  );
+                }
+
+                const fieldUnits = getFieldUnits({
+                  field, scope, scope3Method, scope3ActivityId,
+                  requiresSubcategory, selectedFuel, filteredScope3Activities,
+                  centralizedUnits, biogenicScopeSelection, useCustomFuel,
+                });
+                const isNoUnitField = field.unitSource === 'none';
+                const isTextUnitField = field.unitSource === 'text';
+                const isSupplierBasis = scope3Method === 'supplier_basis';
+                const isQtyField = isQuantityField(field);
+                const hideUnit = useCustomFuel && isQtyField;
+                const showUnitDropdown = !hideUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
+                const showTextUnit = !hideUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
+
+                return (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type={field.fieldType === 'text' ? 'text' : 'number'}
+                      step={field.fieldType === 'number' ? 'any' : undefined}
+                      min={field.fieldType === 'number' ? '0' : undefined}
+                      placeholder="—"
+                      value={data[field.variable] || data[field.fieldKey] || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (field.validationRules?.max !== undefined && val !== '' && parseFloat(val) > field.validationRules.max) {
+                          toast.error(`${field.label} cannot exceed ${field.validationRules.max}`);
+                          return;
+                        }
+                        if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
+                          updateMonthData(monthKey, field.variable, val);
+                        }
+                      }}
+                      onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
+                      className="h-8 w-full text-sm"
+                      data-testid={`input-${field.fieldKey}-${monthKey}`}
+                    />
+                    {showUnitDropdown && (
+                      <select
+                        value={(() => {
+                          const stored = data[`${field.variable}_unit`] || data.unit || '';
+                          return fieldUnits.find(u => u.toLowerCase() === stored.toLowerCase()) || fieldUnits[0];
+                        })()}
+                        onChange={(e) => {
+                          updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
+                          if (isQtyField) updateMonthData(monthKey, 'unit', e.target.value);
+                        }}
+                        className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
+                        data-testid={`unit-${field.fieldKey}-${monthKey}`}
+                        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                      />
+                    )}
+                    {showTextUnit && (
+                      <Input
+                        type="text"
+                        placeholder="unit"
+                        value={data[`${field.variable}_unit`] || ''}
+                        onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
+                        className="h-8 w-16 shrink-0 text-xs"
+                        data-testid={`unit-text-${field.fieldKey}-${monthKey}`}
+                      />
                     )}
                   </div>
+                );
+              }
 
-                  {!isDisabled && formConfig && dynamicInputFields.length > 0 && (dynamicInputFields.some(field => field.isOverride || (!field.required && !field.isOverride))) && (
-                        <details className="group mt-5 border-t border-stone-200 pt-4" data-testid={`month-${monthKey}-additional-details`}>
-                          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-additional-details-trigger`}>
-                            <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
-                            Additional details
-                          </summary>
-                          <div className="space-y-8 pt-6" data-testid={`month-${monthKey}-additional-details-content`}>
-                            {dynamicInputFields.filter(field => field.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                            {dynamicInputFields.filter(field => !field.required && !field.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                          </div>
-                        </details>
-                      )}
+              // Legacy quantity path
+              return (
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="—"
+                    value={data.quantity || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || parseFloat(val) >= 0) updateMonthData(monthKey, 'quantity', val);
+                    }}
+                    onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+                    className="h-8 w-full text-sm"
+                    data-testid={`month-${monthKey}-quantity`}
+                  />
+                  {!useCustomFuel && (
+                    <select
+                      value={data.unit || defaultUnit}
+                      onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
+                      className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
+                      data-testid={`month-${monthKey}-unit`}
+                      dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(allowedUnits) }}
+                    />
+                  )}
+                </div>
+              );
+            };
 
-                      {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
-                      {!isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides && (
-                        <details className="group mt-5 border-t border-stone-200 pt-4" data-testid={`month-${monthKey}-fuel-additional-details`}>
-                          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-fuel-additional-details-trigger`}>
-                            <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
-                            Additional details
-                          </summary>
-                          <div className="mt-5 space-y-6 border-l-2 border-amber-200 pl-4" data-testid={`month-${monthKey}-fuel-additional-details-content`}>
-                          <div className="space-y-3">
-                          <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700">
-                            <input
-                              type="checkbox"
-                              id={`override-cv-${monthKey}`}
-                              checked={data.overrideCalorificValue || false}
-                              onChange={(e) => updateMonthData(monthKey, 'overrideCalorificValue', e.target.checked)}
-                              className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                              data-testid={`month-${monthKey}-override-calorific-value`}
-                            />
-                            <span>
-                              Calorific Value (if available) <span className="text-gray-500">({selectedFuel?.calorific_value_unit})</span>
-                            </span>
-                          </label>
+            return (
+              <MonthlyLedger columns={ledgerColumns}>
+                {activeMonths.map(month => {
+                  const monthKey = month.key;
+                  const status = getMonthStatus(monthKey);
+                  const data = monthlyData[monthKey] || {};
+                  const isDisabled = isFutureMonth(monthKey, reportingYear, reportingYearType);
+                  const displayYear = getActualYearForMonth(monthKey);
 
-                          {data.overrideCalorificValue && (
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                              <Input
-                                type="number"
-                                step="any"
-                                min="0"
-                                placeholder="Enter value"
-                                value={data.calorificValue || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val === '' || parseFloat(val) >= 0) {
-                                    updateMonthData(monthKey, 'calorificValue', val);
-                                  }
-                                }}
-                                onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                                className="bg-white"
-                                required
-                                data-testid={`month-${monthKey}-calorific-value-input`}
-                              />
-                              <Input
-                                placeholder="Justifications/Comments *"
-                                value={data.calorificValueJustification || ''}
-                                onChange={(e) => updateMonthData(monthKey, 'calorificValueJustification', e.target.value)}
-                                className="bg-white"
-                                required
-                                data-testid={`month-${monthKey}-calorific-value-justification-input`}
-                              />
+                  const hasFlightDetails = !isDisabled && scope3ActivityType === 'air_travel' && capabilities.flightDetails;
+                  const hasCustomFuel = !isDisabled && useCustomFuel;
+                  const hasDynamicAdditionalDetails = !isDisabled && formConfig && dynamicInputFields.length > 0 &&
+                    dynamicInputFields.some(f => f.isOverride || (!f.required && !f.isOverride));
+                  const hasLegacyOverrides = !isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') &&
+                    !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides;
+                  const hasScope2Override = !isDisabled && !formConfig && scope === 'scope2' && !useCustomFuel;
+                  const hasExpandableContent = hasFlightDetails || hasCustomFuel || hasDynamicAdditionalDetails || hasLegacyOverrides || hasScope2Override;
+
+                  return (
+                    <React.Fragment key={monthKey}>
+                      {/* ── Main data row ── */}
+                      <tr
+                        className={isDisabled ? 'bg-stone-50/70 opacity-60' : ''}
+                        data-testid={`month-${monthKey}-ledger-row`}
+                      >
+                        {/* Month cell */}
+                        <td className="whitespace-nowrap px-5 py-3 align-middle" data-testid={`month-${monthKey}-ledger-month`}>
+                          <div className="flex items-center gap-2.5">
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${
+                              isDisabled ? 'bg-stone-200' : status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
+                            }`} />
+                            <div>
+                              <p className={`text-sm font-medium ${isDisabled ? 'text-stone-400' : 'text-stone-800'}`}>
+                                {month.name} {displayYear}
+                              </p>
+                              {isDisabled ? (
+                                <span className="text-xs text-stone-400">Future</span>
+                              ) : status === 'filled' ? (
+                                <span className="flex items-center gap-1 text-xs text-green-700"><Check className="h-3 w-3" />Done</span>
+                              ) : null}
                             </div>
-                          )}
                           </div>
+                        </td>
 
-                          {/* Only show Density option if volume unit is selected */}
-                          {isVolumeUnit(data.unit || defaultUnit, centralizedUnits) && (
-                            <div className="space-y-3">
-                              <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700">
-                                <input
-                                  type="checkbox"
-                                  id={`override-density-${monthKey}`}
-                                  checked={data.overrideDensity || false}
-                                  onChange={(e) => updateMonthData(monthKey, 'overrideDensity', e.target.checked)}
-                                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                                  data-testid={`month-${monthKey}-override-density`}
+                        {!isDisabled ? (
+                          <>
+                            {/* One cell per required field */}
+                            {ledgerColumns.map(col => (
+                              <td key={col.key} className="px-3 py-3 align-middle" data-testid={`month-${monthKey}-field-${col.key}`}>
+                                {renderCellInput(col, monthKey, data)}
+                              </td>
+                            ))}
+
+                            {/* Evidence icon cell */}
+                            <td className="px-3 py-3 align-middle">
+                              <EvidenceIconCell
+                                monthKey={monthKey}
+                                evidences={data.evidences}
+                                handleEvidenceUpload={handleEvidenceUpload}
+                                removeEvidence={removeEvidence}
+                                backendUrl={BACKEND_URL}
+                              />
+                            </td>
+                          </>
+                        ) : (
+                          <td colSpan={ledgerColumns.length + 1} className="px-3 py-3 text-sm text-stone-400" data-testid={`month-${monthKey}-future-notice`}>
+                            This period is not available yet.
+                          </td>
+                        )}
+                      </tr>
+
+                      {/* ── Expandable content row (flight details, custom fuel, additional details, overrides) ── */}
+                      {hasExpandableContent && (
+                        <tr data-testid={`month-${monthKey}-extra-row`}>
+                          <td colSpan={totalCols} className="px-5 pb-4 pt-0">
+                            <div className="space-y-4">
+                              {/* Flight Details — C6 air_travel */}
+                              {hasFlightDetails && (
+                                <FlightDetailsSection
+                                  monthKey={monthKey}
+                                  data={data}
+                                  updateMonthData={updateMonthData}
+                                  disabled={isDisabled}
                                 />
-                                <span>
-                                  Density Value (if available) <span className="text-gray-500">({selectedFuel?.density_unit})</span>
-                                </span>
-                              </label>
+                              )}
 
-                              {data.overrideDensity && (
-                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                  <Input
-                                    type="number"
-                                    step="any"
-                                    min="0"
-                                    placeholder="Enter value"
-                                    value={data.density || ''}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      if (val === '' || parseFloat(val) >= 0) {
-                                        updateMonthData(monthKey, 'density', val);
-                                      }
-                                    }}
-                                    onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                                    className="bg-white"
-                                    required
-                                    data-testid={`month-${monthKey}-density-input`}
-                                  />
-                                  <Input
-                                    placeholder="Justifications/Comments *"
-                                    value={data.densityJustification || ''}
-                                    onChange={(e) => updateMonthData(monthKey, 'densityJustification', e.target.value)}
-                                    className="bg-white"
-                                    required
-                                    data-testid={`month-${monthKey}-density-justification-input`}
-                                  />
+                              {/* Custom fuel fields (EF, CV, carbon content) */}
+                              {hasCustomFuel && (
+                                <CustomFuelMonthFields
+                                  monthKey={monthKey}
+                                  data={data}
+                                  updateMonthData={updateMonthData}
+                                  calculationMethodology={calculationMethodology}
+                                  fieldOptions={fieldOptions}
+                                />
+                              )}
+
+                              {/* Dynamic additional details (overrides + optional fields) */}
+                              {hasDynamicAdditionalDetails && (
+                                <details className="group" data-testid={`month-${monthKey}-additional-details`}>
+                                  <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-additional-details-trigger`}>
+                                    <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
+                                    Additional details
+                                  </summary>
+                                  <div className="space-y-8 pt-4" data-testid={`month-${monthKey}-additional-details-content`}>
+                                    {dynamicInputFields.filter(field => field.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                                    {dynamicInputFields.filter(field => !field.required && !field.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                                  </div>
+                                </details>
+                              )}
+
+                              {/* Legacy Scope 1 / Biogenic overrides */}
+                              {hasLegacyOverrides && (
+                                <details className="group" data-testid={`month-${monthKey}-fuel-additional-details`}>
+                                  <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-fuel-additional-details-trigger`}>
+                                    <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
+                                    Additional details
+                                  </summary>
+                                  <div className="mt-3 space-y-6 border-l-2 border-amber-200 pl-4" data-testid={`month-${monthKey}-fuel-additional-details-content`}>
+                                    <div className="space-y-3">
+                                      <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700">
+                                        <input
+                                          type="checkbox"
+                                          id={`override-cv-${monthKey}`}
+                                          checked={data.overrideCalorificValue || false}
+                                          onChange={(e) => updateMonthData(monthKey, 'overrideCalorificValue', e.target.checked)}
+                                          className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                          data-testid={`month-${monthKey}-override-calorific-value`}
+                                        />
+                                        <span>Calorific Value (if available) <span className="text-gray-500">({selectedFuel?.calorific_value_unit})</span></span>
+                                      </label>
+                                      {data.overrideCalorificValue && (
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                          <Input type="number" step="any" min="0" placeholder="Enter value" value={data.calorificValue || ''} onChange={(e) => { const val = e.target.value; if (val === '' || parseFloat(val) >= 0) updateMonthData(monthKey, 'calorificValue', val); }} onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }} className="bg-white" required data-testid={`month-${monthKey}-calorific-value-input`} />
+                                          <Input placeholder="Justifications/Comments *" value={data.calorificValueJustification || ''} onChange={(e) => updateMonthData(monthKey, 'calorificValueJustification', e.target.value)} className="bg-white" required data-testid={`month-${monthKey}-calorific-value-justification-input`} />
+                                        </div>
+                                      )}
+                                    </div>
+                                    {isVolumeUnit(data.unit || defaultUnit, centralizedUnits) && (
+                                      <div className="space-y-3">
+                                        <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700">
+                                          <input
+                                            type="checkbox"
+                                            id={`override-density-${monthKey}`}
+                                            checked={data.overrideDensity || false}
+                                            onChange={(e) => updateMonthData(monthKey, 'overrideDensity', e.target.checked)}
+                                            className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                            data-testid={`month-${monthKey}-override-density`}
+                                          />
+                                          <span>Density Value (if available) <span className="text-gray-500">({selectedFuel?.density_unit})</span></span>
+                                        </label>
+                                        {data.overrideDensity && (
+                                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <Input type="number" step="any" min="0" placeholder="Enter value" value={data.density || ''} onChange={(e) => { const val = e.target.value; if (val === '' || parseFloat(val) >= 0) updateMonthData(monthKey, 'density', val); }} onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }} className="bg-white" required data-testid={`month-${monthKey}-density-input`} />
+                                            <Input placeholder="Justifications/Comments *" value={data.densityJustification || ''} onChange={(e) => updateMonthData(monthKey, 'densityJustification', e.target.value)} className="bg-white" required data-testid={`month-${monthKey}-density-justification-input`} />
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </details>
+                              )}
+
+                              {/* Scope 2 custom EF override */}
+                              {hasScope2Override && (
+                                <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                                  <div className="flex items-center gap-2">
+                                    <input type="checkbox" id={`custom-ef-${monthKey}`} checked={data.useCustomEmissionFactor || false} onChange={(e) => updateMonthData(monthKey, 'useCustomEmissionFactor', e.target.checked)} />
+                                    <label htmlFor={`custom-ef-${monthKey}`} className="text-sm font-medium text-blue-800">Use Custom Emission Factor</label>
+                                    <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-600">Unit: tCO₂/MWh</span>
+                                  </div>
+                                  {data.useCustomEmissionFactor && (
+                                    <div className="ml-6 space-y-2">
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                          <label className="text-xs text-blue-700">Custom EF (tCO₂/MWh)</label>
+                                          <Input type="number" step="any" placeholder="e.g., 0.5" value={data.customEmissionFactor || ''} onChange={(e) => updateMonthData(monthKey, 'customEmissionFactor', e.target.value)} className="bg-white" />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-xs text-blue-700">Justification/Comments <span className="text-red-500">*</span></label>
+                                          <Input placeholder="Justification/Comments" value={data.customEmissionFactorSource || ''} onChange={(e) => updateMonthData(monthKey, 'customEmissionFactorSource', e.target.value)} className="bg-white" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
-                          )}
-                          </div>
-                        </details>
+                          </td>
+                        </tr>
                       )}
-
-                      {/* Override Options - Scope 2 */}
-                      {!isDisabled && !formConfig && scope === 'scope2' && !useCustomFuel && (
-                        <div className="mt-5 space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              id={`custom-ef-${monthKey}`}
-                              checked={data.useCustomEmissionFactor || false}
-                              onChange={(e) => updateMonthData(monthKey, 'useCustomEmissionFactor', e.target.checked)}
-                            />
-                            <label htmlFor={`custom-ef-${monthKey}`} className="text-sm text-blue-800 font-medium">
-                              Use Custom Emission Factor
-                            </label>
-                            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded">
-                              Unit: tCO₂/MWh
-                            </span>
-                          </div>
-
-                          {data.useCustomEmissionFactor && (
-                            <div className="space-y-2 ml-6">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <label className="text-xs text-blue-700">Custom EF (tCO₂/MWh)</label>
-                                  <Input
-                                    type="number"
-                                    step="any"
-                                    placeholder="e.g., 0.5"
-                                    value={data.customEmissionFactor || ''}
-                                    onChange={(e) => updateMonthData(monthKey, 'customEmissionFactor', e.target.value)}
-                                    className="bg-white"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-xs text-blue-700">Justification/Comments <span className="text-red-500">*</span></label>
-                                  <Input
-                                    placeholder="Justification/Comments"
-                                    value={data.customEmissionFactorSource || ''}
-                                    onChange={(e) => updateMonthData(monthKey, 'customEmissionFactorSource', e.target.value)}
-                                    className="bg-white"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                </div>
-              );
-            })}
-          </MonthlyLedger>
+                    </React.Fragment>
+                  );
+                })}
+              </MonthlyLedger>
+            );
+          })()}
         </div>
       )}
 
