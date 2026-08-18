@@ -73,31 +73,11 @@ export const validateStep1 = ({
  * Validate Step 2 → Step 3 transition (Process & Responsibility)
  */
 export const validateStep2 = ({
-  isProcessEmissions,
-  processNames,
-  responsiblePerson,
   requiresAssetName,
   assetName,
 }) => {
-  // For process emissions, only validate responsible person
-  if (isProcessEmissions) {
-    if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
-    return { valid: true };
-  }
-
-  // Validate process names
-  const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
-  if (validProcesses.length === 0) return { valid: false, message: 'Please enter at least one process name' };
-
-  // Check if all processes with names have descriptions
-  const processesWithoutDescription = validProcesses.filter(p => !p.description || p.description.trim() === '');
-  if (processesWithoutDescription.length > 0) {
-    return { valid: false, message: `Please add description for process: "${processesWithoutDescription[0].name}"` };
-  }
-
-  if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
-
-  // Asset Name validation for C8/C13/C14/C15
+  // Process names, descriptions, and ownership are optional metadata in Create.
+  // Asset identity remains required where the selected category depends on it.
   if (requiresAssetName && !assetName?.trim()) {
     return { valid: false, message: 'Please enter asset name' };
   }

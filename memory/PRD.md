@@ -209,6 +209,14 @@ Reference documents:
 - Resolved the preview DOM nesting warning from dynamic option instrumentation and a dashboard chart key-prop spread warning. Authenticated browser smoke: clean relevant console output; **MOCKED APIs: NONE**.
 - Regression: frontend **1,223 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**. Report: `/app/memory/GHG_ADD_FORM_UX_CHANGE_REPORT.md`.
 
+## GHG Add Form — Monthly Refinements (2026-08-18) — COMPLETE
+
+- Monthly data now prioritizes required inputs; optional fields and default overrides are collapsed under **Additional details**. Calorific Value and Density override controls now sit beside their related entries.
+- Modernized the reporting note, evidence upload zone, numeric/unit field groups, and vertical rhythm. Removed Reporting Year Type from the Create UI while retaining its underlying reporting-period logic.
+- Process names/descriptions and Person Responsible are optional. Supplier/Customer reference is inside Optional Fields; redundant C7 employee name/ID fields were removed while the C7 multi-employee calculation flow stays intact.
+- Resolved Create-form console issues: safe escaped option output for dynamic selects, dynamic list keys, and dialog description. Authenticated Scope 1/3 browser flow is clean. **MOCKED APIs: NONE.**
+- Regression: frontend **1,223 passed / 63 snapshots**; backend golden **506 passed / 9 skipped**. Updated report: `/app/memory/GHG_ADD_FORM_UX_CHANGE_REPORT.md`.
+
 ## Phase 9 — GHG Code Cleanliness (2026-08-18) — COMPLETE
 
 - Completed the frozen Phase 9 audit without changing calculation behaviour, backend logic, schemas, configuration architecture, or database data.

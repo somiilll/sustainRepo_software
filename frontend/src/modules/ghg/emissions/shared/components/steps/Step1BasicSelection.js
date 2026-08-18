@@ -4,7 +4,7 @@
  * This is a large step component (~700 lines extracted from EmissionEntryForm.js)
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { Search, X } from 'lucide-react';
@@ -101,16 +101,6 @@ export const Step1BasicSelection = ({
   getAvailableEFUnits,
   getQuantityUnitFromEFUnit,
   
-  // Supplier/Employee props (optional info)
-  supplierName,
-  setSupplierName,
-  supplierCode,
-  setSupplierCode,
-  employeeName,
-  setEmployeeName,
-  employeeId,
-  setEmployeeId,
-  
   // KPI Access Control props
   kpiCanAccessScope = null,
   kpiAllowedScopes = null,
@@ -181,14 +171,65 @@ export const Step1BasicSelection = ({
     return `<option value="">Select Category</option>${options}`;
   }, [categoriesForScope]);
 
-  const processTypeOptions = useMemo(() => [
-    React.createElement('option', { key: 'placeholder', value: '' }, 'Select process type'),
-    ...STANDARD_PROCESS_TYPE_OPTIONS.map((option) => React.createElement(
-      'option',
-      { key: option.value, value: option.value },
-      option.label,
-    )),
-  ], []);
+  const scope3MethodOptionsHtml = useMemo(() => (
+    `<option value="">Select Method</option>${availableScope3Methods.map((method) => (
+      `<option value="${escapeOptionHtml(method)}">${escapeOptionHtml(getMethodLabel(method))}</option>`
+    )).join('')}`
+  ), [availableScope3Methods, getMethodLabel]);
+
+  const biogenicActivityOptionsHtml = useMemo(() => (
+    `<option value="">Select Biogenic Activity (${filteredScope3Activities.length} available)</option>${filteredScope3Activities.map((activity) => (
+      `<option value="${escapeOptionHtml(activity.id)}">${escapeOptionHtml(activity.activity)}</option>`
+    )).join('')}`
+  ), [filteredScope3Activities]);
+
+  const activityTypeOptionsHtml = useMemo(() => (
+    `<option value="">Select activity type...</option>${availableScope3ActivityTypes.map((type) => (
+      `<option value="${escapeOptionHtml(type)}">${escapeOptionHtml(getStandardActivityTypeLabel(type))}</option>`
+    )).join('')}`
+  ), [availableScope3ActivityTypes]);
+
+  const subcategoryOptionsHtml = useMemo(() => (
+    `<option value="">Select sub-category...</option>${availableSubcategories.map((subcategory) => (
+      `<option value="${escapeOptionHtml(subcategory.value)}">${escapeOptionHtml(subcategory.label)}</option>`
+    )).join('')}`
+  ), [availableSubcategories]);
+
+  const typeOfProductOptionsHtml = useMemo(() => (
+    `<option value="">Select type of product...</option>${STANDARD_TYPE_OF_PRODUCT_OPTIONS.map((option) => (
+      `<option value="${escapeOptionHtml(option.value)}">${escapeOptionHtml(option.label)}</option>`
+    )).join('')}`
+  ), []);
+
+  const activityOptionsHtml = useMemo(() => {
+    const isActivityTypeMissing = availableScope3ActivityTypes.length > 0 && !scope3ActivityType;
+    const isSubcategoryMissing = requiresSubcategory && !scope3Subcategory;
+    const isProductTypeMissing = ghgUiState.requiresTypeOfProduct && !typeOfProduct;
+    const placeholder = isActivityTypeMissing
+      ? 'Select activity type first'
+      : isSubcategoryMissing
+        ? 'Select sub-category first'
+        : isProductTypeMissing
+          ? 'Select type of product first'
+          : `Select Activity (${filteredScope3Activities.filter((activity) => !fuelSearchTerm || activity.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())).length} available)`;
+    const options = filteredScope3Activities
+      .filter((activity) => !fuelSearchTerm || activity.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase()))
+      .map((activity) => `<option value="${escapeOptionHtml(activity.id)}">${escapeOptionHtml(activity.activity)}</option>`)
+      .join('');
+    return `<option value="">${escapeOptionHtml(placeholder)}</option>${options}`;
+  }, [availableScope3ActivityTypes, scope3ActivityType, requiresSubcategory, scope3Subcategory, ghgUiState.requiresTypeOfProduct, typeOfProduct, filteredScope3Activities, fuelSearchTerm]);
+
+  const processTypeOptionsHtml = useMemo(() => (
+    `<option value="">Select process type</option>${STANDARD_PROCESS_TYPE_OPTIONS.map((option) => (
+      `<option value="${escapeOptionHtml(option.value)}">${escapeOptionHtml(option.label)}</option>`
+    )).join('')}`
+  ), []);
+
+  const fuelOptionsHtml = useMemo(() => (
+    `<option value="">Select Fuel Type (${filteredFuelsForCategory.length} available)</option>${filteredFuelsForCategory.map((fuel) => (
+      `<option value="${escapeOptionHtml(fuel.id)}">${escapeOptionHtml(fuel.fuel_name)}</option>`
+    )).join('')}`
+  ), [filteredFuelsForCategory]);
 
   return (
     <div className="space-y-4">
@@ -338,14 +379,8 @@ export const Step1BasicSelection = ({
             }}
             className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
             data-testid="biogenic-scope3-method-select"
-          >
-            <option value="">Select Method</option>
-            {availableScope3Methods.map(method => (
-              <option key={method} value={method}>
-                {getMethodLabel(method)}
-              </option>
-            ))}
-          </select>
+            dangerouslySetInnerHTML={{ __html: scope3MethodOptionsHtml }}
+          />
           {availableScope3Methods.length === 0 && (
             <p className="text-xs text-amber-600">No methods available for this category</p>
           )}
@@ -397,16 +432,8 @@ export const Step1BasicSelection = ({
               onChange={(e) => setScope3ActivityId(e.target.value)}
               className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
               data-testid="biogenic-scope3-activity-select"
-            >
-              <option value="">
-                Select Biogenic Activity ({filteredScope3Activities.length} available)
-              </option>
-              {filteredScope3Activities.map(ef => (
-                <option key={ef.id} value={ef.id}>
-                  {ef.activity}
-                </option>
-              ))}
-            </select>
+              dangerouslySetInnerHTML={{ __html: biogenicActivityOptionsHtml }}
+            />
           )}
           {filteredScope3Activities.length === 0 && !useCustomActivity && (
             <p className="text-xs text-amber-600">
@@ -433,14 +460,8 @@ export const Step1BasicSelection = ({
               }}
               className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
               data-testid="scope3-method-select"
-            >
-              <option value="">Select Method</option>
-              {availableScope3Methods.map(method => (
-                <option key={method} value={method}>
-                  {getMethodLabel(method)}
-                </option>
-              ))}
-            </select>
+              dangerouslySetInnerHTML={{ __html: scope3MethodOptionsHtml }}
+            />
             {availableScope3Methods.length === 0 && category && (
               <p className="text-xs text-amber-600">No methods available for this category in Scope 3 EF table</p>
             )}
@@ -458,17 +479,8 @@ export const Step1BasicSelection = ({
                 }}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                 data-testid="scope3-activity-type-filter"
-              >
-                <option value="">Select activity type...</option>
-                {availableScope3ActivityTypes.map(type => {
-                  const displayLabel = getStandardActivityTypeLabel(type);
-                  return (
-                    <option key={type} value={type}>
-                      {displayLabel}
-                    </option>
-                  );
-                })}
-              </select>
+                dangerouslySetInnerHTML={{ __html: activityTypeOptionsHtml }}
+              />
             </div>
           )}
 
@@ -487,14 +499,8 @@ export const Step1BasicSelection = ({
                 }}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                 data-testid="scope3-subcategory-select"
-              >
-                <option value="">Select sub-category...</option>
-                {availableSubcategories.map(sub => (
-                  <option key={sub.value} value={sub.value}>
-                    {sub.label}
-                  </option>
-                ))}
-              </select>
+                dangerouslySetInnerHTML={{ __html: subcategoryOptionsHtml }}
+              />
             </div>
           )}
 
@@ -514,12 +520,8 @@ export const Step1BasicSelection = ({
                   }}
                   className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                   data-testid="scope3-type-of-product-select"
-                >
-                  <option value="">Select type of product...</option>
-                  {STANDARD_TYPE_OF_PRODUCT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+                  dangerouslySetInnerHTML={{ __html: typeOfProductOptionsHtml }}
+                />
               </div>
             );
           })()}
@@ -600,26 +602,8 @@ export const Step1BasicSelection = ({
                     className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     data-testid="scope3-activity-select"
                     disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
-                  >
-                    <option value="">
-                      {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType)
-                        ? 'Select activity type first'
-                        : (requiresSubcategory && !scope3Subcategory)
-                        ? 'Select sub-category first'
-                        : (ghgUiState.requiresTypeOfProduct && !typeOfProduct)
-                        ? 'Select type of product first'
-                        : `Select Activity (${filteredScope3Activities.filter(a => 
-                            !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
-                          ).length} available)`}
-                    </option>
-                    {filteredScope3Activities
-                      .filter(a => !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase()))
-                      .map(ef => (
-                        <option key={ef.id} value={ef.id}>
-                          {ef.activity}
-                        </option>
-                      ))}
-                  </select>
+                    dangerouslySetInnerHTML={{ __html: activityOptionsHtml }}
+                  />
                   {loadingScope3EF && (
                     <p className="text-xs text-blue-600">Loading activities...</p>
                   )}
@@ -639,9 +623,8 @@ export const Step1BasicSelection = ({
             onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, process_type: event.target.value, calculation_methodology: '' }))}
             className="h-10 w-full border border-stone-200 bg-stone-50 px-3 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
             data-testid="process-type-select"
-          >
-            {processTypeOptions}
-          </select>
+            dangerouslySetInnerHTML={{ __html: processTypeOptionsHtml }}
+          />
         </div>
       )}
 
@@ -725,14 +708,8 @@ export const Step1BasicSelection = ({
                 }}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                 data-testid="emission-fuel-select"
-              >
-                <option value="">Select Fuel Type ({filteredFuelsForCategory.length} available)</option>
-                {filteredFuelsForCategory.map(fuel => (
-                  <option key={fuel.id} value={fuel.id}>
-                    {fuel.fuel_name}
-                  </option>
-                ))}
-              </select>
+                dangerouslySetInnerHTML={{ __html: fuelOptionsHtml }}
+              />
               {fuelSearchTerm && filteredFuelsForCategory.length === 0 && (
                 <p className="text-xs text-amber-600">No fuel types match &quot;{fuelSearchTerm}&quot;</p>
               )}
@@ -762,64 +739,6 @@ export const Step1BasicSelection = ({
               <p><strong>Selected:</strong> {selectedFuel.fuel_name}</p>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Scope 3 Supplier Information (optional) */}
-      {scope === 'scope3' && category && (
-        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h4 className="font-medium mb-3 text-blue-800">{capabilities.customerCounterparty ? 'Customer' : 'Supplier'} Information (Optional)</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>{capabilities.customerCounterparty ? 'Customer Name' : 'Supplier Name'}</Label>
-              <Input
-                value={supplierName}
-                onChange={(e) => setSupplierName(e.target.value)}
-                placeholder={capabilities.customerCounterparty ? 'Enter customer name...' : 'Enter supplier name...'}
-                className="bg-white"
-                data-testid="supplier-name-input"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{capabilities.customerCounterparty ? 'Customer Code' : 'Supplier Code'}</Label>
-              <Input
-                value={supplierCode}
-                onChange={(e) => setSupplierCode(e.target.value)}
-                placeholder={capabilities.customerCounterparty ? 'Enter customer code...' : 'Enter supplier code...'}
-                className="bg-white"
-                data-testid="supplier-code-input"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Employee Commuting specific fields (optional) */}
-      {ghgUiState.showEmployeeFields && (
-        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-          <h4 className="font-medium mb-3 text-purple-800">Employee Information (Optional)</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Employee Name</Label>
-              <Input
-                value={employeeName}
-                onChange={(e) => setEmployeeName(e.target.value)}
-                placeholder="Enter employee name..."
-                className="bg-white"
-                data-testid="employee-name-input"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Employee ID</Label>
-              <Input
-                value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-                placeholder="Enter employee ID..."
-                className="bg-white"
-                data-testid="employee-id-input"
-              />
-            </div>
-          </div>
         </div>
       )}
 

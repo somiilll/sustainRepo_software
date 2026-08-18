@@ -125,30 +125,21 @@ const step2 = (overrides = {}) =>
     ...overrides,
   });
 
-describe('validateStep2 — process & responsibility gate', () => {
+describe('validateStep2 — optional process metadata gate', () => {
   it('accepts a complete step 2', () => {
     expect(step2()).toEqual({ valid: true });
   });
 
-  it('only checks the responsible person for process emissions', () => {
-    expect(step2({ isProcessEmissions: true, processNames: [] })).toEqual({ valid: true });
-    expect(
-      step2({ isProcessEmissions: true, processNames: [], responsiblePerson: ' ' }),
-    ).toEqual({ valid: false, message: 'Please enter person responsible' });
+  it('accepts blank process and responsible-person metadata for process emissions', () => {
+    expect(step2({ isProcessEmissions: true, processNames: [], responsiblePerson: ' ' })).toEqual({ valid: true });
   });
 
-  it('requires at least one named process', () => {
-    expect(step2({ processNames: [{ name: '  ', description: 'x' }] })).toEqual({
-      valid: false,
-      message: 'Please enter at least one process name',
-    });
+  it('accepts blank process and responsible-person metadata for regular emissions', () => {
+    expect(step2({ processNames: [], responsiblePerson: '' })).toEqual({ valid: true });
   });
 
-  it('names the process that is missing a description', () => {
-    expect(step2({ processNames: [{ name: 'Kiln', description: '' }] })).toEqual({
-      valid: false,
-      message: 'Please add description for process: "Kiln"',
-    });
+  it('accepts omitted names, descriptions, and responsible-person metadata', () => {
+    expect(step2({ processNames: [{ name: 'Kiln', description: '' }], responsiblePerson: '' })).toEqual({ valid: true });
   });
 
   it('requires an asset name for asset-capable categories', () => {
@@ -347,7 +338,7 @@ describe('canProceedToStep — dispatcher', () => {
         processNames: [],
         responsiblePerson: '',
       }),
-    ).toEqual({ valid: false, message: 'Please enter person responsible' });
+    ).toEqual({ valid: true });
     expect(canProceedToStep(1, {})).toEqual({ valid: true });
     expect(canProceedToStep(99, {})).toEqual({ valid: true });
   });

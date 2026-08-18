@@ -38,6 +38,7 @@ const FIELD_HELP = {
 // Import volume unit helper
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
 import { isQuantityField } from '../../utils/unitHelpers';
+import { buildNativeOptionsHtml } from '../../utils/nativeSelectOptions';
 
 // Import FlightDetailsSection for C6 air travel per-month airport selection
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
@@ -60,8 +61,6 @@ export const Step3YearMonthlyData = ({
   showReportingControls = true,
   // Reporting period props
   reportingYearType,
-  setReportingYearType,
-  hasOrgYearTypePreference,
   reportingYear,
   setReportingYear,
   frequencyType,
@@ -136,10 +135,10 @@ export const Step3YearMonthlyData = ({
   BACKEND_URL,
 }) => {
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {/* Note about yearly aggregation */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
-        <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+      <div className="flex items-start gap-3 border-l-4 border-blue-500 bg-blue-50 p-4 text-blue-800" data-testid="emission-reporting-note">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
         <p className="text-sm text-blue-800">
           <strong>Note:</strong> Each emission entry record is for <strong>1 year only</strong>. 
           Monthly data entered below will be aggregated for the selected reporting year.
@@ -149,8 +148,6 @@ export const Step3YearMonthlyData = ({
       {showReportingControls && (
         <ReportingPeriodControls
           reportingYearType={reportingYearType}
-          setReportingYearType={setReportingYearType}
-          hasOrgYearTypePreference={hasOrgYearTypePreference}
           reportingYear={reportingYear}
           setReportingYear={setReportingYear}
           frequencyType={frequencyType}
@@ -249,7 +246,7 @@ export const Step3YearMonthlyData = ({
 
       {/* Monthly Data Entry - Hidden when C7 Employee Commuting */}
       {!isC7EmployeeCommuting && frequencyType === 'monthly' && (
-        <div className="space-y-2">
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold">
               Monthly Data for {reportingYearType === 'financial' 
@@ -309,7 +306,7 @@ export const Step3YearMonthlyData = ({
                   </AccordionTrigger>
                   {!isDisabled && (
                   <AccordionContent className="px-4 pb-4">
-                    <div className="space-y-4">
+                    <div className="space-y-8">
                       {/* Flight Details — C6 Business Travel + air_travel only */}
                       {scope3ActivityType === 'air_travel' && capabilities.flightDetails && (
                         <FlightDetailsSection
@@ -345,11 +342,8 @@ export const Step3YearMonthlyData = ({
                                   onChange={(e) => updateMonthData(monthKey, `${field.key}_unit`, e.target.value)}
                                   className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                                   data-testid={`month-${monthKey}-${field.key}-unit`}
-                                >
-                                  {['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3'].map(u => (
-                                    <option key={u} value={u}>{u}</option>
-                                  ))}
-                                </select>
+                                  dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
+                                />
                               </div>
                             </div>
                           ))}
@@ -364,18 +358,17 @@ export const Step3YearMonthlyData = ({
                             </div>
                           )}
                           
-                          {/* Override Properties Section */}
-                          {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
-                            <div className="space-y-6">
-                              {dynamicInputFields.filter(f => f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                            </div>
-                          )}
-                          
-                          {/* Optional Inputs Section */}
-                          {dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0 && (
-                            <div className="space-y-6">
-                              {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                            </div>
+                          {(dynamicInputFields.filter(f => f.isOverride).length > 0 || dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0) && (
+                            <details className="group border-t border-stone-200 pt-5" data-testid={`month-${monthKey}-additional-details`}>
+                              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-additional-details-trigger`}>
+                                <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
+                                Additional details
+                              </summary>
+                              <div className="space-y-8 pt-6" data-testid={`month-${monthKey}-additional-details-content`}>
+                                {dynamicInputFields.filter(f => f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                                {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                              </div>
+                            </details>
                           )}
                           
                           {/* Loading indicator */}
@@ -414,11 +407,8 @@ export const Step3YearMonthlyData = ({
                               value={data.unit || defaultUnit}
                               onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
                               className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                            >
-                              {allowedUnits.map(unit => (
-                                <option key={unit} value={unit}>{unit}</option>
-                              ))}
-                            </select>
+                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(allowedUnits) }}
+                            />
                           </div>
                           )}
                         </div>
@@ -438,9 +428,9 @@ export const Step3YearMonthlyData = ({
                       )}
 
                       {/* Evidence Upload */}
-                      <div className="space-y-2">
-                        <Label>Evidence(s)</Label>
-                        <div className="border-2 border-dashed border-stone-200 rounded-lg p-4">
+                      <div className="space-y-3">
+                        <Label>Evidence(s) <span className="text-xs font-normal text-stone-500">(optional)</span></Label>
+                        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/40 p-4 transition-colors hover:bg-slate-50" data-testid={`month-${monthKey}-evidence-upload-zone`}>
                           <input
                             type="file"
                             id={`evidence-${monthKey}`}
@@ -454,10 +444,12 @@ export const Step3YearMonthlyData = ({
                               e.target.value = '';
                             }}
                             accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.gif,.webp"
+                            data-testid={`month-${monthKey}-evidence-input`}
                           />
                           <label
                             htmlFor={`evidence-${monthKey}`}
-                            className="flex flex-col items-center gap-2 cursor-pointer"
+                            className="flex cursor-pointer flex-col items-center gap-2"
+                            data-testid={`month-${monthKey}-evidence-upload-trigger`}
                           >
                             <Upload className="w-8 h-8 text-stone-400" />
                             <span className="text-sm text-stone-500">Click to upload evidence</span>
@@ -525,21 +517,29 @@ export const Step3YearMonthlyData = ({
 
                       {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
                       {!formConfig && (scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides && (
-                        <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                          <div className="flex items-center gap-2">
+                        <details className="group border-t border-stone-200 pt-5" data-testid={`month-${monthKey}-fuel-additional-details`}>
+                          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-stone-700 transition-colors hover:text-emerald-700" data-testid={`month-${monthKey}-fuel-additional-details-trigger`}>
+                            <span className="transition-transform duration-200 group-open:rotate-90">▸</span>
+                            Additional details
+                          </summary>
+                          <div className="mt-5 space-y-6 border-l-2 border-amber-200 pl-4" data-testid={`month-${monthKey}-fuel-additional-details-content`}>
+                          <div className="space-y-3">
+                          <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700">
                             <input
                               type="checkbox"
                               id={`override-cv-${monthKey}`}
                               checked={data.overrideCalorificValue || false}
                               onChange={(e) => updateMonthData(monthKey, 'overrideCalorificValue', e.target.checked)}
+                              className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                              data-testid={`month-${monthKey}-override-calorific-value`}
                             />
-                            <label htmlFor={`override-cv-${monthKey}`} className="text-sm">
+                            <span>
                               Calorific Value (if available) <span className="text-gray-500">({selectedFuel?.calorific_value_unit})</span>
-                            </label>
-                          </div>
+                            </span>
+                          </label>
 
                           {data.overrideCalorificValue && (
-                            <div className="grid grid-cols-2 gap-2 ml-6">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                               <Input
                                 type="number"
                                 step="any"
@@ -555,6 +555,7 @@ export const Step3YearMonthlyData = ({
                                 onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                 className="bg-white"
                                 required
+                                data-testid={`month-${monthKey}-calorific-value-input`}
                               />
                               <Input
                                 placeholder="Justifications/Comments *"
@@ -562,27 +563,31 @@ export const Step3YearMonthlyData = ({
                                 onChange={(e) => updateMonthData(monthKey, 'calorificValueJustification', e.target.value)}
                                 className="bg-white"
                                 required
+                                data-testid={`month-${monthKey}-calorific-value-justification-input`}
                               />
                             </div>
                           )}
+                          </div>
 
                           {/* Only show Density option if volume unit is selected */}
                           {isVolumeUnit(data.unit || defaultUnit, centralizedUnits) && (
-                            <>
-                              <div className="flex items-center gap-2">
+                            <div className="space-y-3">
+                              <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700">
                                 <input
                                   type="checkbox"
                                   id={`override-density-${monthKey}`}
                                   checked={data.overrideDensity || false}
                                   onChange={(e) => updateMonthData(monthKey, 'overrideDensity', e.target.checked)}
+                                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                  data-testid={`month-${monthKey}-override-density`}
                                 />
-                                <label htmlFor={`override-density-${monthKey}`} className="text-sm">
+                                <span>
                                   Density Value (if available) <span className="text-gray-500">({selectedFuel?.density_unit})</span>
-                                </label>
-                              </div>
+                                </span>
+                              </label>
 
                               {data.overrideDensity && (
-                                <div className="grid grid-cols-2 gap-2 ml-6">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                   <Input
                                     type="number"
                                     step="any"
@@ -598,6 +603,7 @@ export const Step3YearMonthlyData = ({
                                     onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                     className="bg-white"
                                     required
+                                    data-testid={`month-${monthKey}-density-input`}
                                   />
                                   <Input
                                     placeholder="Justifications/Comments *"
@@ -605,12 +611,14 @@ export const Step3YearMonthlyData = ({
                                     onChange={(e) => updateMonthData(monthKey, 'densityJustification', e.target.value)}
                                     className="bg-white"
                                     required
+                                    data-testid={`month-${monthKey}-density-justification-input`}
                                   />
                                 </div>
                               )}
-                            </>
+                            </div>
                           )}
-                        </div>
+                          </div>
+                        </details>
                       )}
 
                       {/* Override Options - Scope 2 */}
@@ -768,11 +776,8 @@ const YearlyDataEntry = ({
                     onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.key}_unit`]: e.target.value }))}
                     className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
                     data-testid={`yearly-${field.key}-unit`}
-                  >
-                    {['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3'].map(u => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
+                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
+                  />
                 </div>
               </div>
             ))}
@@ -822,12 +827,14 @@ const YearlyDataEntry = ({
                           value={yearlyData[field.variable] || ''}
                           onChange={(e) => setYearlyData(prev => ({ ...prev, [field.variable]: e.target.value }))}
                           className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                        >
-                          <option value="">Select {field.label}</option>
-                          {field.options.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </select>
+                          dangerouslySetInnerHTML={{
+                            __html: buildNativeOptionsHtml(field.options, {
+                              placeholder: `Select ${field.label}`,
+                              getValue: (option) => option.value || option,
+                              getLabel: (option) => option.label || option,
+                            }),
+                          }}
+                        />
                       ) : (
                         <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-3 gap-2" : ""}>
                           <Input
@@ -856,11 +863,8 @@ const YearlyDataEntry = ({
                               value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                               className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                            >
-                              {fieldUnits.map(u => (
-                                <option key={u} value={u}>{u}</option>
-                              ))}
-                            </select>
+                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                            />
                           )}
                           {showUnitTextInput && (
                             <Input
@@ -968,11 +972,8 @@ const YearlyDataEntry = ({
                             onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                             disabled={!isOverrideEnabled}
                             className={`w-full h-10 bg-white border border-stone-200 rounded-lg px-3 ${!isOverrideEnabled ? "opacity-50" : ""}`}
-                          >
-                            {fieldUnits.map(u => (
-                              <option key={u} value={u}>{u}</option>
-                            ))}
-                          </select>
+                            dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                          />
                         )}
                         {showUnitTextInput && (
                           <Input
@@ -1074,11 +1075,8 @@ const YearlyDataEntry = ({
                               disabled={!isOverrideEnabled}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                               className={`w-full h-10 bg-white border border-stone-200 rounded-lg px-3 ${!isOverrideEnabled ? 'opacity-50' : ''}`}
-                            >
-                              {fieldUnits.map(u => (
-                                <option key={u} value={u}>{u}</option>
-                              ))}
-                            </select>
+                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                            />
                           ) : (
                             <div className={`flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 ${!isOverrideEnabled ? 'opacity-50' : ''}`}>
                               <span>{field.expectedUnit}</span>
@@ -1122,11 +1120,13 @@ const YearlyDataEntry = ({
                   onChange={(e) => setYearlyData(prev => ({ ...prev, unit: e.target.value }))}
                   className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
                   data-testid="yearly-unit"
-                >
-                  {centralizedUnits.map(u => (
-                    <option key={u.id || u.symbol} value={u.symbol}>{u.symbol} ({u.name})</option>
-                  ))}
-                </select>
+                  dangerouslySetInnerHTML={{
+                    __html: buildNativeOptionsHtml(centralizedUnits, {
+                      getValue: (unit) => unit.symbol,
+                      getLabel: (unit) => `${unit.symbol} (${unit.name})`,
+                    }),
+                  }}
+                />
               </div>
               )}
             </div>

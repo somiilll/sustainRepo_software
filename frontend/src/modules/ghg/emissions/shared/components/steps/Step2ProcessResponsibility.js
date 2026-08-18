@@ -65,16 +65,23 @@ export const Step2ProcessResponsibility = ({
   // auto-derived `source_of_information`; tracked in version history)
   recordSource = '',
   setRecordSource = () => {},
+  scope,
+  category,
+  capabilities = {},
+  supplierName = '',
+  setSupplierName = () => {},
+  supplierCode = '',
+  setSupplierCode = () => {},
 }) => {
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {/* For Process Emissions: Show Person Responsible and Override Default Values */}
       {isProcessEmissions && selectedTemplate ? (
         <>
           {/* Person Responsible */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Label>Person Responsible <span className="text-red-500">*</span></Label>
+              <Label>Person Responsible</Label>
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -175,7 +182,7 @@ export const Step2ProcessResponsibility = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Label>Name of Process(es) <span className="text-red-500">*</span></Label>
+                <Label>Name of Process(es)</Label>
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -194,6 +201,7 @@ export const Step2ProcessResponsibility = ({
                 variant="outline"
                 size="sm"
                 onClick={addProcessName}
+                data-testid="add-process-button"
               >
                 <Plus className="w-4 h-4 mr-1" /> Add Process
               </Button>
@@ -207,21 +215,17 @@ export const Step2ProcessResponsibility = ({
                       onChange={(e) => updateProcessName(idx, 'name', e.target.value)}
                       placeholder={`Process Name ${idx + 1}`}
                       className="bg-white"
+                      data-testid={`process-name-input-${idx}`}
                     />
                     <div className="space-y-1">
-                      <label className="text-xs text-stone-500">
-                        Description {process.name && process.name.trim() && <span className="text-red-500">*</span>}
-                      </label>
+                      <label className="text-xs text-stone-500">Description</label>
                       <textarea
                         value={process.description}
                         onChange={(e) => updateProcessName(idx, 'description', e.target.value)}
-                        placeholder="Process Description (required if name is provided)"
-                        className={`w-full px-3 py-2 text-sm bg-white border rounded-lg resize-none ${
-                          process.name && process.name.trim() && (!process.description || !process.description.trim())
-                            ? 'border-red-300 focus:border-red-500'
-                            : 'border-stone-200'
-                        }`}
+                        placeholder="Add an optional description"
+                        className="w-full resize-none border border-stone-200 bg-white px-3 py-2 text-sm"
                         rows={2}
+                        data-testid={`process-description-input-${idx}`}
                       />
                     </div>
                   </div>
@@ -232,6 +236,7 @@ export const Step2ProcessResponsibility = ({
                       size="icon"
                       onClick={() => removeProcessName(idx)}
                       className="text-red-500 mt-1"
+                      data-testid={`remove-process-button-${idx}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -244,7 +249,7 @@ export const Step2ProcessResponsibility = ({
           {/* Person Responsible for Regular Emissions */}
           <div className="space-y-2 my-6">
             <div className="flex items-center gap-2">
-              <Label>Person Responsible <span className="text-red-500">*</span></Label>
+              <Label>Person Responsible</Label>
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -263,6 +268,7 @@ export const Step2ProcessResponsibility = ({
               onChange={(e) => setResponsiblePerson(e.target.value)}
               placeholder="Enter name of responsible person"
               className="bg-stone-50"
+              data-testid="responsible-person-input"
             />
           </div>
           
@@ -342,6 +348,37 @@ export const Step2ProcessResponsibility = ({
             </div>
           )}
         </>
+      )}
+
+      {scope === 'scope3' && category && (
+        <div className="space-y-4 border-t border-stone-100 pt-6" data-testid="supplier-information-section">
+          <div>
+            <h4 className="font-medium text-stone-900">{capabilities.customerCounterparty ? 'Customer' : 'Supplier'} information</h4>
+            <p className="mt-1 text-sm text-stone-500">Optional counterparty reference for this emission record.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>{capabilities.customerCounterparty ? 'Customer Name' : 'Supplier Name'}</Label>
+              <Input
+                value={supplierName}
+                onChange={(event) => setSupplierName(event.target.value)}
+                placeholder={capabilities.customerCounterparty ? 'Enter customer name' : 'Enter supplier name'}
+                className="bg-stone-50"
+                data-testid="supplier-name-input"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{capabilities.customerCounterparty ? 'Customer Code' : 'Supplier Code'}</Label>
+              <Input
+                value={supplierCode}
+                onChange={(event) => setSupplierCode(event.target.value)}
+                placeholder={capabilities.customerCounterparty ? 'Enter customer code' : 'Enter supplier code'}
+                className="bg-stone-50"
+                data-testid="supplier-code-input"
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Record Source (Optional) — common to all scopes / categories.

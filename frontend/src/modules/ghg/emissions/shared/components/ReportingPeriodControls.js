@@ -1,10 +1,8 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Label } from '../../../../../components/ui/label';
 
 export const ReportingPeriodControls = ({
   reportingYearType,
-  setReportingYearType,
-  hasOrgYearTypePreference,
   reportingYear,
   setReportingYear,
   frequencyType,
@@ -21,31 +19,7 @@ export const ReportingPeriodControls = ({
   }).join(''), [reportingYearType]);
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="emission-reporting-period-controls">
-    <div className="space-y-2">
-      <Label htmlFor="reporting-year-type-select">Reporting Year Type <span className="text-red-500">*</span></Label>
-      {!hasOrgYearTypePreference ? (
-        <select
-          id="reporting-year-type-select"
-          value={reportingYearType}
-          onChange={(event) => {
-            setReportingYearType(event.target.value);
-            setMonthlyData({});
-          }}
-          className="h-10 w-full border border-stone-200 bg-stone-50 px-3 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-          data-testid="reporting-year-type-select"
-        >
-          <option value="calendar">Calendar Year (Jan–Dec)</option>
-          <option value="financial">Financial Year (Apr–Mar)</option>
-        </select>
-      ) : (
-        <div className="flex h-10 items-center border border-stone-200 bg-stone-50 px-3 text-sm" data-testid="reporting-year-type-locked">
-          {reportingYearType === 'financial' ? 'Financial Year' : 'Calendar Year'}
-          <span className="ml-2 text-xs text-stone-500">From organization settings</span>
-        </div>
-      )}
-    </div>
-
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2" data-testid="emission-reporting-period-controls">
     <div className="space-y-2">
       <Label htmlFor="reporting-year-select">{reportingYearType === 'financial' ? 'Financial Year' : 'Reporting Year'} <span className="text-red-500">*</span></Label>
       <select

@@ -10,8 +10,51 @@ import {
   GHG_FIELD_OPTION_KEYS,
   resolveStandardGhgFieldOptions,
 } from '../../../config/standardGhgFormConfig';
+import { buildNativeOptionsHtml } from '../utils/nativeSelectOptions';
 
 const DEFAULT_FIELD_OPTIONS = resolveStandardGhgFieldOptions();
+
+const MeasurementInput = ({
+  label,
+  value,
+  onChange,
+  placeholder,
+  unitLabel,
+  unitValue,
+  onUnitChange,
+  unitOptions = [],
+  inputTestId,
+  unitTestId,
+}) => (
+  <div className="space-y-1">
+    <Label className="text-xs">{label} <span className="text-red-500">*</span></Label>
+    <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+      <Input
+        type="number"
+        step="any"
+        min="0"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="h-9 flex-1 rounded-none border-0 bg-transparent text-sm shadow-none focus-visible:ring-0"
+        data-testid={inputTestId}
+      />
+      {unitOptions.length > 0 ? (
+        <select
+          value={unitValue}
+          onChange={onUnitChange}
+          className="h-9 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-2 text-sm outline-none"
+          data-testid={unitTestId}
+          dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(unitOptions) }}
+        />
+      ) : (
+        <div className="flex h-9 min-w-20 items-center border-l border-l-stone-200 bg-stone-50 px-2 text-sm text-stone-600" data-testid={unitTestId}>
+          {unitLabel}
+        </div>
+      )}
+    </div>
+  </div>
+);
 
 /**
  * Per-month custom fuel fields rendered inside Step 3's month accordion.
@@ -48,9 +91,8 @@ const CustomFuelMonthFields = ({
         onChange={(e) => updateMonthData(monthKey, 'custom_qty_unit', e.target.value)}
         className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
         data-testid={`month-${monthKey}-custom-qty-unit`}
-      >
-        {quantityUnits.map(u => <option key={u} value={u}>{u}</option>)}
-      </select>
+        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(quantityUnits) }}
+      />
     </div>
   );
 
@@ -58,24 +100,15 @@ const CustomFuelMonthFields = ({
   const renderDensity = (needed, unitLabel) => {
     if (!needed) return null;
     return (
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Density <span className="text-red-500">*</span></Label>
-          <Input
-            type="number" step="any" min="0"
-            value={data.density || ''}
-            onChange={(e) => updateMonthData(monthKey, 'density', e.target.value)}
-            placeholder="e.g. 0.84" className="bg-white h-9 text-sm"
-            data-testid={`month-${monthKey}-density`}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Density Unit</Label>
-          <div className="flex items-center h-9 bg-stone-100 border border-stone-200 rounded-lg px-2 text-sm text-stone-600">
-            {unitLabel}
-          </div>
-        </div>
-      </div>
+      <MeasurementInput
+        label="Density"
+        value={data.density || ''}
+        onChange={(event) => updateMonthData(monthKey, 'density', event.target.value)}
+        placeholder="e.g. 0.84"
+        unitLabel={unitLabel}
+        inputTestId={`month-${monthKey}-density`}
+        unitTestId={`month-${monthKey}-density-unit`}
+      />
     );
   };
 
@@ -86,51 +119,29 @@ const CustomFuelMonthFields = ({
     return (
       <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
         <p className="text-xs text-amber-700 font-medium">Custom Fuel — Heat Basis (NCV)</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Emission Factor <span className="text-red-500">*</span></Label>
-            <Input
-              type="number" step="any" min="0"
-              value={data.custom_ef || ''}
-              onChange={(e) => updateMonthData(monthKey, 'custom_ef', e.target.value)}
-              placeholder="e.g. 0.074" className="bg-white h-9 text-sm"
-              data-testid={`month-${monthKey}-custom-ef`}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">EF Unit <span className="text-red-500">*</span></Label>
-            <select
-              value={data.custom_ef_unit || 'tCO2/TJ'}
-              onChange={(e) => updateMonthData(monthKey, 'custom_ef_unit', e.target.value)}
-              className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
-              data-testid={`month-${monthKey}-custom-ef-unit`}
-            >
-              {heatEfUnits.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Calorific Value <span className="text-red-500">*</span></Label>
-            <Input
-              type="number" step="any" min="0"
-              value={data.custom_cv || ''}
-              onChange={(e) => updateMonthData(monthKey, 'custom_cv', e.target.value)}
-              placeholder="e.g. 0.0431" className="bg-white h-9 text-sm"
-              data-testid={`month-${monthKey}-custom-cv`}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">CV Unit <span className="text-red-500">*</span></Label>
-            <select
-              value={data.custom_cv_unit || 'TJ/kg'}
-              onChange={(e) => updateMonthData(monthKey, 'custom_cv_unit', e.target.value)}
-              className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
-              data-testid={`month-${monthKey}-custom-cv-unit`}
-            >
-              {heatCvUnits.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-            </select>
-          </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <MeasurementInput
+            label="Emission Factor"
+            value={data.custom_ef || ''}
+            onChange={(event) => updateMonthData(monthKey, 'custom_ef', event.target.value)}
+            placeholder="e.g. 0.074"
+            unitValue={data.custom_ef_unit || 'tCO2/TJ'}
+            onUnitChange={(event) => updateMonthData(monthKey, 'custom_ef_unit', event.target.value)}
+            unitOptions={heatEfUnits}
+            inputTestId={`month-${monthKey}-custom-ef`}
+            unitTestId={`month-${monthKey}-custom-ef-unit`}
+          />
+          <MeasurementInput
+            label="Calorific Value"
+            value={data.custom_cv || ''}
+            onChange={(event) => updateMonthData(monthKey, 'custom_cv', event.target.value)}
+            placeholder="e.g. 0.0431"
+            unitValue={data.custom_cv_unit || 'TJ/kg'}
+            onUnitChange={(event) => updateMonthData(monthKey, 'custom_cv_unit', event.target.value)}
+            unitOptions={heatCvUnits}
+            inputTestId={`month-${monthKey}-custom-cv`}
+            unitTestId={`month-${monthKey}-custom-cv-unit`}
+          />
         </div>
         {qtyUnitSelector}
         {renderDensity(needsDensity, `kg/${cvDenom}`)}
@@ -145,29 +156,17 @@ const CustomFuelMonthFields = ({
     return (
       <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
         <p className="text-xs text-amber-700 font-medium">Custom Fuel — Qty Basis EF</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Emission Factor <span className="text-red-500">*</span></Label>
-            <Input
-              type="number" step="any" min="0"
-              value={data.custom_ef || ''}
-              onChange={(e) => updateMonthData(monthKey, 'custom_ef', e.target.value)}
-              placeholder="e.g. 2.68" className="bg-white h-9 text-sm"
-              data-testid={`month-${monthKey}-custom-ef`}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">EF Unit <span className="text-red-500">*</span></Label>
-            <select
-              value={data.custom_ef_unit || 'kgCO2/kg'}
-              onChange={(e) => updateMonthData(monthKey, 'custom_ef_unit', e.target.value)}
-              className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
-              data-testid={`month-${monthKey}-custom-ef-unit`}
-            >
-              {quantityEfUnits.map(unit => <option key={unit} value={unit}>{unit}</option>)}
-            </select>
-          </div>
-        </div>
+        <MeasurementInput
+          label="Emission Factor"
+          value={data.custom_ef || ''}
+          onChange={(event) => updateMonthData(monthKey, 'custom_ef', event.target.value)}
+          placeholder="e.g. 2.68"
+          unitValue={data.custom_ef_unit || 'kgCO2/kg'}
+          onUnitChange={(event) => updateMonthData(monthKey, 'custom_ef_unit', event.target.value)}
+          unitOptions={quantityEfUnits}
+          inputTestId={`month-${monthKey}-custom-ef`}
+          unitTestId={`month-${monthKey}-custom-ef-unit`}
+        />
         {qtyUnitSelector}
         {renderDensity(needsDensity, `kg/${efDenom}`)}
       </div>

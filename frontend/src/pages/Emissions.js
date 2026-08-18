@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EmissionFilters from './emissions/EmissionFilters';
@@ -3074,6 +3074,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
+                  <DialogDescription className="sr-only" data-testid="emission-dialog-description">
+                    Add or update an emission record with reporting and activity data.
+                  </DialogDescription>
                 </DialogHeader>
               {!editingEmission ? (
                 <EmissionEntryForm

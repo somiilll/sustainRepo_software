@@ -188,7 +188,6 @@ export default function EmissionEntryForm({
     responsiblePersonContact, setResponsiblePersonContact,
     // Step 3: Year & Monthly Data
     reportingYearType, setReportingYearType,
-    hasOrgYearTypePreference,
     reportingYear, setReportingYear,
     frequencyType, setFrequencyType,
     monthlyData, setMonthlyData,
@@ -2256,6 +2255,7 @@ export default function EmissionEntryForm({
 
   const renderDynamicField = (field, monthKey, data) => (
     <DynamicFieldRenderer
+      key={`${monthKey}-${field.id || field.variable}`}
       field={field}
       monthKey={monthKey}
       data={data}
@@ -2777,14 +2777,6 @@ export default function EmissionEntryForm({
           filteredFuelsForCategory={filteredFuelsForCategory}
           getAvailableEFUnits={getAvailableEFUnits}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
-          supplierName={supplierName}
-          setSupplierName={setSupplierName}
-          supplierCode={supplierCode}
-          setSupplierCode={setSupplierCode}
-          employeeName={employeeName}
-          setEmployeeName={setEmployeeName}
-          employeeId={employeeId}
-          setEmployeeId={setEmployeeId}
           // KPI Access Control
           kpiCanAccessScope={kpiCanAccessScope}
           kpiAllowedScopes={kpiAllowedScopes}
@@ -2803,8 +2795,6 @@ export default function EmissionEntryForm({
       >
         <ReportingPeriodControls
           reportingYearType={reportingYearType}
-          setReportingYearType={setReportingYearType}
-          hasOrgYearTypePreference={hasOrgYearTypePreference}
           reportingYear={reportingYear}
           setReportingYear={setReportingYear}
           frequencyType={frequencyType}
@@ -2826,8 +2816,6 @@ export default function EmissionEntryForm({
         <CreateDataRenderer
           showReportingControls={false}
           reportingYearType={reportingYearType}
-          setReportingYearType={setReportingYearType}
-          hasOrgYearTypePreference={hasOrgYearTypePreference}
           reportingYear={reportingYear}
           setReportingYear={setReportingYear}
           frequencyType={frequencyType}
@@ -2912,6 +2900,13 @@ export default function EmissionEntryForm({
           setToLocation={setToLocation}
           recordSource={recordSource}
           setRecordSource={setRecordSource}
+          scope={scope}
+          category={category}
+          capabilities={resolvedCapabilities}
+          supplierName={supplierName}
+          setSupplierName={setSupplierName}
+          supplierCode={supplierCode}
+          setSupplierCode={setSupplierCode}
         />
         <Step4Notes
           notes={notes}
