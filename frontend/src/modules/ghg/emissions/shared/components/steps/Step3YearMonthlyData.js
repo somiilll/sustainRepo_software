@@ -149,6 +149,7 @@ const MonthlyLedger = ({ columns, children }) => (
           {columns.map(col => (
             <th key={col.key} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
               {col.label}
+              {col.required && <span className="ml-0.5 text-red-500">*</span>}
               {col.unit && <span className="ml-1 font-normal normal-case text-stone-400">({col.unit})</span>}
             </th>
           ))}
