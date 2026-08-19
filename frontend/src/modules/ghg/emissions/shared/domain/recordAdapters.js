@@ -23,6 +23,7 @@ export const emissionRecordToDraft = (emission, lookups = {}) => {
     typeOfProduct: hydrated.typeOfProduct,
     scope3CustomActivity: hydrated.scope3CustomActivity,
     useCustomActivity: hydrated.useCustomActivity,
+    calculationMethodology: hydrated.calculationMethodology || draft.calculationMethodology,
     processType: hydrated.processType,
     useCustomFuel: Boolean(emission.is_custom_fuel),
     customFuelName: emission.is_custom_fuel
@@ -54,6 +55,7 @@ export const emissionDraftToRecordValues = (draft) => ({
   type_of_product: draft.typeOfProduct,
   scope3_activity: draft.scope3CustomActivity,
   biogenic_scope_selection: draft.biogenicScopeSelection || null,
+  calculation_methodology: draft.calculationMethodology || null,
   process_type: draft.processType || null,
   is_custom_fuel: draft.useCustomFuel,
   custom_fuel_name: draft.customFuelName,

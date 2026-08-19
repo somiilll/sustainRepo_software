@@ -29,6 +29,11 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - BRSR Internal AI repair.
 
 ### Session 2 (Current)
+- **Scope 1 methodology persistence + optional process details on edit** — DONE (2026-08-19)
+  - New Scope 1 create and edit records persist `calculation_methodology` both as a top-level record field and in `dynamic_field_values`; legacy records are intentionally not migrated.
+  - Edit hydration reads the explicit saved methodology before using legacy field inference.
+  - Removed obsolete Name of Process and Process Description requirements from Scope 1, flat Scope 3, and C7 edit submissions; supplied process metadata continues to be saved.
+  - Verified: focused frontend regression tests 7 passed; Scope 1 payload tests and backend API contract tests passed; JavaScript/Python lint clean.
 - **Fixed edit-form methodology hydration for nullable quantity fields** — DONE
   - Records storing `ef_quantity: { value: null }` no longer infer Quantity Basis merely from key presence.
   - Heat Basis records now retain their saved methodology and render the corresponding dynamic inputs.

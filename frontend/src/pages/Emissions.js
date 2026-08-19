@@ -575,7 +575,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       
       // Hydrate calculation methodology from its explicit saved value first.
       // Legacy records fall back to inferring the method from their saved fields.
-      const savedMethod = savedDynamicValues.calculation_methodology;
+      const savedMethod = editingEmission.calculation_methodology
+        || savedDynamicValues.calculation_methodology;
       const savedCalculationMethodology = typeof savedMethod === 'object'
         ? savedMethod?.value
         : savedMethod;

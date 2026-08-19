@@ -445,6 +445,12 @@ export function hydrateEmissionForm(emission, config = {}) {
   const processType = typeof savedProcessType === 'object'
     ? savedProcessType.value || ''
     : savedProcessType;
+  const savedCalculationMethodology = emission.calculation_methodology
+    || emission.dynamic_field_values?.calculation_methodology
+    || '';
+  const calculationMethodology = typeof savedCalculationMethodology === 'object'
+    ? savedCalculationMethodology.value || ''
+    : savedCalculationMethodology;
 
   // =====================
   // Return hydrated values
@@ -463,6 +469,7 @@ export function hydrateEmissionForm(emission, config = {}) {
     
     // Selected category for UI
     selectedCategory: emission.category || '',
+    ...(calculationMethodology && { calculationMethodology }),
     processType,
     
     // Fuel from database (if matched)

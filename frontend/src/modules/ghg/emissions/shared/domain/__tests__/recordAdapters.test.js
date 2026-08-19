@@ -56,4 +56,19 @@ describe('EmissionDraft record adapters', () => {
       dynamic_field_values: record.dynamic_field_values,
     });
   });
+
+  it('hydrates an explicit Scope 1 methodology without field-based inference', () => {
+    const scope1Record = {
+      ...record,
+      scope: 'scope1',
+      category: 'Stationary Combustion',
+      calculation_methodology: 'using_qty_basis_ef',
+      dynamic_field_values: { qty: { value: 12, unit: 'L' } },
+    };
+
+    const draft = emissionRecordToDraft(scope1Record);
+
+    expect(draft.calculationMethodology).toBe('using_qty_basis_ef');
+    expect(emissionDraftToRecordValues(draft).calculation_methodology).toBe('using_qty_basis_ef');
+  });
 });

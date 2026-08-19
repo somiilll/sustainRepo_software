@@ -25,6 +25,7 @@
  "EmissionRecordCreate": {
   "asset_name": "typing.Optional[str]",
   "biogenic_scope_selection": "typing.Optional[str]",
+  "calculation_methodology": "typing.Optional[str]",
   "calculation_method_scope3": "typing.Optional[str]",
   "category": "<class 'str'>",
   "custom_fuel_name": "typing.Optional[str]",
@@ -75,6 +76,7 @@
   "asset_name": "typing.Optional[str]",
   "biogenic_scope_selection": "typing.Optional[str]",
   "bulk_upload_id": "typing.Optional[str]",
+  "calculation_methodology": "typing.Optional[str]",
   "calculation_method_scope3": "typing.Optional[str]",
   "category": "<class 'str'>",
   "ch4_emissions": "typing.Optional[float]",

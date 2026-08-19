@@ -283,7 +283,16 @@ export function buildCreatePayload(monthData, ctx) {
 
   const dynamicFieldValues = buildDynamicFieldValues(monthData, ctx);
   const decisionInputs = buildDecisionInputs ? buildDecisionInputs(monthData) : {};
+  const isScope1Like = scope === 'scope1'
+    || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
+  const calculationMethodology = isScope1Like
+    ? (decisionInputs.calculation_methodology || 'using_heat_basis_ncv')
+    : null;
   const processType = decisionInputs.process_type || null;
+
+  if (calculationMethodology) {
+    dynamicFieldValues.calculation_methodology = { value: calculationMethodology, unit: '' };
+  }
 
   if (processType) {
     dynamicFieldValues.process_type = { value: processType, unit: '' };
@@ -308,6 +317,7 @@ export function buildCreatePayload(monthData, ctx) {
     fuel_database_id: useCustomFuel ? null : fuelId,
     is_custom_fuel: useCustomFuel || false,
     custom_fuel_name: useCustomFuel ? customFuelName : null,
+    calculation_methodology: calculationMethodology,
     process_type: processType,
 
     formula_id: resolvedFormulaId,

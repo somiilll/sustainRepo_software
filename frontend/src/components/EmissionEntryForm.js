@@ -328,7 +328,8 @@ export default function EmissionEntryForm({
       // If record has carbon_content/composition_of_carbon, it was carbon composition method
       // If record has ef_quantity, it was qty basis method
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
-      const savedCalculationMethodology = savedDynamicValues.calculation_methodology;
+      const savedCalculationMethodology = editingEmission.calculation_methodology
+        || savedDynamicValues.calculation_methodology;
       const calculationMethodology = typeof savedCalculationMethodology === 'object'
         ? savedCalculationMethodology?.value
         : savedCalculationMethodology;

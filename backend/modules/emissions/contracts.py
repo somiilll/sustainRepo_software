@@ -33,6 +33,7 @@ class EmissionRecordCreate(BaseModel):
     custom_fuel_name: Optional[str] = None
 
     # Scope 1 Process Emissions decision-tree branch
+    calculation_methodology: Optional[str] = None
     process_type: Optional[str] = None
 
     # Scope 3
@@ -112,6 +113,7 @@ class EmissionRecordResponse(BaseModel):
     custom_fuel_name: Optional[str] = None
 
     # Scope 1 Process Emissions decision-tree branch
+    calculation_methodology: Optional[str] = None
     process_type: Optional[str] = None
 
     calculation_method_scope3: Optional[str] = None
