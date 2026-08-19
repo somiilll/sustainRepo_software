@@ -154,6 +154,14 @@ export const Step1BasicSelection = ({
   const CategoryIcon = getCategoryIcon(category);
   const usesDirectFuelLayout = scope === 'scope1'
     || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
+  const usesIndirectBiogenicLayout = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+  const sourceSelectionLayout = usesDirectFuelLayout
+    ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-3'
+    : usesIndirectBiogenicLayout
+      ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-3'
+      : scope === 'scope3' || scope === 'scope2'
+      ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2'
+      : 'min-w-0';
 
   // Filter facilities based on selected scope (if KPI access is restricted)
   const filteredFacilities = useMemo(() => {
@@ -380,9 +388,9 @@ export const Step1BasicSelection = ({
         )}
       </div>
 
-      <div className={usesDirectFuelLayout ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-3' : 'min-w-0'} data-testid="create-source-selection-row">
+      <div className={sourceSelectionLayout} data-testid="create-source-selection-row">
       {/* Category */}
-      <div className="space-y-2">
+      <div className="min-w-0 space-y-2">
         <Label htmlFor="emission-category-select">Category <span className="text-red-500">*</span></Label>
         <div className="relative">
           <CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
@@ -408,7 +416,7 @@ export const Step1BasicSelection = ({
 
       {/* Biogenic Indirect: Calculation Method */}
       {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && category && (
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Label>Calculation Method <span className="text-red-500">*</span></Label>
           <div className="relative">
             <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
@@ -431,7 +439,7 @@ export const Step1BasicSelection = ({
 
       {/* Biogenic Indirect: Biogenic Activity */}
       {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && scope3Method && (
-        <div className="space-y-2 mt-4 mb-2">
+        <div className="min-w-0 space-y-2">
           <div className="flex items-center justify-between">
             <Label>Biogenic Activity <span className="text-red-500">*</span></Label>
             {scope3Method === 'supplier_basis' && (
@@ -469,13 +477,15 @@ export const Step1BasicSelection = ({
               </p>
             </div>
           ) : (
-            <select
-              value={scope3ActivityId}
-              onChange={(e) => setScope3ActivityId(e.target.value)}
-              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-              data-testid="biogenic-scope3-activity-select"
-              dangerouslySetInnerHTML={{ __html: biogenicActivityOptionsHtml }}
-            />
+            <div className="relative mt-[18px]">
+              <select
+                value={scope3ActivityId}
+                onChange={(e) => setScope3ActivityId(e.target.value)}
+                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3"
+                data-testid="biogenic-scope3-activity-select"
+                dangerouslySetInnerHTML={{ __html: biogenicActivityOptionsHtml }}
+              />
+            </div>
           )}
           {filteredScope3Activities.length === 0 && !useCustomActivity && (
             <p className="text-xs text-amber-600">
@@ -487,7 +497,7 @@ export const Step1BasicSelection = ({
 
       {/* Scope 3: Method and Activity Selection */}
       {category && scope === 'scope3' && (
-        <div className="min-w-0 space-y-4 mt-4 pb-6 border-b border-stone-200" data-testid="scope3-selection-section">
+        <div className="contents" data-testid="scope3-selection-section">
           {/* Method Selection */}
           <div className="min-w-0 space-y-2">
             <Label>Calculation Method <span className="text-red-500">*</span></Label>
@@ -533,7 +543,7 @@ export const Step1BasicSelection = ({
 
           {/* Activity Type Filter (only for C6/C7) */}
           {scope3Method && availableScope3ActivityTypes.length > 0 && (
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Activity Type <span className="text-red-500">*</span></Label>
               <select
                 value={scope3ActivityType}
@@ -550,7 +560,7 @@ export const Step1BasicSelection = ({
 
           {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
           {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2 lg:col-span-2">
               <Label>Sub-category <span className="text-red-500">*</span></Label>
               <select
                 value={scope3Subcategory}
@@ -574,7 +584,7 @@ export const Step1BasicSelection = ({
           {(() => {
             if (!ghgUiState.showTypeOfProduct) return null;
             return (
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2 lg:col-span-2">
                 <Label>Type of Product <span className="text-red-500">*</span></Label>
                 <select
                   value={typeOfProduct || ''}
@@ -592,7 +602,7 @@ export const Step1BasicSelection = ({
 
           {/* Activity Selection (from Scope 3 EF) */}
           {scope3Method && (
-            <div className="space-y-2">
+            <div className={`min-w-0 ${availableScope3ActivityTypes.length > 0 ? 'flex flex-col gap-2' : 'space-y-2 lg:col-span-2'}`}>
               <div className="flex items-center justify-between">
                 <Label>Activity <span className="text-red-500">*</span></Label>
                 {scope3Method === 'supplier_basis' && scope3ActivityType !== 'others' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
@@ -634,7 +644,7 @@ export const Step1BasicSelection = ({
               ) : (
                 <>
                   {/* Activity search input */}
-                  <div className="relative">
+                  <div className={`relative ${availableScope3ActivityTypes.length > 0 ? 'order-2' : ''}`}>
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                     <Input
                       type="text"
@@ -663,7 +673,7 @@ export const Step1BasicSelection = ({
                       setScope3ActivityId(e.target.value);
                       setFuelSearchTerm('');
                     }}
-                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 ${availableScope3ActivityTypes.length > 0 ? 'order-1 mt-2' : ''} ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)) ? 'cursor-not-allowed opacity-50' : ''}`}
                     data-testid="scope3-activity-select"
                     disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
                     dangerouslySetInnerHTML={{ __html: activityOptionsHtml }}
@@ -714,7 +724,7 @@ export const Step1BasicSelection = ({
 
       {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3, non-Process Emissions */}
       {ghgUiState.showFuelSelection && (
-        <div className={`relative space-y-2 ${usesDirectFuelLayout ? '' : 'mt-4 border-b border-stone-200 pb-6'}`}>
+        <div className={`relative min-w-0 space-y-2 ${usesDirectFuelLayout || scope === 'scope2' ? '' : 'mt-4 border-b border-stone-200 pb-6'}`}>
             <Label>Fuel Type <span className="text-red-500">*</span></Label>
             {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
             {ghgUiState.showCustomFuel && (

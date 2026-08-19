@@ -33,6 +33,10 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
   - Replaced the Scope 3 calculation-method native dropdown with a collision-aware select menu and contained the create dialog horizontally without changing form data or calculation behavior.
   - Restored the desktop dialog to its standard 1152px maximum width while ensuring the form root can shrink on narrow screens; facility/scope selection now stacks responsively before controls can be clipped.
   - Verified: lint clean; live authenticated C6 Create checks passed at 1920px and 320px, including method-menu viewport containment and standard desktop dialog width.
+- **Create-form selector row alignment** — DONE (2026-08-19)
+  - Scope 3 places Category beside Calculation Method, then Activity Type beside Activity; Scope 2 places Category beside Fuel Type; indirect Biogenic places Category, Calculation Method, and Biogenic Activity on one desktop row.
+  - The layouts stack responsively on smaller screens and retain all existing field visibility, options, and selection behavior.
+  - Verified: lint clean; authenticated live browser checks confirmed all requested source selectors are aligned and selectable.
 - **Emission Edit Form presentation redesign** — DONE (2026-08-19)
   - Rebuilt the edit surface with white, bordered sections; widened the reporting period; added semantic leading icons and emerald scope radio states.
   - Added tinted, icon-led Scope 1/2/Biogenic emission cards and an expanded CO₂e-only treatment for Scope 3. Calculation details now start collapsed with clean audit rows, source badges, and inline final outputs.
