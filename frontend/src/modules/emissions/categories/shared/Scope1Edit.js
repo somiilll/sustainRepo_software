@@ -98,27 +98,25 @@ export function buildDynamicValues(ctx) {
 
     dynamicValues.calculation_methodology = { value: calculationMethodology, unit: '' };
 
-    if (!ctx.editUseCustomFuel) {
-      return dynamicValues;
-    }
-
-    // These fields are rendered by CustomFuelMonthFields rather than the
-    // standard config-driven list, so merge them explicitly into the payload.
-    dynamicValues.qty = { value: parseValue(quantity), unit: quantityUnit };
-    if (hasValue(dynamicFieldValues.custom_ef)) {
-      dynamicValues.custom_ef = { value: parseValue(dynamicFieldValues.custom_ef), unit: dynamicFieldValues.custom_ef_unit || '' };
-    }
-    if (hasValue(dynamicFieldValues.custom_cv)) {
-      dynamicValues.custom_cv = { value: parseValue(dynamicFieldValues.custom_cv), unit: dynamicFieldValues.custom_cv_unit || '' };
-    }
-    if (hasValue(dynamicFieldValues.custom_carbon_content)) {
-      dynamicValues.custom_carbon_content = { value: parseValue(dynamicFieldValues.custom_carbon_content), unit: '%' };
-    }
-    if (hasValue(dynamicFieldValues.custom_oxidation_factor)) {
-      dynamicValues.custom_oxidation_factor = { value: parseValue(dynamicFieldValues.custom_oxidation_factor), unit: '' };
-    }
-    if (hasValue(dynamicFieldValues.density)) {
-      dynamicValues.density = { value: parseValue(dynamicFieldValues.density), unit: dynamicFieldValues.density_unit || 'kg/L' };
+    if (ctx.editUseCustomFuel) {
+      // These fields are rendered by CustomFuelMonthFields rather than the
+      // standard config-driven list, so merge them explicitly into the payload.
+      dynamicValues.qty = { value: parseValue(quantity), unit: quantityUnit };
+      if (hasValue(dynamicFieldValues.custom_ef)) {
+        dynamicValues.custom_ef = { value: parseValue(dynamicFieldValues.custom_ef), unit: dynamicFieldValues.custom_ef_unit || '' };
+      }
+      if (hasValue(dynamicFieldValues.custom_cv)) {
+        dynamicValues.custom_cv = { value: parseValue(dynamicFieldValues.custom_cv), unit: dynamicFieldValues.custom_cv_unit || '' };
+      }
+      if (hasValue(dynamicFieldValues.custom_carbon_content)) {
+        dynamicValues.custom_carbon_content = { value: parseValue(dynamicFieldValues.custom_carbon_content), unit: '%' };
+      }
+      if (hasValue(dynamicFieldValues.custom_oxidation_factor)) {
+        dynamicValues.custom_oxidation_factor = { value: parseValue(dynamicFieldValues.custom_oxidation_factor), unit: '' };
+      }
+      if (hasValue(dynamicFieldValues.density)) {
+        dynamicValues.density = { value: parseValue(dynamicFieldValues.density), unit: dynamicFieldValues.density_unit || 'kg/L' };
+      }
     }
   }
 

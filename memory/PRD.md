@@ -29,6 +29,11 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - BRSR Internal AI repair.
 
 ### Session 2 (Current)
+- **Emission Edit Form presentation redesign** — DONE (2026-08-19)
+  - Rebuilt the edit surface with white, bordered sections; widened the reporting period; added semantic leading icons and emerald scope radio states.
+  - Added tinted, icon-led Scope 1/2/Biogenic emission cards and an expanded CO₂e-only treatment for Scope 3. Calculation details now start collapsed with clean audit rows, source badges, and inline final outputs.
+  - Scope 3 Activity Type now sits beside Calculation Method with a filter icon; Activity has a location icon.
+  - Verified: authenticated read-only Scope 1 and Scope 3 browser checks passed; Scope 3 Final Outputs are inline; live console showed no DOM-nesting errors. Focused Scope 1 methodology UI tests passed (2/2) and custom-fuel contract regression passed (6/6).
 - **Scope 1 methodology persistence + optional process details on edit** — DONE (2026-08-19)
   - New Scope 1 create and edit records persist `calculation_methodology` both as a top-level record field and in `dynamic_field_values`; legacy records are intentionally not migrated.
   - Edit hydration reads the explicit saved methodology before using legacy field inference.

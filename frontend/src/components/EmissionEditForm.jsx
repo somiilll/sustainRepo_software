@@ -36,6 +36,18 @@ import {
   X,
   Info,
   FileText,
+  Car,
+  Factory,
+  Wind,
+  Flame,
+  Plane,
+  Truck,
+  Zap,
+  Droplet,
+  Calculator,
+  Leaf,
+  ListFilter,
+  MapPin,
 } from 'lucide-react';
 import { isVolumeUnit as isVolumeUnitShared } from '../pages/emissions/utils/units';
 import { isQuantityField } from '../modules/ghg/emissions/shared/utils/unitHelpers';
@@ -60,6 +72,18 @@ const downloadFileHelper = (url, filename) => {
 
 // Local alias used in the JSX below (matches the legacy inline reference).
 const isVolumeUnit = isVolumeUnitShared;
+
+const getCategoryIcon = (category = '') => {
+  const normalized = category.toLowerCase();
+  if (normalized.includes('mobile')) return Car;
+  if (normalized.includes('stationary') || normalized.includes('process')) return Factory;
+  if (normalized.includes('fugitive')) return Wind;
+  if (normalized.includes('flaring')) return Flame;
+  if (normalized.includes('electric') || normalized.includes('energy')) return Zap;
+  if (normalized.includes('flight') || normalized.includes('travel')) return Plane;
+  if (normalized.includes('transport') || normalized.includes('distribution')) return Truck;
+  return Leaf;
+};
 
 /**
  * EmissionEditForm — pure view/rendering component for the Edit Emission
@@ -201,6 +225,7 @@ export default function EmissionEditForm(props) {
     frequencyType: editFrequencyType,
     hasCategory: Boolean(selectedCategory || formData.category),
   });
+  const CategoryIcon = getCategoryIcon(selectedCategory || formData.category);
 
   // ─────────────────────────────────────────────────────────────────────
   // Data-based loading gate for C7 Employee Commuting (has deeply nested
@@ -223,6 +248,7 @@ export default function EmissionEditForm(props) {
 
   return (
                 <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
+                <section className="space-y-5 rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="edit-form-inputs-section">
                 {/* Facility and Scope Selection - Extracted Component */}
                 <FacilityScopeSection
                   formData={formData}
@@ -234,23 +260,18 @@ export default function EmissionEditForm(props) {
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   markFormDirty={markFormDirty}
                   reportingPeriod={(
-                    <div className="w-full max-w-[11rem] space-y-1.5" data-testid="edit-reporting-period-field">
+                    <div className="w-full min-w-[15rem] space-y-1.5" data-testid="edit-reporting-period-field">
                       {editFrequencyType === 'yearly' ? (
                         <>
-                          <Label>
-                            <CalendarIcon className="w-4 h-4 inline mr-1" />
-                            Reporting Year
-                          </Label>
-                          <div className="flex items-center h-10 bg-purple-50 border border-purple-200 rounded-lg px-3 text-purple-700 font-medium" data-testid="edit-reporting-year-display">
+                          <Label>Reporting Year</Label>
+                          <div className="flex items-center h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-stone-800 font-medium" data-testid="edit-reporting-year-display">
+                            <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
                             {editingEmission.reporting_period || 'N/A'}
                           </div>
                         </>
                       ) : (
                         <>
-                          <Label htmlFor="reporting_period_start">
-                            <CalendarIcon className="w-4 h-4 inline mr-1" />
-                            Reporting Month *
-                          </Label>
+                          <Label htmlFor="reporting_period_start">Reporting Month *</Label>
                           <MonthYearPicker
                             id="reporting_period_start"
                             value={formData.reporting_period_start}
@@ -263,7 +284,8 @@ export default function EmissionEditForm(props) {
                               }));
                             }}
                             placeholder="Select month"
-                            className="bg-stone-50"
+                            className="bg-stone-50 [&>svg]:text-emerald-600"
+                            data-testid="edit-reporting-month-picker"
                           />
                         </>
                       )}
@@ -298,20 +320,23 @@ export default function EmissionEditForm(props) {
                       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {/* Step 1: Category Selection */}
                         <div className="space-y-1.5">
-                          <Label htmlFor="category_select">Step 1: Select Category *</Label>
-                          <select
-                            id="category_select"
-                            value={selectedCategory}
-                            onChange={(e) => handleCategorySelect(e.target.value)}
-                            required
-                            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                            data-testid="category-select"
-                          >
-                            <option value="">Select category...</option>
-                            {getCategoriesForScope.map(category => (
-                              <option key={category} value={category}>{category}</option>
-                            ))}
-                          </select>
+                          <Label htmlFor="category_select">Select Category *</Label>
+                          <div className="relative">
+                            <CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
+                            <select
+                              id="category_select"
+                              value={selectedCategory}
+                              onChange={(e) => handleCategorySelect(e.target.value)}
+                              required
+                              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+                              data-testid="category-select"
+                            >
+                              <option value="">Select category...</option>
+                              {getCategoriesForScope.map(category => (
+                                <option key={category} value={category}>{category}</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                         
                         {/* Step 2: For Scope 3 - Method and Activity; for Process Emissions no fuel is needed. */}
@@ -320,73 +345,104 @@ export default function EmissionEditForm(props) {
                           <>
                             {/* Scope 3: Calculation Method */}
                             <div className="space-y-1.5">
-                              <Label htmlFor="scope3_method_select">Step 2: Calculation Method *</Label>
-                              <select
-                                id="scope3_method_select"
-                                value={scope3Method}
-                                onChange={(e) => {
-                                  const newMethod = e.target.value;
-                                  setScope3Method(newMethod);
-                                  setScope3ActivityType(''); // Reset activity type when method changes
-                                  setScope3Subcategory('');
-                                  setTypeOfProduct('');
-                                  setScope3ActivityId('');
-                                  setDynamicFieldValues({}); // Fix #9: Clear stale inputs when method changes
-                                  markFormDirty(); // Mark form as dirty when method changes
-                                }}
-                                required
-                                disabled={!selectedCategory}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                data-testid="scope3-method-select"
-                              >
-                                <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
-                                {availableScope3Methods.map(method => (
-                                  <option key={method} value={method}>
-                                    {getMethodLabel(method)}
-                                  </option>
-                                ))}
-                              </select>
+                              <Label htmlFor="scope3_method_select">Calculation Method *</Label>
+                              <div className="relative">
+                                <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
+                                <select
+                                  id="scope3_method_select"
+                                  value={scope3Method}
+                                  onChange={(e) => {
+                                    const newMethod = e.target.value;
+                                    setScope3Method(newMethod);
+                                    setScope3ActivityType('');
+                                    setScope3Subcategory('');
+                                    setTypeOfProduct('');
+                                    setScope3ActivityId('');
+                                    setDynamicFieldValues({});
+                                    markFormDirty();
+                                  }}
+                                  required
+                                  disabled={!selectedCategory}
+                                  className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
+                                  data-testid="scope3-method-select"
+                                >
+                                  <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
+                                  {availableScope3Methods.map(method => (
+                                    <option key={method} value={method}>
+                                      {getMethodLabel(method)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
                               {selectedCategory && availableScope3Methods.length === 0 && !loadingScope3EF && (
                                 <p className="text-xs text-amber-600">No methods available for this category</p>
                               )}
                             </div>
+                            {availableScope3ActivityTypes.length > 0 && (
+                              <div className="space-y-1.5" data-testid="scope3-activity-type-section">
+                                <Label htmlFor="scope3_activity_type_filter">Activity Type *</Label>
+                                <div className="relative">
+                                  <ListFilter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
+                                  <select
+                                    id="scope3_activity_type_filter"
+                                    value={scope3ActivityType}
+                                    onChange={(e) => {
+                                      const newActivityType = e.target.value;
+                                      setScope3ActivityType(newActivityType);
+                                      setScope3ActivityId('');
+                                      setActivitySearchTerm('');
+                                      setDynamicFieldValues({});
+                                    }}
+                                    required
+                                    className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+                                    data-testid="scope3-activity-type-filter"
+                                  >
+                                    <option value="">Select activity type...</option>
+                                    {(() => {
+                                      const allTypes = new Set(availableScope3ActivityTypes);
+                                      if (scope3ActivityType && !allTypes.has(scope3ActivityType)) allTypes.add(scope3ActivityType);
+                                      return Array.from(allTypes).sort();
+                                    })().map(type => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                            )}
                           </>
                         ) : !ghgUiState.showFuelSelection ? null : (
-                          <div className="space-y-1.5">
+                          <div className="relative space-y-1.5">
                             {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
-                            <div className="flex h-5 items-center justify-between gap-1">
-                              <Label htmlFor="fuel_select" className="whitespace-nowrap text-xs">Step 2: Select Fuel Type *</Label>
-                              {ghgUiState.showCustomFuel && (
-                                <label className="flex shrink-0 items-center gap-1.5 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={editUseCustomFuel}
-                                    onChange={(e) => {
-                                      setEditUseCustomFuel(e.target.checked);
-                                      if (e.target.checked) {
-                                        setFormData(prev => ({ ...prev, fuel_id: '' }));
-                                      } else {
-                                        setEditCustomFuelName('');
-                                      }
-                                      markFormDirty();
-                                    }}
-                                    className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                                    data-testid="edit-use-custom-fuel-toggle"
-                                  />
-                                  <span className="text-xs text-amber-700 font-medium">Use Custom Fuel</span>
-                                </label>
-                              )}
-                            </div>
+                            <Label htmlFor="fuel_select" className="whitespace-nowrap">Select Fuel Type *</Label>
+                            {ghgUiState.showCustomFuel && (
+                              <label className="absolute right-0 top-0 flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={editUseCustomFuel}
+                                  onChange={(e) => {
+                                    setEditUseCustomFuel(e.target.checked);
+                                    if (e.target.checked) {
+                                      setFormData(prev => ({ ...prev, fuel_id: '' }));
+                                    } else {
+                                      setEditCustomFuelName('');
+                                    }
+                                    markFormDirty();
+                                  }}
+                                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                  data-testid="edit-use-custom-fuel-toggle"
+                                />
+                                <span className="text-xs text-amber-700 font-medium">Use Custom Fuel</span>
+                              </label>
+                            )}
                             
                             {!editUseCustomFuel ? (
-                              <div className="space-y-1.5">
+                              <div className="relative mt-1.5">
+                                <Droplet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
                                 <select
                                   id="fuel_select"
                                   value={formData.fuel_id}
                                   onChange={(e) => handleFuelSelect(e.target.value)}
                                   required
                                   disabled={!selectedCategory}
-                                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
                                   data-testid="fuel-select"
                                 >
                                   <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
@@ -452,9 +508,12 @@ export default function EmissionEditForm(props) {
                               markFormDirty();
                             }}
                           >
-                            <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-calculation-methodology-select">
-                              <SelectValue placeholder="Select methodology" />
-                            </SelectTrigger>
+                            <div className="relative">
+                              <Calculator className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
+                              <SelectTrigger className="h-10 bg-stone-50 pl-10" data-testid="edit-calculation-methodology-select">
+                                <SelectValue placeholder="Select methodology" />
+                              </SelectTrigger>
+                            </div>
                             <SelectContent>
                               <SelectItem value="using_heat_basis_ncv">Using Heat Basis (NCV)</SelectItem>
                               <SelectItem value="using_qty_basis_ef">Using Qty Basis EF</SelectItem>
@@ -468,47 +527,10 @@ export default function EmissionEditForm(props) {
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
                         <div className="space-y-3">
-                          {/* Activity Type Filter (only for C6/C7) */}
-                          {availableScope3ActivityTypes.length > 0 && (
-                            <div className="space-y-1.5">
-                              <Label htmlFor="scope3_activity_type_filter">Step 3: Activity Type *</Label>
-                              <select
-                                id="scope3_activity_type_filter"
-                                value={scope3ActivityType}
-                                onChange={(e) => {
-                                  const newActivityType = e.target.value;
-                                  setScope3ActivityType(newActivityType);
-                                  setScope3ActivityId(''); // Reset activity when type changes
-                                  setActivitySearchTerm(''); // Clear activity search
-                                  setDynamicFieldValues({}); // Fix #9: Clear stale inputs when activity type changes
-                                }}
-                                required
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                                data-testid="scope3-activity-type-filter"
-                              >
-                                <option value="">Select activity type...</option>
-                                {(() => {
-                                  // Ensure saved activity type is included in options
-                                  const allTypes = new Set(availableScope3ActivityTypes);
-                                  if (scope3ActivityType && !allTypes.has(scope3ActivityType)) {
-                                    allTypes.add(scope3ActivityType);
-                                  }
-                                  return Array.from(allTypes).sort();
-                                })().map(type => {
-                                  return (
-                                    <option key={type} value={type}>
-                                      {getStandardActivityTypeLabel(type)}
-                                    </option>
-                                  );
-                                })}
-                              </select>
-                            </div>
-                          )}
-                          
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
                           {requiresSubcategory && availableSubcategories.length > 0 && (
                             <div className="space-y-1.5">
-                              <Label htmlFor="scope3_subcategory_filter">Step 3: Subcategory *</Label>
+                              <Label htmlFor="scope3_subcategory_filter">Subcategory *</Label>
                               <select
                                 id="scope3_subcategory_filter"
                                 value={scope3Subcategory}
@@ -537,7 +559,7 @@ export default function EmissionEditForm(props) {
                             if (!ghgUiState.showTypeOfProduct) return null;
                             return (
                               <div className="space-y-1.5">
-                                <Label htmlFor="scope3_type_of_product_filter">Step 4: Type of Product *</Label>
+                                <Label htmlFor="scope3_type_of_product_filter">Type of Product *</Label>
                                 <select
                                   id="scope3_type_of_product_filter"
                                   value={typeOfProduct || ''}
@@ -560,11 +582,9 @@ export default function EmissionEditForm(props) {
                           })()}
                           
                           {/* Activity Selection */}
-                          <div className="space-y-1.5">
+                          <div className="space-y-1.5" data-testid="scope3-activity-section">
                             <div className="flex items-center justify-between">
-                              <Label htmlFor="scope3_activity_select">
-                                {(availableScope3ActivityTypes.length > 0 || requiresSubcategory) ? 'Step 4: Activity *' : 'Step 3: Activity *'}
-                              </Label>
+                              <Label htmlFor="scope3_activity_select">Activity *</Label>
                               {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
                               {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
                                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -628,35 +648,26 @@ export default function EmissionEditForm(props) {
                                 </div>
                                 
                                 {/* Activity selection dropdown */}
-                                <select
-                                  id="scope3_activity_select"
-                                  value={scope3ActivityId}
-                                  onChange={(e) => { 
-                                    setScope3ActivityId(e.target.value); 
-                                    setActivitySearchTerm(''); // Clear search after selection
-                                    markFormDirty(); 
-                                  }}
-                                  required
-                                  disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                  data-testid="scope3-activity-select"
-                                >
-                                  <option value="">
-                                    {!scope3Method ? 'Select method first' : 
-                                     (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
-                                     (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
-                                     `Select activity (${filteredScope3Activities.filter(a => 
-                                       !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())
-                                     ).length} available)...`}
-                                  </option>
-                                  {filteredScope3Activities
-                                    .filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase()))
-                                    .map(ef => (
-                                      <option key={ef.id} value={ef.id}>
-                                        {ef.activity}
-                                      </option>
-                                    ))}
-                                </select>
+                                <div className="relative">
+                                  <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
+                                  <select
+                                    id="scope3_activity_select"
+                                    value={scope3ActivityId}
+                                    onChange={(e) => { setScope3ActivityId(e.target.value); setActivitySearchTerm(''); markFormDirty(); }}
+                                    required
+                                    disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                    className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'cursor-not-allowed opacity-50' : ''}`}
+                                    data-testid="scope3-activity-select"
+                                  >
+                                    <option value="">
+                                      {!scope3Method ? 'Select method first' :
+                                       (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
+                                       (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
+                                       `Select activity (${filteredScope3Activities.filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length} available)...`}
+                                    </option>
+                                    {filteredScope3Activities.filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).map(ef => <option key={ef.id} value={ef.id}>{ef.activity}</option>)}
+                                  </select>
+                                </div>
                                 {/* No match indicator */}
                                 {activitySearchTerm && filteredScope3Activities.filter(a => a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length === 0 && (
                                   <p className="text-xs text-amber-600">No activities match &quot;{activitySearchTerm}&quot;</p>
@@ -1274,6 +1285,8 @@ export default function EmissionEditForm(props) {
                     )}
                   </div>
                 )}
+
+                </section>
 
                 {effectiveCalculatedEmissions && (
                   editUseCustomFuel ? (
