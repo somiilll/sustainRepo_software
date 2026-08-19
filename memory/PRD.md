@@ -29,6 +29,10 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - BRSR Internal AI repair.
 
 ### Session 2 (Current)
+- **C6 create-form calculation method containment** — DONE (2026-08-19)
+  - Replaced the Scope 3 calculation-method native dropdown with a collision-aware select menu and contained the create dialog horizontally without changing form data or calculation behavior.
+  - Restored the desktop dialog to its standard 1152px maximum width while ensuring the form root can shrink on narrow screens; facility/scope selection now stacks responsively before controls can be clipped.
+  - Verified: lint clean; live authenticated C6 Create checks passed at 1920px and 320px, including method-menu viewport containment and standard desktop dialog width.
 - **Emission Edit Form presentation redesign** — DONE (2026-08-19)
   - Rebuilt the edit surface with white, bordered sections; widened the reporting period; added semantic leading icons and emerald scope radio states.
   - Added tinted, icon-led Scope 1/2/Biogenic emission cards and an expanded CO₂e-only treatment for Scope 3. Calculation details now start collapsed with clean audit rows, source badges, and inline final outputs.
@@ -80,6 +84,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Units for required inputs are missing in monthly/yearly views.
 - **BLOCKED**: Awaiting explicit user permission to fix.
 - Root cause: fallback unit logic removed in a prior commit.
+
+### Resolved: C6 Create Form Layout/Dropdown Overflow
+- Scope 3 C6 calculation-method menu is now constrained to the visible viewport and the create dialog preserves its normal desktop max width.
 
 ### P1: BRSR Section A Stale Form Data on Year Switch
 - Stale data bleeds into new year view when reporting year is changed.

@@ -40,7 +40,7 @@ export const EmissionFormSection = ({
   }
 
   return (
-    <section className={`border-b border-stone-200 pb-8 last:border-b-0 ${className}`} data-testid={testId}>
+    <section className={`rounded-xl border border-stone-200 bg-white p-5 shadow-sm ${className}`} data-testid={testId}>
       {(title || description) && <div className="mb-5">
         {title && <h3 className="text-lg font-semibold text-stone-900">{title}</h3>}
         {description && <p className="mt-1 text-sm text-stone-500">{description}</p>}

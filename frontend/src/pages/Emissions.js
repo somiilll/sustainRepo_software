@@ -2973,7 +2973,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
               </DialogTrigger>
               <DialogContent 
                 key={editingEmission?.id || 'new'}
-                className={`max-w-6xl max-h-[90vh] overflow-y-auto ${!editingEmission ? '!gap-2' : ''}`}
+                className={`max-h-[90vh] overflow-x-hidden overflow-y-auto ${!editingEmission ? '!gap-2' : ''}`}
+                style={{ width: 'calc(100vw - 2rem)', maxWidth: '72rem' }}
                 onInteractOutside={handleInteractOutside}
                 onEscapeKeyDown={handleEscapeKeyDown}
                 hideCloseButton={true}
