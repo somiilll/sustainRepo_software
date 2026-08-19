@@ -29,6 +29,10 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - BRSR Internal AI repair.
 
 ### Session 2 (Current)
+- **Fixed edit-form methodology hydration for nullable quantity fields** — DONE
+  - Records storing `ef_quantity: { value: null }` no longer infer Quantity Basis merely from key presence.
+  - Heat Basis records now retain their saved methodology and render the corresponding dynamic inputs.
+  - Verification intentionally not run at the user's request.
 - **Edit Emission form alignment restored** — DONE (2026-08-19)
   - Kept every Scope option on one horizontal row by allocating the Scope column sufficient width and narrowing the Reporting Month/Year control.
   - Vertically aligned Step 2 with Step 1 and the downstream input step; no calculation, validation, API, or backend behavior changed.
@@ -57,6 +61,10 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Frontend: 1229 passed / 63 snapshots
 
 ## Known Issues
+
+### P0: Edit Form Methodology Inference Bug
+- **RESOLVED**: Nullable `ef_quantity` values are excluded from Quantity Basis methodology inference in `Emissions.js`.
+- Verification was intentionally skipped at the user's request.
 
 ### P0: Missing Units in GHG Ledger Views
 - Units for required inputs are missing in monthly/yearly views.

@@ -584,7 +584,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         setEditCalcMethodology(savedCalculationMethodology);
       } else if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon') || dfvKeys.includes('custom_carbon_content')) {
         setEditCalcMethodology('using_carbon_composition');
-      } else if (dfvKeys.includes('ef_quantity') || (dfvKeys.includes('custom_ef') && !dfvKeys.includes('custom_cv'))) {
+      } else if ((dfvKeys.includes('ef_quantity') && savedDynamicValues['ef_quantity']?.value !== null) || (dfvKeys.includes('custom_ef') && !dfvKeys.includes('custom_cv'))) {
         setEditCalcMethodology('using_qty_basis_ef');
       } else {
         setEditCalcMethodology('using_heat_basis_ncv');
