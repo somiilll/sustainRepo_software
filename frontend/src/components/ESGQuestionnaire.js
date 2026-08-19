@@ -998,6 +998,21 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       return badges[action] || 'bg-stone-100 text-stone-700';
     };
 
+    const getActorDetails = (version) => {
+      const action = version.change_type || '';
+      const isApproved = action === 'approved' || action === 'submission_approved';
+      const isRejected = action === 'rejected' || action === 'submission_rejected';
+      const actor = isApproved
+        ? version.approved_by_name || version.changed_by_name || version.created_by_name || version.created_by
+        : isRejected
+          ? version.rejected_by_name || version.changed_by_name || version.created_by_name || version.created_by
+          : version.changed_by_name || version.created_by_name || version.created_by;
+      return {
+        label: isApproved ? 'Approved by' : isRejected ? 'Rejected by' : action === 'created' ? 'Created by' : 'Updated by',
+        name: actor && !String(actor).includes('@') ? actor : 'Unknown user',
+      };
+    };
+
     if (!hasHistory) return null;
     
     return (
@@ -1008,6 +1023,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
             {versionHistory.slice(0, 10).map((v, i) => {
               const oldLines = formatValue(v.old_value);
               const newLines = formatValue(v.new_value);
+              const actor = getActorDetails(v);
               
               return (
                 <div key={i} className="border-b border-stone-200 pb-3 last:border-0 last:pb-0">
@@ -1019,11 +1035,9 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
                       {v.created_at ? formatDateTime(v.created_at) : '-'}
                     </span>
                   </div>
-                  {v.created_by && (
-                    <div className="text-stone-600 mb-2">
-                      <span className="font-medium">By:</span> {v.created_by}
-                    </div>
-                  )}
+                  <div className="text-stone-600 mb-2" data-testid={`question-history-actor-${i}`}>
+                    <span className="font-medium">{actor.label}:</span> {actor.name}
+                  </div>
                   {v.change_type === 'rejected' && v.rejection_reason && (
                     <div className="text-red-600 mb-2">
                       <span className="font-medium">Reason:</span> {v.rejection_reason}

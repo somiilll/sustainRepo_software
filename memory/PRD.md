@@ -37,6 +37,10 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
   - Scope 3 places Category beside Calculation Method, then Activity Type beside Activity; Scope 2 places Category beside Fuel Type; indirect Biogenic places Category, Calculation Method, and Biogenic Activity on one desktop row.
   - The layouts stack responsively on smaller screens and retain all existing field visibility, options, and selection behavior.
   - Verified: lint clean; authenticated live browser checks confirmed all requested source selectors are aligned and selectable.
+- **Version-history actor display names** — DONE (2026-08-19)
+  - Record history now resolves creator, updater, approver, and rejector actors from user IDs or legacy stored emails to `full_name`/name before returning history data.
+  - Questionnaire history uses the same name-first behavior and action-specific labels for create, update, approval, and rejection events.
+  - Verified: backend lint and compilation passed; live Water record API returned `Somil`, and the authenticated Water Version History dialog displayed the name without the email.
 - **Emission Edit Form presentation redesign** — DONE (2026-08-19)
   - Rebuilt the edit surface with white, bordered sections; widened the reporting period; added semantic leading icons and emerald scope radio states.
   - Added tinted, icon-led Scope 1/2/Biogenic emission cards and an expanded CO₂e-only treatment for Scope 3. Calculation details now start collapsed with clean audit rows, source badges, and inline final outputs.

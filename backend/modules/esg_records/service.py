@@ -2167,20 +2167,67 @@ class ESGRecordsService:
             ).to_list(None)
             proposals_by_id = {proposal["id"]: proposal for proposal in proposals}
         
-        # Collect user IDs for bulk lookup
-        user_ids = list(set(v.get("created_by") for v in versions if v.get("created_by")))
+        # Resolve actor display names for both current and legacy version entries.
+        # Older entries can carry an email in a `*_by_name` field, while newer
+        # entries reference a user id. Prefer the user's full name in either case.
+        actor_values = [
+            version.get(field)
+            for version in versions
+            for field in ("created_by", "approved_by", "rejected_by", "changed_by_name", "approved_by_name", "rejected_by_name")
+            if version.get(field)
+        ]
+        user_ids = list({value for value in actor_values if "@" not in str(value)})
+        user_emails = list({str(value).lower() for value in actor_values if "@" in str(value)})
         user_map = {}
+        email_map = {}
+        user_query = []
         if user_ids:
-            users = await db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "name": 1, "email": 1}).to_list(None)
-            user_map = {u["id"]: u.get("name") or u.get("email", "Unknown") for u in users}
+            user_query.append({"id": {"$in": user_ids}})
+        if user_emails:
+            user_query.append({"email": {"$in": user_emails}})
+        if user_query:
+            users = await db.users.find(
+                {"$or": user_query},
+                {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1},
+            ).to_list(None)
+            user_map = {
+                user["id"]: user.get("full_name") or user.get("name") or user.get("email", "Unknown")
+                for user in users
+                if user.get("id")
+            }
+            email_map = {
+                user["email"].lower(): user.get("full_name") or user.get("name") or "Unknown"
+                for user in users
+                if user.get("email")
+            }
+
+        def resolve_actor_name(*values: Any) -> str:
+            for value in values:
+                if not value:
+                    continue
+                raw_value = str(value)
+                if "@" in raw_value:
+                    resolved_name = email_map.get(raw_value.lower())
+                    if resolved_name:
+                        return resolved_name
+                    continue
+                resolved_name = user_map.get(raw_value)
+                if resolved_name:
+                    return resolved_name
+                return raw_value
+            return "Unknown"
         
         # Process versions - compute field changes by comparing consecutive snapshots
         for i, v in enumerate(versions):
             if "snapshot" in v and isinstance(v["snapshot"], dict):
                 v["snapshot"].pop("_id", None)
             
-            # Add user name
-            v["changed_by_name"] = v.get("changed_by_name") or user_map.get(v.get("created_by"), "Unknown")
+            # Add user names without exposing stored email fallbacks.
+            v["changed_by_name"] = resolve_actor_name(v.get("changed_by_name"), v.get("created_by"))
+            if v.get("approved_by_name") or v.get("approved_by"):
+                v["approved_by_name"] = resolve_actor_name(v.get("approved_by_name"), v.get("approved_by"), v.get("created_by"))
+            if v.get("rejected_by_name") or v.get("rejected_by"):
+                v["rejected_by_name"] = resolve_actor_name(v.get("rejected_by_name"), v.get("rejected_by"), v.get("created_by"))
             proposal = proposals_by_id.get(v.get("proposal_id"))
             if proposal and v.get("submitted_field_diffs") is None:
                 enrich_proposal_diff_details(v, proposal)

@@ -1903,6 +1903,43 @@ class ESGQuestionnaireService:
         ).sort("timestamp", -1)
         
         entries = await cursor.to_list(200)
+
+        actor_ids = {
+            performer.get("user_id")
+            for entry in entries
+            if isinstance((performer := entry.get("performed_by")), dict)
+            and performer.get("user_id")
+        }
+        actor_emails = {
+            performer.get("email") or performer.get("name")
+            for entry in entries
+            if isinstance((performer := entry.get("performed_by")), dict)
+            and "@" in (performer.get("email") or performer.get("name") or "")
+        }
+        actor_query = []
+        if actor_ids:
+            actor_query.append({"id": {"$in": list(actor_ids)}})
+        if actor_emails:
+            actor_query.append({"email": {"$in": list(actor_emails)}})
+        users_by_id = {}
+        users_by_email = {}
+        if actor_query:
+            actor_users = await db.users.find(
+                {"$or": actor_query},
+                {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1},
+            ).to_list(None)
+            users_by_id = {user["id"]: user for user in actor_users if user.get("id")}
+            users_by_email = {user["email"].lower(): user for user in actor_users if user.get("email")}
+
+        def resolve_actor_name(performed_by: Any) -> str:
+            performer = performed_by if isinstance(performed_by, dict) else {}
+            raw_value = performer.get("name") or performer.get("email") or str(performed_by or "")
+            user = users_by_id.get(performer.get("user_id"))
+            if not user and "@" in raw_value:
+                user = users_by_email.get(raw_value.lower())
+            if user:
+                return user.get("full_name") or user.get("name") or "Unknown user"
+            return raw_value if raw_value and "@" not in raw_value else "Unknown user"
         
         # Process each entry to add computed fields and normalize names for frontend
         for entry in entries:
@@ -1913,10 +1950,14 @@ class ESGQuestionnaireService:
             entry["change_type"] = action or "updated"
             entry["created_at"] = entry.get("timestamp")
             performed_by = entry.get("performed_by", {})
-            if isinstance(performed_by, dict):
-                entry["created_by"] = performed_by.get("name") or performed_by.get("email") or "Unknown"
-            else:
-                entry["created_by"] = str(performed_by) if performed_by else "Unknown"
+            actor_name = resolve_actor_name(performed_by)
+            entry["created_by"] = actor_name
+            entry["created_by_name"] = actor_name
+            entry["changed_by_name"] = actor_name
+            if action in {"approved", "submission_approved"}:
+                entry["approved_by_name"] = actor_name
+            if action in {"rejected", "submission_rejected"}:
+                entry["rejected_by_name"] = actor_name
             entry["old_value"] = change_details.get("old_value") or change_details.get("original_value")
             entry["new_value"] = change_details.get("new_value") or change_details.get("final_value") or change_details.get("value")
             if change_details.get("rejection_reason"):
@@ -1977,10 +2018,10 @@ class ESGQuestionnaireService:
             # Format performer name for display
             performed_by = entry.get("performed_by", {})
             if isinstance(performed_by, dict):
-                entry["performed_by_name"] = performed_by.get("name") or performed_by.get("email") or "Unknown"
+                entry["performed_by_name"] = actor_name
                 entry["performed_by_email"] = performed_by.get("email", "")
             else:
-                entry["performed_by_name"] = str(performed_by) if performed_by else "Unknown"
+                entry["performed_by_name"] = actor_name
                 entry["performed_by_email"] = ""
             
             # Add question label for subparts
@@ -3762,7 +3803,7 @@ class ESGQuestionnaireService:
             if user_ids:
                 users = await db.users.find(
                     {"id": {"$in": user_ids}},
-                    {"_id": 0, "id": 1, "name": 1, "email": 1}
+                    {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1}
                 ).to_list(100)
                 users_map = {u["id"]: u for u in users}
             
@@ -3774,7 +3815,9 @@ class ESGQuestionnaireService:
                 # Get user details
                 user_id = v.get("performed_by", {}).get("user_id")
                 user = users_map.get(user_id, {})
-                user_name = v.get("performed_by", {}).get("name") or user.get("name") or user.get("email") or "Unknown"
+                performer = v.get("performed_by", {})
+                raw_actor = performer.get("name") or performer.get("email") or ""
+                user_name = user.get("full_name") or user.get("name") or (raw_actor if "@" not in raw_actor else "Unknown user")
                 
                 # Get change details
                 change_details = v.get("change_details", {})
@@ -3783,6 +3826,8 @@ class ESGQuestionnaireService:
                     "change_type": v.get("action"),
                     "created_at": v.get("timestamp").isoformat() if hasattr(v.get("timestamp"), 'isoformat') else str(v.get("timestamp")),
                     "created_by": user_name,
+                    "created_by_name": user_name,
+                    "changed_by_name": user_name,
                     "old_value": change_details.get("old_value"),
                     "new_value": change_details.get("new_value"),
                     "rejection_reason": v.get("rejection_reason") or change_details.get("rejection_reason"),
