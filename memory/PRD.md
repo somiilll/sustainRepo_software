@@ -29,6 +29,10 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - BRSR Internal AI repair.
 
 ### Session 2 (Current)
+- **Edit Emission form alignment restored** — DONE (2026-08-19)
+  - Kept every Scope option on one horizontal row by allocating the Scope column sufficient width and narrowing the Reporting Month/Year control.
+  - Vertically aligned Step 2 with Step 1 and the downstream input step; no calculation, validation, API, or backend behavior changed.
+  - Verified with frontend linting and an authenticated, read-only edit-dialog browser smoke test.
 - Aligned optional/override field boxes with correct configured/fuel default values in ledger — DONE
 - Reduced vertical spacing (header-to-content transitions) in create emission dialogs — DONE
 - Fixed monthly "Done" validation to require ALL mandatory fields — DONE

@@ -234,7 +234,7 @@ export default function EmissionEditForm(props) {
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   markFormDirty={markFormDirty}
                   reportingPeriod={(
-                    <div className="space-y-1.5" data-testid="edit-reporting-period-field">
+                    <div className="w-full max-w-[11rem] space-y-1.5" data-testid="edit-reporting-period-field">
                       {editFrequencyType === 'yearly' ? (
                         <>
                           <Label>
@@ -295,7 +295,7 @@ export default function EmissionEditForm(props) {
                   ) : (
                     <>
                       {/* Category and Fuel Selection */}
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {/* Step 1: Category Selection */}
                         <div className="space-y-1.5">
                           <Label htmlFor="category_select">Step 1: Select Category *</Label>

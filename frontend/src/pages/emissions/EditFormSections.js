@@ -29,7 +29,7 @@ export const FacilityScopeSection = ({
   markFormDirty,
   reportingPeriod,
 }) => (
-  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+  <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(25rem,1.6fr)_11rem]">
     <div className="space-y-1.5">
       <Label htmlFor="facility">Facility *</Label>
       <select
@@ -48,12 +48,12 @@ export const FacilityScopeSection = ({
     </div>
     <div className="space-y-1.5">
       <Label>Scope *</Label>
-      <div className="flex gap-4 h-10 items-center flex-wrap">
+      <div className="flex h-10 items-center gap-3 whitespace-nowrap">
         {dynamicScopes.map(scope => {
           const isScope3 = scope.code === 'scope3';
           const isDisabled = isScope3 && !hasScope3Access;
           return (
-            <label key={scope.code} className={`flex items-center gap-2 relative ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
+            <label key={scope.code} className={`relative flex shrink-0 items-center gap-2 ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
               <input
                 type="radio"
                 value={scope.code}
