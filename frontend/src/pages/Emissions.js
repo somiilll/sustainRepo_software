@@ -145,7 +145,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const overrideDensity = editDraft.overrideDensity;
   const setOverrideDensity = useCallback((value) => setDraftField('overrideDensity', value), [setDraftField]);
   const overrideEmissionFactorHeat = editDraft.overrideEmissionFactorHeat;
-  const setOverrideEmissionFactorHeat = useCallback((value) => setDraftField('overrideEmissionFactorHeat', value), [setDraftField]);
   const overrideJustification = editDraft.overrideJustification;
   const setOverrideJustification = useCallback((value) => setDraftField('overrideJustification', value), [setDraftField]);
   
@@ -235,30 +234,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [formStep, setFormStep] = useState(1); // Step-based form
 
 
-  // CRITICAL: Use refs to always have fresh values in event handlers
-  // This fixes stale closure issues with React state in async handlers
-  const overrideCalorificValueRef = useRef(overrideCalorificValue);
-  const overrideDensityRef = useRef(overrideDensity);
-  const overrideEmissionFactorHeatRef = useRef(overrideEmissionFactorHeat);
-  const formDataRef = useRef(formData);
-  
-  
-  // Keep refs in sync with state
-  useEffect(() => {
-    overrideCalorificValueRef.current = overrideCalorificValue;
-  }, [overrideCalorificValue]);
-  
-  useEffect(() => {
-    overrideDensityRef.current = overrideDensity;
-  }, [overrideDensity]);
-  
-  useEffect(() => {
-    overrideEmissionFactorHeatRef.current = overrideEmissionFactorHeat;
-  }, [overrideEmissionFactorHeat]);
-  
-  useEffect(() => {
-    formDataRef.current = formData;
-  }, [formData]);
+  // Synchronously identifies the latest record-opening request so delayed
+  // evidence metadata cannot update a newer draft.
+  const activeEditIdRef = useRef(null);
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
   const existingEvidences = editDraft.existingEvidences;
@@ -2250,7 +2228,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     // Setters
     setEditDraft, setEditingEmissionId,
     setEmissionAuditLog, setIsEditLoading, setDialogOpen, setIsFormDirty,
-    setEditingEmission,
+    setEditingEmission, activeEditIdRef,
   });
 
   // Deep-link from /ghg/approvals: open the edit dialog for ?edit=<id> once
@@ -2379,6 +2357,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   };
 
   const resetForm = () => {
+    activeEditIdRef.current = null;
     setEditingEmission(null);
     setEditDraft(createEmptyEmissionDraft(activeScope));
     setEditFormConfig(null); // Clear form config
@@ -3091,7 +3070,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   hasFullKPIAccess={hasFullKPIAccess}
                   // ---------- computed/derived ----------
                   selectedFuel={selectedFuel}
-                  activeCategoryModule={activeCategoryModule}
                   isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
                   editActiveMonths={editActiveMonths}
                   ModuleDynamicFieldsRenderer={ModuleDynamicFieldsRenderer}

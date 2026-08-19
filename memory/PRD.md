@@ -42,10 +42,15 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
   - Added pure stored-record ↔ draft adapters; existing category payload builders remain unchanged.
   - Migrated `Emissions.js`, edit dispatch, and `EmissionEditForm.jsx` to a shared draft source of truth.
   - Full regression preserved: frontend 1228 passed / 63 snapshots; backend golden 506 passed / 9 skipped.
+- **GHG Phase 6.2 — Edit Boundary Cleanup & Orchestration Isolation** — DONE (2026-08-19)
+  - Removed the conclusively unused `EmissionEditForm` legacy value/setter contract, inert draft mirrors, and one unreachable branch; `editDraft` remains the sole mutable Edit-form value source.
+  - Proved and minimally fixed the stale asynchronous evidence-filename merge with an active-record guard and focused regression coverage.
+  - Retained the async historical hydration effect and page-owned calculation preview after dependency analysis; neither had a safe small extraction boundary.
+  - Verified: frontend 1229 passed / 63 snapshots, backend golden 506 passed / 9 skipped, C7 9/9, Phase 1 equivalence 785/785, architecture contract 16/16, and authenticated no-save Edit smoke test.
 
 ### Regression Status
 - Backend golden: 506 passed / 9 skipped
-- Frontend: 1228 passed / 63 snapshots
+- Frontend: 1229 passed / 63 snapshots
 
 ## Known Issues
 
@@ -78,7 +83,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Supplier/Customer Org Onboarding Wizards
 - BRSR Word download (.docx) + "Previous Year Columns"
 - MIS Schedule Preview & Report Bookmarks
-- Extract remaining GHG edit calculation-preview orchestration into a dedicated controller (post-Phase 6; keep Phase 7 separate)
+- Keep Edit calculation-preview orchestration page-owned unless a future dedicated dependency analysis identifies a clean boundary; Phase 7 remains explicitly blocked pending instruction.
 
 ### P2
 - Copy Month Values for Custom Fuel EF/CV

@@ -22,7 +22,10 @@ export async function editEmissionDispatch(emission, ctx) {
     setDialogOpen,
     setIsFormDirty,
     setEditingEmission,
+    activeEditIdRef,
   } = ctx;
+
+  activeEditIdRef.current = emission.id;
 
   const draft = emissionRecordToDraft(emission, {
     fuelDatabase,
@@ -55,6 +58,7 @@ export async function editEmissionDispatch(emission, ctx) {
         }
       }),
     );
+    if (activeEditIdRef.current !== emission.id) return;
     setEditDraft((currentDraft) => ({
       ...currentDraft,
       existingEvidences: evidencesWithFilenames,
@@ -67,6 +71,7 @@ export async function editEmissionDispatch(emission, ctx) {
   setDialogOpen(true);
 
   await new Promise((resolve) => setTimeout(resolve, 50));
+  if (activeEditIdRef.current !== emission.id) return;
   setIsEditLoading(false);
 }
 
