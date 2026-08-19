@@ -217,13 +217,6 @@ export function validateCreateSubmission(ctx) {
   const { module, formData, processNames } = ctx;
 
   const validProcessNames = (processNames || []).filter((p) => p.name && p.name.trim() !== '');
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
-  const missingDesc = validProcessNames.find((p) => !p.description || p.description.trim() === '');
-  if (missingDesc) {
-    return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
-  }
 
   // Capability-aware: asset name (C8/C13/C14/C15)
   if (module?.hasCapability?.('asset-name')) {

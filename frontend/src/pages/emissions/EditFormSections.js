@@ -27,8 +27,9 @@ export const FacilityScopeSection = ({
   handleFuelSelect,
   setBiogenicScopeSelection,
   markFormDirty,
+  reportingPeriod,
 }) => (
-  <div className="grid grid-cols-2 gap-4">
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
     <div className="space-y-1.5">
       <Label htmlFor="facility">Facility *</Label>
       <select
@@ -79,6 +80,7 @@ export const FacilityScopeSection = ({
         })}
       </div>
     </div>
+    {reportingPeriod}
   </div>
 );
 

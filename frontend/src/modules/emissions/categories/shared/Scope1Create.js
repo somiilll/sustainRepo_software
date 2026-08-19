@@ -186,7 +186,7 @@ export function buildDecisionContext(data, ctx) {
 /**
  * Pre-loop validation for Scope 1/2 + biogenic-scope1 CREATE.
  *
- * Mirrors the legacy gating: process-name, override justification,
+ * Mirrors the legacy gating: override justification,
  * fuel selection, calc prerequisite. Per-month override value validity
  * is checked downstream during the per-month loop (caller iterates).
  */
@@ -205,15 +205,9 @@ export function validateCreateSubmission(ctx) {
     buildDecisionInputs,
   } = ctx;
 
-  // Process names + descriptions
+  // Process details are optional metadata. Preserve any supplied values for
+  // payload construction without blocking a valid emission submission.
   const validProcessNames = (processNames || []).filter((p) => p.name && p.name.trim() !== '');
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
-  const missingDesc = validProcessNames.find((p) => !p.description || p.description.trim() === '');
-  if (missingDesc) {
-    return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
-  }
 
   // Fuel selection — Process Emissions don't require fuel
   const isProcessEmissions = Boolean(ctx.capabilities?.processType);

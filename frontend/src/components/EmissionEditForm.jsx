@@ -233,6 +233,42 @@ export default function EmissionEditForm(props) {
                   handleFuelSelect={handleFuelSelect}
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   markFormDirty={markFormDirty}
+                  reportingPeriod={(
+                    <div className="space-y-1.5" data-testid="edit-reporting-period-field">
+                      {editFrequencyType === 'yearly' ? (
+                        <>
+                          <Label>
+                            <CalendarIcon className="w-4 h-4 inline mr-1" />
+                            Reporting Year
+                          </Label>
+                          <div className="flex items-center h-10 bg-purple-50 border border-purple-200 rounded-lg px-3 text-purple-700 font-medium" data-testid="edit-reporting-year-display">
+                            {editingEmission.reporting_period || 'N/A'}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Label htmlFor="reporting_period_start">
+                            <CalendarIcon className="w-4 h-4 inline mr-1" />
+                            Reporting Month *
+                          </Label>
+                          <MonthYearPicker
+                            id="reporting_period_start"
+                            value={formData.reporting_period_start}
+                            disableFuture={true}
+                            onChange={(val) => {
+                              setFormData((previous) => ({
+                                ...previous,
+                                reporting_period_start: val,
+                                reporting_period_end: val,
+                              }));
+                            }}
+                            placeholder="Select month"
+                            className="bg-stone-50"
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
                 />
                 
                 {/* Biogenic Scope Selection - Extracted Component */}
@@ -247,164 +283,6 @@ export default function EmissionEditForm(props) {
                 />
 
                 
-                {/* Reporting Period - Handle both Monthly and Yearly records for editing */}
-                {editingEmission ? (
-                  <div className="space-y-2">
-                    {/* Yearly Record - Show read-only year display */}
-                    {editFrequencyType === 'yearly' ? (
-                      <div className="space-y-1.5">
-                        <Label>
-                          <CalendarIcon className="w-4 h-4 inline mr-1" />
-                          Reporting Year
-                        </Label>
-                        <div className="flex items-center h-10 bg-purple-50 border border-purple-200 rounded-lg px-3 text-purple-700 font-medium">
-                          {editingEmission.reporting_period || 'N/A'}
-                        </div>
-                      </div>
-                    ) : (
-                      /* Monthly Record - Show month/year picker */
-                      <div className="space-y-1.5">
-                        <Label htmlFor="reporting_period_start">
-                          <CalendarIcon className="w-4 h-4 inline mr-1" />
-                          Reporting Month *
-                        </Label>
-                        <MonthYearPicker
-                          id="reporting_period_start"
-                          value={formData.reporting_period_start}
-                          disableFuture={true}
-                          onChange={(val) => {
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              reporting_period_start: val,
-                              reporting_period_end: val
-                            }));
-                          }}
-                          placeholder="Select month"
-                          className="bg-stone-50"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* For new emissions, show period type selection */
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-4">
-                      <Label>Reporting Period Type *</Label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name="period_type"
-                            checked={formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end}
-                            onChange={() => {
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_end: prev.reporting_period_start
-                              }));
-                            }}
-                            className="text-primary"
-                          />
-                          Single Month
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name="period_type"
-                            checked={formData.reporting_period_start !== formData.reporting_period_end && !!formData.reporting_period_end}
-                            onChange={() => {
-                              // Set to full year (12 months) starting from current start month or current month
-                              const currentDate = new Date();
-                              const startMonth = formData.reporting_period_start || `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-                              const [year, month] = startMonth.split('-').map(Number);
-                              // Calculate end month (11 months later = 12 month period)
-                              let endYear = year;
-                              let endMonth = month + 11;
-                              if (endMonth > 12) {
-                                endYear += 1;
-                                endMonth -= 12;
-                              }
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_start: startMonth,
-                                reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
-                              }));
-                            }}
-                            className="text-primary"
-                          />
-                          Full Year (12 months)
-                        </label>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      {formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end ? (
-                        /* Single Month Mode */
-                        <div className="space-y-1.5 col-span-2">
-                          <Label htmlFor="reporting_period_start">
-                            <CalendarIcon className="w-4 h-4 inline mr-1" />
-                            Reporting Month *
-                          </Label>
-                          <MonthYearPicker
-                            id="reporting_period_start"
-                            value={formData.reporting_period_start}
-                            disableFuture={true}
-                            onChange={(val) => {
-                              setFormData(prev => ({ 
-                                ...prev, 
-                                reporting_period_start: val,
-                                reporting_period_end: val // Keep them synced in single month mode
-                              }));
-                            }}
-                            placeholder="Select month"
-                            className="bg-stone-50"
-                          />
-                        </div>
-                      ) : (
-                      /* Full Year Mode - Select starting month */
-                      <>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="year_start_month">
-                            <CalendarIcon className="w-4 h-4 inline mr-1" />
-                            Starting Month *
-                          </Label>
-                          <MonthYearPicker
-                            id="year_start_month"
-                            value={formData.reporting_period_start}
-                            disableFuture={true}
-                            onChange={(val) => {
-                              const startMonth = val;
-                              const [year, month] = startMonth.split('-').map(Number);
-                              // Calculate end month (11 months later = 12 month period)
-                              let endYear = year;
-                              let endMonth = month + 11;
-                              if (endMonth > 12) {
-                                endYear += 1;
-                                endMonth -= 12;
-                              }
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_start: startMonth,
-                                reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
-                              }));
-                            }}
-                            placeholder="Select starting month"
-                            className="bg-stone-50"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-text-muted">Period (12 months)</Label>
-                          <p className="text-sm text-text-secondary h-10 flex items-center bg-stone-100 px-3 rounded-md">
-                            {formData.reporting_period_start && formData.reporting_period_end 
-                              ? `${formData.reporting_period_start} to ${formData.reporting_period_end}`
-                              : 'Select a starting month'}
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                )}
-
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-3">
                   {/* Show prompt for facility selection */}
@@ -417,7 +295,7 @@ export default function EmissionEditForm(props) {
                   ) : (
                     <>
                       {/* Category and Fuel Selection */}
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {/* Step 1: Category Selection */}
                         <div className="space-y-1.5">
                           <Label htmlFor="category_select">Step 1: Select Category *</Label>
@@ -474,12 +352,12 @@ export default function EmissionEditForm(props) {
                             </div>
                           </>
                         ) : !ghgUiState.showFuelSelection ? null : (
-                          <div className="space-y-3">
+                          <div className="space-y-1.5">
                             {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
-                            {ghgUiState.showCustomFuel && (
-                              <div className="flex items-center justify-between">
-                                <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
-                                <label className="flex items-center gap-2 cursor-pointer">
+                            <div className="flex h-5 items-center justify-between gap-1">
+                              <Label htmlFor="fuel_select" className="whitespace-nowrap text-xs">Step 2: Select Fuel Type *</Label>
+                              {ghgUiState.showCustomFuel && (
+                                <label className="flex shrink-0 items-center gap-1.5 cursor-pointer">
                                   <input
                                     type="checkbox"
                                     checked={editUseCustomFuel}
@@ -495,16 +373,13 @@ export default function EmissionEditForm(props) {
                                     className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
                                     data-testid="edit-use-custom-fuel-toggle"
                                   />
-                                  <span className="text-sm text-amber-700 font-medium">Use Custom Fuel</span>
+                                  <span className="text-xs text-amber-700 font-medium">Use Custom Fuel</span>
                                 </label>
-                              </div>
-                            )}
+                              )}
+                            </div>
                             
                             {!editUseCustomFuel ? (
                               <div className="space-y-1.5">
-                                {!ghgUiState.showCustomFuel && (
-                                  <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
-                                )}
                                 <select
                                   id="fuel_select"
                                   value={formData.fuel_id}
@@ -541,8 +416,7 @@ export default function EmissionEditForm(props) {
                             )}
                           </div>
                         )}
-                      </div>
-                      
+
                       {/* Process Type - For Process Emissions (Scope 1) */}
                       {ghgUiState.showProcessType && (
                         <div className="space-y-1.5" data-testid="edit-process-type-section">
@@ -589,6 +463,7 @@ export default function EmissionEditForm(props) {
                           </Select>
                         </div>
                       )}
+                      </div>
 
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
@@ -908,7 +783,7 @@ export default function EmissionEditForm(props) {
                       </div>
                     )}
                     
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
                         const isQtyField = isQuantityField(field);
                         const hideStandardQuantityUnit = editUseCustomFuel && isQtyField;
@@ -1084,7 +959,7 @@ export default function EmissionEditForm(props) {
                                 ))}
                               </select>
                             ) : (
-                              <div className={(showUnitSelector || showUnitTextInput) ? "flex gap-2" : ""}>
+                              <div className={(showUnitSelector || showUnitTextInput) ? "flex gap-2 min-w-0" : ""}>
                                 <Input
                                   type={field.fieldType === 'text' ? 'text' : 'number'}
                                   step={field.fieldType === 'number' ? 'any' : undefined}
@@ -1103,7 +978,7 @@ export default function EmissionEditForm(props) {
                                   }}
                                   onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
                                   disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1 min-w-0' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                   data-testid={`edit-input-${field.fieldKey}`}
                                 />
 
@@ -1114,7 +989,7 @@ export default function EmissionEditForm(props) {
                                     value={dynamicFieldValues[`${field.variable}_unit`] || ''}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
                                     disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     placeholder="Unit"
                                     data-testid={`edit-unit-text-${field.fieldKey}`}
                                   />
@@ -1127,7 +1002,7 @@ export default function EmissionEditForm(props) {
                                     value={dynamicFieldValues[`${field.variable}_unit`] || ''}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
                                     disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     placeholder="Unit (e.g., L, tCO2/L)"
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   />
@@ -1144,7 +1019,7 @@ export default function EmissionEditForm(props) {
                                       }
                                     }}
                                     disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   >
                                     {/* savedUnit already included in fieldUnits at line ~4084; no duplicate injection needed */}

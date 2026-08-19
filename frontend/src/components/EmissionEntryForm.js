@@ -2771,8 +2771,6 @@ export default function EmissionEntryForm({
       </EmissionFormSection>
 
       <EmissionFormSection
-        title="Reporting frequency"
-        description="Set the reporting period and whether you are entering monthly or annual data."
         testId="emission-reporting-frequency-section"
       >
         <ReportingPeriodControls
