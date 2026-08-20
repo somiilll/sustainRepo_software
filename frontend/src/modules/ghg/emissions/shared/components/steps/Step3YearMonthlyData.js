@@ -8,7 +8,7 @@
  * The parent (EmissionEntryForm) manages all state and callbacks.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
@@ -303,6 +303,70 @@ export const Step3YearMonthlyData = ({
   // Backend URL for file viewing
   BACKEND_URL,
 }) => {
+  useEffect(() => {
+    if (!['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(calculationMethodology)) return;
+
+    const quantityField = dynamicInputFields.find((field) => isQuantityField(field));
+    const referenceField = calculationMethodology === 'using_heat_basis_ncv'
+      ? dynamicInputFields.find((field) => (
+        /^cv(_|$)/.test(field.variable || '')
+        || /calorific value|^cv$/i.test(field.label || '')
+      ))
+      : dynamicInputFields.find((field) => (
+        /^ef(_|$)/.test(field.variable || '')
+        || /emission factor/i.test(field.label || '')
+      ));
+    if (!quantityField || !referenceField) return;
+
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+      activeMonths.forEach((monthKey) => {
+        const current = previousMonths[monthKey] || {};
+        const quantityUnit = current[`${quantityField.variable}_unit`]
+          || current.unit
+          || quantityField.defaultUnit
+          || quantityField.allowedUnits?.[0]
+          || quantityField.expectedUnit
+          || '';
+        const referenceUnit = current[`${referenceField.variable}_unit`]
+          || referenceField.defaultUnit
+          || referenceField.allowedUnits?.[0]
+          || referenceField.expectedUnit
+          || '';
+        const requirement = resolveDensityRequirement({
+          quantityUnit,
+          referenceUnit: getUnitDenominator(referenceUnit),
+          centralizedUnits,
+        });
+        const hasDensitySourceValue = [
+          current[quantityField.variable] ?? current[quantityField.fieldKey],
+          current[referenceField.variable] ?? current[referenceField.fieldKey],
+        ].some((value) => value !== '' && value !== null && value !== undefined);
+        if (!requirement.required || !hasDensitySourceValue) {
+          if (current.runtime_density_required && !current.density) {
+            nextMonths[monthKey] = {
+              ...current,
+              override_density: false,
+              runtime_density_required: false,
+            };
+            changed = true;
+          }
+          return;
+        }
+        if (current.override_density === true && current.density_unit === requirement.densityUnit) return;
+        nextMonths[monthKey] = {
+          ...current,
+          override_density: true,
+          runtime_density_required: true,
+          density_unit: requirement.densityUnit,
+        };
+        changed = true;
+      });
+      return changed ? nextMonths : previousMonths;
+    });
+  }, [activeMonths, calculationMethodology, centralizedUnits, dynamicInputFields, monthlyData, setMonthlyData]);
+
   return (
     <div className="space-y-8">
       {showReportingControls && (
@@ -656,8 +720,13 @@ export const Step3YearMonthlyData = ({
                     referenceUnit: getUnitDenominator(referenceUnit),
                     centralizedUnits,
                   });
+                  const hasDensitySourceValue = [
+                    data[quantityField?.variable] ?? data[quantityField?.fieldKey],
+                    data[referenceField?.variable] ?? data[referenceField?.fieldKey],
+                  ].some((value) => value !== '' && value !== null && value !== undefined);
                   const hasDynamicDensity = !isDisabled
                     && !useCustomFuel
+                    && hasDensitySourceValue
                     && dynamicDensityRequirement.required;
                   const hasLegacyOverrides = !isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') &&
                     !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides;
@@ -748,11 +817,13 @@ export const Step3YearMonthlyData = ({
                                       type="number"
                                       step="any"
                                       min="0"
+                                      required
                                       value={data.density || ''}
                                       onChange={(event) => {
                                         updateMonthData(monthKey, 'density', event.target.value);
                                         updateMonthData(monthKey, 'density_unit', dynamicDensityRequirement.densityUnit);
                                         updateMonthData(monthKey, 'override_density', true);
+                                        updateMonthData(monthKey, 'runtime_density_required', true);
                                       }}
                                       className="h-9 bg-white"
                                       data-testid={`month-${monthKey}-dynamic-density-input`}

@@ -206,6 +206,18 @@ describe('validateStep3 — data gate (monthly)', () => {
     });
   });
 
+  it('blocks a runtime density requirement when the conversion mismatch is unresolved', () => {
+    expect(
+      step3({
+        dynamicInputFields: [QTY_FIELD, { variable: 'density', label: 'Density', isOverride: true }],
+        monthlyData: { '04': { qty: '100', override_density: true, density_unit: 'kg/L' } },
+      }),
+    ).toEqual({
+      valid: false,
+      message: 'Please enter a value for "Density" in April or uncheck the Override Default checkbox',
+    });
+  });
+
   it('auto-unselects a cleared calorific-value override and explains why', () => {
     const updateMonthData = jest.fn();
     const result = step3({

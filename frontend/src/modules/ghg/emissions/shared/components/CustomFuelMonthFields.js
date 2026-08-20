@@ -96,9 +96,14 @@ const CustomFuelMonthFields = ({
     referenceUnit,
     centralizedUnits,
   });
+  const hasDensitySourceValue = calculationMethodology === 'using_heat_basis_ncv'
+    ? [data.custom_qty, data.custom_cv, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
+    : calculationMethodology === 'using_qty_basis_ef'
+      ? [data.custom_qty, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
+      : [data.custom_qty, data.custom_carbon_content].some((value) => value !== '' && value !== null && value !== undefined);
 
   useEffect(() => {
-    if (!densityRequirement.required || !densityRequirement.densityUnit) return;
+    if (!hasDensitySourceValue || !densityRequirement.required || !densityRequirement.densityUnit) return;
     const currentDensityUnit = data.density_unit || '';
     if (currentDensityUnit === densityRequirement.densityUnit) return;
 
@@ -113,7 +118,7 @@ const CustomFuelMonthFields = ({
       nextData.density = String(1 / Number(data.density));
     }
     Object.entries(nextData).forEach(([key, value]) => updateMonthData(monthKey, key, value));
-  }, [data.density, data.density_unit, densityRequirement.densityUnit, densityRequirement.required, monthKey, updateMonthData]);
+  }, [data.density, data.density_unit, densityRequirement.densityUnit, densityRequirement.required, hasDensitySourceValue, monthKey, updateMonthData]);
 
   const qtyUnitSelector = (
     <div className="space-y-1">
@@ -179,7 +184,7 @@ const CustomFuelMonthFields = ({
           />
         </div>
         {qtyUnitSelector}
-        {renderDensity(densityRequirement.required, densityRequirement.densityUnit)}
+        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }
@@ -200,7 +205,7 @@ const CustomFuelMonthFields = ({
           unitTestId={`month-${monthKey}-custom-ef-unit`}
         />
         {qtyUnitSelector}
-        {renderDensity(densityRequirement.required, densityRequirement.densityUnit)}
+        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }
@@ -232,7 +237,7 @@ const CustomFuelMonthFields = ({
           </div>
         </div>
         {qtyUnitSelector}
-        {renderDensity(densityRequirement.required, densityRequirement.densityUnit)}
+        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }

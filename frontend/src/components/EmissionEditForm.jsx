@@ -799,7 +799,21 @@ export default function EmissionEditForm(props) {
                         const hideStandardQuantityUnit = editUseCustomFuel && isQtyField;
                         
                         // Get the currently saved unit for this field
-                        const savedUnit = dynamicFieldValues[`${field.variable}_unit`] || '';
+                        const savedUnit = dynamicFieldValues[`${field.variable}_unit`]
+                          || (field.variable === 'density' ? formData.density_unit : '')
+                          || '';
+                        const savedDensityValue = field.variable === 'density'
+                          ? dynamicFieldValues.density ?? formData.density ?? editingEmission?.dynamic_field_values?.density?.value
+                          : undefined;
+                        const overrideKey = `override_${field.variable}`;
+                        const isOverrideEnabled = dynamicFieldValues[overrideKey] === true
+                          || (
+                            field.variable === 'density'
+                            && dynamicFieldValues[overrideKey] === undefined
+                            && savedDensityValue !== undefined
+                            && savedDensityValue !== null
+                            && savedDensityValue !== ''
+                          );
                         
                         // Determine field units based on unit_source
                         let fieldUnits = [];
@@ -913,7 +927,7 @@ export default function EmissionEditForm(props) {
                                   <input
                                     type="checkbox"
                                     id={`edit-override-${field.variable}`}
-                                    checked={dynamicFieldValues[`override_${field.variable}`] || false}
+                                    checked={isOverrideEnabled}
                                     onChange={(e) => {
                                       const isChecked = e.target.checked;
                                       updateDynamicFieldValue(`override_${field.variable}`, isChecked);
@@ -955,10 +969,10 @@ export default function EmissionEditForm(props) {
                             {/* Render based on field_type */}
                             {field.fieldType === 'select' && field.options?.length > 0 ? (
                               <select
-                                value={dynamicFieldValues[field.variable] || ''}
+                                value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                 onChange={(e) => updateDynamicFieldValue(field.variable, e.target.value)}
-                                disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                 data-testid={`edit-select-${field.fieldKey}`}
                               >
                                 <option value="">Select {field.label}</option>
@@ -975,7 +989,7 @@ export default function EmissionEditForm(props) {
                                   step={field.fieldType === 'number' ? 'any' : undefined}
                                   min={field.fieldType === 'number' ? '0' : undefined}
                                   placeholder={field.placeholder}
-                                  value={dynamicFieldValues[field.variable] || ''}
+                                  value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
@@ -987,8 +1001,8 @@ export default function EmissionEditForm(props) {
                                     }
                                   }}
                                   onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
-                                  disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1 min-w-0' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                  disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1 min-w-0' : ''} ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                   data-testid={`edit-input-${field.fieldKey}`}
                                 />
 
@@ -996,10 +1010,10 @@ export default function EmissionEditForm(props) {
                                 {showUnitTextInput && (
                                   <Input
                                     type="text"
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || ''}
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || savedUnit}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
-                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                     placeholder="Unit"
                                     data-testid={`edit-unit-text-${field.fieldKey}`}
                                   />
@@ -1009,10 +1023,10 @@ export default function EmissionEditForm(props) {
                                 {isSupplierBasisUnitField && (
                                   <Input
                                     type="text"
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || ''}
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || savedUnit}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
-                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                     placeholder="Unit (e.g., L, tCO2/L)"
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   />
@@ -1021,15 +1035,15 @@ export default function EmissionEditForm(props) {
                                 {/* Non-supplier basis - use dropdown for units */}
                                 {!isSupplierBasisUnitField && showUnitSelector && (
                                   <select
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || fieldUnits[0] || ''}
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || savedUnit || fieldUnits[0] || ''}
                                     onChange={(e) => {
                                       updateDynamicFieldValue(`${field.variable}_unit`, e.target.value);
                                       if (isQtyField) {
                                         setFormData(prev => ({ ...prev, quantity_unit: e.target.value }));
                                       }
                                     }}
-                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   >
                                     {/* savedUnit already included in fieldUnits at line ~4084; no duplicate injection needed */}
