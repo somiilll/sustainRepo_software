@@ -24,6 +24,7 @@ import {
   Leaf,
   Search,
   Wind,
+  Workflow,
   X,
   Zap,
 } from 'lucide-react';
@@ -413,6 +414,42 @@ export const Step1BasicSelection = ({
         </div>
       </div>
 
+      {/* Process Emissions: keep Category, Process Type, and Methodology aligned. */}
+      {ghgUiState.showProcessType && (
+        <div className="min-w-0 space-y-2" data-testid="process-type-section">
+          <Label>Process Type <span className="text-red-500">*</span></Label>
+          <div className="relative">
+            <Workflow className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-600" aria-hidden="true" />
+            <select
+              value={decisionFieldValues.process_type || ''}
+              onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, process_type: event.target.value, calculation_methodology: '' }))}
+              className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              data-testid="process-type-select"
+              dangerouslySetInnerHTML={{ __html: processTypeOptionsHtml }}
+            />
+          </div>
+        </div>
+      )}
+
+      {ghgUiState.showProcessType && ghgUiState.showCalculationMethodology && (
+        <div className="min-w-0 space-y-2" data-testid="calculation-methodology-section">
+          <Label>Calculation Methodology</Label>
+          <div className="relative">
+            <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
+            <select
+              value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
+              onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: event.target.value }))}
+              className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              data-testid="calculation-methodology-select"
+            >
+              <option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option>
+              <option value="using_qty_basis_ef">Using Qty Basis EF</option>
+              <option value="using_carbon_composition">Using Composition of Carbon</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Biogenic Indirect: Calculation Method */}
       {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && category && (
         <div className="min-w-0 space-y-2">
@@ -687,22 +724,8 @@ export const Step1BasicSelection = ({
         </div>
       )}
       
-      {/* Process Type - Only for Process Emissions (Scope 1) */}
-      {ghgUiState.showProcessType && (
-        <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="process-type-section">
-          <Label>Process Type <span className="text-red-500">*</span></Label>
-          <select
-            value={decisionFieldValues.process_type || ''}
-            onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, process_type: event.target.value, calculation_methodology: '' }))}
-            className="h-10 w-full border border-stone-200 bg-stone-50 px-3 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-            data-testid="process-type-select"
-            dangerouslySetInnerHTML={{ __html: processTypeOptionsHtml }}
-          />
-        </div>
-      )}
-
       {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
-      {ghgUiState.showCalculationMethodology && (
+      {ghgUiState.showCalculationMethodology && !ghgUiState.showProcessType && (
         <div className={`space-y-2 ${usesDirectFuelLayout ? '' : 'mt-4 border-b border-stone-200 pb-6'}`} data-testid="calculation-methodology-section">
           <Label>Calculation Methodology</Label>
           <div className="relative">
