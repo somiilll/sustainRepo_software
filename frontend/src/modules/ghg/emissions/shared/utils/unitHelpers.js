@@ -17,8 +17,8 @@ const getUnitDefinition = (unit, centralizedUnits = []) => {
 
 /** Identifies the standard quantity field across configured GHG forms. */
 export const isQuantityField = (field = {}) => {
-  const quantityFields = ['qty', 'qty_energy', 'quantity'];
-  return quantityFields.includes(field.variable) || quantityFields.includes(field.fieldKey);
+  const fieldIdentity = String(field.variable || field.fieldKey || '').toLowerCase();
+  return /^(qty|quantity)(_|$)/.test(fieldIdentity);
 };
 
 /** Returns the unit registry type, such as mass or volume. */

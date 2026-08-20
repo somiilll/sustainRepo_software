@@ -30,6 +30,7 @@ describe('isQuantityField', () => {
     expect(isQuantityField({ variable: 'qty' })).toBe(true);
     expect(isQuantityField({ variable: 'qty_energy' })).toBe(true);
     expect(isQuantityField({ fieldKey: 'quantity' })).toBe(true);
+    expect(isQuantityField({ variable: 'quantity_used_process_emissions' })).toBe(true);
   });
 
   it('rejects anything else, including empty input', () => {

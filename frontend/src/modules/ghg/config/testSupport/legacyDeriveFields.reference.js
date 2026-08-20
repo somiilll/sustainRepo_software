@@ -201,6 +201,14 @@ export function legacyDeriveDynamicInputFields({
       if (handledByCustomFuel.includes(m.maps_to_variable)) return false;
     }
 
+    if (
+      m.maps_to_variable === 'density'
+      && ['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(decisionFieldValues.calculation_methodology)
+      && !selectedFuel?.density
+    ) {
+      return true;
+    }
+
     if (matchedFormula && requiredInputVars?.length) {
       if (m.is_override) {
         const formulaProperties = matchedFormula.properties || [];

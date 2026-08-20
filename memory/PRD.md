@@ -176,3 +176,8 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 
 - Added a compact, resolved hint beside conditional Density fields in Custom Fuel and dynamic monthly entries, e.g. `Conversion required: kg → L`.
 - Verified lint, 17 focused frontend tests, and a non-saving authenticated browser smoke for the inverse conversion hint.
+
+## Change Log — 2026-08-20: Process Emissions Density Visibility
+
+- Process Emissions Venting now creates a virtual runtime Density control directly from a mass/volume mismatch, even when its configuration has no explicit Density field mapping. Semantic quantity/CV/EF alias matching supports the current Venting mapping names.
+- Verified non-saving browser flows: Heat Basis `L` with `TJ/kg` shows `kg/L`; Quantity Basis `kg` with `kgCO2/L` shows `L/kg`.

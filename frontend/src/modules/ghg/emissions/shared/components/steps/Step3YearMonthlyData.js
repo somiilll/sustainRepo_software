@@ -630,11 +630,16 @@ export const Step3YearMonthlyData = ({
 
                   const hasFlightDetails = !isDisabled && scope3ActivityType === 'air_travel' && capabilities.flightDetails;
                   const hasCustomFuel = !isDisabled && useCustomFuel;
-                  const densityField = dynamicInputFields.find((field) => field.variable === 'density');
                   const quantityField = dynamicInputFields.find((field) => isQuantityField(field));
                   const referenceField = calculationMethodology === 'using_heat_basis_ncv'
-                    ? dynamicInputFields.find((field) => field.variable === 'cv')
-                    : dynamicInputFields.find((field) => field.variable === 'ef_quantity');
+                    ? dynamicInputFields.find((field) => (
+                      /^cv(_|$)/.test(field.variable || '')
+                      || /calorific value|^cv$/i.test(field.label || '')
+                    ))
+                    : dynamicInputFields.find((field) => (
+                      /^ef(_|$)/.test(field.variable || '')
+                      || /emission factor/i.test(field.label || '')
+                    ));
                   const quantityUnit = data[`${quantityField?.variable}_unit`]
                     || data.unit
                     || quantityField?.defaultUnit
@@ -653,7 +658,6 @@ export const Step3YearMonthlyData = ({
                   });
                   const hasDynamicDensity = !isDisabled
                     && !useCustomFuel
-                    && Boolean(densityField)
                     && dynamicDensityRequirement.required;
                   const hasLegacyOverrides = !isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') &&
                     !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides;

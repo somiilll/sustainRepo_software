@@ -221,6 +221,17 @@ const isMappingApplicable = ({
 
   if (useCustomFuel && HANDLED_BY_CUSTOM_FUEL.includes(m.maps_to_variable)) return false;
 
+  // Property-based Heat/Quantity conversions can need density even when a
+  // Process Emissions formula does not list it as a formula variable. Keep the
+  // mapped field available; the runtime unit resolver decides when to show it.
+  if (
+    m.maps_to_variable === 'density'
+    && ['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(decisionFieldValues.calculation_methodology)
+    && !selectedFuel?.density
+  ) {
+    return true;
+  }
+
   if (matchedFormula && requiredInputVars?.length) {
     if (m.is_override) {
       const formulaProperties = matchedFormula.properties || [];
