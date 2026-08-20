@@ -17,14 +17,22 @@ const getUnitDefinition = (unit, centralizedUnits = []) => {
 
 /** Identifies the standard quantity field across configured GHG forms. */
 export const isQuantityField = (field = {}) => {
-  const fieldIdentity = String(field.variable || field.fieldKey || '').toLowerCase();
-  return /^(qty|quantity)(_|$)/.test(fieldIdentity);
+  return [field.variable, field.fieldKey].some((identity) => (
+    /^(qty|quantity)(_|$)/.test(String(identity || '').toLowerCase())
+  ));
 };
 
 /** Returns the unit registry type, such as mass or volume. */
-export const getUnitDimension = (unit, centralizedUnits = []) => (
-  getUnitDefinition(unit, centralizedUnits)?.unit_type || null
-);
+export const getUnitDimension = (unit, centralizedUnits = []) => {
+  const definition = getUnitDefinition(unit, centralizedUnits);
+  if (!definition) return null;
+  if (definition.unit_type) return String(definition.unit_type).toLowerCase();
+  const vector = definition.dimension_vector || definition.derived_dimension_vector || {};
+  if (vector.mass) return 'mass';
+  if (vector.volume) return 'volume';
+  if (vector.energy) return 'energy';
+  return null;
+};
 
 /** Extracts the denominator from a compound unit such as kgCO2/L or TJ/kg. */
 export const getUnitDenominator = (compoundUnit) => {

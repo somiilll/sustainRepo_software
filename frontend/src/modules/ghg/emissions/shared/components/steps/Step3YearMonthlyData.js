@@ -8,7 +8,7 @@
  * The parent (EmissionEntryForm) manages all state and callbacks.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
@@ -60,6 +60,54 @@ const getFieldDefaultValue = (field, selectedFuel) => {
 const getFieldDefaultUnit = (field, selectedFuel, fieldUnits) => {
   const fuelKey = FUEL_DEFAULT_UNIT_KEYS[field.variable];
   return selectedFuel?.[fuelKey] || field.expectedUnit || fieldUnits[0] || '';
+};
+
+const isCvField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(cv|calorific)(_|$)/i.test(identity)
+    || /calorific|\bcv\b/i.test(field.label || '');
+};
+
+const isEfField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(ef|emission_factor)(_|$)/i.test(identity)
+    || /emission factor|\bef\b/i.test(field.label || '');
+};
+
+const getMonthlyFieldValue = (field = {}, data = {}) => {
+  const valueKey = field.valueKey || field.variable || field.fieldKey;
+  return data[valueKey] ?? data[field.variable] ?? data[field.fieldKey];
+};
+
+const hasNumericFieldValue = (field, data) => {
+  const value = getMonthlyFieldValue(field, data);
+  return hasFieldValue(value) && Number.isFinite(Number(value));
+};
+
+const hasDensitySourceValues = ({ quantityField, referenceField, data }) => (
+  hasNumericFieldValue(quantityField, data) && hasNumericFieldValue(referenceField, data)
+);
+
+/** The unit shown in a row and the unit used for conversions must be identical. */
+const resolveEffectiveFieldUnit = ({
+  field,
+  data,
+  selectedFuel,
+  fieldUnits = [],
+  isProcessEmissions = false,
+}) => {
+  if (!field) return '';
+  const valueKey = field.valueKey || field.variable || field.fieldKey;
+  const unitKey = field.unitKey || `${valueKey}_unit`;
+  const storedValue = getMonthlyFieldValue(field, data) ?? '';
+  const defaultValue = getFieldDefaultValue(field, selectedFuel);
+  const storedUnit = data[unitKey]
+    || (!isProcessEmissions ? data.unit : '')
+    || '';
+  const defaultUnit = field.defaultUnit || getFieldDefaultUnit(field, selectedFuel, fieldUnits);
+  return !hasFieldValue(storedValue) && hasFieldValue(defaultValue)
+    ? defaultUnit
+    : (storedUnit || defaultUnit);
 };
 
 /**
@@ -205,6 +253,7 @@ const MonthlyLedger = ({ columns, rows }) => {
 // Import volume unit helper
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
 import { getUnitDenominator, isQuantityField, resolveDensityRequirement } from '../../utils/unitHelpers';
+import { normalizeProcessTemplateMonthlyField } from '../../utils/processTemplateMonthlyFields';
 import { buildNativeOptionsHtml } from '../../utils/nativeSelectOptions';
 import { getFieldUnits } from '../DynamicFieldRenderer';
 
@@ -303,19 +352,38 @@ export const Step3YearMonthlyData = ({
   // Backend URL for file viewing
   BACKEND_URL,
 }) => {
+  const normalizedProcessTemplateFields = useMemo(() => (
+    isProcessEmissions && selectedTemplate?.input_fields?.length
+      ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
+      : []
+  ), [isProcessEmissions, selectedTemplate]);
+  const resolveFieldUnits = (field) => {
+    if (!field) return [];
+    if (field.source === 'process_template') return field.allowedUnits || [];
+    return getFieldUnits({
+      field,
+      scope,
+      scope3Method,
+      scope3ActivityId,
+      requiresSubcategory,
+      selectedFuel,
+      filteredScope3Activities,
+      centralizedUnits,
+      biogenicScopeSelection,
+      useCustomFuel,
+    });
+  };
+  const runtimeConversionFields = isProcessEmissions
+    ? normalizedProcessTemplateFields
+    : dynamicInputFields;
+
   useEffect(() => {
     if (!['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(calculationMethodology)) return;
 
-    const quantityField = dynamicInputFields.find((field) => isQuantityField(field));
+    const quantityField = runtimeConversionFields.find((field) => isQuantityField(field));
     const referenceField = calculationMethodology === 'using_heat_basis_ncv'
-      ? dynamicInputFields.find((field) => (
-        /^cv(_|$)/.test(field.variable || '')
-        || /calorific value|^cv$/i.test(field.label || '')
-      ))
-      : dynamicInputFields.find((field) => (
-        /^ef(_|$)/.test(field.variable || '')
-        || /emission factor/i.test(field.label || '')
-      ));
+      ? runtimeConversionFields.find(isCvField)
+      : runtimeConversionFields.find(isEfField);
     if (!quantityField || !referenceField) return;
 
     setMonthlyData((previousMonths) => {
@@ -323,27 +391,31 @@ export const Step3YearMonthlyData = ({
       const nextMonths = { ...previousMonths };
       activeMonths.forEach((monthKey) => {
         const current = previousMonths[monthKey] || {};
-        const quantityUnit = current[`${quantityField.variable}_unit`]
-          || current.unit
-          || quantityField.defaultUnit
-          || quantityField.allowedUnits?.[0]
-          || quantityField.expectedUnit
-          || '';
-        const referenceUnit = current[`${referenceField.variable}_unit`]
-          || referenceField.defaultUnit
-          || referenceField.allowedUnits?.[0]
-          || referenceField.expectedUnit
-          || '';
+        const quantityUnit = resolveEffectiveFieldUnit({
+          field: quantityField,
+          data: current,
+          selectedFuel,
+          fieldUnits: resolveFieldUnits(quantityField),
+          isProcessEmissions,
+        });
+        const referenceUnit = resolveEffectiveFieldUnit({
+          field: referenceField,
+          data: current,
+          selectedFuel,
+          fieldUnits: resolveFieldUnits(referenceField),
+          isProcessEmissions,
+        });
         const requirement = resolveDensityRequirement({
           quantityUnit,
           referenceUnit: getUnitDenominator(referenceUnit),
           centralizedUnits,
         });
-        const hasDensitySourceValue = [
-          current[quantityField.variable] ?? current[quantityField.fieldKey],
-          current[referenceField.variable] ?? current[referenceField.fieldKey],
-        ].some((value) => value !== '' && value !== null && value !== undefined);
-        if (!requirement.required || !hasDensitySourceValue) {
+        const hasDensityInputs = hasDensitySourceValues({
+          quantityField,
+          referenceField,
+          data: current,
+        });
+        if (!requirement.required || !hasDensityInputs) {
           if (current.runtime_density_required && !current.density) {
             nextMonths[monthKey] = {
               ...current,
@@ -365,7 +437,7 @@ export const Step3YearMonthlyData = ({
       });
       return changed ? nextMonths : previousMonths;
     });
-  }, [activeMonths, calculationMethodology, centralizedUnits, dynamicInputFields, monthlyData, setMonthlyData]);
+  }, [activeMonths, calculationMethodology, centralizedUnits, monthlyData, runtimeConversionFields, setMonthlyData]);
 
   return (
     <div className="space-y-8">
@@ -499,8 +571,16 @@ export const Step3YearMonthlyData = ({
             const renderCellInput = (col, monthKey, data) => {
               // Process emissions path
               if (isProcessEmissions && selectedTemplate) {
-                const field = selectedTemplate.input_fields?.find(f => f.key === col.key);
+                const field = normalizedProcessTemplateFields.find((candidate) => candidate.valueKey === col.key);
                 if (!field) return null;
+                const fieldUnits = resolveFieldUnits(field);
+                const displayedUnit = resolveEffectiveFieldUnit({
+                  field,
+                  data,
+                  selectedFuel,
+                  fieldUnits,
+                  isProcessEmissions: true,
+                });
                 return (
                   <div className="flex items-center gap-1">
                     <Input
@@ -508,18 +588,20 @@ export const Step3YearMonthlyData = ({
                       step={field.data_type === 'number' ? 'any' : undefined}
                       min="0"
                       placeholder="—"
-                      value={data[field.key] || ''}
-                      onChange={(e) => updateMonthData(monthKey, field.key, e.target.value)}
+                      value={getMonthlyFieldValue(field, data) || ''}
+                      onChange={(e) => updateMonthData(monthKey, field.valueKey, e.target.value)}
                       className="h-8 w-full text-sm"
-                      data-testid={`month-${monthKey}-${field.key}`}
+                      data-testid={`month-${monthKey}-${field.valueKey}`}
                     />
-                    <select
-                      value={data[`${field.key}_unit`] || field.unit || 'kg'}
-                      onChange={(e) => updateMonthData(monthKey, `${field.key}_unit`, e.target.value)}
-                      className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
-                      data-testid={`month-${monthKey}-${field.key}-unit`}
-                      dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
-                    />
+                    {fieldUnits.length > 0 && (
+                      <select
+                        value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0]}
+                        onChange={(e) => updateMonthData(monthKey, field.unitKey, e.target.value)}
+                        className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
+                        data-testid={`month-${monthKey}-${field.valueKey}-unit`}
+                        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                      />
+                    )}
                   </div>
                 );
               }
@@ -593,11 +675,14 @@ export const Step3YearMonthlyData = ({
                 const hideUnit = useCustomFuel && isQtyField;
                 const showUnitDropdown = !hideUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
                 const showTextUnit = !hideUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
-                const storedUnit = data[`${field.variable}_unit`] || data.unit || '';
                 const defaultUnitValue = getFieldDefaultUnit(field, selectedFuel, fieldUnits);
-                const displayedUnit = !hasFieldValue(storedValue) && hasFieldValue(defaultValue)
-                  ? defaultUnitValue
-                  : (storedUnit || defaultUnitValue);
+                const displayedUnit = resolveEffectiveFieldUnit({
+                  field,
+                  data,
+                  selectedFuel,
+                  fieldUnits,
+                  isProcessEmissions,
+                });
 
                 return (
                   <div className="flex h-8 items-center gap-1">
@@ -631,7 +716,7 @@ export const Step3YearMonthlyData = ({
                           })()}
                           onChange={(e) => {
                             updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
-                            if (isQtyField) updateMonthData(monthKey, 'unit', e.target.value);
+                            if (isQtyField && !isProcessEmissions) updateMonthData(monthKey, 'unit', e.target.value);
                           }}
                           disabled={!isEnabled}
                           className={`h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none ${!isEnabled ? 'bg-stone-50 text-stone-600' : ''}`}
@@ -694,39 +779,37 @@ export const Step3YearMonthlyData = ({
 
                   const hasFlightDetails = !isDisabled && scope3ActivityType === 'air_travel' && capabilities.flightDetails;
                   const hasCustomFuel = !isDisabled && useCustomFuel;
-                  const quantityField = dynamicInputFields.find((field) => isQuantityField(field));
+                  const quantityField = runtimeConversionFields.find((field) => isQuantityField(field));
                   const referenceField = calculationMethodology === 'using_heat_basis_ncv'
-                    ? dynamicInputFields.find((field) => (
-                      /^cv(_|$)/.test(field.variable || '')
-                      || /calorific value|^cv$/i.test(field.label || '')
-                    ))
-                    : dynamicInputFields.find((field) => (
-                      /^ef(_|$)/.test(field.variable || '')
-                      || /emission factor/i.test(field.label || '')
-                    ));
-                  const quantityUnit = data[`${quantityField?.variable}_unit`]
-                    || data.unit
-                    || quantityField?.defaultUnit
-                    || quantityField?.allowedUnits?.[0]
-                    || quantityField?.expectedUnit
-                    || '';
-                  const referenceUnit = data[`${referenceField?.variable}_unit`]
-                    || referenceField?.defaultUnit
-                    || referenceField?.allowedUnits?.[0]
-                    || referenceField?.expectedUnit
-                    || '';
+                    ? runtimeConversionFields.find(isCvField)
+                    : runtimeConversionFields.find(isEfField);
+                  const quantityUnit = resolveEffectiveFieldUnit({
+                    field: quantityField,
+                    data,
+                    selectedFuel,
+                    fieldUnits: resolveFieldUnits(quantityField),
+                    isProcessEmissions,
+                  });
+                  const referenceUnit = resolveEffectiveFieldUnit({
+                    field: referenceField,
+                    data,
+                    selectedFuel,
+                    fieldUnits: resolveFieldUnits(referenceField),
+                    isProcessEmissions,
+                  });
                   const dynamicDensityRequirement = resolveDensityRequirement({
                     quantityUnit,
                     referenceUnit: getUnitDenominator(referenceUnit),
                     centralizedUnits,
                   });
-                  const hasDensitySourceValue = [
-                    data[quantityField?.variable] ?? data[quantityField?.fieldKey],
-                    data[referenceField?.variable] ?? data[referenceField?.fieldKey],
-                  ].some((value) => value !== '' && value !== null && value !== undefined);
+                  const hasDensityInputs = hasDensitySourceValues({
+                    quantityField,
+                    referenceField,
+                    data,
+                  });
                   const hasDynamicDensity = !isDisabled
                     && !useCustomFuel
-                    && hasDensitySourceValue
+                    && hasDensityInputs
                     && dynamicDensityRequirement.required;
                   const hasLegacyOverrides = !isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') &&
                     !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides;
