@@ -167,6 +167,7 @@ export function validateEditSubmission(ctx) {
     editUseCustomFuel,
     editCustomFuelName,
     editProcessType,
+    categoryCode,
   } = ctx;
 
   // 1. Override CV/density justifications (DOM-read)
@@ -294,6 +295,7 @@ export function buildEditPayload(ctx) {
     editUseCustomFuel,
     editCustomFuelName,
     editProcessType,
+    categoryCode,
   } = ctx;
 
   const reportingPeriod =
@@ -303,7 +305,7 @@ export function buildEditPayload(ctx) {
 
   // Dynamic values
   const dynamicValues = buildDynamicValues(ctx);
-  const isProcessEmissions = formData.category?.toLowerCase().includes('process');
+  const isProcessEmissions = categoryCode === 'process_emissions';
   const savedCalculationMethodology = dynamicValues.calculation_methodology;
   const calculationMethodology = typeof savedCalculationMethodology === 'object'
     ? savedCalculationMethodology?.value || null
@@ -327,6 +329,7 @@ export function buildEditPayload(ctx) {
     frequency_type: editingEmission?.frequency_type || 'monthly',
     scope: formData.scope,
     category: formData.category,
+    category_code: categoryCode || null,
     sub_category: formData.sub_category,
     fuel_type: editUseCustomFuel ? editCustomFuelName : formData.fuel_type,
     fuel_database_id: editUseCustomFuel ? null : formData.fuel_id,

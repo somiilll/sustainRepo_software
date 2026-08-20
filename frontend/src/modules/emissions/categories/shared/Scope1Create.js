@@ -196,12 +196,14 @@ export function buildDecisionContext(data, ctx) {
   const {
     scope,
     category,
+    categoryCode,
     facilityId,
     reportingPeriod,
     fuelId,
     selectedFuel,
     biogenicScopeSelection,
     buildDecisionInputs,
+    frequencyType,
     useCustomFuel,
     customFuelName,
   } = ctx;
@@ -301,6 +303,7 @@ export function buildCreatePayload(monthData, ctx) {
     reportingPeriod,
     scope,
     category,
+    categoryCode,
     biogenicScopeSelection,
     fuelId,
     selectedFuel,
@@ -318,6 +321,7 @@ export function buildCreatePayload(monthData, ctx) {
     overrideEmissionFactorHeat,
     overrideJustification,
     buildDecisionInputs,
+    frequencyType,
     // calc-engine outputs
     calculatedCO2,
     calculatedCH4,
@@ -360,8 +364,10 @@ export function buildCreatePayload(monthData, ctx) {
   return {
     facility_id: facilityId,
     reporting_period: reportingPeriod,
+    frequency_type: frequencyType || 'monthly',
     scope, // Keep original scope (biogenic stays biogenic)
     category,
+    category_code: categoryCode || null,
     sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
     fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
     fuel_database_id: useCustomFuel ? null : fuelId,

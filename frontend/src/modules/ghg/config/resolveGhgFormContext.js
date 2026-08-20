@@ -74,7 +74,7 @@ export const resolveGhgFormContext = ({
     // fallback. Create leaves this null, so its empty-state behaviour is unchanged.
     savedFormulaId,
 
-    isProcessCategory: isProcessCategory(categoryName),
+    isProcessCategory: isProcessCategory(categoryCode || categoryDefinition?.code),
     isStationaryMobileOrFlaringCategory: isStationaryMobileOrFlaringCategory(
       categoryName,
       categoryDefinition?.name,

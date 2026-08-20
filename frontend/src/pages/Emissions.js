@@ -451,7 +451,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // form config arrives, recover it from the saved formula's decision-tree
   // branch so the edit form can resolve its inputs and live calculation.
   useEffect(() => {
-    const isProcessEmission = formData.category?.toLowerCase().includes('process');
+    const isProcessEmission = editGhgFormContext.isProcessCategory;
     if (!dialogOpen || !isProcessEmission || editProcessType || !editingEmission?.formula_id || !editFormConfig?.decision_tree) {
       return;
     }
@@ -475,7 +475,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     if (inferredProcessType) {
       setEditProcessType(inferredProcessType);
     }
-  }, [dialogOpen, formData.category, editProcessType, editingEmission?.formula_id, editFormConfig]);
+  }, [dialogOpen, editGhgFormContext.isProcessCategory, editProcessType, editingEmission?.formula_id, editFormConfig]);
 
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
@@ -549,7 +549,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       }
 
       if (
-        formData.category?.toLowerCase() === 'process emissions'
+        editGhgFormContext.categoryCode === 'process_emissions'
         && decisionInputs.calculation_methodology === 'using_qty_basis_ef'
       ) {
         const efField = dynamicInputFields.find((field) => (
@@ -567,7 +567,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, centralizedUnits]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -1832,6 +1832,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         ? buildCustomFuelCalculationPayload({
           dynamicFieldValues,
           formData,
+          categoryCode: editGhgFormContext.categoryCode,
           calculationMethodology: editCalcMethodology,
         })
         : null;
@@ -2211,6 +2212,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           useCustomActivity,
           // Common
           formData,
+          categoryCode: editGhgFormContext.categoryCode,
           capabilities: editCapabilities,
           editingEmission,
           biogenicScopeSelection,

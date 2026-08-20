@@ -1632,7 +1632,7 @@ export default function EmissionEntryForm({
     // units match the selected EF denominator. This is an internal tree key;
     // users continue selecting the EF unit directly in the monthly/yearly row.
     if (
-      category?.toLowerCase() === 'process emissions'
+      ghgFormContext.categoryCode === 'process_emissions'
       && decisionInputs.calculation_methodology === 'using_qty_basis_ef'
     ) {
       const efField = dynamicInputFields.find((field) => (
@@ -1649,7 +1649,7 @@ export default function EmissionEntryForm({
     }
 
     return decisionInputs;
-  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, category, centralizedUnits]);
+  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, ghgFormContext.categoryCode, centralizedUnits]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {
@@ -2708,6 +2708,7 @@ export default function EmissionEntryForm({
     setIsSaving,
     // Computed
     isC7EmployeeCommuting, requiresSubcategory, selectedFuel, capabilities: resolvedCapabilities,
+    categoryCode: ghgFormContext.categoryCode,
     isProcessEmissions: ghgFormContext.isProcessCategory,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     matchedFormula: dynamicInputFieldsResult?.matchedFormula,

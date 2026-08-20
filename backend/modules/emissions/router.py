@@ -72,7 +72,7 @@ def _unit_dimension(unit: str, unit_definitions: list[dict]) -> Optional[str]:
 
 async def _validate_density_requirement(record_data: EmissionRecordCreate) -> None:
     """Reject Process Emissions or Custom Fuel mass/volume conversions without user density."""
-    is_process_emissions = (record_data.category or "").strip().lower() == "process emissions"
+    is_process_emissions = record_data.category_code == "process_emissions"
     is_custom_fuel = bool(record_data.is_custom_fuel)
     if not is_process_emissions and not is_custom_fuel:
         return

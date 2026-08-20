@@ -25,6 +25,7 @@ class EmissionRecordCreate(BaseModel):
     frequency_type: Optional[str] = "monthly"
     scope: str
     category: str
+    category_code: Optional[str] = None
     sub_category: str
     fuel_type: Optional[str] = None
 
@@ -110,6 +111,7 @@ class EmissionRecordResponse(BaseModel):
     frequency_type: Optional[str] = "monthly"
     scope: str
     category: str
+    category_code: Optional[str] = None
     sub_category: Optional[str] = None
     fuel_type: Optional[str] = None
 

@@ -17,6 +17,7 @@ describe('Scope 1 calculation methodology persistence', () => {
       reportingPeriod: '2025-02',
       scope: 'scope1',
       category: 'Stationary Combustion',
+      categoryCode: 'stationary_combustion',
       biogenicScopeSelection: '',
       fuelId: 'fuel-1',
       selectedFuel: { fuel_name: 'Diesel', allowed_units: ['L'] },
@@ -28,6 +29,7 @@ describe('Scope 1 calculation methodology persistence', () => {
     });
 
     expect(payload.calculation_methodology).toBe('using_qty_basis_ef');
+    expect(payload.category_code).toBe('stationary_combustion');
     expect(payload.dynamic_field_values.calculation_methodology).toEqual({
       value: 'using_qty_basis_ef', unit: '',
     });
@@ -53,6 +55,7 @@ describe('Scope 1 calculation methodology persistence', () => {
       centralizedUnits: [],
       editUseCustomFuel: false,
       editCalcMethodology: 'using_carbon_composition',
+      categoryCode: 'stationary_combustion',
     });
 
     expect(payload.calculation_methodology).toBe('using_carbon_composition');
@@ -93,6 +96,7 @@ describe('Scope 1 calculation methodology persistence', () => {
       editUseCustomFuel: false,
       editCalcMethodology: 'using_qty_basis_ef',
       editProcessType: 'venting',
+      categoryCode: 'process_emissions',
     });
 
     expect(payload.dynamic_field_values.density).toEqual({
@@ -100,5 +104,7 @@ describe('Scope 1 calculation methodology persistence', () => {
       unit: 'L/kg',
       is_override: true,
     });
+    expect(payload.category_code).toBe('process_emissions');
+    expect(payload.process_type).toBe('venting');
   });
 });
