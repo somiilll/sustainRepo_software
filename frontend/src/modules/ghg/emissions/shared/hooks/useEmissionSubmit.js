@@ -60,6 +60,12 @@ const isEfField = (field = {}) => {
     || /emission factor|\bef\b/i.test(field.label || '');
 };
 
+const isCarbonContentField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /carbon.*content|composition.*carbon/i.test(identity)
+    || /carbon.*content|composition.*carbon/i.test(field.label || '');
+};
+
 const getFieldValue = (data = {}, field = {}) => (
   data[field.variable] ?? data[field.fieldKey]
 );
@@ -91,10 +97,13 @@ const resolveProcessDensityRequirement = ({
   }
 
   const quantityUnit = getFieldUnit(data, quantityField);
+  const isCarbonComposition = calculationMethodology === 'using_carbon_composition';
 
   // Prefer the selected methodology, but inspect both supported reference
   // fields if React has not yet synchronized that selector into form state.
-  const referenceFields = calculationMethodology === 'using_heat_basis_ncv'
+  const referenceFields = isCarbonComposition
+    ? [dynamicInputFields.find(isCarbonContentField)]
+    : calculationMethodology === 'using_heat_basis_ncv'
     ? [dynamicInputFields.find(isCvField)]
     : calculationMethodology === 'using_qty_basis_ef'
       ? [dynamicInputFields.find(isEfField)]
@@ -102,10 +111,12 @@ const resolveProcessDensityRequirement = ({
 
   for (const referenceField of referenceFields.filter(Boolean)) {
     if (!hasNumericValue(getFieldValue(data, referenceField))) continue;
-    const referenceUnit = getFieldUnit(data, referenceField);
+    const referenceUnit = isCarbonComposition
+      ? 'kg'
+      : getUnitDenominator(getFieldUnit(data, referenceField));
     const requirement = resolveDensityRequirement({
       quantityUnit,
-      referenceUnit: getUnitDenominator(referenceUnit),
+      referenceUnit,
       centralizedUnits,
     });
     if (requirement.required) return requirement;

@@ -82,9 +82,11 @@ async def _validate_density_requirement(record_data: EmissionRecordCreate) -> No
     methodology = record_data.calculation_methodology or (
         methodology_value.get("value") if isinstance(methodology_value, dict) else methodology_value
     )
-    supported_methodologies = {"using_heat_basis_ncv", "using_qty_basis_ef"}
-    if is_custom_fuel:
-        supported_methodologies.add("using_carbon_composition")
+    supported_methodologies = {
+        "using_heat_basis_ncv",
+        "using_qty_basis_ef",
+        "using_carbon_composition",
+    }
     if methodology not in supported_methodologies:
         return
 
@@ -113,7 +115,11 @@ async def _validate_density_requirement(record_data: EmissionRecordCreate) -> No
         return
 
     quantity_unit = quantity.get("unit") or ""
-    reference_unit = str(reference.get("unit") or "").split("/", 1)[1].strip() if "/" in str(reference.get("unit") or "") else ""
+    reference_unit = (
+        "kg"
+        if methodology == "using_carbon_composition"
+        else (str(reference.get("unit") or "").split("/", 1)[1].strip() if "/" in str(reference.get("unit") or "") else "")
+    )
     if not quantity_unit or not reference_unit:
         return
 

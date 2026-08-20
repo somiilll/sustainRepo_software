@@ -74,6 +74,12 @@ const isEfField = (field = {}) => {
     || /emission factor|\bef\b/i.test(field.label || '');
 };
 
+const isCarbonContentField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /carbon.*content|composition.*carbon/i.test(identity)
+    || /carbon.*content|composition.*carbon/i.test(field.label || '');
+};
+
 const getMonthlyFieldValue = (field = {}, data = {}) => {
   const valueKey = field.valueKey || field.variable || field.fieldKey;
   return data[valueKey] ?? data[field.variable] ?? data[field.fieldKey];
@@ -378,12 +384,14 @@ export const Step3YearMonthlyData = ({
     : dynamicInputFields;
 
   useEffect(() => {
-    if (!['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(calculationMethodology)) return;
+    if (!['using_heat_basis_ncv', 'using_qty_basis_ef', 'using_carbon_composition'].includes(calculationMethodology)) return;
 
     const quantityField = runtimeConversionFields.find((field) => isQuantityField(field));
     const referenceField = calculationMethodology === 'using_heat_basis_ncv'
       ? runtimeConversionFields.find(isCvField)
-      : runtimeConversionFields.find(isEfField);
+      : calculationMethodology === 'using_qty_basis_ef'
+        ? runtimeConversionFields.find(isEfField)
+        : runtimeConversionFields.find(isCarbonContentField);
     if (!quantityField || !referenceField) return;
 
     setMonthlyData((previousMonths) => {
@@ -407,7 +415,9 @@ export const Step3YearMonthlyData = ({
         });
         const requirement = resolveDensityRequirement({
           quantityUnit,
-          referenceUnit: getUnitDenominator(referenceUnit),
+          referenceUnit: calculationMethodology === 'using_carbon_composition'
+            ? 'kg'
+            : getUnitDenominator(referenceUnit),
           centralizedUnits,
         });
         const hasDensityInputs = hasDensitySourceValues({
@@ -782,7 +792,9 @@ export const Step3YearMonthlyData = ({
                   const quantityField = runtimeConversionFields.find((field) => isQuantityField(field));
                   const referenceField = calculationMethodology === 'using_heat_basis_ncv'
                     ? runtimeConversionFields.find(isCvField)
-                    : runtimeConversionFields.find(isEfField);
+                    : calculationMethodology === 'using_qty_basis_ef'
+                      ? runtimeConversionFields.find(isEfField)
+                      : runtimeConversionFields.find(isCarbonContentField);
                   const quantityUnit = resolveEffectiveFieldUnit({
                     field: quantityField,
                     data,
@@ -799,7 +811,9 @@ export const Step3YearMonthlyData = ({
                   });
                   const dynamicDensityRequirement = resolveDensityRequirement({
                     quantityUnit,
-                    referenceUnit: getUnitDenominator(referenceUnit),
+                    referenceUnit: calculationMethodology === 'using_carbon_composition'
+                      ? 'kg'
+                      : getUnitDenominator(referenceUnit),
                     centralizedUnits,
                   });
                   const hasDensityInputs = hasDensitySourceValues({
@@ -916,7 +930,7 @@ export const Step3YearMonthlyData = ({
                                     {dynamicDensityRequirement.densityUnit}
                                   </span>
                                   <p className="col-span-2 text-xs text-amber-700" data-testid={`month-${monthKey}-dynamic-density-conversion-hint`}>
-                                    Conversion required: {quantityUnit} → {getUnitDenominator(referenceUnit)}
+                                    Conversion required: {quantityUnit} → {calculationMethodology === 'using_carbon_composition' ? 'kg' : getUnitDenominator(referenceUnit)}
                                   </p>
                                 </div>
                               )}
@@ -1063,6 +1077,27 @@ const YearlyDataEntry = ({
   useCustomFuel,
   calculationMethodology,
 }) => {
+  const isCarbonComposition = isProcessEmissions
+    && calculationMethodology === 'using_carbon_composition';
+  const quantityField = dynamicInputFields.find(isQuantityField);
+  const carbonContentField = dynamicInputFields.find(isCarbonContentField);
+  const quantityUnit = yearlyData[`${quantityField?.variable}_unit`]
+    || yearlyData[`${quantityField?.fieldKey}_unit`]
+    || quantityField?.defaultUnit
+    || quantityField?.default_unit
+    || quantityField?.expectedUnit
+    || quantityField?.allowedUnits?.[0]
+    || '';
+  const yearlyDensityRequirement = resolveDensityRequirement({
+    quantityUnit,
+    referenceUnit: isCarbonComposition ? 'kg' : '',
+    centralizedUnits,
+  });
+  const showYearlyProcessDensity = isCarbonComposition
+    && hasNumericFieldValue(quantityField, yearlyData)
+    && hasNumericFieldValue(carbonContentField, yearlyData)
+    && yearlyDensityRequirement.required;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1210,6 +1245,39 @@ const YearlyDataEntry = ({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {showYearlyProcessDensity && (
+              <div className="grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="yearly-process-density-field">
+                <div className="space-y-1">
+                  <Label htmlFor="yearly-process-density-input" className="text-sm font-medium">
+                    Density <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="yearly-process-density-input"
+                    type="number"
+                    step="any"
+                    min="0"
+                    required
+                    value={yearlyData.density || ''}
+                    onChange={(event) => setYearlyData((previous) => ({
+                      ...previous,
+                      density: event.target.value,
+                      density_unit: yearlyDensityRequirement.densityUnit,
+                      override_density: true,
+                      runtime_density_required: true,
+                    }))}
+                    className="h-10 bg-white"
+                    data-testid="yearly-process-density-input"
+                  />
+                </div>
+                <span className="mb-2 text-sm text-stone-600" data-testid="yearly-process-density-unit">
+                  {yearlyDensityRequirement.densityUnit}
+                </span>
+                <p className="col-span-2 text-xs text-amber-700" data-testid="yearly-process-density-conversion-hint">
+                  Conversion required: {quantityUnit} → kg
+                </p>
               </div>
             )}
 

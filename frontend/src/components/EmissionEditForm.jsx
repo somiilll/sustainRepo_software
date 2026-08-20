@@ -88,6 +88,12 @@ const isEfField = (field = {}) => {
     || /emission factor|\bef\b/i.test(field.label || '');
 };
 
+const isCarbonContentField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /carbon.*content|composition.*carbon/i.test(identity)
+    || /carbon.*content|composition.*carbon/i.test(field.label || '');
+};
+
 const hasNumericValue = (value) => (
   value !== undefined
   && value !== null
@@ -254,7 +260,9 @@ export default function EmissionEditForm(props) {
   const virtualDensityQuantityField = dynamicInputFields.find(isQuantityField);
   const virtualDensityReferenceField = editCalcMethodology === 'using_heat_basis_ncv'
     ? dynamicInputFields.find(isCvField)
-    : dynamicInputFields.find(isEfField);
+    : editCalcMethodology === 'using_qty_basis_ef'
+      ? dynamicInputFields.find(isEfField)
+      : dynamicInputFields.find(isCarbonContentField);
   const getSavedFieldValue = (field) => (
     dynamicFieldValues[field?.variable]
     ?? editingEmission?.dynamic_field_values?.[field?.variable]?.value
@@ -267,7 +275,9 @@ export default function EmissionEditForm(props) {
   );
   const virtualDensityRequirement = resolveDensityRequirement({
     quantityUnit: getSavedFieldUnit(virtualDensityQuantityField),
-    referenceUnit: getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField)),
+    referenceUnit: editCalcMethodology === 'using_carbon_composition'
+      ? 'kg'
+      : getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField)),
     centralizedUnits,
   });
   const showVirtualProcessDensity = isProcessEmission
@@ -1138,7 +1148,7 @@ export default function EmissionEditForm(props) {
                           {virtualDensityRequirement.densityUnit}
                         </span>
                         <p className="col-span-2 text-xs text-amber-700" data-testid="edit-process-density-conversion-hint">
-                          Conversion required: {getSavedFieldUnit(virtualDensityQuantityField)} → {getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField))}
+                          Conversion required: {getSavedFieldUnit(virtualDensityQuantityField)} → {editCalcMethodology === 'using_carbon_composition' ? 'kg' : getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField))}
                         </p>
                       </div>
                     )}

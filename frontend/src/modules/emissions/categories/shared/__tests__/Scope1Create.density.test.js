@@ -42,6 +42,28 @@ describe('Scope 1 runtime density forwarding', () => {
     });
   });
 
+  it('persists Carbon Content density with its directional unit', () => {
+    const values = buildDynamicFieldValues({
+      qty: '100',
+      composition_of_carbon: '85',
+      density: '0.82',
+      density_unit: 'kg/L',
+      override_density: true,
+    }, {
+      ...baseContext,
+      dynamicInputFields: [
+        ...baseContext.dynamicInputFields,
+        { variable: 'composition_of_carbon', fieldKey: 'composition_of_carbon', required: true, expectedUnit: '%' },
+      ],
+    });
+
+    expect(values.density).toEqual({
+      value: 0.82,
+      unit: 'kg/L',
+      is_override: true,
+    });
+  });
+
   it('keeps Custom Fuel density in its calculation override and saved field values', () => {
     const context = { ...baseContext, useCustomFuel: true };
     const data = {
