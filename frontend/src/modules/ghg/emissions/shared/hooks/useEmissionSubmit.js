@@ -84,24 +84,13 @@ const resolveProcessDensityRequirement = ({
   dynamicInputFields = [],
   calculationMethodology,
   centralizedUnits = [],
-  matchedFormula,
 }) => {
   const quantityField = dynamicInputFields.find(isQuantityField);
   if (!quantityField || !hasNumericValue(getFieldValue(data, quantityField))) {
     return { required: false };
   }
 
-  const formulaInputFor = (field) => matchedFormula?.inputs?.find((input) => (
-    input.variable === field?.variable || input.variable === field?.fieldKey
-  ));
   const quantityUnit = getFieldUnit(data, quantityField);
-  const expectedQuantityUnit = formulaInputFor(quantityField)?.expected_unit;
-  const formulaQuantityRequirement = resolveDensityRequirement({
-    quantityUnit,
-    referenceUnit: expectedQuantityUnit,
-    centralizedUnits,
-  });
-  if (formulaQuantityRequirement.required) return formulaQuantityRequirement;
 
   // Prefer the selected methodology, but inspect both supported reference
   // fields if React has not yet synchronized that selector into form state.
@@ -114,14 +103,6 @@ const resolveProcessDensityRequirement = ({
   for (const referenceField of referenceFields.filter(Boolean)) {
     if (!hasNumericValue(getFieldValue(data, referenceField))) continue;
     const referenceUnit = getFieldUnit(data, referenceField);
-    const expectedReferenceUnit = formulaInputFor(referenceField)?.expected_unit;
-    const formulaReferenceRequirement = resolveDensityRequirement({
-      quantityUnit: getUnitDenominator(expectedReferenceUnit),
-      referenceUnit: getUnitDenominator(referenceUnit),
-      centralizedUnits,
-    });
-    if (formulaReferenceRequirement.required) return formulaReferenceRequirement;
-
     const requirement = resolveDensityRequirement({
       quantityUnit,
       referenceUnit: getUnitDenominator(referenceUnit),
@@ -151,7 +132,7 @@ export function useEmissionSubmit(ctx) {
       dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
       onSuccess, getActualYearForMonth, evaluateFormula,
       buildDecisionInputs, editingEmission,
-      decisionFieldValues, matchedFormula,
+      decisionFieldValues,
       capabilities,
       // Optional supplier context
       supplierContext = null,
@@ -226,7 +207,6 @@ export function useEmissionSubmit(ctx) {
             || data?.calculation_methodology
             || buildDecisionInputs?.(data)?.calculation_methodology,
           centralizedUnits,
-          matchedFormula,
         });
         if (!requirement.required) continue;
 

@@ -113,43 +113,13 @@ async def _validate_process_density_requirement(record_data: EmissionRecordCreat
         {"is_active": True},
         {"_id": 0, "symbol": 1, "aliases": 1, "unit_type": 1, "dimension_vector": 1, "derived_dimension_vector": 1},
     ).to_list(1000)
-    formula_inputs = []
-    if record_data.formula_id:
-        formula = await db.ce_formulas.find_one(
-            {"id": record_data.formula_id, "is_active": True},
-            {"_id": 0, "definition.inputs": 1},
-        )
-        formula_inputs = (formula or {}).get("definition", {}).get("inputs", [])
-
-    expected_quantity_unit = next(
-        (
-            input_definition.get("expected_unit")
-            for input_definition in formula_inputs
-            if input_definition.get("variable") == quantity_key
-        ),
-        "",
-    )
-    expected_reference_unit = next(
-        (
-            str(input_definition.get("expected_unit") or "").split("/", 1)[1].strip()
-            for input_definition in formula_inputs
-            if input_definition.get("variable") == reference_key
-        ),
-        "",
-    )
-
-    required_density_unit = ""
     quantity_dimension = _unit_dimension(quantity_unit, units)
-    expected_quantity_dimension = _unit_dimension(expected_quantity_unit, units)
-    if {quantity_dimension, expected_quantity_dimension} == {"mass", "volume"}:
-        required_density_unit = f"{expected_quantity_unit}/{quantity_unit}"
-    else:
-        expected_reference_dimension = _unit_dimension(expected_reference_unit, units)
-        reference_dimension = _unit_dimension(reference_unit, units)
-        if {reference_dimension, expected_reference_dimension} == {"mass", "volume"}:
-            required_density_unit = f"{reference_unit}/{expected_reference_unit}"
-        elif {quantity_dimension, reference_dimension} == {"mass", "volume"}:
-            required_density_unit = f"{reference_unit}/{quantity_unit}"
+    reference_dimension = _unit_dimension(reference_unit, units)
+    required_density_unit = (
+        f"{reference_unit}/{quantity_unit}"
+        if {quantity_dimension, reference_dimension} == {"mass", "volume"}
+        else ""
+    )
 
     if not required_density_unit:
         return

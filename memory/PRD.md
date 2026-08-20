@@ -228,3 +228,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Fixed Process Emissions Edit hydration for the virtual runtime Density field. For a mass↔volume mismatch such as Quantity `kg` with EF `kgCO2/L`, Edit now displays the persisted Density value, its directional `L/kg` unit, and the conversion hint.
 - The virtual field now participates in Edit recalculation and is retained in `dynamic_field_values` on save, preventing an existing density from disappearing during a later edit.
 - Verified: frontend lint clean for the three changed source files; focused density and Scope 1 Edit payload tests passed (7/7); authenticated application smoke check loaded successfully. No calculation-engine or backend changes. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Process Emissions Selected-Unit Density Rule
+
+- Updated the Process Emissions density guard in both the Create submission flow and `/api/emissions` save validation to use only the user-selected Quantity unit and the selected CV/EF denominator.
+- Formula expected units and default-unit fallbacks no longer create a density requirement. For example, Quantity `L` with EF `kgCO2/L` now passes without Density; Quantity `kg` with EF `kgCO2/L` still requires Density `L/kg`.
+- No calculation-engine files were changed. **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.
