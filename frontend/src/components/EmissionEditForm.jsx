@@ -1101,6 +1101,7 @@ export default function EmissionEditForm(props) {
                     }}
                     calculationMethodology={editCalcMethodology || 'using_heat_basis_ncv'}
                     fieldOptions={fieldOptions}
+                    centralizedUnits={centralizedUnits}
                   />
                 )}
 

@@ -1,77 +1,87 @@
 /**
- * Unit dimension helpers for GHG emission calculations.
+ * Unit-aware helpers for GHG forms.
+ * Unit types come from the central Calc Engine unit registry, never from
+ * category-specific mass/volume lists.
  */
 
-const VOLUME_UNITS = new Set(['l', 'ml', 'kl', 'm3', 'cm3']);
-const MASS_UNITS = new Set(['kg', 'g', 't']);
+const hasValue = (value) => value !== undefined && value !== null && value !== '';
 
-/**
- * Identifies the standard quantity field across the configured GHG forms.
- * CustomFuelMonthFields owns this field's unit selector when custom fuel is enabled.
- */
+const getUnitDefinition = (unit, centralizedUnits = []) => {
+  if (!unit) return null;
+  const normalized = String(unit).trim().toLowerCase();
+  return centralizedUnits.find((definition) => (
+    definition.symbol?.trim().toLowerCase() === normalized
+    || definition.aliases?.some((alias) => String(alias).trim().toLowerCase() === normalized)
+  )) || null;
+};
+
+/** Identifies the standard quantity field across configured GHG forms. */
 export const isQuantityField = (field = {}) => {
   const quantityFields = ['qty', 'qty_energy', 'quantity'];
   return quantityFields.includes(field.variable) || quantityFields.includes(field.fieldKey);
 };
 
-/**
- * Classify a single unit as 'mass', 'volume', or null.
- */
-export const getUnitDimension = (unit) => {
-  if (!unit) return null;
-  const u = unit.toLowerCase();
-  if (MASS_UNITS.has(u)) return 'mass';
-  if (VOLUME_UNITS.has(u)) return 'volume';
-  return null;
-};
+/** Returns the unit registry type, such as mass or volume. */
+export const getUnitDimension = (unit, centralizedUnits = []) => (
+  getUnitDefinition(unit, centralizedUnits)?.unit_type || null
+);
 
-/**
- * Extract the denominator from a compound unit string like "kgCO2/L" → "L",
- * or "TJ/kg" → "kg".
- */
+/** Extracts the denominator from a compound unit such as kgCO2/L or TJ/kg. */
 export const getUnitDenominator = (compoundUnit) => {
   if (!compoundUnit) return null;
-  return compoundUnit.split('/')[1]?.trim() || null;
+  return String(compoundUnit).split('/')[1]?.trim() || null;
 };
 
 /**
- * For Qty Basis EF: density is required when the EF unit's denominator dimension
- * differs from the fuel's quantity unit dimension.
- *
- * Example: EF = kgCO2/L (volume denom) but fuel only allows kg,g,t (mass qty)
- *          → dimensions mismatch → density is required.
+ * Resolves whether a property-based density conversion is needed and, if so,
+ * the directional unit a user must provide. For instance:
+ * - quantity L → formula needs kg: kg/L
+ * - quantity kg → formula needs L: L/kg
  */
-export const isDensityRequiredForQtyBasis = (efUnit, qtyAllowedUnits) => {
-  if (!efUnit || !qtyAllowedUnits?.length) return false;
-  const denom = getUnitDenominator(efUnit);
-  const denomDim = getUnitDimension(denom);
-  if (!denomDim) return false;
-  const qtyDims = qtyAllowedUnits.map(u => getUnitDimension(u)).filter(Boolean);
-  if (!qtyDims.length) return false;
-  // Density needed if every qty unit is a different dimension than EF denominator
-  return qtyDims.every(d => d !== denomDim);
+export const resolveDensityRequirement = ({
+  quantityUnit,
+  referenceUnit,
+  centralizedUnits = [],
+} = {}) => {
+  const quantityDimension = getUnitDimension(quantityUnit, centralizedUnits);
+  const referenceDimension = getUnitDimension(referenceUnit, centralizedUnits);
+
+  if (!quantityDimension || !referenceDimension || quantityDimension === referenceDimension) {
+    return { required: false, densityUnit: '', conversionDirection: null };
+  }
+
+  const isMassVolumePair = new Set([quantityDimension, referenceDimension]);
+  if (isMassVolumePair.size !== 2 || !isMassVolumePair.has('mass') || !isMassVolumePair.has('volume')) {
+    return { required: false, densityUnit: '', conversionDirection: null };
+  }
+
+  return {
+    required: true,
+    densityUnit: `${referenceUnit}/${quantityUnit}`,
+    conversionDirection: `${quantityDimension}_to_${referenceDimension}`,
+  };
 };
 
-/**
- * For Heat Basis (NCV) custom fuel: density is required when the CV unit's
- * denominator dimension differs from the quantity unit dimension.
- *
- * Example: CV = TJ/L (volume denom), Qty = kg (mass) → need density.
- *          CV = TJ/kg (mass denom), Qty = kg (mass) → no density needed.
- */
-export const isDensityRequiredForHeatBasis = (cvUnit, qtyUnit) => {
-  if (!cvUnit || !qtyUnit) return false;
-  const cvDenom = getUnitDenominator(cvUnit);
-  const cvDenomDim = getUnitDimension(cvDenom);
-  const qtyDim = getUnitDimension(qtyUnit);
-  if (!cvDenomDim || !qtyDim) return false;
-  return cvDenomDim !== qtyDim;
+export const isDensityRequiredForQtyBasis = (efUnit, qtyAllowedUnits, centralizedUnits = []) => {
+  const denominator = getUnitDenominator(efUnit);
+  return (qtyAllowedUnits || []).length > 0 && (qtyAllowedUnits || []).every((quantityUnit) => (
+    resolveDensityRequirement({ quantityUnit, referenceUnit: denominator, centralizedUnits }).required
+  ));
 };
 
-/**
- * For Carbon Composition custom fuel: density is required when the
- * quantity unit is volume-based (need to convert to mass for the formula).
- */
-export const isDensityRequiredForCarbonComposition = (qtyUnit) => {
-  return getUnitDimension(qtyUnit) === 'volume';
+export const isDensityRequiredForHeatBasis = (cvUnit, qtyUnit, centralizedUnits = []) => (
+  resolveDensityRequirement({
+    quantityUnit: qtyUnit,
+    referenceUnit: getUnitDenominator(cvUnit),
+    centralizedUnits,
+  }).required
+);
+
+export const isDensityRequiredForCarbonComposition = (qtyUnit, centralizedUnits = []) => (
+  resolveDensityRequirement({ quantityUnit: qtyUnit, referenceUnit: 'kg', centralizedUnits }).required
+);
+
+export const invertDensityUnit = (densityUnit) => {
+  const [numerator, denominator] = String(densityUnit || '').split('/').map((part) => part?.trim());
+  return numerator && denominator ? `${denominator}/${numerator}` : '';
 };

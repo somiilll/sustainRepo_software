@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Input } from '../../../../../components/ui/input';
 import { Label } from '../../../../../components/ui/label';
 import {
-  isDensityRequiredForHeatBasis,
-  isDensityRequiredForQtyBasis,
-  isDensityRequiredForCarbonComposition,
+  invertDensityUnit,
+  resolveDensityRequirement,
 } from '../utils/unitHelpers';
 import {
   GHG_FIELD_OPTION_KEYS,
@@ -72,6 +71,7 @@ const CustomFuelMonthFields = ({
   updateMonthData,
   calculationMethodology,
   fieldOptions = DEFAULT_FIELD_OPTIONS,
+  centralizedUnits = [],
 }) => {
   const quantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
@@ -82,6 +82,38 @@ const CustomFuelMonthFields = ({
   const quantityEfUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT]
     || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT];
   const qtyUnit = data.custom_qty_unit || 'kg';
+  const heatCvUnit = data.custom_cv_unit || 'TJ/kg';
+  const quantityEfUnit = data.custom_ef_unit || 'kgCO2/kg';
+  const referenceUnit = calculationMethodology === 'using_heat_basis_ncv'
+    ? heatCvUnit.split('/')[1] || 'kg'
+    : calculationMethodology === 'using_qty_basis_ef'
+      ? quantityEfUnit.split('/')[1] || 'kg'
+      : calculationMethodology === 'using_carbon_composition'
+        ? 'kg'
+        : '';
+  const densityRequirement = resolveDensityRequirement({
+    quantityUnit: qtyUnit,
+    referenceUnit,
+    centralizedUnits,
+  });
+
+  useEffect(() => {
+    if (!densityRequirement.required || !densityRequirement.densityUnit) return;
+    const currentDensityUnit = data.density_unit || '';
+    if (currentDensityUnit === densityRequirement.densityUnit) return;
+
+    const nextData = { density_unit: densityRequirement.densityUnit };
+    if (
+      currentDensityUnit === invertDensityUnit(densityRequirement.densityUnit)
+      && data.density !== undefined
+      && data.density !== null
+      && data.density !== ''
+      && Number(data.density) !== 0
+    ) {
+      nextData.density = String(1 / Number(data.density));
+    }
+    Object.entries(nextData).forEach(([key, value]) => updateMonthData(monthKey, key, value));
+  }, [data.density, data.density_unit, densityRequirement.densityUnit, densityRequirement.required, monthKey, updateMonthData]);
 
   const qtyUnitSelector = (
     <div className="space-y-1">
@@ -113,9 +145,7 @@ const CustomFuelMonthFields = ({
   };
 
   if (calculationMethodology === 'using_heat_basis_ncv') {
-    const cvUnit = data.custom_cv_unit || 'TJ/kg';
-    const cvDenom = cvUnit.split('/')[1] || 'kg';
-    const needsDensity = isDensityRequiredForHeatBasis(cvUnit, qtyUnit);
+    const cvUnit = heatCvUnit;
     return (
       <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
         <p className="text-xs text-amber-700 font-medium">Custom Fuel — Heat Basis (NCV)</p>
@@ -144,15 +174,12 @@ const CustomFuelMonthFields = ({
           />
         </div>
         {qtyUnitSelector}
-        {renderDensity(needsDensity, `kg/${cvDenom}`)}
+        {renderDensity(densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }
 
   if (calculationMethodology === 'using_qty_basis_ef') {
-    const efUnit = data.custom_ef_unit || 'kgCO2/kg';
-    const efDenom = efUnit.split('/')[1] || 'kg';
-    const needsDensity = isDensityRequiredForQtyBasis(efUnit, [qtyUnit]);
     return (
       <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
         <p className="text-xs text-amber-700 font-medium">Custom Fuel — Qty Basis EF</p>
@@ -168,13 +195,12 @@ const CustomFuelMonthFields = ({
           unitTestId={`month-${monthKey}-custom-ef-unit`}
         />
         {qtyUnitSelector}
-        {renderDensity(needsDensity, `kg/${efDenom}`)}
+        {renderDensity(densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }
 
   if (calculationMethodology === 'using_carbon_composition') {
-    const needsDensity = isDensityRequiredForCarbonComposition(qtyUnit);
     return (
       <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
         <p className="text-xs text-amber-700 font-medium">Custom Fuel — Carbon Composition</p>
@@ -201,7 +227,7 @@ const CustomFuelMonthFields = ({
           </div>
         </div>
         {qtyUnitSelector}
-        {renderDensity(needsDensity, 'kg/L')}
+        {renderDensity(densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }

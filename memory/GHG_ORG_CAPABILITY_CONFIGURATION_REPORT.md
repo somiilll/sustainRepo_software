@@ -136,3 +136,15 @@ All verification was read-only; no form was saved.
 ## Additional verification repair
 
 Browser verification exposed instrumentation wrappers around dynamic JSX within the monthly ledger table. The ledger shell now uses native React element construction for table primitives so injected wrappers cannot produce invalid `span` children under `thead`, `tr`, or `tbody`. This repair is presentation-only and does not affect calculation or save behavior.
+
+## Density requirement resolution — 2026-08-20
+
+Density requirements now come from the central unit registry’s `unit_type` metadata rather than frontend mass/volume symbol lists.
+
+- Heat Basis compares the selected quantity unit to the CV denominator.
+- Quantity Basis compares the selected quantity unit to the EF denominator.
+- Same-dimension conversions, such as `t → kg`, do not request density.
+- Mass/volume changes request a directional conversion factor: `L → kg` requests `kg/L`; `kg → L` requests `L/kg`.
+- The backend property-conversion normalizer accepts both the directional input and legacy physical-density orientation, preserving existing `kg/L` records while correctly handling new `L/kg` entries.
+
+No formula expressions or Process Emissions templates were changed. Focused frontend and backend contracts plus an authenticated, non-saving browser smoke verified the three requested scenarios.

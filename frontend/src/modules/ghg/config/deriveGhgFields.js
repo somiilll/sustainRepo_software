@@ -14,7 +14,6 @@
  *
  * Pure: no React, no network, no module state.
  */
-import { isDensityRequiredForQtyBasis } from '../emissions/shared/utils/unitHelpers';
 
 /** Walk a decision tree with the given field values. Returns a formula id or null. */
 export const traverseDecisionTree = (node, fieldValues) => {
@@ -232,18 +231,13 @@ const isMappingApplicable = ({
       ) {
         return true;
       }
-      // Density: shown when the formula supports dimension conversion, or when
-      // Qty Basis EF could hit a dimension mismatch and the fuel has no density.
+      // Density is a runtime conditional field for Qty Basis. The actual unit
+      // pair is chosen in the form, so the UI resolves requiredness later from
+      // central unit metadata rather than guessing from a category/fuel list.
       if (m.maps_to_variable === 'density') {
         if (decisionFieldValues.calculation_methodology === 'using_qty_basis_ef') {
           const fuelHasDensity = selectedFuel?.density != null && selectedFuel.density > 0;
-          if (fuelHasDensity) return false;
-          const efMapping = (formConfig.input_field_mappings || []).find(
-            (fm) => fm.maps_to_variable === 'ef_quantity',
-          );
-          const efAllowedUnits = efMapping?.allowed_units || [];
-          const qtyUnits = selectedFuel?.allowed_units || [];
-          return efAllowedUnits.some((eu) => isDensityRequiredForQtyBasis(eu, qtyUnits));
+          return !fuelHasDensity;
         }
         return (matchedFormula.inputs || []).some((inp) => inp.allow_dimension_conversion);
       }
@@ -266,7 +260,7 @@ const isMappingApplicable = ({
   return true;
 };
 
-const toField = (m, { isQtyBasis, fuelQtyUnits }) => {
+const toField = (m, { isQtyBasis, quantityUnits }) => {
   const field = {
     id: m.id,
     variable: m.maps_to_variable,
@@ -290,7 +284,7 @@ const toField = (m, { isQtyBasis, fuelQtyUnits }) => {
   };
   if (isQtyBasis && m.maps_to_variable === 'density') {
     field.densityQtyBasisCheck = true;
-    field.fuelQtyUnits = fuelQtyUnits;
+    field.densityQuantityUnits = quantityUnits;
   }
   return field;
 };
@@ -353,9 +347,14 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
 
   const isQtyBasis =
     context.decisionFieldValues.calculation_methodology === 'using_qty_basis_ef';
-  const fuelQtyUnits = context.selectedFuel?.allowed_units || [];
+  const quantityMapping = (formConfig.input_field_mappings || []).find(
+    (mapping) => mapping.maps_to_variable === 'qty' || mapping.maps_to_variable === 'quantity',
+  );
+  const quantityUnits = context.selectedFuel?.allowed_units?.length
+    ? context.selectedFuel.allowed_units
+    : quantityMapping?.allowed_units || [quantityMapping?.default_unit].filter(Boolean);
 
-  const calculationFields = applicableMappings.map((m) => toField(m, { isQtyBasis, fuelQtyUnits }));
+  const calculationFields = applicableMappings.map((m) => toField(m, { isQtyBasis, quantityUnits }));
   // C7 is a dedicated multi-employee workflow with its own serialized input
   // contract. Organization custom fields are intentionally unavailable there.
   const presentationFields = context.categoryDefinition?.code === 'c7'

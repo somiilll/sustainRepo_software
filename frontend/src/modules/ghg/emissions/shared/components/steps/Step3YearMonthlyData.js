@@ -204,7 +204,7 @@ const MonthlyLedger = ({ columns, rows }) => {
 
 // Import volume unit helper
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
-import { isQuantityField } from '../../utils/unitHelpers';
+import { getUnitDenominator, isQuantityField, resolveDensityRequirement } from '../../utils/unitHelpers';
 import { buildNativeOptionsHtml } from '../../utils/nativeSelectOptions';
 import { getFieldUnits } from '../DynamicFieldRenderer';
 
@@ -630,10 +630,35 @@ export const Step3YearMonthlyData = ({
 
                   const hasFlightDetails = !isDisabled && scope3ActivityType === 'air_travel' && capabilities.flightDetails;
                   const hasCustomFuel = !isDisabled && useCustomFuel;
+                  const densityField = dynamicInputFields.find((field) => field.variable === 'density');
+                  const quantityField = dynamicInputFields.find((field) => isQuantityField(field));
+                  const referenceField = calculationMethodology === 'using_heat_basis_ncv'
+                    ? dynamicInputFields.find((field) => field.variable === 'cv')
+                    : dynamicInputFields.find((field) => field.variable === 'ef_quantity');
+                  const quantityUnit = data[`${quantityField?.variable}_unit`]
+                    || data.unit
+                    || quantityField?.defaultUnit
+                    || quantityField?.allowedUnits?.[0]
+                    || quantityField?.expectedUnit
+                    || '';
+                  const referenceUnit = data[`${referenceField?.variable}_unit`]
+                    || referenceField?.defaultUnit
+                    || referenceField?.allowedUnits?.[0]
+                    || referenceField?.expectedUnit
+                    || '';
+                  const dynamicDensityRequirement = resolveDensityRequirement({
+                    quantityUnit,
+                    referenceUnit: getUnitDenominator(referenceUnit),
+                    centralizedUnits,
+                  });
+                  const hasDynamicDensity = !isDisabled
+                    && !useCustomFuel
+                    && Boolean(densityField)
+                    && dynamicDensityRequirement.required;
                   const hasLegacyOverrides = !isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') &&
                     !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides;
                   const hasScope2Override = !isDisabled && !formConfig && scope === 'scope2' && !useCustomFuel;
-                  const hasExpandableContent = hasFlightDetails || hasCustomFuel || hasLegacyOverrides || hasScope2Override;
+                  const hasExpandableContent = hasFlightDetails || hasCustomFuel || hasDynamicDensity || hasLegacyOverrides || hasScope2Override;
                   const monthCell = (
                     <td className="whitespace-nowrap px-5 py-3 align-middle" data-testid={`month-${monthKey}-ledger-month`}>
                       <div className="flex items-center gap-2.5">
@@ -707,7 +732,32 @@ export const Step3YearMonthlyData = ({
                                   updateMonthData={updateMonthData}
                                   calculationMethodology={calculationMethodology}
                                   fieldOptions={fieldOptions}
+                                  centralizedUnits={centralizedUnits}
                                 />
+                              )}
+
+                              {hasDynamicDensity && (
+                                <div className="grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid={`month-${monthKey}-dynamic-density-field`}>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Density <span className="text-red-500">*</span></Label>
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      value={data.density || ''}
+                                      onChange={(event) => {
+                                        updateMonthData(monthKey, 'density', event.target.value);
+                                        updateMonthData(monthKey, 'density_unit', dynamicDensityRequirement.densityUnit);
+                                        updateMonthData(monthKey, 'override_density', true);
+                                      }}
+                                      className="h-9 bg-white"
+                                      data-testid={`month-${monthKey}-dynamic-density-input`}
+                                    />
+                                  </div>
+                                  <span className="mb-2 text-sm text-stone-600" data-testid={`month-${monthKey}-dynamic-density-unit`}>
+                                    {dynamicDensityRequirement.densityUnit}
+                                  </span>
+                                </div>
                               )}
 
                               {/* Legacy Scope 1 / Biogenic overrides */}
@@ -1114,7 +1164,8 @@ const YearlyDataEntry = ({
                 data={yearlyData}
                 updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
                 calculationMethodology={calculationMethodology}
-              fieldOptions={fieldOptions}
+                fieldOptions={fieldOptions}
+                centralizedUnits={centralizedUnits}
               />
             )}
             
@@ -1249,6 +1300,7 @@ const YearlyDataEntry = ({
                 updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
                 calculationMethodology={calculationMethodology}
               fieldOptions={fieldOptions}
+              centralizedUnits={centralizedUnits}
               />
             )}
 
