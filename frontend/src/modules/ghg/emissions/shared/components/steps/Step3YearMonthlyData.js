@@ -634,59 +634,55 @@ export const Step3YearMonthlyData = ({
                     !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides;
                   const hasScope2Override = !isDisabled && !formConfig && scope === 'scope2' && !useCustomFuel;
                   const hasExpandableContent = hasFlightDetails || hasCustomFuel || hasLegacyOverrides || hasScope2Override;
+                  const monthCell = (
+                    <td className="whitespace-nowrap px-5 py-3 align-middle" data-testid={`month-${monthKey}-ledger-month`}>
+                      <div className="flex items-center gap-2.5">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${
+                          isDisabled ? 'bg-stone-200' : status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
+                        }`} />
+                        <div>
+                          <p className={`text-sm font-medium ${isDisabled ? 'text-stone-400' : 'text-stone-800'}`}>
+                            {month.name} {displayYear}
+                          </p>
+                          {isDisabled ? (
+                            <span className="text-xs text-stone-400">Future</span>
+                          ) : status === 'filled' ? (
+                            <span className="flex items-center gap-1 text-xs text-green-700"><Check className="h-3 w-3" />Done</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </td>
+                  );
+                  const dataCells = isDisabled ? [
+                    <td key="future-notice" colSpan={ledgerColumns.length + 1} className="px-3 py-3 text-sm text-stone-400" data-testid={`month-${monthKey}-future-notice`}>
+                      This period is not available yet.
+                    </td>,
+                  ] : [
+                    ...ledgerColumns.map((col) => (
+                      <td key={col.key} className="px-3 py-3 align-middle" data-testid={`month-${monthKey}-field-${col.key}`}>
+                        {renderCellInput(col, monthKey, data)}
+                      </td>
+                    )),
+                    <td key="evidence" className="px-3 py-3 align-middle">
+                      <EvidenceIconCell
+                        monthKey={monthKey}
+                        evidences={data.evidences}
+                        handleEvidenceUpload={handleEvidenceUpload}
+                        removeEvidence={removeEvidence}
+                        backendUrl={BACKEND_URL}
+                      />
+                    </td>,
+                  ];
+                  const mainRow = React.createElement(
+                    'tr',
+                    { className: isDisabled ? 'bg-stone-50/70 opacity-60' : '', 'data-testid': `month-${monthKey}-ledger-row` },
+                    monthCell,
+                    ...dataCells,
+                  );
 
                   return (
                     <React.Fragment key={monthKey}>
-                      {/* ── Main data row ── */}
-                      <tr
-                        className={isDisabled ? 'bg-stone-50/70 opacity-60' : ''}
-                        data-testid={`month-${monthKey}-ledger-row`}
-                      >
-                        {/* Month cell */}
-                        <td className="whitespace-nowrap px-5 py-3 align-middle" data-testid={`month-${monthKey}-ledger-month`}>
-                          <div className="flex items-center gap-2.5">
-                            <span className={`h-2 w-2 shrink-0 rounded-full ${
-                              isDisabled ? 'bg-stone-200' : status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
-                            }`} />
-                            <div>
-                              <p className={`text-sm font-medium ${isDisabled ? 'text-stone-400' : 'text-stone-800'}`}>
-                                {month.name} {displayYear}
-                              </p>
-                              {isDisabled ? (
-                                <span className="text-xs text-stone-400">Future</span>
-                              ) : status === 'filled' ? (
-                                <span className="flex items-center gap-1 text-xs text-green-700"><Check className="h-3 w-3" />Done</span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </td>
-
-                        {!isDisabled ? (
-                          <>
-                            {/* One cell per required field */}
-                            {ledgerColumns.map(col => (
-                              <td key={col.key} className="px-3 py-3 align-middle" data-testid={`month-${monthKey}-field-${col.key}`}>
-                                {renderCellInput(col, monthKey, data)}
-                              </td>
-                            ))}
-
-                            {/* Evidence icon cell */}
-                            <td className="px-3 py-3 align-middle">
-                              <EvidenceIconCell
-                                monthKey={monthKey}
-                                evidences={data.evidences}
-                                handleEvidenceUpload={handleEvidenceUpload}
-                                removeEvidence={removeEvidence}
-                                backendUrl={BACKEND_URL}
-                              />
-                            </td>
-                          </>
-                        ) : (
-                          <td colSpan={ledgerColumns.length + 1} className="px-3 py-3 text-sm text-stone-400" data-testid={`month-${monthKey}-future-notice`}>
-                            This period is not available yet.
-                          </td>
-                        )}
-                      </tr>
+                      {mainRow}
 
                       {/* ── Expandable content row (flight details, custom fuel, additional details, overrides) ── */}
                       {hasExpandableContent && (

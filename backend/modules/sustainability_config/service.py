@@ -80,6 +80,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             "dashboard": data.get("dashboard", {"type": "standard"}),
             "features": data.get("features", {}),
             "ai_query_aliases": data.get("ai_query_aliases", []),
+            "ghg_overrides": data.get("ghg_overrides", {}),
             "created_at": now,
             "updated_at": now,
             "created_by": user_id,
@@ -246,6 +247,7 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         "has_enabled_filter": modules_cfg.get("enabled") is not None,
         "disabled_modules": disabled_subcats,
         "ai_query_aliases": org_cfg.get("ai_query_aliases") or [],
+        "ghg_overrides": org_cfg.get("ghg_overrides") or {},
     }
 
 

@@ -21,6 +21,7 @@ import {
   CustomCategoriesTab,
   FeaturesTab,
   AIQueryAliasesTab,
+  GhgCapabilitiesTab,
 } from '../components/sustainability-config';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -120,6 +121,7 @@ export default function SustainabilityConfig() {
               <TabsTrigger value="custom-categories">Custom Categories</TabsTrigger>
               <TabsTrigger value="features" data-testid="features-tab-trigger">Features</TabsTrigger>
               <TabsTrigger value="ai-query-aliases" data-testid="ai-query-aliases-tab-trigger">AI Query Aliases</TabsTrigger>
+              <TabsTrigger value="ghg-capabilities" data-testid="ghg-capabilities-tab-trigger">GHG Capabilities</TabsTrigger>
             </TabsList>
 
             <TabsContent value="modules" className="mt-4">
@@ -139,6 +141,9 @@ export default function SustainabilityConfig() {
             </TabsContent>
             <TabsContent value="ai-query-aliases" className="mt-4">
               <AIQueryAliasesTab orgConfig={orgConfig} allDefaultModules={allDefaultModules} onSave={saveConfig} saving={saving} />
+            </TabsContent>
+            <TabsContent value="ghg-capabilities" className="mt-4">
+              <GhgCapabilitiesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
             </TabsContent>
           </Tabs>
         </>

@@ -6,3 +6,4 @@ export { FeaturesTab } from './FeaturesTab';
 export { TargetOverridesTab } from './TargetOverridesTab';
 export { FieldEditorDialog } from './FieldEditorDialog';
 export { AIQueryAliasesTab } from './AIQueryAliasesTab';
+export { GhgCapabilitiesTab } from './GhgCapabilitiesTab';

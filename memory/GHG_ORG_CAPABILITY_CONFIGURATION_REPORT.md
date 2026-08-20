@@ -57,6 +57,12 @@ The validated caller-supplied shape is:
 
 `capabilityOverrides.customFuel` is opt-out only; `true` is rejected. `processTypeOptions` must be a non-empty, unique subset of the central registry.
 
+### Persisted superadmin configuration
+
+The superadmin Org Config now persists and delivers the same safe object as `ghg_overrides`. It includes the Process Emissions category control, Custom Fuel control, Process Type checkboxes, and Scope 3 visibility controls for centrally supported C1–C15 categories.
+
+Scope 3 selections use the existing `disabledCategories` mechanism and canonical category codes. They only determine which categories are available for new entries; they do not change Scope 3 methods, activities, calculations, or historical records.
+
 ## 7. Resolver changes
 
 - `resolveGhgCapabilities` now returns effective `customFuel` and `processTypeOptions` values only after validation.
@@ -123,8 +129,8 @@ All verification was read-only; no form was saved.
 
 ## 15. Limitations and follow-up work
 
-- A caller must supply `organizationGhgOverrides`; persistence, API delivery, and the admin configuration UI are explicitly deferred by Option A.
-- The live browser test therefore verifies the standard/default path only; organization-specific variants are covered by permanent resolver contracts.
+- Superadmin Org Config now persists/delivers the safe `ghg_overrides` object. It deliberately exposes only category/capability/option visibility controls, not calculation controls.
+- Existing category, Process Type, and Custom Fuel changes remain presentation-only; no new Process Type can be introduced through configuration.
 - No new Process Type can be created through overrides. A future Process Type must be centrally implemented, tested, registered, and only then exposed through this allowlist.
 
 ## Additional verification repair

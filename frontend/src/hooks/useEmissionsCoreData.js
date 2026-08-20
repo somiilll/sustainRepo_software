@@ -27,6 +27,7 @@ export function useEmissionsCoreData(getAuthHeader) {
     dynamicCategories: [],
     scope3EFData: [],
     fugitiveEmissionsData: [],
+    organizationGhgOverrides: null,
     configLabels: {
       calculation_methods: {},
       calculation_methods_short: {},
@@ -45,7 +46,7 @@ export function useEmissionsCoreData(getAuthHeader) {
         emissionsRes, facilitiesRes, fuelDbRes, formulasRes, 
         paramsRes, unitsRes, configsRes, gwpRes, 
         templatesRes, orgRes, scopesRes, catsRes, labelsRes,
-        scope3EfRes
+        scope3EfRes, resolvedConfigRes
       ] = await Promise.all([
         axios.get(`${API}/emissions`, headers),
         axios.get(`${API}/facilities`, headers),
@@ -60,7 +61,8 @@ export function useEmissionsCoreData(getAuthHeader) {
         axios.get(`${API}/scopes`, headers).catch(() => ({ data: [] })),
         axios.get(`${API}/categories`, headers).catch(() => ({ data: [] })),
         axios.get(`${API}/config/labels`, headers).catch(() => ({ data: null })),
-        axios.get(`${API}/scope3-ef?limit=10000`, headers).catch(() => ({ data: { data: [] } }))
+        axios.get(`${API}/scope3-ef?limit=10000`, headers).catch(() => ({ data: { data: [] } })),
+        axios.get(`${API}/sustainability-config/resolved`, headers).catch(() => ({ data: {} }))
       ]);
 
       // Derive fugitive emissions from fuel_database (needed for Scope 3 C8/C10/C11/C13/C14)
@@ -99,6 +101,7 @@ export function useEmissionsCoreData(getAuthHeader) {
         dynamicCategories: catsRes.data || [],
         scope3EFData,
         fugitiveEmissionsData,
+        organizationGhgOverrides: resolvedConfigRes.data?.ghg_overrides || null,
         configLabels: labelsRes.data || data.configLabels,
       });
     } catch (error) {
@@ -110,7 +113,6 @@ export function useEmissionsCoreData(getAuthHeader) {
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { ...data, loading, refresh: fetchData };

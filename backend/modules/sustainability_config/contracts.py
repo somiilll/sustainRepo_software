@@ -5,8 +5,8 @@ Single-collection override layer:
   Global esg_record_categories + organization_config overrides → final config
 """
 
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # =============================================================================
@@ -96,6 +96,56 @@ class AIQueryAlias(BaseModel):
     aliases: List[str] = Field(default_factory=list)
 
 
+# =============================================================================
+# GHG presentation-only organization overrides
+# =============================================================================
+
+class GhgCapabilityOverrides(BaseModel):
+    """Only supports disabling the centrally supported Custom Fuel UI capability."""
+    model_config = ConfigDict(extra="forbid")
+
+    customFuel: Optional[Literal[False]] = None
+
+
+class GhgOverridesConfig(BaseModel):
+    """Safe GHG UI controls. Calculation-domain settings are intentionally absent."""
+    model_config = ConfigDict(extra="forbid")
+
+    disabledCategories: List[Literal[
+        "process_emissions",
+        "purchased_goods_and_services",
+        "capital_goods",
+        "fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2",
+        "upstream_transportation_distribution",
+        "waste_generated_in_operations",
+        "business_travel",
+        "employee_commuting",
+        "upstream_leased_assets",
+        "downstream_transportation_and_distribution",
+        "processing_of_sold_products",
+        "use_of_sold_products",
+        "end_of_life_treatment_of_sold_products",
+        "downstream_leased_assets",
+        "franchises",
+        "investments",
+    ]] = Field(default_factory=list)
+    capabilityOverrides: GhgCapabilityOverrides = Field(default_factory=GhgCapabilityOverrides)
+    processTypeOptions: Optional[List[Literal[
+        "venting", "n2o_overall_combustion", "ch4_overall_combustion"
+    ]]] = None
+
+    @field_validator("processTypeOptions")
+    @classmethod
+    def validate_process_type_options(cls, values):
+        if values is None:
+            return values
+        if not values:
+            raise ValueError("processTypeOptions must retain at least one supported Process Type")
+        if len(values) != len(set(values)):
+            raise ValueError("processTypeOptions must not contain duplicates")
+        return values
+
+
 class OrganizationConfigUpdate(BaseModel):
     """Payload for creating/updating the organization config."""
     modules: Optional[ModulesConfig] = None
@@ -105,3 +155,4 @@ class OrganizationConfigUpdate(BaseModel):
     dashboard: Optional[DashboardConfig] = None
     features: Optional[FeaturesConfig] = None
     ai_query_aliases: Optional[List[AIQueryAlias]] = None
+    ghg_overrides: Optional[GhgOverridesConfig] = None

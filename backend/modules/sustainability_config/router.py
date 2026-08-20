@@ -35,6 +35,7 @@ async def get_org_config(
             "dashboard": {"type": "standard"},
             "features": {},
             "ai_query_aliases": [],
+            "ghg_overrides": {},
         }
     return cfg
 
@@ -61,6 +62,8 @@ async def update_org_config(
         payload["features"] = data.features.model_dump(exclude_none=True)
     if data.ai_query_aliases is not None:
         payload["ai_query_aliases"] = [rule.model_dump() for rule in data.ai_query_aliases]
+    if data.ghg_overrides is not None:
+        payload["ghg_overrides"] = data.ghg_overrides.model_dump(exclude_none=True)
 
     result = await service.upsert_org_config(org_id, payload, current_user["id"])
     return result

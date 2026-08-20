@@ -59,11 +59,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     emissions, facilities, organization, fuelDatabase,
     formulaDefinitions, formulaParameters, emissionConfigurations,
     loading, centralizedUnits, gwpConfig, processTemplates,
-    dynamicScopes, dynamicCategories, configLabels,
+    dynamicScopes, dynamicCategories, configLabels, organizationGhgOverrides: resolvedOrganizationGhgOverrides,
     scope3EFData: initialScope3EFData,
     fugitiveEmissionsData: initialFugitiveData,
     refresh: fetchData
   } = useEmissionsCoreData(getAuthHeader);
+  const effectiveOrganizationGhgOverrides = organizationGhgOverrides || resolvedOrganizationGhgOverrides;
   
   // ============================================================================
   // KPI ASSIGNMENT-BASED ACCESS CONTROL
@@ -425,11 +426,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const editGhgFormArchitecture = useMemo(
     () => resolveGhgFormArchitecture({
       standardConfig: editFormConfig,
-      organizationOverrides: organizationGhgOverrides,
+      organizationOverrides: effectiveOrganizationGhgOverrides,
       formContext: editGhgFormContext,
       biogenicScopeSelection,
     }),
-    [editFormConfig, organizationGhgOverrides, editGhgFormContext, biogenicScopeSelection],
+    [editFormConfig, effectiveOrganizationGhgOverrides, editGhgFormContext, biogenicScopeSelection],
   );
   const editCapabilities = editGhgFormArchitecture.capabilities;
   const editGhgFieldOptions = editGhgFormArchitecture.resolvedFieldOptions;
@@ -1518,8 +1519,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     standardCategories: standardCategoriesForScope,
     scopeCode: resolveEffectiveScopeCode(formData.scope, biogenicScopeSelection),
     categoryDefinitions: dynamicCategories,
-    organizationOverrides: organizationGhgOverrides,
-  }), [standardCategoriesForScope, formData.scope, biogenicScopeSelection, dynamicCategories, organizationGhgOverrides]);
+    organizationOverrides: effectiveOrganizationGhgOverrides,
+  }), [standardCategoriesForScope, formData.scope, biogenicScopeSelection, dynamicCategories, effectiveOrganizationGhgOverrides]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
@@ -3011,7 +3012,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   getAuthHeader={getAuthHeader}
                   configLabels={configLabels}
                   organization={organization}
-                  organizationGhgOverrides={organizationGhgOverrides}
+                  organizationGhgOverrides={effectiveOrganizationGhgOverrides}
                   onFormChange={markFormDirty}
                   kpiAccessInfo={kpiAccessInfo}
                   kpiCanAccessScope={kpiCanAccessScope}

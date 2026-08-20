@@ -149,3 +149,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - **P1:** Persist and deliver `organizationGhgOverrides` only when separately approved; missing monthly/yearly required-input units remains blocked on approval; BRSR Section A stale form data on year switch.
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution.
 - **P3:** Custom Fuel month-value copy, Scope 1/3 dashboard deduplication, admin disable UI. Phase 7 remains explicitly blocked.
+
+## Change Log — 2026-08-20: Superadmin GHG Organization Configuration
+
+- Added persisted `ghg_overrides` to existing Org Config with strict server-side allowlists and resolved delivery to Emissions.
+- Superadmins can set Process Emissions visibility, supported Process Types, Custom Fuel visibility, and Scope 3 C1–C15 category visibility. All controls resolve through the existing `disabledCategories` and GHG resolver path.
+- Scope 3 controls were added at the user’s request with **NO TEST RUN** requested; no calculations, factors, formulas, records, or Phase 7 architecture were changed.

@@ -48,7 +48,7 @@ export const OrganizationProvider = ({ children }) => {
   }, [token]);
 
   const fetchOrganization = useCallback(async () => {
-    if (!token || user?.role === 'super_admin') {
+    if (!token || !user || user.role === 'super_admin') {
       setLoading(false);
       return;
     }
