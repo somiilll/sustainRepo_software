@@ -1355,8 +1355,12 @@ export default function EmissionEntryForm({
               fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
             }
             
-            if (fieldUnits.length > 0) {
-              monthData[unitKey] = fieldUnits[0];
+            const configuredDefaultUnit = field.defaultUnit
+              || field.default_unit
+              || field.expectedUnit;
+            const initialUnit = configuredDefaultUnit || fieldUnits[0];
+            if (initialUnit) {
+              monthData[unitKey] = initialUnit;
               needsUpdate = true;
             }
           }
@@ -1453,8 +1457,12 @@ export default function EmissionEntryForm({
             fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
           }
           
-          if (fieldUnits.length > 0) {
-            updated[unitKey] = fieldUnits[0];
+          const configuredDefaultUnit = field.defaultUnit
+            || field.default_unit
+            || field.expectedUnit;
+          const initialUnit = configuredDefaultUnit || fieldUnits[0];
+          if (initialUnit) {
+            updated[unitKey] = initialUnit;
             needsUpdate = true;
           }
         }
@@ -2679,6 +2687,7 @@ export default function EmissionEntryForm({
     setIsSaving,
     // Computed
     isC7EmployeeCommuting, requiresSubcategory, selectedFuel, capabilities: resolvedCapabilities,
+    isProcessEmissions: ghgFormContext.isProcessCategory,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     // Helpers
     canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,

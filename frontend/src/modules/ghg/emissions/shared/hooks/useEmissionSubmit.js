@@ -26,6 +26,11 @@ import { categoryRegistry } from '../../../../emissions';
 import { MONTHS } from '../constants/emission-form-constants';
 import { buildCustomFuelCalculationPayload } from '../../../../../pages/emissions/utils/customFuelCalcAdapter';
 import { getProcessTemplateFieldUnit } from '../utils/processTemplateMonthlyFields';
+import {
+  getUnitDenominator,
+  isQuantityField,
+  resolveDensityRequirement,
+} from '../utils/unitHelpers';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -34,6 +39,71 @@ const getProvidedDensity = (data = {}) => {
   const value = Number.parseFloat(data.density);
   if (!Number.isFinite(value)) return null;
   return { value, unit: data.density_unit || 'kg/L' };
+};
+
+const hasNumericValue = (value) => (
+  value !== undefined
+  && value !== null
+  && value !== ''
+  && Number.isFinite(Number.parseFloat(value))
+);
+
+const isCvField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(cv|calorific|ncv)(_|$)/i.test(identity)
+    || /calorific|\bcv\b|\bncv\b/i.test(field.label || '');
+};
+
+const isEfField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(ef|emission_factor)(_|$)/i.test(identity)
+    || /emission factor|\bef\b/i.test(field.label || '');
+};
+
+const getFieldValue = (data = {}, field = {}) => (
+  data[field.variable] ?? data[field.fieldKey]
+);
+
+const getFieldUnit = (data = {}, field = {}) => (
+  data[`${field.variable}_unit`]
+  || data[`${field.fieldKey}_unit`]
+  || field.defaultUnit
+  || field.default_unit
+  || field.expectedUnit
+  || field.allowedUnits?.[0]
+  || ''
+);
+
+/**
+ * This intentionally resolves at submit time rather than using the rendered
+ * row's asynchronous state flag. The submitted values and units are therefore
+ * the sole source of truth for the density requirement.
+ */
+const resolveProcessDensityRequirement = ({
+  data,
+  dynamicInputFields = [],
+  calculationMethodology,
+  centralizedUnits = [],
+}) => {
+  if (!['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(calculationMethodology)) {
+    return { required: false };
+  }
+
+  const quantityField = dynamicInputFields.find(isQuantityField);
+  const referenceField = calculationMethodology === 'using_heat_basis_ncv'
+    ? dynamicInputFields.find(isCvField)
+    : dynamicInputFields.find(isEfField);
+  if (!quantityField || !referenceField) return { required: false };
+
+  if (!hasNumericValue(getFieldValue(data, quantityField)) || !hasNumericValue(getFieldValue(data, referenceField))) {
+    return { required: false };
+  }
+
+  return resolveDensityRequirement({
+    quantityUnit: getFieldUnit(data, quantityField),
+    referenceUnit: getUnitDenominator(getFieldUnit(data, referenceField)),
+    centralizedUnits,
+  });
 };
 
 export function useEmissionSubmit(ctx) {
@@ -50,7 +120,7 @@ export function useEmissionSubmit(ctx) {
       supplierCode, employeeName, employeeId, assetName,
       fromLocation, toLocation, selectedSubIndustry, selectedTemplate,
       templateInputValues, dynamicCategories, setIsSaving, isC7EmployeeCommuting,
-      isProcessEmissions, requiresSubcategory, selectedFuel, filteredScope3Activities,
+      isProcessEmissions = false, requiresSubcategory, selectedFuel, filteredScope3Activities,
       dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
       onSuccess, getActualYearForMonth, evaluateFormula,
       buildDecisionInputs, editingEmission,
@@ -110,6 +180,33 @@ export function useEmissionSubmit(ctx) {
     if (!validation.valid) {
       toast.error(validation.message);
       return;
+    }
+
+    // Process Emissions density is a virtual, conditional field. Resolve its
+    // requirement from the exact values about to be persisted so a stale UI
+    // effect cannot allow the calculation engine to use a default factor.
+    if (isProcessEmissions) {
+      const rowsToValidate = frequencyType === 'yearly'
+        ? [['yearly', yearlyData]]
+        : Object.entries(monthlyData || {});
+      for (const [periodKey, data] of rowsToValidate) {
+        const requirement = resolveProcessDensityRequirement({
+          data,
+          dynamicInputFields,
+          calculationMethodology: decisionFieldValues?.calculation_methodology,
+          centralizedUnits,
+        });
+        if (!requirement.required) continue;
+
+        const density = getProvidedDensity(data);
+        if (!density || density.unit !== requirement.densityUnit) {
+          const monthName = periodKey === 'yearly'
+            ? 'the annual entry'
+            : (MONTHS.find((month) => month.key === periodKey)?.name || periodKey);
+          toast.error(`Please enter Density (${requirement.densityUnit}) for ${monthName}`);
+          return;
+        }
+      }
     }
 
     setIsSaving(true); // Disable button immediately

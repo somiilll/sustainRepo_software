@@ -39,6 +39,93 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _process_input_value(dynamic_values: dict, predicate) -> Optional[dict]:
+    for key, value in (dynamic_values or {}).items():
+        if predicate(str(key).lower()) and isinstance(value, dict):
+            return value
+    return None
+
+
+def _unit_dimension(unit: str, unit_definitions: list[dict]) -> Optional[str]:
+    normalized = str(unit or "").strip().lower()
+    if not normalized:
+        return None
+    for definition in unit_definitions:
+        aliases = definition.get("aliases") or []
+        symbols = [definition.get("symbol"), *aliases]
+        if any(str(symbol or "").strip().lower() == normalized for symbol in symbols):
+            unit_type = str(definition.get("unit_type") or "").lower()
+            if unit_type in {"mass", "volume"}:
+                return unit_type
+            vector = definition.get("dimension_vector") or definition.get("derived_dimension_vector") or {}
+            if vector.get("mass"):
+                return "mass"
+            if vector.get("volume"):
+                return "volume"
+    return None
+
+
+async def _validate_process_density_requirement(record_data: EmissionRecordCreate) -> None:
+    """Reject a Process Emissions mass/volume conversion without user density."""
+    if (record_data.category or "").strip().lower() != "process emissions":
+        return
+
+    dynamic_values = record_data.dynamic_field_values or {}
+    methodology_value = dynamic_values.get("calculation_methodology") or {}
+    methodology = record_data.calculation_methodology or (
+        methodology_value.get("value") if isinstance(methodology_value, dict) else methodology_value
+    )
+    if methodology not in {"using_heat_basis_ncv", "using_qty_basis_ef"}:
+        return
+
+    quantity = _process_input_value(
+        dynamic_values,
+        lambda key: key == "qty" or key == "quantity" or key.startswith("qty_") or key.startswith("quantity_"),
+    )
+    reference = _process_input_value(
+        dynamic_values,
+        (lambda key: "cv" in key or "calorific" in key or "ncv" in key)
+        if methodology == "using_heat_basis_ncv"
+        else (lambda key: key == "ef_quantity" or "emission_factor" in key or key.startswith("ef_")),
+    )
+    if not quantity or not reference:
+        return
+
+    try:
+        quantity_value = float(quantity.get("value"))
+        reference_value = float(reference.get("value"))
+    except (TypeError, ValueError):
+        return
+    if quantity_value <= 0 or reference_value <= 0:
+        return
+
+    quantity_unit = quantity.get("unit") or ""
+    reference_unit = str(reference.get("unit") or "").split("/", 1)[1].strip() if "/" in str(reference.get("unit") or "") else ""
+    if not quantity_unit or not reference_unit:
+        return
+
+    units = await db.units.find(
+        {"is_active": True},
+        {"_id": 0, "symbol": 1, "aliases": 1, "unit_type": 1, "dimension_vector": 1, "derived_dimension_vector": 1},
+    ).to_list(1000)
+    quantity_dimension = _unit_dimension(quantity_unit, units)
+    reference_dimension = _unit_dimension(reference_unit, units)
+    if {quantity_dimension, reference_dimension} != {"mass", "volume"}:
+        return
+
+    density = dynamic_values.get("density") or {}
+    try:
+        density_value = float(density.get("value")) if isinstance(density, dict) else None
+    except (TypeError, ValueError):
+        density_value = None
+    required_density_unit = f"{reference_unit}/{quantity_unit}"
+    if density_value is None or density_value <= 0 or density.get("unit") != required_density_unit:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Process Emissions requires a positive user-provided density in {required_density_unit} for this mass/volume conversion",
+        )
+
+
 def _build_emission_inputs(emission_record: dict) -> dict:
     """
     Build a normalized inputs dictionary from an emission record.
@@ -758,6 +845,8 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     if not facility:
         logger.warning(f"[EMISSION_CREATE] Facility not found: {record_data.facility_id}")
         raise HTTPException(status_code=404, detail="Facility not found")
+
+    await _validate_process_density_requirement(record_data)
     
     org_id = facility.get("organization_id")
     user_id = current_user.get("id")

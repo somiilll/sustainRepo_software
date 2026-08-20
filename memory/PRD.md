@@ -155,6 +155,13 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution.
 - **P3:** Custom Fuel month-value copy, Scope 1/3 dashboard deduplication, admin disable UI. Phase 7 remains explicitly blocked.
 
+## Change Log — 2026-08-20: Process Emissions Unit and Density Save Guard
+
+- Fixed Create-form unit initialization priority for monthly and yearly data: saved selection → configured default unit → formula expected unit → first allowed unit. Process Emissions quantities configured with `kg` no longer default to the alphabetically first `L` option.
+- Added a synchronous pre-save Process Emissions density check based on the actual quantity and CV/EF units being submitted. A mass↔volume mismatch now blocks saving until a positive density in the required directional unit is supplied.
+- Added a matching `/api/emissions` server-side guard that rejects Process Emissions mass↔volume payloads missing a valid directional density, preventing silent fallback to default factors even if a client bypasses the UI.
+- No calculation-engine files were changed. **NO TEST RUN** was performed at the user's explicit request.
+
 ## Change Log — 2026-08-20: Process Emissions Density Rendering Repair
 
 - Fixed the Create-form prop boundary: `EmissionEntryForm` now passes the resolved Process Emissions state and existing selected-template state to `Step3YearMonthlyData`.

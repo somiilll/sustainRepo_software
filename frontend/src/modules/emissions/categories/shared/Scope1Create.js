@@ -28,7 +28,12 @@ function resolveFieldUnit(field, data, ctx) {
   } else {
     fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
   }
-  return data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
+  return data[`${field.variable}_unit`]
+    || field.defaultUnit
+    || field.default_unit
+    || field.expectedUnit
+    || fieldUnits[0]
+    || '';
 }
 
 const hasNumericValue = (value) => (
