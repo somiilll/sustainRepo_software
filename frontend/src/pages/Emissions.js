@@ -44,6 +44,7 @@ import {
   updateDraftField,
   updateDraftValues,
 } from '../modules/ghg/emissions/shared/domain';
+import { normalizeDensityForCalcEngine } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
@@ -678,6 +679,16 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             }
           }
         });
+
+        // Process Emissions can render Density as a virtual runtime field.
+        // Hydrate it even when its configuration does not include a Density mapping.
+        if (!dynamicInputFields.some((field) => field.variable === 'density') && savedDynamicValues.density) {
+          values.density = savedDynamicValues.density.value !== null && savedDynamicValues.density.value !== undefined
+            ? savedDynamicValues.density.value.toString()
+            : '';
+          values.density_unit = savedDynamicValues.density.unit || '';
+          values.override_density = savedDynamicValues.density.is_override === true;
+        }
         
         setDynamicFieldValues(values);
 
@@ -1841,6 +1852,16 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       });
       if (customFuelCalculation) {
         Object.assign(userOverrides, customFuelCalculation.userOverrides);
+      }
+      const hasConfiguredDensityField = dynamicInputFields.some((field) => field.variable === 'density');
+      if (!hasConfiguredDensityField && dynamicFieldValues.density !== undefined && dynamicFieldValues.density !== '') {
+        const densityValue = parseFloat(dynamicFieldValues.density);
+        if (Number.isFinite(densityValue) && densityValue > 0) {
+          userOverrides.density = normalizeDensityForCalcEngine({
+            value: densityValue,
+            unit: dynamicFieldValues.density_unit || 'kg/L',
+          });
+        }
       }
       
       // Build decision inputs from maps_to_context

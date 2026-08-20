@@ -49,7 +49,11 @@ import {
   MapPin,
 } from 'lucide-react';
 import { isVolumeUnit as isVolumeUnitShared } from '../pages/emissions/utils/units';
-import { isQuantityField } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import {
+  getUnitDenominator,
+  isQuantityField,
+  resolveDensityRequirement,
+} from '../modules/ghg/emissions/shared/utils/unitHelpers';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -71,6 +75,25 @@ const downloadFileHelper = (url, filename) => {
 
 // Local alias used in the JSX below (matches the legacy inline reference).
 const isVolumeUnit = isVolumeUnitShared;
+
+const isCvField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(cv|calorific|ncv)(_|$)/i.test(identity)
+    || /calorific|\bcv\b|\bncv\b/i.test(field.label || '');
+};
+
+const isEfField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(ef|emission_factor)(_|$)/i.test(identity)
+    || /emission factor|\bef\b/i.test(field.label || '');
+};
+
+const hasNumericValue = (value) => (
+  value !== undefined
+  && value !== null
+  && value !== ''
+  && Number.isFinite(Number.parseFloat(value))
+);
 
 const getCategoryIcon = (category = '') => {
   const normalized = category.toLowerCase();
@@ -225,6 +248,36 @@ export default function EmissionEditForm(props) {
     hasCategory: Boolean(selectedCategory || formData.category),
   });
   const CategoryIcon = getCategoryIcon(selectedCategory || formData.category);
+  const isProcessEmission = Boolean(capabilities.processType)
+    || (formData.category || selectedCategory || '').toLowerCase().includes('process');
+  const hasConfiguredDensityField = dynamicInputFields.some((field) => field.variable === 'density');
+  const virtualDensityQuantityField = dynamicInputFields.find(isQuantityField);
+  const virtualDensityReferenceField = editCalcMethodology === 'using_heat_basis_ncv'
+    ? dynamicInputFields.find(isCvField)
+    : dynamicInputFields.find(isEfField);
+  const getSavedFieldValue = (field) => (
+    dynamicFieldValues[field?.variable]
+    ?? editingEmission?.dynamic_field_values?.[field?.variable]?.value
+  );
+  const getSavedFieldUnit = (field) => (
+    dynamicFieldValues[`${field?.variable}_unit`]
+    || editingEmission?.dynamic_field_values?.[field?.variable]?.unit
+    || field?.expectedUnit
+    || ''
+  );
+  const virtualDensityRequirement = resolveDensityRequirement({
+    quantityUnit: getSavedFieldUnit(virtualDensityQuantityField),
+    referenceUnit: getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField)),
+    centralizedUnits,
+  });
+  const showVirtualProcessDensity = isProcessEmission
+    && !hasConfiguredDensityField
+    && hasNumericValue(getSavedFieldValue(virtualDensityQuantityField))
+    && hasNumericValue(getSavedFieldValue(virtualDensityReferenceField))
+    && virtualDensityRequirement.required;
+  const savedVirtualDensity = dynamicFieldValues.density
+    ?? editingEmission?.dynamic_field_values?.density?.value
+    ?? '';
 
   // ─────────────────────────────────────────────────────────────────────
   // Data-based loading gate for C7 Employee Commuting (has deeply nested
@@ -1058,6 +1111,37 @@ export default function EmissionEditForm(props) {
                         );
                       })}
                     </div>
+
+                    {showVirtualProcessDensity && (
+                      <div className="grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="edit-process-density-field">
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-process-density-input" className="text-sm font-medium">
+                            Density <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            id="edit-process-density-input"
+                            type="number"
+                            step="any"
+                            min="0"
+                            required
+                            value={savedVirtualDensity}
+                            onChange={(event) => {
+                              updateDynamicFieldValue('density', event.target.value);
+                              updateDynamicFieldValue('density_unit', virtualDensityRequirement.densityUnit);
+                              updateDynamicFieldValue('override_density', true);
+                            }}
+                            className="bg-stone-50"
+                            data-testid="edit-process-density-input"
+                          />
+                        </div>
+                        <span className="mb-2 text-sm text-stone-600" data-testid="edit-process-density-unit">
+                          {virtualDensityRequirement.densityUnit}
+                        </span>
+                        <p className="col-span-2 text-xs text-amber-700" data-testid="edit-process-density-conversion-hint">
+                          Conversion required: {getSavedFieldUnit(virtualDensityQuantityField)} → {getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField))}
+                        </p>
+                      </div>
+                    )}
                     
                   </div>
                   )

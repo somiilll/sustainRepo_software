@@ -60,4 +60,45 @@ describe('Scope 1 calculation methodology persistence', () => {
       value: 'using_carbon_composition', unit: '',
     });
   });
+
+  it('retains a virtual Process Emissions density when saving an edit', () => {
+    const payload = buildEditPayload({
+      formData: {
+        facility_id: 'facility-1',
+        reporting_period_start: '2025-02',
+        reporting_period_end: '2025-02',
+        scope: 'scope1',
+        category: 'Process Emissions',
+        sub_category: '',
+        fuel_id: '',
+        fuel_type: '',
+        process_names: [],
+      },
+      editingEmission: { frequency_type: 'monthly', dynamic_field_values: {} },
+      dynamicInputFields: [
+        { variable: 'qty', fieldKey: 'qty', required: true, expectedUnit: 'kg', unitSource: 'static' },
+        { variable: 'ef_quantity', fieldKey: 'ef_quantity', required: true, expectedUnit: 'kgCO2/L', unitSource: 'static' },
+      ],
+      dynamicFieldValues: {
+        qty: '100',
+        qty_unit: 'kg',
+        ef_quantity: '0.7',
+        ef_quantity_unit: 'kgCO2/L',
+        density: '1.25',
+        density_unit: 'L/kg',
+        override_density: true,
+      },
+      selectedFuel: null,
+      centralizedUnits: [],
+      editUseCustomFuel: false,
+      editCalcMethodology: 'using_qty_basis_ef',
+      editProcessType: 'venting',
+    });
+
+    expect(payload.dynamic_field_values.density).toEqual({
+      value: 1.25,
+      unit: 'L/kg',
+      is_override: true,
+    });
+  });
 });

@@ -222,3 +222,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Process-template monthly and yearly records now send canonical `outputs`, preventing the emissions API from overwriting their calculated CO₂e with zero. Generic Process Emissions also refuse to save when their calculation configuration is unavailable or the calculation fails.
 - Density is rejected before save when required but missing, non-positive, or in the wrong directional unit. No calculation-engine files were changed.
 - **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Process Emissions Density in Edit
+
+- Fixed Process Emissions Edit hydration for the virtual runtime Density field. For a mass↔volume mismatch such as Quantity `kg` with EF `kgCO2/L`, Edit now displays the persisted Density value, its directional `L/kg` unit, and the conversion hint.
+- The virtual field now participates in Edit recalculation and is retained in `dynamic_field_values` on save, preventing an existing density from disappearing during a later edit.
+- Verified: frontend lint clean for the three changed source files; focused density and Scope 1 Edit payload tests passed (7/7); authenticated application smoke check loaded successfully. No calculation-engine or backend changes. No APIs are **MOCKED**.

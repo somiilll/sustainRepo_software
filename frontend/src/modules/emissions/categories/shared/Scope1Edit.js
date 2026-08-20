@@ -98,6 +98,17 @@ export function buildDynamicValues(ctx) {
 
     dynamicValues.calculation_methodology = { value: calculationMethodology, unit: '' };
 
+    // Process Emissions can require Density at runtime even where there is no
+    // configured Density mapping. Preserve that editable virtual field on PUT.
+    const hasConfiguredDensityField = (dynamicInputFields || []).some((field) => field.variable === 'density');
+    if (!hasConfiguredDensityField && hasValue(dynamicFieldValues.density)) {
+      dynamicValues.density = {
+        value: parseValue(dynamicFieldValues.density),
+        unit: dynamicFieldValues.density_unit || 'kg/L',
+        is_override: Boolean(dynamicFieldValues.override_density),
+      };
+    }
+
     if (ctx.editUseCustomFuel) {
       // These fields are rendered by CustomFuelMonthFields rather than the
       // standard config-driven list, so merge them explicitly into the payload.
