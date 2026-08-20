@@ -297,3 +297,8 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - API save failures now preserve the server-provided error detail in the monthly toast rather than replacing it with a generic failure message.
 - Edit Custom Fuel displays the same compact **Custom fuel** badge and amber flame indicator beside the fuel name; no edit data or calculation behavior changed.
 - Verified: JavaScript lint clean for five changed components; Custom Fuel adapter tests passed **14/14**; authenticated browser checks confirmed Heat Basis required headers, exact missing-field validation with no record created, and the Custom Fuel edit badge. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Edit Custom Fuel Caption Cleanup
+
+- Removed the `Custom fuel factors · [methodology]` caption from Edit only. The compact Custom fuel badge and amber flame indicator remain beside the Fuel Name.
+- Create retains its own ledger context unchanged. Verified with JavaScript lint and an authenticated Custom Fuel Edit browser smoke; the edit indicator count is zero. No APIs are **MOCKED**.

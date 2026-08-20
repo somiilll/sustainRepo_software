@@ -74,6 +74,7 @@ const CustomFuelMonthFields = ({
   fieldOptions = DEFAULT_FIELD_OPTIONS,
   centralizedUnits = [],
   renderFields = true,
+  showMethodIndicator = true,
 }) => {
   const heatEfUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT]
     || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT];
@@ -148,10 +149,12 @@ const CustomFuelMonthFields = ({
     const cvUnit = heatCvUnit;
     return (
       <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
-        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
-          <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
-          <span>Custom fuel factors · Heat Basis (NCV)</span>
-        </div>
+        {showMethodIndicator && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
+            <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+            <span>Custom fuel factors · Heat Basis (NCV)</span>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <MeasurementInput
             label="Emission Factor"
@@ -184,10 +187,12 @@ const CustomFuelMonthFields = ({
   if (calculationMethodology === 'using_qty_basis_ef') {
     return (
       <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
-        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
-          <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
-          <span>Custom fuel factors · Quantity Basis EF</span>
-        </div>
+        {showMethodIndicator && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
+            <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+            <span>Custom fuel factors · Quantity Basis EF</span>
+          </div>
+        )}
         <MeasurementInput
           label="Emission Factor"
           value={data.custom_ef || ''}
@@ -207,10 +212,12 @@ const CustomFuelMonthFields = ({
   if (calculationMethodology === 'using_carbon_composition') {
     return (
       <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
-        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
-          <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
-          <span>Custom fuel factors · Carbon Composition</span>
-        </div>
+        {showMethodIndicator && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
+            <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+            <span>Custom fuel factors · Carbon Composition</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Carbon Content (%) <span className="text-red-500">*</span></Label>
