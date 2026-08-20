@@ -70,9 +70,11 @@ def _unit_dimension(unit: str, unit_definitions: list[dict]) -> Optional[str]:
     return None
 
 
-async def _validate_process_density_requirement(record_data: EmissionRecordCreate) -> None:
-    """Reject a Process Emissions mass/volume conversion without user density."""
-    if (record_data.category or "").strip().lower() != "process emissions":
+async def _validate_density_requirement(record_data: EmissionRecordCreate) -> None:
+    """Reject Process Emissions or Custom Fuel mass/volume conversions without user density."""
+    is_process_emissions = (record_data.category or "").strip().lower() == "process emissions"
+    is_custom_fuel = bool(record_data.is_custom_fuel)
+    if not is_process_emissions and not is_custom_fuel:
         return
 
     dynamic_values = record_data.dynamic_field_values or {}
@@ -80,19 +82,25 @@ async def _validate_process_density_requirement(record_data: EmissionRecordCreat
     methodology = record_data.calculation_methodology or (
         methodology_value.get("value") if isinstance(methodology_value, dict) else methodology_value
     )
-    if methodology not in {"using_heat_basis_ncv", "using_qty_basis_ef"}:
+    supported_methodologies = {"using_heat_basis_ncv", "using_qty_basis_ef"}
+    if is_custom_fuel:
+        supported_methodologies.add("using_carbon_composition")
+    if methodology not in supported_methodologies:
         return
 
     quantity_key, quantity = _process_input_entry(
         dynamic_values,
         lambda key: key == "qty" or key == "quantity" or key.startswith("qty_") or key.startswith("quantity_"),
     )
-    reference_key, reference = _process_input_entry(
-        dynamic_values,
-        (lambda key: "cv" in key or "calorific" in key or "ncv" in key)
-        if methodology == "using_heat_basis_ncv"
-        else (lambda key: key == "ef_quantity" or "emission_factor" in key or key.startswith("ef_")),
-    )
+    if methodology == "using_carbon_composition":
+        reference_key, reference = "carbon_composition_reference", {"value": 1, "unit": "kg"}
+    else:
+        reference_key, reference = _process_input_entry(
+            dynamic_values,
+            (lambda key: "cv" in key or "calorific" in key or "ncv" in key)
+            if methodology == "using_heat_basis_ncv"
+            else (lambda key: key == "ef_quantity" or key == "custom_ef" or "emission_factor" in key or key.startswith("ef_")),
+        )
     if not quantity or not reference:
         return
 
@@ -132,7 +140,10 @@ async def _validate_process_density_requirement(record_data: EmissionRecordCreat
     if density_value is None or density_value <= 0 or density.get("unit") != required_density_unit:
         raise HTTPException(
             status_code=422,
-            detail=f"Process Emissions requires a positive user-provided density in {required_density_unit} for this mass/volume conversion",
+            detail=(
+                f"{'Process Emissions' if is_process_emissions else 'Custom Fuel'} requires a positive "
+                f"user-provided density in {required_density_unit} for this mass/volume conversion"
+            ),
         )
 
 
@@ -856,7 +867,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         logger.warning(f"[EMISSION_CREATE] Facility not found: {record_data.facility_id}")
         raise HTTPException(status_code=404, detail="Facility not found")
 
-    await _validate_process_density_requirement(record_data)
+    await _validate_density_requirement(record_data)
     
     org_id = facility.get("organization_id")
     user_id = current_user.get("id")
@@ -1247,6 +1258,8 @@ async def update_emission_record(
     
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
+
+    await _validate_density_requirement(record_data)
     
     org_id = existing.get("organization_id")
     user_id = current_user.get("id")

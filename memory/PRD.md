@@ -234,3 +234,15 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Updated the Process Emissions density guard in both the Create submission flow and `/api/emissions` save validation to use only the user-selected Quantity unit and the selected CV/EF denominator.
 - Formula expected units and default-unit fallbacks no longer create a density requirement. For example, Quantity `L` with EF `kgCO2/L` now passes without Density; Quantity `kg` with EF `kgCO2/L` still requires Density `L/kg`.
 - No calculation-engine files were changed. **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: PUT Density Guard Parity for Process Emissions and Custom Fuel
+
+- Applied the server-side selected-unit density validation to `PUT /api/emissions/{record_id}` before both direct updates and approval-workflow proposals.
+- Generalized the existing POST validation boundary to cover both Process Emissions and records marked `is_custom_fuel`, including Custom Fuel Heat Basis, Quantity Basis, and Carbon Composition. Matching selected dimensions continue without a Density requirement; only an actual mass↔volume mismatch requires the directional Density unit.
+- No calculation-engine files were changed. **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.
+
+### Current prioritized backlog
+
+- **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
+- **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
+- **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
