@@ -150,6 +150,12 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution.
 - **P3:** Custom Fuel month-value copy, Scope 1/3 dashboard deduplication, admin disable UI. Phase 7 remains explicitly blocked.
 
+## Change Log — 2026-08-20: Process Emissions Density Rendering Repair
+
+- Fixed the Create-form prop boundary: `EmissionEntryForm` now passes the resolved Process Emissions state and existing selected-template state to `Step3YearMonthlyData`.
+- The monthly density resolver now falls back to configuration-derived fields when a Process Emissions template is not selected, preserving template fields where they are available.
+- Verified: frontend lint passed; 7 focused density/Process-field tests passed; authenticated live Venting Heat Basis entry with Quantity `L` and CV `TJ/kg` rendered the required `Density (kg/L)` field and `Conversion required: L → kg` hint. No backend or calculation-engine logic changed.
+
 ## Change Log — 2026-08-20: Superadmin GHG Organization Configuration
 
 - Added persisted `ghg_overrides` to existing Org Config with strict server-side allowlists and resolved delivery to Emissions.

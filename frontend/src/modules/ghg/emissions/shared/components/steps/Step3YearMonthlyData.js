@@ -373,7 +373,7 @@ export const Step3YearMonthlyData = ({
       useCustomFuel,
     });
   };
-  const runtimeConversionFields = isProcessEmissions
+  const runtimeConversionFields = isProcessEmissions && normalizedProcessTemplateFields.length > 0
     ? normalizedProcessTemplateFields
     : dynamicInputFields;
 

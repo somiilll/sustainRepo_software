@@ -176,6 +176,8 @@ export default function EmissionEntryForm({
     c7FormulaName, setC7FormulaName,
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
+    // Process emissions
+    selectedTemplate,
     // Dynamic Form Config (Calc Engine)
     formConfig, setFormConfig,
     loadingFormConfig, setLoadingFormConfig,
@@ -2883,6 +2885,8 @@ export default function EmissionEntryForm({
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
           BACKEND_URL={BACKEND_URL}
+          isProcessEmissions={ghgFormContext.isProcessCategory}
+          selectedTemplate={selectedTemplate}
           category={category}
           capabilities={resolvedCapabilities}
           fieldOptions={resolvedGhgFieldOptions}
