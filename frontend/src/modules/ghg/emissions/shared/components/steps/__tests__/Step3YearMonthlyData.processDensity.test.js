@@ -1,6 +1,9 @@
 /* global describe, expect, it */
 
-import { normalizeProcessTemplateMonthlyField } from '../../../utils/processTemplateMonthlyFields';
+import {
+  getProcessTemplateFieldUnit,
+  normalizeProcessTemplateMonthlyField,
+} from '../../../utils/processTemplateMonthlyFields';
 
 describe('Process Emissions monthly field normalization', () => {
   it('gives the rendered Quantity field one canonical state identity', () => {
@@ -45,5 +48,12 @@ describe('Process Emissions monthly field normalization', () => {
       unitKey: 'ef_input_unit',
       allowedUnits: ['kgCO2/kg', 'kgCO2/L'],
     }));
+  });
+
+  it('uses the unit selected in the Process Emissions monthly row for saving', () => {
+    expect(getProcessTemplateFieldUnit(
+      { quantity_used_process_emissions_unit: 'kg' },
+      { key: 'quantity_used_process_emissions', unit: 'L' },
+    )).toBe('kg');
   });
 });

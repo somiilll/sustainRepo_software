@@ -282,6 +282,18 @@ export const validateStep3 = ({
     }
   }
 
+  // Runtime Density is not always present in the configured mapping list for
+  // Process Emissions. Once the selected mass/volume units require it, do not
+  // permit a record to be saved without a positive user-provided value.
+  for (const [monthKey, data] of Object.entries(monthlyData)) {
+    if (data?.runtime_density_required !== true) continue;
+    const density = Number.parseFloat(data.density);
+    if (!Number.isFinite(density) || density <= 0) {
+      const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+      return { valid: false, message: `Please enter Density for ${monthName}` };
+    }
+  }
+
   // Validate override and optional fields - if checkbox is checked, value must be entered
   const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
   for (const [monthKey, data] of Object.entries(monthlyData)) {

@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { categoryRegistry } from '../../../../emissions';
 import { MONTHS } from '../constants/emission-form-constants';
 import { buildCustomFuelCalculationPayload } from '../../../../../pages/emissions/utils/customFuelCalcAdapter';
+import { getProcessTemplateFieldUnit } from '../utils/processTemplateMonthlyFields';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -297,8 +298,12 @@ export function useEmissionSubmit(ctx) {
             // Process emissions yearly
             const formulaValues = {};
             selectedTemplate.input_fields?.forEach(field => {
-              formulaValues[field.key] = parseFloat(yearlyData[field.key]) || 0;
-              inputs[field.key] = { value: parseFloat(yearlyData[field.key]) || 0, unit: field.unit || '' };
+              const fieldKey = field.key || field.variable || field.fieldKey;
+              formulaValues[fieldKey] = parseFloat(yearlyData[fieldKey]) || 0;
+              inputs[fieldKey] = {
+                value: parseFloat(yearlyData[fieldKey]) || 0,
+                unit: getProcessTemplateFieldUnit(yearlyData, field),
+              };
             });
             selectedTemplate.predefined_inputs?.forEach(field => {
               formulaValues[field.key] = parseFloat(templateInputValues[field.key]) || parseFloat(field.value) || 0;
@@ -308,8 +313,9 @@ export function useEmissionSubmit(ctx) {
             
             const calculatedEmission = evaluateFormula(selectedTemplate.formula, formulaValues);
             const primaryInputField = selectedTemplate.input_fields?.[0];
-            primaryQuantity = primaryInputField ? (parseFloat(yearlyData[primaryInputField.key]) || 0) : 0;
-            primaryUnit = primaryInputField?.unit || 'unit';
+            const primaryInputKey = primaryInputField?.key || primaryInputField?.variable || primaryInputField?.fieldKey;
+            primaryQuantity = primaryInputKey ? (parseFloat(yearlyData[primaryInputKey]) || 0) : 0;
+            primaryUnit = primaryInputField ? getProcessTemplateFieldUnit(yearlyData, primaryInputField) : 'unit';
             
             const payload = {
               facility_id: facilityId,
@@ -548,8 +554,9 @@ export function useEmissionSubmit(ctx) {
           
           // Get the primary input field info for display
           const primaryInputField = selectedTemplate.input_fields?.[0];
-          const activityQuantity = primaryInputField ? (parseFloat(data[primaryInputField.key]) || 0) : 0;
-          const activityUnit = primaryInputField?.unit || 'unit';
+          const primaryInputKey = primaryInputField?.key || primaryInputField?.variable || primaryInputField?.fieldKey;
+          const activityQuantity = primaryInputKey ? (parseFloat(data[primaryInputKey]) || 0) : 0;
+          const activityUnit = primaryInputField ? getProcessTemplateFieldUnit(data, primaryInputField) : 'unit';
           
           const payload = {
             facility_id: facilityId,

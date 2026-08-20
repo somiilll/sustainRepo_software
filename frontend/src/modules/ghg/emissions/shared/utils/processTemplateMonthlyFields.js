@@ -14,6 +14,17 @@ const isEfTemplateField = (field = {}) => {
     || /emission factor|\bef\b/i.test(field.label || '');
 };
 
+/** Returns the exact unit chosen for a legacy Process Template input row. */
+export const getProcessTemplateFieldUnit = (data = {}, field = {}) => {
+  const fieldKey = field.key || field.variable || field.fieldKey || '';
+  return data[`${fieldKey}_unit`]
+    || field.default_unit
+    || field.defaultUnit
+    || field.unit
+    || field.expectedUnit
+    || '';
+};
+
 /**
  * Process templates predate the dynamic-field model. Normalize their fields at
  * the rendering boundary so the displayed selector and density resolver share
@@ -22,7 +33,7 @@ const isEfTemplateField = (field = {}) => {
 export const normalizeProcessTemplateMonthlyField = (field = {}) => {
   const valueKey = field.key || field.variable || field.fieldKey || '';
   const identityField = { ...field, variable: valueKey, fieldKey: valueKey };
-  const defaultUnit = field.default_unit || field.defaultUnit || field.unit || field.expectedUnit || '';
+  const defaultUnit = getProcessTemplateFieldUnit({}, field);
   const configuredUnits = field.allowedUnits || field.allowed_units || [];
   const role = isQuantityField(identityField)
     ? 'quantity'
