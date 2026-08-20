@@ -1369,6 +1369,46 @@ export default function EmissionEntryForm({
     });
   }, [dynamicInputFields, selectedFuel, activeMonths, centralizedUnits, scope3ActivityId, filteredScope3Activities, scope, biogenicScopeSelection, requiresSubcategory, scope3Method]);
 
+  // The compact monthly ledger can display a configured default without mounting
+  // DynamicFieldRenderer, which is normally responsible for persisting it. Once
+  // a user starts a month, materialize required defaults (for example,
+  // Oxidation Factor = 1) into state so validation and the calculation payload
+  // consume the same value the user sees. Do not populate untouched months.
+  useEffect(() => {
+    if (dynamicInputFields.length === 0 || activeMonths.length === 0) return;
+
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+
+      activeMonths.forEach((monthKey) => {
+        const currentMonth = previousMonths[monthKey] || {};
+        const hasStartedMonth = dynamicInputFields.some((field) => {
+          if (field.isOverride || field.presentationOnly) return false;
+          const value = currentMonth[field.variable] ?? currentMonth[field.fieldKey];
+          return value !== '' && value !== null && value !== undefined;
+        });
+        if (!hasStartedMonth) return;
+
+        let nextMonth = currentMonth;
+        dynamicInputFields.forEach((field) => {
+          const hasDefault = field.defaultValue !== undefined
+            && field.defaultValue !== null
+            && field.defaultValue !== '';
+          const currentValue = currentMonth[field.variable] ?? currentMonth[field.fieldKey];
+          if (!field.required || field.isOverride || field.presentationOnly || !hasDefault || currentValue !== undefined && currentValue !== null && currentValue !== '') return;
+          if (nextMonth === currentMonth) nextMonth = { ...currentMonth };
+          nextMonth[field.variable] = field.defaultValue;
+          changed = true;
+        });
+
+        if (nextMonth !== currentMonth) nextMonths[monthKey] = nextMonth;
+      });
+
+      return changed ? nextMonths : previousMonths;
+    });
+  }, [activeMonths, dynamicInputFields, monthlyData, setMonthlyData]);
+
   // Initialize unit values in yearlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set for yearly mode, similar to monthly
   // EXCEPTION: For supplier_basis method, units should remain blank so users explicitly enter them

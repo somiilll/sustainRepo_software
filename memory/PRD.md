@@ -160,3 +160,8 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 
 - Moved Create-form Process Type into the shared Category/Process Type/Calculation Methodology selector row for Process Emissions, with responsive stacking and a workflow icon.
 - **NO TEST RUN** requested; calculation behavior is unchanged.
+
+## Change Log — 2026-08-20: Venting Oxidation-Factor Default State
+
+- Fixed the monthly-ledger default mismatch: after a user starts a month, required configured defaults (including Venting Oxidation Factor `1`) are written to form state rather than only displayed. Untouched months remain unpopulated.
+- Verified lint plus 813 existing field-derivation and validation regression tests. Quantity Used unit controls remain a separate configuration follow-up: use a Process Emissions-specific static/all-units mapping instead of fuel-sourced units.
