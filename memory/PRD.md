@@ -243,7 +243,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 
 ### Current prioritized backlog
 
-- **P0:** Verify the Process Emissions Quantity Basis EF mass/volume routing with live Create and Edit calculations (implementation complete; user requested no test run).
+- **P0:** User validation of Process Emissions Quantity Basis EF mass/volume routing in live Create and Edit flows (implementation complete; user requested no test run).
 - **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
@@ -253,3 +253,10 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Updated the active Process Emissions decision tree to version 3. Venting → `using_qty_basis_ef` now routes by the internal `ef_quantity_basis` value: `mass` uses **Process Emissions - EF Mass** and `volume` uses **Process Emissions - EF Volume**.
 - Create and Edit derive that internal value from the user-selected EF denominator (`kgCO2/kg` → mass; `kgCO2/L` → volume) without adding another user-facing form selector. Initial field rendering defaults to the mass branch until an EF unit is selected.
 - No files in `/app/backend/calc_engine/` were changed. **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Process Emissions Quantity Basis Conversion Completion
+
+- Create and Edit calculation requests now derive `ef_quantity_basis` from the selected EF unit, with the configured default/expected unit used when a row has not materialized its default yet. This consistently routes `kgCO2/kg` to the mass formula and `kgCO2/L` to the volume formula.
+- Enabled dimension conversion on both active Process Emissions Quantity Basis formulas: **EF Mass** was versioned to v5; **EF Volume** already had conversion enabled.
+- Extended the approved calculation engine converter so property-based conversions apply to simple units as well as compound components. Directional density now supports both `L → kg` and `kg → L`, including the user-entered reciprocal unit.
+- **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.

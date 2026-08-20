@@ -209,8 +209,29 @@ async def convert(db, value: float, from_unit: str, to_unit: str, context: dict 
     chained_result = await _find_chained_conversion(db, from_unit, to_unit, value)
     if chained_result:
         return chained_result
+
+    # Priority 4: Apply property-based simple-unit conversions. These were
+    # previously available only while decomposing compound units, which made
+    # a valid kg → L density conversion fail before the formula could use it.
+    try:
+        factor, property_audit = await _convert_component(
+            db, from_unit, to_unit, context, user_overrides,
+        )
+        converted = value * factor
+        if not math.isfinite(converted):
+            raise ValueError(
+                f"Conversion produced non-finite value ({value} {from_unit} -> {to_unit})"
+            )
+        return converted, {
+            "step": "convert",
+            "input": {"value": value, "unit": from_unit},
+            "output": {"value": converted, "unit": to_unit},
+            **property_audit,
+        }
+    except ValueError:
+        pass
     
-    # Priority 4: Try compound unit conversion (e.g., MJ/kg → TJ/kg)
+    # Priority 5: Try compound unit conversion (e.g., MJ/kg → TJ/kg)
     compound_result = await _try_compound_conversion(db, from_unit, to_unit, value, context, user_overrides)
     if compound_result:
         return compound_result
@@ -324,14 +345,12 @@ async def _try_compound_conversion(
     if not from_compound or not to_compound:
         return None
     
-    # Check if same derived dimension (skip if either is empty - legacy units)
+    # Check whether compound dimensions differ. A mismatch is still valid when
+    # a corresponding component can be converted through a property such as
+    # density (for example kgCO2/L → kgCO2/kg). Component conversion below
+    # remains authoritative and rejects unsupported mismatches.
     from_dim = from_compound.get("derived_dimension_vector", {})
     to_dim = to_compound.get("derived_dimension_vector", {})
-    
-    # Only check dimensions if BOTH have non-empty vectors
-    # Empty vector = legacy unit without dimension info, allow conversion attempt
-    if from_dim and to_dim and not dims_equal(from_dim, to_dim):
-        return None
     
     from_components = from_compound.get("components", [])
     to_components = to_compound.get("components", [])

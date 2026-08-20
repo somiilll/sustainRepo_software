@@ -552,7 +552,15 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         formData.category?.toLowerCase() === 'process emissions'
         && decisionInputs.calculation_methodology === 'using_qty_basis_ef'
       ) {
-        const efUnit = dynamicFieldValues.ef_quantity_unit || dynamicFieldValues.ef_quantity?.unit;
+        const efField = dynamicInputFields.find((field) => (
+          field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
+        ));
+        const efUnit = dynamicFieldValues.ef_quantity_unit
+          || dynamicFieldValues.ef_quantity?.unit
+          || efField?.defaultUnit
+          || efField?.default_unit
+          || efField?.expectedUnit
+          || efField?.allowedUnits?.[0];
         const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
         if (basis) decisionInputs.ef_quantity_basis = basis;
       }
