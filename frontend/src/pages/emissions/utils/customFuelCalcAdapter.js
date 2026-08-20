@@ -1,3 +1,5 @@
+import { normalizeDensityForCalcEngine } from '../../../modules/ghg/emissions/shared/utils/unitHelpers';
+
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
 
 const readValue = (values, keys) => {
@@ -98,7 +100,11 @@ export const buildCustomFuelCalculationPayload = ({
 
   const density = readValue(values, ['density']);
   if (hasValue(density)) {
-    addInput('density', density, readUnit(values, ['density_unit'], 'kg/L'), { override: true });
+    const calcDensity = normalizeDensityForCalcEngine({
+      value: density,
+      unit: readUnit(values, ['density_unit'], 'kg/L'),
+    });
+    addInput('density', calcDensity.value, calcDensity.unit, { override: true });
   }
 
   return {

@@ -214,3 +214,11 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Fixed the create payload boundary so numeric virtual Density values from Process Emissions are no longer dropped when `dynamicInputFields` has no Density mapping. They are delivered as `user_overrides.density` for calculation and saved in `dynamic_field_values` for edit hydration.
 - Preserved directional density units such as `kg/L` and `L/kg`; Custom Fuel density remains covered in its shared adapter and persistence payload. The legacy Process Template route now retains a supplied density in formula values and record fields.
 - Verified: lint passed; new Scope 1 density payload tests and Custom Fuel adapter tests passed (16/16); density-direction and Process Venting backend regressions passed (5/5); authenticated Scope 1 Add Emission smoke passed without creating records. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Process Emissions Quantity-Basis Save Repair
+
+- Repaired the active frontend submission path that had been blocked by a duplicate `isProcessEmissions` declaration in the previous bundle.
+- The adapter now converts an engine-bound inverse density of `L/kg` to its equivalent `kg/L` value while preserving the exact user-entered density unit and value in saved `dynamic_field_values`.
+- Process-template monthly and yearly records now send canonical `outputs`, preventing the emissions API from overwriting their calculated CO₂e with zero. Generic Process Emissions also refuse to save when their calculation configuration is unavailable or the calculation fails.
+- Density is rejected before save when required but missing, non-positive, or in the wrong directional unit. No calculation-engine files were changed.
+- **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.

@@ -231,7 +231,7 @@ export function useEmissionSubmit(ctx) {
         if (!requirement.required) continue;
 
         const density = getProvidedDensity(data);
-        if (!density || density.unit !== requirement.densityUnit) {
+        if (!density || density.value <= 0 || density.unit !== requirement.densityUnit) {
           const monthName = periodKey === 'yearly'
             ? 'the annual entry'
             : (MONTHS.find((month) => month.key === periodKey)?.name || periodKey);
@@ -458,6 +458,12 @@ export function useEmissionSubmit(ctx) {
               quantity_unit: primaryUnit,
               unit: primaryUnit,
               calculated_co2e: calculatedEmission,
+              outputs: {
+                co2: { value: calculatedEmission, unit: 'tCO2' },
+                ch4: { value: 0, unit: 'tCH4' },
+                n2o: { value: 0, unit: 'tN2O' },
+                co2e: { value: calculatedEmission, unit: 'tCO2e' },
+              },
               notes: notes,
               responsible_person: responsiblePerson,
               responsible_person_designation: responsiblePersonDesignation,
@@ -554,6 +560,12 @@ export function useEmissionSubmit(ctx) {
 
             const yEffectiveScope = yIsScope3Like ? 'scope3' : scope;
             const yCategoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === yEffectiveScope);
+
+            if (isProcessCategory && !yCategoryObj?.id) {
+              toast.error('Process Emissions calculation configuration is unavailable. Please contact an administrator.');
+              setIsSaving(false);
+              return;
+            }
 
             if (useCustomFuel && !yCategoryObj?.id) {
               toast.error('Custom Fuel calculation category is unavailable.');
@@ -711,6 +723,12 @@ export function useEmissionSubmit(ctx) {
             calculated_ch4: 0,
             calculated_n2o: 0,
             calculated_co2e: calculatedEmission,
+            outputs: {
+              co2: { value: calculatedEmission, unit: 'tCO2' },
+              ch4: { value: 0, unit: 'tCH4' },
+              n2o: { value: 0, unit: 'tN2O' },
+              co2e: { value: calculatedEmission, unit: 'tCO2e' },
+            },
             co2_unit: 'tCO2',
             ch4_unit: 'tCH4',
             n2o_unit: 'tN2O',
@@ -948,6 +966,11 @@ export function useEmissionSubmit(ctx) {
           // Calc-engine lookup uses scope-specific category code
           const effectiveScopeForLookup = isScope3Like ? 'scope3' : scope;
           const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScopeForLookup);
+
+          if (isProcessCategory && !categoryObj?.id) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Process Emissions calculation configuration is unavailable`);
+            continue;
+          }
 
           if (useCustomFuel && !categoryObj?.id) {
             errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Custom Fuel calculation category is unavailable`);

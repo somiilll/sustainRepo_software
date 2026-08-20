@@ -14,6 +14,7 @@
  */
 
 import { buildCustomFuelCalculationPayload } from '../../../../pages/emissions/utils/customFuelCalcAdapter';
+import { normalizeDensityForCalcEngine } from '../../../ghg/emissions/shared/utils/unitHelpers';
 
 // ---------- field unit resolver (Scope 1/2: no scope3_ef branch) ----------
 
@@ -106,7 +107,7 @@ export function extractInputsForCalcEngine(data, ctx) {
   // user override rather than resolving an IPCC default.
   const densityOverride = getDensityOverride(data);
   if (densityOverride) {
-    userOverrides.density = densityOverride;
+    userOverrides.density = normalizeDensityForCalcEngine(densityOverride);
   }
 
   return { inputs, userOverrides, primaryQuantity, primaryUnit };

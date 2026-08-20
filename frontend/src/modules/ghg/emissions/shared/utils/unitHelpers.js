@@ -93,3 +93,18 @@ export const invertDensityUnit = (densityUnit) => {
   const [numerator, denominator] = String(densityUnit || '').split('/').map((part) => part?.trim());
   return numerator && denominator ? `${denominator}/${numerator}` : '';
 };
+
+/**
+ * The frozen calculation engine accepts physical density as kg/L, while the
+ * form also permits the equally valid inverse L/kg direction. Convert only
+ * the engine-bound representation; persistence retains the user's value and
+ * directional unit for accurate Edit hydration and audit history.
+ */
+export const normalizeDensityForCalcEngine = (density) => {
+  const value = Number.parseFloat(density?.value);
+  const unit = String(density?.unit || '').replace(/\s/g, '');
+  if (!Number.isFinite(value) || value <= 0 || unit.toLowerCase() !== 'l/kg') {
+    return density;
+  }
+  return { value: 1 / value, unit: 'kg/L' };
+};
