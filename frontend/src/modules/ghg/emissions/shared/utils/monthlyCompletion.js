@@ -7,9 +7,10 @@ export const isMonthlyEntryComplete = (data, fields = []) => {
   const requiredFields = getRequiredMonthlyFields(fields);
   if (!data || requiredFields.length === 0) return false;
 
-  const hasRequiredFields = requiredFields.every((field) =>
-    hasValue(data[field.variable] ?? data[field.fieldKey]),
-  );
+  const hasRequiredFields = requiredFields.every((field) => {
+    const storedValue = data[field.variable] ?? data[field.fieldKey];
+    return hasValue(storedValue) || hasValue(field.defaultValue);
+  });
   if (!hasRequiredFields) return false;
 
   // Process Emissions can add Density as a runtime-only required field when

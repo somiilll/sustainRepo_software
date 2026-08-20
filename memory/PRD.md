@@ -260,3 +260,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Enabled dimension conversion on both active Process Emissions Quantity Basis formulas: **EF Mass** was versioned to v5; **EF Volume** already had conversion enabled.
 - Extended the approved calculation engine converter so property-based conversions apply to simple units as well as compound components. Directional density now supports both `L → kg` and `kg → L`, including the user-entered reciprocal unit.
 - **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Venting Carbon Composition Default Completion
+
+- Fixed monthly completion for required configured defaults. A displayed default, including Venting Carbon Composition’s Oxidation Factor `1`, now satisfies the completion rule without requiring a user edit.
+- Explicit values still take precedence; missing required values and runtime Density requirements remain incomplete as before.
+- Verified: focused monthly completion suite passed (5/5) and JavaScript lint passed. No APIs are **MOCKED**.

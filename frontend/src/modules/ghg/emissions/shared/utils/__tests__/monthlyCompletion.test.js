@@ -27,4 +27,14 @@ describe('isMonthlyEntryComplete', () => {
   it('treats zero as an entered required value', () => {
     expect(isMonthlyEntryComplete({ quantity: 0, emission_factor: 0 }, fields)).toBe(true);
   });
+
+  it('treats a displayed required default as complete without editing it', () => {
+    const carbonCompositionFields = [
+      { variable: 'quantity', required: true, isOverride: false },
+      { variable: 'carbon_content', required: true, isOverride: false },
+      { variable: 'oxidation_factor', required: true, isOverride: false, defaultValue: 1 },
+    ];
+
+    expect(isMonthlyEntryComplete({ quantity: '100', carbon_content: '85' }, carbonCompositionFields)).toBe(true);
+  });
 });
