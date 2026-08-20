@@ -45,11 +45,16 @@ export const getUnitDenominator = (compoundUnit) => {
  * Basis EF formulas. The decision tree uses this internal value rather than a
  * user-facing form choice, so the selected EF unit remains the source of truth.
  */
-export const resolveProcessEfDenominatorBasis = (efUnit, centralizedUnits = []) => {
-  const denominator = getUnitDenominator(efUnit);
+export const resolveCompoundDenominatorBasis = (compoundUnit, centralizedUnits = []) => {
+  const denominator = getUnitDenominator(compoundUnit);
   const dimension = getUnitDimension(denominator, centralizedUnits);
   return dimension === 'mass' || dimension === 'volume' ? dimension : null;
 };
+
+/** Backwards-compatible Quantity Basis EF routing helper. */
+export const resolveProcessEfDenominatorBasis = (efUnit, centralizedUnits = []) => (
+  resolveCompoundDenominatorBasis(efUnit, centralizedUnits)
+);
 
 /**
  * Resolves whether a property-based density conversion is needed and, if so,

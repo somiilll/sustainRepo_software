@@ -1,6 +1,6 @@
 import {
   normalizeDensityForCalcEngine,
-  resolveProcessEfDenominatorBasis,
+  resolveCompoundDenominatorBasis,
 } from '../../../modules/ghg/emissions/shared/utils/unitHelpers';
 
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
@@ -88,6 +88,8 @@ export const buildCustomFuelCalculationPayload = ({
     addInput('ef_ch4', 0, 'kgCH4/TJ', { override: true });
     addInput('ef_n2o', 0, 'kgN2O/TJ', { override: true });
     const hasCv = addInput('cv', cv, cvUnit, { override: true });
+    const cvQuantityBasis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
+    if (cvQuantityBasis) decisionInputs.cv_quantity_basis = cvQuantityBasis;
     hasMethodInputs = hasEf && hasCv;
   } else if (methodology === 'using_qty_basis_ef') {
     const ef = readValue(values, ['custom_ef', 'ef_quantity', 'ef', 'emission_factor']);
@@ -95,7 +97,7 @@ export const buildCustomFuelCalculationPayload = ({
     const normalizedEf = normalizeEmissionFactor(ef, efUnit);
     hasMethodInputs = normalizedEf && addInput('ef_quantity', normalizedEf.value, normalizedEf.unit, { override: true });
     if (hasMethodInputs) userOverrides.emission_factor = inputs.ef_quantity;
-    const efQuantityBasis = resolveProcessEfDenominatorBasis(normalizedEf?.unit, centralizedUnits);
+    const efQuantityBasis = resolveCompoundDenominatorBasis(normalizedEf?.unit, centralizedUnits);
     if (efQuantityBasis) decisionInputs.ef_quantity_basis = efQuantityBasis;
   } else if (methodology === 'using_carbon_composition') {
     const carbonContent = readValue(values, ['custom_carbon_content', 'carbon_content', 'composition_of_carbon']);

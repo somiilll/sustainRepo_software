@@ -166,6 +166,12 @@ const resolveScope12Formula = (formConfig, context) => {
         && !decisionFieldValues.ef_quantity_basis
         ? { ef_quantity_basis: 'mass' }
         : {}),
+      // Heat Basis CV routing follows the selected denominator at calculation
+      // time. Use mass while the form has not yet materialized its CV unit.
+      ...(decisionFieldValues.calculation_methodology === 'using_heat_basis_ncv'
+        && !decisionFieldValues.cv_quantity_basis
+        ? { cv_quantity_basis: 'mass' }
+        : {}),
       ...decisionFieldValues,
     });
     if (formulaId) {

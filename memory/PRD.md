@@ -266,3 +266,17 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Fixed monthly completion for required configured defaults. A displayed default, including Venting Carbon Composition’s Oxidation Factor `1`, now satisfies the completion rule without requiring a user edit.
 - Explicit values still take precedence; missing required values and runtime Density requirements remain incomplete as before.
 - Verified: focused monthly completion suite passed (5/5) and JavaScript lint passed. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Custom Fuel Heat Basis Mass/Volume Routing
+
+- Added versioned Heat Basis decision-tree branches for Custom Fuel Stationary and Mobile Combustion in Scope 1 and Biogenic Scope 1. `cv_quantity_basis` now routes mass CVs to the original formulas and volume CVs to new `TJ/L` formulas.
+- Expanded the active Calorific Value mapping to all currently selectable mass and volume units, including `TJ/L` and `MJ/L`, so valid volume CV overrides are no longer rejected before formula resolution.
+- Create/Edit payloads derive the internal route from the selected CV denominator, with a mass fallback while form values are initializing. No files in `/app/backend/calc_engine/` were changed.
+- **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.
+
+### Current prioritized backlog
+
+- **P0:** User validation of Custom Fuel Heat Basis mass/volume saving plus Process Emissions Quantity Basis routing in live Create and Edit flows.
+- **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
+- **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
+- **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.

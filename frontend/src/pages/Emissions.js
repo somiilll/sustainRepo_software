@@ -46,6 +46,7 @@ import {
 } from '../modules/ghg/emissions/shared/domain';
 import {
   normalizeDensityForCalcEngine,
+  resolveCompoundDenominatorBasis,
   resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
@@ -565,6 +566,22 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           || efField?.allowedUnits?.[0];
         const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
         if (basis) decisionInputs.ef_quantity_basis = basis;
+      }
+
+      if (decisionInputs.calculation_methodology === 'using_heat_basis_ncv') {
+        const cvField = dynamicInputFields.find((field) => (
+          field.variable === 'cv' || field.fieldKey === 'cv'
+        ));
+        const cvUnit = (editUseCustomFuel ? dynamicFieldValues.custom_cv_unit : null)
+          || dynamicFieldValues.cv_unit
+          || dynamicFieldValues.cv?.unit
+          || cvField?.defaultUnit
+          || cvField?.default_unit
+          || cvField?.expectedUnit
+          || cvField?.allowedUnits?.[0]
+          || 'TJ/kg';
+        const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
+        if (basis) decisionInputs.cv_quantity_basis = basis;
       }
     }
     
