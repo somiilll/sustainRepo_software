@@ -41,6 +41,7 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
 import {
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
+  resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import { isMonthlyEntryComplete } from '../modules/ghg/emissions/shared/utils/monthlyCompletion';
 // Shared GHG configuration layer: resolved config + explicit context -> fields
@@ -1627,8 +1628,20 @@ export default function EmissionEntryForm({
       decisionInputs['calculation_methodology'] = 'using_heat_basis_ncv';
     }
 
+    // Process Emissions Quantity Basis EF routes to the formula whose expected
+    // units match the selected EF denominator. This is an internal tree key;
+    // users continue selecting the EF unit directly in the monthly/yearly row.
+    if (
+      category?.toLowerCase() === 'process emissions'
+      && decisionInputs.calculation_methodology === 'using_qty_basis_ef'
+    ) {
+      const efUnit = monthData?.ef_quantity_unit || monthData?.ef_quantity?.unit;
+      const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
+      if (basis) decisionInputs.ef_quantity_basis = basis;
+    }
+
     return decisionInputs;
-  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, category]);
+  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, category, centralizedUnits]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {

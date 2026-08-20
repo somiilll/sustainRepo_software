@@ -41,6 +41,17 @@ export const getUnitDenominator = (compoundUnit) => {
 };
 
 /**
+ * Returns the denominator dimension used to route Process Emissions Quantity
+ * Basis EF formulas. The decision tree uses this internal value rather than a
+ * user-facing form choice, so the selected EF unit remains the source of truth.
+ */
+export const resolveProcessEfDenominatorBasis = (efUnit, centralizedUnits = []) => {
+  const denominator = getUnitDenominator(efUnit);
+  const dimension = getUnitDimension(denominator, centralizedUnits);
+  return dimension === 'mass' || dimension === 'volume' ? dimension : null;
+};
+
+/**
  * Resolves whether a property-based density conversion is needed and, if so,
  * the directional unit a user must provide. For instance:
  * - quantity L → formula needs kg: kg/L

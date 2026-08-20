@@ -44,7 +44,10 @@ import {
   updateDraftField,
   updateDraftValues,
 } from '../modules/ghg/emissions/shared/domain';
-import { normalizeDensityForCalcEngine } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import {
+  normalizeDensityForCalcEngine,
+  resolveProcessEfDenominatorBasis,
+} from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
@@ -544,10 +547,19 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       if (editProcessType) {
         decisionInputs['process_type'] = editProcessType;
       }
+
+      if (
+        formData.category?.toLowerCase() === 'process emissions'
+        && decisionInputs.calculation_methodology === 'using_qty_basis_ef'
+      ) {
+        const efUnit = dynamicFieldValues.ef_quantity_unit || dynamicFieldValues.ef_quantity?.unit;
+        const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
+        if (basis) decisionInputs.ef_quantity_basis = basis;
+      }
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, centralizedUnits]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
