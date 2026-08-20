@@ -84,6 +84,11 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 
 ## Known Issues
 
+### P0: Process Emissions and Custom Fuel Density Payload Loss
+- **RESOLVED (2026-08-20)**: Runtime Process Emissions density is now forwarded to the calc engine as `user_overrides.density` and persisted in `dynamic_field_values`, even when density is a virtual field outside the configured field list.
+- Custom Fuel continues to preserve the entered directional density in both calculation overrides and saved field values. The legacy Process Template path also retains supplied density in formula values and persistence payloads.
+- Verified: frontend lint; focused frontend suites 16/16; backend density/venting regressions 5/5; authenticated no-save Scope 1 Add Emission smoke. No backend calculation-engine changes.
+
 ### P0: Edit Form Methodology Inference Bug
 - **RESOLVED**: Nullable `ef_quantity` values are excluded from Quantity Basis methodology inference in `Emissions.js`.
 - Verification was intentionally skipped at the user's request.
@@ -187,3 +192,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 
 - Process Emissions Venting now creates a virtual runtime Density control directly from a mass/volume mismatch, even when its configuration has no explicit Density field mapping. Semantic quantity/CV/EF alias matching supports the current Venting mapping names.
 - Verified non-saving browser flows: Heat Basis `L` with `TJ/kg` shows `kg/L`; Quantity Basis `kg` with `kgCO2/L` shows `L/kg`.
+
+## Change Log — 2026-08-20: Process and Custom Fuel Density Submission
+
+- Fixed the create payload boundary so numeric virtual Density values from Process Emissions are no longer dropped when `dynamicInputFields` has no Density mapping. They are delivered as `user_overrides.density` for calculation and saved in `dynamic_field_values` for edit hydration.
+- Preserved directional density units such as `kg/L` and `L/kg`; Custom Fuel density remains covered in its shared adapter and persistence payload. The legacy Process Template route now retains a supplied density in formula values and record fields.
+- Verified: lint passed; new Scope 1 density payload tests and Custom Fuel adapter tests passed (16/16); density-direction and Process Venting backend regressions passed (5/5); authenticated Scope 1 Add Emission smoke passed without creating records. No APIs are **MOCKED**.

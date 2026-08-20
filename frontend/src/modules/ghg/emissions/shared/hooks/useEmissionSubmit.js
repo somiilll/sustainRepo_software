@@ -29,6 +29,12 @@ import { buildCustomFuelCalculationPayload } from '../../../../../pages/emission
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+const getProvidedDensity = (data = {}) => {
+  const value = Number.parseFloat(data.density);
+  if (!Number.isFinite(value)) return null;
+  return { value, unit: data.density_unit || 'kg/L' };
+};
+
 export function useEmissionSubmit(ctx) {
   const submit = async () => {
     const {
@@ -297,6 +303,8 @@ export function useEmissionSubmit(ctx) {
             selectedTemplate.predefined_inputs?.forEach(field => {
               formulaValues[field.key] = parseFloat(templateInputValues[field.key]) || parseFloat(field.value) || 0;
             });
+            const density = getProvidedDensity(yearlyData);
+            if (density) formulaValues.density = density.value;
             
             const calculatedEmission = evaluateFormula(selectedTemplate.formula, formulaValues);
             const primaryInputField = selectedTemplate.input_fields?.[0];
@@ -320,6 +328,11 @@ export function useEmissionSubmit(ctx) {
               responsible_person_designation: responsiblePersonDesignation,
               responsible_person_contact: responsiblePersonContact,
               process_names: [selectedSubIndustry, selectedTemplate.name],
+              ...(density && {
+                dynamic_field_values: {
+                  density: { ...density, is_override: true },
+                },
+              }),
             };
             
             await axios.post(apiBase, payload, { headers: getAuthHeader() });
@@ -527,6 +540,8 @@ export function useEmissionSubmit(ctx) {
           selectedTemplate.predefined_inputs?.forEach(field => {
             formulaValues[field.key] = parseFloat(templateInputValues[field.key]) || parseFloat(field.value) || 0;
           });
+          const density = getProvidedDensity(data);
+          if (density) formulaValues.density = density.value;
           
           // Calculate emissions using template formula
           const calculatedEmission = evaluateFormula(selectedTemplate.formula, formulaValues);
@@ -569,7 +584,12 @@ export function useEmissionSubmit(ctx) {
             co2e_unit: 'tCO2e',
             // Template metadata
             template_id: selectedTemplate.id,
-            template_inputs: formulaValues
+            template_inputs: formulaValues,
+            ...(density && {
+              dynamic_field_values: {
+                density: { ...density, is_override: true },
+              },
+            }),
           };
           
           try {
@@ -701,7 +721,7 @@ export function useEmissionSubmit(ctx) {
               ...(data.custom_cv ? { custom_cv: { value: parseFloat(data.custom_cv), unit: data.custom_cv_unit || '' } } : {}),
               ...(data.custom_carbon_content ? { custom_carbon_content: { value: parseFloat(data.custom_carbon_content), unit: '%' } } : {}),
               ...(data.custom_oxidation_factor ? { custom_oxidation_factor: { value: parseFloat(data.custom_oxidation_factor), unit: '' } } : {}),
-              ...(data.density ? { density: { value: parseFloat(data.density), unit: data.density_unit || 'kg/L' } } : {}),
+              ...(getProvidedDensity(data) ? { density: getProvidedDensity(data) } : {}),
               calculation_methodology: { value: decisionFieldValues?.calculation_methodology || 'using_heat_basis_ncv', unit: '' },
             },
           };

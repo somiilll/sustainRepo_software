@@ -31,6 +31,21 @@ function resolveFieldUnit(field, data, ctx) {
   return data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
 }
 
+const hasNumericValue = (value) => (
+  value !== undefined
+  && value !== null
+  && value !== ''
+  && Number.isFinite(Number.parseFloat(value))
+);
+
+const getDensityOverride = (data) => {
+  if (!hasNumericValue(data.density)) return null;
+  return {
+    value: Number.parseFloat(data.density),
+    unit: data.density_unit || 'kg/L',
+  };
+};
+
 // ---------- input + override extraction ----------
 
 export function extractInputsForCalcEngine(data, ctx) {
@@ -79,6 +94,15 @@ export function extractInputsForCalcEngine(data, ctx) {
     }
   });
 
+  // Process Emissions creates Density at runtime when its selected units need
+  // a mass/volume conversion. That virtual field is not always part of the
+  // configured mapping list, but the calc engine must still receive it as a
+  // user override rather than resolving an IPCC default.
+  const densityOverride = getDensityOverride(data);
+  if (densityOverride) {
+    userOverrides.density = densityOverride;
+  }
+
   return { inputs, userOverrides, primaryQuantity, primaryUnit };
 }
 
@@ -112,6 +136,20 @@ export function buildDynamicFieldValues(data, ctx) {
       out[field.variable] = { value: parsedValue, unit };
     }
   });
+
+  // Persist runtime Density controls even when the process configuration has
+  // no density mapping. This keeps Edit hydration and the calculation audit
+  // aligned with the user-provided conversion factor.
+  const densityOverride = getDensityOverride(data);
+  if (densityOverride) {
+    out.density = {
+      ...densityOverride,
+      is_override: Boolean(data.override_density || data.overrideDensity),
+      ...(data.density_justification || data.densityJustification
+        ? { justification: data.density_justification || data.densityJustification }
+        : {}),
+    };
+  }
 
   if (ctx.useCustomFuel) {
     const hasValue = (value) => value !== undefined && value !== null && value !== '';
