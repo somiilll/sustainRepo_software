@@ -169,29 +169,38 @@ const deriveLedgerColumns = (dynamicInputFields, formConfig, isProcessEmissions,
   return [{ key: 'quantity', label: 'Quantity', unit: null, required: true }];
 };
 
-const MonthlyLedger = ({ columns, children }) => (
-  <div className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="monthly-emissions-ledger">
-    <table className="w-full text-sm">
-      <thead className="hidden border-b border-stone-200 bg-stone-50 lg:table-header-group">
-        <tr>
-          <th className="w-36 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Month</th>
-          {columns.map(col => (
-            <th key={col.key} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
-              {col.label}
-              {col.required && <span className="ml-0.5 text-red-500">*</span>}
-              {col.unit && <span className="ml-1 font-normal normal-case text-stone-400">({col.unit})</span>}
-            </th>
-          ))}
-          <th className="w-14 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-500">
-            <span className="sr-only">Evidence</span>
-            <FileText className="mx-auto h-3.5 w-3.5 text-stone-400" />
-          </th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-stone-200">{children}</tbody>
-    </table>
-  </div>
-);
+const MonthlyLedger = ({ columns, rows }) => {
+  const headerCells = columns.map((col) => React.createElement(
+    'th',
+    { key: col.key, className: 'px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500' },
+    col.label,
+    col.required && React.createElement('span', { className: 'ml-0.5 text-red-500' }, '*'),
+    col.unit && React.createElement('span', { className: 'ml-1 font-normal normal-case text-stone-400' }, `(${col.unit})`),
+  ));
+  const headerRow = React.createElement(
+    'tr',
+    null,
+    React.createElement('th', { className: 'w-36 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500' }, 'Month'),
+    ...headerCells,
+    React.createElement(
+      'th',
+      { className: 'w-14 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-500' },
+      React.createElement('span', { className: 'sr-only' }, 'Evidence'),
+      React.createElement(FileText, { className: 'mx-auto h-3.5 w-3.5 text-stone-400' }),
+    ),
+  );
+
+  return React.createElement(
+    'div',
+    { className: 'overflow-hidden rounded-lg border border-stone-200 bg-white', 'data-testid': 'monthly-emissions-ledger' },
+    React.createElement(
+      'table',
+      { className: 'w-full text-sm' },
+      React.createElement('thead', { className: 'hidden border-b border-stone-200 bg-stone-50 lg:table-header-group' }, headerRow),
+      React.createElement('tbody', { className: 'divide-y divide-stone-200' }, rows),
+    ),
+  );
+};
 
 // Import volume unit helper
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
@@ -612,9 +621,7 @@ export const Step3YearMonthlyData = ({
               );
             };
 
-            return (
-              <MonthlyLedger columns={ledgerColumns}>
-                {activeMonths.map(month => {
+            const ledgerRows = activeMonths.map(month => {
                   const monthKey = month.key;
                   const status = getMonthStatus(monthKey);
                   const data = monthlyData[monthKey] || {};
@@ -789,9 +796,9 @@ export const Step3YearMonthlyData = ({
                       )}
                     </React.Fragment>
                   );
-                })}
-              </MonthlyLedger>
-            );
+                });
+
+            return <MonthlyLedger columns={ledgerColumns} rows={ledgerRows} />;
           })()}
         </div>
       )}

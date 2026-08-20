@@ -28,6 +28,7 @@ export {
   STANDARD_CUSTOM_FUEL_EMISSION_FACTOR_UNITS,
   STANDARD_ACTIVITY_TYPE_OPTIONS,
   STANDARD_PROCESS_TYPE_OPTIONS,
+  isStandardProcessType,
   STANDARD_TYPE_OF_PRODUCT_OPTIONS,
   getStandardActivityTypeLabel,
   resolveStandardGhgFieldOptions,

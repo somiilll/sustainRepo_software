@@ -136,3 +136,16 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 
 ## Test Credentials
 - See `/app/memory/test_credentials.md`
+
+## Change Log — 2026-08-20: GHG Organization Capability Resolver Seam (Option A)
+
+- Added a validated, presentation-only `organizationGhgOverrides` seam for `capabilityOverrides.customFuel: false` and central-registry Process Type subsets. Existing `disabledCategories` continues to hide Process Emissions.
+- Create and Edit share the same effective capabilities/options; historical disabled Process Types stay visible as disabled options. No backend/API/database/calculation/C7/Phase 7 changes were made.
+- Added permanent architecture contracts and verified 86 focused frontend tests plus a non-saving authenticated browser smoke. Database counts stayed unchanged: `emission_records` 830, `ce_calculation_audit_logs` 1348, `emission_history` 1773.
+- Repaired invalid table nesting caused by instrumentation wrappers in the Add Emission monthly ledger; strict table structure now verifies in-browser.
+
+### Current prioritized backlog
+
+- **P1:** Persist and deliver `organizationGhgOverrides` only when separately approved; missing monthly/yearly required-input units remains blocked on approval; BRSR Section A stale form data on year switch.
+- **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution.
+- **P3:** Custom Fuel month-value copy, Scope 1/3 dashboard deduplication, admin disable UI. Phase 7 remains explicitly blocked.

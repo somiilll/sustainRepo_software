@@ -30,7 +30,6 @@ import {
 import { resolveGhgUiState } from '../../../../config/resolveGhgUiState';
 import {
   getStandardActivityTypeLabel,
-  STANDARD_PROCESS_TYPE_OPTIONS,
   STANDARD_TYPE_OF_PRODUCT_OPTIONS,
 } from '../../../../config/standardGhgFormConfig';
 
@@ -260,10 +259,10 @@ export const Step1BasicSelection = ({
   }, [availableScope3ActivityTypes, scope3ActivityType, requiresSubcategory, scope3Subcategory, ghgUiState.requiresTypeOfProduct, typeOfProduct, filteredScope3Activities, fuelSearchTerm]);
 
   const processTypeOptionsHtml = useMemo(() => (
-    `<option value="">Select process type</option>${STANDARD_PROCESS_TYPE_OPTIONS.map((option) => (
-      `<option value="${escapeOptionHtml(option.value)}">${escapeOptionHtml(option.label)}</option>`
+    `<option value="">Select process type</option>${ghgUiState.renderableProcessTypeOptions.map((option) => (
+      `<option value="${escapeOptionHtml(option.value)}"${option.disabled ? ' disabled' : ''}>${escapeOptionHtml(option.label)}</option>`
     )).join('')}`
-  ), []);
+  ), [ghgUiState.renderableProcessTypeOptions]);
 
   const fuelOptionsHtml = useMemo(() => (
     `<option value="">Select Fuel Type (${filteredFuelsForCategory.length} available)</option>${filteredFuelsForCategory.map((fuel) => (

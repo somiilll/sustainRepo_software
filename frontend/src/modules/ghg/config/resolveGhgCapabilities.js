@@ -1,9 +1,13 @@
 /** Canonical, presentation-only capabilities keyed by (code, scope_code). */
+import { STANDARD_PROCESS_TYPE_OPTIONS } from './standardGhgFormConfig';
+import { validateGhgOverrides } from './overrideSchema';
+
 const NONE = Object.freeze({
   subcategory: false, assetName: false, journeyLocations: false,
   activityType: false, multiEmployee: false, typeOfProduct: false,
   customerCounterparty: false, flightDetails: false, customFuel: false,
   supplierBasisOtherActivity: false, processType: false,
+  processTypeOptions: [],
   calculationMethodology: false, requiresFuel: true,
   manualFactorOverrides: true,
 });
@@ -37,7 +41,13 @@ export const STANDARD_GHG_CAPABILITIES = Object.freeze({
   'mobile_combustion|scope1': directFuel(),
   'fugitive_emissions|scope1': directFuel({ calculationMethodology: false, manualFactorOverrides: false }),
   'flaring__stationary_combustion|scope1': directFuel(),
-  'process_emissions|scope1': { ...NONE, processType: true, calculationMethodology: true, requiresFuel: false },
+  'process_emissions|scope1': {
+    ...NONE,
+    processType: true,
+    processTypeOptions: STANDARD_PROCESS_TYPE_OPTIONS,
+    calculationMethodology: true,
+    requiresFuel: false,
+  },
   'stationary_combustion|biogenic': directFuel(),
   'mobile_combustion|biogenic': directFuel(),
 });
@@ -60,14 +70,33 @@ export const resolveGhgCapabilities = ({
   biogenicScopeSelection,
   fieldOptions = {},
   organizationOverridesApplied = false,
+  organizationOverrides = null,
 } = {}) => {
   const code = MODULE_CODE_ALIASES[categoryCode] || categoryCode;
   const base = STANDARD_GHG_CAPABILITIES[`${code}|${scopeCode}`] || NONE;
   // Biogenic Scope 3 intentionally uses direct activity selection. This is a
   // context rule, not a second category identity.
-  const capabilities = biogenicScopeSelection === 'scope3'
+  let capabilities = biogenicScopeSelection === 'scope3'
     ? { ...base, subcategory: false }
     : { ...base };
+  const { valid: hasValidOrganizationOverrides } = validateGhgOverrides(organizationOverrides);
+  const capabilityOverrides = hasValidOrganizationOverrides
+    ? organizationOverrides?.capabilityOverrides || {}
+    : {};
+  if (capabilityOverrides.customFuel === false) {
+    capabilities = { ...capabilities, customFuel: false };
+  }
+  if (
+    hasValidOrganizationOverrides
+    && capabilities.processType
+    && Array.isArray(organizationOverrides?.processTypeOptions)
+  ) {
+    const allowedProcessTypes = new Set(organizationOverrides.processTypeOptions);
+    capabilities = {
+      ...capabilities,
+      processTypeOptions: STANDARD_PROCESS_TYPE_OPTIONS.filter((option) => allowedProcessTypes.has(option.value)),
+    };
+  }
   return { code, scopeCode, capabilities, fieldOptions, organizationOverridesApplied };
 };
 

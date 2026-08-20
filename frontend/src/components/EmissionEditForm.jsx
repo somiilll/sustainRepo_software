@@ -20,7 +20,6 @@ import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/Cu
 import { resolveGhgUiState } from '../modules/ghg/config/resolveGhgUiState';
 import {
   getStandardActivityTypeLabel,
-  STANDARD_PROCESS_TYPE_OPTIONS,
   STANDARD_TYPE_OF_PRODUCT_OPTIONS,
 } from '../modules/ghg/config/standardGhgFormConfig';
 import FlightDetailsSection from './FlightDetailsSection';
@@ -489,8 +488,8 @@ export default function EmissionEditForm(props) {
                               <SelectValue placeholder="Select process type" />
                             </SelectTrigger>
                             <SelectContent>
-                              {STANDARD_PROCESS_TYPE_OPTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                              {ghgUiState.renderableProcessTypeOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value} disabled={option.disabled}>{option.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>

@@ -9,6 +9,7 @@
  * document must never be able to reach into decision trees, formulas, emission
  * factors or units, because those decide calculation results.
  */
+import { isStandardProcessType } from './standardGhgFormConfig';
 
 /** Override keys consumed by the presentation-only GHG configuration layer. */
 export const APPLIED_OVERRIDE_KEYS = Object.freeze([
@@ -21,6 +22,8 @@ export const APPLIED_OVERRIDE_KEYS = Object.freeze([
   'disabledScopes',
   'disabledCategories',
   'disabledSubcategories',
+  'capabilityOverrides',
+  'processTypeOptions',
 ]);
 
 /**
@@ -40,7 +43,12 @@ export const BLOCKED_OVERRIDE_KEYS = Object.freeze([
   'decisionTreeOverrides',
   'emissionFactorOverrides',
   'unitOverrides',
+  'calculationExpressions',
+  'calcEngineOverrides',
 ]);
+
+/** Safe capability controls are deliberately opt-out only. */
+const ALLOWED_CAPABILITY_OVERRIDE_KEYS = Object.freeze(['customFuel']);
 
 export const ALLOWED_OVERRIDE_KEYS = Object.freeze([
   ...APPLIED_OVERRIDE_KEYS,
@@ -103,6 +111,39 @@ export const validateGhgOverrides = (overrides) => {
 
   if (overrides.customFields != null && !Array.isArray(overrides.customFields)) {
     errors.push('customFields must be an array of field mappings');
+  }
+
+  if (
+    overrides.capabilityOverrides != null
+    && (typeof overrides.capabilityOverrides !== 'object' || Array.isArray(overrides.capabilityOverrides))
+  ) {
+    errors.push('capabilityOverrides must be an object');
+  }
+  Object.entries(overrides.capabilityOverrides || {}).forEach(([key, value]) => {
+    if (!ALLOWED_CAPABILITY_OVERRIDE_KEYS.includes(key)) {
+      errors.push(`capabilityOverrides.${key} is not overridable`);
+    } else if (value !== false) {
+      errors.push(`capabilityOverrides.${key} may only disable a standard capability`);
+    }
+  });
+
+  if (overrides.processTypeOptions != null && !Array.isArray(overrides.processTypeOptions)) {
+    errors.push('processTypeOptions must be an array of supported Process Type values');
+  }
+  if (Array.isArray(overrides.processTypeOptions)) {
+    if (overrides.processTypeOptions.length === 0) {
+      errors.push('processTypeOptions must retain at least one supported Process Type');
+    }
+    const seenProcessTypes = new Set();
+    overrides.processTypeOptions.forEach((processType) => {
+      if (!isStandardProcessType(processType)) {
+        errors.push(`processTypeOptions contains unsupported Process Type: ${String(processType)}`);
+      }
+      if (seenProcessTypes.has(processType)) {
+        errors.push(`processTypeOptions contains duplicate Process Type: ${String(processType)}`);
+      }
+      seenProcessTypes.add(processType);
+    });
   }
   (Array.isArray(overrides.customFields) ? overrides.customFields : []).forEach((field, index) => {
     if (!isCustomFieldSafe(field)) {
