@@ -160,6 +160,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Fixed Create-form unit initialization priority for monthly and yearly data: saved selection → configured default unit → formula expected unit → first allowed unit. Process Emissions quantities configured with `kg` no longer default to the alphabetically first `L` option.
 - Added a synchronous pre-save Process Emissions density check based on the actual quantity and CV/EF units being submitted. A mass↔volume mismatch now blocks saving until a positive density in the required directional unit is supplied.
 - Added a matching `/api/emissions` server-side guard that rejects Process Emissions mass↔volume payloads missing a valid directional density, preventing silent fallback to default factors even if a client bypasses the UI.
+- Hardened the frontend pre-save guard so it identifies Process Emissions from the submitted category and inspects both populated CV/EF reference fields when selector state has not synchronized. Users now receive the density error before any save request is attempted.
 - No calculation-engine files were changed. **NO TEST RUN** was performed at the user's explicit request.
 
 ## Change Log — 2026-08-20: Process Emissions Density Rendering Repair

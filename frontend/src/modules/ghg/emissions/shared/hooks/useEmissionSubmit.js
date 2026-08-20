@@ -85,25 +85,30 @@ const resolveProcessDensityRequirement = ({
   calculationMethodology,
   centralizedUnits = [],
 }) => {
-  if (!['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(calculationMethodology)) {
-    return { required: false };
-  }
-
   const quantityField = dynamicInputFields.find(isQuantityField);
-  const referenceField = calculationMethodology === 'using_heat_basis_ncv'
-    ? dynamicInputFields.find(isCvField)
-    : dynamicInputFields.find(isEfField);
-  if (!quantityField || !referenceField) return { required: false };
-
-  if (!hasNumericValue(getFieldValue(data, quantityField)) || !hasNumericValue(getFieldValue(data, referenceField))) {
+  if (!quantityField || !hasNumericValue(getFieldValue(data, quantityField))) {
     return { required: false };
   }
 
-  return resolveDensityRequirement({
-    quantityUnit: getFieldUnit(data, quantityField),
-    referenceUnit: getUnitDenominator(getFieldUnit(data, referenceField)),
-    centralizedUnits,
-  });
+  // Prefer the selected methodology, but inspect both supported reference
+  // fields if React has not yet synchronized that selector into form state.
+  const referenceFields = calculationMethodology === 'using_heat_basis_ncv'
+    ? [dynamicInputFields.find(isCvField)]
+    : calculationMethodology === 'using_qty_basis_ef'
+      ? [dynamicInputFields.find(isEfField)]
+      : [dynamicInputFields.find(isCvField), dynamicInputFields.find(isEfField)];
+
+  for (const referenceField of referenceFields.filter(Boolean)) {
+    if (!hasNumericValue(getFieldValue(data, referenceField))) continue;
+    const requirement = resolveDensityRequirement({
+      quantityUnit: getFieldUnit(data, quantityField),
+      referenceUnit: getUnitDenominator(getFieldUnit(data, referenceField)),
+      centralizedUnits,
+    });
+    if (requirement.required) return requirement;
+  }
+
+  return { required: false };
 };
 
 export function useEmissionSubmit(ctx) {
@@ -185,7 +190,9 @@ export function useEmissionSubmit(ctx) {
     // Process Emissions density is a virtual, conditional field. Resolve its
     // requirement from the exact values about to be persisted so a stale UI
     // effect cannot allow the calculation engine to use a default factor.
-    if (isProcessEmissions) {
+    const isProcessCategory = isProcessEmissions
+      || category?.trim().toLowerCase() === 'process emissions';
+    if (isProcessCategory) {
       const rowsToValidate = frequencyType === 'yearly'
         ? [['yearly', yearlyData]]
         : Object.entries(monthlyData || {});
@@ -193,7 +200,9 @@ export function useEmissionSubmit(ctx) {
         const requirement = resolveProcessDensityRequirement({
           data,
           dynamicInputFields,
-          calculationMethodology: decisionFieldValues?.calculation_methodology,
+          calculationMethodology: decisionFieldValues?.calculation_methodology
+            || data?.calculation_methodology
+            || buildDecisionInputs?.(data)?.calculation_methodology,
           centralizedUnits,
         });
         if (!requirement.required) continue;
