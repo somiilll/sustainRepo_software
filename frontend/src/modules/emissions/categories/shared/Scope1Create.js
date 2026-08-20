@@ -69,6 +69,7 @@ export function extractInputsForCalcEngine(data, ctx) {
       primaryQuantity: quantity?.value || 0,
       primaryUnit: quantity?.unit || ctx.defaultUnit || '',
       isCustomFuelReady: customFuelCalculation.isReady,
+      customFuelMissingFields: customFuelCalculation.missingFields,
     };
   }
   const { dynamicInputFields } = ctx;

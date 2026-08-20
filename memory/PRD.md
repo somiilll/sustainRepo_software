@@ -289,3 +289,11 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Corrected the Custom Fuel density-display check to recognize the ledger’s `qty` / `quantity` values as well as the legacy key.
 - Refined monthly Custom Fuel entry into a true single-row ledger: methodology fields (Emission Factor, Calorific Value, Carbon Content, Oxidation Factor) now appear as columns beside Quantity Used. Density is also a same-row conditional column, displaying `—` until a mass/volume conversion requires it.
 - Verified: JavaScript lint clean for all three changed components; authenticated browser smoke confirmed Stationary Combustion → Custom Fuel shows the badge, no source field, and inline quantity/factor/calorific-value/density fields. Selecting `L` immediately exposed same-row `kg/L` Density. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Custom Fuel Required-State and Error Clarity
+
+- Custom Fuel ledger headers now mark methodology inputs as mandatory: Heat Basis marks Emission Factor and Calorific Value; Quantity Basis marks Emission Factor; Carbon Composition marks Carbon Content and Oxidation Factor.
+- The Custom Fuel adapter now returns named missing inputs. Create displays actionable row-level feedback such as `April: Missing: Emission Factor, Calorific Value` instead of the generic “Failed to save some records” message. A required mass/volume density now appears in the same message when applicable.
+- API save failures now preserve the server-provided error detail in the monthly toast rather than replacing it with a generic failure message.
+- Edit Custom Fuel displays the same compact **Custom fuel** badge and amber flame indicator beside the fuel name; no edit data or calculation behavior changed.
+- Verified: JavaScript lint clean for five changed components; Custom Fuel adapter tests passed **14/14**; authenticated browser checks confirmed Heat Basis required headers, exact missing-field validation with no record created, and the Custom Fuel edit badge. No APIs are **MOCKED**.

@@ -61,6 +61,7 @@ describe('buildCustomFuelCalculationPayload — heat basis (NCV)', () => {
       dynamicFieldValues: { qty: 10, custom_ef: 1, custom_ef_unit: 'kgCO2/TJ' },
     });
     expect(result.isReady).toBe(false);
+    expect(result.missingFields).toEqual(['Calorific Value']);
   });
 
   it('defaults the quantity unit to kg and falls back to formData', () => {
@@ -130,6 +131,7 @@ describe('buildCustomFuelCalculationPayload — carbon composition', () => {
       calculationMethodology: 'using_carbon_composition',
     });
     expect(result.isReady).toBe(false);
+    expect(result.missingFields).toEqual(['Oxidation Factor']);
   });
 });
 
@@ -188,6 +190,7 @@ describe('buildCustomFuelCalculationPayload — legacy key aliases', () => {
       },
       decisionInputs: {},
       isReady: false,
+      missingFields: ['Quantity Used', 'Emission Factor', 'Calorific Value'],
     });
   });
 });

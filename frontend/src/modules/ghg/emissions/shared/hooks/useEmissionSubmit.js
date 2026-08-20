@@ -267,9 +267,14 @@ export function useEmissionSubmit(ctx) {
     // overrides and Process Emissions decision inputs must not diverge by
     // frequency before reaching the calculation engine.
     const calculateModuleRow = async ({ activeModule, data, baseCtx }) => {
-      const { inputs, userOverrides, isCustomFuelReady } = activeModule.extractInputsForCalcEngine(data, baseCtx);
+      const {
+        inputs,
+        userOverrides,
+        isCustomFuelReady,
+        customFuelMissingFields = [],
+      } = activeModule.extractInputsForCalcEngine(data, baseCtx);
       if (useCustomFuel && !isCustomFuelReady) {
-        return { error: 'complete Custom Fuel inputs are required' };
+        return { error: `Missing: ${customFuelMissingFields.join(', ') || 'Custom Fuel inputs'}` };
       }
 
       const { decisionInputs, context, isScope3Like } = activeModule.buildDecisionContext(data, baseCtx);
@@ -567,7 +572,7 @@ export function useEmissionSubmit(ctx) {
               baseCtx: yBaseCtx,
             });
             if (yearlyCalculation.error) {
-              toast.error(`${yearlyCalculation.error}. Please review the entered units and values.`);
+              toast.error(yearlyCalculation.error);
               setIsSaving(false);
               return;
             }
@@ -776,7 +781,11 @@ export function useEmissionSubmit(ctx) {
               linkAuditLog(rowCalculation.auditLogId, response.data.id);
             }
           } catch (err) {
-            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Save failed`);
+            const detail = err.response?.data?.detail;
+            const saveError = Array.isArray(detail)
+              ? detail.map((item) => item.msg || item.message || JSON.stringify(item)).join(', ')
+              : (typeof detail === 'string' ? detail : 'Unable to save this record');
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${saveError}`);
           }
         }
 
@@ -786,7 +795,7 @@ export function useEmissionSubmit(ctx) {
         }
 
         if (successCount > 0) toast.success(`Created ${successCount} emission record(s) successfully`);
-        if (errors.length > 0) toast.error(`Failed to save some records. Please try again.`);
+        if (errors.length > 0) toast.error(errors.join(' • '), { duration: 10000 });
         if (successCount > 0) onSuccess?.();
         setIsSaving(false);
         return;

@@ -203,15 +203,15 @@ const EvidenceIconCell = ({
 const getCustomFuelLedgerColumns = (calculationMethodology) => {
   const factorColumns = calculationMethodology === 'using_heat_basis_ncv'
     ? [
-      { key: 'custom_ef', label: 'Emission Factor', customFuelField: 'emission-factor' },
-      { key: 'custom_cv', label: 'Calorific Value', customFuelField: 'calorific-value' },
+      { key: 'custom_ef', label: 'Emission Factor', customFuelField: 'emission-factor', required: true },
+      { key: 'custom_cv', label: 'Calorific Value', customFuelField: 'calorific-value', required: true },
     ]
     : calculationMethodology === 'using_qty_basis_ef'
-      ? [{ key: 'custom_ef', label: 'Emission Factor', customFuelField: 'emission-factor' }]
+      ? [{ key: 'custom_ef', label: 'Emission Factor', customFuelField: 'emission-factor', required: true }]
       : calculationMethodology === 'using_carbon_composition'
         ? [
-          { key: 'custom_carbon_content', label: 'Carbon Content (%)', customFuelField: 'carbon-content' },
-          { key: 'custom_oxidation_factor', label: 'Oxidation Factor', customFuelField: 'oxidation-factor' },
+          { key: 'custom_carbon_content', label: 'Carbon Content (%)', customFuelField: 'carbon-content', required: true },
+          { key: 'custom_oxidation_factor', label: 'Oxidation Factor', customFuelField: 'oxidation-factor', required: true },
         ]
         : [];
 

@@ -1,5 +1,6 @@
 import {
   normalizeDensityForCalcEngine,
+  resolveDensityRequirement,
   resolveCompoundDenominatorBasis,
 } from '../../../modules/ghg/emissions/shared/utils/unitHelpers';
 
@@ -62,6 +63,7 @@ export const buildCustomFuelCalculationPayload = ({
   const inputs = {};
   const userOverrides = {};
   const decisionInputs = {};
+  const missingFields = [];
 
   const addInput = (key, value, unit, { override = false } = {}) => {
     const input = toInput(value, unit);
@@ -72,8 +74,10 @@ export const buildCustomFuelCalculationPayload = ({
   };
 
   const hasQuantity = addInput('qty', quantity, quantityUnit);
+  if (!hasQuantity) missingFields.push('Quantity Used');
   const methodology = calculationMethodology || 'using_heat_basis_ncv';
   let hasMethodInputs = false;
+  let referenceUnit = '';
 
   if (methodology === 'using_heat_basis_ncv') {
     const ef = readValue(values, ['custom_ef', 'ef_quantity', 'ef', 'emission_factor']);
@@ -82,12 +86,15 @@ export const buildCustomFuelCalculationPayload = ({
     const cvUnit = readUnit(values, ['custom_cv_unit', 'cv_unit', 'ncv_unit', 'calorific_value_unit'], 'TJ/kg');
     const normalizedEf = normalizeEmissionFactor(ef, efUnit, { energyBased: true });
     const hasEf = normalizedEf && addInput('ef_co2', normalizedEf.value, normalizedEf.unit, { override: true });
+    if (!hasEf) missingFields.push('Emission Factor');
     if (hasEf) {
       userOverrides.emission_factor = inputs.ef_co2;
     }
     addInput('ef_ch4', 0, 'kgCH4/TJ', { override: true });
     addInput('ef_n2o', 0, 'kgN2O/TJ', { override: true });
     const hasCv = addInput('cv', cv, cvUnit, { override: true });
+    if (!hasCv) missingFields.push('Calorific Value');
+    referenceUnit = cvUnit.split('/')[1] || '';
     const cvQuantityBasis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
     if (cvQuantityBasis) decisionInputs.cv_quantity_basis = cvQuantityBasis;
     hasMethodInputs = hasEf && hasCv;
@@ -96,6 +103,8 @@ export const buildCustomFuelCalculationPayload = ({
     const efUnit = readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'kgCO2/kg');
     const normalizedEf = normalizeEmissionFactor(ef, efUnit);
     hasMethodInputs = normalizedEf && addInput('ef_quantity', normalizedEf.value, normalizedEf.unit, { override: true });
+    if (!hasMethodInputs) missingFields.push('Emission Factor');
+    referenceUnit = normalizedEf?.unit?.split('/')[1] || efUnit.split('/')[1] || '';
     if (hasMethodInputs) userOverrides.emission_factor = inputs.ef_quantity;
     const efQuantityBasis = resolveCompoundDenominatorBasis(normalizedEf?.unit, centralizedUnits);
     if (efQuantityBasis) decisionInputs.ef_quantity_basis = efQuantityBasis;
@@ -104,7 +113,10 @@ export const buildCustomFuelCalculationPayload = ({
     const oxidationFactor = readValue(values, ['custom_oxidation_factor', 'oxidation_factor']);
     const hasCarbonContent = addInput('carbon_content', carbonContent, '%', { override: true });
     const hasOxidationFactor = addInput('oxidation_factor', oxidationFactor, '', { override: true });
+    if (!hasCarbonContent) missingFields.push('Carbon Content');
+    if (!hasOxidationFactor) missingFields.push('Oxidation Factor');
     hasMethodInputs = hasCarbonContent && hasOxidationFactor;
+    referenceUnit = 'kg';
   }
 
   const density = readValue(values, ['density']);
@@ -115,11 +127,20 @@ export const buildCustomFuelCalculationPayload = ({
     });
     addInput('density', calcDensity.value, calcDensity.unit, { override: true });
   }
+  const densityRequirement = resolveDensityRequirement({
+    quantityUnit,
+    referenceUnit,
+    centralizedUnits,
+  });
+  if (hasQuantity && hasMethodInputs && densityRequirement.required && !inputs.density) {
+    missingFields.push(`Density (${densityRequirement.densityUnit})`);
+  }
 
   return {
     inputs,
     userOverrides,
     decisionInputs,
-    isReady: hasQuantity && hasMethodInputs,
+    isReady: missingFields.length === 0,
+    missingFields,
   };
 };
