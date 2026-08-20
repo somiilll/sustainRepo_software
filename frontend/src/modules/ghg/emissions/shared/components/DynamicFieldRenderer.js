@@ -20,6 +20,7 @@ import {
 import { Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { isDensityRequiredForQtyBasis, isQuantityField } from '../utils/unitHelpers';
+import { buildNativeOptionsHtml } from '../utils/nativeSelectOptions';
 
 // Field-level help text shown on hover next to the label as an "i" icon.
 // Keyed by `field.variable` so it works whether the label is "Inflation
@@ -163,7 +164,7 @@ export const DynamicFieldRenderer = ({
   const showSupplierUnitInput = !hideStandardQuantityUnit && isSupplierBasisField && !field.variable?.endsWith('_unit');
   // Freeform text unit input driven by admin config (independent of supplier basis).
   const showTextUnitInput = !hideStandardQuantityUnit && isTextUnitField && !field.variable?.endsWith('_unit');
-  const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
+  const showOverrideCheckbox = !field.presentationOnly && (field.isOverride || (!field.required && !field.isOverride));
   // Only enforce integer validation for pure count fields (e.g., "No. of rooms", "No. of days")
   // Fields with validation_rules.max <= 1 or percentage fields are NOT count fields
   const isUnitlessCountField = isNoUnitField && 
@@ -237,8 +238,8 @@ export const DynamicFieldRenderer = ({
   const isDisabled = showOverrideCheckbox && !data[`override_${field.variable}`];
 
   return (
-    <div key={field.id || field.variable} className="space-y-3">
-      <div className="flex items-center justify-between">
+    <div key={field.id || field.variable} className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
         <Label className="font-medium flex items-center gap-1.5">
           {field.label}
           {isFieldRequired && <span className="text-red-500 ml-1">*</span>}
@@ -268,21 +269,17 @@ export const DynamicFieldRenderer = ({
         </Label>
         
         {showOverrideCheckbox && (
-          <div className="flex items-center gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-amber-700">
             <input
               type="checkbox"
               id={`override-${field.variable}-${monthKey}`}
               checked={data[`override_${field.variable}`] || false}
               onChange={handleOverrideChange}
               className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+              data-testid={`override-${field.fieldKey}-${monthKey}`}
             />
-            <label 
-              htmlFor={`override-${field.variable}-${monthKey}`} 
-              className="text-xs text-amber-600 font-medium"
-            >
-              Override Default
-            </label>
-          </div>
+            Override Default
+          </label>
         )}
       </div>
       
@@ -294,16 +291,16 @@ export const DynamicFieldRenderer = ({
           disabled={isDisabled}
           className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           data-testid={`select-${field.fieldKey}-${monthKey}`}
-        >
-          <option value="">Select {field.label}</option>
-          {field.options.map(opt => (
-            <option key={opt.value || opt} value={opt.value || opt}>
-              {opt.label || opt}
-            </option>
-          ))}
-        </select>
+          dangerouslySetInnerHTML={{
+            __html: buildNativeOptionsHtml(field.options, {
+              placeholder: `Select ${field.label}`,
+              getValue: (option) => option.value || option,
+              getLabel: (option) => option.label || option,
+            }),
+          }}
+        />
       ) : (
-        <div className={(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput) ? "grid grid-cols-3 gap-2" : ""}>
+        <div className={(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput) ? "flex overflow-hidden rounded-md border border-stone-200 bg-stone-50 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
           <Input
             type={field.fieldType === 'text' ? 'text' : 'number'}
             step={field.fieldType === 'number' ? (isUnitlessCountField ? '1' : 'any') : undefined}
@@ -313,7 +310,7 @@ export const DynamicFieldRenderer = ({
             onChange={handleValueChange}
             onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
             disabled={isDisabled}
-            className={`bg-stone-50 ${(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput) ? 'col-span-2' : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`${(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput) ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : 'bg-stone-50'} ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
             data-testid={`input-${field.fieldKey}-${monthKey}`}
           />
           
@@ -334,18 +331,15 @@ export const DynamicFieldRenderer = ({
                 }
               }}
               disabled={isDisabled}
-              className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`h-10 min-w-24 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
               data-testid={`unit-${field.fieldKey}-${monthKey}`}
-            >
-              {fieldUnits.map(u => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-            </select>
+              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+            />
           )}
           
           {/* Fixed unit display */}
           {showFixedUnit && (
-            <div className={`flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 ${isDisabled ? 'opacity-50' : ''}`}>
+            <div className={`flex h-10 min-w-24 shrink-0 items-center border-l border-l-stone-200 bg-stone-100 px-3 text-sm text-stone-600 ${isDisabled ? 'opacity-50' : ''}`}>
               <span>{field.expectedUnit || fieldUnits[0]}</span>
             </div>
           )}
@@ -358,7 +352,7 @@ export const DynamicFieldRenderer = ({
               value={data[`${field.variable}_unit`] || ''}
               onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
               disabled={isDisabled}
-              className={`bg-stone-50 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
               data-testid={`unit-text-${field.fieldKey}-${monthKey}`}
             />
           )}
@@ -371,7 +365,7 @@ export const DynamicFieldRenderer = ({
               value={data[`${field.variable}_unit`] || ''}
               onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
               disabled={isDisabled}
-              className={`bg-stone-50 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
               data-testid={`unit-text-input-${field.fieldKey}-${monthKey}`}
             />
           )}

@@ -67,7 +67,6 @@ export function validateEditSubmission({ editEmployees, editingEmission, process
   });
 
   if (employeeErrors.length > 0) {
-    // eslint-disable-next-line no-console
     console.warn('Employee validation errors:', employeeErrors);
     return { valid: false, errorMessage: employeeErrors[0] };
   }
@@ -108,13 +107,10 @@ export function validateEditSubmission({ editEmployees, editingEmission, process
     };
   }
 
-  // Process names
+  // Process details are optional metadata.
   const validProcessNames = (processNames || []).filter(
     (p) => p.name && p.name.trim() !== ''
   );
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
 
   return { valid: true, validProcessNames };
 }

@@ -1,20 +1,17 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText, Loader2, Search, Calculator } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
-import MultiEmployeeInput from './MultiEmployeeInput';
 
 // Import Step components for modular form rendering
 import { Step1BasicSelection } from '../modules/ghg/emissions/shared/components/steps/Step1BasicSelection';
 import { Step2ProcessResponsibility } from '../modules/ghg/emissions/shared/components/steps/Step2ProcessResponsibility';
 import { Step3YearMonthlyData } from '../modules/ghg/emissions/shared/components/steps/Step3YearMonthlyData';
 import { Step4Notes } from '../modules/ghg/emissions/shared/components/steps/Step4Notes';
+import { EmissionFormSection } from '../modules/ghg/emissions/shared/components/EmissionFormSection';
+import { ReportingPeriodControls } from '../modules/ghg/emissions/shared/components/ReportingPeriodControls';
 import { categoryRegistry } from '../modules/emissions';
 import {
   MONTHS,
@@ -40,11 +37,22 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
 };
 
 // Density dimension-mismatch helpers (canonical source: shared/utils/unitHelpers.js)
+// isDensityRequiredForQtyBasis moved with the field derivation into modules/ghg/config.
 import {
-  isDensityRequiredForQtyBasis,
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import { isMonthlyEntryComplete } from '../modules/ghg/emissions/shared/utils/monthlyCompletion';
+// Shared GHG configuration layer: resolved config + explicit context -> fields
+import {
+  deriveGhgFields,
+  resolveGhgFormContext,
+  resolveEffectiveScopeCode,
+  resolveGhgFormArchitecture,
+  resolveGhgCategoryOptions,
+  resolveGhgScope3Options,
+  GHG_FIELD_OPTION_KEYS,
+} from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
 
 // Helper to check if a month/year combination is in the future
@@ -98,6 +106,9 @@ export default function EmissionEntryForm({
   supplierContext = null,
   // OCR Prefill Data - from AI Invoice Extractor workflow
   ocrPrefillData = null,
+  // Future organization-specific GHG configuration. `null` today, which makes
+  // resolveGhgConfig return the standard configuration untouched.
+  organizationGhgOverrides = null,
 }) {
   // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
@@ -126,9 +137,6 @@ export default function EmissionEntryForm({
   // ============================================================================
   const _formState = useEmissionFormState({ organization, editingEmission });
   const {
-    // Step navigation
-    currentStep, setCurrentStep,
-    totalSteps,
     // Step 1: Basic Selection
     facilityId, setFacilityId,
     scope, setScope,
@@ -181,7 +189,6 @@ export default function EmissionEntryForm({
     responsiblePersonContact, setResponsiblePersonContact,
     // Step 3: Year & Monthly Data
     reportingYearType, setReportingYearType,
-    hasOrgYearTypePreference,
     reportingYear, setReportingYear,
     frequencyType, setFrequencyType,
     monthlyData, setMonthlyData,
@@ -199,8 +206,6 @@ export default function EmissionEntryForm({
     employeeName, setEmployeeName,
     employeeId, setEmployeeId,
   } = _formState;
-  const [liveCalculationResults, setLiveCalculationResults] = useState({});
-  const liveCalculationTimers = useRef({});
 
 
   // ============================================================================
@@ -323,7 +328,8 @@ export default function EmissionEntryForm({
       // If record has carbon_content/composition_of_carbon, it was carbon composition method
       // If record has ef_quantity, it was qty basis method
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
-      const savedCalculationMethodology = savedDynamicValues.calculation_methodology;
+      const savedCalculationMethodology = editingEmission.calculation_methodology
+        || savedDynamicValues.calculation_methodology;
       const calculationMethodology = typeof savedCalculationMethodology === 'object'
         ? savedCalculationMethodology?.value
         : savedCalculationMethodology;
@@ -370,6 +376,21 @@ export default function EmissionEntryForm({
             monthData.calculatedCO2 = editingEmission.co2_emissions;
           }
           
+          // Hydrate flight/airport data if present
+          if (editingEmission.from_airport) {
+            monthData.from_airport = editingEmission.from_airport;
+          }
+          if (editingEmission.to_airport) {
+            monthData.to_airport = editingEmission.to_airport;
+          }
+          if (editingEmission.flight_distance) {
+            const fd = editingEmission.flight_distance;
+            monthData.km_travelled = typeof fd === 'object' ? fd.value : fd;
+            monthData.flight_distance_method = typeof fd === 'object' ? fd.method : null;
+            monthData.flight_distance_overridden = typeof fd === 'object' ? fd.overridden : false;
+            monthData.flight_distance_manual = typeof fd === 'object' ? fd.method === 'MANUAL' : false;
+          }
+          
           setMonthlyData(prev => ({
             ...prev,
             [monthKey]: monthData
@@ -408,6 +429,21 @@ export default function EmissionEntryForm({
           yearData.calculatedCO2 = editingEmission.co2_emissions;
         }
         
+        // Hydrate flight/airport data if present
+        if (editingEmission.from_airport) {
+          yearData.from_airport = editingEmission.from_airport;
+        }
+        if (editingEmission.to_airport) {
+          yearData.to_airport = editingEmission.to_airport;
+        }
+        if (editingEmission.flight_distance) {
+          const fd = editingEmission.flight_distance;
+          yearData.km_travelled = typeof fd === 'object' ? fd.value : fd;
+          yearData.flight_distance_method = typeof fd === 'object' ? fd.method : null;
+          yearData.flight_distance_overridden = typeof fd === 'object' ? fd.overridden : false;
+          yearData.flight_distance_manual = typeof fd === 'object' ? fd.method === 'MANUAL' : false;
+        }
+        
         setYearlyData(prev => ({
           ...prev,
           ...yearData
@@ -421,7 +457,6 @@ export default function EmissionEntryForm({
       if (editingEmission.category) setCategory(editingEmission.category);
     });
     
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingEmission?.id, fuelDatabase]);
 
   // ============================================================================
@@ -722,6 +757,43 @@ export default function EmissionEntryForm({
   // useEmissionFormState (F2 integration). The corresponding inline useEffects
   // were removed here.
 
+  const ghgCapabilityContext = useMemo(() => resolveGhgFormContext({
+    scope,
+    biogenicScopeSelection,
+    categoryName: category,
+    categories: dynamicCategories,
+    scopes: dynamicScopes,
+  }), [
+    scope,
+    biogenicScopeSelection,
+    category,
+    dynamicCategories,
+    dynamicScopes,
+  ]);
+  const ghgFormArchitecture = useMemo(() => resolveGhgFormArchitecture({
+    standardConfig: formConfig,
+    organizationOverrides: organizationGhgOverrides,
+    formContext: ghgCapabilityContext,
+    biogenicScopeSelection,
+  }), [formConfig, organizationGhgOverrides, ghgCapabilityContext, biogenicScopeSelection]);
+  const resolvedCapabilities = ghgFormArchitecture.capabilities;
+  const resolvedGhgFieldOptions = ghgFormArchitecture.resolvedFieldOptions;
+  const hasSubcategoryCapability = resolvedCapabilities.subcategory;
+  const scope3PresentationOptions = useMemo(() => resolveGhgScope3Options({
+    scope,
+    biogenicScopeSelection,
+    category,
+    scope3Method,
+    scope3EFData,
+    capabilities: resolvedCapabilities,
+    requiresSubcategory: scope === 'scope3' && Boolean(category) && hasSubcategoryCapability,
+    fieldOptions: resolvedGhgFieldOptions,
+    configLabels: configLabels?.subcategories || {},
+  }), [
+    scope, biogenicScopeSelection, category, scope3Method, scope3EFData,
+    resolvedCapabilities, hasSubcategoryCapability, resolvedGhgFieldOptions, configLabels?.subcategories,
+  ]);
+
   // Filter Scope 3 activities based on category, method, industry sector, and year
   // Note: selectedFacility is defined below after fuelDatabase useMemo
   const filteredScope3Activities = useMemo(() => {
@@ -743,7 +815,7 @@ export default function EmissionEntryForm({
     
     // For subcategory-based categories (C8, C10, C11, C13, C14), handle specially
     const catLower = category?.toLowerCase() || '';
-    const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+    const isSubcategoryCategory = hasSubcategoryCapability;
     
     // For BIOGENIC scope3, skip subcategory handling - just filter by category directly
     // Biogenic C8/C10/C11/C13/C14 should work like C3 (direct activity selection)
@@ -871,61 +943,20 @@ export default function EmissionEntryForm({
     });
     
     return uniqueActivities;
-  }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, facilityId, biogenicScopeSelection]);
+  }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, facilityId, biogenicScopeSelection, hasSubcategoryCapability]);
 
-  // Get available activity types for C6/C7 categories
-  const availableScope3ActivityTypes = useMemo(() => {
-    if (scope !== 'scope3' || !category) return [];
-    
-    // Only show activity type filter for C6 and C7
-    const isC6 = category.toLowerCase().includes('c6') || 
-                 category.toLowerCase().includes('business travel');
-    const isC7 = category.toLowerCase().includes('c7') ||
-                 category.toLowerCase().includes('employee commuting');
-    
-    if (!isC6 && !isC7) return [];
-    
-    const activityTypes = new Set();
-    
-    // Add activity types from scope3_ef data
-    if (scope3EFData.length) {
-      scope3EFData.forEach(ef => {
-        if (ef.category?.toLowerCase() === category.toLowerCase() && ef.activity_type) {
-          // Also filter by method if selected
-          if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
-            activityTypes.add(ef.activity_type);
-          }
-        }
-      });
-    }
-    
-    // Add "Others" option for supplier_basis method - only for C6 (not C7)
-    if (scope3Method === 'supplier_basis' && isC6) {
-      activityTypes.add('others');
-    }
-    
-    return Array.from(activityTypes).sort();
-  }, [scope, scope3EFData, category, scope3Method]);
-
-  // Categories that require subcategory selection (C8, C10, C11, C13, C14)
-  const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
-  
-  // Categories that require Asset Name field (C8, C13, C14, C15)
-  const assetNameCategories = ['c8', 'c13', 'c14', 'c15'];
+  // Get available activity types for categories configured with that capability.
+  const availableScope3ActivityTypes = scope3PresentationOptions.activityTypes;
   
   // Check if current category requires Asset Name
   const requiresAssetName = useMemo(() => {
-    if (scope !== 'scope3' || !category) return false;
-    const catLower = category.toLowerCase();
-    return assetNameCategories.some(c => catLower.includes(c));
-  }, [scope, category]);
+    return scope === 'scope3' && Boolean(category) && resolvedCapabilities.assetName;
+  }, [scope, category, resolvedCapabilities]);
   
   // Check if current category is C7 (Employee Commuting) - supports multi-employee input
   const isC7EmployeeCommuting = useMemo(() => {
-    if (scope !== 'scope3' || !category) return false;
-    const catLower = category.toLowerCase();
-    return catLower.includes('c7') || catLower.includes('employee commuting');
-  }, [scope, category]);
+    return scope === 'scope3' && Boolean(category) && resolvedCapabilities.multiEmployee;
+  }, [scope, category, resolvedCapabilities]);
   
   // Check if current category requires subcategory
   // Note: Biogenic Scope 3 does NOT require subcategory - it uses direct activity selection like C3
@@ -934,9 +965,8 @@ export default function EmissionEntryForm({
     // Biogenic Scope 3 skips subcategory selection
     const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
     if (scope !== 'scope3' || isBiogenicScope3 || !category) return false;
-    const catLower = category.toLowerCase();
-    return subcategoryCategories.some(c => catLower.includes(c));
-  }, [scope, category, biogenicScopeSelection]);
+    return resolvedCapabilities.subcategory;
+  }, [scope, category, biogenicScopeSelection, resolvedCapabilities]);
 
   // Reset employee data when category changes away from C7
   useEffect(() => {
@@ -977,7 +1007,6 @@ export default function EmissionEntryForm({
       setC7FormulaId(null);
       setC7FormulaName('');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope3ActivityId, scope3ActivityType]); // Reset when activity changes
 
   // Reset asset name when category changes away from C8/C13/C14/C15
@@ -987,15 +1016,10 @@ export default function EmissionEntryForm({
     }
   }, [requiresAssetName]);
 
-  // Categories that show From/To Location fields (C4, C6, C9 - transportation/travel categories)
-  const locationCategories = ['c4', 'c6', 'c9'];
-  
-  // Check if current category shows From/To Location fields
+  // Check if current category shows From/To Location fields.
   const showsLocationFields = useMemo(() => {
-    if (scope !== 'scope3' || !category) return false;
-    const catLower = category.toLowerCase();
-    return locationCategories.some(c => catLower.includes(c));
-  }, [scope, category]);
+    return scope === 'scope3' && Boolean(category) && resolvedCapabilities.journeyLocations;
+  }, [scope, category, resolvedCapabilities]);
 
   // Reset location fields when category changes away from C4/C6/C9
   useEffect(() => {
@@ -1006,98 +1030,30 @@ export default function EmissionEntryForm({
   }, [showsLocationFields]);
 
   // Get available subcategories for C8/C10/C11/C13/C14
-  const availableSubcategories = useMemo(() => {
-    if (!requiresSubcategory || !scope3Method) return [];
-    
-    // Get subcategory labels from configLabels (fetched from backend)
-    const subcategoryLabelsMap = configLabels?.subcategories || {};
-    
-    // Define available subcategories based on method
-    const subcategories = [
-      { value: 'stationary_combustion', label: subcategoryLabelsMap['stationary_combustion'] || 'Stationary Combustion' },
-      { value: 'mobile_combustion', label: subcategoryLabelsMap['mobile_combustion'] || 'Mobile Combustion' },
-      { value: 'fugitive_emissions', label: subcategoryLabelsMap['fugitive_emissions'] || 'Fugitive Emissions' },
-      { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
-    ];
-    
-    return subcategories;
-  }, [requiresSubcategory, scope3Method, configLabels?.subcategories]);
+  const availableSubcategories = scope3PresentationOptions.subcategories;
 
   // Get available methods for selected category from Scope 3 EF
   // Always include supplier_basis as an option (except for biogenic)
-  const availableScope3Methods = useMemo(() => {
-    // Handle both regular scope3 and biogenic with scope3 selection
-    const isScope3 = scope === 'scope3';
-    const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-    
-    // Return empty if not scope3/biogenic-scope3 or no category selected
-    if ((!isScope3 && !isBiogenicScope3) || !category) return [];
-    
-    const methods = new Set();
-    
-    // For biogenic, filter by sub_scope='biogenic' first
-    let relevantData = isBiogenicScope3 
-      ? scope3EFData.filter(ef => ef.sub_scope === 'biogenic')
-      : scope3EFData;
-    
-    // Add methods from EF data
-    relevantData.forEach(ef => {
-      if (ef.category?.toLowerCase() === category.toLowerCase() && ef.method) {
-        methods.add(ef.method);
-      }
-    });
-    
-    // Always add supplier_basis for all Scope 3 categories (regular and biogenic)
-    // supplier_basis with custom activity doesn't require pre-existing EF records
-    methods.add('supplier_basis');
-    
-    // Return in preferred order: spend_basis, activity_basis, supplier_basis
-    const orderedMethods = [];
-    if (methods.has('spend_basis')) orderedMethods.push('spend_basis');
-    if (methods.has('activity_basis')) orderedMethods.push('activity_basis');
-    if (methods.has('supplier_basis')) orderedMethods.push('supplier_basis');
-    
-    // Add any other methods that might exist
-    methods.forEach(m => {
-      if (!orderedMethods.includes(m)) orderedMethods.push(m);
-    });
-    
-    return orderedMethods;
-  }, [scope, scope3EFData, category, biogenicScopeSelection]);
+  const availableScope3Methods = scope3PresentationOptions.methods;
 
-  // Emission factor unit to quantity unit mapping
-  const EMISSION_FACTOR_UNITS = [
-    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/g', label: 'tCO₂/g', quantityUnit: 'g', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³', forScope: ['scope1', 'biogenic'] },
-    { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh', forScope: ['scope2'] },
-    { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh', forScope: ['scope2'] },
-  ];
-  
-  // Custom fuel units - restricted to mass-based units (kg, g, t) per user requirement
-  const CUSTOM_FUEL_UNITS = [
-    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg' },
-    { value: 'tCO2/g', label: 'tCO₂/g', quantityUnit: 'g' },
-    { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't' },
-  ];
+  const emissionFactorUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.EMISSION_FACTOR_UNIT] || [];
+  const customFuelUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_EMISSION_FACTOR_UNIT] || [];
 
   // Get available EF units based on scope
   const getAvailableEFUnits = (currentScope, isCustomFuel = false) => {
     if (isCustomFuel) {
-      return CUSTOM_FUEL_UNITS;
+      return customFuelUnits;
     }
-    return EMISSION_FACTOR_UNITS.filter(u => u.forScope.includes(currentScope));
+    return emissionFactorUnits.filter(u => !u.forScope || u.forScope.includes(currentScope));
   };
 
   // Get quantity unit based on emission factor unit for custom fuels
   const getQuantityUnitFromEFUnit = (efUnit) => {
     // Check custom fuel units first
-    const customMapping = CUSTOM_FUEL_UNITS.find(u => u.value === efUnit);
+    const customMapping = customFuelUnits.find(u => u.value === efUnit);
     if (customMapping) return customMapping.quantityUnit;
     // Fallback to standard units
-    const mapping = EMISSION_FACTOR_UNITS.find(u => u.value === efUnit);
+    const mapping = emissionFactorUnits.find(u => u.value === efUnit);
     return mapping?.quantityUnit || 'kg';
   };
 
@@ -1143,12 +1099,12 @@ export default function EmissionEntryForm({
   // Track form dirty state for unsaved changes protection (#19)
   useEffect(() => {
     // Only trigger after user interaction (not initial load)
-    if (currentStep > 1 || facilityId || category || fuelId || notes) {
+    if (facilityId || category || fuelId || notes) {
       if (typeof onFormChange === 'function') {
         onFormChange();
       }
     }
-  }, [currentStep, facilityId, category, fuelId, notes, scope3Method, scope3ActivityType, employees.length, onFormChange]);
+  }, [facilityId, category, fuelId, notes, scope3Method, scope3ActivityType, employees.length, onFormChange]);
   
   // Scope 3 specific optional fields — moved to useEmissionFormState (F2 integration).
 
@@ -1165,7 +1121,7 @@ export default function EmissionEntryForm({
 
   // Get categories for selected scope — prefer SuperAdmin-managed categories,
   // fall back to those inferred from the fuel database for compatibility.
-  const categoriesForScope = useMemo(() => {
+  const standardCategoriesForScope = useMemo(() => {
     // For biogenic with scope3 selected, return biogenic categories
     if (scope === 'biogenic' && biogenicScopeSelection === 'scope3') {
       return biogenicCategories.sort((a, b) => {
@@ -1177,9 +1133,10 @@ export default function EmissionEntryForm({
     
     // For biogenic with scope1 selected, use 'biogenic' scope from fuel_database
     // fuel_database has scope='biogenic' or 'Biogenic' for biogenic fuels
-    const effectiveScopeForCategories = (scope === 'biogenic' && biogenicScopeSelection === 'scope1') 
-      ? 'biogenic' 
-      : scope;
+    const effectiveScopeForCategories = resolveEffectiveScopeCode(
+      scope,
+      biogenicScopeSelection,
+    );
     
     const cats = new Set();
 
@@ -1218,268 +1175,57 @@ export default function EmissionEntryForm({
     return result;
   }, [fuelDatabase, scope, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
 
-  // ============================================================================
-  // Dynamic Form Config - Get input fields from ce_input_field_mappings
-  // These are the ACTUAL fields to show, with proper labels
-  // For Scope 3, filter fields based on the selected calculation method (formula)
-  // ============================================================================
-  const dynamicInputFieldsResult = useMemo(() => {
-    if (!formConfig?.input_field_mappings?.length) return { fields: [], formulaId: null };
-    
-    // Determine effective scope for lookups
-    const isBiogenicScope1 = scope === 'biogenic' && biogenicScopeSelection === 'scope1';
-    const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-    const effectiveScope = isBiogenicScope3 ? 'scope3' : scope;
-    const isScope3Like = effectiveScope === 'scope3';
-    
-    // Get the category ID for filtering
-    const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
-    const categoryId = categoryObj?.id;
-    const scopeObj = dynamicScopes.find(s => s.code === effectiveScope);
-    const scopeId = scopeObj?.id;
-    
-    // For Scope 3 (or biogenic scope3), find the formula that matches the selected decision path
-    // For Scope 1/2/Biogenic Scope 1, also match formula to filter fields correctly
-    let requiredInputVars = null;
-    let matchedFormula = null;
-    
-    // Helper function to traverse decision tree and find formula_id
-    const traverseDecisionTree = (node, fieldValues) => {
-      if (!node) return null;
-      if (node.formula_id) return node.formula_id;
-      const fieldName = node.field_name;
-      if (!fieldName) return null;
-      const selectedValue = fieldValues[fieldName];
-      if (!selectedValue) return null;
-      const selectedOption = (node.options || {})[selectedValue];
-      if (!selectedOption) return null;
-      if (selectedOption.formula_id) return selectedOption.formula_id;
-      if (selectedOption.next) return traverseDecisionTree(selectedOption.next, fieldValues);
-      return null;
-    };
+  const categoriesForScope = useMemo(() => resolveGhgCategoryOptions({
+    standardCategories: standardCategoriesForScope,
+    scopeCode: resolveEffectiveScopeCode(scope, biogenicScopeSelection),
+    categoryDefinitions: dynamicCategories,
+    organizationOverrides: organizationGhgOverrides,
+  }), [standardCategoriesForScope, scope, biogenicScopeSelection, dynamicCategories, organizationGhgOverrides]);
 
-    if (isScope3Like && scope3Method && formConfig?.formulas?.length) {
-      // Try to find formula using decision tree traversal
-      if (formConfig.decision_tree) {
-        const decisionValues = {
-          calculation_method_scope3: scope3Method,
-          activity_type: scope3ActivityType || undefined,
-          subcategory_selection: scope3Subcategory || undefined,
-          type_of_product: typeOfProduct || undefined,
-        };
-        
-        const formulaId = traverseDecisionTree(formConfig.decision_tree, decisionValues);
-        
-        if (formulaId) {
-          matchedFormula = formConfig.formulas.find(f => f.id === formulaId);
-        }
-      }
-      
-      // Fallback: For categories with nested decision trees (like C6/C7), 
-      // we need to match formula based on the full decision path
-      if (!matchedFormula) {
-        // Map activity_type values to formula name patterns
-        // Note: scope3_ef uses singular (hotel_stay)
-        const activityTypeToFormulaMap = {
-          'hotel_stay': ['hotel'],
-          'air_travel': ['passenger', 'distance'],
-          'water_travel': ['passenger', 'distance'],
-          'taxi_travel': ['passenger', 'distance'],
-          'bus_travel': ['passenger', 'distance'],
-          'rail_travel': ['passenger', 'distance'],
-          'car_travel': ['km travelled', 'km_travelled'],
-          'bike_travel': ['km travelled', 'km_travelled'],
-          'wfh': ['wfh', 'work from home']
-        };
-        
-        // If activity_type is selected (for C6/C7), find formula based on that
-        if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
-          const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
-          matchedFormula = formConfig.formulas.find(f => {
-            const formulaName = f.name?.toLowerCase() || '';
-            return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-          });
-        }
-      }
-      
-      // If no activity_type match, fall back to method-based matching
-      if (!matchedFormula) {
-        const methodToFormulaMap = {
-          'spend_basis': ['spend', 'Spent'],
-          'activity_basis': ['activity'],
-          'supplier_basis': ['supplier', 'Supplier']
-        };
-        
-        const searchTerms = methodToFormulaMap[scope3Method] || [];
-        matchedFormula = formConfig.formulas.find(f => {
-          const formulaName = f.name?.toLowerCase() || '';
-          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-        });
-      }
-      
-      if (matchedFormula?.inputs?.length) {
-        // Get the list of required input variables for this formula
-        // Note: form-config API returns inputs at top level (extracted from definition.inputs)
-        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-      }
-    }
-    // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula via decision tree first, then fallback to name
-    else if ((scope === 'scope1' || scope === 'scope2' || isBiogenicScope1) && formConfig?.formulas?.length) {
-      // Priority 0: Try decision tree traversal (handles calculation_methodology)
-      if (formConfig.decision_tree) {
-        const scope1DecisionValues = {
-          calculation_methodology: decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv',
-          ...decisionFieldValues,
-        };
-        const formulaId = traverseDecisionTree(formConfig.decision_tree, scope1DecisionValues);
-        if (formulaId) {
-          matchedFormula = formConfig.formulas.find(f => f.id === formulaId);
-        }
-      }
+  // ============================================================================
+  // Dynamic Form Config - fields come from ce_input_field_mappings.
+  // Derivation is delegated to the shared, pure GHG config layer
+  // (modules/ghg/config) so Create, and later Edit, use one implementation.
+  //   resolved config + explicit context -> fields + resolved formula
+  // ============================================================================
+  const resolvedGhgConfig = ghgFormArchitecture.resolvedConfig;
 
-      // Fallback: name-based matching if tree didn't resolve
-      if (!matchedFormula) {
-        if (isBiogenicScope1) {
-          matchedFormula = formConfig.formulas.find(f => 
-            f.name?.toLowerCase().includes('biogenic')
-          );
-          if (!matchedFormula && formConfig.formulas.length > 0) {
-            matchedFormula = formConfig.formulas[0];
-          }
-        } else {
-          const currentCategoryName = (category || categoryObj?.name || '').toLowerCase();
-          const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
-          
-          if (isStationaryOrMobile) {
-            matchedFormula = formConfig.formulas.find(f => 
-              f.name?.toLowerCase().includes('heat basis') || f.name?.toLowerCase().includes('heat-basis')
-            );
-          }
-          if (!matchedFormula) {
-            matchedFormula = formConfig.formulas.find(f => 
-              f.properties?.length > 0 && f.properties.some(p => 
-                ['cv', 'density'].includes(p.variable?.toLowerCase() || p.key?.toLowerCase())
-              )
-            );
-          }
-          if (!matchedFormula) {
-            matchedFormula = formConfig.formulas.find(f => 
-              f.name?.toLowerCase().includes('quantity') || 
-              f.name?.toLowerCase().includes('activity')
-            );
-          }
-          if (!matchedFormula && formConfig.formulas.length > 0) {
-            matchedFormula = formConfig.formulas[0];
-          }
-        }
-      }
-      
-      if (matchedFormula?.inputs?.length) {
-        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-      }
-    }
-    
-    // Store the matched formula ID for use in saving
-    const formulaId = matchedFormula?.id || null;
-    
-    // Filter input field mappings that apply to this category and scope
-    // Uses formula-driven filtering: only show fields that the resolved formula needs.
-    // Decision fields (maps_to_context in decision tree) always shown so users can toggle tree paths.
-    const decisionFieldNames = (formConfig.decision_fields || []).map(d => d.field_name);
-    const applicableMappings = formConfig.input_field_mappings.filter(m => {
-      const appliesToCategory = !m.applies_to_categories?.length || 
-                                m.applies_to_categories.includes(categoryId);
-      const appliesToScope = !m.applies_to_scopes?.length || 
-                             m.applies_to_scopes.includes(scopeId);
-      if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
-      
-      // Custom fuel: suppress fields that CustomFuelMonthFields handles per-month.
-      // Only keep 'qty' (quantity input) from standard fields.
-      if (useCustomFuel) {
-        const handledByCustomFuel = ['density', 'cv', 'ef_quantity', 'carbon_content', 'oxidation_factor'];
-        if (handledByCustomFuel.includes(m.maps_to_variable)) return false;
-      }
-      
-      // Formula-driven filtering when a formula is resolved
-      if (matchedFormula && requiredInputVars?.length) {
-        if (m.is_override) {
-          // Override fields: show if declared as formula property
-          const formulaProperties = matchedFormula.properties || [];
-          if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
-            return true;
-          }
-          // Density: show when formula supports dimension conversion,
-          // OR when using Qty Basis EF and fuel's qty units could mismatch EF denominators
-          if (m.maps_to_variable === 'density') {
-            const calcMethod = decisionFieldValues.calculation_methodology;
-            if (calcMethod === 'using_qty_basis_ef') {
-              // Only show if dimension mismatch possible AND fuel has no density in DB
-              const fuelHasDensity = selectedFuel?.density != null && selectedFuel.density > 0;
-              if (fuelHasDensity) return false; // Calc engine uses fuel DB density
-              const efMapping = formConfig.input_field_mappings.find(fm => fm.maps_to_variable === 'ef_quantity');
-              const efAllowedUnits = efMapping?.allowed_units || [];
-              const qtyUnits = selectedFuel?.allowed_units || [];
-              return efAllowedUnits.some(eu => isDensityRequiredForQtyBasis(eu, qtyUnits));
-            }
-            return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
-          }
-          return false;
-        }
-        // Regular input fields: in formula inputs OR is a decision field in the tree
-        if (requiredInputVars.includes(m.maps_to_variable)) return true;
-        if (m.maps_to_context && decisionFieldNames.includes(m.maps_to_context)) return true;
-        return false;
-      }
-      
-      // Fallback: no formula resolved (e.g. no process_type selected yet) — hide all for Process
-      const currentCategoryName = (category || '').toLowerCase();
-      if ((scope === 'scope1' || scope === 'scope2') && currentCategoryName.includes('process')) {
-        return false;
-      }
-      
-      return true;
-    });
-    
-    // Sort by display_order
-    applicableMappings.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-    
-    // Map to field objects for rendering
-    const isQtyBasis = decisionFieldValues.calculation_methodology === 'using_qty_basis_ef';
-    const fuelQtyUnits = selectedFuel?.allowed_units || [];
-    const fields = applicableMappings.map(m => {
-      const field = {
-        id: m.id,
-        variable: m.maps_to_variable,
-        fieldKey: m.field_key,
-        label: m.field_label,
-        expectedUnit: m.default_unit,
-        required: m.is_required,
-        isOverride: m.is_override || false,
-        fieldType: m.field_type || 'number',
-        allowedUnits: m.allowed_units || [],
-        unitSource: m.unit_source || 'static',
-        compoundWithVariable: m.compound_with_variable || null,
-        placeholder: m.placeholder || `Enter ${m.field_label}`,
-        helpText: m.help_text || '',
-        mapsToContext: m.maps_to_context,
-        mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
-        mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
-        options: m.options || [],
-        validationRules: m.validation_rules || {},
-        defaultValue: m.default_value,
-      };
-      // For Qty Basis EF: attach fuel qty units on density so renderer can
-      // dynamically check if density is required based on selected EF unit
-      if (isQtyBasis && m.maps_to_variable === 'density') {
-        field.densityQtyBasisCheck = true;
-        field.fuelQtyUnits = fuelQtyUnits;
-      }
-      return field;
-    });
-    
-    // Return both fields and the matched formula ID
-    return { fields, formulaId };
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, decisionFieldValues, useCustomFuel, selectedFuel]);
+  const ghgFormContext = useMemo(
+    () =>
+      resolveGhgFormContext({
+        scope,
+        biogenicScopeSelection,
+        categoryName: category,
+        categories: dynamicCategories,
+        scopes: dynamicScopes,
+        scope3Method,
+        scope3ActivityType,
+        scope3Subcategory,
+        typeOfProduct,
+        decisionFieldValues,
+        useCustomFuel,
+        selectedFuel,
+      }),
+    [
+      scope,
+      biogenicScopeSelection,
+      category,
+      dynamicCategories,
+      dynamicScopes,
+      scope3Method,
+      scope3ActivityType,
+      scope3Subcategory,
+      typeOfProduct,
+      decisionFieldValues,
+      useCustomFuel,
+      selectedFuel,
+    ],
+  );
+
+  const dynamicInputFieldsResult = useMemo(
+    () => deriveGhgFields({ formConfig: resolvedGhgConfig, context: ghgFormContext }),
+    [resolvedGhgConfig, ghgFormContext],
+  );
   
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
@@ -1818,7 +1564,7 @@ export default function EmissionEntryForm({
     // (biogenic skips subcategory UI but backend decision tree still expects it)
     if (isBiogenicScope3) {
       const catLower = category?.toLowerCase() || '';
-      const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+    const isSubcategoryCategory = hasSubcategoryCapability;
       if (isSubcategoryCategory && !decisionInputs['subcategory_selection']) {
         // Use 'biogenic' as subcategory - will be handled by decision tree
         decisionInputs['subcategory_selection'] = 'biogenic';
@@ -1833,214 +1579,6 @@ export default function EmissionEntryForm({
 
     return decisionInputs;
   }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, category]);
-
-  // Execute calculation via backend calc engine
-  const executeCalcEngine = useCallback(async (monthKey, monthData) => {
-    if (!formConfig) {
-      return null;
-    }
-    
-    // Determine if this is a scope3-like flow (regular scope3 or biogenic scope3)
-    const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
-    const isProcessEmissions = category?.toLowerCase().includes('process');
-    const effectiveScope = isScope3Like ? 'scope3' : scope;
-    
-    // For Scope 3 (or biogenic scope3), we need method and activity instead of fuel
-    if (isScope3Like) {
-      if (!scope3Method) {
-        return null;
-      }
-      // For supplier_basis with custom activity, don't require scope3ActivityId
-      // For other methods, require scope3ActivityId
-      if (scope3Method === 'supplier_basis' && useCustomActivity) {
-        if (!scope3CustomActivity?.trim()) return null;
-      } else {
-        if (!scope3ActivityId) return null;
-      }
-    } else {
-      // Process Emissions resolves entirely through its decision tree and has no fuel.
-      // Standard fuel categories still require a selected fuel unless custom fuel is used.
-      if (!isProcessEmissions && !useCustomFuel && (!selectedFuel || !fuelId)) {
-        return null;
-      }
-    }
-    
-    const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
-    
-    if (!categoryObj?.id) {
-      return null;
-    }
-    
-    setIsCalcEngineCalculating(true);
-    try {
-      // Build inputs from month data using the field mappings
-      const inputs = {};
-      const matchedActivity = scope3ActivityId ? filteredScope3Activities.find(a => a.id === scope3ActivityId) : null;
-      
-      dynamicInputFields.forEach(field => {
-        const value = monthData[field.variable] || monthData[field.fieldKey];
-        if (value !== undefined && value !== null && value !== '') {
-          // Determine base unit
-          let baseUnit = field.expectedUnit;
-          
-          if (field.unitSource === 'fuel') {
-            // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-            if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-              baseUnit = monthData[`${field.variable}_unit`] || monthData.unit || matchedActivity?.allowed_units?.[0] || matchedActivity?.default_unit || 'kg';
-            } else if (selectedFuel?.allowed_units?.length) {
-              baseUnit = monthData[`${field.variable}_unit`] || monthData.unit || selectedFuel.allowed_units[0];
-            }
-          } else if (field.unitSource === 'scope3_ef') {
-            // For scope3_ef: use monthData unit, or fallback to matched activity's default/allowed units
-            baseUnit = monthData[`${field.variable}_unit`] || matchedActivity?.default_unit || matchedActivity?.allowed_units?.[0] || field.expectedUnit || 'kg';
-          } else if (monthData[`${field.variable}_unit`]) {
-            baseUnit = monthData[`${field.variable}_unit`];
-          }
-          
-          // Count-based fields should not have units
-          const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
-            'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
-            'units_produced', 'products_expected_usage', 'no_of_employees'].includes(field.variable);
-          
-          // Apply compound suffix if field has compoundWithVariable
-          let finalUnit = isUnitlessCountField ? '' : (baseUnit || 'kg');
-          if (!isUnitlessCountField && field.compoundWithVariable) {
-            const linkedUnit = monthData[`${field.compoundWithVariable}_unit`];
-            if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
-              // Only add suffix if baseUnit doesn't already contain it
-              if (!finalUnit.includes('/')) {
-                finalUnit = `${finalUnit}/${linkedUnit.trim()}`;
-              }
-            }
-          }
-          
-          inputs[field.variable] = {
-            value: parseFloat(value),
-            unit: finalUnit
-          };
-        }
-      });
-
-      const customFuelCalculation = useCustomFuel
-        ? buildCustomFuelCalculationPayload({
-          dynamicFieldValues: monthData,
-          calculationMethodology: buildDecisionInputs(monthData).calculation_methodology,
-        })
-        : null;
-      if (customFuelCalculation) {
-        if (!customFuelCalculation.isReady) return null;
-        Object.assign(inputs, customFuelCalculation.inputs);
-      }
-      
-      // Build context
-      const matchedEFEntry = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-      
-      // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
-      // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
-      // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
-      let fuelNameForContext = useCustomFuel ? customFuelName : (selectedFuel?.fuel_name || '');
-      if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFEntry?.activity) {
-        fuelNameForContext = matchedEFEntry.activity;
-      }
-      
-      // Build reporting_period for currency conversion lookup
-      const actualYear = getActualYearForMonth(monthKey);
-      const monthReportingPeriod = `${actualYear}-${monthKey}`;
-      
-      const context = {
-        fuel_name: fuelNameForContext,
-        fuel_id: useCustomFuel ? null : (fuelId || ''),
-        scope: effectiveScope, // Use effective scope for context
-        category: category,
-        facility_id: facilityId,
-        reporting_period: monthReportingPeriod, // For currency conversion year lookup
-        is_custom_fuel: useCustomFuel || false,
-        // Scope 3 specific context (also applies to biogenic scope3)
-        ...(isScope3Like && {
-          calculation_method_scope3: scope3Method,
-          scope3_ef_id: scope3ActivityId,
-          // For supplier_basis with custom activity, use the custom activity name
-          activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
-            ? scope3CustomActivity 
-            : matchedEFEntry?.activity,
-          // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
-          scope3_ef_default_unit: matchedEFEntry?.default_unit || '',
-        }),
-      };
-      
-      // Build user overrides (for fields marked as is_override)
-      const userOverrides = {};
-      dynamicInputFields.forEach(field => {
-        if (field.isOverride && monthData[`override_${field.variable}`]) {
-          const value = monthData[field.variable] || monthData[field.fieldKey];
-          if (value !== undefined && value !== null) {
-            userOverrides[field.variable] = {
-              value: parseFloat(value),
-              unit: field.expectedUnit || 'kg'
-            };
-          }
-        }
-      });
-      if (customFuelCalculation) {
-        Object.assign(userOverrides, customFuelCalculation.userOverrides);
-      }
-      
-      // Build decision inputs AUTOMATICALLY based on what's filled
-      const decisionInputs = buildDecisionInputs(monthData);
-      
-      const response = await axios.post(
-        `${API}/calc-engine/execute-by-category`,
-        {
-          category_id: categoryObj.id,
-          decision_inputs: decisionInputs,
-          inputs: inputs,
-          context: context,
-          user_overrides: userOverrides,
-          dry_run: true,
-          // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
-          ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
-        },
-        { headers: getAuthHeader() }
-      );
-      
-      if (response.data.ok) {
-        return response.data;
-      }
-      return null;
-    } catch (error) {
-      return null;
-    } finally {
-      setIsCalcEngineCalculating(false);
-    }
-  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, useCustomFuel, customFuelName]);
-
-  useEffect(() => {
-    Object.values(liveCalculationTimers.current).forEach(clearTimeout);
-    liveCalculationTimers.current = {};
-    if (frequencyType !== 'monthly' || useCustomFuel) {
-      setLiveCalculationResults({});
-      return undefined;
-    }
-
-    const readyMonths = Object.entries(monthlyData).filter(([, monthData]) => (
-      Object.entries(monthData).some(([key, value]) => (
-        !key.endsWith('_unit') && key !== 'evidences' && Number.parseFloat(value) > 0
-      ))
-    ));
-    const readyMonthKeys = new Set(readyMonths.map(([monthKey]) => monthKey));
-    setLiveCalculationResults((current) => Object.fromEntries(
-      Object.entries(current).filter(([monthKey]) => readyMonthKeys.has(monthKey)),
-    ));
-
-    readyMonths.forEach(([monthKey, monthData]) => {
-      liveCalculationTimers.current[monthKey] = setTimeout(async () => {
-        const result = await executeCalcEngine(monthKey, monthData);
-        if (result) setLiveCalculationResults((current) => ({ ...current, [monthKey]: result }));
-      }, 350);
-    });
-
-    return () => Object.values(liveCalculationTimers.current).forEach(clearTimeout);
-  }, [useCustomFuel, frequencyType, monthlyData, buildDecisionInputs, executeCalcEngine]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {
@@ -2719,6 +2257,7 @@ export default function EmissionEntryForm({
 
   const renderDynamicField = (field, monthKey, data) => (
     <DynamicFieldRenderer
+      key={`${monthKey}-${field.id || field.variable}`}
       field={field}
       monthKey={monthKey}
       data={data}
@@ -2760,25 +2299,9 @@ export default function EmissionEntryForm({
   const getMonthStatus = (monthKey) => {
     const data = monthlyData[monthKey];
     if (!data) return 'empty';
-    
-    // For Scope 3 with dynamic fields, check if required fields have values
-    if ((scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && dynamicInputFields.length > 0) {
-      const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
-      const hasRequiredData = requiredFields.some(field => {
-        const value = data[field.variable] || data[field.fieldKey];
-        return value !== '' && value !== null && value !== undefined && value !== '0' && parseFloat(value) > 0;
-      });
-      return hasRequiredData ? 'filled' : 'empty';
-    }
-    
-    // For Scope 1, Scope 2, Biogenic Direct with dynamic fields, check if required fields have values
-    if ((scope === 'scope1' || scope === 'scope2' || (scope === 'biogenic' && biogenicScopeSelection !== 'scope3')) && dynamicInputFields.length > 0) {
-      const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
-      const hasRequiredData = requiredFields.some(field => {
-        const value = data[field.variable] || data[field.fieldKey];
-        return value !== '' && value !== null && value !== undefined && value !== '0' && parseFloat(value) > 0;
-      });
-      return hasRequiredData ? 'filled' : 'empty';
+
+    if (dynamicInputFields.length > 0) {
+      return isMonthlyEntryComplete(data, dynamicInputFields) ? 'filled' : 'empty';
     }
     
     // For regular emissions without dynamic fields, check quantity
@@ -2817,15 +2340,11 @@ export default function EmissionEntryForm({
       return monthsWithData.size;
     }
     
-    // For dynamic form config, check if any required field (non-override) has value
+    // A month is complete only when every mandatory, non-override field has a value.
     if (dynamicInputFields.length > 0) {
-      const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
-      return Object.values(monthlyData).filter(m => {
-        return requiredFields.some(field => {
-          const value = m?.[field.variable] || m?.[field.fieldKey];
-          return value && parseFloat(value) > 0;
-        });
-      }).length;
+      return Object.values(monthlyData).filter((monthData) =>
+        isMonthlyEntryComplete(monthData, dynamicInputFields),
+      ).length;
     }
     
     // No dynamic fields loaded yet - return 0
@@ -2839,6 +2358,7 @@ export default function EmissionEntryForm({
     facilityId, scope, category,
     scope3Method, scope3ActivityId, useCustomActivity, scope3CustomActivity,
     biogenicScopeSelection,
+    capabilities: resolvedCapabilities,
     useCustomFuel, fuelId, customFuelName, customEmissionFactor, customSource,
     // Step 2 params
     processNames, responsiblePerson, requiresAssetName, assetName,
@@ -2849,17 +2369,12 @@ export default function EmissionEntryForm({
   });
 
 
-  const handleNext = () => {
-    const validation = canProceedToStep(currentStep + 1);
-    if (!validation.valid) {
-      toast.error(validation.message);
-      return;
+  const validateFullForm = () => {
+    for (const step of [2, 3, 4]) {
+      const validation = canProceedToStep(step);
+      if (!validation.valid) return validation;
     }
-    setCurrentStep(Math.min(currentStep + 1, totalSteps));
-  };
-
-  const handlePrev = () => {
-    setCurrentStep(Math.max(currentStep - 1, 1));
+    return { valid: true };
   };
 
   // Handler for calculating emissions for a specific employee and month
@@ -3121,10 +2636,10 @@ export default function EmissionEntryForm({
     // Setters
     setIsSaving,
     // Computed
-    isC7EmployeeCommuting, requiresSubcategory, selectedFuel,
+    isC7EmployeeCommuting, requiresSubcategory, selectedFuel, capabilities: resolvedCapabilities,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     // Helpers
-    canProceedToStep, getAuthHeader, onSuccess, getActualYearForMonth,
+    canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
     evaluateFormula, buildDecisionInputs,
     // Decision state for custom fuel methodology
     decisionFieldValues,
@@ -3136,16 +2651,31 @@ export default function EmissionEntryForm({
     ocrPrefillData,
   });
 
-  // Step indicators
-  const steps = [
-    { num: 1, title: 'Selection', desc: 'Facility, Scope, Category, Fuel' },
-    { num: 2, title: 'Process', desc: 'Process names & Person responsible' },
-    { num: 3, title: frequencyType === 'yearly' ? 'Annual Data' : 'Monthly Data', desc: frequencyType === 'yearly' ? 'Year & annual quantity' : 'Year & monthly quantities' },
-    { num: 4, title: 'Notes', desc: 'Additional notes' }
-  ];
+  const activeCreateModule = useMemo(() => {
+    const categoryName = (category || '').toLowerCase();
+    if (scope === 'scope3') {
+      const categoryCode = categoryName.match(/^(c\d+)/)?.[1];
+      return categoryRegistry.get(categoryCode) || categoryRegistry.getGenericModule?.('scope3');
+    }
+    if (scope === 'scope1') {
+      if (categoryName.includes('stationary')) return categoryRegistry.get('stationary_combustion');
+      if (categoryName.includes('mobile')) return categoryRegistry.get('mobile_combustion');
+      if (categoryName.includes('fugitive')) return categoryRegistry.get('fugitive_emissions');
+      return categoryRegistry.getGenericModule?.('scope1');
+    }
+    if (scope === 'scope2') return categoryRegistry.getGenericModule?.('scope2');
+    if (scope === 'biogenic') {
+      return biogenicScopeSelection === 'scope3'
+        ? categoryRegistry.getGenericModule?.('scope3')
+        : categoryRegistry.getGenericModule?.('scope1');
+    }
+    return null;
+  }, [scope, category, biogenicScopeSelection]);
+
+  const CreateDataRenderer = activeCreateModule?.Step3Renderer || Step3YearMonthlyData;
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6" data-testid="single-page-emission-form">
       {/* OCR Import Notice Banner */}
       {ocrPrefillData && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
@@ -3169,32 +2699,12 @@ export default function EmissionEntryForm({
         </div>
       )}
 
-      {/* Step Indicator */}
-      <div className="flex items-center justify-between mb-6">
-        {steps.map((step, idx) => (
-          <div key={step.num} className="flex items-center">
-            <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
-              currentStep >= step.num 
-                ? 'bg-primary text-white' 
-                : 'bg-stone-200 text-stone-500'
-            }`}>
-              {currentStep > step.num ? <Check className="w-4 h-4" /> : step.num}
-            </div>
-            <div className="ml-2 hidden sm:block">
-              <p className={`text-sm font-medium ${currentStep >= step.num ? 'text-primary' : 'text-stone-500'}`}>
-                {step.title}
-              </p>
-              <p className="text-xs text-stone-400">{step.desc}</p>
-            </div>
-            {idx < steps.length - 1 && (
-              <div className={`w-12 h-0.5 mx-2 ${currentStep > step.num ? 'bg-primary' : 'bg-stone-200'}`} />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Step 1: Basic Selection - Extracted to Step1BasicSelection component */}
-      {currentStep === 1 && (
+      <EmissionFormSection
+        title="Primary information"
+        description="Choose the facility, emission source, and calculation path."
+        testId="emission-primary-information-section"
+        className="pb-5"
+      >
         <Step1BasicSelection
           facilityId={facilityId}
           setFacilityId={setFacilityId}
@@ -3202,6 +2712,7 @@ export default function EmissionEntryForm({
           scope={scope}
           setScope={setScope}
           dynamicScopes={dynamicScopes}
+          disabledScopes={ghgFormArchitecture.organizationUiConfig.disabledScopes}
           hasScope3Access={hasScope3Access}
           setCategory={setCategory}
           setFuelId={setFuelId}
@@ -3215,6 +2726,7 @@ export default function EmissionEntryForm({
           loadingBiogenicCategories={loadingBiogenicCategories}
           category={category}
           categoriesForScope={categoriesForScope}
+          capabilities={resolvedCapabilities}
           scope3Method={scope3Method}
           availableScope3Methods={availableScope3Methods}
           getMethodLabel={getMethodLabel}
@@ -3248,14 +2760,6 @@ export default function EmissionEntryForm({
           filteredFuelsForCategory={filteredFuelsForCategory}
           getAvailableEFUnits={getAvailableEFUnits}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
-          supplierName={supplierName}
-          setSupplierName={setSupplierName}
-          supplierCode={supplierCode}
-          setSupplierCode={setSupplierCode}
-          employeeName={employeeName}
-          setEmployeeName={setEmployeeName}
-          employeeId={employeeId}
-          setEmployeeId={setEmployeeId}
           // KPI Access Control
           kpiCanAccessScope={kpiCanAccessScope}
           kpiAllowedScopes={kpiAllowedScopes}
@@ -3265,68 +2769,30 @@ export default function EmissionEntryForm({
           decisionFieldValues={decisionFieldValues}
           setDecisionFieldValues={setDecisionFieldValues}
         />
-      )}
+      </EmissionFormSection>
 
-      {/* Step 2: Process & Responsibility - Extracted to Step2ProcessResponsibility component */}
-      {currentStep === 2 && (
-        <Step2ProcessResponsibility
-          responsiblePerson={responsiblePerson}
-          setResponsiblePerson={setResponsiblePerson}
-          responsiblePersonDesignation={responsiblePersonDesignation}
-          setResponsiblePersonDesignation={setResponsiblePersonDesignation}
-          responsiblePersonContact={responsiblePersonContact}
-          setResponsiblePersonContact={setResponsiblePersonContact}
-          processNames={processNames}
-          addProcessName={addProcessName}
-          removeProcessName={removeProcessName}
-          updateProcessName={updateProcessName}
-          requiresAssetName={requiresAssetName}
-          assetName={assetName}
-          setAssetName={setAssetName}
-          showsLocationFields={showsLocationFields}
-          isC7EmployeeCommuting={isC7EmployeeCommuting}
-          fromLocation={fromLocation}
-          setFromLocation={setFromLocation}
-          toLocation={toLocation}
-          setToLocation={setToLocation}
-          recordSource={recordSource}
-          setRecordSource={setRecordSource}
-        />
-      )}
-
-      {/* Step 3: Year & Monthly Data — delegated to category module via the
-          registry. When a registered category exposes a `Step3Renderer`,
-          the page renders that instead of the default `Step3YearMonthlyData`.
-          The default is wired onto all categories during
-          `initializeCategoryModules()`, so this is a no-op visually today
-          but is the architectural hook for future per-category Step 3
-          experiences (grid, matrix, wizard, multi-employee). */}
-      {currentStep === 3 && (() => {
-        // Resolve the active module the same way Emissions.js EDIT does.
-        const catLower = (category || '').toLowerCase();
-        let activeModule = null;
-        if (scope === 'scope3') {
-          const codeMatch = catLower.match(/^(c\d+)/);
-          if (codeMatch) activeModule = categoryRegistry.get(codeMatch[1]);
-          if (!activeModule) activeModule = categoryRegistry.getGenericModule?.('scope3');
-        } else if (scope === 'scope1') {
-          if (catLower.includes('stationary')) activeModule = categoryRegistry.get('stationary_combustion');
-          else if (catLower.includes('mobile')) activeModule = categoryRegistry.get('mobile_combustion');
-          else if (catLower.includes('fugitive')) activeModule = categoryRegistry.get('fugitive_emissions');
-          activeModule = activeModule || categoryRegistry.getGenericModule?.('scope1');
-        } else if (scope === 'scope2') {
-          activeModule = categoryRegistry.getGenericModule?.('scope2');
-        } else if (scope === 'biogenic') {
-          activeModule = biogenicScopeSelection === 'scope3'
-            ? categoryRegistry.getGenericModule?.('scope3')
-            : categoryRegistry.getGenericModule?.('scope1');
-        }
-        const Step3 = activeModule?.Step3Renderer || Step3YearMonthlyData;
-        return (
-        <Step3
+      <EmissionFormSection
+        testId="emission-reporting-frequency-section"
+      >
+        <ReportingPeriodControls
           reportingYearType={reportingYearType}
-          setReportingYearType={setReportingYearType}
-          hasOrgYearTypePreference={hasOrgYearTypePreference}
+          reportingYear={reportingYear}
+          setReportingYear={setReportingYear}
+          frequencyType={frequencyType}
+          setFrequencyType={setFrequencyType}
+          editingEmission={editingEmission}
+          setMonthlyData={setMonthlyData}
+          setYearlyData={setYearlyData}
+          setExpandedMonths={setExpandedMonths}
+        />
+      </EmissionFormSection>
+
+      <EmissionFormSection
+        testId="emission-activity-data-section"
+      >
+        <CreateDataRenderer
+          showReportingControls={false}
+          reportingYearType={reportingYearType}
           reportingYear={reportingYear}
           setReportingYear={setReportingYear}
           frequencyType={frequencyType}
@@ -3369,22 +2835,57 @@ export default function EmissionEntryForm({
           centralizedUnits={centralizedUnits}
           defaultUnit={defaultUnit}
           allowedUnits={allowedUnits}
+          requiresSubcategory={requiresSubcategory}
           customEmissionFactorUnit={customEmissionFactorUnit}
           customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
-          liveCalculationResults={liveCalculationResults}
-          isLiveCalculationCalculating={isCalcEngineCalculating}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
           BACKEND_URL={BACKEND_URL}
           category={category}
+          capabilities={resolvedCapabilities}
+          fieldOptions={resolvedGhgFieldOptions}
         />
-        );
-      })()}
+      </EmissionFormSection>
 
-      {/* Step 4: Notes - Extracted to Step4Notes component */}
-      {currentStep === 4 && (
+      <EmissionFormSection
+        title="Optional fields"
+        description="Add process ownership, locations, source references, and notes when relevant."
+        collapsible
+        defaultOpen={false}
+        testId="emission-optional-fields-section"
+      >
+        <Step2ProcessResponsibility
+          responsiblePerson={responsiblePerson}
+          setResponsiblePerson={setResponsiblePerson}
+          responsiblePersonDesignation={responsiblePersonDesignation}
+          setResponsiblePersonDesignation={setResponsiblePersonDesignation}
+          responsiblePersonContact={responsiblePersonContact}
+          setResponsiblePersonContact={setResponsiblePersonContact}
+          processNames={processNames}
+          addProcessName={addProcessName}
+          removeProcessName={removeProcessName}
+          updateProcessName={updateProcessName}
+          requiresAssetName={requiresAssetName}
+          assetName={assetName}
+          setAssetName={setAssetName}
+          showsLocationFields={showsLocationFields}
+          isC7EmployeeCommuting={isC7EmployeeCommuting}
+          fromLocation={fromLocation}
+          setFromLocation={setFromLocation}
+          toLocation={toLocation}
+          setToLocation={setToLocation}
+          recordSource={recordSource}
+          setRecordSource={setRecordSource}
+          scope={scope}
+          category={category}
+          capabilities={resolvedCapabilities}
+          supplierName={supplierName}
+          setSupplierName={setSupplierName}
+          supplierCode={supplierCode}
+          setSupplierCode={setSupplierCode}
+        />
         <Step4Notes
           notes={notes}
           setNotes={setNotes}
@@ -3411,44 +2912,30 @@ export default function EmissionEntryForm({
           biogenicScopeSelection={biogenicScopeSelection}
           getMethodLabel={getMethodLabel}
         />
-      )}
+      </EmissionFormSection>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between pt-4 border-t">
+      <div className="flex flex-col-reverse gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:items-center sm:justify-between" data-testid="emission-form-actions">
         <Button
           type="button"
           variant="outline"
-          onClick={currentStep === 1 ? onCancel : handlePrev}
+          onClick={onCancel}
+          data-testid="emission-form-cancel-button"
         >
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          {currentStep === 1 ? 'Cancel' : 'Previous'}
+          Cancel
         </Button>
-
-        {currentStep < totalSteps ? (
-          <Button type="button" onClick={handleNext}>
-            Next
-            <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
-        ) : (
-          <Button 
-            type="button" 
-            onClick={handleSubmit} 
-            className="bg-green-600 hover:bg-green-700"
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4 mr-1" />
-                {frequencyType === 'yearly' ? 'Save Annual Emissions' : `Save Emissions (${filledMonthsCount} months)`}
-              </>
-            )}
-          </Button>
-        )}
+        <Button
+          type="button"
+          onClick={handleSubmit}
+          className="bg-emerald-700 hover:bg-emerald-800"
+          disabled={isSaving}
+          data-testid="emission-form-save-button"
+        >
+          {isSaving ? (
+            <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Saving...</>
+          ) : (
+            <><Check className="mr-1 h-4 w-4" />{frequencyType === 'yearly' ? 'Save annual emissions' : `Save emissions (${filledMonthsCount} months)`}</>
+          )}
+        </Button>
       </div>
     </div>
   );

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="25.699" timestamp="2026-08-12T06:06:43.526603+00:00" hostname="agent-env-4c95eb7d-1cbe-4222-9b0d-54fc8a95d5be"><testcase classname="tests.test_internal_ai_iter163_live_validation" name="test_aliases_map_to_canonical_diesel_and_unknown_fails_closed" time="0.001" /><testcase classname="tests.test_internal_ai_iter163_live_validation" name="test_live_internal_ai_scope_and_record_history_single_login" time="25.572"><failure message="assert &lt;re.Match object; span=(16, 52), match='3506b0e9-37c8-4e44-8350-750732734d56'&gt; is None&#10; +  where &lt;re.Match object; span=(16, 52), match='3506b0e9-37c8-4e44-8350-750732734d56'&gt; = &lt;function search at 0xfd9e188e9940&gt;('\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b', '{&quot;session_id&quot;: &quot;3506b0e9-37c8-4e44-8350-750732734d56&quot;, &quot;answer&quot;: &quot;**diesel record history — august 2026**\\n\\n- **7 ...raw_data&quot;: null, &quot;chart&quot;: null, &quot;evidence&quot;: null, &quot;intent&quot;: &quot;version_history&quot;, &quot;query_type&quot;: &quot;record_version_history&quot;}')&#10; +    where &lt;function search at 0xfd9e188e9940&gt; = re.search">def test_live_internal_ai_scope_and_record_history_single_login():
+        # Live endpoint checks with exactly one login request (rate-limit sensitive).
+        if not BASE_URL:
+            pytest.fail("Missing REACT_APP_BACKEND_URL (frontend/.env)")
+    
+        login_resp = requests.post(
+            f"{BASE_URL}/api/auth/login",
+            json={"email": "goyalsomil2001@gmail.com", "password": "TestUser123!"},
+            timeout=45,
+        )
+        if login_resp.status_code == 429:
+            pytest.fail(f"BLOCKER: /api/auth/login returned 429 (rate limited). Body: {login_resp.text[:300]}")
+        assert login_resp.status_code == 200, f"Login failed: {login_resp.status_code} {login_resp.text[:300]}"
+    
+        token = (login_resp.json().get("access_token") or login_resp.json().get("token"))
+        assert token, f"No token found in login payload keys={list(login_resp.json().keys())}"
+        headers = {"Authorization": f"Bearer {token}"}
+    
+        # Query 1: generic scope query must stay fuel-agnostic and not inject CO2 as fuel.
+        q1_resp = requests.post(
+            f"{BASE_URL}/api/internal-ai/chat",
+            headers=headers,
+            json={"message": "give scope 1 emissions"},
+            timeout=120,
+        )
+        assert q1_resp.status_code == 200, f"Scope query failed: {q1_resp.status_code} {q1_resp.text[:500]}"
+        q1_json = q1_resp.json()
+        q1_text = json.dumps(q1_json, ensure_ascii=False).lower()
+        assert q1_json.get("query_type") == "emission_lookup"
+        assert "co2 – carbon dioxide" not in q1_text
+        assert "co2 - carbon dioxide" not in q1_text
+        assert "not_found" not in q1_text
+        assert "no authorized data" not in q1_text
+    
+        # Query 2: record history must avoid internal IDs / formula-version terminology and timelines.
+        q2_resp = requests.post(
+            f"{BASE_URL}/api/internal-ai/chat",
+            headers=headers,
+            json={"message": "version history for diesel record for aug 2026"},
+            timeout=120,
+        )
+        assert q2_resp.status_code == 200, f"History query failed: {q2_resp.status_code} {q2_resp.text[:500]}"
+        q2_json = q2_resp.json()
+        q2_text = json.dumps(q2_json, ensure_ascii=False).lower()
+        assert q2_json.get("query_type") == "record_version_history"
+        assert "`" not in q2_text
+&gt;       assert re.search(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", q2_text) is None
+E       assert &lt;re.Match object; span=(16, 52), match='3506b0e9-37c8-4e44-8350-750732734d56'&gt; is None
+E        +  where &lt;re.Match object; span=(16, 52), match='3506b0e9-37c8-4e44-8350-750732734d56'&gt; = &lt;function search at 0xfd9e188e9940&gt;('\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b', '{"session_id": "3506b0e9-37c8-4e44-8350-750732734d56", "answer": "**diesel record history — august 2026**\\n\\n- **7 ...raw_data": null, "chart": null, "evidence": null, "intent": "version_history", "query_type": "record_version_history"}')
+E        +    where &lt;function search at 0xfd9e188e9940&gt; = re.search
+
+tests/test_internal_ai_iter163_live_validation.py:120: AssertionError</failure></testcase></testsuite></testsuites>

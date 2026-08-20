@@ -49,6 +49,22 @@ import { getCurrentReportingYear, generateReportingYears } from '../utils/report
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+const questionConfigLookupKeys = (keys) => [...new Set(keys.flatMap((key) => {
+  const parts = key?.split('_') || [];
+  return [key, parts.slice(0, -1).join('_'), parts.slice(0, -2).join('_')].filter(Boolean);
+}))];
+
+const questionDisplayName = (configMap, questionKey) => {
+  const exact = configMap[questionKey];
+  if (exact) return exact.description || exact.label || exact.question || questionKey;
+  const parentKey = questionKey?.replace(/_[^_]+$/, '');
+  const parent = configMap[parentKey];
+  const subKey = questionKey?.split('_').pop();
+  const sub = parent?.sub_questions?.find((item) => item.sub_key === subKey);
+  if (parent && sub) return `${(parent.description || parent.label || parent.question || parentKey).replace(/:\s*$/, '')} → ${sub.label}`;
+  return questionKey;
+};
+
 /**
  * ApproverQueue - Dashboard for approvers to review pending submissions
  * 
@@ -246,7 +262,7 @@ export default function ApproverQueue() {
       const brsrItems = recordApprovals.filter(r => r._needs_config);
       if (brsrItems.length > 0) {
         try {
-          const questionKeys = brsrItems.map(r => r.entity_id).filter(Boolean);
+          const questionKeys = questionConfigLookupKeys(brsrItems.map(r => r.entity_id).filter(Boolean));
           const configRes = await axios.post(
             `${API}/api/esg-questionnaire/configs/batch`,
             { question_keys: questionKeys },
@@ -259,13 +275,14 @@ export default function ApproverQueue() {
           
           // Enrich BRSR items with config data
           recordApprovals = recordApprovals.map(item => {
-            if (item._needs_config && configMap[item.entity_id]) {
-              const cfg = configMap[item.entity_id];
+            if (item._needs_config) {
+              const cfg = configMap[item.entity_id] || configMap[item.entity_id?.replace(/_[^_]+$/, '')];
+              if (!cfg) return { ...item, disclosure_name: questionDisplayName(configMap, item.entity_id) };
               // Get framework from config if not already set
               const cfgFramework = cfg.framework || (cfg.frameworks && cfg.frameworks[0]);
               return {
                 ...item,
-                disclosure_name: cfg.description || cfg.label || cfg.question || item.entity_id,
+                disclosure_name: questionDisplayName(configMap, item.entity_id),
                 framework: item.framework || cfgFramework,  // Use existing or from config
               };
             }
@@ -329,7 +346,7 @@ export default function ApproverQueue() {
       const brsrItems = allHistory.filter(r => r.entity_type === 'esg_response');
       if (brsrItems.length > 0) {
         try {
-          const questionKeys = brsrItems.map(r => r.entity_id).filter(Boolean);
+          const questionKeys = questionConfigLookupKeys(brsrItems.map(r => r.entity_id).filter(Boolean));
           const uniqueKeys = [...new Set(questionKeys)];
           const configRes = await axios.post(
             `${API}/api/esg-questionnaire/configs/batch`,
@@ -343,9 +360,8 @@ export default function ApproverQueue() {
           
           // Enrich items with disclosure names
           allHistory.forEach(item => {
-            if (item.entity_type === 'esg_response' && configMap[item.entity_id]) {
-              const cfg = configMap[item.entity_id];
-              item._disclosure_name = cfg.description || cfg.label || cfg.question || item.entity_id;
+            if (item.entity_type === 'esg_response') {
+              item._disclosure_name = questionDisplayName(configMap, item.entity_id);
             }
           });
         } catch (configErr) {
@@ -1910,7 +1926,7 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       const desc = questionConfig.description || questionConfig.label || questionConfig.question || item.entity_id;
       if (questionConfig.resolved_from_parent && questionConfig.matched_sub_question) {
         const sub = questionConfig.matched_sub_question;
-        return `${desc} → ${sub.sub_key}. ${sub.label}`;
+        return `${desc} → ${sub.label}`;
       }
       return desc;
     }
@@ -2152,6 +2168,8 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   
   // Get value from multiple possible paths (entity_snapshot for new system, value for old system)
   const submittedValue = item.entity_snapshot?.value || item.value || item.submissions?.[0]?.value || '';
+  const previousValue = item.entity_snapshot?.previous_value ?? null;
+  const isCreate = item.request_type === 'create' || previousValue === null;
   const [editedValue, setEditedValue] = useState(submittedValue);
   
   // Track if value was edited
@@ -2316,6 +2334,9 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       <Card className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100">
         <div className="flex items-start gap-2 mb-2">
           <Badge variant="outline" className="shrink-0 bg-emerald-100 text-emerald-800">GRI</Badge>
+          <Badge variant="outline" className={`shrink-0 ${isCreate ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+            {isCreate ? 'Create' : 'Update'}
+          </Badge>
           {questionConfig?.disclosure_number && (
             <Badge variant="outline" className="shrink-0 bg-stone-100 text-stone-600">
               {questionConfig.disclosure_number}
@@ -2356,7 +2377,9 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       {/* Response Display */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-stone-700">Response</label>
+          <label className="text-sm font-medium text-stone-700">
+            {isCreate ? 'New Response' : 'Proposed Changes'}
+          </label>
           <Button
             variant={isEditing ? "default" : "outline"}
             size="sm"
@@ -2368,14 +2391,35 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           </Button>
         </div>
         
-        <Card className="p-4 bg-white border-stone-200">
-          {renderResponse()}
-        </Card>
+        {/* Old value (only for updates) */}
+        {!isCreate && previousValue !== null && (
+          <div>
+            <label className="text-xs font-medium text-stone-500 mb-1 block">Current saved value</label>
+            <Card className="p-4 bg-stone-50 border-stone-200">
+              {typeof previousValue === 'string' || typeof previousValue === 'number'
+                ? <p className="text-stone-600 whitespace-pre-wrap">{previousValue || <span className="text-stone-400 italic">Empty</span>}</p>
+                : typeof previousValue === 'object'
+                  ? <pre className="text-sm text-stone-600 overflow-auto">{JSON.stringify(previousValue, null, 2)}</pre>
+                  : <p className="text-stone-400 italic">No previous value</p>
+              }
+            </Card>
+          </div>
+        )}
+        
+        {/* Proposed / editable value */}
+        <div>
+          <label className="text-xs font-medium text-stone-500 mb-1 block">
+            {isCreate ? 'Submitted value' : 'Proposed value'}
+          </label>
+          <Card className="p-4 bg-white border-stone-200">
+            {renderResponse()}
+          </Card>
+        </div>
         
         {hasEdits && (
           <p className="text-xs text-amber-600 flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
-            Response has been modified
+            Response has been modified by approver
           </p>
         )}
       </div>

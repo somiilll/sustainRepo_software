@@ -1,0 +1,538 @@
+{
+ "calculation_fixtures_skipped": [
+  {
+   "bucket": "scope1|Fugitive Emissions|-|monthly|standard_fuel|-|-",
+   "reason": "replay_error: ValueError: Property 'co2_gwp_fugitives' could not be resolved for context {'fuel_name': 'HFC-134a', 'fuel_id': 'dfcec834-e7ab-4084-9349-89196b165f22', 'scope': 'scope1', 'category': 'Fugitive Emissions'}. Define a property_value, enable org override, or add it to the fuel database.",
+   "record_id": "1e11115f-f7db-4d64-8ded-78950ed93708"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "0fdbcdc5-b00c-4304-9465-ad184d464a19"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "4966800c-cc21-4b2a-bb4b-ca64fa073443"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "590fb496-421a-40cb-8e77-1f5dc17e1956"
+  },
+  {
+   "bucket": "scope1|Mobile Combustion|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "5ac4a935-41b7-472f-ae31-a01f2b348433"
+  },
+  {
+   "bucket": "scope1|Mobile Combustion|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "8e30ded5-d96d-40b4-9e8f-23025612eec2"
+  },
+  {
+   "bucket": "scope1|Mobile Combustion|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "e2e76506-3d04-453a-b114-31b791ba8efd"
+  },
+  {
+   "bucket": "scope1|Stationary Combustion|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "00eb73f1-ad64-47b2-a5cc-c4427a12017b"
+  },
+  {
+   "bucket": "scope1|Stationary Combustion|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "d2f96f73-beb3-4b5a-ac60-3d6c63c2c469"
+  },
+  {
+   "bucket": "scope2|Purchased Electricity|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "2904dd4b-3f09-449f-add9-316377c68d5b"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "03483b80-ce53-4992-a70e-4fa27f5afaf8"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "427b7708-e5dd-477f-9a84-f4263c797305"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "98693bc2-9b2b-4c1e-8bb6-beebbf2a58da"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|monthly|standard_fuel|-|-",
+   "reason": "replay_error: CalculationError: Missing required 'No. of Days Travelled'",
+   "record_id": "88e15837-de49-4a01-8b0a-ba0972707ae1"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "reason": "replay_error: CalculationError: Missing required 'No. of Days Travelled'",
+   "record_id": "4e999292-7a2e-4f6e-ae06-58375a01e7ad"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "reason": "replay_error: CalculationError: Missing required 'No. of Days Travelled'",
+   "record_id": "6c370f77-2a55-49f5-a9c8-23ede503d583"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "reason": "replay_error: CalculationError: Missing required 'No. of Days Travelled'",
+   "record_id": "aa28d419-d0aa-4cdd-9605-7fdeedd8e4b0"
+  }
+ ],
+ "distinct_frequency_type_values_in_records": [
+  "None",
+  "monthly",
+  "yearly"
+ ],
+ "distinct_scope3_method_values_in_records": [
+  "activity_basis",
+  "spend_based",
+  "spend_basis",
+  "supplier_basis"
+ ],
+ "distinct_scope_values_in_records": [
+  "Scope 2",
+  "biogenic",
+  "scope1",
+  "scope2",
+  "scope3"
+ ],
+ "duplicate_active_category_names": [
+  {
+   "ids": [
+    "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+    "8d62f52d-0ca6-4737-9b14-dd60878c1f27"
+   ],
+   "ids_with_active_decision_tree": [
+    "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+    "8d62f52d-0ca6-4737-9b14-dd60878c1f27"
+   ],
+   "name": "Stationary Combustion"
+  },
+  {
+   "ids": [
+    "1acae127-2693-4fea-a4ef-84c7568fdc54",
+    "92a11a68-ed7e-4670-b218-d1ede0480eca"
+   ],
+   "ids_with_active_decision_tree": [
+    "1acae127-2693-4fea-a4ef-84c7568fdc54",
+    "92a11a68-ed7e-4670-b218-d1ede0480eca"
+   ],
+   "name": "Mobile Combustion"
+  }
+ ],
+ "formula_selection_unresolvable": [
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|yearly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "58656681-b8c9-4015-ae29-097898f6d052"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "0071a73b-cd42-481f-a9ba-47e60cd4044b",
+   "stored_formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+  },
+  {
+   "bucket": "scope1|Stationary Combustion|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "00eb73f1-ad64-47b2-a5cc-c4427a12017b"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "03483b80-ce53-4992-a70e-4fa27f5afaf8"
+  },
+  {
+   "bucket": "scope3|C11 - Use of Sold Products|activity_basis|monthly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "d0ebca6a-61cd-4646-8cf9-2d8501fe4471"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "0aaf4666-253c-4557-a9c6-40d9f2e8fff8",
+   "stored_formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "0fdbcdc5-b00c-4304-9465-ad184d464a19"
+  },
+  {
+   "bucket": "scope3|C8 - Upstream Leased Assets|supplier_basis|unspecified|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "aa482371-de52-43fb-8f59-17229e548d58"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "199d3545-d1da-49b8-b8c9-4f2faec19589",
+   "stored_formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+  },
+  {
+   "bucket": "scope3|C11 - Use of Sold Products|activity_basis|monthly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "d0ebca6a-61cd-4646-8cf9-2d8501fe4471"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "26a07920-1987-45c1-a081-f3290c55332a",
+   "stored_formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+  },
+  {
+   "bucket": "scope2|Purchased Electricity|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "2904dd4b-3f09-449f-add9-316377c68d5b"
+  },
+  {
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|monthly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "aa482371-de52-43fb-8f59-17229e548d58"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "36e1847c-ea3e-41f6-9e5d-07d53c25dcb4",
+   "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+  },
+  {
+   "bucket": "scope2|Purchased Electricity|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "37d851b7-b1c4-46dd-bb32-9be654e5a1ce"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "427b7708-e5dd-477f-9a84-f4263c797305"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "4966800c-cc21-4b2a-bb4b-ca64fa073443"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "58656681-b8c9-4015-ae29-097898f6d052"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "4e999292-7a2e-4f6e-ae06-58375a01e7ad",
+   "stored_formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+  },
+  {
+   "bucket": "biogenic|C10 - Processing of Sold Products|activity_basis|yearly|standard_fuel|scope3|-",
+   "candidate_category_ids": [
+    "9f54a99c-ac91-4997-99fc-fe7f714ff453"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "511601e9-0d12-4b25-937f-44ee13c14d54",
+   "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "590fb496-421a-40cb-8e77-1f5dc17e1956"
+  },
+  {
+   "bucket": "scope1|Mobile Combustion|-|monthly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "5ac4a935-41b7-472f-ae31-a01f2b348433"
+  },
+  {
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|yearly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "aa482371-de52-43fb-8f59-17229e548d58"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "5bb3f890-f838-431c-874e-faeb323e776f",
+   "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|monthly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "58656681-b8c9-4015-ae29-097898f6d052"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "680a0638-98ed-4006-b53d-47773ce28cc3",
+   "stored_formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "58656681-b8c9-4015-ae29-097898f6d052"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "6c370f77-2a55-49f5-a9c8-23ede503d583",
+   "stored_formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|monthly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "58656681-b8c9-4015-ae29-097898f6d052"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "88e15837-de49-4a01-8b0a-ba0972707ae1",
+   "stored_formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+  },
+  {
+   "bucket": "scope1|Mobile Combustion|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "8e30ded5-d96d-40b4-9e8f-23025612eec2"
+  },
+  {
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|monthly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "aa482371-de52-43fb-8f59-17229e548d58"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "8e3a2ad0-7c26-49f2-b463-c3bd543ac095",
+   "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+  },
+  {
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|yearly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "aa482371-de52-43fb-8f59-17229e548d58"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "91de062b-44bf-40f5-9c7e-2fb5002804fc",
+   "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "98693bc2-9b2b-4c1e-8bb6-beebbf2a58da"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|monthly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "58656681-b8c9-4015-ae29-097898f6d052"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "98b0eb4a-39a3-4ce1-8393-df4fb7c6a566",
+   "stored_formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|yearly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "58656681-b8c9-4015-ae29-097898f6d052"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "a327613f-6f81-418b-928f-b4edad4c9618",
+   "stored_formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "58656681-b8c9-4015-ae29-097898f6d052"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "aa28d419-d0aa-4cdd-9605-7fdeedd8e4b0",
+   "stored_formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+  },
+  {
+   "bucket": "scope1|Fugitive Emissions|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "bcc0de84-b567-43fb-8d45-338bf5eeb699"
+  },
+  {
+   "bucket": "biogenic|C8 - Upstream Leased Assets|activity_basis|yearly|standard_fuel|scope3|-",
+   "candidate_category_ids": [
+    "aa482371-de52-43fb-8f59-17229e548d58"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "ca596c3a-dae4-4abb-a376-792eac44c8f8",
+   "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+  },
+  {
+   "bucket": "scope1|Stationary Combustion|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "d2f96f73-beb3-4b5a-ac60-3d6c63c2c469"
+  },
+  {
+   "bucket": "scope3|C8 - Upstream Leased Assets|activity_basis|unspecified|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "aa482371-de52-43fb-8f59-17229e548d58"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "d9631a72-04be-4df4-a036-a71007e8d4c6",
+   "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+  },
+  {
+   "bucket": "scope3|C14 - Franchises|activity_basis|yearly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "536069ee-251f-4772-9f4b-48b562a2859f"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "dc05452c-5cef-46db-a9d9-49b7b5c90e27",
+   "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+  },
+  {
+   "bucket": "scope2|Purchased Steam/Heat|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "de861299-014e-4c0e-81f0-7e70da0aadeb"
+  },
+  {
+   "bucket": "scope1|Mobile Combustion|-|yearly|standard_fuel|-|-",
+   "reason": "audit_log_has_no_formula_id",
+   "record_id": "e2e76506-3d04-453a-b114-31b791ba8efd"
+  },
+  {
+   "bucket": "scope3|C6 - Business Travel|activity_basis|unspecified|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "58656681-b8c9-4015-ae29-097898f6d052"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "f1fea5bd-2a52-4a20-a81b-97c4e0470a7e",
+   "stored_formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+  },
+  {
+   "bucket": "scope3|C8 - Upstream Leased Assets|supplier_basis|monthly|standard_fuel|-|-",
+   "candidate_category_ids": [
+    "aa482371-de52-43fb-8f59-17229e548d58"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "f57d8a55-07f7-426a-a444-1de182e241c2",
+   "stored_formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+  },
+  {
+   "bucket": "biogenic|C11 - Use of Sold Products|activity_basis|monthly|standard_fuel|scope3|-",
+   "candidate_category_ids": [
+    "d0ebca6a-61cd-4646-8cf9-2d8501fe4471"
+   ],
+   "reason": "decision_inputs_not_reconstructible",
+   "record_id": "fd0fc632-5e16-414b-b894-7d0ed1fe72b7",
+   "stored_formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+  }
+ ],
+ "generated_at": "2026-08-17T12:46:08.421441+00:00",
+ "note": "Observed pre-existing inconsistencies. Phase 0 reports them; it does not change behaviour.",
+ "orphan_calculation_audit_logs": 412,
+ "records_with_process_type_outside_process_emissions": 2,
+ "same_name_categories_explained": [
+  {
+   "definitions": [
+    {
+     "code": "mobile_combustion",
+     "id": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+     "is_active": true,
+     "scope_code": "scope1",
+     "scope_id": "8649468b-4fa7-4281-b842-b70bc084ec1b"
+    },
+    {
+     "code": "mobile_combustion",
+     "id": "1acae127-2693-4fea-a4ef-84c7568fdc54",
+     "is_active": true,
+     "scope_code": "biogenic",
+     "scope_id": "f868ced4-4f8d-487c-8977-6638aad3d396"
+    }
+   ],
+   "distinct_scope_codes": [
+    "biogenic",
+    "scope1"
+   ],
+   "name": "Mobile Combustion"
+  },
+  {
+   "definitions": [
+    {
+     "code": "stationary_combustion",
+     "id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+     "is_active": true,
+     "scope_code": "scope1",
+     "scope_id": "8649468b-4fa7-4281-b842-b70bc084ec1b"
+    },
+    {
+     "code": "stationary_combustion",
+     "id": "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+     "is_active": true,
+     "scope_code": "biogenic",
+     "scope_id": "f868ced4-4f8d-487c-8977-6638aad3d396"
+    }
+   ],
+   "distinct_scope_codes": [
+    "biogenic",
+    "scope1"
+   ],
+   "name": "Stationary Combustion"
+  }
+ ],
+ "same_name_categories_note": "NOT duplicates: each name exists once per scope (Scope 1 and Biogenic) with a distinct scope_id and its own decision tree. The application resolves categories by (name, scope_code), so runtime resolution is unambiguous. Only name-only resolution is ambiguous.",
+ "scope3_records_with_legacy_uncoded_category": [
+  "Business Travel",
+  "Downstream Transportation and Distribution",
+  "Employee Commuting",
+  "Purchased Goods and Services",
+  "Upstream Transportation and Distribution",
+  "Waste Generated in Operations"
+ ],
+ "stored_vs_replay_output_drift": [
+  {
+   "bucket": "scope3|C2 - Capital Goods|spend_basis|monthly|standard_fuel|-|-",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "record_id": "5939b346-3008-4a3a-9183-6ebcff53b78b",
+   "replayed_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.361503191585004
+    }
+   },
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.3583768365534687
+    }
+   }
+  },
+  {
+   "bucket": "scope3|C4 - Upstream Transportation and Distribution|spend_basis|unspecified|standard_fuel|-|-",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "record_id": "9b1c9532-1ac9-40f8-bacd-3a30da55e7d5",
+   "replayed_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.4418280976062456
+    }
+   },
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 1.4385172963129247
+    }
+   }
+  },
+  {
+   "bucket": "scope3|C4 - Upstream Transportation and Distribution|spend_basis|yearly|standard_fuel|-|-",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "record_id": "db0601c0-8cae-4194-9fde-782092bf1395",
+   "replayed_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 7.3882495684792096
+    }
+   },
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 7.371284282348838
+    }
+   }
+  },
+  {
+   "bucket": "scope3|C9 - Downstream Transportation and Distribution|spend_basis|monthly|standard_fuel|-|-",
+   "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb",
+   "record_id": "4cba5271-40f7-4f13-b6bc-347b4f2775d5",
+   "replayed_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.07119585947807239
+    }
+   },
+   "stored_outputs": {
+    "co2e": {
+     "unit": "tCO2e",
+     "value": 0.07103237581172517
+    }
+   }
+  }
+ ],
+ "stored_vs_replay_output_drift_count": 4
+}

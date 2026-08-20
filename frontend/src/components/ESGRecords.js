@@ -417,7 +417,7 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
             ) : records.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-stone-400">
-                  No records found. Click "Add Record" to create one.
+                  No records found. Click &quot;Add Record&quot; to create one.
                 </TableCell>
               </TableRow>
             ) : records.map(record => {
@@ -1530,8 +1530,9 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
 // Dynamic Field Renderer
 // =============================================================================
 
-export function DynamicFieldRenderer({ field, value, onChange }) {
+export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnitChange, testIdPrefix = 'metric-field' }) {
   const { field_key, type, label, required, options, placeholder } = field;
+  const hasUnit = field.has_unit && field.allowed_units?.length > 0;
 
   switch (type) {
     case 'text':
@@ -1564,20 +1565,44 @@ export function DynamicFieldRenderer({ field, value, onChange }) {
     case 'number':
       return (
         <div>
-          <Label>{label}{required && ' *'}</Label>
-          <Input
-            type="number"
-            value={value ?? ''}
-            onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-            className="mt-1"
-            min={field.validation?.min}
-            max={field.validation?.max}
-          />
+          <Label className="text-xs">{label}{required && ' *'}</Label>
+          {hasUnit ? (
+            <div className="flex gap-2 mt-1">
+              <Input
+                type="number"
+                value={value ?? ''}
+                onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+                className="flex-1 border-stone-300"
+                min={field.validation?.min}
+                max={field.validation?.max}
+                data-testid={`${testIdPrefix}-${field_key}-input`}
+              />
+              <Select value={unitValue || field.default_unit || ''} onValueChange={onUnitChange}>
+                <SelectTrigger className="w-[120px] shrink-0 border-stone-300" data-testid={`${testIdPrefix}-${field_key}-unit-select`}>
+                  <SelectValue placeholder="Unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {field.allowed_units.map(u => (
+                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <Input
+              type="number"
+              value={value ?? ''}
+              onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+              className="mt-1 border-stone-300"
+              min={field.validation?.min}
+              max={field.validation?.max}
+              data-testid={`${testIdPrefix}-${field_key}-input`}
+            />
+          )}
         </div>
       );
 
     case 'dropdown':
-    case 'unit_selector':
       return (
         <div>
           <Label>{label}{required && ' *'}</Label>
@@ -1674,9 +1699,9 @@ function VersionHistoryModal({ open, onClose, record, versions }) {
                       {new Date(v.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  {v.changed_fields?.length > 0 && (
+                  {v.changed_fields?.filter(field => field !== 'approval_status').length > 0 && (
                     <p className="text-xs text-text-muted mt-1">
-                      Changed: {v.changed_fields.join(', ')}
+                      Changed: {v.changed_fields.filter(field => field !== 'approval_status').join(', ')}
                     </p>
                   )}
                   {v.change_reason && (

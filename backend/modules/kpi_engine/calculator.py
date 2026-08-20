@@ -325,23 +325,23 @@ class KPICalculator:
         if not value_field:
             aggregation_type = "count"
         
-        # Perform aggregation
+        # Perform aggregation (with unit normalization if target unit specified)
+        target_unit = None
+        unit_config = kpi.get("unit_config")
+        if unit_config:
+            target_unit = unit_config.get("default_unit")
+        
         agg_result = Aggregator.aggregate(
             records=records,
             aggregation_type=aggregation_type,
             value_field=value_field if value_field else None,
+            target_unit=target_unit,
         )
-        
-        # Get unit from KPI definition
-        unit = None
-        unit_config = kpi.get("unit_config")
-        if unit_config:
-            unit = unit_config.get("default_unit")
         
         # Format and return result
         return format_result(
             value=agg_result.get("value"),
-            unit=unit,
+            unit=target_unit,
             record_count=agg_result.get("record_count", 0),
             aggregation_type=aggregation_type,
             metadata={

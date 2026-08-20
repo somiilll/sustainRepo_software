@@ -1,97 +1,102 @@
 {
-  "theme": {
-    "name": "The Botanical Swiss (Premium Enterprise ESG)",
-    "description": "A high-end, premium enterprise aesthetic that blends the authoritative, precise geometry of 'Swiss & High-Contrast' with the grounded, trusting palette of 'Organic & Earthy'. Designed specifically for CFOs and Sustainability Heads. It rejects the generic 'SaaS dashboard' look by replacing gray boxes with vast negative space, crisp typography, and deep forest/sage tones. It utilizes progressive disclosure and a split-screen wizard architecture to make complex ESG reporting feel effortless.",
-    "mode": "light"
-  },
+  "theme": "Light",
+  "design_archetype": "ORGANIC & EARTHY",
   "typography": {
-    "strategy": "Old Money Tech - Authority meets high legibility.",
-    "fonts": {
-      "headings": "Cabinet Grotesk",
-      "body": "Manrope",
-      "mono": "JetBrains Mono"
+    "heading_font": "Manrope",
+    "body_font": "IBM Plex Sans",
+    "hierarchy": {
+      "h1": "text-2xl font-bold tracking-tight text-gray-900",
+      "h2": "text-lg font-semibold tracking-tight text-gray-800",
+      "h3": "text-base font-medium text-gray-800",
+      "body": "text-sm leading-relaxed text-gray-600",
+      "badge": "text-xs font-medium uppercase tracking-wider"
     },
-    "scales": {
-      "h1": "text-4xl sm:text-5xl tracking-tight text-slate-900 font-medium",
-      "h2": "text-3xl sm:text-4xl tracking-tight text-slate-900",
-      "h3": "text-xl sm:text-2xl font-medium tracking-tight",
-      "h4": "text-lg sm:text-xl font-medium",
-      "body": "text-base leading-relaxed text-slate-600",
-      "small": "text-sm text-slate-500",
-      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-slate-400"
-    },
-    "instructions": "NEVER use Inter, Roboto, or Open Sans for headings. Enforce tight tracking on all headings above text-2xl. Use font-light and font-medium strategically to create tension."
+    "notes": "Do not use Inter for headings. Keep typographic scales moderate for dashboard legibility."
   },
   "colors": {
-    "archetype": "Organic & Earthy + Swiss Precision",
-    "palette": {
-      "background": "#FDFDFC",
-      "surface": "#FFFFFF",
-      "surface_hover": "#F6F8F6",
-      "primary": "#0D3C26",
-      "primary_hover": "#16593A",
-      "secondary": "#EAF0EB",
-      "secondary_foreground": "#0D3C26",
-      "accent": "#CBA365",
-      "border": "#E2E8E4",
-      "text_primary": "#111412",
-      "text_secondary": "#5C6661",
-      "success": "#2E7D32",
-      "warning": "#F57C00",
-      "error": "#D32F2F"
-    },
-    "instructions": "Avoid muddy grays; tint all neutral grays slightly with green (sage). Never use pure black. Ensure button hover states explicitly set text colors. Primary CTA should be the deep forest green (#0D3C26). Accent color (muted gold) is used extremely sparingly for 'Premium/VIP' indicators or 'Active' step highlights in the wizard."
-  },
-  "layouts": {
-    "page_structure": "Mobile-first responsive. Use extremely generous spacing (Tailwind p-8 to p-16).",
-    "kpi_dashboard": "Mode B: High Density Grid (for data). Use grid-cols-1 md:grid-cols-4 gap-6. Summary widgets span 1 col, primary charts span 2-3 cols. No standard Vercel-look cards.",
-    "wizard_flow": "Split-Screen Architecture. Left 30-40% of the screen is sticky, displaying progress, overlines, and the active stage (e.g., 'Step 2: ESG Content'). Right 60-70% is the interactive form. This prevents the 'long scrolling form' fatigue.",
-    "drawer": "Delivery History uses a side-drawer (Slide-out panel) from the right (w-[400px] or w-[500px]) to show exact generated artifacts without losing the context of the main list."
-  },
-  "components": {
-    "wizard_stepper": "Do not use a top horizontal progress bar. Use a vertical, text-rich stepper on the left side. Highlight the active step with the primary color and bold typography. Inactive steps are muted.",
-    "hierarchical_tree": "For ESG Section selection. Do NOT use standard HTML checkboxes. Use expandable nodes. Parent node has an overall status (All, Partial, None). Use pill-shaped badges or custom Radix/Shadcn toggles for selection. Expand to reveal children (Environment -> GHG/Water/Waste).",
-    "cards": "The 'Neumorphism / Clay & Crisp' variant. Use 1px subtle borders (border-border) with very soft ambient shadows (shadow-sm). For hovered interactive cards, elevate to shadow-md with a slight -translate-y-1 transform.",
-    "facility_selector": "Multi-select dropdown with searchable chips. Selected facilities appear as premium rounded chips inside the input area. Provide 'Select All' utility.",
-    "tables": "For Schedules & Delivery. Dense, highly legible. Remove vertical borders. Use horizontal borders only. Frequencies (daily/weekly/monthly) must be formatted in a human-readable badge. Include inline action menus (Edit, Delete, Send Now) via Shadcn DropdownMenu.",
-    "modals": "Use Shadcn Dialog for 'Send Now' confirmations. Style with blur backdrop.",
-    "empty_states": "Premium empty states. Do not just say 'No data'. Use subtle illustrations, an overline, a clear heading, and a primary CTA to 'Create First Configuration'."
-  },
-  "motion": {
-    "instructions": "Use micro-interactions for feedback. Hover states on rows and cards. Smooth entrance animations for wizard steps using Framer Motion (opacity 0 to 1, y: 10 to 0). Tree expansions must animate smoothly (height 0 to auto).",
-    "accessibility": "Respect prefers-reduced-motion. Do not rely on motion alone for state changes."
-  },
-  "visual_enhancers": {
-    "textures": "Add a very subtle SVG noise overlay or a faint botanical abstract texture to the sticky left panel of the wizard.",
-    "glassmorphism": "Use for the sticky top navigation bar (backdrop-blur-xl bg-white/80 border-b border-border/40) to ensure content scrolling underneath is elegantly blurred."
-  },
-  "accessibility": {
-    "contrast": "Ensure minimum 4.5:1 for normal text. Use text-shadow if placing text over any image.",
-    "testing": "All interactive elements (buttons, inputs, menu items, table rows) MUST include a 'data-testid' attribute (e.g., 'data-testid=\"wizard-next-button\"')."
-  },
-  "media": {
-    "image_urls": {
-      "corporate_dashboard_bg": {
-        "url": "https://images.unsplash.com/photo-1779700210487-a01758a3c55a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBjb3Jwb3JhdGUlMjBib2FyZHJvb20lMjBnbGFzc3xlbnwwfHx8fDE3ODYxODg1NDl8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Empty conference room with a panoramic city view at sunset. Use as an ambient hero background for the Management Overview with heavy white/gradient overlay (bg-white/80 to white)."
+    "primary_accent": "#10B981",
+    "surface": "#FFFFFF",
+    "border": "#E5E7EB",
+    "emission_tints": {
+      "CO2": {
+        "bg": "bg-red-50",
+        "border": "border-red-100",
+        "text": "text-red-700",
+        "icon": "text-red-500"
       },
-      "esg_concept_texture": {
-        "url": "https://images.unsplash.com/photo-1451976426598-a7593bd6d0b2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwzfHxzdXN0YWluYWJsZSUyMG1vZGVybiUyMGFyY2hpdGVjdHVyZXxlbnwwfHx8fDE3ODYxODg1NDl8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Gray concrete building covered in trees. Use as a subtle decorative image inside the 'Review & Send' step or the 'Empty State' for Schedules."
+      "CH4": {
+        "bg": "bg-orange-50",
+        "border": "border-orange-100",
+        "text": "text-orange-700",
+        "icon": "text-orange-500"
       },
-      "subtle_green_texture": {
-        "url": "https://images.unsplash.com/photo-1710668457149-789dce4ff826?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGdyZWVuJTIwZm9yZXN0JTIwcGF0dGVybnxlbnwwfHx8fDE3ODYxODg1NDl8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Abstract green plant leaves. Use as a masked background pattern for the left-side panel in the wizard, opacity 5%."
+      "N2O": {
+        "bg": "bg-yellow-50",
+        "border": "border-yellow-200",
+        "text": "text-yellow-700",
+        "icon": "text-yellow-600"
+      },
+      "CO2e": {
+        "bg": "bg-green-50",
+        "border": "border-green-200",
+        "text": "text-green-800",
+        "icon": "text-green-600"
       }
+    },
+    "calculation_rows": {
+      "input": "text-blue-500",
+      "density": "text-orange-500",
+      "calorific": "text-yellow-500",
+      "emission_factor": "text-purple-500",
+      "final": "text-green-600"
     }
   },
-  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "Prioritize using pre-existing components from src/components/ui.",
-    "Do not center align the App container.",
-    "Do not apply 'transition: all'. Explicitly state transition properties.",
-    "Never use generic AI emojis for icons; use 'lucide-react' or '@phosphor-icons/react'.",
-    "Ensure generous spacing; a dense UI is fine for data tables, but the surrounding layout needs breathing room (e.g., p-8 or p-12 wrappers).",
-    "Add 'sonner' for toast notifications on actions like 'Send Now' or 'Schedule Saved'.",
-    "For the Hierarchical ESG Content tree, create a custom React component using Lucide icons (ChevronRight, ChevronDown) for expanding/collapsing, and a 3-state checkbox or pill for 'All/Partial/None'."
+  "layout_and_spacing": {
+    "containers": "bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6",
+    "edit_box_grid": "Grid layout MUST be properly proportioned. Wrap in a grid-cols-12 gap-6. Set 'Biogenic' fields to col-span-3 or col-span-4, and 'Reporting Month' to col-span-4 or col-span-5 to prevent reporting month from being too narrow. Eliminate unnecessary blank columns.",
+    "general": "Use generous internal padding (p-4 to p-6) within cards. Avoid tight, crammed data views."
+  },
+  "component_instructions": {
+    "form_fields": {
+      "select_dropdowns": "Add leading icons inside Shadcn SelectTrigger. Add 'pl-10' to the trigger text container, and position the icon absolutely (left-3, top-1/2, -translate-y-1/2) with size 16px.",
+      "radio_buttons": "Override default blue active state. Use custom green accent classes (e.g., text-emerald-600 ring-emerald-600 border-emerald-600) for active/checked states on Scope 1, 2, 3, and biogenic radio groupings."
+    },
+    "calculated_emissions": {
+      "header": "Replace generic calc icon with lucide-react 'Leaf' icon (text-emerald-500) next to the section title.",
+      "disclaimer_badge": "Convert '(Values rounded to 4 decimal places)' to a pill badge: flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500. Place an 'Info' icon (12px) on the right side.",
+      "emission_cards": "Remove solid grey backgrounds. Apply 'emission_tints' colors (red, orange, yellow, green) for bg, border, and text. Add matching lucide-react icons to the left of the card content. For Scope 3 where only CO2e exists, give it a prominent, full-width or beautified UI treatment rather than a small isolated card."
+    },
+    "calculation_details": {
+      "container": "Wrap this entire section in a Shadcn Accordion component, set to be collapsible and collapsed by default.",
+      "row_styling": "Remove solid block backgrounds. Use white backgrounds with a thin bottom border (border-b border-gray-100) and py-3 for a clean list-item look.",
+      "source_badges": "Transform plain text '(Source - IPCC 2006)' into right-aligned pill badges: bg-orange-50 border border-orange-200 text-orange-600 px-2.5 py-0.5 rounded-full text-xs font-medium.",
+      "final_row": "Style the final calculation row with a soft green background tint (bg-green-50), darker green border (border border-green-200), rounded-lg, and green text. Align the 'CO2e: CO2' label cleanly to the right side inside this specific container."
+    }
+  },
+  "iconography_mapping": {
+    "library": "lucide-react",
+    "facility": "Building (text-emerald-500)",
+    "reporting_month": "Calendar (text-emerald-500)",
+    "category": "Car (text-emerald-500) for mobile, Factory for stationary, etc.",
+    "fuel_type": "Droplet (text-blue-500)",
+    "calculation_method": "Calculator (text-blue-500)",
+    "co2_card": "Cloud (text-red-500)",
+    "ch4_card": "Dna (text-orange-500)",
+    "n2o_card": "RefreshCcw (text-yellow-600)",
+    "co2e_card": "Leaf (text-green-600)",
+    "calc_input": "ArrowUpFromLine (text-blue-500)",
+    "calc_density": "FlaskConical (text-orange-500)",
+    "calc_calorific": "Flame (text-yellow-500)",
+    "calc_factor": "Calculator (text-purple-500)",
+    "calc_final": "CheckCircle2 (text-green-600)",
+    "disclaimer_info": "Info (text-gray-400)"
+  },
+  "universal_guidelines_for_main_agent": [
+    "CRITICAL: All components must be written in .js files, not .tsx.",
+    "Include 'data-testid' attributes on ALL interactive elements, form inputs, dropdowns, cards, and vital data points for reliable testing.",
+    "Never use pure transparent backgrounds for overlays, headers, or dropdowns. Always use solid surface colors to prevent text overlapping and readability issues.",
+    "Ensure the green Scope radio buttons and form logic applies consistently across Scope 1, Scope 2, Scope 3, and Biogenic contexts.",
+    "Avoid centering dense forms or dashboard layouts. Use left-alignment (optical alignment) for clear readability.",
+    "Implement subtle hover transitions (e.g., hover:-translate-y-[1px] shadow-sm) for interactive cards and rows."
   ]
 }

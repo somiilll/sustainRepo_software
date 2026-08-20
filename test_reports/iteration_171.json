@@ -1,0 +1,55 @@
+{
+  "summary": "Backend-only regression for unified dashboard/internal-AI renewable energy logic completed (FY 2026-27 scope). 10 tests executed: 7 passed, 3 failed.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/esg-records/dashboard-metrics",
+        "issue": "Dashboard GHG fuel non_renewable (228.19 MWh) does not match Internal AI combined ledger Scope1-derived value (268.19 MWh) for same FY scope, violating shared-component parity expectation.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "/api/esg-records/dashboard-metrics + /api/internal-ai/chat",
+        "issue": "Renewable percentage parity broken for same period: dashboard energy.renewable_pct=94.94 vs AI combined ledger result=94.488447.",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "/api/esg-records/dashboard-metrics",
+        "issue": "Restricted scope1-only user still receives Scope2 electricity contribution (8079.91 MWh), indicating facility/scope authorization leakage in dashboard metrics path.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_internal_ai_combined_renewable_iter173.py",
+    "/app/test_reports/pytest/iter171_dashboard_ai_combined_renewable.xml"
+  ],
+  "action_items": [
+    "Investigate period/scope normalization parity between dashboard-metrics energy_service and internal-ai emissions plan for FY queries.",
+    "Enforce authorized facility scope for non-admin users in /api/esg-records/dashboard-metrics (current path only uses optional query param facility_ids).",
+    "Re-validate shared get_renewable_energy_components outputs consumed by dashboard vs AI for identical org/facility/period inputs."
+  ],
+  "critical_code_review_comments": [
+    "Dashboard metrics route does not derive/force authorized facility scope from current_user; unlike internal-ai router, it accepts unrestricted org-wide aggregation when facility_ids is omitted.",
+    "Energy parity contract is currently test-fragile because dashboard and AI appear to resolve/report periods differently even for equivalent FY intent; add explicit contract tests at service level for exact same period object.",
+    "Energy service rounds sub-blocks to 2 decimals before returning; tiny-unit rows (e.g., kJ-scale) can be hidden in dashboard output and reduce debuggability for unit-conversion regressions."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_internal_ai_combined_renewable_iter173.py",
+    "/app/test_reports/iteration_171.json"
+  ],
+  "success_rate": {
+    "backend": "70%",
+    "frontend": "N/A (skipped by request)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run the same test file and focus on the three failing tests added in this iteration: dashboard Scope1 parity, dashboard-vs-AI renewable_pct parity, and restricted-user dashboard Scope2 leakage.",
+  "rca of the issue": "Reproduced with admin/restricted credentials from /app/memory/test_credentials.md. Internal AI path applies authorized_facility_scope from current_user (router.py) before executing emissions/esg services; dashboard-metrics route does not apply equivalent authorization scope and only optionally accepts facility_ids query param. This explains restricted-user Scope2 leakage. For admin parity failures, same FY intent currently yields divergent dashboard vs AI energy outcomes, indicating mismatch in period/scoping or component inclusion across the two call paths despite intended shared-service unification."
+}

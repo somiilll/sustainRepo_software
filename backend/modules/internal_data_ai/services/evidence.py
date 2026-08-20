@@ -9,6 +9,8 @@ So evidence lookup must start from the matching records, not from a blind filena
 import re
 import logging
 from shared.database.mongo import db
+from modules.internal_data_ai.query_scope import and_filters, organization_scope, resolve_authorized_facilities
+from modules.internal_data_ai.reporting_periods import emission_period_filter, esg_period_filter, period_from_payload
 
 logger = logging.getLogger(__name__)
 
@@ -58,29 +60,17 @@ async def find_files(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     metric = kwargs.get("metric") or ""
     facility_name = kwargs.get("facility") or ""
 
-    facility_id_filter = None
-    if facility_name:
-        facs = await db.facilities.find(
-            {"organization_id": org_id, "name": {"$regex": facility_name, "$options": "i"}},
-            {"_id": 0, "id": 1},
-        ).to_list(20)
-        matched = [f["id"] for f in facs]
-        if facility_ids:
-            matched = [fid for fid in matched if fid in facility_ids]
-        facility_id_filter = matched or None
-    elif facility_ids:
-        facility_id_filter = facility_ids
+    facility_id_filter = await resolve_authorized_facilities(db, org_id, facility_ids, facility_name)
 
-    search_terms = [t for t in [fuel_type, category, entity_name, metric, period] if t]
+    search_terms = [t for t in [fuel_type, category, entity_name, metric] if t]
+    resolved_period = period_from_payload(period)
     results = []
     seen_ids = set()
 
     # 1. Evidence linked to emission records (via evidence_url)
-    em_query = {"organization_id": org_id, "evidence_url": {"$nin": [None, ""]}}
-    if facility_id_filter:
-        em_query["facility_id"] = {"$in": facility_id_filter}
+    em_query = and_filters(organization_scope(org_id, facility_id_filter), {"evidence_url": {"$nin": [None, ""]}})
     if search_terms:
-        em_query["$or"] = [
+        em_query = and_filters(em_query, {"$or": [
             cond
             for term in search_terms
             for cond in [
@@ -89,7 +79,9 @@ async def find_files(org_id: str, facility_ids: list = None, **kwargs) -> dict:
                 {"category": {"$regex": term, "$options": "i"}},
                 {"reporting_period": {"$regex": term, "$options": "i"}},
             ]
-        ]
+        ]})
+    if resolved_period:
+        em_query = and_filters(em_query, emission_period_filter(resolved_period))
     emission_recs = await db.emission_records.find(em_query, {"_id": 0, "evidence_url": 1, "id": 1}).to_list(20)
     for rec in emission_recs:
         file_id = _extract_file_id(rec.get("evidence_url"))
@@ -101,11 +93,13 @@ async def find_files(org_id: str, facility_ids: list = None, **kwargs) -> dict:
 
     # 2. Evidence linked to environment/social/governance records (embedded evidence_files array)
     for coll_name in ["environment_records", "social_records", "governance_records"]:
-        env_query = {"org_id": org_id, "evidence_files": {"$exists": True, "$ne": []}}
-        if facility_id_filter:
-            env_query["facility_id"] = {"$in": facility_id_filter}
+        env_query = and_filters(
+            {"$or": [{"organization_id": org_id}, {"org_id": org_id}]},
+            organization_scope(org_id, facility_id_filter, organization_field="org_id"),
+            {"evidence_files": {"$exists": True, "$ne": []}},
+        )
         if search_terms:
-            env_query["$or"] = [
+            env_query = and_filters(env_query, {"$or": [
                 cond
                 for term in search_terms
                 for cond in [
@@ -113,7 +107,9 @@ async def find_files(org_id: str, facility_ids: list = None, **kwargs) -> dict:
                     {"subcategory": {"$regex": term, "$options": "i"}},
                     {"reporting_period": {"$regex": term, "$options": "i"}},
                 ]
-            ]
+            ]})
+        if resolved_period:
+            env_query = and_filters(env_query, esg_period_filter(resolved_period))
         recs = await db[coll_name].find(env_query, {"_id": 0, "evidence_files": 1, "id": 1}).to_list(20)
         for rec in recs:
             for ef in rec.get("evidence_files", []):
@@ -124,14 +120,4 @@ async def find_files(org_id: str, facility_ids: list = None, **kwargs) -> dict:
                         results.append(preview)
                         seen_ids.add(file_id)
 
-    # 3. Fallback: plain filename keyword search on uploaded_files if nothing linked was found
-    if not results and search_terms:
-        or_conditions = [{"original_filename": {"$regex": term, "$options": "i"}} for term in search_terms]
-        files = await db.uploaded_files.find({"$or": or_conditions}, {"_id": 0}).sort("uploaded_at", -1).to_list(20)
-        for f in files:
-            preview = await _build_preview(f.get("id"))
-            if preview and preview["id"] not in seen_ids:
-                results.append(preview)
-                seen_ids.add(preview["id"])
-
-    return {"total_files": len(results), "files": results}
+    return {"total_files": len(results), "files": results, "period": resolved_period.label if resolved_period else None, "period_resolved": resolved_period is not None}

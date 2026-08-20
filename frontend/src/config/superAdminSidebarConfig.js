@@ -9,6 +9,7 @@ const superAdminSidebarConfig = [
   { key: 'sa-sectors', label: 'Sectors', path: '/super-admin/sectors', icon: 'Layers' },
   { key: 'sa-esg-config', label: 'ESG Config', path: '/super-admin/esg-config', icon: 'Settings2' },
   { key: 'sa-kpi-defs', label: 'KPI Definitions', path: '/super-admin/kpi-definitions', icon: 'Gauge' },
+  { key: 'sustainability_config', label: 'Org Config', icon: 'Building2', path: '/super-admin/org-config' },
   {
     key: 'sa-ghg',
     label: 'GHG',

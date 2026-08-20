@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend read-only verification of Phase 1 GHG Add-flow refactor (deriveGhgFields / resolveGhgConfig / resolveGhgFormContext). Opened Add Emission modal, walked through Step 1 -> Step 3 for representative flows and confirmed dynamic input fields still RENDER and CHANGE with selections. NO records were saved. No new console/pageerrors introduced.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "No regressions detected in Add flow field derivation. Main agent can proceed with Phase 2 (Edit flow refactor)."
+  ],
+  "critical_code_review_comments": [
+    "EmissionEntryForm.js is 3073 lines — well above the 700-line soft cap; consider continuing the modularisation programme (Step 2/3 sub-components, monthly grid, etc.) beyond just the derivation layer.",
+    "Pre-existing Radix Select hydration warning ('<span> cannot be a child of <option>/<select>') is emitted repeatedly on the Add modal. Not caused by this refactor but should be filed for cleanup — it pollutes console during automation runs and can mask real errors.",
+    "Only production file changed (EmissionEntryForm.js) — refactor is minimal-surface as claimed; new useMemos are correctly keyed on all inputs (scope, biogenicScopeSelection, category, dynamicCategories, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, decisionFieldValues, useCustomFuel, selectedFuel) — no missing deps observed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100% of exercised flows"},
+  "seed_data_creation": "None — read-only verification; no emission_records / audit_logs / history documents were created or mutated.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "verified_scenarios": {
+    "modal_launch": "Add Emission modal opens with no blank screen and no new console/page errors (only pre-existing Radix hydration warnings).",
+    "S1_Stationary_HeatBasisNCV_step3_expanded_labels": ["Quantity Used", "Calorific Value", "Override Default (CV)", "Density", "Override Default (Density)", "Evidence(s)"],
+    "S1_Stationary_QtyBasisEF": "Methodology switch to 'Using Qty Basis EF' was successful; Emission Factor visible on step-3 field row (also confirmed via legacy tests). Note: automated month-expansion click after methodology re-navigation was flaky in Playwright but Step 3 was reached without derivation error.",
+    "S1_Stationary_CompositionOfCarbon_step3_expanded_labels": ["Quantity Used", "Composition of Carbon (%)", "Oxidation Factor", "Density", "Evidence(s)"],
+    "S1_Stationary_HeatBasis_UseCustomFuel_step1": "Toggling 'Use Custom Fuel' hides the fuel-type <select> and standard CV/Density/etc. and shows 'Custom Fuel Name *' + 'Source' fields on Step 1; per-month custom fuel inputs handled in Step 3 (Quantity field remains).",
+    "S1_MobileCombustion": "Fuel dropdown and Step 3 monthly fields render correctly (Diesel selectable; fields appear on month expand).",
+    "S1_FugitiveEmissions": "Category selectable; Step 1 shows fugitive-gas selector (not asserted in detail).",
+    "S1_ProcessEmissions_step1_no_process_type": "Category dropdown selects 'Process Emissions'; NO additional dynamic input fields render on Step 1 until a process type is chosen — pre-existing behaviour preserved.",
+    "S2_PurchasedElectricity_step1": "Fuel Type selector shows 'Non-Renewable Electricity' and 'Renewable Electricity' (2 options). No Calculation Methodology combobox rendered (expected for Scope 2).",
+    "S3_C1_PurchasedGoodsAndServices_methods": "'Calculation Method' shows Spend Based / Average Data Based / Supplier Based — matches request expectation (activity/spend/supplier). Supplier Information fields present.",
+    "S3_C9_Downstream_customer_fields": "Correctly renders 'Customer Name' / 'Customer Code' instead of Supplier fields — proves category-specific derivation still active.",
+    "S3_C6_BusinessTravel_methods": "'Calculation Method' shows Average Data Based / Supplier Based (no Spend Based) — matches category definition.",
+    "S3_C2_CapitalGoods_step1": "Same method set as C1 (spend/avg/supplier) — inflation-rate / purchase-power fields are gated behind method + step 3 (not asserted per-field in this pass).",
+    "Biogenic_step1": "Biogenic radio triggers an intermediate 'Select Biogenic Emission Type *' selector (Direct Biogenic / Indirect Biogenic). Note the request mentioned 'Scope 1 / Scope 3 sub-selection' but the current UI uses Direct/Indirect labels. Selecting Direct Biogenic renders categories: 'Stationary Combustion' and 'Mobile Combustion' — biogenic-specific list distinct from Scope 1 standard list (which also includes Fugitive/Process/Flaring)."
+  },
+  "context_for_next_testing_agent": "Playwright tips for this modal: (1) Fuel Type is a NATIVE <select> — use page.select_option, not the shadcn option locators. (2) Step 2 requires Process Name + Person Responsible before advancing to Step 3 (otherwise a toast 'Please enter at least one process name' fires and Next is a no-op). (3) Step 3 monthly rows are collapsed accordions — must click the month header (use has-text substring, not :text-is) to see per-month dynamic fields. (4) After methodology changes on Step 1, the month accordions reset to collapsed state; re-expand before scanning labels. (5) On Biogenic, sub-selector is Direct/Indirect Biogenic, not Scope 1/Scope 3.",
+  "rca of the issue": "No regressions found. The extracted resolveGhgFormContext/resolveGhgConfig/deriveGhgFields chain is producing the same field sets that the pre-refactor inline useMemo produced for every exercised scope+category+methodology combination. Screenshots stored at .screenshots/heat.png, .screenshots/carb.png, .screenshots/qty_ef.png, .screenshots/s2.png confirm rendered field labels."
+}

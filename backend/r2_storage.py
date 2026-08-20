@@ -49,6 +49,7 @@ class R2Storage:
             'superadmin': os.environ.get('R2_BUCKET_SUPERADMIN', 'superadmin-data'),
             'esg_records_evidence': os.environ.get('R2_BUCKET_ESG_RECORDS_EVIDENCE', 'esg-evidences-dev'),
             'esg_metrics': os.environ.get('R2_BUCKET_ESG_METRICS', 'esg-metrics-dev'),
+            'mis_reports': os.environ.get('R2_BUCKET_MIS_REPORTS'),
             'repo_pilot': os.environ.get('R2_BUCKET_REPO_PILOT', 'repo-pilot-dev'),
             'software_images': os.environ.get('R2_BUCKET_SOFTWARE_IMAGES', 'software-image-dev'),
             'ocr_temp': os.environ.get('R2_BUCKET_OCR_TEMP', 'ocr-temp-invoices')
@@ -89,7 +90,8 @@ class R2Storage:
         content_type: str,
         folder: str = None,
         metadata: dict = None,
-        org_name: str = None
+        org_name: str = None,
+        object_key: str = None,
     ) -> dict:
         """
         Upload file to appropriate R2 bucket
@@ -119,7 +121,12 @@ class R2Storage:
                 return {"error": f"Content type '{content_type}' not allowed"}
 
             bucket = self._get_bucket(bucket_type)
-            key = self._generate_unique_key(filename, folder, org_name)
+            if object_key:
+                key = object_key.strip("/")
+                if not key or ".." in key.split("/"):
+                    raise ValueError("Invalid object storage key")
+            else:
+                key = self._generate_unique_key(filename, folder, org_name)
             
             logger.info(f"[R2_UPLOAD] Starting: bucket={bucket}, key={key}, size={len(file_content)}, org={org_name}")
             

@@ -13,7 +13,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { MonthYearPicker } from '../../components/ui/month-year-picker';
-import { Calendar as CalendarIcon, Info, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { Building2, Calendar as CalendarIcon, Info, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 
 /**
  * FacilityScopeSection - Facility and Scope selection
@@ -27,32 +27,36 @@ export const FacilityScopeSection = ({
   handleFuelSelect,
   setBiogenicScopeSelection,
   markFormDirty,
+  reportingPeriod,
 }) => (
-  <div className="grid grid-cols-2 gap-4">
+  <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(25rem,1.45fr)_minmax(15rem,1fr)]">
     <div className="space-y-1.5">
       <Label htmlFor="facility">Facility *</Label>
-      <select
-        id="facility"
-        value={formData.facility_id}
-        onChange={(e) => { setFormData({ ...formData, facility_id: e.target.value }); markFormDirty(); }}
-        required
-        className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-        data-testid="emission-facility-select"
-      >
-        <option value="">Select Facility</option>
-        {facilities.filter(f => f.is_active !== false).map(f => (
-          <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
-        ))}
-      </select>
+      <div className="relative">
+        <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
+        <select
+          id="facility"
+          value={formData.facility_id}
+          onChange={(e) => { setFormData({ ...formData, facility_id: e.target.value }); markFormDirty(); }}
+          required
+          className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+          data-testid="emission-facility-select"
+        >
+          <option value="">Select Facility</option>
+          {facilities.filter(f => f.is_active !== false).map(f => (
+            <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
+          ))}
+        </select>
+      </div>
     </div>
     <div className="space-y-1.5">
       <Label>Scope *</Label>
-      <div className="flex gap-4 h-10 items-center flex-wrap">
+      <div className="flex h-10 items-center gap-3 whitespace-nowrap">
         {dynamicScopes.map(scope => {
           const isScope3 = scope.code === 'scope3';
           const isDisabled = isScope3 && !hasScope3Access;
           return (
-            <label key={scope.code} className={`flex items-center gap-2 relative ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
+            <label key={scope.code} className={`relative flex shrink-0 items-center gap-2 ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
               <input
                 type="radio"
                 value={scope.code}
@@ -65,7 +69,7 @@ export const FacilityScopeSection = ({
                     setBiogenicScopeSelection('');
                   }
                 }}
-                className="text-primary"
+                className="h-4 w-4 accent-emerald-600"
                 data-testid={`scope-radio-${scope.code}`}
               />
               <span>{scope.name}</span>
@@ -79,6 +83,7 @@ export const FacilityScopeSection = ({
         })}
       </div>
     </div>
+    {reportingPeriod}
   </div>
 );
 
@@ -110,7 +115,7 @@ export const BiogenicScopeSection = ({
               setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
               handleFuelSelect('');
             }}
-            className="text-green-600"
+            className="h-4 w-4 accent-emerald-600"
             data-testid="biogenic-scope-radio-scope1"
           />
           <span className="text-green-800">Direct Biogenic</span>
@@ -126,7 +131,7 @@ export const BiogenicScopeSection = ({
               setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
               handleFuelSelect('');
             }}
-            className="text-green-600"
+            className="h-4 w-4 accent-emerald-600"
             data-testid="biogenic-scope-radio-scope3"
           />
           <span className="text-green-800">Indirect Biogenic</span>

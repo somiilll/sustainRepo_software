@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const LOGO_FALLBACK = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
+const LOGO_FALLBACK = '/sustainrepo-logo.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -18,7 +18,11 @@ export default function Login() {
 
   useEffect(() => {
     axios.get(`${API}/api/software-assets/logo`)
-      .then(r => { if (r.data?.url) setLogoUrl(r.data.url); })
+      .then((r) => {
+        const url = r.data?.url;
+        if (url?.startsWith(API)) setLogoUrl(url);
+        if (url?.startsWith('/')) setLogoUrl(`${API}${url}`);
+      })
       .catch(() => null);
   }, []);
   
@@ -100,7 +104,7 @@ export default function Login() {
                 Forgot your password?
               </Link>
               <p className="text-sm text-text-muted">
-                Haven't registered yet? Contact us to sign up{' '}
+                Haven&apos;t registered yet? Contact us to sign up{' '}
                 <a 
                   href="https://sustainrepo.com/about#contact" 
                   target="_blank" 

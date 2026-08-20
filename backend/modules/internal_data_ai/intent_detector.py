@@ -44,7 +44,7 @@ Return JSON only:
     "scope": "<scope 1/2/3 or null>",
     "category": "<emission category or null>",
     "fuel_type": "<fuel/activity type or null>",
-    "period": "<time period or null>",
+    "period": "<time period or null; only extract text explicitly present in the question>",
     "target_name": "<target name or null>",
     "record_type": "<emission/environment/social/governance or null>",
     "metric": "<specific metric or null>",

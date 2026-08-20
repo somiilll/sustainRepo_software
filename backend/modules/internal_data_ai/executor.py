@@ -7,8 +7,9 @@ from typing import Dict, Any, List
 from modules.internal_data_ai.services import (
     organization, emissions, emission_factors, targets,
     evidence, analytics, history, esg_records, formulas,
-    brsr, gri, supplier_assessment, data_status,
+    brsr, gri, supplier_assessment, data_status, evidence_state, calculation_properties,
 )
+from modules.internal_data_ai.relationship_resolver import resolve_calculation_relationships
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,8 @@ SERVICE_MAP = {
     },
     "emissions": {
         "search_records": emissions.search_records,
+        "get_fuel_energy": emissions.get_fuel_energy,
+        "get_renewable_energy_components": emissions.get_renewable_energy_components,
     },
     "emission_factors": {
         "lookup": emission_factors.lookup,
@@ -43,9 +46,14 @@ SERVICE_MAP = {
     },
     "approvals": {
         "get_history": history.get_approval_history,
+        "get_pending_status": history.get_pending_status,
     },
     "assignments": {
         "get_history": history.get_assignment_history,
+    },
+    "record_history": {
+        "get_emission_history": history.get_emission_record_history,
+        "get_esg_record_history": history.get_esg_record_history,
     },
     "esg_records": {
         "search_records": esg_records.search_records,
@@ -53,6 +61,15 @@ SERVICE_MAP = {
     },
     "formulas": {
         "explain": formulas.explain,
+    },
+    "relationships": {
+        "resolve": resolve_calculation_relationships,
+    },
+    "evidence_state": {
+        "validate": evidence_state.validate,
+    },
+    "calculation_properties": {
+        "lookup": calculation_properties.lookup,
     },
     "brsr": {
         "get_responses": brsr.get_responses,
@@ -71,13 +88,31 @@ SERVICE_MAP = {
 }
 
 
-async def execute_plan(plan: List[Dict[str, Any]], org_id: str, facility_ids: list = None) -> dict:
+async def execute_plan(
+    plan: List[Dict[str, Any]],
+    org_id: str,
+    facility_ids: list = None,
+    organization_timezone: str = None,
+) -> dict:
     """Execute all service calls in the plan and merge results."""
     merged = {}
     for step in plan:
         service_name = step.get("service")
         method_name = step.get("method")
-        params = step.get("params", {})
+        params = dict(step.get("params", {}))
+        comparison_periods = params.pop("comparison_periods", [])
+        if service_name == "formulas":
+            params["emission_records"] = merged.get("emissions", {}).get("records", [])
+        elif service_name == "relationships":
+            params["emission_records"] = merged.get("emissions", {}).get("records", [])
+        elif service_name == "evidence_state":
+            params["emission_records"] = merged.get("emissions", {}).get("records", [])
+            params["relationships"] = merged.get("relationships")
+        elif service_name == "record_history":
+            params["emission_records"] = merged.get("emissions", {}).get("records", [])
+            params["organization_timezone"] = organization_timezone
+        elif service_name == "calculation_properties":
+            params["emission_records"] = merged.get("emissions", {}).get("records", [])
 
         service = SERVICE_MAP.get(service_name)
         if not service:
@@ -92,7 +127,19 @@ async def execute_plan(plan: List[Dict[str, Any]], org_id: str, facility_ids: li
             continue
 
         try:
-            result = await func(org_id=org_id, facility_ids=facility_ids, **params)
+            if comparison_periods:
+                period_results = []
+                for period in comparison_periods:
+                    comparison_params = {
+                        **params,
+                        "period": period,
+                        "strict_period": True,
+                    }
+                    result = await func(org_id=org_id, facility_ids=facility_ids, **comparison_params)
+                    period_results.append({"period": period, "data": result})
+                result = {"comparison": {"periods": period_results}}
+            else:
+                result = await func(org_id=org_id, facility_ids=facility_ids, **params)
             merged[service_name] = result
         except Exception as e:
             logger.error(f"Service call failed: {service_name}.{method_name}: {e}")

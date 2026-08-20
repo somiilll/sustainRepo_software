@@ -10,15 +10,27 @@ from typing import Optional, List
 
 from shared.database.mongo import db
 from modules.auth.dependencies import get_current_user
+from modules.internal_data_ai.entity_guards import category_is_explicitly_mentioned
 from modules.internal_data_ai.intent_detector import detect_intent
 from modules.internal_data_ai.planner import plan_service_calls
 from modules.internal_data_ai.executor import execute_plan
 from modules.internal_data_ai.response_builder import build_response
 from modules.internal_data_ai.embedding_service import find_similar_entities, precompute_embeddings
+from modules.internal_data_ai.reporting_periods import extract_comparison_periods, extract_explicit_period
+from modules.internal_data_ai.query_understanding import understand_query
+from modules.internal_data_ai.conversation_context import apply_follow_up_context, context_from_plan, get_session_context
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def authorized_facility_scope(current_user: dict) -> Optional[list]:
+    """Keep organization admins broad while preserving explicit empty scopes for restricted users."""
+    if current_user.get("role") in {"admin", "super_admin"}:
+        return None
+    assigned_facilities = current_user.get("assigned_facilities")
+    return list(assigned_facilities) if assigned_facilities is not None else None
 
 
 class ChatRequest(BaseModel):
@@ -36,6 +48,8 @@ class ChatResponse(BaseModel):
     chart: Optional[dict] = None
     evidence: Optional[list] = None
     intent: Optional[str] = None
+    query_type: Optional[str] = None
+    framework_confidence: Optional[float] = None
 
 
 @router.post("/internal-ai/chat", response_model=ChatResponse)
@@ -49,7 +63,7 @@ async def internal_ai_chat(
         raise HTTPException(status_code=400, detail="No organization")
 
     # Get user's assigned facilities for permission filtering
-    facility_ids = current_user.get("assigned_facilities") or []
+    facility_ids = authorized_facility_scope(current_user)
     session_id = request.session_id or str(uuid.uuid4())
 
     # 1. Auto-precompute embeddings if missing
@@ -74,6 +88,11 @@ async def internal_ai_chat(
         ],
     }
 
+    organization = await db.organizations.find_one(
+        {"id": org_id},
+        {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1, "timezone": 1},
+    )
+
     # 2. Intent detection
     intent_result = await detect_intent(request.message, org_context)
     intent_name = intent_result.get("intent", "summary")
@@ -81,29 +100,60 @@ async def internal_ai_chat(
 
     # Enrich entities from embedding matches
     entities = intent_result.get("entities", {})
+    if entities.get("category") and not category_is_explicitly_mentioned(request.message, entities["category"]):
+        logger.info("Discarded inferred emission category not explicitly requested: %s", entities["category"])
+        entities["category"] = None
+    comparison_periods = extract_comparison_periods(request.message, organization)
+    explicit_period = comparison_periods[0] if comparison_periods else extract_explicit_period(request.message, organization)
+    # The parser is authoritative: an LLM cannot invent a reporting period.
+    entities["period"] = explicit_period.as_dict() if explicit_period else None
     for match in matched_entities:
         if match["score"] > 0.5:
             if match["entity_type"] == "facility" and not entities.get("facility"):
                 entities["facility"] = match.get("metadata", {}).get("name")
-            elif match["entity_type"] == "fuel" and not entities.get("fuel_type"):
-                entities["fuel_type"] = match.get("metadata", {}).get("fuel_name")
     intent_result["entities"] = entities
 
-    # 3. Plan service calls
-    plan = plan_service_calls(intent_result)
+    # 3. Build the validated structured plan. Session context may fill only omitted dimensions.
+    structured_plan = await understand_query(
+        request.message,
+        intent_result,
+        explicit_period,
+        db,
+        org_id=org_id,
+        comparison_periods=comparison_periods,
+    )
+    session_context = await get_session_context(db, session_id, org_id, current_user.get("id"))
+    structured_plan = apply_follow_up_context(structured_plan, request.message, session_context)
 
-    # 4. Execute plan
-    service_data = await execute_plan(plan, org_id, facility_ids if facility_ids else None)
+    # Log diagnostic info for framework queries
+    if structured_plan.framework_question_key:
+        logger.info(
+            "framework_resolution_diagnostic org=%s key=%s confidence=%s query_type=%s",
+            org_id, structured_plan.framework_question_key,
+            structured_plan.framework_confidence, structured_plan.query_type.value,
+        )
 
-    # 5. Build response
+    # 4. Plan service calls
+    plan = plan_service_calls(intent_result, structured_plan)
+
+    # 5. Execute plan
+    service_data = await execute_plan(
+        plan,
+        org_id,
+        facility_ids,
+        organization_timezone=(organization or {}).get("timezone"),
+    )
+
+    # 6. Build response
     formatted = await build_response(
         question=request.message,
         intent=intent_result,
         service_data=service_data,
         response_type=response_type,
+        query_plan=structured_plan,
     )
 
-    # 6. Save to conversation history
+    # 7. Save to conversation history
     await db.internal_ai_conversations.insert_one({
         "id": str(uuid.uuid4()),
         "session_id": session_id,
@@ -113,6 +163,7 @@ async def internal_ai_chat(
         "intent": intent_name,
         "response": formatted.get("answer", ""),
         "response_type": response_type,
+        "context": context_from_plan(structured_plan),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
@@ -134,6 +185,8 @@ async def internal_ai_chat(
         chart=formatted.get("chart"),
         evidence=evidence_files,
         intent=intent_name,
+        query_type=structured_plan.query_type.value,
+        framework_confidence=structured_plan.framework_confidence,
     )
 
 

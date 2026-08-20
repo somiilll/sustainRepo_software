@@ -44,6 +44,7 @@ import {
 
 // Import yearly sections component for year-specific data (Employees, CSR, etc.)
 import BRSRYearlySections from './BRSRYearlySections';
+import { QuestionVersionHistory } from './QuestionVersionHistory';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -80,7 +81,6 @@ export default function BRSRDetailsSection({
   
   // Question statuses and version history (similar to Section B/C)
   const [questionStatuses, setQuestionStatuses] = useState({});
-  const [questionHistory, setQuestionHistory] = useState({});
   const [showHistoryFor, setShowHistoryFor] = useState(null); // question_key to show history modal
   
   // BRSR Form Data - Section A: General Disclosures
@@ -435,27 +435,6 @@ export default function BRSRDetailsSection({
     }
   };
 
-  // Fetch version history for a specific question
-  const fetchQuestionHistory = async (questionKey) => {
-    try {
-      const res = await axios.get(
-        `${API}/esg-questionnaire/history/${questionKey}`,
-        { 
-          params: { reporting_period: reportingPeriod },
-          headers: getAuthHeader() 
-        }
-      );
-      setQuestionHistory(prev => ({
-        ...prev,
-        [questionKey]: res.data.history || []
-      }));
-      return res.data.history || [];
-    } catch (error) {
-      console.error('Failed to fetch question history:', error);
-      return [];
-    }
-  };
-
   // Save individual question (similar to Section B/C)
   const saveQuestion = async (questionKey, value) => {
     setSavingQuestion(questionKey);
@@ -500,7 +479,7 @@ export default function BRSRDetailsSection({
     // Handle "not_required" as completed without approval
     if (approvalState === 'not_required' || (!approvalState && saveState === 'saved')) {
       return (
-        <Badge className="text-xs bg-slate-100 text-slate-700">
+        <Badge className="text-xs bg-green-100 text-green-800">
           Saved
         </Badge>
       );
@@ -511,7 +490,7 @@ export default function BRSRDetailsSection({
       approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
       rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
       draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
-      saved: { label: 'Saved', className: 'bg-slate-100 text-slate-700' },
+      saved: { label: 'Saved', className: 'bg-green-100 text-green-800' },
     };
     
     const cfg = statusConfig[approvalState] || statusConfig[saveState];
@@ -531,10 +510,7 @@ export default function BRSRDetailsSection({
         variant="ghost"
         size="sm"
         className="h-7 w-7 p-0"
-        onClick={async () => {
-          await fetchQuestionHistory(questionKey);
-          setShowHistoryFor(questionKey);
-        }}
+        onClick={() => setShowHistoryFor(questionKey)}
         title="View history"
       >
         <History className="h-4 w-4 text-gray-500" />
@@ -586,50 +562,10 @@ export default function BRSRDetailsSection({
     );
   };
 
-  // History modal component
+  // Shared reporting-year-safe history modal
   const renderHistoryModal = () => {
     if (!showHistoryFor) return null;
-    
-    const history = questionHistory[showHistoryFor] || [];
-    
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowHistoryFor(null)}>
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-          <div className="p-4 border-b flex justify-between items-center">
-            <h3 className="font-semibold">Version History: {showHistoryFor.replace(/_/g, ' ').replace('brsr a ', '')}</h3>
-            <Button variant="ghost" size="sm" onClick={() => setShowHistoryFor(null)}>×</Button>
-          </div>
-          <div className="p-4 overflow-y-auto max-h-[60vh]">
-            {history.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No history available</p>
-            ) : (
-              <div className="space-y-3">
-                {history.map((entry, idx) => (
-                  <div key={idx} className="border rounded p-3 text-sm">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-medium">{entry.performed_by?.name || 'Unknown'}</span>
-                      <span className="text-gray-500 text-xs">
-                        {new Date(entry.timestamp).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="text-gray-600">
-                      <span className="capitalize">{entry.action}</span>
-                      {entry.change_details?.old_value !== undefined && (
-                        <div className="mt-1 text-xs">
-                          <span className="text-red-600">- {JSON.stringify(entry.change_details.old_value)}</span>
-                          <br />
-                          <span className="text-green-600">+ {JSON.stringify(entry.change_details.new_value)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    return <QuestionVersionHistory open={Boolean(showHistoryFor)} onOpenChange={(open) => !open && setShowHistoryFor(null)} framework="BRSR" questionKey={showHistoryFor} reportingYear={reportingPeriod} />;
   };
 
   const handleInputChange = (field, value, questionKey = null) => {
@@ -1748,6 +1684,7 @@ export default function BRSRDetailsSection({
     return (
       <div className="border rounded-lg bg-white">
         {content}
+        {renderHistoryModal()}
       </div>
     );
   }

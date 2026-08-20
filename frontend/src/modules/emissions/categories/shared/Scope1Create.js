@@ -55,6 +55,7 @@ export function extractInputsForCalcEngine(data, ctx) {
   let primaryUnit = ctx.defaultUnit || '';
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     if (value === undefined || value === null || value === '') return;
 
@@ -86,6 +87,7 @@ export function buildDynamicFieldValues(data, ctx) {
   const out = {};
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     const unit = resolveFieldUnit(field, data, ctx);
 
@@ -184,7 +186,7 @@ export function buildDecisionContext(data, ctx) {
 /**
  * Pre-loop validation for Scope 1/2 + biogenic-scope1 CREATE.
  *
- * Mirrors the legacy gating: process-name, override justification,
+ * Mirrors the legacy gating: override justification,
  * fuel selection, calc prerequisite. Per-month override value validity
  * is checked downstream during the per-month loop (caller iterates).
  */
@@ -203,18 +205,12 @@ export function validateCreateSubmission(ctx) {
     buildDecisionInputs,
   } = ctx;
 
-  // Process names + descriptions
+  // Process details are optional metadata. Preserve any supplied values for
+  // payload construction without blocking a valid emission submission.
   const validProcessNames = (processNames || []).filter((p) => p.name && p.name.trim() !== '');
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
-  const missingDesc = validProcessNames.find((p) => !p.description || p.description.trim() === '');
-  if (missingDesc) {
-    return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
-  }
 
   // Fuel selection — Process Emissions don't require fuel
-  const isProcessEmissions = ctx.category?.toLowerCase().includes('process');
+  const isProcessEmissions = Boolean(ctx.capabilities?.processType);
   if (!isProcessEmissions) {
     if (!fuelId && !useCustomFuel) {
       return { valid: false, errorMessage: 'Please select a fuel from the database' };
@@ -287,7 +283,16 @@ export function buildCreatePayload(monthData, ctx) {
 
   const dynamicFieldValues = buildDynamicFieldValues(monthData, ctx);
   const decisionInputs = buildDecisionInputs ? buildDecisionInputs(monthData) : {};
+  const isScope1Like = scope === 'scope1'
+    || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
+  const calculationMethodology = isScope1Like
+    ? (decisionInputs.calculation_methodology || 'using_heat_basis_ncv')
+    : null;
   const processType = decisionInputs.process_type || null;
+
+  if (calculationMethodology) {
+    dynamicFieldValues.calculation_methodology = { value: calculationMethodology, unit: '' };
+  }
 
   if (processType) {
     dynamicFieldValues.process_type = { value: processType, unit: '' };
@@ -312,6 +317,7 @@ export function buildCreatePayload(monthData, ctx) {
     fuel_database_id: useCustomFuel ? null : fuelId,
     is_custom_fuel: useCustomFuel || false,
     custom_fuel_name: useCustomFuel ? customFuelName : null,
+    calculation_methodology: calculationMethodology,
     process_type: processType,
 
     formula_id: resolvedFormulaId,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -13,14 +13,20 @@ import MultiEmployeeInput from './MultiEmployeeInput';
 import {
   FacilityScopeSection,
   BiogenicScopeSection,
-  NotesSection,
   SubmitButtonSection,
 } from '../pages/emissions/EditFormSections';
+import { EditOptionalFields } from '../pages/emissions/EditOptionalFields';
 import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/CustomFuelMonthFields';
+import { resolveGhgUiState } from '../modules/ghg/config/resolveGhgUiState';
+import {
+  getStandardActivityTypeLabel,
+  STANDARD_PROCESS_TYPE_OPTIONS,
+  STANDARD_TYPE_OF_PRODUCT_OPTIONS,
+} from '../modules/ghg/config/standardGhgFormConfig';
+import FlightDetailsSection from './FlightDetailsSection';
 import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
 import {
-  Plus,
   Trash2,
   Calendar as CalendarIcon,
   Eye,
@@ -30,6 +36,18 @@ import {
   X,
   Info,
   FileText,
+  Car,
+  Factory,
+  Wind,
+  Flame,
+  Plane,
+  Truck,
+  Zap,
+  Droplet,
+  Calculator,
+  Leaf,
+  ListFilter,
+  MapPin,
 } from 'lucide-react';
 import { isVolumeUnit as isVolumeUnitShared } from '../pages/emissions/utils/units';
 import { isQuantityField } from '../modules/ghg/emissions/shared/utils/unitHelpers';
@@ -55,6 +73,18 @@ const downloadFileHelper = (url, filename) => {
 // Local alias used in the JSX below (matches the legacy inline reference).
 const isVolumeUnit = isVolumeUnitShared;
 
+const getCategoryIcon = (category = '') => {
+  const normalized = category.toLowerCase();
+  if (normalized.includes('mobile')) return Car;
+  if (normalized.includes('stationary') || normalized.includes('process')) return Factory;
+  if (normalized.includes('fugitive')) return Wind;
+  if (normalized.includes('flaring')) return Flame;
+  if (normalized.includes('electric') || normalized.includes('energy')) return Zap;
+  if (normalized.includes('flight') || normalized.includes('travel')) return Plane;
+  if (normalized.includes('transport') || normalized.includes('distribution')) return Truck;
+  return Leaf;
+};
+
 /**
  * EmissionEditForm — pure view/rendering component for the Edit Emission
  * dialog. All state, refs, effects, memos, and handlers continue to live in
@@ -66,63 +96,22 @@ const isVolumeUnit = isVolumeUnitShared;
  */
 export default function EmissionEditForm(props) {
   const {
-    // ---------- form state (read) ----------
-    formData,
+    // ---------- shared edit-domain boundary ----------
+    draft,
+    onDraftChange,
     editingEmission,
-    editFrequencyType,
-    biogenicScopeSelection,
-    selectedCategory,
-    scope3Method,
-    scope3ActivityType,
-    scope3Subcategory,
-    scope3ActivityId,
-    scope3CustomActivity,
-    useCustomActivity,
-    typeOfProduct,
-    editCalcMethodology,
-    setEditCalcMethodology,
-    editProcessType,
-    setEditProcessType,
-    editUseCustomFuel,
-    editCustomFuelName,
     activitySearchTerm,
     loadingScope3EF,
     loadingBiogenicCategories,
-    editEmployees,
-    editEmployeeMonthlyTotals,
-    editEmployeeYearlyTotal,
     isCalculatingEditEmployee,
     isEditLoading,
     editFormConfigLoading,
     dynamicInputFields,
-    dynamicFieldValues,
-    existingEvidences,
-    overrideCalorificValue,
-    overrideDensity,
-    overrideEmissionFactorHeat,
-    overrideJustification,
     effectiveCalculatedEmissions,
     isCalculating,
     isSaving,
 
-    // ---------- setters ----------
-    setFormData,
-    setBiogenicScopeSelection,
-    setScope3Method,
-    setScope3ActivityType,
-    setScope3ActivityId,
-    setScope3Subcategory,
-    setScope3CustomActivity,
-    setUseCustomActivity,
-    setEditUseCustomFuel,
-    setEditCustomFuelName,
-    setTypeOfProduct,
     setActivitySearchTerm,
-    setDynamicFieldValues,
-    setEditEmployees,
-    setOverrideCalorificValue,
-    setOverrideDensity,
-    setOverrideJustification,
 
     // ---------- core data ----------
     facilities,
@@ -133,7 +122,6 @@ export default function EmissionEditForm(props) {
 
     // ---------- computed/derived ----------
     selectedFuel,
-    activeCategoryModule,
     isEditC7EmployeeCommuting,
     editActiveMonths,
     ModuleDynamicFieldsRenderer,
@@ -141,6 +129,8 @@ export default function EmissionEditForm(props) {
     getFuelsForCategory,
     availableScope3Methods,
     availableScope3ActivityTypes,
+    capabilities = {},
+    fieldOptions = {},
     requiresSubcategory,
     availableSubcategories,
     filteredScope3Activities,
@@ -160,26 +150,91 @@ export default function EmissionEditForm(props) {
     handleDeleteAllEvidences,
     handleDialogChange,
 
-    // ---------- dead-reference fallback (never invoked at runtime) ----------
-    getQuantityUnitFromEFUnit,
-    
     // Optional props for approval mode
     hideSubmitButton = false,
-    isApprovalMode = false,
   } = props;
+
+  const setDraftField = useCallback((field, valueOrUpdater) => {
+    onDraftChange((currentDraft) => ({
+      ...currentDraft,
+      [field]: typeof valueOrUpdater === 'function'
+        ? valueOrUpdater(currentDraft[field])
+        : valueOrUpdater,
+    }));
+  }, [onDraftChange]);
+  const setFormData = useCallback((valuesOrUpdater) => {
+    onDraftChange((currentDraft) => ({
+      ...currentDraft,
+      values: typeof valuesOrUpdater === 'function'
+        ? valuesOrUpdater(currentDraft.values)
+        : valuesOrUpdater,
+    }));
+  }, [onDraftChange]);
+
+  const formData = draft.values;
+  const editFrequencyType = draft.frequencyType;
+  const biogenicScopeSelection = draft.biogenicScopeSelection;
+  const selectedCategory = draft.selectedCategory;
+  const scope3Method = draft.scope3Method;
+  const scope3ActivityType = draft.scope3ActivityType;
+  const scope3Subcategory = draft.scope3Subcategory;
+  const scope3ActivityId = draft.scope3ActivityId;
+  const scope3CustomActivity = draft.scope3CustomActivity;
+  const useCustomActivity = draft.useCustomActivity;
+  const typeOfProduct = draft.typeOfProduct;
+  const editCalcMethodology = draft.calculationMethodology;
+  const editProcessType = draft.processType;
+  const editUseCustomFuel = draft.useCustomFuel;
+  const editCustomFuelName = draft.customFuelName;
+  const editEmployees = draft.employees;
+  const editEmployeeMonthlyTotals = draft.employeeMonthlyTotals;
+  const editEmployeeYearlyTotal = draft.employeeYearlyTotal;
+  const dynamicFieldValues = draft.dynamicFieldValues;
+  const existingEvidences = draft.existingEvidences;
+  const overrideCalorificValue = draft.overrideCalorificValue;
+  const overrideDensity = draft.overrideDensity;
+  const overrideEmissionFactorHeat = draft.overrideEmissionFactorHeat;
+  const overrideJustification = draft.overrideJustification;
+  const setBiogenicScopeSelection = (value) => setDraftField('biogenicScopeSelection', value);
+  const setScope3Method = (value) => setDraftField('scope3Method', value);
+  const setScope3ActivityType = (value) => setDraftField('scope3ActivityType', value);
+  const setScope3ActivityId = (value) => setDraftField('scope3ActivityId', value);
+  const setScope3Subcategory = (value) => setDraftField('scope3Subcategory', value);
+  const setScope3CustomActivity = (value) => setDraftField('scope3CustomActivity', value);
+  const setUseCustomActivity = (value) => setDraftField('useCustomActivity', value);
+  const setEditUseCustomFuel = (value) => setDraftField('useCustomFuel', value);
+  const setEditCustomFuelName = (value) => setDraftField('customFuelName', value);
+  const setTypeOfProduct = (value) => setDraftField('typeOfProduct', value);
+  const setEditCalcMethodology = (value) => setDraftField('calculationMethodology', value);
+  const setEditProcessType = (value) => setDraftField('processType', value);
+  const setDynamicFieldValues = (value) => setDraftField('dynamicFieldValues', value);
+  const setEditEmployees = (value) => setDraftField('employees', value);
+  const setOverrideCalorificValue = (value) => setDraftField('overrideCalorificValue', value);
+  const setOverrideDensity = (value) => setDraftField('overrideDensity', value);
+  const setOverrideJustification = (value) => setDraftField('overrideJustification', value);
+
+  const ghgUiState = resolveGhgUiState({
+    capabilities,
+    scope: formData.scope,
+    biogenicScopeSelection,
+    processType: editProcessType,
+    scope3ActivityType,
+    scope3Method,
+    requiresSubcategory,
+    scope3Subcategory,
+    frequencyType: editFrequencyType,
+    hasCategory: Boolean(selectedCategory || formData.category),
+  });
+  const CategoryIcon = getCategoryIcon(selectedCategory || formData.category);
 
   // ─────────────────────────────────────────────────────────────────────
   // Data-based loading gate for C7 Employee Commuting (has deeply nested
   // employee data). Lifted verbatim from the legacy inline IIFE in
   // pages/Emissions.js.
   // ─────────────────────────────────────────────────────────────────────
-  const isC7Category =
-    formData.category?.toLowerCase()?.includes('c7') ||
-    formData.category?.toLowerCase()?.includes('employee commuting');
-
   // For C7, check that employees are populated with valid data
   const isC7DataReady =
-    !isC7Category || (editEmployees.length > 0 && editEmployees[0]?.id);
+    !isEditC7EmployeeCommuting || (editEmployees.length > 0 && editEmployees[0]?.id);
 
   // Show loading if explicitly loading OR if C7 data isn't ready yet
   if (isEditLoading || !isC7DataReady) {
@@ -193,6 +248,7 @@ export default function EmissionEditForm(props) {
 
   return (
                 <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
+                <section className="space-y-5 rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="edit-form-inputs-section">
                 {/* Facility and Scope Selection - Extracted Component */}
                 <FacilityScopeSection
                   formData={formData}
@@ -203,6 +259,38 @@ export default function EmissionEditForm(props) {
                   handleFuelSelect={handleFuelSelect}
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   markFormDirty={markFormDirty}
+                  reportingPeriod={(
+                    <div className="w-full min-w-[15rem] space-y-1.5" data-testid="edit-reporting-period-field">
+                      {editFrequencyType === 'yearly' ? (
+                        <>
+                          <Label>Reporting Year</Label>
+                          <div className="flex items-center h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-stone-800 font-medium" data-testid="edit-reporting-year-display">
+                            <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
+                            {editingEmission.reporting_period || 'N/A'}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Label htmlFor="reporting_period_start">Reporting Month *</Label>
+                          <MonthYearPicker
+                            id="reporting_period_start"
+                            value={formData.reporting_period_start}
+                            disableFuture={true}
+                            onChange={(val) => {
+                              setFormData((previous) => ({
+                                ...previous,
+                                reporting_period_start: val,
+                                reporting_period_end: val,
+                              }));
+                            }}
+                            placeholder="Select month"
+                            className="bg-stone-50 [&>svg]:text-emerald-600"
+                            data-testid="edit-reporting-month-picker"
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
                 />
                 
                 {/* Biogenic Scope Selection - Extracted Component */}
@@ -217,179 +305,6 @@ export default function EmissionEditForm(props) {
                 />
 
                 
-                {/* Reporting Period - Handle both Monthly and Yearly records for editing */}
-                {editingEmission ? (
-                  <div className="space-y-2">
-                    {/* Frequency Type Badge */}
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        editFrequencyType === 'yearly' 
-                          ? 'bg-purple-100 text-purple-700 border border-purple-200' 
-                          : 'bg-blue-100 text-blue-700 border border-blue-200'
-                      }`}>
-                        {editFrequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
-                      </span>
-                    </div>
-                    
-                    {/* Yearly Record - Show read-only year display */}
-                    {editFrequencyType === 'yearly' ? (
-                      <div className="space-y-1.5">
-                        <Label>
-                          <CalendarIcon className="w-4 h-4 inline mr-1" />
-                          Reporting Year
-                        </Label>
-                        <div className="flex items-center h-10 bg-purple-50 border border-purple-200 rounded-lg px-3 text-purple-700 font-medium">
-                          {editingEmission.reporting_period || 'N/A'}
-                        </div>
-                        <p className="text-xs text-purple-600">
-                          Annual entry - reporting period cannot be changed
-                        </p>
-                      </div>
-                    ) : (
-                      /* Monthly Record - Show month/year picker */
-                      <div className="space-y-1.5">
-                        <Label htmlFor="reporting_period_start">
-                          <CalendarIcon className="w-4 h-4 inline mr-1" />
-                          Reporting Month *
-                        </Label>
-                        <MonthYearPicker
-                          id="reporting_period_start"
-                          value={formData.reporting_period_start}
-                          disableFuture={true}
-                          onChange={(val) => {
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              reporting_period_start: val,
-                              reporting_period_end: val
-                            }));
-                          }}
-                          placeholder="Select month"
-                          className="bg-stone-50"
-                        />
-                        <p className="text-xs text-text-muted">Each emission entry record is for a single month</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* For new emissions, show period type selection */
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-4">
-                      <Label>Reporting Period Type *</Label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name="period_type"
-                            checked={formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end}
-                            onChange={() => {
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_end: prev.reporting_period_start
-                              }));
-                            }}
-                            className="text-primary"
-                          />
-                          Single Month
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name="period_type"
-                            checked={formData.reporting_period_start !== formData.reporting_period_end && !!formData.reporting_period_end}
-                            onChange={() => {
-                              // Set to full year (12 months) starting from current start month or current month
-                              const currentDate = new Date();
-                              const startMonth = formData.reporting_period_start || `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-                              const [year, month] = startMonth.split('-').map(Number);
-                              // Calculate end month (11 months later = 12 month period)
-                              let endYear = year;
-                              let endMonth = month + 11;
-                              if (endMonth > 12) {
-                                endYear += 1;
-                                endMonth -= 12;
-                              }
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_start: startMonth,
-                                reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
-                              }));
-                            }}
-                            className="text-primary"
-                          />
-                          Full Year (12 months)
-                        </label>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      {formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end ? (
-                        /* Single Month Mode */
-                        <div className="space-y-1.5 col-span-2">
-                          <Label htmlFor="reporting_period_start">
-                            <CalendarIcon className="w-4 h-4 inline mr-1" />
-                            Reporting Month *
-                          </Label>
-                          <MonthYearPicker
-                            id="reporting_period_start"
-                            value={formData.reporting_period_start}
-                            disableFuture={true}
-                            onChange={(val) => {
-                              setFormData(prev => ({ 
-                                ...prev, 
-                                reporting_period_start: val,
-                                reporting_period_end: val // Keep them synced in single month mode
-                              }));
-                            }}
-                            placeholder="Select month"
-                            className="bg-stone-50"
-                          />
-                        </div>
-                      ) : (
-                      /* Full Year Mode - Select starting month */
-                      <>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="year_start_month">
-                            <CalendarIcon className="w-4 h-4 inline mr-1" />
-                            Starting Month *
-                          </Label>
-                          <MonthYearPicker
-                            id="year_start_month"
-                            value={formData.reporting_period_start}
-                            disableFuture={true}
-                            onChange={(val) => {
-                              const startMonth = val;
-                              const [year, month] = startMonth.split('-').map(Number);
-                              // Calculate end month (11 months later = 12 month period)
-                              let endYear = year;
-                              let endMonth = month + 11;
-                              if (endMonth > 12) {
-                                endYear += 1;
-                                endMonth -= 12;
-                              }
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_start: startMonth,
-                                reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
-                              }));
-                            }}
-                            placeholder="Select starting month"
-                            className="bg-stone-50"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-text-muted">Period (12 months)</Label>
-                          <p className="text-sm text-text-secondary h-10 flex items-center bg-stone-100 px-3 rounded-md">
-                            {formData.reporting_period_start && formData.reporting_period_end 
-                              ? `${formData.reporting_period_start} to ${formData.reporting_period_end}`
-                              : 'Select a starting month'}
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                )}
-
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-3">
                   {/* Show prompt for facility selection */}
@@ -402,23 +317,26 @@ export default function EmissionEditForm(props) {
                   ) : (
                     <>
                       {/* Category and Fuel Selection */}
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {/* Step 1: Category Selection */}
                         <div className="space-y-1.5">
-                          <Label htmlFor="category_select">Step 1: Select Category *</Label>
-                          <select
-                            id="category_select"
-                            value={selectedCategory}
-                            onChange={(e) => handleCategorySelect(e.target.value)}
-                            required
-                            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                            data-testid="category-select"
-                          >
-                            <option value="">Select category...</option>
-                            {getCategoriesForScope.map(category => (
-                              <option key={category} value={category}>{category}</option>
-                            ))}
-                          </select>
+                          <Label htmlFor="category_select">Select Category *</Label>
+                          <div className="relative">
+                            <CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
+                            <select
+                              id="category_select"
+                              value={selectedCategory}
+                              onChange={(e) => handleCategorySelect(e.target.value)}
+                              required
+                              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+                              data-testid="category-select"
+                            >
+                              <option value="">Select category...</option>
+                              {getCategoriesForScope.map(category => (
+                                <option key={category} value={category}>{category}</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                         
                         {/* Step 2: For Scope 3 - Method and Activity; for Process Emissions no fuel is needed. */}
@@ -427,82 +345,104 @@ export default function EmissionEditForm(props) {
                           <>
                             {/* Scope 3: Calculation Method */}
                             <div className="space-y-1.5">
-                              <Label htmlFor="scope3_method_select">Step 2: Calculation Method *</Label>
-                              <select
-                                id="scope3_method_select"
-                                value={scope3Method}
-                                onChange={(e) => {
-                                  const newMethod = e.target.value;
-                                  setScope3Method(newMethod);
-                                  setScope3ActivityType(''); // Reset activity type when method changes
-                                  setScope3Subcategory('');
-                                  setTypeOfProduct('');
-                                  setScope3ActivityId('');
-                                  setDynamicFieldValues({}); // Fix #9: Clear stale inputs when method changes
-                                  markFormDirty(); // Mark form as dirty when method changes
-                                }}
-                                required
-                                disabled={!selectedCategory}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                data-testid="scope3-method-select"
-                              >
-                                <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
-                                {availableScope3Methods.map(method => (
-                                  <option key={method} value={method}>
-                                    {getMethodLabel(method)}
-                                  </option>
-                                ))}
-                              </select>
+                              <Label htmlFor="scope3_method_select">Calculation Method *</Label>
+                              <div className="relative">
+                                <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
+                                <select
+                                  id="scope3_method_select"
+                                  value={scope3Method}
+                                  onChange={(e) => {
+                                    const newMethod = e.target.value;
+                                    setScope3Method(newMethod);
+                                    setScope3ActivityType('');
+                                    setScope3Subcategory('');
+                                    setTypeOfProduct('');
+                                    setScope3ActivityId('');
+                                    setDynamicFieldValues({});
+                                    markFormDirty();
+                                  }}
+                                  required
+                                  disabled={!selectedCategory}
+                                  className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
+                                  data-testid="scope3-method-select"
+                                >
+                                  <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
+                                  {availableScope3Methods.map(method => (
+                                    <option key={method} value={method}>
+                                      {getMethodLabel(method)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
                               {selectedCategory && availableScope3Methods.length === 0 && !loadingScope3EF && (
                                 <p className="text-xs text-amber-600">No methods available for this category</p>
                               )}
                             </div>
-                          </>
-                        ) : selectedCategory?.toLowerCase().includes('process') ? null : (
-                          <div className="space-y-3">
-                            {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
-                            {(selectedCategory?.toLowerCase().includes('stationary') || 
-                              selectedCategory?.toLowerCase().includes('mobile') || 
-                              selectedCategory?.toLowerCase().includes('fugitive') ||
-                              selectedCategory?.toLowerCase().includes('flaring')) && (
-                              <div className="flex items-center justify-between">
-                                <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={editUseCustomFuel}
+                            {availableScope3ActivityTypes.length > 0 && (
+                              <div className="space-y-1.5" data-testid="scope3-activity-type-section">
+                                <Label htmlFor="scope3_activity_type_filter">Activity Type *</Label>
+                                <div className="relative">
+                                  <ListFilter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
+                                  <select
+                                    id="scope3_activity_type_filter"
+                                    value={scope3ActivityType}
                                     onChange={(e) => {
-                                      setEditUseCustomFuel(e.target.checked);
-                                      if (e.target.checked) {
-                                        setFormData(prev => ({ ...prev, fuel_id: '' }));
-                                      } else {
-                                        setEditCustomFuelName('');
-                                      }
-                                      markFormDirty();
+                                      const newActivityType = e.target.value;
+                                      setScope3ActivityType(newActivityType);
+                                      setScope3ActivityId('');
+                                      setActivitySearchTerm('');
+                                      setDynamicFieldValues({});
                                     }}
-                                    className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                                    data-testid="edit-use-custom-fuel-toggle"
-                                  />
-                                  <span className="text-sm text-amber-700 font-medium">Use Custom Fuel</span>
-                                </label>
+                                    required
+                                    className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+                                    data-testid="scope3-activity-type-filter"
+                                  >
+                                    <option value="">Select activity type...</option>
+                                    {(() => {
+                                      const allTypes = new Set(availableScope3ActivityTypes);
+                                      if (scope3ActivityType && !allTypes.has(scope3ActivityType)) allTypes.add(scope3ActivityType);
+                                      return Array.from(allTypes).sort();
+                                    })().map(type => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+                                  </select>
+                                </div>
                               </div>
+                            )}
+                          </>
+                        ) : !ghgUiState.showFuelSelection ? null : (
+                          <div className="relative space-y-1.5">
+                            {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
+                            <Label htmlFor="fuel_select" className="whitespace-nowrap">Select Fuel Type *</Label>
+                            {ghgUiState.showCustomFuel && (
+                              <label className="absolute right-0 top-0 flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={editUseCustomFuel}
+                                  onChange={(e) => {
+                                    setEditUseCustomFuel(e.target.checked);
+                                    if (e.target.checked) {
+                                      setFormData(prev => ({ ...prev, fuel_id: '' }));
+                                    } else {
+                                      setEditCustomFuelName('');
+                                    }
+                                    markFormDirty();
+                                  }}
+                                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                  data-testid="edit-use-custom-fuel-toggle"
+                                />
+                                <span className="text-xs text-amber-700 font-medium">Use Custom Fuel</span>
+                              </label>
                             )}
                             
                             {!editUseCustomFuel ? (
-                              <div className="space-y-1.5">
-                                {!(selectedCategory?.toLowerCase().includes('stationary') || 
-                                  selectedCategory?.toLowerCase().includes('mobile') || 
-                                  selectedCategory?.toLowerCase().includes('fugitive') ||
-                                  selectedCategory?.toLowerCase().includes('flaring')) && (
-                                  <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
-                                )}
+                              <div className="relative mt-1.5">
+                                <Droplet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
                                 <select
                                   id="fuel_select"
                                   value={formData.fuel_id}
                                   onChange={(e) => handleFuelSelect(e.target.value)}
                                   required
                                   disabled={!selectedCategory}
-                                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
                                   data-testid="fuel-select"
                                 >
                                   <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
@@ -532,11 +472,9 @@ export default function EmissionEditForm(props) {
                             )}
                           </div>
                         )}
-                      </div>
-                      
+
                       {/* Process Type - For Process Emissions (Scope 1) */}
-                      {selectedCategory && selectedCategory.toLowerCase().includes('process') &&
-                       (formData.scope === 'scope1' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+                      {ghgUiState.showProcessType && (
                         <div className="space-y-1.5" data-testid="edit-process-type-section">
                           <Label>Process Type <span className="text-red-500">*</span></Label>
                           <Select
@@ -544,35 +482,38 @@ export default function EmissionEditForm(props) {
                             onValueChange={(v) => {
                               setEditProcessType(v);
                               setEditCalcMethodology('using_heat_basis_ncv');
+                              markFormDirty();
                             }}
                           >
                             <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-process-type-select">
                               <SelectValue placeholder="Select process type" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="venting">Venting</SelectItem>
-                              <SelectItem value="n2o_overall_combustion">N2O from Overall Combustion</SelectItem>
-                              <SelectItem value="ch4_overall_combustion">CH4 from Overall Combustion</SelectItem>
+                              {STANDARD_PROCESS_TYPE_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
                       )}
 
                       {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
-                      {selectedCategory && (
-                        (selectedCategory.toLowerCase().includes('stationary') || selectedCategory.toLowerCase().includes('mobile') || selectedCategory.toLowerCase().includes('flaring')) ||
-                        (selectedCategory.toLowerCase().includes('process') && editProcessType === 'venting')
-                      ) &&
-                       (formData.scope === 'scope1' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+                      {ghgUiState.showCalculationMethodology && (
                         <div className="space-y-1.5" data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
                           <Select
                             value={editCalcMethodology || 'using_heat_basis_ncv'}
-                            onValueChange={(v) => setEditCalcMethodology(v)}
+                            onValueChange={(v) => {
+                              setEditCalcMethodology(v);
+                              markFormDirty();
+                            }}
                           >
-                            <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-calculation-methodology-select">
-                              <SelectValue placeholder="Select methodology" />
-                            </SelectTrigger>
+                            <div className="relative">
+                              <Calculator className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
+                              <SelectTrigger className="h-10 bg-stone-50 pl-10" data-testid="edit-calculation-methodology-select">
+                                <SelectValue placeholder="Select methodology" />
+                              </SelectTrigger>
+                            </div>
                             <SelectContent>
                               <SelectItem value="using_heat_basis_ncv">Using Heat Basis (NCV)</SelectItem>
                               <SelectItem value="using_qty_basis_ef">Using Qty Basis EF</SelectItem>
@@ -581,64 +522,15 @@ export default function EmissionEditForm(props) {
                           </Select>
                         </div>
                       )}
+                      </div>
 
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
                         <div className="space-y-3">
-                          {/* Activity Type Filter (only for C6/C7) */}
-                          {availableScope3ActivityTypes.length > 0 && (
-                            <div className="space-y-1.5">
-                              <Label htmlFor="scope3_activity_type_filter">Step 3: Activity Type *</Label>
-                              <select
-                                id="scope3_activity_type_filter"
-                                value={scope3ActivityType}
-                                onChange={(e) => {
-                                  const newActivityType = e.target.value;
-                                  setScope3ActivityType(newActivityType);
-                                  setScope3ActivityId(''); // Reset activity when type changes
-                                  setActivitySearchTerm(''); // Clear activity search
-                                  setDynamicFieldValues({}); // Fix #9: Clear stale inputs when activity type changes
-                                }}
-                                required
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                                data-testid="scope3-activity-type-filter"
-                              >
-                                <option value="">Select activity type...</option>
-                                {(() => {
-                                  // Ensure saved activity type is included in options
-                                  const allTypes = new Set(availableScope3ActivityTypes);
-                                  if (scope3ActivityType && !allTypes.has(scope3ActivityType)) {
-                                    allTypes.add(scope3ActivityType);
-                                  }
-                                  return Array.from(allTypes).sort();
-                                })().map(type => {
-                                  // Display friendly labels for activity types (#9)
-                                  const activityTypeLabels = {
-                                    'car_travel': 'Car Travel',
-                                    'bus_travel': 'Bus Travel',
-                                    'rail_travel': 'Rail Travel',
-                                    'air_travel': 'Air Travel',
-                                    'taxi_travel': 'Taxi Travel',
-                                    'bike_travel': 'Bike Travel',
-                                    'wfh': 'Work From Home',
-                                    'hotel_stay': 'Hotel Stay',
-                                    'water_travel': 'Water Travel',
-                                    'others': 'Others',
-                                  };
-                                  return (
-                                    <option key={type} value={type}>
-                                      {activityTypeLabels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                    </option>
-                                  );
-                                })}
-                              </select>
-                            </div>
-                          )}
-                          
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
                           {requiresSubcategory && availableSubcategories.length > 0 && (
                             <div className="space-y-1.5">
-                              <Label htmlFor="scope3_subcategory_filter">Step 3: Subcategory *</Label>
+                              <Label htmlFor="scope3_subcategory_filter">Subcategory *</Label>
                               <select
                                 id="scope3_subcategory_filter"
                                 value={scope3Subcategory}
@@ -664,16 +556,10 @@ export default function EmissionEditForm(props) {
 
                           {/* C11 Type of Product (only for activity_basis) */}
                           {(() => {
-                            const catLower = (formData.category || '').toLowerCase();
-                            const isC11 = catLower.includes('c11');
-                            const showTypeOfProduct = isC11
-                              && scope3Method === 'activity_basis'
-                              && requiresSubcategory
-                              && !!scope3Subcategory;
-                            if (!showTypeOfProduct) return null;
+                            if (!ghgUiState.showTypeOfProduct) return null;
                             return (
                               <div className="space-y-1.5">
-                                <Label htmlFor="scope3_type_of_product_filter">Step 4: Type of Product *</Label>
+                                <Label htmlFor="scope3_type_of_product_filter">Type of Product *</Label>
                                 <select
                                   id="scope3_type_of_product_filter"
                                   value={typeOfProduct || ''}
@@ -687,19 +573,18 @@ export default function EmissionEditForm(props) {
                                   data-testid="scope3-type-of-product-filter"
                                 >
                                   <option value="">Select type of product...</option>
-                                  <option value="continuous_usage">Energy-consuming product over lifetime</option>
-                                  <option value="one_time_use">One-time combustion</option>
+                                  {STANDARD_TYPE_OF_PRODUCT_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
                                 </select>
                               </div>
                             );
                           })()}
                           
                           {/* Activity Selection */}
-                          <div className="space-y-1.5">
+                          <div className="space-y-1.5" data-testid="scope3-activity-section">
                             <div className="flex items-center justify-between">
-                              <Label htmlFor="scope3_activity_select">
-                                {(availableScope3ActivityTypes.length > 0 || requiresSubcategory) ? 'Step 4: Activity *' : 'Step 3: Activity *'}
-                              </Label>
+                              <Label htmlFor="scope3_activity_select">Activity *</Label>
                               {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
                               {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
                                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -763,38 +648,29 @@ export default function EmissionEditForm(props) {
                                 </div>
                                 
                                 {/* Activity selection dropdown */}
-                                <select
-                                  id="scope3_activity_select"
-                                  value={scope3ActivityId}
-                                  onChange={(e) => { 
-                                    setScope3ActivityId(e.target.value); 
-                                    setActivitySearchTerm(''); // Clear search after selection
-                                    markFormDirty(); 
-                                  }}
-                                  required
-                                  disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                  data-testid="scope3-activity-select"
-                                >
-                                  <option value="">
-                                    {!scope3Method ? 'Select method first' : 
-                                     (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
-                                     (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
-                                     `Select activity (${filteredScope3Activities.filter(a => 
-                                       !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())
-                                     ).length} available)...`}
-                                  </option>
-                                  {filteredScope3Activities
-                                    .filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase()))
-                                    .map(ef => (
-                                      <option key={ef.id} value={ef.id}>
-                                        {ef.activity}
-                                      </option>
-                                    ))}
-                                </select>
+                                <div className="relative">
+                                  <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
+                                  <select
+                                    id="scope3_activity_select"
+                                    value={scope3ActivityId}
+                                    onChange={(e) => { setScope3ActivityId(e.target.value); setActivitySearchTerm(''); markFormDirty(); }}
+                                    required
+                                    disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                    className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'cursor-not-allowed opacity-50' : ''}`}
+                                    data-testid="scope3-activity-select"
+                                  >
+                                    <option value="">
+                                      {!scope3Method ? 'Select method first' :
+                                       (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
+                                       (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
+                                       `Select activity (${filteredScope3Activities.filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length} available)...`}
+                                    </option>
+                                    {filteredScope3Activities.filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).map(ef => <option key={ef.id} value={ef.id}>{ef.activity}</option>)}
+                                  </select>
+                                </div>
                                 {/* No match indicator */}
                                 {activitySearchTerm && filteredScope3Activities.filter(a => a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length === 0 && (
-                                  <p className="text-xs text-amber-600">No activities match "{activitySearchTerm}"</p>
+                                  <p className="text-xs text-amber-600">No activities match &quot;{activitySearchTerm}&quot;</p>
                                 )}
                               </div>
                             )}
@@ -806,71 +682,9 @@ export default function EmissionEditForm(props) {
                         </div>
                       )}
 
-                      {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
-                      {formData.scope === 'scope3' && selectedCategory && (
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium mb-2 text-blue-800 text-sm">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer' : 'Supplier'} Information (Optional)</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                              <Label htmlFor="supplier_name" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Name' : 'Supplier Name'}</Label>
-                              <Input
-                                id="supplier_name"
-                                value={formData.supplier_name}
-                                onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer name...' : 'Enter supplier name...'}
-                                className="bg-white h-9"
-                                data-testid="edit-supplier-name-input"
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="supplier_code" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Code' : 'Supplier Code'}</Label>
-                              <Input
-                                id="supplier_code"
-                                value={formData.supplier_code}
-                                onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
-                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer code...' : 'Enter supplier code...'}
-                                className="bg-white h-9"
-                                data-testid="edit-supplier-code-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Employee Commuting specific fields (optional) */}
-                      {formData.scope === 'scope3' && formData.category === 'Employee Commuting' && (
-                        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                          <h4 className="font-medium mb-2 text-purple-800 text-sm">Employee Information (Optional)</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="employee_name">Employee Name</Label>
-                              <Input
-                                id="employee_name"
-                                value={formData.employee_name}
-                                onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })}
-                                placeholder="Enter employee name..."
-                                className="bg-white"
-                                data-testid="edit-employee-name-input"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="employee_id">Employee ID</Label>
-                              <Input
-                                id="employee_id"
-                                value={formData.employee_id}
-                                onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                                placeholder="Enter employee ID..."
-                                className="bg-white"
-                                data-testid="edit-employee-id-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
                       {/* Asset Name section — driven by module capability 'asset-name' (C8/C13/C14/C15) */}
-                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('asset-name') && (
+                      {formData.scope === 'scope3' && capabilities.assetName && (
                         <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                           <h4 className="font-medium mb-2 text-amber-800 text-sm">Asset Information</h4>
                           <div className="space-y-1.5">
@@ -888,132 +702,20 @@ export default function EmissionEditForm(props) {
                         </div>
                       )}
 
-                      {/* From/To Location for C4/C6/C9 (Transportation/Travel categories) */}
-                      {/* Journey Details — driven by module capability 'journey-locations' (C4/C6/C9) */}
-                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('journey-locations') && !isEditC7EmployeeCommuting && (
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium mb-2 text-blue-800 text-sm">Journey Details (Optional)</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <Label htmlFor="from_location" className="text-xs">From Location</Label>
-                              <Input
-                                id="from_location"
-                                value={formData.from_location}
-                                onChange={(e) => setFormData({ ...formData, from_location: e.target.value })}
-                                placeholder="E.g., City A, Warehouse"
-                                className="bg-white h-9"
-                                data-testid="edit-from-location-input"
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="to_location" className="text-xs">To Location</Label>
-                              <Input
-                                id="to_location"
-                                value={formData.to_location}
-                                onChange={(e) => setFormData({ ...formData, to_location: e.target.value })}
-                                placeholder="E.g., City B, Distribution Center"
-                                className="bg-white h-9"
-                                data-testid="edit-to-location-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
+                      {ghgUiState.showFlightDetails && (
+                        <FlightDetailsSection
+                          monthKey={editFrequencyType === 'yearly' ? 'yearly' : (formData.reporting_period_start || 'edit')}
+                          data={formData}
+                          updateMonthData={(_, field, value) => {
+                            setFormData((previous) => ({ ...previous, [field]: value }));
+                            if (field === 'km_travelled') updateDynamicFieldValue('km_travelled', value);
+                            markFormDirty?.();
+                          }}
+                        />
                       )}
                   
                     </>
                   )}
-                </div>
-
-                {/* Process Names - Multiple entries with + button (comes after fuel selection) */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label>Name of Process(es) *</Label>
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="cursor-help">
-                            <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                          <p>Process in which the fuel is being used</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <div className="space-y-2">
-                    {formData.process_names.map((process, index) => (
-                      <div key={index} className="border border-stone-200 rounded-lg p-3 space-y-2 bg-stone-50">
-                        <div className="flex gap-2 items-start">
-                          <div className="flex-1 space-y-1.5">
-                            <Input
-                              value={typeof process === 'string' ? process : (process.name || '')}
-                              onChange={(e) => {
-                                const newProcessNames = [...formData.process_names];
-                                if (typeof newProcessNames[index] === 'string') {
-                                  newProcessNames[index] = { name: e.target.value, description: '' };
-                                } else {
-                                  newProcessNames[index] = { ...newProcessNames[index], name: e.target.value };
-                                }
-                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                              }}
-                              placeholder={`Process name ${index + 1}`}
-                              className="bg-white h-9"
-                            />
-                            <div className="space-y-1">
-                              <label className="text-xs text-stone-500">
-                                Description {(typeof process === 'string' ? process : process.name)?.trim() && <span className="text-red-500">*</span>}
-                              </label>
-                              <textarea
-                                value={typeof process === 'string' ? '' : (process.description || '')}
-                                onChange={(e) => {
-                                  const newProcessNames = [...formData.process_names];
-                                  if (typeof newProcessNames[index] === 'string') {
-                                    newProcessNames[index] = { name: newProcessNames[index], description: e.target.value };
-                                  } else {
-                                    newProcessNames[index] = { ...newProcessNames[index], description: e.target.value };
-                                  }
-                                  setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                                }}
-                                placeholder="Process Description (required if name is provided)"
-                                className={`w-full px-3 py-2 text-sm bg-white border rounded-lg resize-none ${
-                                  (typeof process === 'string' ? process : process.name)?.trim() && 
-                                  !(typeof process === 'string' ? '' : process.description)?.trim()
-                                    ? 'border-red-300 focus:border-red-500'
-                                    : 'border-stone-200'
-                                }`}
-                                rows={2}
-                              />
-                            </div>
-                          </div>
-                          {formData.process_names.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                const newProcessNames = formData.process_names.filter((_, i) => i !== index);
-                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                              }}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50 mt-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setFormData(prev => ({ ...prev, process_names: [...prev.process_names, { name: '', description: '' }] }))}
-                      className="mt-2"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Process
-                    </Button>
-                  </div>
                 </div>
 
                 {/* Quantity Input and Person Responsible - Same Row */}
@@ -1049,21 +751,6 @@ export default function EmissionEditForm(props) {
                       isEditMode={true}
                       frequencyType={editFrequencyType}
                     />
-                    {/* Record Source (Optional) — tracked in version
-                        history. Available for C7 edit flow too. */}
-                    <div className="space-y-2">
-                      <Label htmlFor="record_source_c7">
-                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
-                      </Label>
-                      <Input
-                        id="record_source_c7"
-                        value={formData.record_source || ''}
-                        onChange={(e) => setFormData({ ...formData, record_source: e.target.value })}
-                        className="bg-stone-50 h-10"
-                        placeholder="e.g., Survey #2024-Q1, HR commute records"
-                        data-testid="edit-record-source-input-c7"
-                      />
-                    </div>
                   </div>
                 )}
                 
@@ -1079,7 +766,7 @@ export default function EmissionEditForm(props) {
                       <span>Loading form configuration...</span>
                     </div>
                   </div>
-                ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 && true ? (
+                ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 ? (
                   /* Pluggable category renderer (PoC: C1 routes through registry). */
                   ModuleDynamicFieldsRenderer ? (
                     <ModuleDynamicFieldsRenderer
@@ -1098,20 +785,16 @@ export default function EmissionEditForm(props) {
                     />
                   ) : (
                   <div className="space-y-4">
-                    <div className="text-sm text-stone-500 mb-2 flex items-center gap-2">
-                      Input Fields (from calculation engine configuration)
-                    </div>
-                    
                     {/* Supplier Method Disclaimer - Only for Scope 3 with supplier_basis */}
                     {formData.scope === 'scope3' && scope3Method === 'supplier_basis' && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                         <p className="text-sm text-amber-800">
-                          <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                          <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the &quot;Quantity Used&quot; field.
                         </p>
                       </div>
                     )}
                     
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
                         const isQtyField = isQuantityField(field);
                         const hideStandardQuantityUnit = editUseCustomFuel && isQtyField;
@@ -1287,7 +970,7 @@ export default function EmissionEditForm(props) {
                                 ))}
                               </select>
                             ) : (
-                              <div className={(showUnitSelector || showUnitTextInput) ? "flex gap-2" : ""}>
+                              <div className={(showUnitSelector || showUnitTextInput) ? "flex gap-2 min-w-0" : ""}>
                                 <Input
                                   type={field.fieldType === 'text' ? 'text' : 'number'}
                                   step={field.fieldType === 'number' ? 'any' : undefined}
@@ -1306,7 +989,7 @@ export default function EmissionEditForm(props) {
                                   }}
                                   onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
                                   disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1 min-w-0' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                   data-testid={`edit-input-${field.fieldKey}`}
                                 />
 
@@ -1317,7 +1000,7 @@ export default function EmissionEditForm(props) {
                                     value={dynamicFieldValues[`${field.variable}_unit`] || ''}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
                                     disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     placeholder="Unit"
                                     data-testid={`edit-unit-text-${field.fieldKey}`}
                                   />
@@ -1330,7 +1013,7 @@ export default function EmissionEditForm(props) {
                                     value={dynamicFieldValues[`${field.variable}_unit`] || ''}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
                                     disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     placeholder="Unit (e.g., L, tCO2/L)"
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   />
@@ -1347,7 +1030,7 @@ export default function EmissionEditForm(props) {
                                       }
                                     }}
                                     disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   >
                                     {/* savedUnit already included in fieldUnits at line ~4084; no duplicate injection needed */}
@@ -1363,55 +1046,6 @@ export default function EmissionEditForm(props) {
                       })}
                     </div>
                     
-                    {/* Person Responsible fields below dynamic inputs */}
-                    <div className="grid grid-cols-3 gap-4 mt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="responsible_person">Person Responsible</Label>
-                        <Input
-                          id="responsible_person"
-                          value={formData.responsible_person}
-                          onChange={(e) => { setFormData({ ...formData, responsible_person: e.target.value }); markFormDirty(); }}
-                          className="bg-stone-50 h-10"
-                          placeholder="Name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="responsible_person_designation">Designation</Label>
-                        <Input
-                          id="responsible_person_designation"
-                          value={formData.responsible_person_designation}
-                          onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
-                          className="bg-stone-50 h-10"
-                          placeholder="e.g., Environmental Manager"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="responsible_person_contact">Contact</Label>
-                        <Input
-                          id="responsible_person_contact"
-                          value={formData.responsible_person_contact}
-                          onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
-                          className="bg-stone-50 h-10"
-                          placeholder="Email / Phone"
-                        />
-                      </div>
-                    </div>
-                    {/* Record Source (Optional) — tracked in version
-                        history. Visible/editable for all scopes/categories.
-                        Independent of auto-derived `source_of_information`. */}
-                    <div className="space-y-2 pt-2">
-                      <Label htmlFor="record_source">
-                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
-                      </Label>
-                      <Input
-                        id="record_source"
-                        value={formData.record_source || ''}
-                        onChange={(e) => { setFormData({ ...formData, record_source: e.target.value }); markFormDirty(); }}
-                        className="bg-stone-50 h-10"
-                        placeholder="e.g., Invoice #4521, meter reading from supplier portal"
-                        data-testid="edit-record-source-input"
-                      />
-                    </div>
                   </div>
                   )
                 ) : !isEditC7EmployeeCommuting ? (
@@ -1419,7 +1053,7 @@ export default function EmissionEditForm(props) {
                   <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
                     <Label htmlFor="quantity">
-                      Quantity * {false && <span className="text-xs text-amber-600">(unit locked)</span>}
+                      Quantity *
                     </Label>
                     <div className="flex gap-2">
                       <Input
@@ -1440,11 +1074,7 @@ export default function EmissionEditForm(props) {
                         className="bg-stone-50 flex-1"
                         data-testid="quantity-input"
                       />
-                      {false ? (
-                        <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 w-40 text-stone-600">
-                          <span>{getQuantityUnitFromEFUnit(formData.emission_factor_unit)}</span>
-                        </div>
-                      ) : !editUseCustomFuel ? (
+                      {!editUseCustomFuel ? (
                         <select
                           value={formData.quantity_unit}
                           onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
@@ -1457,50 +1087,6 @@ export default function EmissionEditForm(props) {
                         </select>
                       ) : null}
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="responsible_person">Person Responsible</Label>
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="cursor-help">
-                              <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                            <p>Person who is maintaining this data</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <Input
-                      id="responsible_person"
-                      value={formData.responsible_person}
-                      onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                      className="bg-stone-50 h-10"
-                      placeholder="Name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="responsible_person_designation">Designation</Label>
-                    <Input
-                      id="responsible_person_designation"
-                      value={formData.responsible_person_designation}
-                      onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
-                      className="bg-stone-50 h-10"
-                      placeholder="e.g., Environmental Manager"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="responsible_person_contact">Contact Details</Label>
-                    <Input
-                      id="responsible_person_contact"
-                      value={formData.responsible_person_contact}
-                      onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
-                      className="bg-stone-50 h-10"
-                      placeholder="Email or phone number"
-                    />
                   </div>
                 </div>
                 ) : null}
@@ -1515,32 +1101,13 @@ export default function EmissionEditForm(props) {
                       markFormDirty?.();
                     }}
                     calculationMethodology={editCalcMethodology || 'using_heat_basis_ncv'}
+                    fieldOptions={fieldOptions}
                   />
-                )}
-
-                {/* Record Source (Optional) — legacy edit branch only.
-                    Dynamic branch (above) already renders its own field, so
-                    we gate this on the absence of dynamic input fields to
-                    avoid showing the input twice. */}
-                {!editFormConfigLoading && dynamicInputFields.length === 0 && !isEditC7EmployeeCommuting && (
-                <div className="space-y-2">
-                  <Label htmlFor="record_source_legacy">
-                    Source of Information <span className="text-xs text-stone-500">(Optional)</span>
-                  </Label>
-                  <Input
-                    id="record_source_legacy"
-                    value={formData.record_source || ''}
-                    onChange={(e) => setFormData({ ...formData, record_source: e.target.value })}
-                    className="bg-stone-50 h-10"
-                    placeholder="e.g., Invoice #4521, meter reading from supplier portal"
-                    data-testid="edit-record-source-input-legacy"
-                  />
-                </div>
                 )}
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {/* HIDDEN when using dynamic input fields (overrides are handled there) or loading */}
-                {!editFormConfigLoading && dynamicInputFields.length === 0 && true && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
+                {!editFormConfigLoading && dynamicInputFields.length === 0 && formData.fuel_id && formData.scope !== 'scope2' && ghgUiState.showManualFactorOverrides && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
                     {/* Calorific Value Override */}
                     <div>
@@ -1719,6 +1286,8 @@ export default function EmissionEditForm(props) {
                   </div>
                 )}
 
+                </section>
+
                 {effectiveCalculatedEmissions && (
                   editUseCustomFuel ? (
                     <CustomFuelLiveCalculation
@@ -1734,6 +1303,15 @@ export default function EmissionEditForm(props) {
                     />
                   )
                 )}
+
+                <EditOptionalFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  markFormDirty={markFormDirty}
+                  capabilities={capabilities}
+                  selectedCategory={selectedCategory}
+                  isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
+                />
 
                 {/* Evidence Management Section */}
                 <div className="space-y-3">
@@ -1821,12 +1399,6 @@ export default function EmissionEditForm(props) {
                     multiple={true}
                   />
                 </div>
-
-                {/* Notes - Extracted Component */}
-                <NotesSection
-                  formData={formData}
-                  setFormData={(newData) => { setFormData(newData); markFormDirty(); }}
-                />
 
                 {/* Submit Buttons - Extracted Component */}
                 {!hideSubmitButton && (

@@ -15,6 +15,7 @@ from modules.esg_questionnaire.contracts import (
     NGRBC_PRINCIPLES,
 )
 from modules.esg_questionnaire.service import esg_questionnaire_service
+from modules.esg_questionnaire.timeline_service import question_response_timeline_service
 
 router = APIRouter(prefix="/esg-questionnaire", tags=["ESG Questionnaire"])
 
@@ -267,18 +268,18 @@ async def save_gri_response(
         
         assignment_ids = [a["assignment_id"] for a in assignee_records]
         
-        # Check if user is assigned to this question
+        # Check exact child assignment first, then permit child keys under an assigned parent.
         has_access = False
         if assignment_ids:
-            assignment = await db.esg_assignments.find_one({
+            assignments = await db.esg_assignments.find({
                 "id": {"$in": assignment_ids},
                 "entity_type": {"$in": ["question", "disclosure"]},
-                "$or": [
-                    {"entity_id": question_key},
-                    {"question_key": question_key},
-                ]
-            })
-            has_access = assignment is not None
+            }, {"_id": 0, "entity_id": 1, "question_key": 1}).to_list(500)
+            for assignment in assignments:
+                assigned_key = assignment.get("entity_id") or assignment.get("question_key")
+                if assigned_key and (assigned_key == question_key or question_key.startswith(f"{assigned_key}_")):
+                    has_access = True
+                    break
         
         if not has_access:
             raise HTTPException(
@@ -299,7 +300,8 @@ async def save_gri_response(
         changed_by_user_id=current_user.get("id"),
         changed_by_user_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
         changed_by_user_email=current_user.get("email"),
-        status=status
+        status=status,
+        is_admin=is_admin,
     )
     
     # Handle submitted for approval response
@@ -1047,6 +1049,26 @@ async def get_response_summary(
         section=section
     )
     return summary
+
+
+@router.get("/timeline/{framework}/{question_key}/{reporting_year}")
+async def get_question_response_timeline(
+    framework: str,
+    question_key: str,
+    reporting_year: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Read-only BRSR/GRI response timeline with organization and reporting-year isolation."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    try:
+        timeline = await question_response_timeline_service.get_timeline(
+            org_id, framework, question_key, reporting_year
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return timeline.model_dump()
 
 
 @router.get("/responses/{framework}/{section}/years")

@@ -19,6 +19,7 @@ export const validateStep1 = ({
   useCustomActivity,
   scope3CustomActivity,
   biogenicScopeSelection,
+  capabilities = { requiresFuel: true },
   useCustomFuel,
   fuelId,
   customFuelName,
@@ -56,9 +57,7 @@ export const validateStep1 = ({
     return { valid: false, message: 'Please select a biogenic emission type (Scope 1 or Scope 3)' };
   }
 
-  // Process Emissions - no fuel required
-  const isProcessEmissions = category?.toLowerCase().includes('process');
-  if (isProcessEmissions) {
+  if (!capabilities.requiresFuel) {
     return { valid: true };
   }
 
@@ -74,31 +73,11 @@ export const validateStep1 = ({
  * Validate Step 2 → Step 3 transition (Process & Responsibility)
  */
 export const validateStep2 = ({
-  isProcessEmissions,
-  processNames,
-  responsiblePerson,
   requiresAssetName,
   assetName,
 }) => {
-  // For process emissions, only validate responsible person
-  if (isProcessEmissions) {
-    if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
-    return { valid: true };
-  }
-
-  // Validate process names
-  const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
-  if (validProcesses.length === 0) return { valid: false, message: 'Please enter at least one process name' };
-
-  // Check if all processes with names have descriptions
-  const processesWithoutDescription = validProcesses.filter(p => !p.description || p.description.trim() === '');
-  if (processesWithoutDescription.length > 0) {
-    return { valid: false, message: `Please add description for process: "${processesWithoutDescription[0].name}"` };
-  }
-
-  if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
-
-  // Asset Name validation for C8/C13/C14/C15
+  // Process names, descriptions, and ownership are optional metadata in Create.
+  // Asset identity remains required where the selected category depends on it.
   if (requiresAssetName && !assetName?.trim()) {
     return { valid: false, message: 'Please enter asset name' };
   }
@@ -249,9 +228,6 @@ export const validateStep3 = ({
     return { valid: true };
   }
 
-  // Monthly mode validation
-  if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
-
   // Validate mandatory formula fields for each filled month
   if (dynamicInputFields.length > 0) {
     const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
@@ -369,6 +345,10 @@ export const validateStep3 = ({
       }
     }
   }
+
+  // Do this after inspecting partially-entered months so users receive the
+  // missing-field message instead of a generic no-data message.
+  if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
 
   return { valid: true };
 };

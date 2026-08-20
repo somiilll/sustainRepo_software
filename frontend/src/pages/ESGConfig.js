@@ -29,7 +29,6 @@ const FIELD_TYPES = [
   { value: 'checkbox_group', label: 'Checkbox Group', icon: '☑️' },
   { value: 'yes_no', label: 'Yes/No', icon: '✓✗' },
   { value: 'date', label: 'Date', icon: '📅' },
-  { value: 'unit_selector', label: 'Unit Selector', icon: '📏' },
   { value: 'table', label: 'Table', icon: '▦' },
   { value: 'file_upload', label: 'File Upload', icon: '📎' },
 ];
@@ -736,15 +735,20 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
     type: 'text',
     label: '',
     required: false,
+    is_primary: false,
     placeholder: '',
     options: [],
     default_value: null,
     validation: {},
+    has_unit: false,
+    allowed_units: [],
+    default_unit: '',
     table_columns: [],
     table_min_rows: 1,
     table_max_rows: 10
   });
   const [optionsText, setOptionsText] = useState('');
+  const [unitsText, setUnitsText] = useState('');
 
   useEffect(() => {
     if (isEdit && field) {
@@ -753,30 +757,40 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
         type: field.type || 'text',
         label: field.label || '',
         required: field.required || false,
+        is_primary: field.is_primary || false,
         placeholder: field.placeholder || '',
         options: field.options || [],
         default_value: field.default_value || null,
         validation: field.validation || {},
+        has_unit: field.has_unit || false,
+        allowed_units: field.allowed_units || [],
+        default_unit: field.default_unit || '',
         table_columns: field.table_columns || [],
         table_min_rows: field.table_min_rows || 1,
         table_max_rows: field.table_max_rows || 10
       });
       setOptionsText((field.options || []).join('\n'));
+      setUnitsText((field.allowed_units || []).join('\n'));
     } else {
       setFormData({
         field_key: '',
         type: 'text',
         label: '',
         required: false,
+        is_primary: false,
         placeholder: '',
         options: [],
         default_value: null,
         validation: {},
+        has_unit: false,
+        allowed_units: [],
+        default_unit: '',
         table_columns: [],
         table_min_rows: 1,
         table_max_rows: 10
       });
       setOptionsText('');
+      setUnitsText('');
     }
   }, [isEdit, field, open]);
 
@@ -804,14 +818,24 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
     const fieldData = { ...formData };
     
     // Parse options from text
-    if (['dropdown', 'radio', 'checkbox_group', 'unit_selector'].includes(formData.type)) {
+    if (['dropdown', 'radio', 'checkbox_group'].includes(formData.type)) {
       fieldData.options = optionsText.split('\n').map(o => o.trim()).filter(Boolean);
+    }
+
+    // Parse units from text
+    if (formData.has_unit) {
+      fieldData.allowed_units = unitsText.split('\n').map(u => u.trim()).filter(Boolean);
+    } else {
+      fieldData.has_unit = false;
+      fieldData.allowed_units = [];
+      fieldData.default_unit = '';
     }
 
     onSave(fieldData);
   };
 
-  const needsOptions = ['dropdown', 'radio', 'checkbox_group', 'unit_selector'].includes(formData.type);
+  const needsOptions = ['dropdown', 'radio', 'checkbox_group'].includes(formData.type);
+  const canHaveUnit = ['number', 'text'].includes(formData.type);
   const isTable = formData.type === 'table';
 
   return (
@@ -930,6 +954,53 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
             />
             <Label>Required field</Label>
           </div>
+
+          {canHaveUnit && (
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={formData.is_primary}
+                onCheckedChange={(value) => handleChange('is_primary', value)}
+                data-testid="field-is-primary-switch"
+              />
+              <Label>Primary value for general AI queries</Label>
+            </div>
+          )}
+
+          {/* Unit Support (for number/text fields) */}
+          {canHaveUnit && (
+            <>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={formData.has_unit}
+                  onCheckedChange={(v) => handleChange('has_unit', v)}
+                />
+                <Label>Has unit</Label>
+              </div>
+              {formData.has_unit && (
+                <div className="space-y-3 pl-4 border-l-2 border-emerald-200">
+                  <div>
+                    <Label className="text-xs">Allowed Units (one per line)</Label>
+                    <Textarea
+                      value={unitsText}
+                      onChange={(e) => setUnitsText(e.target.value)}
+                      placeholder={"Litres\nKilolitres\nMegaLitres"}
+                      rows={3}
+                      className="mt-1 font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Default Unit</Label>
+                    <Input
+                      value={formData.default_unit}
+                      onChange={(e) => handleChange('default_unit', e.target.value)}
+                      placeholder="e.g., Litres"
+                      className="mt-1 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <DialogFooter className="mt-4">

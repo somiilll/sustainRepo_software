@@ -43,6 +43,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { QuestionVersionHistory } from './QuestionVersionHistory';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -67,7 +68,6 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const [reportingPeriod, setReportingPeriod] = useState(null);
   const [reportingYears, setReportingYears] = useState([]);
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
-  const [loadingHistory, setLoadingHistory] = useState(false);
   const [userDrafts, setUserDrafts] = useState({});  // Drafts keyed by disclosure_id
   const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics
 
@@ -459,23 +459,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
 
   // Fetch version history for a question
   const fetchHistory = async (questionKey) => {
-    setLoadingHistory(true);
-    try {
-      const res = await axios.get(
-        `${API}/api/esg-questionnaire/history/${questionKey}?reporting_period=${encodeURIComponent(reportingPeriod)}`,
-        { headers: getAuthHeader() }
-      );
-      setHistoryDialog({
-        open: true,
-        questionKey: questionKey,
-        history: res.data.history || []
-      });
-    } catch (error) {
-      console.error('Failed to fetch history:', error);
-      toast.error('Failed to load version history');
-    } finally {
-      setLoadingHistory(false);
-    }
+    setHistoryDialog({ open: true, questionKey, history: [] });
   };
 
   // Get status badge for a question or disclosure
@@ -483,6 +467,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     switch (status) {
       case 'approved':
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
+      case 'saved_approved':
+        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Saved & Approved</Badge>;
       case 'saved':
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Saved</Badge>;
       case 'pending_approval':
@@ -495,6 +481,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Clock className="w-3 h-3 mr-1" />Editing</Badge>;
       case 'rejected':
         return <Badge className="bg-red-100 text-red-800 border-red-200"><Circle className="w-3 h-3 mr-1" />Rejected</Badge>;
+      case 'in_progress':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Clock className="w-3 h-3 mr-1" />In Progress</Badge>;
       case 'superseded':
         return <Badge className="bg-gray-100 text-gray-500 border-gray-200"><Circle className="w-3 h-3 mr-1" />Superseded</Badge>;
       default:
@@ -513,9 +501,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     if (disclosure) {
       const hasAnyResponse = disclosure.questions.some(q => {
         if (q.sub_questions?.length > 0) {
-          return q.sub_questions.some(sub => sub.response_status === 'saved' || sub.response_status === 'approved');
+          return q.sub_questions.some(sub => sub.response_status === 'saved' || sub.response_status === 'approved' || sub.response_status === 'saved_approved');
         }
-        return q.status === 'saved' || q.status === 'approved';
+        return q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved';
       });
       if (hasAnyResponse) return 'saved';
     }
@@ -547,11 +535,11 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       if (q.sub_questions && q.sub_questions.length > 0) {
         total += q.sub_questions.length;
         completed += q.sub_questions.filter(sub => 
-          sub.response_status === 'saved' || sub.response_status === 'approved'
+          sub.response_status === 'saved' || sub.response_status === 'approved' || sub.response_status === 'saved_approved'
         ).length;
       } else {
         total += 1;
-        if (q.status === 'saved' || q.status === 'approved') {
+        if (q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved') {
           completed += 1;
         }
       }
@@ -581,21 +569,16 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           {/* Status Badge & History Button */}
           <div className="flex items-center gap-2 shrink-0">
             {getStatusBadge(question.status)}
-            <Button
+            {!hasSubQuestions && <Button
               variant="ghost"
               size="sm"
               onClick={() => fetchHistory(question.question_key)}
-              disabled={loadingHistory}
               className="h-7 px-2 text-xs text-stone-500 hover:text-blue-600"
               title="View version history"
               data-testid={`history-${question.question_key}`}
             >
-              {loadingHistory ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <History className="w-4 h-4" />
-              )}
-            </Button>
+              <History className="w-4 h-4" />
+            </Button>}
           </div>
         </div>
         
@@ -604,10 +587,25 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           <div className="ml-8 space-y-4 border-l-2 border-blue-100 pl-4">
             {question.sub_questions.map((sub) => (
               <div key={sub.response_key} className="space-y-2">
-                <Label className="text-sm text-text-secondary flex items-start gap-2">
-                  <span className="text-blue-600 font-mono text-xs shrink-0">{sub.sub_key}.</span>
-                  <span>{sub.label}</span>
-                </Label>
+                <div className="flex items-start justify-between gap-2">
+                  <Label className="text-sm text-text-secondary flex items-start gap-2">
+                    <span className="text-blue-600 font-mono text-xs shrink-0">{sub.sub_key}.</span>
+                    <span>{sub.label}</span>
+                  </Label>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {sub.response_status && sub.response_status !== 'pending' && getStatusBadge(sub.response_status)}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => fetchHistory(sub.response_key)}
+                      className="h-7 px-2 text-xs text-stone-500 hover:text-blue-600"
+                      title="View subquestion version history"
+                      data-testid={`history-${sub.response_key}`}
+                    >
+                      <History className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
                 
                 {isEditing ? (
                   <div className="space-y-2">
@@ -1028,7 +1026,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       })}
 
       {/* Version History Dialog */}
-      <Dialog open={historyDialog.open} onOpenChange={(open) => !open && setHistoryDialog({ open: false, questionKey: null, history: [] })}>
+      <Dialog open={false}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1152,6 +1150,13 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           )}
         </DialogContent>
       </Dialog>
+      <QuestionVersionHistory
+        open={historyDialog.open}
+        onOpenChange={(open) => !open && setHistoryDialog({ open: false, questionKey: null, history: [] })}
+        framework="GRI"
+        questionKey={historyDialog.questionKey}
+        reportingYear={reportingPeriod}
+      />
     </div>
   );
 }

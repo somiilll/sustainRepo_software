@@ -593,8 +593,9 @@ class CalcEngine:
         }
 
         if not dry_run:
+            audit_log_id = str(uuid.uuid4())
             await self.db.ce_calculation_audit_logs.insert_one({
-                "id": str(uuid.uuid4()),
+                "id": audit_log_id,
                 "emission_record_id": emission_record_id,
                 "org_id": org_id,
                 "formula_id": formula.get("id"),
@@ -607,5 +608,6 @@ class CalcEngine:
                 "created_at": result["generated_at"],
             })
             result["persisted"] = True
+            result["audit_log_id"] = audit_log_id
 
         return result

@@ -48,6 +48,7 @@ export function useEmissionSubmit(ctx) {
       onSuccess, getActualYearForMonth, evaluateFormula,
       buildDecisionInputs, editingEmission,
       decisionFieldValues,
+      capabilities,
       // Optional supplier context
       supplierContext = null,
       // OCR context for finalize-import
@@ -80,6 +81,20 @@ export function useEmissionSubmit(ctx) {
     const apiBase = supplierContext 
       ? `${API}/supplier-assessment/my-assessment/emissions`
       : `${API}/emissions`;
+
+    // Link a calc-engine audit log entry to a newly created emission record.
+    // Best-effort: failures are logged but never block the save flow.
+    const linkAuditLog = async (auditLogId, emissionRecordId) => {
+      if (!auditLogId || !emissionRecordId) return;
+      try {
+        await axios.post(`${API}/calc-engine/audit-log/link-emission`, {
+          audit_log_id: auditLogId,
+          emission_record_id: emissionRecordId,
+        }, { headers: getAuthHeader() });
+      } catch (err) {
+        console.warn('[useEmissionSubmit] Failed to link audit log:', err);
+      }
+    };
 
     // Prevent duplicate submissions
     if (isSaving) return;
@@ -246,7 +261,7 @@ export function useEmissionSubmit(ctx) {
             yearlyData[f.key] && parseFloat(yearlyData[f.key]) > 0
           );
         } else if (dynamicInputFields.length > 0) {
-          const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+          const requiredFields = dynamicInputFields.filter(f => !f.isOverride && !f.presentationOnly);
           hasYearlyData = requiredFields.some(f => {
             const value = yearlyData[f.variable] || yearlyData[f.fieldKey];
             return value && parseFloat(value) > 0;
@@ -342,6 +357,7 @@ export function useEmissionSubmit(ctx) {
               overrideJustification: '',
               scope,
               category,
+              capabilities,
               buildDecisionInputs,
             });
             if (!yModValidation.valid) {
@@ -351,7 +367,7 @@ export function useEmissionSubmit(ctx) {
             }
 
             const yBaseCtx = {
-              scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+              scope, category, capabilities, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
               recordSource,
               biogenicScopeSelection,
               scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
@@ -386,6 +402,7 @@ export function useEmissionSubmit(ctx) {
 
             let yCalcCO2 = 0, yCalcCH4 = 0, yCalcN2O = 0, yCalcCO2e = 0;
             let yResolvedFormulaId = null;
+            let yAuditLogId = null;
 
             const yEffectiveScope = yIsScope3Like ? 'scope3' : scope;
             const yCategoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === yEffectiveScope);
@@ -414,6 +431,7 @@ export function useEmissionSubmit(ctx) {
                   yCalcN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
                   yCalcCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
                   yResolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
+                  yAuditLogId = r.audit_log_id || null;
                 } else if (useCustomFuel) {
                   toast.error('Custom Fuel calculation returned no result.');
                   setIsSaving(false);
@@ -439,7 +457,8 @@ export function useEmissionSubmit(ctx) {
               frequency_type: 'yearly',
             };
 
-            await axios.post(apiBase, yPayload, { headers: getAuthHeader() });
+            const yResp = await axios.post(apiBase, yPayload, { headers: getAuthHeader() });
+            if (yResp.data?.id) linkAuditLog(yAuditLogId, yResp.data.id);
             toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
             onSuccess?.();
           }
@@ -469,7 +488,7 @@ export function useEmissionSubmit(ctx) {
         });
       } else if (dynamicInputFields.length > 0) {
         // For dynamic form config, check if any required field (non-override) has value
-        const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+        const requiredFields = dynamicInputFields.filter(f => !f.isOverride && !f.presentationOnly);
         monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
           return requiredFields.some(field => {
             const value = data?.[field.variable] || data?.[field.fieldKey];
@@ -646,6 +665,7 @@ export function useEmissionSubmit(ctx) {
             errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: backend calculation failed`);
             continue;
           }
+          const cfAuditLogId = calculation.audit_log_id || null;
           const outputs = calculation.outputs || {};
           const qtyUnit = data.custom_qty_unit || data.unit || 'kg';
           const payload = {
@@ -686,8 +706,9 @@ export function useEmissionSubmit(ctx) {
             },
           };
           try {
-            await axios.post(apiBase, payload, { headers: getAuthHeader() });
+            const cfResp = await axios.post(apiBase, payload, { headers: getAuthHeader() });
             successCount++;
+            if (cfResp.data?.id) linkAuditLog(cfAuditLogId, cfResp.data.id);
           } catch (err) {
             errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${err.response?.data?.detail || 'Failed'}`);
           }
@@ -717,6 +738,7 @@ export function useEmissionSubmit(ctx) {
           overrideJustification: '',
           scope,
           category,
+          capabilities,
           buildDecisionInputs,
         });
         if (!modValidation.valid) {
@@ -733,7 +755,7 @@ export function useEmissionSubmit(ctx) {
           const reportingPeriod = `${actualYear}-${monthKey}`;
 
           const baseCtx = {
-            scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+            scope, category, capabilities, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
             recordSource,
             biogenicScopeSelection,
             scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
@@ -768,6 +790,7 @@ export function useEmissionSubmit(ctx) {
 
           let calculatedCO2 = 0, calculatedCH4 = 0, calculatedN2O = 0, calculatedCO2e = 0;
           let resolvedFormulaId = null;
+          let auditLogId = null;
 
           // Calc-engine lookup uses scope-specific category code
           const effectiveScopeForLookup = isScope3Like ? 'scope3' : scope;
@@ -802,6 +825,7 @@ export function useEmissionSubmit(ctx) {
                 calculatedN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
                 calculatedCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
                 resolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
+                auditLogId = r.audit_log_id || null;
               } else if (useCustomFuel) {
                 errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: backend calculation returned no result`);
                 continue;
@@ -827,6 +851,7 @@ export function useEmissionSubmit(ctx) {
             // Collect emission record ID for OCR finalize
             if (response.data?.id) {
               savedEmissionIds.push(response.data.id);
+              linkAuditLog(auditLogId, response.data.id);
             }
           } catch (err) {
             errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Save failed`);

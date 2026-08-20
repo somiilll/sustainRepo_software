@@ -109,7 +109,10 @@ async def precompute_embeddings(org_id: str, db) -> dict:
         entries.append({"text": text, "entity_type": "fuel", "entity_id": f.get("fuel_name"), "organization_id": "__global__", "metadata": {"fuel_name": f.get("fuel_name"), "category": f.get("category")}})
 
     # 4. ESG KPI definitions
-    kpis = await db.esg_kpi_definitions.find({}, {"_id": 0, "id": 1, "metric_name": 1, "short_name": 1, "section": 1, "category_name": 1}).to_list(400)
+    kpis = await db.esg_kpi_definitions.find(
+        {"$or": [{"organization_id": org_id}, {"organization_id": {"$exists": False}}, {"organization_id": None}]},
+        {"_id": 0, "id": 1, "metric_name": 1, "short_name": 1, "section": 1, "category_name": 1},
+    ).to_list(400)
     for k in kpis:
         text = f"KPI: {k.get('metric_name') or k.get('short_name')} section {k.get('section', '')} category {k.get('category_name', '')}"
         entries.append({"text": text, "entity_type": "kpi", "entity_id": k.get("id"), "organization_id": "__global__", "metadata": {"name": k.get("metric_name")}})

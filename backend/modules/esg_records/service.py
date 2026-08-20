@@ -17,6 +17,47 @@ from .contracts import (
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
 
 
+def previous_applied_version(versions: List[Dict[str, Any]], index: int) -> Optional[Dict[str, Any]]:
+    """Return the previous applied snapshot, excluding display-only rejected proposals."""
+    for candidate in versions[index + 1:]:
+        if candidate.get("record_was_changed") is False:
+            continue
+        if isinstance(candidate.get("snapshot"), dict):
+            return candidate
+    return None
+
+
+def enrich_proposal_diff_details(version: Dict[str, Any], proposal: Dict[str, Any]) -> None:
+    """Attach stored submitter/approver change stages for a proposal-backed ESG version event."""
+    snapshot = proposal.get("entity_snapshot") or {}
+    submitted = [
+        {
+            "field": item.get("field_key"),
+            "display_name": item.get("field_key", "").replace("_", " ").title(),
+            "old_value": item.get("old_value"),
+            "new_value": item.get("new_value"),
+        }
+        for item in snapshot.get("changes_summary", [])
+        if item.get("field_key")
+    ]
+    version["submitted_field_diffs"] = submitted
+    version["approver_edited"] = bool(snapshot.get("approver_edited") or proposal.get("approver_edited"))
+    final_values = (version.get("snapshot") or {}).get("field_values") or {}
+    version["approver_field_diffs"] = [
+        {
+            "field": item["field"],
+            "display_name": item["display_name"],
+            "old_value": item["new_value"],
+            "new_value": final_values.get(item["field"]),
+        }
+        for item in submitted
+        if final_values.get(item["field"]) != item["new_value"]
+    ] if version["approver_edited"] else []
+    version["requested_by"] = version.get("requested_by") or proposal.get("submitted_by")
+    version["requested_by_name"] = version.get("requested_by_name") or proposal.get("submitted_by_name")
+    version["requested_by_email"] = version.get("requested_by_email") or proposal.get("submitted_by_email")
+
+
 class ESGRecordsService:
     """Service for managing ESG records with versioning."""
     
@@ -144,6 +185,7 @@ class ESGRecordsService:
                     sub_subcategory=data.sub_subcategory,
                     facility_id=data.facility_id,
                     reporting_period=data.reporting_period,
+                    assignment=assignment,
                 )
                 if not period_valid:
                     rp = data.reporting_period
@@ -404,6 +446,7 @@ class ESGRecordsService:
         sub_subcategory: Optional[str],
         facility_id: Optional[str],
         reporting_period: Any,
+        assignment: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Check if user has an active task for the given reporting period.
@@ -427,12 +470,16 @@ class ESGRecordsService:
             # Convert month name to number
             month_names = ["January", "February", "March", "April", "May", "June",
                           "July", "August", "September", "October", "November", "December"]
-            if isinstance(month, str) and month in month_names:
+            if isinstance(month, str) and month.strip().isdigit():
+                month_num = int(month.strip())
+            elif isinstance(month, str) and month in month_names:
                 month_num = month_names.index(month) + 1
             elif isinstance(month, int):
                 month_num = month
             else:
-                month_num = 1
+                return False
+            if not 1 <= month_num <= 12:
+                return False
             period_key = f"{year}-{str(month_num).zfill(2)}"
         elif rp_type == "quarterly" and quarter:
             q = quarter.replace("Q", "") if isinstance(quarter, str) else quarter
@@ -453,27 +500,45 @@ class ESGRecordsService:
             task_query["subcategory"] = subcategory
         if sub_subcategory:
             task_query["sub_subcategory"] = sub_subcategory
-        if facility_id:
-            task_query["facility_id"] = facility_id
-        
         matching_tasks = await db.esg_reporting_tasks.find(
             task_query,
-            {"_id": 0, "id": 1}
+            {"_id": 0, "id": 1, "facility_id": 1, "assignment_id": 1}
         ).to_list(100)
         
         if not matching_tasks:
             return False  # No tasks for this period
         
-        task_ids = [t["id"] for t in matching_tasks]
-        
-        # Step 2: Check if user is assigned to any of these tasks
-        assignee = await db.esg_task_assignees.find_one({
-            "task_id": {"$in": task_ids},
-            "user_id": user_id,
-            "is_active": True,
-        })
-        
-        return assignee is not None
+        async def has_active_task(task_ids: List[str]) -> bool:
+            if not task_ids:
+                return False
+            assignee = await db.esg_task_assignees.find_one({
+                "task_id": {"$in": task_ids},
+                "user_id": user_id,
+                "is_active": True,
+            })
+            return assignee is not None
+
+        if facility_id:
+            exact_facility_tasks = [task["id"] for task in matching_tasks if task.get("facility_id") == facility_id]
+            # A facility-specific task takes precedence and cannot be bypassed by an org task.
+            if exact_facility_tasks:
+                return await has_active_task(exact_facility_tasks)
+
+            snapshot_ids = ((assignment or {}).get("facility_snapshot") or {}).get("facility_ids") or []
+            is_covered_org_assignment = (
+                (assignment or {}).get("assignment_level") == "organization"
+                and facility_id in snapshot_ids
+            )
+            if not is_covered_org_assignment:
+                return False
+            org_task_ids = [
+                task["id"] for task in matching_tasks
+                if task.get("facility_id") is None and task.get("assignment_id") == (assignment or {}).get("id")
+            ]
+            return await has_active_task(org_task_ids)
+
+        org_task_ids = [task["id"] for task in matching_tasks if task.get("facility_id") is None]
+        return await has_active_task(org_task_ids)
 
     def _calculate_field_changes(
         self,
@@ -2091,32 +2156,93 @@ class ESGRecordsService:
         cursor = collection.find(
             {"record_id": record_id},
             {"_id": 0}
-        ).sort("version", -1)
+        ).sort([("version", -1), ("created_at", -1)])
         versions = await cursor.to_list(None)
+        proposal_ids = [version.get("proposal_id") for version in versions if version.get("proposal_id")]
+        proposals_by_id = {}
+        if proposal_ids:
+            proposals = await db.approval_requests.find(
+                {"id": {"$in": proposal_ids}},
+                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "entity_snapshot": 1},
+            ).to_list(None)
+            proposals_by_id = {proposal["id"]: proposal for proposal in proposals}
         
-        # Collect user IDs for bulk lookup
-        user_ids = list(set(v.get("created_by") for v in versions if v.get("created_by")))
+        # Resolve actor display names for both current and legacy version entries.
+        # Older entries can carry an email in a `*_by_name` field, while newer
+        # entries reference a user id. Prefer the user's full name in either case.
+        actor_values = [
+            version.get(field)
+            for version in versions
+            for field in ("created_by", "approved_by", "rejected_by", "changed_by_name", "approved_by_name", "rejected_by_name")
+            if version.get(field)
+        ]
+        user_ids = list({value for value in actor_values if "@" not in str(value)})
+        user_emails = list({str(value).lower() for value in actor_values if "@" in str(value)})
         user_map = {}
+        email_map = {}
+        user_query = []
         if user_ids:
-            users = await db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "name": 1, "email": 1}).to_list(None)
-            user_map = {u["id"]: u.get("name") or u.get("email", "Unknown") for u in users}
+            user_query.append({"id": {"$in": user_ids}})
+        if user_emails:
+            user_query.append({"email": {"$in": user_emails}})
+        if user_query:
+            users = await db.users.find(
+                {"$or": user_query},
+                {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1},
+            ).to_list(None)
+            user_map = {
+                user["id"]: user.get("full_name") or user.get("name") or user.get("email", "Unknown")
+                for user in users
+                if user.get("id")
+            }
+            email_map = {
+                user["email"].lower(): user.get("full_name") or user.get("name") or "Unknown"
+                for user in users
+                if user.get("email")
+            }
+
+        def resolve_actor_name(*values: Any) -> str:
+            for value in values:
+                if not value:
+                    continue
+                raw_value = str(value)
+                if "@" in raw_value:
+                    resolved_name = email_map.get(raw_value.lower())
+                    if resolved_name:
+                        return resolved_name
+                    continue
+                resolved_name = user_map.get(raw_value)
+                if resolved_name:
+                    return resolved_name
+                return raw_value
+            return "Unknown"
         
         # Process versions - compute field changes by comparing consecutive snapshots
         for i, v in enumerate(versions):
             if "snapshot" in v and isinstance(v["snapshot"], dict):
                 v["snapshot"].pop("_id", None)
             
-            # Add user name
-            v["changed_by_name"] = user_map.get(v.get("created_by"), "Unknown")
+            # Add user names without exposing stored email fallbacks.
+            v["changed_by_name"] = resolve_actor_name(v.get("changed_by_name"), v.get("created_by"))
+            if v.get("approved_by_name") or v.get("approved_by"):
+                v["approved_by_name"] = resolve_actor_name(v.get("approved_by_name"), v.get("approved_by"), v.get("created_by"))
+            if v.get("rejected_by_name") or v.get("rejected_by"):
+                v["rejected_by_name"] = resolve_actor_name(v.get("rejected_by_name"), v.get("rejected_by"), v.get("created_by"))
+            proposal = proposals_by_id.get(v.get("proposal_id"))
+            if proposal and v.get("submitted_field_diffs") is None:
+                enrich_proposal_diff_details(v, proposal)
             
             # Keep stored change_type (approved/rejected/etc), only default if not present
             if not v.get("change_type"):
                 v["change_type"] = "created" if v.get("version") == 1 else "updated"
             
             # Use stored changed_fields paths to compute diffs from snapshots
-            if v.get("version", 1) > 1 and i + 1 < len(versions):
+            if v.get("field_diffs") is not None:
+                continue
+            previous = previous_applied_version(versions, i)
+            if v.get("version", 1) > 1 and previous:
                 # Compute from snapshots using utility
-                prev_snapshot = versions[i + 1].get("snapshot", {})
+                prev_snapshot = previous.get("snapshot", {})
                 curr_snapshot = v.get("snapshot", {})
                 changes = compare_versions(prev_snapshot, curr_snapshot)
                 v["field_diffs"] = [

@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EmissionFilters from './emissions/EmissionFilters';
@@ -30,14 +30,27 @@ import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/ut
 import { buildCustomFuelCalculationPayload } from './emissions/utils/customFuelCalcAdapter';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
 import { categoryRegistry } from '../modules/emissions';
-import { isDensityRequiredForQtyBasis } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import {
+  deriveGhgFields,
+  resolveGhgFormContext,
+  resolveGhgFormArchitecture,
+  resolveGhgCategoryOptions,
+  resolveGhgScope3Options,
+  resolveEffectiveScopeCode,
+  GHG_FIELD_OPTION_KEYS,
+} from '../modules/ghg/config';
+import {
+  createEmptyEmissionDraft,
+  updateDraftField,
+  updateDraftValues,
+} from '../modules/ghg/emissions/shared/domain';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-export default function Emissions() {
+export default function Emissions({ organizationGhgOverrides = null }) {
   // ============================================================================
   // CORE DATA - Fetched via custom hook (Phase 1 refactor)
   // ============================================================================
@@ -97,7 +110,7 @@ export default function Emissions() {
   
   useEffect(() => {
     if (pathScope && pathScope !== activeScope) setActiveScope(pathScope);
-  }, [pathScope]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathScope]);
   const [filterFacility, setFilterFacility] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterFrequency, setFilterFrequency] = useState(''); // 'monthly', 'yearly', or '' for all
@@ -108,10 +121,6 @@ export default function Emissions() {
   const [sortBy, setSortBy] = useState('created_at'); // Sort options: date, facility, fuel, emissions
   const [sortOrder, setSortOrder] = useState('desc'); // asc or desc
   const [editingEmission, setEditingEmission] = useState(null);
-  const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
-  const [overrideDensity, setOverrideDensity] = useState(false);
-  const [overrideEmissionFactorHeat, setOverrideEmissionFactorHeat] = useState(false);
-  const [overrideJustification, setOverrideJustification] = useState(''); // #17: Override justification
   const [isCalculating, setIsCalculating] = useState(false); // Track calculation state for save button
   
   // Modal Protection State (#19 - Prevent accidental close)
@@ -119,43 +128,78 @@ export default function Emissions() {
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false); // Confirmation dialog
   const [pendingCloseAction, setPendingCloseAction] = useState(null); // Store pending close action
   
-  const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
+  // Shared edit-domain state. It deliberately excludes dialog/loading/search
+  // state so the renderer and page can exchange actual emission values only.
+  const [editDraft, setEditDraft] = useState(() => createEmptyEmissionDraft());
+  const formData = editDraft.values;
+  const setFormData = useCallback((nextValuesOrUpdater) => {
+    setEditDraft((currentDraft) => updateDraftValues(currentDraft, nextValuesOrUpdater));
+  }, []);
+  const setDraftField = useCallback((field, nextValueOrUpdater) => {
+    setEditDraft((currentDraft) => updateDraftField(currentDraft, field, nextValueOrUpdater));
+  }, []);
+  const selectedCategory = editDraft.selectedCategory;
+  const setSelectedCategory = useCallback((value) => setDraftField('selectedCategory', value), [setDraftField]);
+  const overrideCalorificValue = editDraft.overrideCalorificValue;
+  const setOverrideCalorificValue = useCallback((value) => setDraftField('overrideCalorificValue', value), [setDraftField]);
+  const overrideDensity = editDraft.overrideDensity;
+  const setOverrideDensity = useCallback((value) => setDraftField('overrideDensity', value), [setDraftField]);
+  const overrideEmissionFactorHeat = editDraft.overrideEmissionFactorHeat;
+  const overrideJustification = editDraft.overrideJustification;
+  const setOverrideJustification = useCallback((value) => setDraftField('overrideJustification', value), [setDraftField]);
   
   // Scope 3 specific state for inline edit form
   // Initial data hydrated from useEmissionsCoreData (so dropdowns work for Edit
   // dialog regardless of whether user has touched the Add form / scope tab).
   const [scope3EFData, setScope3EFData] = useState([]);
-  const [scope3Method, setScope3Method] = useState('');
-  const [scope3ActivityId, setScope3ActivityId] = useState('');
-  const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
-  const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
-  const [typeOfProduct, setTypeOfProduct] = useState(''); // C11 only — continuous_usage / one_time_use
-  const [editCalcMethodology, setEditCalcMethodology] = useState('using_heat_basis_ncv'); // Stationary Combustion methodology
-  const [editProcessType, setEditProcessType] = useState(''); // Process Emissions type (venting/n2o/ch4)
-  const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
-  const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
-  const [editUseCustomFuel, setEditUseCustomFuel] = useState(false); // Toggle for custom fuel in edit mode
-  const [editCustomFuelName, setEditCustomFuelName] = useState(''); // Custom fuel name in edit mode
+  const scope3Method = editDraft.scope3Method;
+  const setScope3Method = useCallback((value) => setDraftField('scope3Method', value), [setDraftField]);
+  const scope3ActivityId = editDraft.scope3ActivityId;
+  const setScope3ActivityId = useCallback((value) => setDraftField('scope3ActivityId', value), [setDraftField]);
+  const scope3ActivityType = editDraft.scope3ActivityType;
+  const setScope3ActivityType = useCallback((value) => setDraftField('scope3ActivityType', value), [setDraftField]);
+  const scope3Subcategory = editDraft.scope3Subcategory;
+  const setScope3Subcategory = useCallback((value) => setDraftField('scope3Subcategory', value), [setDraftField]);
+  const typeOfProduct = editDraft.typeOfProduct;
+  const setTypeOfProduct = useCallback((value) => setDraftField('typeOfProduct', value), [setDraftField]);
+  const editCalcMethodology = editDraft.calculationMethodology;
+  const setEditCalcMethodology = useCallback((value) => setDraftField('calculationMethodology', value), [setDraftField]);
+  const editProcessType = editDraft.processType;
+  const setEditProcessType = useCallback((value) => setDraftField('processType', value), [setDraftField]);
+  const scope3CustomActivity = editDraft.scope3CustomActivity;
+  const setScope3CustomActivity = useCallback((value) => setDraftField('scope3CustomActivity', value), [setDraftField]);
+  const useCustomActivity = editDraft.useCustomActivity;
+  const setUseCustomActivity = useCallback((value) => setDraftField('useCustomActivity', value), [setDraftField]);
+  const editUseCustomFuel = editDraft.useCustomFuel;
+  const setEditUseCustomFuel = useCallback((value) => setDraftField('useCustomFuel', value), [setDraftField]);
+  const editCustomFuelName = editDraft.customFuelName;
+  const setEditCustomFuelName = useCallback((value) => setDraftField('customFuelName', value), [setDraftField]);
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   const [activitySearchTerm, setActivitySearchTerm] = useState(''); // Search filter for activities in edit dialog
   
   // Biogenic-specific state
-  const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic tab is active
+  const biogenicScopeSelection = editDraft.biogenicScopeSelection;
+  const setBiogenicScopeSelection = useCallback((value) => setDraftField('biogenicScopeSelection', value), [setDraftField]);
   const [biogenicCategories, setBiogenicCategories] = useState([]); // Categories that have biogenic entries
   const [loadingBiogenicCategories, setLoadingBiogenicCategories] = useState(false);
   
   // Multi-Employee state (for C7 Employee Commuting edit)
   // C7 always uses multi-employee mode - no toggle needed
-  const [editEmployees, setEditEmployees] = useState([]);
-  const [editEmployeeMonthlyTotals, setEditEmployeeMonthlyTotals] = useState({});
-  const [editEmployeeYearlyTotal, setEditEmployeeYearlyTotal] = useState({});
+  const editEmployees = editDraft.employees;
+  const setEditEmployees = useCallback((value) => setDraftField('employees', value), [setDraftField]);
+  const editEmployeeMonthlyTotals = editDraft.employeeMonthlyTotals;
+  const setEditEmployeeMonthlyTotals = useCallback((value) => setDraftField('employeeMonthlyTotals', value), [setDraftField]);
+  const editEmployeeYearlyTotal = editDraft.employeeYearlyTotal;
+  const setEditEmployeeYearlyTotal = useCallback((value) => setDraftField('employeeYearlyTotal', value), [setDraftField]);
   const [isCalculatingEditEmployee, setIsCalculatingEditEmployee] = useState(false);
-  const [editC7Month, setEditC7Month] = useState(null); // Single month for new C7 monthly model
+  const editC7Month = editDraft.c7Month;
+  const setEditC7Month = useCallback((value) => setDraftField('c7Month', value), [setDraftField]);
   
   // Frequency type state for edit mode (monthly vs yearly)
   // This is locked once a record is saved and cannot be changed
-  const [editFrequencyType, setEditFrequencyType] = useState('monthly');
+  const editFrequencyType = editDraft.frequencyType;
+  const setEditFrequencyType = useCallback((value) => setDraftField('frequencyType', value), [setDraftField]);
   
   // Backend calc engine hook
   const { 
@@ -175,7 +219,8 @@ export default function Emissions() {
   const [isEditLoading, setIsEditLoading] = useState(false);
   
   // Dynamic input field values for the edit form (keyed by field.field_key)
-  const [dynamicFieldValues, setDynamicFieldValues] = useState({});
+  const dynamicFieldValues = editDraft.dynamicFieldValues;
+  const setDynamicFieldValues = useCallback((value) => setDraftField('dynamicFieldValues', value), [setDraftField]);
   
   // Store the emission ID being edited (for fetching audit log)
   const [editingEmissionId, setEditingEmissionId] = useState(null);
@@ -188,78 +233,14 @@ export default function Emissions() {
   const [monthlyData, setMonthlyData] = useState({});
   const [formStep, setFormStep] = useState(1); // Step-based form
 
-  const [formData, setFormData] = useState({
-    facility_id: '',
-    reporting_period_start: '',
-    reporting_period_end: '',
-    scope: 'scope1',
-    category: '',
-    sub_category: '',
-    fuel_id: '',  // ID of selected fuel from database
-    fuel_type: '',
-    quantity: '',
-    quantity_unit: 'kg', // Default to kg
-    emission_factor_co2: '',
-    emission_factor_ch4: '',
-    emission_factor_n2o: '',
-    emission_factor_basis_quantity: '', // For Scope 2 electricity
-    emission_factor_basis_unit: '', // For Scope 2 electricity
-    calorific_value: '',
-    calorific_value_unit: '',
-    calorific_value_justification: '', // Justification when overriding calorific value
-    density: '',
-    density_unit: '',
-    density_justification: '', // Justification when overriding density
-    emission_factor_heat: '', // Override Custom CO2 Emission Factor (Heat Basis) - kg CO₂/TJ
-    emission_factor_heat_justification: '', // Justification when overriding EF heat basis
-    conversion_factor: '1',
-    source_of_information: '',
-    record_source: '',
-    justification: '',
-    notes: '',
-    responsible_person: '',
-    responsible_person_designation: '',
-    responsible_person_contact: '',
-    evidence_url: '',
-    process_names: [{ name: '', description: '' }], // Array for multiple process names with descriptions
-    process_descriptions: [], // For backward compatibility
-    // Scope 3 optional fields
-    supplier_name: '',
-    supplier_code: '',
-    employee_name: '',
-    employee_id: '',
-    asset_name: '', // Asset Name for C8/C13/C14/C15
-    from_location: '', // From Location for C4/C6/C7/C9
-    to_location: '', // To Location for C4/C6/C7/C9
-  });
 
-  // CRITICAL: Use refs to always have fresh values in event handlers
-  // This fixes stale closure issues with React state in async handlers
-  const overrideCalorificValueRef = useRef(overrideCalorificValue);
-  const overrideDensityRef = useRef(overrideDensity);
-  const overrideEmissionFactorHeatRef = useRef(overrideEmissionFactorHeat);
-  const formDataRef = useRef(formData);
-  
-  
-  // Keep refs in sync with state
-  useEffect(() => {
-    overrideCalorificValueRef.current = overrideCalorificValue;
-  }, [overrideCalorificValue]);
-  
-  useEffect(() => {
-    overrideDensityRef.current = overrideDensity;
-  }, [overrideDensity]);
-  
-  useEffect(() => {
-    overrideEmissionFactorHeatRef.current = overrideEmissionFactorHeat;
-  }, [overrideEmissionFactorHeat]);
-  
-  useEffect(() => {
-    formDataRef.current = formData;
-  }, [formData]);
+  // Synchronously identifies the latest record-opening request so delayed
+  // evidence metadata cannot update a newer draft.
+  const activeEditIdRef = useRef(null);
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
-  const [existingEvidences, setExistingEvidences] = useState([]); // Track existing evidences when editing
+  const existingEvidences = editDraft.existingEvidences;
+  const setExistingEvidences = useCallback((value) => setDraftField('existingEvidences', value), [setDraftField]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [emissionToDelete, setEmissionToDelete] = useState(null);
 
@@ -354,17 +335,14 @@ export default function Emissions() {
         return;
       }
       
-      // Determine effective scope for category lookup
-      // - Biogenic Scope 3: look for scope_code === 'scope3'
-      // - Regular scopes: use formData.scope directly
-      const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-      const effectiveScope = isBiogenicScope3 ? 'scope3' : formData.scope;
-      
-      // Find category ID
-      const categoryObj = dynamicCategories.find(
-        c => c.name === formData.category && c.scope_code === effectiveScope
-      );
-      if (!categoryObj?.id) {
+      const editContext = resolveGhgFormContext({
+        scope: formData.scope,
+        biogenicScopeSelection,
+        categoryName: formData.category,
+        categories: dynamicCategories,
+        scopes: dynamicScopes,
+      });
+      if (!editContext.categoryId) {
         setEditFormConfig(null);
         return;
       }
@@ -372,7 +350,7 @@ export default function Emissions() {
       setEditFormConfigLoading(true);
       try {
         // Include method and activity in the request for better formula matching
-        let url = `${API}/calc-engine/form-config/${categoryObj.id}?scope=${effectiveScope}`;
+        let url = `${API}/calc-engine/form-config/${editContext.categoryId}?scope=${editContext.effectiveScope}`;
         if (scope3Method) url += `&method=${scope3Method}`;
         if (scope3ActivityType) url += `&activity_type=${scope3ActivityType}`;
         
@@ -387,288 +365,82 @@ export default function Emissions() {
     };
     
     fetchFormConfig();
-  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId]);
+  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId]);
   
   // ============================================================================
-  // DYNAMIC INPUT FIELDS - Derived from form config
-  // Maps ce_input_field_mappings to renderable field objects
+  // EDIT FIELD DERIVATION
+  // Existing-record hydration remains below; this is the same resolved-config
+  // and explicit-context derivation pipeline used by Create.
   // ============================================================================
-  const dynamicInputFields = useMemo(() => {
-    
-    if (!editFormConfig?.input_field_mappings?.length) {
-      return [];
-    }
-    
-    // Determine if this is a scope3-like flow
-    const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-    const isBiogenicScope1 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1';
-    const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
-    
-    // Helper function to traverse decision tree and find formula_id.
-    // Mirrors the logic used in EmissionEntryForm so create + edit pick
-    // the same formula for the same selections.
-    const traverseDecisionTreeEdit = (node, fieldValues) => {
-      if (!node) return null;
-      if (node.formula_id) return node.formula_id;
-      const fieldName = node.field_name;
-      if (!fieldName) return null;
-      const selectedValue = fieldValues[fieldName];
-      if (!selectedValue) return null;
-      const options = node.options || {};
-      const selectedOption = options[selectedValue];
-      if (!selectedOption) return null;
-      if (selectedOption.formula_id) return selectedOption.formula_id;
-      if (selectedOption.next) return traverseDecisionTreeEdit(selectedOption.next, fieldValues);
-      return null;
-    };
-    
-    // For Scope 3 (or biogenic scope3), find the formula that matches the selected decision path
-    let requiredInputVars = null;
-    let matchedFormula = null;  // Moved outside the if block for proper scoping
-    if (isScope3Like && scope3Method && editFormConfig?.formulas?.length) {
-      
-      // Map activity_type values to formula name patterns
-      const activityTypeToFormulaMap = {
-        'hotel_stay': ['hotel'],
-        'air_travel': ['passenger', 'distance'],
-        'water_travel': ['passenger', 'distance'],
-        'taxi_travel': ['passenger', 'distance'],
-        'bus_travel': ['passenger', 'distance'],
-        'rail_travel': ['passenger', 'distance'],
-        'car_travel': ['km travelled', 'km_travelled'],
-        'bike_travel': ['km travelled', 'km_travelled'],
-        'wfh': ['wfh', 'work from home']
-      };
-      
-      // Map subcategory_selection to formula name patterns (for C8/C10/C11/C13/C14)
-      const subcategoryToFormulaMap = {
-        'fugitive_emissions': ['fugitive'],
-        'stationary_combustion': ['stationary'],
-        'mobile_combustion': ['mobile'],
-        'energy': ['energy', 'electricity'],  // Support both new and legacy
-        'electricity': ['energy', 'electricity']  // Legacy support
-      };
-      
-      // Map method to formula name patterns for matching
-      const methodToFormulaMap = {
-        'spend_basis': ['spend', 'Spent'],
-        'spend_based': ['spend', 'Spent'],  // Handle legacy 'spend_based' value
-        'activity_basis': ['activity', 'Activity'],
-        'supplier_basis': ['supplier', 'Supplier']
-      };
-      
-      // Helper to check if a formula matches the current method
-      const formulaMatchesMethod = (formula) => {
-        if (!formula?.name) return false;
-        const formulaName = formula.name.toLowerCase();
-        const searchTerms = methodToFormulaMap[scope3Method] || [];
-        return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-      };
-      
-      // PRIORITY 0: Decision tree traversal — uses all the selections the
-      // user made (method, activity_type, subcategory_selection, type_of_product).
-      if (editFormConfig.decision_tree) {
-        const decisionValues = {
-          calculation_method_scope3: scope3Method,
-          activity_type: scope3ActivityType || undefined,
-          subcategory_selection: scope3Subcategory || undefined,
-          type_of_product: typeOfProduct || undefined,
-        };
-        const formulaId = traverseDecisionTreeEdit(editFormConfig.decision_tree, decisionValues);
-        if (formulaId) {
-          matchedFormula = editFormConfig.formulas.find(f => f.id === formulaId);
-        }
-      }
+  const editSelectedFuel = useMemo(
+    () => fuelDatabase.find((fuel) => fuel.id === formData.fuel_id) || null,
+    [fuelDatabase, formData.fuel_id],
+  );
 
-      // PRIORITY 0b: For subcategory categories (C8/C10/C11/C13/C14), match formula based on subcategory
-      // This takes precedence because fugitive_emissions formula is specific
-      if (!matchedFormula && scope3Method === 'activity_basis' && scope3Subcategory && subcategoryToFormulaMap[scope3Subcategory]) {
-        const searchTerms = subcategoryToFormulaMap[scope3Subcategory];
-        matchedFormula = editFormConfig.formulas.find(f => {
-          const formulaName = f.name?.toLowerCase() || '';
-          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-        });
-      }
-      
-      // PRIORITY 1: For activity_type (C6/C7), match formula based on activity type
-      if (!matchedFormula && scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
-        const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
-        matchedFormula = editFormConfig.formulas.find(f => {
-          const formulaName = f.name?.toLowerCase() || '';
-          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-        });
-      }
-      
-      // PRIORITY 2: Use formula_id from emission record ONLY if method hasn't changed
-      // This prevents stale formula matching when user switches methods during editing
-      if (!matchedFormula && editingEmission?.formula_id) {
-        const savedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
-        // Only use saved formula if it matches the CURRENT method OR subcategory
-        const matchesSubcategory = scope3Subcategory && subcategoryToFormulaMap[scope3Subcategory] && 
-          subcategoryToFormulaMap[scope3Subcategory].some(term => 
-            savedFormula?.name?.toLowerCase().includes(term.toLowerCase())
-          );
-        if (savedFormula && (formulaMatchesMethod(savedFormula) || matchesSubcategory)) {
-          matchedFormula = savedFormula;
-        }
-      }
-      
-      // PRIORITY 3: Fall back to method-based matching
-      if (!matchedFormula) {
-        const searchTerms = methodToFormulaMap[scope3Method] || [];
-        matchedFormula = editFormConfig.formulas.find(f => {
-          const formulaName = f.name?.toLowerCase() || '';
-          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-        });
-      }
-      
-      if (matchedFormula?.inputs?.length) {
-        // Get the list of required input variables for this formula
-        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-      }
-    }
-    // For Biogenic Scope 1, Scope 1, or Scope 2 - match formula to filter fields correctly
-    else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && editFormConfig?.formulas?.length) {
-      const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
-      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
-      
-      // Priority 0: Try decision tree traversal for any category that has one
-      // Pass all available decision field values so the tree can resolve
-      if (editFormConfig.decision_tree) {
-        const decisionValues = {
-          calculation_methodology: editCalcMethodology || 'using_heat_basis_ncv',
-          ...(editProcessType && { process_type: editProcessType }),
-        };
-        const formulaId = traverseDecisionTreeEdit(editFormConfig.decision_tree, decisionValues);
-        if (formulaId) {
-          matchedFormula = editFormConfig.formulas.find(f => f.id === formulaId);
-        }
-      }
-      
-      // Fallback for Biogenic Scope 1
-      if (!matchedFormula && isBiogenicScope1) {
-        // First try formula_id from emission record
-        if (editingEmission?.formula_id) {
-          matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
-        }
-        // Fallback: find a formula with "Biogenic" in the name
-        if (!matchedFormula) {
-          matchedFormula = editFormConfig.formulas.find(f => 
-            f.name?.toLowerCase().includes('biogenic')
-          );
-        }
-        // Last fallback to first formula
-        if (!matchedFormula && editFormConfig.formulas.length > 0) {
-          matchedFormula = editFormConfig.formulas[0];
-        }
-      }
-      // Fallback for regular Scope 1/2
-      else if (!matchedFormula) {
-        // First try formula_id from emission record
-        if (editingEmission?.formula_id) {
-          matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
-        }
-        // Fallback: find formula by name pattern
-        if (!matchedFormula) {
-          matchedFormula = editFormConfig.formulas.find(f => 
-            f.name?.toLowerCase().includes('quantity') || 
-            f.name?.toLowerCase().includes('activity')
-          ) || editFormConfig.formulas[0];
-        }
-      }
-      
-      if (matchedFormula?.inputs?.length) {
-        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-      }
-    }
-    
-    // Filter and sort by display_order
-    // Uses formula-driven filtering: only show fields that the resolved formula needs.
-    // Decision fields (maps_to_context in decision tree) always shown so users can toggle tree paths.
-    const decisionFieldNames = (editFormConfig.decision_fields || []).map(d => d.field_name);
-    const mappings = [...editFormConfig.input_field_mappings]
-      .filter(m => {
-        if (m.is_active === false) return false;
-        
-        // Custom fuel: suppress fields that CustomFuelMonthFields handles per-month
-        if (editUseCustomFuel) {
-          const handledByCustomFuel = ['density', 'cv', 'ef_quantity', 'carbon_content', 'oxidation_factor'];
-          if (handledByCustomFuel.includes(m.maps_to_variable)) return false;
-        }
-        
-        // Formula-driven filtering when a formula is resolved
-        if (matchedFormula && requiredInputVars?.length) {
-          if (m.is_override) {
-            // Override fields: show if declared as formula property
-            const formulaProperties = matchedFormula.properties || [];
-            if (formulaProperties.some(p => p.variable === m.maps_to_variable || p.key === m.maps_to_variable)) {
-              return true;
-            }
-            // Density: show when formula supports dimension conversion,
-            // OR when using Qty Basis EF and fuel's qty units could mismatch EF denominators
-            if (m.maps_to_variable === 'density') {
-              if (editCalcMethodology === 'using_qty_basis_ef') {
-                const editSelectedFuelForDensity = formData.fuel_id ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
-                const fuelHasDensity = editSelectedFuelForDensity?.density != null && editSelectedFuelForDensity.density > 0;
-                if (fuelHasDensity) return false;
-                const efMapping = editFormConfig.input_field_mappings.find(fm => fm.maps_to_variable === 'ef_quantity');
-                const efAllowedUnits = efMapping?.allowed_units || [];
-                const qtyUnits = editSelectedFuelForDensity?.allowed_units || [];
-                return efAllowedUnits.some(eu => isDensityRequiredForQtyBasis(eu, qtyUnits));
-              }
-              return (matchedFormula.inputs || []).some(inp => inp.allow_dimension_conversion);
-            }
-            return false;
-          }
-          // Regular input fields: in formula inputs OR is a decision field in the tree
-          if (requiredInputVars.includes(m.maps_to_variable)) return true;
-          if (m.maps_to_context && decisionFieldNames.includes(m.maps_to_context)) return true;
-          return false;
-        }
-        
-        // Fallback: no formula resolved (e.g. no process_type selected yet) — hide all for Process
-        const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
-        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && currentCategoryName.includes('process')) {
-          return false;
-        }
-        
-        return true;
-      })
-      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-    
-    const isQtyBasis = editCalcMethodology === 'using_qty_basis_ef';
-    const editSelectedFuel = formData.fuel_id ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
-    const editFuelQtyUnits = editSelectedFuel?.allowed_units || [];
-    return mappings.map(m => {
-      const field = {
-        id: m.id,
-        variable: m.maps_to_variable,
-        fieldKey: m.field_key,
-        label: m.field_label,
-        expectedUnit: m.default_unit,
-        required: m.is_required === true,
-        isOverride: m.is_override === true,
-        isOverrideExplicitlyFalse: m.is_override === false,
-        fieldType: m.field_type || 'number',
-        allowedUnits: m.allowed_units || [],
-        unitSource: m.unit_source || 'static',
-        compoundWithVariable: m.compound_with_variable || null,
-        placeholder: m.placeholder || `Enter ${m.field_label}`,
-        helpText: m.help_text || '',
-        mapsToContext: m.maps_to_context,
-        mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
-        mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
-        options: m.options || [],
-        defaultValue: m.default_value,
-        validationRules: m.validation_rules || {},
-      };
-      if (isQtyBasis && m.maps_to_variable === 'density') {
-        field.densityQtyBasisCheck = true;
-        field.fuelQtyUnits = editFuelQtyUnits;
-      }
-      return field;
-    });
-  }, [editFormConfig, formData.scope, formData.fuel_id, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel, editProcessType, fuelDatabase]);
+  const editDecisionFieldValues = useMemo(
+    () => ({
+      calculation_methodology: editCalcMethodology || 'using_heat_basis_ncv',
+      ...(editProcessType ? { process_type: editProcessType } : {}),
+    }),
+    [editCalcMethodology, editProcessType],
+  );
+
+  const editGhgFormContext = useMemo(
+    () =>
+      resolveGhgFormContext({
+        scope: formData.scope,
+        biogenicScopeSelection,
+        categoryName: formData.category || selectedCategory,
+        categoryCode: editingEmission?.category_code || null,
+        categories: dynamicCategories,
+        scopes: dynamicScopes,
+        scope3Method,
+        scope3ActivityType,
+        scope3Subcategory,
+        typeOfProduct,
+        decisionFieldValues: editDecisionFieldValues,
+        useCustomFuel: editUseCustomFuel,
+        selectedFuel: editSelectedFuel,
+        savedFormulaId: editingEmission?.formula_id || null,
+      }),
+    [
+      formData.scope,
+      formData.category,
+      selectedCategory,
+      editingEmission?.category_code,
+      biogenicScopeSelection,
+      dynamicCategories,
+      dynamicScopes,
+      scope3Method,
+      scope3ActivityType,
+      scope3Subcategory,
+      typeOfProduct,
+      editDecisionFieldValues,
+      editUseCustomFuel,
+      editSelectedFuel,
+      editingEmission?.formula_id,
+    ],
+  );
+
+  const editGhgFormArchitecture = useMemo(
+    () => resolveGhgFormArchitecture({
+      standardConfig: editFormConfig,
+      organizationOverrides: organizationGhgOverrides,
+      formContext: editGhgFormContext,
+      biogenicScopeSelection,
+    }),
+    [editFormConfig, organizationGhgOverrides, editGhgFormContext, biogenicScopeSelection],
+  );
+  const editCapabilities = editGhgFormArchitecture.capabilities;
+  const editGhgFieldOptions = editGhgFormArchitecture.resolvedFieldOptions;
+  const resolvedEditGhgConfig = editGhgFormArchitecture.resolvedConfig;
+
+  const dynamicInputFieldsResult = useMemo(
+    () => deriveGhgFields({ formConfig: resolvedEditGhgConfig, context: editGhgFormContext }),
+    [resolvedEditGhgConfig, editGhgFormContext],
+  );
+
+  const dynamicInputFields = dynamicInputFieldsResult.fields;
 
   // Older Process Emissions records did not persist process_type. Once the
   // form config arrives, recover it from the saved formula's decision-tree
@@ -757,7 +529,7 @@ export default function Emissions() {
     // (biogenic skips subcategory UI but backend decision tree still expects it)
     if (isBiogenicScope3 && !decisionInputs['subcategory_selection']) {
       const catLower = (formData.category || selectedCategory)?.toLowerCase() || '';
-      const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+      const isSubcategoryCategory = editCapabilities.subcategory;
       if (isSubcategoryCategory) {
         decisionInputs['subcategory_selection'] = 'biogenic';
       }
@@ -773,7 +545,7 @@ export default function Emissions() {
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -803,7 +575,8 @@ export default function Emissions() {
       
       // Hydrate calculation methodology from its explicit saved value first.
       // Legacy records fall back to inferring the method from their saved fields.
-      const savedMethod = savedDynamicValues.calculation_methodology;
+      const savedMethod = editingEmission.calculation_methodology
+        || savedDynamicValues.calculation_methodology;
       const savedCalculationMethodology = typeof savedMethod === 'object'
         ? savedMethod?.value
         : savedMethod;
@@ -812,7 +585,7 @@ export default function Emissions() {
         setEditCalcMethodology(savedCalculationMethodology);
       } else if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon') || dfvKeys.includes('custom_carbon_content')) {
         setEditCalcMethodology('using_carbon_composition');
-      } else if (dfvKeys.includes('ef_quantity') || (dfvKeys.includes('custom_ef') && !dfvKeys.includes('custom_cv'))) {
+      } else if ((dfvKeys.includes('ef_quantity') && savedDynamicValues['ef_quantity']?.value !== null) || (dfvKeys.includes('custom_ef') && !dfvKeys.includes('custom_cv'))) {
         setEditCalcMethodology('using_qty_basis_ef');
       } else {
         setEditCalcMethodology('using_heat_basis_ncv');
@@ -1252,9 +1025,8 @@ export default function Emissions() {
   // Check if editing a C7 (Employee Commuting) category
   const isEditC7EmployeeCommuting = useMemo(() => {
     if (formData.scope !== 'scope3') return false;
-    const cat = formData.category?.toLowerCase() || '';
-    return cat.includes('c7') || cat.includes('employee commuting');
-  }, [formData.scope, formData.category]);
+    return editCapabilities.multiEmployee;
+  }, [formData.scope, formData.category, editCapabilities]);
 
   // Pluggable category renderer + edit-flow lookup. The page delegates
   // the dynamic-fields portion of the Scope 3 edit dialog to the module
@@ -1492,85 +1264,6 @@ export default function Emissions() {
   // SCOPE 3 SPECIFIC COMPUTED PROPERTIES FOR INLINE EDIT FORM
   // ============================================================================
   
-  // Get available methods for selected category from Scope 3 EF
-  const availableScope3Methods = useMemo(() => {
-    // Handle both regular scope3 and biogenic with scope3 selection
-    const isScope3 = formData.scope === 'scope3';
-    const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-    
-    // Return empty if not scope3/biogenic-scope3 or no category selected
-    if ((!isScope3 && !isBiogenicScope3) || !selectedCategory) return [];
-    
-    const methods = new Set();
-    
-    // For biogenic, filter by sub_scope='biogenic' first
-    let relevantData = scope3EFData;
-    if (isBiogenicScope3) {
-      relevantData = scope3EFData.filter(ef => ef.sub_scope === 'biogenic');
-    }
-    
-    // Add methods from EF data
-    relevantData.forEach(ef => {
-    if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.method) {
-        methods.add(ef.method);
-      }
-    });
-    
-    // Always add supplier_basis for all Scope 3 categories (regular and biogenic)
-    // supplier_basis with custom activity doesn't require pre-existing EF records
-    methods.add('supplier_basis');
-    
-    // Return in preferred order: spend_basis, activity_basis, supplier_basis
-    const orderedMethods = [];
-    if (methods.has('spend_basis')) orderedMethods.push('spend_basis');
-    if (methods.has('activity_basis')) orderedMethods.push('activity_basis');
-    if (methods.has('supplier_basis')) orderedMethods.push('supplier_basis');
-    
-    // Add any other methods that might exist
-    methods.forEach(m => {
-      if (!orderedMethods.includes(m)) orderedMethods.push(m);
-    });
-    
-    return orderedMethods;
-  }, [formData.scope, scope3EFData, selectedCategory, biogenicScopeSelection]);
-
-  // Get available activity types for C6/C7 categories
-  const availableScope3ActivityTypes = useMemo(() => {
-    if (formData.scope !== 'scope3' || !selectedCategory) return [];
-    
-    // Only show activity type filter for C6 and C7
-    const isC6 = selectedCategory.toLowerCase().includes('c6') || 
-                 selectedCategory.toLowerCase().includes('business travel');
-    const isC7 = selectedCategory.toLowerCase().includes('c7') ||
-                 selectedCategory.toLowerCase().includes('employee commuting');
-    
-    if (!isC6 && !isC7) return [];
-    
-    const activityTypes = new Set();
-    
-    // Add activity types from scope3_ef data
-    if (scope3EFData.length) {
-      scope3EFData.forEach(ef => {
-        if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.activity_type) {
-          // Also filter by method if selected
-          if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
-            activityTypes.add(ef.activity_type);
-          }
-        }
-      });
-    }
-    
-    // Add "Others" option for supplier_basis method - only for C6 (not C7)
-    if (scope3Method === 'supplier_basis' && isC6) {
-      activityTypes.add('others');
-    }
-    
-    return Array.from(activityTypes).sort();
-  }, [formData.scope, scope3EFData, selectedCategory, scope3Method]);
-
-  // Check if current category requires subcategory selection (C8, C10, C11, C13, C14)
-  const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
-  
   const requiresSubcategory = useMemo(() => {
     // Handle both regular scope3 and biogenic with scope3 selection
     const isScope3 = formData.scope === 'scope3';
@@ -1581,26 +1274,29 @@ export default function Emissions() {
     // For biogenic, subcategory is not required (biogenic fuels are categorized by sub_scope, not subcategory)
     if (isBiogenicScope3) return false;
     
-    const catLower = selectedCategory.toLowerCase();
-    return subcategoryCategories.some(c => catLower.includes(c));
-  }, [formData.scope, selectedCategory, biogenicScopeSelection]);
+    return editCapabilities.subcategory;
+  }, [formData.scope, selectedCategory, biogenicScopeSelection, editCapabilities]);
+
+  const editScope3PresentationOptions = useMemo(() => resolveGhgScope3Options({
+    scope: formData.scope,
+    biogenicScopeSelection,
+    category: selectedCategory,
+    scope3Method,
+    scope3EFData,
+    capabilities: editCapabilities,
+    requiresSubcategory,
+    fieldOptions: editGhgFieldOptions,
+    configLabels: configLabels?.subcategories || {},
+  }), [
+    formData.scope, biogenicScopeSelection, selectedCategory, scope3Method,
+    scope3EFData, editCapabilities, requiresSubcategory, editGhgFieldOptions, configLabels?.subcategories,
+  ]);
+
+  const availableScope3Methods = editScope3PresentationOptions.methods;
+  const availableScope3ActivityTypes = editScope3PresentationOptions.activityTypes;
 
   // Get available subcategories for C8/C10/C11/C13/C14
-  const availableSubcategories = useMemo(() => {
-    if (!requiresSubcategory || !scope3Method) return [];
-    
-    // Get subcategory labels from configLabels (fetched from backend)
-    const subcategoryLabelsMap = configLabels.subcategories || {};
-    
-    const subcategories = [
-      { value: 'stationary_combustion', label: subcategoryLabelsMap['stationary_combustion'] || 'Stationary Combustion' },
-      { value: 'mobile_combustion', label: subcategoryLabelsMap['mobile_combustion'] || 'Mobile Combustion' },
-      { value: 'fugitive_emissions', label: subcategoryLabelsMap['fugitive_emissions'] || 'Fugitive Emissions' },
-      { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
-    ];
-    
-    return subcategories;
-  }, [requiresSubcategory, scope3Method, configLabels.subcategories]);
+  const availableSubcategories = editScope3PresentationOptions.subcategories;
 
   // Filter Scope 3 activities based on category, method, activity_type, subcategory, industry sector
   const filteredScope3Activities = useMemo(() => {
@@ -1620,7 +1316,7 @@ export default function Emissions() {
     // Get facility for sector filtering
     const facility = facilities.find(f => f.id === formData.facility_id);
     const catLower = selectedCategory?.toLowerCase() || '';
-    const isSubcategoryCategory = subcategoryCategories.some(c => catLower.includes(c));
+    const isSubcategoryCategory = editCapabilities.subcategory;
     
     // For BIOGENIC scope3, skip subcategory handling - just filter by category directly
     // Biogenic C8/C10/C11/C13/C14 should work like C3 (direct activity selection)
@@ -1753,10 +1449,10 @@ export default function Emissions() {
     });
     
     return uniqueActivities;
-  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, activeScope, biogenicScopeSelection]);
+  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, activeScope, biogenicScopeSelection, editCapabilities]);
 
   // Get unique categories for the scope
-  const getCategoriesForScope = useMemo(() => {
+  const standardCategoriesForScope = useMemo(() => {
     // For biogenic with scope3 selected, return only biogenic categories
     if (activeScope === 'biogenic' && biogenicScopeSelection === 'scope3') {
       return biogenicCategories.sort((a, b) => {
@@ -1817,6 +1513,13 @@ export default function Emissions() {
     
     return Array.from(cats).sort();
   }, [formData.scope, formData.category, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
+
+  const getCategoriesForScope = useMemo(() => resolveGhgCategoryOptions({
+    standardCategories: standardCategoriesForScope,
+    scopeCode: resolveEffectiveScopeCode(formData.scope, biogenicScopeSelection),
+    categoryDefinitions: dynamicCategories,
+    organizationOverrides: organizationGhgOverrides,
+  }), [standardCategoriesForScope, formData.scope, biogenicScopeSelection, dynamicCategories, organizationGhgOverrides]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
@@ -1980,6 +1683,13 @@ export default function Emissions() {
       clearCalcResult();
       return;
     }
+
+    // Stored records already show their persisted/audited result. Do not issue a
+    // transient calculation while their category, decision fields, units and
+    // dynamic values are still hydrating; calculate after an actual Edit only.
+    if (editingEmission && !isFormDirty) {
+      return;
+    }
     
     // Determine if this is a scope3-like flow (regular scope3 or biogenic scope3)
     const isBiogenicScope3Edit = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
@@ -2005,8 +1715,7 @@ export default function Emissions() {
         return;
       }
     } else {
-      const isProcessEmissions = (formData.category || selectedCategory || '').toLowerCase().includes('process');
-      if (!isProcessEmissions && !editUseCustomFuel && !selectedFuel) {
+      if (editCapabilities.requiresFuel && !editUseCustomFuel && !selectedFuel) {
         setBackendCalcResult(null);
         return;
       }
@@ -2249,16 +1958,15 @@ export default function Emissions() {
       setBackendCalcResult(null);
       setCalcEngineUsed(false);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    dialogOpen, selectedFuel?.id, formData.quantity, formData.quantity_unit,
+    dialogOpen, editingEmission, isFormDirty, selectedFuel?.id, formData.quantity, formData.quantity_unit,
     formData.scope, formData.category, selectedCategory, formData.calorific_value,
     formData.density, formData.emission_factor_heat, overrideCalorificValue,
     overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, scope3ActivityId, filteredScope3Activities,
     useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection,
-    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType
+    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel
   ]);
   
   // Use backend calculation engine result exclusively
@@ -2271,9 +1979,11 @@ export default function Emissions() {
       };
     }
     
-    // If editing and we have a saved audit log but no backend calc result yet,
-    // show partial result with the audit log
-    if (editingEmission && emissionAuditLog.length > 0) {
+    // Show persisted emission values from the record itself.
+    // The audit log enriches the trace panel but is not required for the
+    // summary numbers — records created before the audit-link fix will
+    // still display their saved CO₂/CH₄/N₂O/CO₂e immediately.
+    if (editingEmission) {
       return {
         auditLog: emissionAuditLog,
         co2Emissions: editingEmission.co2_emissions,
@@ -2429,6 +2139,7 @@ export default function Emissions() {
         processNames: formData.process_names,
         effectiveCalculatedEmissions,
         formData,
+        capabilities: editCapabilities,
         // Scope 1 props
         isOverrideCV,
         isOverrideDensity,
@@ -2458,6 +2169,7 @@ export default function Emissions() {
           useCustomActivity,
           // Common
           formData,
+          capabilities: editCapabilities,
           editingEmission,
           biogenicScopeSelection,
           dynamicInputFields,
@@ -2515,17 +2227,9 @@ export default function Emissions() {
     // State reads
     scope3EFData, fugitiveEmissionsData, fuelDatabase,
     // Setters
-    setEditEmployees, setEditEmployeeMonthlyTotals, setEditEmployeeYearlyTotal,
-    setDynamicFieldValues, setExistingEvidences, setEditingEmissionId,
-    setEmissionAuditLog, setIsEditLoading, setDialogOpen,
-    setScope3Method, setScope3ActivityId, setScope3ActivityType,
-    setScope3Subcategory, setTypeOfProduct, setScope3CustomActivity, setUseCustomActivity,
-    setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
-    setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
-    setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
-    setEditUseCustomFuel, setEditCustomFuelName,
-    // Helpers
-    getAuthHeader,
+    setEditDraft, setEditingEmissionId,
+    setEmissionAuditLog, setIsEditLoading, setDialogOpen, setIsFormDirty,
+    setEditingEmission, activeEditIdRef,
   });
 
   // Deep-link from /ghg/approvals: open the edit dialog for ?edit=<id> once
@@ -2576,7 +2280,7 @@ export default function Emissions() {
     return () => {
       cancelled = true;
     };
-  }, [location.search, emissions, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.search, emissions, loading]);
 
   const handleDelete = async (id) => {
     try {
@@ -2654,63 +2358,11 @@ export default function Emissions() {
   };
 
   const resetForm = () => {
+    activeEditIdRef.current = null;
     setEditingEmission(null);
-    setSelectedCategory(''); // Reset category selection
-    setDynamicFieldValues({}); // Clear dynamic field values
+    setEditDraft(createEmptyEmissionDraft(activeScope));
     setEditFormConfig(null); // Clear form config
-    setFormData({
-      facility_id: '',
-      reporting_period_start: '',
-      reporting_period_end: '',
-      scope: activeScope,
-      category: '',
-      sub_category: '',
-      fuel_id: '',
-      fuel_type: '',
-      custom_fuel_type: '',
-      custom_emission_factor: '',
-      quantity: '',
-      quantity_unit: 'kg', // Default to kg
-      emission_factor_co2: '',
-      emission_factor_ch4: '',
-      emission_factor_n2o: '',
-      calorific_value: '',
-      calorific_value_unit: '',
-      calorific_value_justification: '',
-      density: '',
-      density_unit: '',
-      density_justification: '',
-      conversion_factor: '1',
-      source_of_information: '',
-      record_source: '',
-      justification: '',
-      notes: '',
-      responsible_person: '',
-      responsible_person_designation: '',
-      responsible_person_contact: '',
-      evidence_url: '',
-      process_names: [{ name: '', description: '' }],
-      // Reset Scope 3 optional fields
-      supplier_name: '',
-      supplier_code: '',
-      employee_name: '',
-      employee_id: '',
-      asset_name: '', // Asset Name for C8/C13/C14/C15
-      from_location: '', // From Location for C4/C6/C7/C9
-      to_location: '', // To Location for C4/C6/C7/C9
-    });
     setUploadedEvidence(null);
-    setExistingEvidences([]); // Clear existing evidences
-    setOverrideCalorificValue(false);
-    setOverrideDensity(false);
-    setOverrideJustification(''); // Reset override justification (#17)
-    // Reset frequency type for edit mode
-    setEditFrequencyType('monthly');
-    // Reset C7 employee data
-    setEditEmployees([]);
-    setEditEmployeeMonthlyTotals({});
-    setEditEmployeeYearlyTotal({});
-    setEditC7Month(null); // Reset C7 month for new monthly model
   };
 
   // Handle dialog change with unsaved changes protection (#19)
@@ -3321,7 +2973,8 @@ export default function Emissions() {
               </DialogTrigger>
               <DialogContent 
                 key={editingEmission?.id || 'new'}
-                className="max-w-4xl max-h-[90vh] overflow-y-auto"
+                className={`max-h-[90vh] overflow-x-hidden overflow-y-auto ${!editingEmission ? '!gap-2' : ''}`}
+                style={{ width: 'calc(100vw - 2rem)', maxWidth: '72rem' }}
                 onInteractOutside={handleInteractOutside}
                 onEscapeKeyDown={handleEscapeKeyDown}
                 hideCloseButton={true}
@@ -3338,6 +2991,9 @@ export default function Emissions() {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
+                  <DialogDescription className="sr-only" data-testid="emission-dialog-description">
+                    Add or update an emission record with reporting and activity data.
+                  </DialogDescription>
                 </DialogHeader>
               {!editingEmission ? (
                 <EmissionEntryForm
@@ -3355,6 +3011,7 @@ export default function Emissions() {
                   getAuthHeader={getAuthHeader}
                   configLabels={configLabels}
                   organization={organization}
+                  organizationGhgOverrides={organizationGhgOverrides}
                   onFormChange={markFormDirty}
                   kpiAccessInfo={kpiAccessInfo}
                   kpiCanAccessScope={kpiCanAccessScope}
@@ -3383,62 +3040,21 @@ export default function Emissions() {
                 />
               ) : (
                 <EmissionEditForm
-                  // ---------- form state (read) ----------
-                  formData={formData}
+                  // Shared genuine form values. UI/loading state stays page-owned.
+                  draft={editDraft}
+                  onDraftChange={setEditDraft}
                   editingEmission={editingEmission}
-                  editFrequencyType={editFrequencyType}
-                  biogenicScopeSelection={biogenicScopeSelection}
-                  selectedCategory={selectedCategory}
-                  scope3Method={scope3Method}
-                  scope3ActivityType={scope3ActivityType}
-                  scope3Subcategory={scope3Subcategory}
-                  scope3ActivityId={scope3ActivityId}
-                  scope3CustomActivity={scope3CustomActivity}
-                  useCustomActivity={useCustomActivity}
-                  typeOfProduct={typeOfProduct}
-                  editCalcMethodology={editCalcMethodology}
-                  setEditCalcMethodology={setEditCalcMethodology}
-                  editProcessType={editProcessType}
-                  setEditProcessType={setEditProcessType}
-                  editUseCustomFuel={editUseCustomFuel}
-                  editCustomFuelName={editCustomFuelName}
                   activitySearchTerm={activitySearchTerm}
                   loadingScope3EF={loadingScope3EF}
                   loadingBiogenicCategories={loadingBiogenicCategories}
-                  editEmployees={editEmployees}
-                  editEmployeeMonthlyTotals={editEmployeeMonthlyTotals}
-                  editEmployeeYearlyTotal={editEmployeeYearlyTotal}
                   isCalculatingEditEmployee={isCalculatingEditEmployee}
                   isEditLoading={isEditLoading}
                   editFormConfigLoading={editFormConfigLoading}
                   dynamicInputFields={dynamicInputFields}
-                  dynamicFieldValues={dynamicFieldValues}
-                  existingEvidences={existingEvidences}
-                  overrideCalorificValue={overrideCalorificValue}
-                  overrideDensity={overrideDensity}
-                  overrideEmissionFactorHeat={overrideEmissionFactorHeat}
-                  overrideJustification={overrideJustification}
                   effectiveCalculatedEmissions={effectiveCalculatedEmissions}
                   isCalculating={isCalculating}
                   isSaving={isSaving}
-                  // ---------- setters ----------
-                  setFormData={setFormData}
-                  setBiogenicScopeSelection={setBiogenicScopeSelection}
-                  setScope3Method={setScope3Method}
-                  setScope3ActivityType={setScope3ActivityType}
-                  setScope3ActivityId={setScope3ActivityId}
-                  setScope3Subcategory={setScope3Subcategory}
-                  setScope3CustomActivity={setScope3CustomActivity}
-                  setUseCustomActivity={setUseCustomActivity}
-                  setEditUseCustomFuel={setEditUseCustomFuel}
-                  setEditCustomFuelName={setEditCustomFuelName}
-                  setTypeOfProduct={setTypeOfProduct}
                   setActivitySearchTerm={setActivitySearchTerm}
-                  setDynamicFieldValues={setDynamicFieldValues}
-                  setEditEmployees={setEditEmployees}
-                  setOverrideCalorificValue={setOverrideCalorificValue}
-                  setOverrideDensity={setOverrideDensity}
-                  setOverrideJustification={setOverrideJustification}
                   // ---------- core data ----------
                   facilities={facilities}
                   dynamicScopes={dynamicScopes}
@@ -3456,7 +3072,6 @@ export default function Emissions() {
                   hasFullKPIAccess={hasFullKPIAccess}
                   // ---------- computed/derived ----------
                   selectedFuel={selectedFuel}
-                  activeCategoryModule={activeCategoryModule}
                   isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
                   editActiveMonths={editActiveMonths}
                   ModuleDynamicFieldsRenderer={ModuleDynamicFieldsRenderer}
@@ -3464,6 +3079,8 @@ export default function Emissions() {
                   getFuelsForCategory={getFuelsForCategory}
                   availableScope3Methods={availableScope3Methods}
                   availableScope3ActivityTypes={availableScope3ActivityTypes}
+                  capabilities={editCapabilities}
+                  fieldOptions={editGhgFieldOptions}
                   requiresSubcategory={requiresSubcategory}
                   availableSubcategories={availableSubcategories}
                   filteredScope3Activities={filteredScope3Activities}

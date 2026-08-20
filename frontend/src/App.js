@@ -41,6 +41,8 @@ import Scope3EF from './pages/Scope3EF';
 import AuditTrails from './pages/AuditTrails';
 import BulkUpload from './pages/BulkUpload';
 import Environment from './pages/Environment';
+import OrgEnvironmentKPI from './pages/OrgEnvironmentKPI';
+import OrgSectionKPI from './pages/OrgSectionKPI';
 import Social from './pages/Social';
 import HRWorkforce from './pages/HRWorkforce';
 import SBTiTargets from './pages/SBTiTargets';
@@ -77,6 +79,7 @@ import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
 import OCRInvoice from './pages/OCRInvoice';
+import SustainabilityConfig from './pages/SustainabilityConfig';
 import { OCRProvider } from './contexts/OCRContext';
 import { initializeCategoryModules } from './modules/emissions';
 
@@ -264,6 +267,11 @@ const AppRoutes = () => {
                 <KPIDefinitions />
               </SuperAdminRoute>
             } />
+            <Route path="org-config" element={
+              <SuperAdminRoute>
+                <SustainabilityConfig />
+              </SuperAdminRoute>
+            } />
           </Route>
           
           {/* Admin & User Routes */}
@@ -290,11 +298,20 @@ const AppRoutes = () => {
           <Route path="environment/energy/analysis" element={<EnergyAnalysis />} />
           <Route path="environment/water/analysis" element={<WaterAnalysis />} />
           <Route path="environment/waste/analysis" element={<WasteAnalysis />} />
+          {/* Catch-all for org-specific environment modules (Power, Steam, etc.) */}
+          <Route path="environment/:moduleCode/:subcatCode" element={<OrgEnvironmentKPI />} />
+          <Route path="environment/:moduleCode" element={<OrgEnvironmentKPI />} />
           <Route path="social" element={<Social />} />
           <Route path="social/analysis" element={<SocialAnalysis />} />
+          {/* Catch-all for org-specific social modules */}
+          <Route path="social/:moduleCode/:subcatCode" element={<OrgSectionKPI section="social" />} />
+          <Route path="social/:moduleCode" element={<OrgSectionKPI section="social" />} />
           <Route path="hr-workforce" element={<HRWorkforce />} />
           <Route path="governance" element={<Governance />} />
           <Route path="governance/analysis" element={<GovernanceAnalysis />} />
+          {/* Catch-all for org-specific governance modules */}
+          <Route path="governance/:moduleCode/:subcatCode" element={<OrgSectionKPI section="governance" />} />
+          <Route path="governance/:moduleCode" element={<OrgSectionKPI section="governance" />} />
           <Route path="reporting" element={<Reporting />} />
           <Route path="reporting/brsr" element={<BRSRModule />} />
           <Route path="reporting/gri" element={<GRIModule />} />
@@ -358,6 +375,11 @@ const AppRoutes = () => {
             <AdminRoute>
               <AuditTrails />
             </AdminRoute>
+          } />
+          <Route path="sustainability-config" element={
+            <SuperAdminRoute>
+              <SustainabilityConfig />
+            </SuperAdminRoute>
           } />
         </Route>
       </Routes>

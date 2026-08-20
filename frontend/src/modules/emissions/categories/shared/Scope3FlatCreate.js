@@ -75,6 +75,7 @@ export function extractInputsForCalcEngine(data, ctx) {
   let primaryUnit = ctx.defaultUnit || '';
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     if (value === undefined || value === null || value === '') return;
 
@@ -111,6 +112,7 @@ export function buildDynamicFieldValues(data, ctx) {
   const out = {};
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     const unit = resolveFieldUnit(field, data, ctx);
 
@@ -215,13 +217,6 @@ export function validateCreateSubmission(ctx) {
   const { module, formData, processNames } = ctx;
 
   const validProcessNames = (processNames || []).filter((p) => p.name && p.name.trim() !== '');
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
-  const missingDesc = validProcessNames.find((p) => !p.description || p.description.trim() === '');
-  if (missingDesc) {
-    return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
-  }
 
   // Capability-aware: asset name (C8/C13/C14/C15)
   if (module?.hasCapability?.('asset-name')) {
@@ -386,9 +381,25 @@ export function buildCreatePayload(monthData, ctx) {
 
       // Capability-aware: journey locations (C4/C6/C9)
       ...(module?.hasCapability?.('journey-locations') && {
-        from_location: fromLocation || null,
-        to_location: toLocation || null,
+        from_location: monthData?.from_location || fromLocation || null,
+        to_location: monthData?.to_location || toLocation || null,
       }),
+    }),
+
+    // Flight details (per-month airport data for C6 air_travel)
+    ...(monthData?.from_airport && {
+      from_airport: monthData.from_airport,
+    }),
+    ...(monthData?.to_airport && {
+      to_airport: monthData.to_airport,
+    }),
+    ...(monthData?.km_travelled != null && monthData?.from_airport && {
+      flight_distance: {
+        value: monthData.km_travelled,
+        unit: 'km',
+        method: monthData.flight_distance_method || (monthData.flight_distance_manual ? 'MANUAL' : 'HAVERSINE'),
+        overridden: !!monthData.flight_distance_overridden,
+      },
     }),
   };
 }

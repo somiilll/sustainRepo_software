@@ -47,6 +47,7 @@ import {
   CollapsibleTrigger,
 } from './ui/collapsible';
 import { toast } from 'sonner';
+import { QuestionVersionHistory } from './QuestionVersionHistory';
 import { 
   Loader2, 
   Save, 
@@ -395,7 +396,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null }) {
+export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null }) {
   const { formatDateTime } = useDateFormatter();
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
   const [showVersions, setShowVersions] = useState(false);
@@ -844,7 +845,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
       rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
       draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
-      saved: { label: 'Saved', className: 'bg-slate-100 text-slate-700' },
+      saved: { label: 'Saved', className: 'bg-green-100 text-green-800' },
       pending: { label: 'Pending', className: 'bg-stone-100 text-stone-600' },
     };
     
@@ -860,6 +861,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
 
   // Helper to render version history - detailed view with old/new values, approvals, rejections
   const renderVersionHistory = () => {
+    if (onOpenTimeline) return null;
     const hasHistory = versionHistory && versionHistory.length > 0;
     
     // Format complex values into human-readable text with conditional field handling
@@ -996,6 +998,21 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       return badges[action] || 'bg-stone-100 text-stone-700';
     };
 
+    const getActorDetails = (version) => {
+      const action = version.change_type || '';
+      const isApproved = action === 'approved' || action === 'submission_approved';
+      const isRejected = action === 'rejected' || action === 'submission_rejected';
+      const actor = isApproved
+        ? version.approved_by_name || version.changed_by_name || version.created_by_name || version.created_by
+        : isRejected
+          ? version.rejected_by_name || version.changed_by_name || version.created_by_name || version.created_by
+          : version.changed_by_name || version.created_by_name || version.created_by;
+      return {
+        label: isApproved ? 'Approved by' : isRejected ? 'Rejected by' : action === 'created' ? 'Created by' : 'Updated by',
+        name: actor && !String(actor).includes('@') ? actor : 'Unknown user',
+      };
+    };
+
     if (!hasHistory) return null;
     
     return (
@@ -1006,6 +1023,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
             {versionHistory.slice(0, 10).map((v, i) => {
               const oldLines = formatValue(v.old_value);
               const newLines = formatValue(v.new_value);
+              const actor = getActorDetails(v);
               
               return (
                 <div key={i} className="border-b border-stone-200 pb-3 last:border-0 last:pb-0">
@@ -1017,11 +1035,9 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
                       {v.created_at ? formatDateTime(v.created_at) : '-'}
                     </span>
                   </div>
-                  {v.created_by && (
-                    <div className="text-stone-600 mb-2">
-                      <span className="font-medium">By:</span> {v.created_by}
-                    </div>
-                  )}
+                  <div className="text-stone-600 mb-2" data-testid={`question-history-actor-${i}`}>
+                    <span className="font-medium">{actor.label}:</span> {actor.name}
+                  </div>
                   {v.change_type === 'rejected' && v.rejection_reason && (
                     <div className="text-red-600 mb-2">
                       <span className="font-medium">Reason:</span> {v.rejection_reason}
@@ -1059,7 +1075,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       <Button
         variant="ghost"
         size="sm"
-        onClick={handleToggleVersions}
+        onClick={onOpenTimeline || handleToggleVersions}
         className={`h-7 px-2 text-xs ${!hasHistory && !onFetchVersionHistory ? 'opacity-50' : ''}`}
         title={hasHistory ? `${versionHistory.length} version(s)` : 'View history'}
       >
@@ -3402,6 +3418,7 @@ export default function ESGQuestionnaire({
   const [historicalData, setHistoricalData] = useState(null);
   const [questionStatuses, setQuestionStatuses] = useState({});
   const [questionVersions, setQuestionVersions] = useState({});
+  const [timelineQuestionKey, setTimelineQuestionKey] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -3663,9 +3680,17 @@ export default function ESGQuestionnaire({
                     versionHistory={questionVersions[config.question_key]}
                     onSaveQuestion={saveQuestion}
                     onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
+                    onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
                   />
                 ))}
               </div>
+      <QuestionVersionHistory
+        open={Boolean(timelineQuestionKey)}
+        onOpenChange={(open) => !open && setTimelineQuestionKey(null)}
+        framework={framework}
+        questionKey={timelineQuestionKey}
+        reportingYear={reportingYear}
+      />
             </div>
           ))}
         </div>

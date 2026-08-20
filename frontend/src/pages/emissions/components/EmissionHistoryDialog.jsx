@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Card } from '../../../components/ui/card';
-import { History, Calendar as CalendarIcon, User, CheckCircle2 } from 'lucide-react';
+import { History, Calendar as CalendarIcon, User, CheckCircle2, XCircle } from 'lucide-react';
 
 /**
  * EmissionHistoryDialog
@@ -32,6 +32,9 @@ export default function EmissionHistoryDialog({
               const action = history.changes?.action || (hasOldValues ? 'updated' : 'created');
               const isCreation = action === 'created';
               const isDeletion = action === 'deleted';
+              const isApproval = action === 'approved';
+              const isRejection = action === 'rejected';
+              const eventTitle = isRejection ? 'Update Rejected' : isApproval ? 'Update Approved' : isDeletion ? 'Deleted' : isCreation ? 'Created' : 'Updated';
               const oldValues = history.changes?.old_values || {};
               const newValues = history.changes?.new_values || {};
 
@@ -349,18 +352,49 @@ export default function EmissionHistoryDialog({
                 // New format: backend provides field_changes array
                 changedFields = history.field_changes
                   .filter(fc => !skipFields.includes(fc.field))
-                  .map(fc => ({
-                    label: fc.display_name || fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                    oldValue: fc.old_value,
-                    newValue: fc.new_value,
-                    field: fc.field,
-                    fieldType: fc.field_type,
-                    employeeName: fc.employee_name,
-                    employeeId: fc.employee_id,
-                    isComplex: typeof fc.old_value === 'object' || typeof fc.new_value === 'object',
-                    oldIsOverride: fc.old_is_override,
-                    newIsOverride: fc.new_is_override
-                  }));
+                  .map(fc => {
+                    const isSingleInputDelta = fc.field === 'input_values' && fc.input_key;
+                    const oldValue = isSingleInputDelta ? { [fc.input_key]: fc.old_value } : fc.old_value;
+                    const newValue = isSingleInputDelta ? { [fc.input_key]: fc.new_value } : fc.new_value;
+                    return {
+                      label: fc.display_name || fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      oldValue,
+                      newValue,
+                      field: fc.field,
+                      fieldType: fc.field_type,
+                      employeeName: fc.employee_name,
+                      employeeId: fc.employee_id,
+                      isComplex: typeof oldValue === 'object' || typeof newValue === 'object',
+                      oldIsOverride: fc.old_is_override,
+                      newIsOverride: fc.new_is_override
+                    };
+                  });
+              } else if (isRejection && history.rejected_proposed_values) {
+                const rejectedInputs = history.rejected_proposed_values.inputs || {};
+                const currentInputs = oldValues.dynamic_field_values || {};
+                const proposedInputs = { ...currentInputs, ...rejectedInputs };
+                if (JSON.stringify(currentInputs) !== JSON.stringify(proposedInputs)) {
+                  changedFields.push({
+                    label: 'Input Values',
+                    oldValue: currentInputs,
+                    newValue: proposedInputs,
+                    field: 'input_values',
+                    fieldType: 'input_values',
+                    isComplex: true,
+                  });
+                }
+                const rejectedCo2e = history.rejected_proposed_values.outputs?.co2e?.value;
+                const currentTotal = oldValues.total_emissions ?? oldValues.co2e_emissions;
+                if (rejectedCo2e !== undefined && currentTotal !== rejectedCo2e) {
+                  changedFields.push({
+                    label: 'Total Emissions (tCO₂e)',
+                    oldValue: currentTotal,
+                    newValue: rejectedCo2e,
+                    field: 'total_emissions',
+                    fieldType: 'simple',
+                    isComplex: false,
+                  });
+                }
               } else if (!isCreation && oldValues && newValues) {
                 // Fallback: Legacy format - compute from old_values/new_values
                 const getEmissionValue = (obj, primaryKey, fallbackKey) => {
@@ -413,10 +447,14 @@ export default function EmissionHistoryDialog({
                 <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg ${
+                      isRejection ? 'bg-red-100' :
+                      isApproval ? 'bg-green-100' :
                       isDeletion ? 'bg-red-100' :
                       isCreation ? 'bg-green-100' : 'bg-primary/10'
                     }`}>
                       <History className={`w-4 h-4 ${
+                        isRejection ? 'text-red-600' :
+                        isApproval ? 'text-green-600' :
                         isDeletion ? 'text-red-600' :
                         isCreation ? 'text-green-600' : 'text-primary'
                       }`} />
@@ -424,7 +462,7 @@ export default function EmissionHistoryDialog({
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-text-primary">
-                          {isDeletion ? 'Deleted' : isCreation ? 'Created' : 'Updated'}
+                          {eventTitle}
                         </p>
                         <span className={`text-xs px-2 py-1 rounded ${
                           idx === 0 ? 'bg-blue-100 text-blue-700' :
@@ -444,6 +482,23 @@ export default function EmissionHistoryDialog({
                         </p>
                         
                         {/* Show approval / requester info */}
+                        {isRejection && (
+                          <div className="mt-2 pt-2 border-t border-stone-100">
+                            <p className="text-sm text-red-600 flex items-center gap-2">
+                              <XCircle className="w-4 h-4" />
+                              <span>Rejected by <strong>{history.changed_by_name || history.changed_by_email || 'Admin'}</strong></span>
+                            </p>
+                            {history.requested_by && (
+                              <p className="text-xs text-text-muted mt-1 ml-6">
+                                Requested by <strong>{history.requested_by_name || history.requested_by_email || 'User'}</strong>
+                                {history.requested_at && <> at {new Date(history.requested_at).toLocaleString()}</>}
+                              </p>
+                            )}
+                            {history.changes?.rejection_reason && (
+                              <p className="text-xs text-red-700 mt-1 ml-6">Reason: {history.changes.rejection_reason}</p>
+                            )}
+                          </div>
+                        )}
                         {history.approved_by && (
                           <div className="mt-2 pt-2 border-t border-stone-100">
                             <p className="text-sm text-green-600 flex items-center gap-2">
@@ -475,7 +530,7 @@ export default function EmissionHistoryDialog({
                       {/* Show changed fields for updates only */}
                       {!isCreation && changedFields.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-stone-200">
-                          <p className="text-xs font-semibold text-text-muted uppercase mb-3">Changes Made</p>
+                          <p className="text-xs font-semibold text-text-muted uppercase mb-3">{isRejection ? 'Rejected Changes' : 'Changes Made'}</p>
                           <div className="space-y-2">
                             {changedFields.map((field, fieldIdx) => (
                               <div key={fieldIdx} className="bg-stone-50 rounded-lg p-3">
@@ -496,7 +551,7 @@ export default function EmissionHistoryDialog({
                                 <div className="grid grid-cols-2 gap-3 text-sm">
                                   <div className="bg-red-50 p-2 rounded border border-red-100">
                                     <span className="text-xs text-red-600 font-medium block mb-1">
-                                      Old Value
+                                      {isRejection ? 'Current Approved Value' : 'Old Value'}
                                       {field.oldIsOverride === false && field.fieldType === 'input_values' && (
                                         <span className="ml-1 text-stone-500 font-normal">(default)</span>
                                       )}
@@ -510,7 +565,7 @@ export default function EmissionHistoryDialog({
                                   </div>
                                   <div className="bg-green-50 p-2 rounded border border-green-100">
                                     <span className="text-xs text-green-600 font-medium block mb-1">
-                                      New Value
+                                      {isRejection ? 'Rejected Proposed Value' : 'New Value'}
                                       {field.newIsOverride === false && field.fieldType === 'input_values' && (
                                         <span className="ml-1 text-stone-500 font-normal">(default)</span>
                                       )}

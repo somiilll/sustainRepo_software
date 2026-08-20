@@ -41,7 +41,7 @@ const getFieldUnitForSave = (field, ctx) => {
 };
 
 export function buildDynamicValues(ctx) {
-  const { dynamicInputFields, dynamicFieldValues } = ctx;
+  const { dynamicInputFields, dynamicFieldValues, formData } = ctx;
   // Retain historic fields that are intentionally hidden by the Custom Fuel UI.
   // The API replaces this object on PUT, so omitting them would erase old inputs.
   const dynamicValues = ctx.editUseCustomFuel
@@ -49,6 +49,7 @@ export function buildDynamicValues(ctx) {
     : {};
 
   (dynamicInputFields || []).forEach((field) => {
+    if (field.presentationOnly) return;
     const variable = field.variable;
     const value = dynamicFieldValues[variable];
     const unit = getFieldUnitForSave(field, ctx);
@@ -75,7 +76,9 @@ export function buildDynamicValues(ctx) {
     }
   });
 
-  if (ctx.editUseCustomFuel) {
+  const isScope1Like = formData?.scope === 'scope1'
+    || (formData?.scope === 'biogenic' && ctx.biogenicScopeSelection === 'scope1');
+  if (isScope1Like) {
     const hasValue = (value) => value !== undefined && value !== null && value !== '';
     const parseValue = (value) => (hasValue(value) ? parseFloat(value) : null);
     const quantity = hasValue(dynamicFieldValues.qty)
@@ -93,25 +96,28 @@ export function buildDynamicValues(ctx) {
       || ctx.editCalcMethodology
       || 'using_heat_basis_ncv';
 
-    // These fields are rendered by CustomFuelMonthFields rather than the
-    // standard config-driven list, so merge them explicitly into the payload.
-    dynamicValues.qty = { value: parseValue(quantity), unit: quantityUnit };
-    if (hasValue(dynamicFieldValues.custom_ef)) {
-      dynamicValues.custom_ef = { value: parseValue(dynamicFieldValues.custom_ef), unit: dynamicFieldValues.custom_ef_unit || '' };
-    }
-    if (hasValue(dynamicFieldValues.custom_cv)) {
-      dynamicValues.custom_cv = { value: parseValue(dynamicFieldValues.custom_cv), unit: dynamicFieldValues.custom_cv_unit || '' };
-    }
-    if (hasValue(dynamicFieldValues.custom_carbon_content)) {
-      dynamicValues.custom_carbon_content = { value: parseValue(dynamicFieldValues.custom_carbon_content), unit: '%' };
-    }
-    if (hasValue(dynamicFieldValues.custom_oxidation_factor)) {
-      dynamicValues.custom_oxidation_factor = { value: parseValue(dynamicFieldValues.custom_oxidation_factor), unit: '' };
-    }
-    if (hasValue(dynamicFieldValues.density)) {
-      dynamicValues.density = { value: parseValue(dynamicFieldValues.density), unit: dynamicFieldValues.density_unit || 'kg/L' };
-    }
     dynamicValues.calculation_methodology = { value: calculationMethodology, unit: '' };
+
+    if (ctx.editUseCustomFuel) {
+      // These fields are rendered by CustomFuelMonthFields rather than the
+      // standard config-driven list, so merge them explicitly into the payload.
+      dynamicValues.qty = { value: parseValue(quantity), unit: quantityUnit };
+      if (hasValue(dynamicFieldValues.custom_ef)) {
+        dynamicValues.custom_ef = { value: parseValue(dynamicFieldValues.custom_ef), unit: dynamicFieldValues.custom_ef_unit || '' };
+      }
+      if (hasValue(dynamicFieldValues.custom_cv)) {
+        dynamicValues.custom_cv = { value: parseValue(dynamicFieldValues.custom_cv), unit: dynamicFieldValues.custom_cv_unit || '' };
+      }
+      if (hasValue(dynamicFieldValues.custom_carbon_content)) {
+        dynamicValues.custom_carbon_content = { value: parseValue(dynamicFieldValues.custom_carbon_content), unit: '%' };
+      }
+      if (hasValue(dynamicFieldValues.custom_oxidation_factor)) {
+        dynamicValues.custom_oxidation_factor = { value: parseValue(dynamicFieldValues.custom_oxidation_factor), unit: '' };
+      }
+      if (hasValue(dynamicFieldValues.density)) {
+        dynamicValues.density = { value: parseValue(dynamicFieldValues.density), unit: dynamicFieldValues.density_unit || 'kg/L' };
+      }
+    }
   }
 
   return dynamicValues;
@@ -185,18 +191,11 @@ export function validateEditSubmission(ctx) {
     }
   }
 
-  // 4. Process names + descriptions
+  // 4. Process details are optional metadata.
   const validProcessNames = (formData.process_names || []).filter((p) => p.name && p.name.trim() !== '');
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
-  const missingDesc = validProcessNames.find((p) => !p.description || p.description.trim() === '');
-  if (missingDesc) {
-    return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
-  }
 
   // 5. Fuel selection — Process Emissions don't require fuel
-  const isProcessEmissions = formData.category?.toLowerCase().includes('process');
+  const isProcessEmissions = Boolean(ctx.capabilities?.processType);
   if (isProcessEmissions && !editProcessType) {
     return { valid: false, errorMessage: 'Please select a process type' };
   }
@@ -294,6 +293,10 @@ export function buildEditPayload(ctx) {
   // Dynamic values
   const dynamicValues = buildDynamicValues(ctx);
   const isProcessEmissions = formData.category?.toLowerCase().includes('process');
+  const savedCalculationMethodology = dynamicValues.calculation_methodology;
+  const calculationMethodology = typeof savedCalculationMethodology === 'object'
+    ? savedCalculationMethodology?.value || null
+    : savedCalculationMethodology || null;
   if (isProcessEmissions && editProcessType) {
     dynamicValues.process_type = { value: editProcessType, unit: '' };
   }
@@ -318,6 +321,7 @@ export function buildEditPayload(ctx) {
     fuel_database_id: editUseCustomFuel ? null : formData.fuel_id,
     is_custom_fuel: editUseCustomFuel || false,
     custom_fuel_name: editUseCustomFuel ? editCustomFuelName : null,
+    calculation_methodology: calculationMethodology,
     process_type: isProcessEmissions ? editProcessType || null : null,
 
     formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,

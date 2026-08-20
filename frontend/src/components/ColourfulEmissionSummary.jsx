@@ -1,5 +1,17 @@
 import React from 'react';
-import { Calculator } from 'lucide-react';
+import {
+  ArrowUpFromLine,
+  Calculator,
+  CheckCircle2,
+  Cloud,
+  Dna,
+  Flame,
+  FlaskConical,
+  Info,
+  Leaf,
+  RefreshCcw,
+} from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 
 const UNIT_LESS_COUNT_FIELDS = new Set([
   'qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms',
@@ -9,79 +21,96 @@ const UNIT_LESS_COUNT_FIELDS = new Set([
 
 const formatNumber = (value, decimals) => Number(value || 0).toFixed(decimals);
 
-const CARD_TONES = {
-  red: { card: 'bg-white/70 border-red-100', label: 'text-red-600', value: 'text-red-700', unit: 'text-red-500' },
-  orange: { card: 'bg-white/70 border-orange-100', label: 'text-orange-600', value: 'text-orange-700', unit: 'text-orange-500' },
-  amber: { card: 'bg-white/70 border-amber-100', label: 'text-amber-600', value: 'text-amber-700', unit: 'text-amber-500' },
-  primary: { card: 'bg-primary/10 border-primary/30', label: 'text-primary', value: 'text-primary', unit: 'text-primary/70' },
+const emissionCards = (calculation) => [
+  { key: 'co2', label: 'CO₂ Emissions', value: calculation.co2Emissions, unit: calculation.co2OutputUnit || 'tCO₂', Icon: Cloud, classes: 'border-red-100 bg-red-50/70 text-red-800', icon: 'text-red-500', muted: 'text-red-600' },
+  { key: 'ch4', label: 'CH₄ Emissions', value: calculation.ch4Emissions, unit: calculation.ch4OutputUnit || 'tCH₄', Icon: Dna, classes: 'border-orange-100 bg-orange-50/70 text-orange-800', icon: 'text-orange-500', muted: 'text-orange-600' },
+  { key: 'n2o', label: 'N₂O Emissions', value: calculation.n2oEmissions, unit: calculation.n2oOutputUnit || 'tN₂O', Icon: RefreshCcw, classes: 'border-yellow-200 bg-yellow-50/80 text-yellow-800', icon: 'text-yellow-600', muted: 'text-yellow-700' },
+  { key: 'co2e', label: 'CO₂e Total', value: calculation.co2eEmissions, unit: calculation.co2eOutputUnit || 'tCO₂e', Icon: Leaf, classes: 'border-emerald-200 bg-emerald-50/80 text-emerald-900', icon: 'text-emerald-600', muted: 'text-emerald-700' },
+];
+
+const propertyPresentation = (entry) => {
+  const label = (entry.property_label || entry.property || '').toLowerCase();
+  if (label.includes('density')) return { Icon: FlaskConical, iconClass: 'text-orange-500' };
+  if (label.includes('calorific') || label.includes('heat') || label.includes('ncv')) return { Icon: Flame, iconClass: 'text-yellow-600' };
+  return { Icon: Calculator, iconClass: 'text-purple-500' };
 };
+
+const SourceBadge = ({ source }) => source ? (
+  <span className="ml-auto shrink-0 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700" data-testid="calculation-source-badge">
+    Source · {source}
+  </span>
+) : null;
 
 export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3Like }) => {
   const auditLog = calculation.auditLog || [];
 
   return (
-    <section className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg border border-primary/20" data-testid="calculated-emissions-summary">
-      <div className="flex items-center gap-2 mb-3">
-        <Calculator className="w-4 h-4 text-primary" />
-        <span className="text-sm font-medium text-text-secondary" data-testid="calculated-emissions-heading">Calculated Emissions</span>
-        {isCalculating && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1" data-testid="calculated-emissions-updating">Updating...</span>}
-        <span className="text-xs text-stone-400 ml-auto" data-testid="calculated-emissions-rounding-note">(Values rounded to 4 decimal places)</span>
+    <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="calculated-emissions-summary">
+      <div className="mb-4 flex flex-wrap items-center gap-2.5">
+        <Leaf className="h-5 w-5 text-emerald-600" aria-hidden="true" />
+        <span className="text-sm font-semibold text-stone-800" data-testid="calculated-emissions-heading">Calculated Emissions</span>
+        {isCalculating && <span className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700" data-testid="calculated-emissions-updating">Updating…</span>}
+        <span className="ml-auto flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-500" data-testid="calculated-emissions-rounding-note">
+          Values rounded to 4 decimal places <Info className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
+        </span>
       </div>
 
       {isScope3Like ? (
-        <div className="w-full p-4 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border border-primary/20" data-testid="scope3-co2e-summary">
-          <p className="text-xs font-medium text-primary/70 uppercase tracking-wide mb-1">Total CO₂e Emissions</p>
-          <p className="text-3xl font-bold text-primary" data-testid="scope3-co2e-value">
-            {formatNumber(calculation.co2eEmissions, 4)}
-            <span className="text-lg font-normal ml-2 text-primary/80">{calculation.co2eOutputUnit || 'tCO₂e'}</span>
-          </p>
+        <div className="flex items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50/80 p-5 text-emerald-900 transition-transform duration-200 hover:-translate-y-px hover:shadow-sm" data-testid="scope3-co2e-summary">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-white"><Leaf className="h-5 w-5 text-emerald-600" aria-hidden="true" /></div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-emerald-700">Total CO₂e Emissions</p>
+            <p className="mt-1 text-3xl font-bold" data-testid="scope3-co2e-value">{formatNumber(calculation.co2eEmissions, 4)} <span className="text-base font-medium text-emerald-700">{calculation.co2eOutputUnit || 'tCO₂e'}</span></p>
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            ['CO₂ Emissions', calculation.co2Emissions, calculation.co2OutputUnit || 'tCO2', 'red', 'co2'],
-            ['CH₄ Emissions', calculation.ch4Emissions, calculation.ch4OutputUnit || 'tCH4', 'orange', 'ch4'],
-            ['N₂O Emissions', calculation.n2oEmissions, calculation.n2oOutputUnit || 'tN2O', 'amber', 'n2o'],
-            ['CO₂e Total', calculation.co2eEmissions, calculation.co2eOutputUnit || 'tCO2e', 'primary', 'co2e'],
-          ].map(([label, value, unit, tone, key]) => {
-            const classes = CARD_TONES[tone];
-            return (
-            <div key={key} className={`p-3 rounded-lg border ${classes.card}`} data-testid={`calculated-emissions-${key}-card`}>
-              <p className={`text-xs font-medium mb-1 ${classes.label}`}>{label}</p>
-              <p className={`text-lg font-bold ${classes.value}`} data-testid={`calculated-emissions-${key}-value`}>{formatNumber(value, 2)}</p>
-              <p className={`text-xs ${classes.unit}`}>{unit}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {emissionCards(calculation).map(({ key, label, value, unit, Icon, classes, icon, muted }) => (
+            <div key={key} className={`flex min-h-24 items-center gap-3 rounded-lg border p-3 transition-transform duration-200 hover:-translate-y-px hover:shadow-sm ${classes}`} data-testid={`calculated-emissions-${key}-card`}>
+              <Icon className={`h-5 w-5 shrink-0 ${icon}`} aria-hidden="true" />
+              <div>
+                <p className={`text-xs font-medium ${muted}`}>{label}</p>
+                <p className="mt-1 text-lg font-bold" data-testid={`calculated-emissions-${key}-value`}>{formatNumber(value, 2)}</p>
+                <p className={`text-xs ${muted}`}>{unit}</p>
+              </div>
             </div>
-            );
-          })}
+          ))}
         </div>
       )}
 
       {auditLog.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-primary/20" data-testid="calculation-details">
-          <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
-          <div className="bg-white/50 p-3 rounded text-xs space-y-2" data-testid="calculation-audit-entries">
-            {auditLog.map((entry, index) => {
-              if (entry.step === 'input') {
-                const finalConvert = entry.variable === 'qty' || entry.variable === 'qty_energy'
-                  ? auditLog.find((candidate) => candidate.step === 'convert' && candidate.output?.unit === 'kg' && candidate.output?.value !== entry.value)
-                  : null;
-                return <div key={index} className="p-2 bg-stone-50 rounded border border-stone-200" data-testid={`calculation-input-entry-${index}`}><span className="font-medium text-stone-700">Input:</span> <span className="text-blue-700">{entry.variable_label || entry.variable}</span> = {entry.value}{!UNIT_LESS_COUNT_FIELDS.has(entry.variable) && entry.unit ? ` ${entry.unit}` : ''}{finalConvert ? <span className="text-emerald-600 ml-2">→ {formatNumber(finalConvert.output.value, 2)} {finalConvert.output.unit}</span> : null}</div>;
-              }
-              if (entry.step === 'resolve_property') {
-                const sourceName = entry.source_name || entry.source || '';
-                return <div key={index} className="p-2 bg-amber-50 rounded border border-amber-200 flex justify-between items-center gap-3" data-testid={`calculation-property-entry-${index}`}><span><span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}</span>{sourceName ? <span className="text-amber-600 text-xs">(Source - {sourceName})</span> : null}</div>;
-              }
-              if (entry.step === 'formula_step') {
-                const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());
-                return <div key={index} className={`p-2 rounded border ${isOutput ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'}`} data-testid={`calculation-formula-entry-${index}`}><span className={`font-medium ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>{entry.name?.toUpperCase()}:</span> <span className={isOutput ? 'text-emerald-800' : 'text-blue-800'}>{entry.expression_readable || entry.expression}</span><div className={`font-semibold mt-1 ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>= {typeof entry.output === 'number' ? formatNumber(entry.output, 6) : entry.output}</div></div>;
-              }
-              if (entry.step === 'outputs') {
-                return <div key={index} className="p-2 bg-emerald-100 rounded border border-emerald-300" data-testid={`calculation-output-entry-${index}`}><span className="font-bold text-emerald-800">Final Outputs:</span><div className="grid grid-cols-2 gap-2 mt-1">{Object.entries(entry.outputs || {}).map(([key, value]) => <div key={key} className="text-emerald-700"><span className="font-medium">{key.toUpperCase()}:</span> {formatNumber(value?.value, 6)} {value?.unit}</div>)}</div></div>;
-              }
-              return null;
-            })}
-          </div>
-        </div>
+        <Accordion type="single" collapsible className="mt-5 border-t border-stone-100" data-testid="calculation-details">
+          <AccordionItem value="calculation-details" className="border-0">
+            <AccordionTrigger className="py-4 no-underline hover:no-underline" data-testid="calculation-details-toggle">
+              <span className="flex items-center gap-2 text-sm font-semibold text-stone-800"><Calculator className="h-4 w-4 text-purple-500" aria-hidden="true" />Calculation Details</span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="rounded-lg border border-stone-200 bg-white px-4" data-testid="calculation-audit-entries">
+                {auditLog.map((entry, index) => {
+                  if (entry.step === 'input') {
+                    const finalConvert = entry.variable === 'qty' || entry.variable === 'qty_energy'
+                      ? auditLog.find((candidate) => candidate.step === 'convert' && candidate.output?.unit === 'kg' && candidate.output?.value !== entry.value)
+                      : null;
+                    return <div key={index} className="flex items-start gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-input-entry-${index}`}><ArrowUpFromLine className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">Input:</span> <span className="text-blue-700">{entry.variable_label || entry.variable}</span> = {entry.value}{!UNIT_LESS_COUNT_FIELDS.has(entry.variable) && entry.unit ? ` ${entry.unit}` : ''}{finalConvert ? <span className="ml-2 text-emerald-700">→ {formatNumber(finalConvert.output.value, 2)} {finalConvert.output.unit}</span> : null}</p></div>;
+                  }
+                  if (entry.step === 'resolve_property') {
+                    const { Icon, iconClass } = propertyPresentation(entry);
+                    const sourceName = entry.source_name || entry.source || '';
+                    return <div key={index} className="flex items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}</p><SourceBadge source={sourceName} /></div>;
+                  }
+                  if (entry.step === 'formula_step') {
+                    const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());
+                    return <div key={index} className={isOutput ? 'my-2 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-emerald-800' : 'flex items-start gap-3 border-b border-stone-100 py-3 last:border-0'} data-testid={`calculation-formula-entry-${index}`}><CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${isOutput ? 'text-emerald-600' : 'text-purple-500'}`} aria-hidden="true" /><div className="min-w-0 text-sm"><span className="font-semibold">{entry.name?.toUpperCase()}:</span> <span>{entry.expression_readable || entry.expression}</span><div className="mt-1 font-semibold">= {typeof entry.output === 'number' ? formatNumber(entry.output, 6) : entry.output}</div></div></div>;
+                  }
+                  if (entry.step === 'outputs') {
+                    return <div key={index} className="my-2 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-emerald-800" data-testid={`calculation-output-entry-${index}`}><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" /><div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 text-sm"><span className="font-semibold">Final Outputs</span>{Object.entries(entry.outputs || {}).map(([key, value]) => <span key={key}><span className="font-medium">{key.toUpperCase()}:</span> {formatNumber(value?.value, 6)} {value?.unit}</span>)}</div></div>;
+                  }
+                  return null;
+                })}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       )}
     </section>
   );

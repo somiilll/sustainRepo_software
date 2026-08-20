@@ -74,6 +74,22 @@ export default function MultiProposalReview({
     return field?.label || fieldKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }, [fieldConfig]);
 
+  const getDisplayFieldEntries = useCallback((fieldValues = {}) => {
+    if (entityType !== 'esg_record' || !fieldConfig?.fields?.length) {
+      return Object.entries(fieldValues);
+    }
+
+    const configuredKeys = new Set(fieldConfig.fields.map(field => field.field_key));
+    const configuredEntries = fieldConfig.fields.map(field => [
+      field.field_key,
+      Object.prototype.hasOwnProperty.call(fieldValues, field.field_key)
+        ? fieldValues[field.field_key]
+        : (field.default_value ?? null),
+    ]);
+    const extraEntries = Object.entries(fieldValues).filter(([key]) => !configuredKeys.has(key));
+    return [...configuredEntries, ...extraEntries];
+  }, [entityType, fieldConfig]);
+
   // Format reporting period for display
   const formatReportingPeriod = (reportingPeriod) => {
     if (!reportingPeriod) return '-';
@@ -324,7 +340,7 @@ export default function MultiProposalReview({
               
               return (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {Object.entries(displayValues).map(([key, value]) => (
+                  {getDisplayFieldEntries(displayValues).map(([key, value]) => (
                     <div key={key} className="space-y-1">
                       <p className="text-xs text-stone-500">{getFieldLabel(key)}</p>
                       <p className="font-medium text-stone-900">
@@ -444,7 +460,7 @@ export default function MultiProposalReview({
               <CardContent className="space-y-4">
                 {/* Field Values */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-stone-50 rounded-lg">
-                  {Object.entries(fieldValues).map(([key, value]) => {
+                  {getDisplayFieldEntries(fieldValues).map(([key, value]) => {
                     const approvedValue = getApprovedFieldValue(key);
                     const formattedValue = formatFieldValue(value);
                     const formattedApproved = formatFieldValue(approvedValue);

@@ -1580,6 +1580,27 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
             if user:
                 entry["changed_by_email"] = user.get("email", "Unknown User")
                 entry["changed_by_name"] = user.get("full_name", "")
+        proposal_id = (entry.get("changes") or {}).get("proposal_id")
+        if proposal_id and not entry.get("requested_by"):
+            proposal = await db.approval_requests.find_one(
+                {"id": proposal_id},
+                {"_id": 0, "submitted_by": 1, "submitted_by_email": 1, "submitted_by_name": 1, "submitted_at": 1, "entity_snapshot.proposed_changes": 1, "proposed_changes": 1},
+            )
+            if proposal:
+                entry["requested_by"] = proposal.get("submitted_by")
+                entry["requested_by_email"] = proposal.get("submitted_by_email")
+                entry["requested_by_name"] = proposal.get("submitted_by_name")
+                entry["requested_at"] = proposal.get("submitted_at")
+                if (entry.get("changes") or {}).get("action") == "rejected":
+                    entry["rejected_proposed_values"] = ((proposal.get("entity_snapshot") or {}).get("proposed_changes") or proposal.get("proposed_changes"))
+                if proposal.get("submitted_by") and not entry.get("requested_by_email"):
+                    requester = await db.users.find_one(
+                        {"id": proposal["submitted_by"]},
+                        {"_id": 0, "email": 1, "full_name": 1},
+                    )
+                    if requester:
+                        entry["requested_by_email"] = requester.get("email")
+                        entry["requested_by_name"] = requester.get("full_name")
         history.append(entry)
 
     # Legacy fallback — if collection is empty for this record, surface any

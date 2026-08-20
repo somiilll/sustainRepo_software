@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 import uuid
 import hashlib
 
-from core_platform.auth import get_current_user
+from modules.auth.dependencies import get_current_user
 from .service import esg_records_service
 from .ghg_integration import get_ghg_integration_service
 from .category_config_service import category_config_service
@@ -28,6 +28,17 @@ from shared.database import get_database
 from shared.database.mongo import db
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
+
+
+def _dashboard_facility_scope(current_user: dict, requested_facilities: Optional[List[str]]) -> Optional[List[str]]:
+    """Keep dashboard metrics fail-closed for non-admin users and ignore unauthorized query filters."""
+    if current_user.get("role") in {"admin", "super_admin"}:
+        return requested_facilities
+    allowed = current_user.get("assigned_facilities")
+    if allowed is None:
+        return []
+    allowed_ids = set(allowed)
+    return [facility_id for facility_id in requested_facilities if facility_id in allowed_ids] if requested_facilities is not None else list(allowed_ids)
 
 
 # =============================================================================
@@ -210,12 +221,134 @@ async def list_categories(
     framework: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """List categories for a section (environment/social/governance)."""
+    """List categories for a section (environment/social/governance).
+    
+    If the user's organization has an organization_config, overrides are applied:
+    - disabled subcategories are removed
+    - kpi_overrides replace fields for matching subcategories
+    - custom categories are injected as virtual entries
+    - modules.enabled filters top-level categories
+    """
     categories = await esg_records_service.list_categories(
         section=section,
         framework=framework
     )
+
+    # Apply organization_config overrides for all ESG sections
+    org_id = current_user.get("organization_id")
+    if org_id:
+        from modules.sustainability_config.service import get_org_config
+        org_cfg = await get_org_config(org_id)
+        if org_cfg:
+            categories = _apply_org_overrides(categories, org_cfg, section)
+
     return {"categories": categories, "total": len(categories)}
+
+
+def _to_code(name: str) -> str:
+    import re
+    return re.sub(r'[^a-z0-9]+', '_', name.lower().strip()).strip('_') or "unknown"
+
+
+def _map_custom_field(f: dict) -> dict:
+    """Map organization_config field format to esg_record_categories field format.
+    
+    Org config uses: field_code, response_type
+    Global categories use: field_key, type
+    """
+    response_type = f.get("response_type", "text")
+    # Map response_type to the type values DynamicFieldRenderer expects
+    type_map = {
+        "text": "text", "number": "number", "integer": "number", "decimal": "number",
+        "percentage": "number", "currency": "number", "yes_no": "yes_no",
+        "dropdown": "dropdown", "multi_select": "dropdown", "date": "date",
+        "month": "dropdown", "facility": "dropdown", "file": "file_upload",
+    }
+    return {
+        "field_key": f.get("field_code", f.get("field_key", "")),
+        "type": type_map.get(response_type, "text"),
+        "label": f.get("label", ""),
+        "required": f.get("required", False),
+        "placeholder": f.get("help_text", ""),
+        "options": f.get("options"),
+        "validation": f.get("validation"),
+        "unit": f.get("unit"),
+        "display_order": f.get("display_order", 0),
+        "enabled": f.get("enabled", True),
+        "evidence_required": f.get("evidence_required", False),
+        # Preserve original format for reference
+        "response_type": response_type,
+        "field_type": f.get("field_type", "input"),
+    }
+
+
+def _apply_org_overrides(categories: list, org_cfg: dict, section: str = "environment") -> list:
+    """Apply organization_config overrides to the global categories list."""
+    modules_cfg = org_cfg.get("modules") or {}
+    cats_cfg = org_cfg.get("categories") or {}
+    kpi_overrides = org_cfg.get("kpi_overrides") or {}
+    mode = modules_cfg.get("mode")  # "default" | "default_custom" | "custom"
+
+    # Section-specific enabled modules: check modules.enabled (env) or modules.social_enabled, etc.
+    section_key = f"{section}_enabled" if section != "environment" else "enabled"
+    enabled_modules = modules_cfg.get(section_key, modules_cfg.get("enabled") if section == "environment" else None)
+    disabled_subcats = set(cats_cfg.get("disabled") or [])
+    custom_cats = cats_cfg.get("custom") or []
+
+    result = []
+
+    # Include global categories unless mode is explicitly "custom"
+    if mode != "custom":
+        for cat in categories:
+            mod_code = _to_code(cat.get("category", ""))
+            subcat_code = _to_code(cat.get("subcategory") or cat.get("category", ""))
+
+            # Filter by enabled modules (only if explicitly configured for this section)
+            if enabled_modules is not None and mod_code not in enabled_modules:
+                continue
+
+            # Filter by disabled subcategories
+            if subcat_code in disabled_subcats:
+                continue
+
+            # Apply KPI field override
+            override = kpi_overrides.get(subcat_code)
+            if override:
+                if override.get("visible") is False:
+                    continue
+                if override.get("fields"):
+                    cat = {**cat, "fields": [_map_custom_field(f) for f in override["fields"]]}
+                if override.get("kpi_name"):
+                    cat = {**cat, "subcategory": override["kpi_name"]}
+
+            # Attach derived category_code so frontend can use it directly
+            cat = {**cat, "category_code": cat.get("category_code") or subcat_code}
+
+            result.append(cat)
+
+    # Add custom categories unless mode is explicitly "default"
+    if mode != "default":
+        for custom in custom_cats:
+            cat_section = custom.get("section", "environment")
+            if cat_section != section:
+                continue
+            raw_fields = custom.get("fields") or []
+            mapped_fields = [_map_custom_field(f) for f in raw_fields]
+            result.append({
+                "id": f"custom_{custom.get('category_code', 'unknown')}",
+                "section": section,
+                "category": (custom.get("module_name") or custom.get("module_code", "")).replace("_", " ").title(),
+                "subcategory": custom.get("category_name"),
+                "is_active": True,
+                "fields": mapped_fields,
+                "order": custom.get("display_order", 99),
+                "is_custom": True,
+                "module_code": custom.get("module_code"),
+                "category_code": custom.get("category_code"),
+            })
+
+    result.sort(key=lambda c: c.get("order", 0))
+    return result
 
 
 @router.get("/categories/{section}/{category_id}")
@@ -225,9 +358,44 @@ async def get_category(
     current_user: dict = Depends(get_current_user)
 ):
     """Get a specific category config."""
+    # Handle custom category IDs from organization_config
+    if category_id.startswith("custom_"):
+        org_id = current_user.get("organization_id")
+        if org_id:
+            from modules.sustainability_config.service import get_org_config
+            org_cfg = await get_org_config(org_id)
+            if org_cfg:
+                cat_code = category_id.replace("custom_", "", 1)
+                for custom in (org_cfg.get("categories", {}).get("custom") or []):
+                    if custom.get("category_code") == cat_code:
+                        raw_fields = custom.get("fields", [])
+                        mapped_fields = [_map_custom_field(f) for f in raw_fields]
+                        return {
+                            "id": category_id,
+                            "section": custom.get("section", "environment"),
+                            "category": (custom.get("module_name") or custom.get("module_code", "")).replace("_", " ").title(),
+                            "subcategory": custom.get("category_name"),
+                            "is_active": True,
+                            "fields": mapped_fields,
+                            "order": custom.get("display_order", 99),
+                            "is_custom": True,
+                        }
+        raise HTTPException(status_code=404, detail="Custom category not found")
+
     category = await esg_records_service.get_category(category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
+
+    # Apply field overrides if org has them (all sections)
+    org_id = current_user.get("organization_id")
+    if org_id:
+        from modules.sustainability_config.service import get_org_config
+        org_cfg = await get_org_config(org_id)
+        if org_cfg:
+            subcat_code = _to_code(category.get("subcategory") or category.get("category", ""))
+            override = (org_cfg.get("kpi_overrides") or {}).get(subcat_code)
+            if override and override.get("fields"):
+                category = {**category, "fields": [_map_custom_field(f) for f in override["fields"]]}
     return category
 
 
@@ -793,6 +961,8 @@ async def get_dashboard_metrics(
         except (ValueError, IndexError):
             pass
     
+    fac_list = _dashboard_facility_scope(current_user, fac_list)
+
     # Get metrics from service
     service = get_dashboard_metrics_service(db)
     metrics = await service.get_dashboard_metrics(org_id, fac_list, financial_year, start_date, end_date)

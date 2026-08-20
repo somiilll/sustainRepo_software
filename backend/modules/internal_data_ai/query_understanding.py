@@ -1,0 +1,410 @@
+"""Transform model-proposed semantics into deterministic, typed Internal AI query plans."""
+import logging
+import re
+from typing import Optional
+
+from modules.internal_data_ai.entity_resolution import resolve_fuel_entity, resolve_fuel_from_question
+from modules.internal_data_ai.metric_resolver import resolve_esg_metric
+from modules.internal_data_ai.query_contracts import (
+    EvidenceState,
+    QueryEntity,
+    QueryPeriod,
+    QueryType,
+    StructuredQueryPlan,
+)
+from modules.internal_data_ai.question_registry import resolve_esg_query, DataState
+from modules.internal_data_ai.reporting_periods import ResolvedPeriod
+
+logger = logging.getLogger(__name__)
+
+
+_SOURCES = {
+    QueryType.CONSUMPTION_LOOKUP: ["emission_records"],
+    QueryType.EMISSION_LOOKUP: ["emission_records"],
+    QueryType.METHODOLOGY_LOOKUP: ["emission_records", "ce_formulas", "ce_formula_versions", "ce_calculation_audit_logs"],
+    QueryType.FORMULA_LOOKUP: ["emission_records", "ce_formulas"],
+    QueryType.FORMULA_VERSION_HISTORY: ["emission_records", "ce_formulas", "ce_formula_versions", "ce_calculation_audit_logs"],
+    QueryType.RECORD_VERSION_HISTORY: ["emission_records", "emission_history"],
+    QueryType.CALCULATION_AUDIT_LOOKUP: ["emission_records", "ce_formulas", "ce_formula_versions", "ce_calculation_audit_logs"],
+    QueryType.EMISSION_FACTOR_LOOKUP: ["emission_records", "fuel_database", "emission_factors"],
+    QueryType.CALCULATION_PROPERTY_LOOKUP: ["emission_records", "calculation_inputs"],
+    QueryType.BRSR_LOOKUP: ["esg_responses", "esg_response_submissions", "esg_question_configs"],
+    QueryType.GRI_LOOKUP: ["esg_responses", "esg_response_submissions", "esg_question_configs"],
+    QueryType.BRSR_VERSION_HISTORY: ["esg_responses", "esg_responses_versions"],
+    QueryType.GRI_VERSION_HISTORY: ["esg_responses", "esg_responses_versions"],
+    QueryType.APPROVAL_STATUS_LOOKUP: ["environment_records", "approval_requests"],
+    QueryType.EVIDENCE_LOOKUP: ["emission_records", "uploaded_files"],
+    QueryType.RECORD_LOOKUP: ["emission_records"],
+    QueryType.ANALYTICS_LOOKUP: ["emission_records"],
+    QueryType.TARGET_LOOKUP: ["esg_targets"],
+    QueryType.APPROVAL_HISTORY: ["approval_requests", "approval_history"],
+    QueryType.ASSIGNMENT_HISTORY: ["esg_assignments", "esg_reporting_tasks"],
+    QueryType.ESG_METRIC_LOOKUP: ["environment_records"],
+    QueryType.FUEL_ENERGY_LOOKUP: ["environment_records", "emission_records", "fuel_database"],
+    QueryType.UNKNOWN: [],
+}
+
+_ESG_SECTIONS = {"environment", "social", "governance"}
+_GENERIC_BRSR_METRIC_TERMS = {
+    "all",
+    "brsr",
+    "completion",
+    "completed",
+    "configured",
+    "count",
+    "fill",
+    "filled",
+    "many",
+    "number",
+    "of",
+    "question",
+    "questions",
+    "questionnaire",
+    "response",
+    "responses",
+    "status",
+    "total",
+}
+
+
+def _approval_status_filter(question: str) -> Optional[str]:
+    """Map only explicit approval-status wording to a stored status filter."""
+    text = (question or "").lower()
+    if re.search(r"\b(awaiting|pending)(?:\s+(?:for\s+)?approval|\s+review)?\b", text):
+        return "pending_approval"
+    if re.search(r"\bapproved\b", text):
+        return "approved"
+    return None
+
+
+def _resolve_esg_context(question: str, entities: dict) -> tuple[Optional[str], Optional[str]]:
+    """Derive ESG section/category from explicit user wording before using model hints."""
+    text = (question or "").lower()
+    record_type = (entities.get("record_type") or "").lower()
+    category = entities.get("category")
+
+    if re.search(r"\bwater\b", text):
+        return "environment", "Water"
+    if re.search(r"\benvironment(?:al)?\b", text):
+        return "environment", category
+    if re.search(r"\bsocial\b", text):
+        return "social", category
+    if re.search(r"\bgovernance\b", text):
+        return "governance", category
+    if record_type in _ESG_SECTIONS:
+        return record_type, category
+    return None, category
+
+
+def _period_contract(period: Optional[ResolvedPeriod]) -> QueryPeriod:
+    if period is None:
+        return QueryPeriod()
+    label = period.label.lower()
+    period_type = "calendar_month"
+    if label.startswith("fy"):
+        period_type = "financial_year"
+    elif label.startswith("cy"):
+        period_type = "calendar_year"
+    elif label.startswith("q"):
+        period_type = "quarter"
+    return QueryPeriod(
+        type=period_type,
+        start_month=period.start_month,
+        end_month=period.end_month,
+        label=period.label,
+        source=period.source,
+        fiscal_start_month=period.fiscal_start_month,
+    )
+
+
+def _metric_from_question(question: str) -> str:
+    text = question.lower()
+    if re.search(r"\b(calorific value|calorific|\bcv\b)\b", text):
+        return "calorific_value"
+    if re.search(r"\b(consumption|consumed|consume|usage|used|quantity)\b", text):
+        return "consumption"
+    if re.search(r"\b(co2e|co₂e|emission|emissions|ghg|carbon)\b", text):
+        return "co2e"
+    if re.search(r"\b(methodology|how (?:was|is).*(?:calculated|computed)|calculation method)\b", text):
+        return "methodology"
+    if re.search(r"\b(emission factor|factor used|which factor)\b", text):
+        return "emission_factor"
+    return ""
+
+
+def _scope_from_question(question: str) -> Optional[str]:
+    """Use explicitly written GHG scopes when the intent model omits them."""
+    match = re.search(r"\bscope\s*([1-3])\b", question or "", re.IGNORECASE)
+    return f"scope{match.group(1)}" if match else None
+
+
+def _query_type(question: str, legacy_intent: str, metric: str) -> QueryType:
+    text = question.lower()
+    if legacy_intent == "evidence_retrieval" or re.search(r"\b(attachment|attachments|evidence|invoice)\b", text):
+        return QueryType.EVIDENCE_LOOKUP
+    framework_history = re.search(r"\b(previous answer|changed answer|what was reported before|version|history|who changed|when it changed|compare versions)\b", text)
+    if legacy_intent == "brsr_lookup" or re.search(r"\bbrsr\b", text):
+        return QueryType.BRSR_VERSION_HISTORY if framework_history else QueryType.BRSR_LOOKUP
+    if legacy_intent == "gri_lookup" or re.search(r"\bgri\b", text):
+        return QueryType.GRI_VERSION_HISTORY if framework_history else QueryType.GRI_LOOKUP
+    if _approval_status_filter(question):
+        return QueryType.APPROVAL_STATUS_LOOKUP
+    if re.search(r"\bformula version\b", text):
+        return QueryType.FORMULA_VERSION_HISTORY
+    if legacy_intent == "version_history" or re.search(r"\b(version history|record version|record history|previous version|what changed|who.*what.*changed)\b", text):
+        return QueryType.RECORD_VERSION_HISTORY
+    if re.search(r"\b(calculation audit|audit detail|show.*calculation)\b", text):
+        return QueryType.CALCULATION_AUDIT_LOOKUP
+    if re.search(r"\b(formula used|what formula)\b", text):
+        return QueryType.FORMULA_LOOKUP
+    if metric == "methodology" or legacy_intent == "formula_calculation":
+        return QueryType.METHODOLOGY_LOOKUP
+    if metric == "emission_factor" or legacy_intent == "emission_factor":
+        return QueryType.EMISSION_FACTOR_LOOKUP
+    if metric == "calorific_value":
+        return QueryType.CALCULATION_PROPERTY_LOOKUP
+    if metric == "consumption":
+        return QueryType.CONSUMPTION_LOOKUP
+    if metric == "co2e":
+        return QueryType.EMISSION_LOOKUP
+    if legacy_intent == "record_lookup":
+        return QueryType.RECORD_LOOKUP
+    if legacy_intent in {"analytics", "summary", "list_query", "count_query"}:
+        return QueryType.ANALYTICS_LOOKUP
+    if legacy_intent == "target_progress":
+        return QueryType.TARGET_LOOKUP
+    if legacy_intent == "approval_history":
+        return QueryType.APPROVAL_HISTORY
+    if legacy_intent == "assignment_history":
+        return QueryType.ASSIGNMENT_HISTORY
+    return QueryType.UNKNOWN
+
+
+def _brsr_context(question: str, fallback_metric: str) -> tuple[Optional[str], str]:
+    """Resolve explicit BRSR principle and question wording to stored response keys."""
+    text = (question or "").lower()
+    principle_match = re.search(r"\bp\s*([1-9])\b", text)
+    section = "section_c" if principle_match else None
+    question_key = ""
+
+    if re.search(r"\btraining\s*(?:and|&)\s*awareness\s*program(?:me)?s?\b", text):
+        return "section_c", "p1_training_awareness_coverage"
+    if principle_match:
+        question_key = f"p{principle_match.group(1)}"
+    elif fallback_metric and not _is_generic_brsr_metric(fallback_metric):
+        question_key = fallback_metric
+    return section, question_key
+
+
+def _is_generic_brsr_metric(value: str) -> bool:
+    """Keep broad BRSR count wording from becoming a question-key filter."""
+    terms = re.findall(r"[a-z0-9]+", (value or "").lower())
+    return bool(terms) and all(term in _GENERIC_BRSR_METRIC_TERMS for term in terms)
+
+
+async def build_query_plan(
+    question: str,
+    intent_result: dict,
+    period: Optional[ResolvedPeriod],
+    fuel_resolution: Optional[dict] = None,
+    org_id: str = "",
+    comparison_periods: Optional[list[ResolvedPeriod]] = None,
+) -> StructuredQueryPlan:
+    """Build a closed plan from model semantics plus deterministic normalization results.
+
+    Resolution hierarchy:
+      1. Question Registry (BRSR/GRI configured questions — highest priority)
+      2. Explicit framework mention (``brsr``/``gri`` in user text)
+      3. ESG metric resolver (Environment/Social/Governance/GHG module routing)
+      4. Legacy intent from LLM (lowest priority fallback)
+    """
+    entities = intent_result.get("entities") or {}
+    legacy_intent = intent_result.get("intent", "")
+    metric = _metric_from_question(question) or entities.get("metric") or ""
+    query_type = _query_type(question, legacy_intent, metric)
+    explicit_scope = entities.get("scope") or _scope_from_question(question)
+    if comparison_periods and explicit_scope and query_type in {QueryType.ANALYTICS_LOOKUP, QueryType.UNKNOWN}:
+        query_type = QueryType.EMISSION_LOOKUP
+        metric = metric or "co2e"
+
+    # ── Step 1: Question Registry (framework precedence) ─────────────
+    framework_resolution = await resolve_esg_query(question, org_id)
+    framework_question_key = None
+    framework_source_path = None
+    framework_confidence = None
+    framework_display_label = None
+
+    if framework_resolution and framework_resolution.confidence >= 0.5:
+        logger.info(
+            "question_registry matched: key=%s confidence=%.2f synonym=%s",
+            framework_resolution.question_key,
+            framework_resolution.confidence,
+            framework_resolution.matched_synonym,
+        )
+        framework_question_key = framework_resolution.question_key
+        framework_source_path = framework_resolution.source_path
+        framework_confidence = framework_resolution.confidence
+        framework_display_label = framework_resolution.display_label
+
+        # Override routing to the correct framework lookup
+        if framework_resolution.framework == "BRSR":
+            query_type = QueryType.BRSR_LOOKUP
+            metric = framework_resolution.question_key
+        elif framework_resolution.framework == "GRI":
+            query_type = QueryType.GRI_LOOKUP
+            metric = framework_resolution.question_key
+
+        # Build the plan directly — skip ESG metric resolver
+        return StructuredQueryPlan(
+            query_type=query_type,
+            entity=None,
+            period=_period_contract(period),
+            comparison_periods=[_period_contract(item) for item in (comparison_periods or [])],
+            facility=entities.get("facility"),
+            scope=explicit_scope,
+            category=framework_resolution.section,
+            record_type=None,
+            requested_metric=metric,
+            subcategory=None,
+            metric_field_key=None,
+            metric_field_label=None,
+            metric_field_aliases=[],
+            derived_metric=None,
+            data_source=framework_resolution.source_collection,
+            metric_terms=[],
+            value_kind=None,
+            field_value_filter=None,
+            field_terms=[],
+            question_text=question,
+            approval_status_filter=None,
+            sources_required=_SOURCES.get(query_type, []),
+            evidence_state=EvidenceState.PENDING,
+            legacy_intent=legacy_intent or None,
+            resolution_notes=[],
+            framework_question_key=framework_question_key,
+            framework_source_path=framework_source_path,
+            framework_confidence=framework_confidence,
+            framework_display_label=framework_display_label,
+        )
+
+    # ── Step 2+3: Existing metric resolver + framework text routing ──
+    metric_resolution = resolve_esg_metric(question)
+    record_type, category = _resolve_esg_context(question, entities)
+    framework_query = query_type in {
+        QueryType.BRSR_LOOKUP,
+        QueryType.BRSR_VERSION_HISTORY,
+        QueryType.GRI_LOOKUP,
+        QueryType.GRI_VERSION_HISTORY,
+    }
+    preserve_query_type = False
+    if metric_resolution:
+        record_type, category = metric_resolution.section, metric_resolution.category
+        preserve_query_type = query_type in {
+            QueryType.EVIDENCE_LOOKUP,
+            QueryType.BRSR_LOOKUP,
+            QueryType.BRSR_VERSION_HISTORY,
+            QueryType.GRI_LOOKUP,
+            QueryType.GRI_VERSION_HISTORY,
+            QueryType.RECORD_VERSION_HISTORY,
+            QueryType.METHODOLOGY_LOOKUP,
+            QueryType.FORMULA_LOOKUP,
+            QueryType.FORMULA_VERSION_HISTORY,
+            QueryType.CALCULATION_AUDIT_LOOKUP,
+            QueryType.EMISSION_FACTOR_LOOKUP,
+            QueryType.CALCULATION_PROPERTY_LOOKUP,
+        }
+        if not preserve_query_type and metric_resolution.data_source == "fuel_energy":
+            query_type = QueryType.FUEL_ENERGY_LOOKUP
+        elif not preserve_query_type and metric_resolution.data_source == "ghg_emissions":
+            query_type = QueryType.EMISSION_LOOKUP if metric_resolution.value_kind == "emissions" else QueryType.CONSUMPTION_LOOKUP
+        elif not preserve_query_type and query_type not in {QueryType.APPROVAL_STATUS_LOOKUP, QueryType.RECORD_VERSION_HISTORY}:
+            query_type = QueryType.ESG_METRIC_LOOKUP
+
+    if framework_query:
+        record_type = None
+        category = None
+        if query_type in {QueryType.BRSR_LOOKUP, QueryType.BRSR_VERSION_HISTORY}:
+            category, metric = _brsr_context(question, metric)
+        metric_resolution = None
+    raw_fuel = entities.get("fuel_type") or (fuel_resolution or {}).get("raw_value")
+    entity = None
+    evidence_state = EvidenceState.PENDING
+    notes = []
+    if raw_fuel:
+        fuel_resolution = fuel_resolution or {"status": "UNRESOLVED", "canonical_value": None}
+        status = fuel_resolution.get("status", "UNRESOLVED")
+        entity = QueryEntity(
+            type="fuel",
+            raw_value=raw_fuel,
+            canonical_value=fuel_resolution.get("canonical_value"),
+            resolution=status,
+        )
+        if status == "AMBIGUOUS":
+            evidence_state = EvidenceState.AMBIGUOUS
+            notes.append("Fuel entity requires clarification.")
+        elif status == "NOT_FOUND":
+            notes.append("Fuel is not present in the canonical fuel database.")
+
+    sources_required = _SOURCES[query_type]
+    if record_type in _ESG_SECTIONS and query_type == QueryType.RECORD_VERSION_HISTORY:
+        sources_required = [f"{record_type}_records", f"{record_type}_record_versions"]
+    elif record_type in _ESG_SECTIONS and query_type in {
+        QueryType.CONSUMPTION_LOOKUP,
+        QueryType.RECORD_LOOKUP,
+        QueryType.APPROVAL_STATUS_LOOKUP,
+        QueryType.ESG_METRIC_LOOKUP,
+    }:
+        sources_required = [f"{record_type}_records"]
+    elif metric_resolution and metric_resolution.data_source == "ghg_emissions" and not preserve_query_type:
+        sources_required = ["emission_records"]
+    elif metric_resolution and metric_resolution.data_source == "fuel_energy" and not preserve_query_type:
+        sources_required = ["environment_records", "emission_records", "fuel_database"]
+
+    return StructuredQueryPlan(
+        query_type=query_type,
+        entity=entity,
+        period=_period_contract(period),
+        comparison_periods=[_period_contract(item) for item in (comparison_periods or [])],
+        facility=entities.get("facility"),
+        scope=explicit_scope or (metric_resolution.ghg_scope if metric_resolution else None),
+        category=category or (metric if record_type in _ESG_SECTIONS else None),
+        record_type=record_type,
+        requested_metric=metric or None,
+        subcategory=metric_resolution.subcategory if metric_resolution else None,
+        metric_field_key=metric_resolution.field_key if metric_resolution else None,
+        metric_field_label=metric_resolution.field_label if metric_resolution else None,
+        metric_field_aliases=list(metric_resolution.field_aliases) if metric_resolution else [],
+        derived_metric=metric_resolution.derived_metric if metric_resolution else None,
+        data_source=metric_resolution.data_source if metric_resolution else None,
+        metric_terms=list(metric_resolution.semantic_terms) if metric_resolution else [],
+        value_kind=metric_resolution.value_kind if metric_resolution else None,
+        field_value_filter=metric_resolution.field_value_filter if metric_resolution else None,
+        field_terms=list(metric_resolution.field_terms) if metric_resolution else [],
+        question_text=question,
+        approval_status_filter=_approval_status_filter(question),
+        sources_required=sources_required,
+        evidence_state=evidence_state,
+        legacy_intent=legacy_intent or None,
+        resolution_notes=notes,
+    )
+
+
+async def understand_query(
+    question: str,
+    intent_result: dict,
+    period: Optional[ResolvedPeriod],
+    db,
+    org_id: str = "",
+    comparison_periods: Optional[list[ResolvedPeriod]] = None,
+) -> StructuredQueryPlan:
+    """Resolve a model-extracted fuel name against server-owned canonical data."""
+    raw_fuel = (intent_result.get("entities") or {}).get("fuel_type")
+    fuel_resolution = await resolve_fuel_entity(db, raw_fuel) if raw_fuel else await resolve_fuel_from_question(db, question)
+    return await build_query_plan(
+        question,
+        intent_result,
+        period,
+        fuel_resolution,
+        org_id=org_id,
+        comparison_periods=comparison_periods,
+    )

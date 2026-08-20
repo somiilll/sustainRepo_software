@@ -1,0 +1,42 @@
+{
+  "summary": "Backend-only verification completed for Internal Data AI evidence and BRSR routing fixes. Focused query-understanding suite (11 tests) and targeted live API regression (1 test covering 3 prompts) all passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_internal_ai_auxiliary_queries.py",
+    "/app/backend/tests/test_internal_ai_phase2_query_understanding.py",
+    "/app/backend/tests/test_internal_ai_iter175_live_brsr_evidence.py",
+    "/app/test_reports/pytest/iter175_internal_ai_auxiliary_phase2.xml",
+    "/app/test_reports/pytest/iter175_internal_ai_live_brsr_evidence.xml"
+  ],
+  "action_items": [
+    "No blocking fixes required for this approved scope.",
+    "Optional hardening: include standalone keyword 'evidence' in query-understanding evidence regex to reduce detector dependency drift risk."
+  ],
+  "critical_code_review_comments": [
+    "query_understanding._query_type() evidence regex currently matches 'evidence file' but not standalone 'evidence'; routing still passed in live test via intent detection, but direct lexical fallback is brittle.",
+    "backend/server.py is 3700+ lines; split further to reduce regression risk and improve testability/ownership boundaries."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_internal_ai_iter175_live_brsr_evidence.py",
+    "/app/test_reports/iteration_172.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "N/A (skipped by request)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Live regression verified: 'Show evidence for water consumption' returned query_type=evidence_lookup with non-empty evidence list including Screenshot 2026-07-13 file; BRSR P1 filled count returned 3; BRSR FY 2026-2027 training coverage returned BoD 100%, KMP 83%, employees 50%, workers 10%.",
+  "rca of the issue": "No defect reproduced after patch. Previous misrouting/count mismatch appears resolved through BRSR-specific question-key mapping and evidence-first routing in current build.",
+  "test_credentials": "Read from /app/memory/test_credentials.md and matched provided admin credentials.",
+  "mocked_api": "NONE"
+}

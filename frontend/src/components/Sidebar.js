@@ -9,8 +9,19 @@ import { ChevronDown, ChevronRight, LogOut } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const LOGO_FALLBACK = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+const LOGO_FALLBACK = '/sustainrepo-logo.png';
+
+const ENV_MODULE_ICONS = { power: 'Zap', water: 'Droplets', steam: 'Cloud', energy: 'Zap', waste: 'Trash2' };
+const SOCIAL_MODULE_ICONS = { workforce: 'Users2', health_safety: 'HeartPulse', community: 'Building2', human_rights: 'Scale' };
+const GOVERNANCE_MODULE_ICONS = { board: 'Shield', ethics: 'Scale', compliance: 'FileCheck', risk: 'AlertTriangle' };
+
+function _sectionIcons(section) {
+  if (section === 'social') return SOCIAL_MODULE_ICONS;
+  if (section === 'governance') return GOVERNANCE_MODULE_ICONS;
+  return ENV_MODULE_ICONS;
+}
 
 function getIcon(name) {
   return LucideIcons[name] || null;
@@ -92,12 +103,109 @@ function MenuItem(props) {
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const { hasAccess } = useModuleAccess();
   const [logoUrl, setLogoUrl] = useState(LOGO_FALLBACK);
+  const [resolvedConfig, setResolvedConfig] = useState(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
-  const activeConfig = isSuperAdmin ? superAdminSidebarConfig : sidebarConfig;
+
+  // Fetch resolved org config for dynamic environment sidebar
+  useEffect(() => {
+    if (!token || isSuperAdmin) return;
+    axios.get(`${API}/sustainability-config/resolved`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => setResolvedConfig(r.data)).catch(() => null);
+  }, [token, isSuperAdmin]);
+
+  // Build the active sidebar config, replacing section children if org has custom config
+  const activeConfig = useMemo(() => {
+    if (isSuperAdmin) return superAdminSidebarConfig;
+    if (!resolvedConfig?.has_org_config) return sidebarConfig;
+
+    const mode = resolvedConfig.modules_mode; // "default" | "default_custom" | "custom"
+
+    // Pure default → static sidebar as-is
+    if (mode === 'default' && !resolvedConfig.has_enabled_filter) return sidebarConfig;
+
+    // Build environment children based on mode
+    const buildEnvChildren = () => {
+      const icons = _sectionIcons('environment');
+      const disabledModules = new Set((resolvedConfig.disabled_modules || []).map(m => m.toLowerCase()));
+
+      // GHG Module is always static
+      const ghg = {
+        key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
+          { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg' },
+          { key: 'environment.ghg.sinks', label: 'Sinks', icon: 'TreeDeciduous', path: '/sinks' },
+          { key: 'environment.ghg.base_year', label: 'Base Year', icon: 'CalendarDays', path: '/ghg/base-year' },
+          { key: 'environment.ghg.analysis', label: 'Analysis', icon: 'BarChart3', path: '/ghg/analysis' },
+        ],
+      };
+
+      // Modules to never show as sidebar items (handled by static GHG Module)
+      const SIDEBAR_HIDDEN_MODULES = new Set(['ghg_emissions']);
+
+      if (mode === 'custom') {
+        // Custom only: GHG + custom modules
+        const customs = (resolvedConfig.modules || []).filter(m => m.is_custom && !SIDEBAR_HIDDEN_MODULES.has(m.module_code));
+        const children = [ghg];
+        customs.forEach(mod => {
+          children.push({
+            key: `environment.${mod.module_code}`,
+            label: mod.module_name,
+            icon: icons[mod.module_code] || 'Leaf',
+            children: [
+              { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
+              { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
+            ],
+          });
+        });
+        return children;
+      }
+
+      // default_custom: static defaults (filtered) + custom modules before Others
+      const defaultItems = sidebarConfig.find(s => s.key === 'environment')?.children || [];
+
+      // Filter out disabled defaults; separate Others and Analysis (they go last)
+      const filtered = [];
+      let othersItem = null;
+      let analysisItem = null;
+      for (const item of defaultItems) {
+        const code = item.key.replace('environment.', '');
+        if (code === 'others') { othersItem = item; continue; }
+        if (code === 'analysis') { analysisItem = item; continue; }
+        if (disabledModules.has(code)) continue;
+        filtered.push(item);
+      }
+
+      // Insert custom modules before Others
+      const customs = (resolvedConfig.modules || []).filter(m => m.is_custom && !SIDEBAR_HIDDEN_MODULES.has(m.module_code));
+      customs.forEach(mod => {
+        filtered.push({
+          key: `environment.${mod.module_code}`,
+          label: mod.module_name,
+          icon: icons[mod.module_code] || 'Leaf',
+          children: [
+            { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
+            { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
+          ],
+        });
+      });
+
+      if (othersItem) filtered.push(othersItem);
+      if (analysisItem) filtered.push(analysisItem);
+      return filtered;
+    };
+
+    // Social & Governance: never break into sub-modules, always use static config
+    return sidebarConfig.map(item => {
+      if (item.key === 'environment' && (mode === 'default_custom' || mode === 'custom')) {
+        return { ...item, children: buildEnvChildren() };
+      }
+      return item;
+    });
+  }, [isSuperAdmin, resolvedConfig]);
 
   const buildExpanded = () => {
     const result = {};
@@ -128,7 +236,11 @@ export default function Sidebar() {
   }, [location.pathname, activeConfig]);
 
   useEffect(() => {
-    axios.get(`${API}/software-assets/logo`).then(r => { if (r.data?.url) setLogoUrl(r.data.url); }).catch(() => null);
+    axios.get(`${API}/software-assets/logo`).then((r) => {
+      const url = r.data?.url;
+      if (url?.startsWith(BACKEND_URL)) setLogoUrl(url);
+      if (url?.startsWith('/')) setLogoUrl(`${BACKEND_URL}${url}`);
+    }).catch(() => null);
   }, []);
 
   const toggleMenu = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));

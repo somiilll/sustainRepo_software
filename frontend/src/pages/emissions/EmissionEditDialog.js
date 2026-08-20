@@ -160,7 +160,7 @@ const EmissionEditDialog = ({
     return (
       <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
         <DialogContent 
-          className="max-w-4xl max-h-[90vh] overflow-y-auto"
+          className="max-w-6xl max-h-[90vh] overflow-y-auto"
           onInteractOutside={handleInteractOutside}
           onEscapeKeyDown={handleEscapeKeyDown}
           hideCloseButton={true}
@@ -194,7 +194,7 @@ const EmissionEditDialog = ({
     <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
       <DialogContent 
         key={editingEmission?.id || 'edit'}
-        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        className="max-w-6xl max-h-[90vh] overflow-y-auto"
         onInteractOutside={handleInteractOutside}
         onEscapeKeyDown={handleEscapeKeyDown}
         hideCloseButton={true}

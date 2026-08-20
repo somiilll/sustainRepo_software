@@ -47,7 +47,7 @@ class ESGQuestionnaireService:
         configs = await self._configs.find(
             {"question_key": {"$in": question_keys}},
             {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
-             "section": 1, "framework": 1, "disclosure_name": 1}
+             "section": 1, "framework": 1, "disclosure_name": 1, "sub_questions": 1}
         ).to_list(500)
         return configs
 
@@ -421,6 +421,7 @@ class ESGQuestionnaireService:
                 has_any_approved = False
                 all_approved = True
                 all_have_value = True
+                all_saved_or_approved = True
                 total_subparts = len(sub_questions)
                 filled_subparts = 0
                 
@@ -450,17 +451,20 @@ class ESGQuestionnaireService:
                         display_status = "draft"
                         has_any_user_draft = True
                         all_approved = False
+                        all_saved_or_approved = False
                     elif user_has_pending or sub_approval_status == "pending_approval":
                         display_status = "pending_approval"
                         has_any_pending_approval = True
                         all_approved = False
+                        all_saved_or_approved = False
                     elif sub_approval_status == "approved":
-                        display_status = "approved"
+                        display_status = "saved_approved"
                         has_any_approved = True
                         has_any_saved = True
                     elif sub_approval_status == "rejected":
                         display_status = "rejected"
                         all_approved = False
+                        all_saved_or_approved = False
                     elif sub_status == "saved":
                         display_status = "saved"
                         has_any_saved = True
@@ -469,8 +473,10 @@ class ESGQuestionnaireService:
                         display_status = "draft"
                         has_any_draft = True
                         all_approved = False
+                        all_saved_or_approved = False
                     else:
                         all_approved = False
+                        all_saved_or_approved = False
                     
                     question_data["sub_questions"].append({
                         "sub_key": sub["sub_key"],
@@ -485,15 +491,18 @@ class ESGQuestionnaireService:
                     })
                 
                 # Overall status for the parent question
-                # Priority: draft > pending_approval > approved > saved > pending
+                # Completed = ALL sub-questions have values AND are saved/approved
+                # Approved = ALL sub-questions have values AND are approved
                 if has_any_user_draft:
                     question_data["status"] = "draft"
                 elif has_any_pending_approval:
                     question_data["status"] = "pending_approval"
                 elif all_approved and all_have_value and has_any_approved:
-                    question_data["status"] = "approved"
-                elif has_any_saved:
+                    question_data["status"] = "saved_approved"
+                elif all_saved_or_approved and all_have_value and (has_any_saved or has_any_approved):
                     question_data["status"] = "saved"
+                elif (has_any_saved or has_any_approved) and not all_have_value:
+                    question_data["status"] = "in_progress"
                 elif has_any_draft:
                     question_data["status"] = "draft"
                 else:
@@ -767,6 +776,7 @@ class ESGQuestionnaireService:
         user_id: str,
         user_name: str,
         user_email: str,
+        previous_value: Any = None,
     ) -> dict:
         """
         Create a submission entry for approver review.
@@ -832,6 +842,7 @@ class ESGQuestionnaireService:
                 "submitted_by_user_email": user_email,
                 "submitted_at": now,
                 "value": value,
+                "previous_value": previous_value,
                 "status": "pending_approval",
                 "entity_type": entity_type,
                 "framework": framework,
@@ -901,9 +912,10 @@ class ESGQuestionnaireService:
             "entity_type": "esg_response",
             "entity_id": question_key,
             "entity_subtype": question_config.get("section") if question_config else "environment",
-            "request_type": "update",
+            "request_type": "create" if previous_value is None else "update",
             "entity_snapshot": {
                 "value": value,
+                "previous_value": previous_value,
                 "question_key": question_key,
                 "reporting_year": reporting_period,
             },
@@ -950,7 +962,7 @@ class ESGQuestionnaireService:
                     "entity_type": "esg_response",
                     "entity_id": question_key,
                     "entity_subtype": approval_request["entity_subtype"],
-                    "request_type": "update",
+                    "request_type": approval_request["request_type"],
                     "status": "pending",
                     "section": approval_request["section"],
                     "current_level": 1,
@@ -1535,8 +1547,9 @@ class ESGQuestionnaireService:
             "updated_by_name": changed_by_user_name,
         }
         
+        # Always write approval_status so admin direct-saves clear stale statuses
+        update_fields["approval_status"] = approval_status
         if approval_status:
-            update_fields["approval_status"] = approval_status
             update_fields["submitted_at"] = now_iso
             update_fields["submitted_by"] = changed_by_user_id
         
@@ -1575,6 +1588,7 @@ class ESGQuestionnaireService:
         changed_by_user_name: Optional[str] = None,
         changed_by_user_email: Optional[str] = None,
         status: str = "saved",  # "draft" or "saved"
+        is_admin: bool = False,
     ) -> dict:
         """
         Save a single GRI disclosure response.
@@ -1640,6 +1654,10 @@ class ESGQuestionnaireService:
                 org_id, question_key, reporting_period
             )
             
+            # Admin always bypasses approval (direct save)
+            if is_admin:
+                use_direct_save = True
+            
             if not use_direct_save:
                 # APPROVAL WORKFLOW - Save to unified collection with pending_approval status
                 # Then create submission for approval queue
@@ -1668,6 +1686,7 @@ class ESGQuestionnaireService:
                     user_id=changed_by_user_id,
                     user_name=changed_by_user_name,
                     user_email=changed_by_user_email,
+                    previous_value=previous_value,
                 )
                 
                 # Clear the user's draft when they submit for approval
@@ -1694,7 +1713,7 @@ class ESGQuestionnaireService:
         # Determine final status and approval_status
         final_status = status
         final_approval_status = None
-        if value_changed and status == "saved":
+        if value_changed and status == "saved" and not is_admin:
             final_approval_status = "pending_approval"
             # Notify approvers that a previously-approved answer was re-edited
             try:
@@ -1743,6 +1762,73 @@ class ESGQuestionnaireService:
             await self._clear_user_draft_for_question(
                 org_id, question_key, reporting_period, changed_by_user_id
             )
+        
+        # Admin direct-save: cancel pending approval requests and update V2 assignment
+        if is_admin and status == "saved" and not value_is_empty:
+            try:
+                # 1. Cancel any pending approval_request for this exact question_key
+                await db.approval_requests.update_many(
+                    {
+                        "organization_id": org_id,
+                        "entity_id": question_key,
+                        "entity_type": "esg_response",
+                        "status": "pending",
+                        "entity_snapshot.reporting_year": reporting_period,
+                    },
+                    {
+                        "$set": {
+                            "status": "cancelled",
+                            "resolution_comment": "Superseded by admin direct save",
+                            "resolved_at": now_iso,
+                            "resolved_by": changed_by_user_id,
+                            "updated_at": now_iso,
+                        }
+                    }
+                )
+                # 2. Cancel matching pending submission
+                await db.esg_response_submissions.update_many(
+                    {
+                        "organization_id": org_id,
+                        "question_key": question_key,
+                        "reporting_period": reporting_period,
+                        "status": "pending_approval",
+                    },
+                    {
+                        "$set": {
+                            "status": "superseded",
+                            "updated_at": now,
+                        }
+                    }
+                )
+                # 3. Update V2 assignment status to completed
+                assignment = await db.esg_assignments.find_one({
+                    "organization_id": org_id,
+                    "entity_id": question_key,
+                    "entity_type": "question",
+                    "reporting_period": reporting_period,
+                }, {"_id": 0, "id": 1})
+                if not assignment and "_" in question_key:
+                    # Try parent key for subpart questions
+                    parts = question_key.rsplit("_", 1)
+                    while len(parts) > 1 and not assignment:
+                        parent_key = parts[0]
+                        assignment = await db.esg_assignments.find_one({
+                            "organization_id": org_id,
+                            "entity_id": parent_key,
+                            "entity_type": "question",
+                            "reporting_period": reporting_period,
+                        }, {"_id": 0, "id": 1})
+                        if not assignment:
+                            parts = parent_key.rsplit("_", 1)
+                if assignment:
+                    await self._update_assignment_status(
+                        assignment_id=assignment["id"],
+                        status="completed",
+                        approval_status="not_required",
+                        completed_by_user_id=changed_by_user_id,
+                    )
+            except Exception as e:
+                print(f"Warning: Admin post-save cleanup for {question_key}: {e}")
         
         # Log to audit trail for version history (only if value is not empty)
         if result_acknowledged and not value_is_empty:
@@ -1817,6 +1903,43 @@ class ESGQuestionnaireService:
         ).sort("timestamp", -1)
         
         entries = await cursor.to_list(200)
+
+        actor_ids = {
+            performer.get("user_id")
+            for entry in entries
+            if isinstance((performer := entry.get("performed_by")), dict)
+            and performer.get("user_id")
+        }
+        actor_emails = {
+            performer.get("email") or performer.get("name")
+            for entry in entries
+            if isinstance((performer := entry.get("performed_by")), dict)
+            and "@" in (performer.get("email") or performer.get("name") or "")
+        }
+        actor_query = []
+        if actor_ids:
+            actor_query.append({"id": {"$in": list(actor_ids)}})
+        if actor_emails:
+            actor_query.append({"email": {"$in": list(actor_emails)}})
+        users_by_id = {}
+        users_by_email = {}
+        if actor_query:
+            actor_users = await db.users.find(
+                {"$or": actor_query},
+                {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1},
+            ).to_list(None)
+            users_by_id = {user["id"]: user for user in actor_users if user.get("id")}
+            users_by_email = {user["email"].lower(): user for user in actor_users if user.get("email")}
+
+        def resolve_actor_name(performed_by: Any) -> str:
+            performer = performed_by if isinstance(performed_by, dict) else {}
+            raw_value = performer.get("name") or performer.get("email") or str(performed_by or "")
+            user = users_by_id.get(performer.get("user_id"))
+            if not user and "@" in raw_value:
+                user = users_by_email.get(raw_value.lower())
+            if user:
+                return user.get("full_name") or user.get("name") or "Unknown user"
+            return raw_value if raw_value and "@" not in raw_value else "Unknown user"
         
         # Process each entry to add computed fields and normalize names for frontend
         for entry in entries:
@@ -1827,10 +1950,14 @@ class ESGQuestionnaireService:
             entry["change_type"] = action or "updated"
             entry["created_at"] = entry.get("timestamp")
             performed_by = entry.get("performed_by", {})
-            if isinstance(performed_by, dict):
-                entry["created_by"] = performed_by.get("name") or performed_by.get("email") or "Unknown"
-            else:
-                entry["created_by"] = str(performed_by) if performed_by else "Unknown"
+            actor_name = resolve_actor_name(performed_by)
+            entry["created_by"] = actor_name
+            entry["created_by_name"] = actor_name
+            entry["changed_by_name"] = actor_name
+            if action in {"approved", "submission_approved"}:
+                entry["approved_by_name"] = actor_name
+            if action in {"rejected", "submission_rejected"}:
+                entry["rejected_by_name"] = actor_name
             entry["old_value"] = change_details.get("old_value") or change_details.get("original_value")
             entry["new_value"] = change_details.get("new_value") or change_details.get("final_value") or change_details.get("value")
             if change_details.get("rejection_reason"):
@@ -1891,10 +2018,10 @@ class ESGQuestionnaireService:
             # Format performer name for display
             performed_by = entry.get("performed_by", {})
             if isinstance(performed_by, dict):
-                entry["performed_by_name"] = performed_by.get("name") or performed_by.get("email") or "Unknown"
+                entry["performed_by_name"] = actor_name
                 entry["performed_by_email"] = performed_by.get("email", "")
             else:
-                entry["performed_by_name"] = str(performed_by) if performed_by else "Unknown"
+                entry["performed_by_name"] = actor_name
                 entry["performed_by_email"] = ""
             
             # Add question label for subparts
@@ -2607,8 +2734,8 @@ class ESGQuestionnaireService:
             previous_val = previous_year_data.get(question_key)
             mode = response_modes.get(question_key, "fy_comparison")  # Default to fy_comparison for safety
             
-            # ATOMIC MODE: Preserve value as-is, use current year only
-            if mode == "atomic":
+            # ATOMIC / SINGLE MODE: Preserve value as-is, use current year only
+            if mode in ("atomic", "single"):
                 if current_val is not None:
                     merged[question_key] = current_val
                 elif previous_val is not None:
@@ -3676,7 +3803,7 @@ class ESGQuestionnaireService:
             if user_ids:
                 users = await db.users.find(
                     {"id": {"$in": user_ids}},
-                    {"_id": 0, "id": 1, "name": 1, "email": 1}
+                    {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1}
                 ).to_list(100)
                 users_map = {u["id"]: u for u in users}
             
@@ -3688,7 +3815,9 @@ class ESGQuestionnaireService:
                 # Get user details
                 user_id = v.get("performed_by", {}).get("user_id")
                 user = users_map.get(user_id, {})
-                user_name = v.get("performed_by", {}).get("name") or user.get("name") or user.get("email") or "Unknown"
+                performer = v.get("performed_by", {})
+                raw_actor = performer.get("name") or performer.get("email") or ""
+                user_name = user.get("full_name") or user.get("name") or (raw_actor if "@" not in raw_actor else "Unknown user")
                 
                 # Get change details
                 change_details = v.get("change_details", {})
@@ -3697,6 +3826,8 @@ class ESGQuestionnaireService:
                     "change_type": v.get("action"),
                     "created_at": v.get("timestamp").isoformat() if hasattr(v.get("timestamp"), 'isoformat') else str(v.get("timestamp")),
                     "created_by": user_name,
+                    "created_by_name": user_name,
+                    "changed_by_name": user_name,
                     "old_value": change_details.get("old_value"),
                     "new_value": change_details.get("new_value"),
                     "rejection_reason": v.get("rejection_reason") or change_details.get("rejection_reason"),

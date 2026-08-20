@@ -1,0 +1,46 @@
+{
+  "summary": "Executed targeted backend+frontend regression for Water metric unit edit. Verified Edit Metric now persists quantity_unit=KiloLitres and reopens with KiloLitres displayed; numeric quantity remained unchanged. Restored original unit after verification. Verified Add Metric still retains selected unit.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Dashboard + Water KPI navigation",
+        "issues": [
+          "Console repeatedly logs chart container width/height -1 warnings",
+          "Console shows React key-spread warning in chart components"
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_water_unit_edit_regression_iter170.py",
+    "/app/test_reports/pytest/iter170_water_unit_edit.xml"
+  ],
+  "action_items": [
+    "Address dashboard chart sizing warnings (width/height -1) to reduce runtime noise",
+    "Fix React key prop spread warning in chart rendering code",
+    "Add data-testid attributes for Edit Metric modal controls (edit/save/unit select) to improve automation stability"
+  ],
+  "critical_code_review_comments": [
+    "ESGRecordsDataEntry Edit Metric flow still lacks data-testid on interactive elements (edit icon, unit selectors, save/discard), reducing deterministic testability and increasing selector fragility.",
+    "Frontend runtime has repeated console warnings/errors in dashboard rendering (chart sizing + key spread), indicating avoidable rendering issues that can mask real regressions."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_water_unit_edit_regression_iter170.py",
+    "/app/test_reports/iteration_166.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Water KPI route is /environment/water. Reliable nav testids: sidebar-environment -> sidebar-environment.water -> sidebar-environment.water.kpi. Edit modal unit combobox was the 5th combobox in tested record and persisted KiloLitres correctly. Add Metric tab testid: esg-tab-add-metric.",
+  "rca of the issue": "Original bug was due to missing unitValue/onUnitChange wiring in Edit Metric DynamicFieldRenderer. After wiring, selecting KiloLitres correctly updates field_values.<field_key>_unit and backend persists it unchanged. Regression test confirmed persistence on reopen/reload and no numeric value drift."
+}

@@ -41,20 +41,19 @@ export const CATEGORY_CODES = {
   C15: 'c15',
 };
 
-// Categories that require subcategory selection
-export const SUBCATEGORY_CATEGORIES = ['c8', 'c10', 'c11', 'c13', 'c14'];
+import { resolveGhgCapabilities } from '../modules/ghg/config/resolveGhgCapabilities';
 
-// Categories that require asset name
-export const ASSET_NAME_CATEGORIES = ['c8', 'c13', 'c14', 'c15'];
+const capabilityCodes = (capability) => Object.values(CATEGORY_CODES).filter((code) =>
+  resolveGhgCapabilities({ categoryCode: code, scopeCode: 'scope3' }).capabilities[capability],
+);
 
-// Categories that require location fields (from/to)
-export const LOCATION_CATEGORIES = ['c4', 'c6', 'c9'];
-
-// Categories that support activity type selection
-export const ACTIVITY_TYPE_CATEGORIES = ['c6', 'c7'];
-
-// Categories with special multi-employee handling
-export const MULTI_EMPLOYEE_CATEGORIES = ['c7'];
+// Transitional exports for inactive compatibility consumers. They are derived
+// from the canonical resolver rather than maintained as capability lists.
+export const SUBCATEGORY_CATEGORIES = capabilityCodes('subcategory');
+export const ASSET_NAME_CATEGORIES = capabilityCodes('assetName');
+export const LOCATION_CATEGORIES = capabilityCodes('journeyLocations');
+export const ACTIVITY_TYPE_CATEGORIES = capabilityCodes('activityType');
+export const MULTI_EMPLOYEE_CATEGORIES = capabilityCodes('multiEmployee');
 
 // Subcategory options for applicable categories
 export const SUBCATEGORY_OPTIONS = {
@@ -101,8 +100,7 @@ export const SUBCATEGORY_OPTIONS = {
  * @returns {boolean}
  */
 export const requiresSubcategory = (category) => {
-  const catLower = category?.toLowerCase() || '';
-  return SUBCATEGORY_CATEGORIES.some(c => catLower.includes(c));
+  return resolveGhgCapabilities({ categoryCode: getCategoryCode(category), scopeCode: 'scope3' }).capabilities.subcategory;
 };
 
 /**
@@ -111,8 +109,7 @@ export const requiresSubcategory = (category) => {
  * @returns {boolean}
  */
 export const requiresAssetName = (category) => {
-  const catLower = category?.toLowerCase() || '';
-  return ASSET_NAME_CATEGORIES.some(c => catLower.includes(c));
+  return resolveGhgCapabilities({ categoryCode: getCategoryCode(category), scopeCode: 'scope3' }).capabilities.assetName;
 };
 
 /**
@@ -121,8 +118,7 @@ export const requiresAssetName = (category) => {
  * @returns {boolean}
  */
 export const requiresLocation = (category) => {
-  const catLower = category?.toLowerCase() || '';
-  return LOCATION_CATEGORIES.some(c => catLower.includes(c));
+  return resolveGhgCapabilities({ categoryCode: getCategoryCode(category), scopeCode: 'scope3' }).capabilities.journeyLocations;
 };
 
 /**
@@ -131,8 +127,7 @@ export const requiresLocation = (category) => {
  * @returns {boolean}
  */
 export const hasActivityType = (category) => {
-  const catLower = category?.toLowerCase() || '';
-  return ACTIVITY_TYPE_CATEGORIES.some(c => catLower.includes(c));
+  return resolveGhgCapabilities({ categoryCode: getCategoryCode(category), scopeCode: 'scope3' }).capabilities.activityType;
 };
 
 /**
@@ -151,8 +146,7 @@ export const isC7Category = (category) => {
  * @returns {boolean}
  */
 export const isC6Category = (category) => {
-  const catLower = category?.toLowerCase() || '';
-  return catLower.includes('c6') || catLower.includes('business travel');
+  return getCategoryCode(category) === 'c6';
 };
 
 /**

@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { resolveGhgCapabilities } from '../../ghg/config/resolveGhgCapabilities';
 
 /**
  * Activity types for travel categories (C6, C7)
@@ -67,154 +68,111 @@ export const SUBCATEGORY_OPTIONS = {
  * Category Configurations
  * Each category defines its specific requirements and behavior
  */
-export const CATEGORY_CONFIGS = {
+const CATEGORY_METADATA = {
   c1: {
     id: 'c1',
     name: 'C1 - Purchased Goods and Services',
     description: 'Emissions from production of goods and services purchased by the organization',
     methods: ['activity_basis', 'spend_basis', 'supplier_basis'],
-    requiresSubcategory: false,
-    requiresAssetName: false,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c2: {
     id: 'c2',
     name: 'C2 - Capital Goods',
     description: 'Emissions from production of capital goods purchased by the organization',
     methods: ['activity_basis', 'spend_basis', 'supplier_basis'],
-    requiresSubcategory: false,
-    requiresAssetName: false,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c3: {
     id: 'c3',
     name: 'C3 - Fuel and Energy Related Activities',
     description: 'Emissions from production of fuels and energy purchased and consumed',
     methods: ['activity_basis', 'supplier_basis'],
-    requiresSubcategory: false,
-    requiresAssetName: false,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c4: {
     id: 'c4',
     name: 'C4 - Upstream Transportation and Distribution',
     description: 'Emissions from transportation and distribution of purchased products',
     methods: ['activity_basis', 'spend_basis', 'supplier_basis'],
-    requiresSubcategory: false,
-    requiresAssetName: false,
-    requiresLocation: true,
-    supportsMultiEmployee: false,
   },
   c5: {
     id: 'c5',
     name: 'C5 - Waste Generated in Operations',
     description: 'Emissions from disposal and treatment of waste generated in operations',
     methods: ['activity_basis', 'supplier_basis'],
-    requiresSubcategory: false,
-    requiresAssetName: false,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c6: {
     id: 'c6',
     name: 'C6 - Business Travel',
     description: 'Emissions from transportation of employees for business-related activities',
     methods: ['activity_basis', 'spend_basis', 'supplier_basis'],
-    activityTypes: TRAVEL_ACTIVITY_TYPES,
-    requiresSubcategory: false,
-    requiresAssetName: false,
-    requiresLocation: true,
-    supportsMultiEmployee: false,
   },
   c8: {
     id: 'c8',
     name: 'C8 - Upstream Leased Assets',
     description: 'Emissions from operation of assets leased by the organization',
     methods: ['activity_basis', 'supplier_basis'],
-    requiresSubcategory: true,
     subcategoryOptions: SUBCATEGORY_OPTIONS.c8,
-    requiresAssetName: true,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c9: {
     id: 'c9',
     name: 'C9 - Downstream Transportation and Distribution',
     description: 'Emissions from transportation and distribution of sold products',
     methods: ['activity_basis', 'spend_basis', 'supplier_basis'],
-    requiresSubcategory: false,
-    requiresAssetName: false,
-    requiresLocation: true,
-    supportsMultiEmployee: false,
   },
   c10: {
     id: 'c10',
     name: 'C10 - Processing of Sold Products',
     description: 'Emissions from processing of intermediate products sold by the organization',
     methods: ['activity_basis', 'supplier_basis'],
-    requiresSubcategory: true,
     subcategoryOptions: SUBCATEGORY_OPTIONS.c10,
-    requiresAssetName: false,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c11: {
     id: 'c11',
     name: 'C11 - Use of Sold Products',
     description: 'Emissions from the use of goods and services sold by the organization',
     methods: ['activity_basis', 'supplier_basis'],
-    requiresSubcategory: true,
     subcategoryOptions: SUBCATEGORY_OPTIONS.c11,
-    requiresAssetName: false,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c12: {
     id: 'c12',
     name: 'C12 - End-of-Life Treatment of Sold Products',
     description: 'Emissions from waste disposal and treatment of products sold',
     methods: ['activity_basis', 'supplier_basis'],
-    requiresSubcategory: false,
-    requiresAssetName: false,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c13: {
     id: 'c13',
     name: 'C13 - Downstream Leased Assets',
     description: 'Emissions from operation of assets owned and leased to other entities',
     methods: ['activity_basis', 'supplier_basis'],
-    requiresSubcategory: true,
     subcategoryOptions: SUBCATEGORY_OPTIONS.c13,
-    requiresAssetName: true,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c14: {
     id: 'c14',
     name: 'C14 - Franchises',
     description: 'Emissions from operation of franchises not included in scope 1 or 2',
     methods: ['activity_basis', 'supplier_basis'],
-    requiresSubcategory: true,
     subcategoryOptions: SUBCATEGORY_OPTIONS.c14,
-    requiresAssetName: true,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
   c15: {
     id: 'c15',
     name: 'C15 - Investments',
     description: 'Emissions from investments not included in scope 1 or 2',
     methods: ['activity_basis', 'supplier_basis'],
-    requiresSubcategory: false,
-    requiresAssetName: true,
-    requiresLocation: false,
-    supportsMultiEmployee: false,
   },
 };
+
+export const CATEGORY_CONFIGS = Object.fromEntries(
+  Object.entries(CATEGORY_METADATA).map(([code, metadata]) => {
+    const { capabilities } = resolveGhgCapabilities({ categoryCode: code, scopeCode: 'scope3' });
+    return [code, {
+      ...metadata,
+      activityTypes: capabilities.activityType ? TRAVEL_ACTIVITY_TYPES : undefined,
+      requiresSubcategory: capabilities.subcategory,
+      requiresAssetName: capabilities.assetName,
+      requiresLocation: capabilities.journeyLocations,
+      supportsMultiEmployee: capabilities.multiEmployee,
+    }];
+  }),
+);
 
 /**
  * Base fields for all Scope 3 categories

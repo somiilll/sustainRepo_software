@@ -374,6 +374,22 @@ export function hydrateEmissionForm(emission, config = {}) {
       asset_name: emission.asset_name || '',
       from_location: emission.from_location || '',
       to_location: emission.to_location || '',
+      ...((emission.from_airport || emission.to_airport || emission.flight_distance != null) && {
+        from_airport: emission.from_airport || null,
+        to_airport: emission.to_airport || null,
+        km_travelled: typeof emission.flight_distance === 'object'
+          ? emission.flight_distance.value
+          : (emission.flight_distance || ''),
+        flight_distance_method: typeof emission.flight_distance === 'object'
+          ? emission.flight_distance.method
+          : null,
+        flight_distance_overridden: typeof emission.flight_distance === 'object'
+          ? Boolean(emission.flight_distance.overridden)
+          : false,
+        flight_distance_manual: typeof emission.flight_distance === 'object'
+          ? emission.flight_distance.method === 'MANUAL'
+          : false,
+      }),
       // Process names
       process_names: (() => {
         if (emission.process_descriptions?.length > 0) {
@@ -429,6 +445,12 @@ export function hydrateEmissionForm(emission, config = {}) {
   const processType = typeof savedProcessType === 'object'
     ? savedProcessType.value || ''
     : savedProcessType;
+  const savedCalculationMethodology = emission.calculation_methodology
+    || emission.dynamic_field_values?.calculation_methodology
+    || '';
+  const calculationMethodology = typeof savedCalculationMethodology === 'object'
+    ? savedCalculationMethodology.value || ''
+    : savedCalculationMethodology;
 
   // =====================
   // Return hydrated values
@@ -447,6 +469,7 @@ export function hydrateEmissionForm(emission, config = {}) {
     
     // Selected category for UI
     selectedCategory: emission.category || '',
+    ...(calculationMethodology && { calculationMethodology }),
     processType,
     
     // Fuel from database (if matched)
