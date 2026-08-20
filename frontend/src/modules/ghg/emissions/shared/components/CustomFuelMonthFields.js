@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Flame } from 'lucide-react';
 import { Input } from '../../../../../components/ui/input';
 import { Label } from '../../../../../components/ui/label';
 import {
@@ -73,8 +74,6 @@ const CustomFuelMonthFields = ({
   fieldOptions = DEFAULT_FIELD_OPTIONS,
   centralizedUnits = [],
 }) => {
-  const quantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
-    || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
   const heatEfUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT]
     || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT];
   const heatCvUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT]
@@ -96,11 +95,12 @@ const CustomFuelMonthFields = ({
     referenceUnit,
     centralizedUnits,
   });
+  const customQuantity = data.qty ?? data.quantity ?? data.custom_qty;
   const hasDensitySourceValue = calculationMethodology === 'using_heat_basis_ncv'
-    ? [data.custom_qty, data.custom_cv, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
+    ? [customQuantity, data.custom_cv, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
     : calculationMethodology === 'using_qty_basis_ef'
-      ? [data.custom_qty, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
-      : [data.custom_qty, data.custom_carbon_content].some((value) => value !== '' && value !== null && value !== undefined);
+      ? [customQuantity, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
+      : [customQuantity, data.custom_carbon_content].some((value) => value !== '' && value !== null && value !== undefined);
 
   useEffect(() => {
     if (!hasDensitySourceValue || !densityRequirement.required || !densityRequirement.densityUnit) return;
@@ -119,19 +119,6 @@ const CustomFuelMonthFields = ({
     }
     Object.entries(nextData).forEach(([key, value]) => updateMonthData(monthKey, key, value));
   }, [data.density, data.density_unit, densityRequirement.densityUnit, densityRequirement.required, hasDensitySourceValue, monthKey, updateMonthData]);
-
-  const qtyUnitSelector = (
-    <div className="space-y-1">
-      <Label className="text-xs">Quantity Unit <span className="text-red-500">*</span></Label>
-      <select
-        value={qtyUnit}
-        onChange={(e) => updateMonthData(monthKey, 'custom_qty_unit', e.target.value)}
-        className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
-        data-testid={`month-${monthKey}-custom-qty-unit`}
-        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(quantityUnits) }}
-      />
-    </div>
-  );
 
   // Density input — shown only when dimension mismatch detected per-methodology
   const renderDensity = (needed, unitLabel) => {
@@ -157,8 +144,11 @@ const CustomFuelMonthFields = ({
   if (calculationMethodology === 'using_heat_basis_ncv') {
     const cvUnit = heatCvUnit;
     return (
-      <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
-        <p className="text-xs text-amber-700 font-medium">Custom Fuel — Heat Basis (NCV)</p>
+      <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
+        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
+          <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+          <span>Custom fuel factors · Heat Basis (NCV)</span>
+        </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <MeasurementInput
             label="Emission Factor"
@@ -183,7 +173,6 @@ const CustomFuelMonthFields = ({
             unitTestId={`month-${monthKey}-custom-cv-unit`}
           />
         </div>
-        {qtyUnitSelector}
         {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
@@ -191,8 +180,11 @@ const CustomFuelMonthFields = ({
 
   if (calculationMethodology === 'using_qty_basis_ef') {
     return (
-      <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
-        <p className="text-xs text-amber-700 font-medium">Custom Fuel — Qty Basis EF</p>
+      <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
+        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
+          <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+          <span>Custom fuel factors · Quantity Basis EF</span>
+        </div>
         <MeasurementInput
           label="Emission Factor"
           value={data.custom_ef || ''}
@@ -204,7 +196,6 @@ const CustomFuelMonthFields = ({
           inputTestId={`month-${monthKey}-custom-ef`}
           unitTestId={`month-${monthKey}-custom-ef-unit`}
         />
-        {qtyUnitSelector}
         {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
@@ -212,8 +203,11 @@ const CustomFuelMonthFields = ({
 
   if (calculationMethodology === 'using_carbon_composition') {
     return (
-      <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
-        <p className="text-xs text-amber-700 font-medium">Custom Fuel — Carbon Composition</p>
+      <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
+        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
+          <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+          <span>Custom fuel factors · Carbon Composition</span>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Carbon Content (%) <span className="text-red-500">*</span></Label>
@@ -236,7 +230,6 @@ const CustomFuelMonthFields = ({
             />
           </div>
         </div>
-        {qtyUnitSelector}
         {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );

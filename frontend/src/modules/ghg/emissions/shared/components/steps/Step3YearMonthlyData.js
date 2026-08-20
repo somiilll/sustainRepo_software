@@ -262,10 +262,16 @@ import { getUnitDenominator, isQuantityField, resolveDensityRequirement } from '
 import { normalizeProcessTemplateMonthlyField } from '../../utils/processTemplateMonthlyFields';
 import { buildNativeOptionsHtml } from '../../utils/nativeSelectOptions';
 import { getFieldUnits } from '../DynamicFieldRenderer';
+import {
+  GHG_FIELD_OPTION_KEYS,
+  resolveStandardGhgFieldOptions,
+} from '../../../../config/standardGhgFormConfig';
 
 // Import FlightDetailsSection for C6 air travel per-month airport selection
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
 import { ReportingPeriodControls } from '../ReportingPeriodControls';
+
+const DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS = resolveStandardGhgFieldOptions();
 
 /**
  * Step 3 Year & Monthly Data Component
@@ -358,6 +364,8 @@ export const Step3YearMonthlyData = ({
   // Backend URL for file viewing
   BACKEND_URL,
 }) => {
+  const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
+    || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
   const normalizedProcessTemplateFields = useMemo(() => (
     isProcessEmissions && selectedTemplate?.input_fields?.length
       ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
@@ -683,7 +691,9 @@ export const Step3YearMonthlyData = ({
                 const isSupplierBasis = scope3Method === 'supplier_basis';
                 const isQtyField = isQuantityField(field);
                 const hideUnit = useCustomFuel && isQtyField;
-                const showUnitDropdown = !hideUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
+                const showCustomFuelQuantityUnit = useCustomFuel && isQtyField;
+                const showUnitDropdown = showCustomFuelQuantityUnit
+                  || (!hideUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis);
                 const showTextUnit = !hideUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                 const defaultUnitValue = getFieldDefaultUnit(field, selectedFuel, fieldUnits);
                 const displayedUnit = resolveEffectiveFieldUnit({
@@ -722,16 +732,22 @@ export const Step3YearMonthlyData = ({
                       {showUnitDropdown && (
                         <select
                           value={(() => {
+                            if (showCustomFuelQuantityUnit) {
+                              return data.custom_qty_unit || customFuelQtyUnit || customFuelQuantityUnits[0] || '';
+                            }
                             return fieldUnits.find(u => u.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0];
                           })()}
                           onChange={(e) => {
+                            if (showCustomFuelQuantityUnit) {
+                              updateMonthData(monthKey, 'custom_qty_unit', e.target.value);
+                            }
                             updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
                             if (isQtyField && !isProcessEmissions) updateMonthData(monthKey, 'unit', e.target.value);
                           }}
                           disabled={!isEnabled}
                           className={`h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none ${!isEnabled ? 'bg-stone-50 text-stone-600' : ''}`}
-                          data-testid={`unit-${field.fieldKey}-${monthKey}`}
-                          dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                          data-testid={showCustomFuelQuantityUnit ? `month-${monthKey}-custom-qty-unit` : `unit-${field.fieldKey}-${monthKey}`}
+                          dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customFuelQuantityUnits : fieldUnits) }}
                         />
                       )}
                       {showTextUnit && (
@@ -767,15 +783,16 @@ export const Step3YearMonthlyData = ({
                     className="h-8 w-full text-sm"
                     data-testid={`month-${monthKey}-quantity`}
                   />
-                  {!useCustomFuel && (
-                    <select
-                      value={data.unit || defaultUnit}
-                      onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
-                      className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
-                      data-testid={`month-${monthKey}-unit`}
-                      dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(allowedUnits) }}
-                    />
-                  )}
+                  <select
+                    value={useCustomFuel ? (data.custom_qty_unit || customFuelQtyUnit || customFuelQuantityUnits[0] || '') : (data.unit || defaultUnit)}
+                    onChange={(e) => {
+                      if (useCustomFuel) updateMonthData(monthKey, 'custom_qty_unit', e.target.value);
+                      updateMonthData(monthKey, 'unit', e.target.value);
+                    }}
+                    className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
+                    data-testid={useCustomFuel ? `month-${monthKey}-custom-qty-unit` : `month-${monthKey}-unit`}
+                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(useCustomFuel ? customFuelQuantityUnits : allowedUnits) }}
+                  />
                 </div>
               );
             };
@@ -1045,6 +1062,7 @@ export const Step3YearMonthlyData = ({
           defaultUnit={defaultUnit}
           isVolumeUnit={isVolumeUnit}
           useCustomFuel={useCustomFuel}
+          customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={calculationMethodology}
         />
       )}
@@ -1075,8 +1093,11 @@ const YearlyDataEntry = ({
   defaultUnit,
   isVolumeUnit,
   useCustomFuel,
+  customFuelQtyUnit,
   calculationMethodology,
 }) => {
+  const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
+    || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
   const isCarbonComposition = isProcessEmissions
     && calculationMethodology === 'using_carbon_composition';
   const quantityField = dynamicInputFields.find(isQuantityField);
@@ -1165,11 +1186,13 @@ const YearlyDataEntry = ({
                 {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
                   const hideStandardQuantityUnit = useCustomFuel && isQuantityField(field);
+                  const showCustomFuelQuantityUnit = useCustomFuel && isQuantityField(field);
                   const isSupplierBasis = scope3Method === 'supplier_basis';
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
                   const isUnitlessCountField = isNoUnitField;
-                  const showUnitSelector = !hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
+                  const showUnitSelector = showCustomFuelQuantityUnit
+                    || (!hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis);
                   const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   
                   return (
@@ -1225,10 +1248,17 @@ const YearlyDataEntry = ({
                           />
                           {showUnitSelector && (
                             <select
-                              value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
-                              onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                              value={showCustomFuelQuantityUnit
+                                ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customFuelQuantityUnits[0] || '')
+                                : (yearlyData[`${field.variable}_unit`] || fieldUnits[0] || '')}
+                              onChange={(e) => setYearlyData(prev => ({
+                                ...prev,
+                                ...(showCustomFuelQuantityUnit ? { custom_qty_unit: e.target.value } : {}),
+                                [`${field.variable}_unit`]: e.target.value,
+                              }))}
                               className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
-                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                              data-testid={showCustomFuelQuantityUnit ? 'yearly-custom-qty-unit' : `yearly-${field.fieldKey}-unit`}
+                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customFuelQuantityUnits : fieldUnits) }}
                             />
                           )}
                           {showUnitTextInput && (
@@ -1506,18 +1536,26 @@ const YearlyDataEntry = ({
                     className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
                     data-testid="yearly-quantity"
                   />
-                  {!useCustomFuel && <select
-                    value={yearlyData.unit || defaultUnit}
-                    onChange={(e) => setYearlyData(prev => ({ ...prev, unit: e.target.value }))}
+                  <select
+                    value={useCustomFuel
+                      ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customFuelQuantityUnits[0] || '')
+                      : (yearlyData.unit || defaultUnit)}
+                    onChange={(e) => setYearlyData(prev => ({
+                      ...prev,
+                      ...(useCustomFuel ? { custom_qty_unit: e.target.value } : {}),
+                      unit: e.target.value,
+                    }))}
                     className="h-10 min-w-28 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
-                    data-testid="yearly-unit"
+                    data-testid={useCustomFuel ? 'yearly-custom-qty-unit' : 'yearly-unit'}
                     dangerouslySetInnerHTML={{
-                      __html: buildNativeOptionsHtml(centralizedUnits, {
-                        getValue: (unit) => unit.symbol,
-                        getLabel: (unit) => `${unit.symbol} (${unit.name})`,
-                      }),
+                      __html: useCustomFuel
+                        ? buildNativeOptionsHtml(customFuelQuantityUnits)
+                        : buildNativeOptionsHtml(centralizedUnits, {
+                          getValue: (unit) => unit.symbol,
+                          getLabel: (unit) => `${unit.symbol} (${unit.name})`,
+                        }),
                     }}
-                  />}
+                  />
                 </div>
               </div>
             </div>

@@ -280,3 +280,11 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
+
+## Change Log — 2026-08-20: Custom Fuel Create-Form Presentation
+
+- Removed the Custom Fuel source-of-information input from Create. Existing payload support remains intact; new Custom Fuel records simply submit no custom source value.
+- Replaced the Custom Fuel yellow panels with a slim amber flame indicator and left rule. The Fuel Name control now carries a compact **Custom fuel** badge.
+- Moved Custom Fuel Quantity Unit into the Quantity Used field in both monthly ledger and yearly entry paths. The standalone Quantity Unit control is removed; the selected unit continues to persist as `custom_qty_unit` and drive the existing calculation adapter.
+- Corrected the Custom Fuel density-display check to recognize the ledger’s `qty` / `quantity` values as well as the legacy key.
+- Verified: JavaScript lint clean for all three changed components; authenticated browser smoke confirmed Stationary Combustion → Custom Fuel shows the badge, no source field, and inline `kg` quantity selector. No APIs are **MOCKED**.
