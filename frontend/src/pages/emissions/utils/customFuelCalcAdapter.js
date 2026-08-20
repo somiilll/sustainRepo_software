@@ -1,4 +1,7 @@
-import { normalizeDensityForCalcEngine } from '../../../modules/ghg/emissions/shared/utils/unitHelpers';
+import {
+  normalizeDensityForCalcEngine,
+  resolveProcessEfDenominatorBasis,
+} from '../../../modules/ghg/emissions/shared/utils/unitHelpers';
 
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
 
@@ -47,6 +50,7 @@ export const buildCustomFuelCalculationPayload = ({
   dynamicFieldValues = {},
   formData = {},
   calculationMethodology = 'using_heat_basis_ncv',
+  centralizedUnits = [],
 }) => {
   const values = dynamicFieldValues;
   const quantity = readValue(values, ['qty', 'quantity']) ?? formData.quantity;
@@ -57,6 +61,7 @@ export const buildCustomFuelCalculationPayload = ({
   );
   const inputs = {};
   const userOverrides = {};
+  const decisionInputs = {};
 
   const addInput = (key, value, unit, { override = false } = {}) => {
     const input = toInput(value, unit);
@@ -90,6 +95,8 @@ export const buildCustomFuelCalculationPayload = ({
     const normalizedEf = normalizeEmissionFactor(ef, efUnit);
     hasMethodInputs = normalizedEf && addInput('ef_quantity', normalizedEf.value, normalizedEf.unit, { override: true });
     if (hasMethodInputs) userOverrides.emission_factor = inputs.ef_quantity;
+    const efQuantityBasis = resolveProcessEfDenominatorBasis(normalizedEf?.unit, centralizedUnits);
+    if (efQuantityBasis) decisionInputs.ef_quantity_basis = efQuantityBasis;
   } else if (methodology === 'using_carbon_composition') {
     const carbonContent = readValue(values, ['custom_carbon_content', 'carbon_content', 'composition_of_carbon']);
     const oxidationFactor = readValue(values, ['custom_oxidation_factor', 'oxidation_factor']);
@@ -110,6 +117,7 @@ export const buildCustomFuelCalculationPayload = ({
   return {
     inputs,
     userOverrides,
+    decisionInputs,
     isReady: hasQuantity && hasMethodInputs,
   };
 };

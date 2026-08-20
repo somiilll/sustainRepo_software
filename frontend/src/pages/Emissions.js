@@ -549,13 +549,15 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       }
 
       if (
-        editGhgFormContext.categoryCode === 'process_emissions'
+        (editGhgFormContext.categoryCode === 'process_emissions' || editUseCustomFuel)
         && decisionInputs.calculation_methodology === 'using_qty_basis_ef'
       ) {
         const efField = dynamicInputFields.find((field) => (
           field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
         ));
-        const efUnit = dynamicFieldValues.ef_quantity_unit
+        const efUnit = editUseCustomFuel
+          ? dynamicFieldValues.custom_ef_unit || 'kgCO2/kg'
+          : dynamicFieldValues.ef_quantity_unit
           || dynamicFieldValues.ef_quantity?.unit
           || efField?.defaultUnit
           || efField?.default_unit
@@ -567,7 +569,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {

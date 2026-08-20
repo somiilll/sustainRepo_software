@@ -92,6 +92,20 @@ describe('buildCustomFuelCalculationPayload — quantity basis EF', () => {
     });
     expect(result.inputs.ef_quantity).toEqual({ value: 2, unit: 'kgCO2/MJ' });
   });
+
+  it('derives volume routing from a volume-based EF denominator', () => {
+    const result = buildCustomFuelCalculationPayload({
+      dynamicFieldValues: { qty: 100, custom_ef: 2.68, custom_ef_unit: 'kgCO2/L' },
+      calculationMethodology: 'using_qty_basis_ef',
+      centralizedUnits: [
+        { symbol: 'kg', unit_type: 'mass' },
+        { symbol: 'L', unit_type: 'volume' },
+      ],
+    });
+
+    expect(result.inputs.ef_quantity).toEqual({ value: 2.68, unit: 'kgCO2/L' });
+    expect(result.decisionInputs).toEqual({ ef_quantity_basis: 'volume' });
+  });
 });
 
 describe('buildCustomFuelCalculationPayload — carbon composition', () => {
@@ -172,6 +186,7 @@ describe('buildCustomFuelCalculationPayload — legacy key aliases', () => {
         ef_ch4: { value: 0, unit: 'kgCH4/TJ' },
         ef_n2o: { value: 0, unit: 'kgN2O/TJ' },
       },
+      decisionInputs: {},
       isReady: false,
     });
   });

@@ -60,6 +60,7 @@ export function extractInputsForCalcEngine(data, ctx) {
     const customFuelCalculation = buildCustomFuelCalculationPayload({
       dynamicFieldValues: data,
       calculationMethodology: ctx.buildDecisionInputs?.(data)?.calculation_methodology,
+      centralizedUnits: ctx.centralizedUnits,
     });
     const quantity = customFuelCalculation.inputs.qty;
     return {
@@ -213,7 +214,17 @@ export function buildDecisionContext(data, ctx) {
   const effectiveScope =
     scope === 'biogenic' && biogenicScopeSelection === 'scope1' ? 'scope1' : scope;
 
-  const decisionInputs = buildDecisionInputs(data);
+  const customFuelDecisionInputs = useCustomFuel
+    ? buildCustomFuelCalculationPayload({
+      dynamicFieldValues: data,
+      calculationMethodology: buildDecisionInputs(data)?.calculation_methodology,
+      centralizedUnits: ctx.centralizedUnits,
+    }).decisionInputs
+    : {};
+  const decisionInputs = {
+    ...buildDecisionInputs(data),
+    ...customFuelDecisionInputs,
+  };
 
   const context = {
     fuel_name: useCustomFuel ? customFuelName : selectedFuel?.fuel_name,

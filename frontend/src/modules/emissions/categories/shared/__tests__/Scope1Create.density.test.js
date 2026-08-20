@@ -1,6 +1,7 @@
 /* global describe, expect, it */
 
 import {
+  buildDecisionContext,
   buildDynamicFieldValues,
   extractInputsForCalcEngine,
 } from '../Scope1Create';
@@ -82,6 +83,36 @@ describe('Scope 1 runtime density forwarding', () => {
     expect(buildDynamicFieldValues(data, context).density).toEqual({
       value: 0.82,
       unit: 'kg/L',
+    });
+  });
+
+  it('adds the volume basis to Custom Fuel Quantity Basis EF calculation requests', () => {
+    const data = {
+      qty: '100',
+      custom_qty_unit: 'L',
+      custom_ef: '2.68',
+      custom_ef_unit: 'kgCO2/L',
+    };
+    const result = buildDecisionContext(data, {
+      ...baseContext,
+      centralizedUnits: [
+        { symbol: 'kg', unit_type: 'mass' },
+        { symbol: 'L', unit_type: 'volume' },
+      ],
+      scope: 'scope1',
+      category: 'Stationary Combustion',
+      categoryCode: 'stationary_combustion',
+      facilityId: 'facility-1',
+      reportingPeriod: '2026-01',
+      fuelId: null,
+      useCustomFuel: true,
+      customFuelName: 'Volume fuel',
+      buildDecisionInputs: () => ({ calculation_methodology: 'using_qty_basis_ef' }),
+    });
+
+    expect(result.decisionInputs).toEqual({
+      calculation_methodology: 'using_qty_basis_ef',
+      ef_quantity_basis: 'volume',
     });
   });
 });

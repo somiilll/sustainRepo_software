@@ -1628,17 +1628,19 @@ export default function EmissionEntryForm({
       decisionInputs['calculation_methodology'] = 'using_heat_basis_ncv';
     }
 
-    // Process Emissions Quantity Basis EF routes to the formula whose expected
-    // units match the selected EF denominator. This is an internal tree key;
-    // users continue selecting the EF unit directly in the monthly/yearly row.
+    // Quantity Basis EF routes to the formula whose expected units match the
+    // selected EF denominator. This is an internal tree key; users continue
+    // selecting the EF unit directly in the monthly/yearly row.
     if (
-      ghgFormContext.categoryCode === 'process_emissions'
+      (ghgFormContext.categoryCode === 'process_emissions' || useCustomFuel)
       && decisionInputs.calculation_methodology === 'using_qty_basis_ef'
     ) {
       const efField = dynamicInputFields.find((field) => (
         field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
       ));
-      const efUnit = monthData?.ef_quantity_unit
+      const efUnit = useCustomFuel
+        ? monthData?.custom_ef_unit || 'kgCO2/kg'
+        : monthData?.ef_quantity_unit
         || monthData?.ef_quantity?.unit
         || efField?.defaultUnit
         || efField?.default_unit
@@ -1649,7 +1651,7 @@ export default function EmissionEntryForm({
     }
 
     return decisionInputs;
-  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, ghgFormContext.categoryCode, centralizedUnits]);
+  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, ghgFormContext.categoryCode, centralizedUnits, useCustomFuel]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {
