@@ -171,3 +171,8 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Replaced frontend hardcoded mass/volume detection with central unit-registry metadata. Heat Basis and Quantity Basis now derive density requirements/directional units from the quantity unit and CV/EF denominator: `L → kg` = `kg/L`; `kg → L` = `L/kg`; normal same-dimension conversions require no density.
 - Custom Fuel Create/Edit and dynamic monthly fields consume the same resolver. Backend property conversion now accepts directionally entered density while retaining legacy physical-density compatibility; formulas and templates were unchanged.
 - Verified: 1,013 frontend regression tests, 14 backend density/calc-engine tests plus 10 Phase 3 API harness tests, and a non-saving authenticated browser smoke across requested unit cases.
+
+## Change Log — 2026-08-20: Density Conversion Hint
+
+- Added a compact, resolved hint beside conditional Density fields in Custom Fuel and dynamic monthly entries, e.g. `Conversion required: kg → L`.
+- Verified lint, 17 focused frontend tests, and a non-saving authenticated browser smoke for the inverse conversion hint.

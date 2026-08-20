@@ -132,15 +132,20 @@ const CustomFuelMonthFields = ({
   const renderDensity = (needed, unitLabel) => {
     if (!needed) return null;
     return (
-      <MeasurementInput
-        label="Density"
-        value={data.density || ''}
-        onChange={(event) => updateMonthData(monthKey, 'density', event.target.value)}
-        placeholder="e.g. 0.84"
-        unitLabel={unitLabel}
-        inputTestId={`month-${monthKey}-density`}
-        unitTestId={`month-${monthKey}-density-unit`}
-      />
+      <div className="space-y-1">
+        <MeasurementInput
+          label="Density"
+          value={data.density || ''}
+          onChange={(event) => updateMonthData(monthKey, 'density', event.target.value)}
+          placeholder="e.g. 0.84"
+          unitLabel={unitLabel}
+          inputTestId={`month-${monthKey}-density`}
+          unitTestId={`month-${monthKey}-density-unit`}
+        />
+        <p className="text-xs text-amber-700" data-testid={`month-${monthKey}-density-conversion-hint`}>
+          Conversion required: {qtyUnit} → {referenceUnit}
+        </p>
+      </div>
     );
   };
 

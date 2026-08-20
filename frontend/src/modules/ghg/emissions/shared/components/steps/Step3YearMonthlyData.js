@@ -757,6 +757,9 @@ export const Step3YearMonthlyData = ({
                                   <span className="mb-2 text-sm text-stone-600" data-testid={`month-${monthKey}-dynamic-density-unit`}>
                                     {dynamicDensityRequirement.densityUnit}
                                   </span>
+                                  <p className="col-span-2 text-xs text-amber-700" data-testid={`month-${monthKey}-dynamic-density-conversion-hint`}>
+                                    Conversion required: {quantityUnit} → {getUnitDenominator(referenceUnit)}
+                                  </p>
                                 </div>
                               )}
 
