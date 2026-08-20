@@ -113,6 +113,7 @@ class GhgOverridesConfig(BaseModel):
 
     disabledCategories: List[Literal[
         "process_emissions",
+        "flaring__stationary_combustion",
         "purchased_goods_and_services",
         "capital_goods",
         "fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2",

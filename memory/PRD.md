@@ -153,5 +153,5 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 ## Change Log — 2026-08-20: Superadmin GHG Organization Configuration
 
 - Added persisted `ghg_overrides` to existing Org Config with strict server-side allowlists and resolved delivery to Emissions.
-- Superadmins can set Process Emissions visibility, supported Process Types, Custom Fuel visibility, and Scope 3 C1–C15 category visibility. All controls resolve through the existing `disabledCategories` and GHG resolver path.
+- Superadmins can set Process Emissions and Flaring (Stationary Combustion) visibility, supported Process Types, Custom Fuel visibility, and Scope 3 C1–C15 category visibility. All controls resolve through the existing `disabledCategories` and GHG resolver path.
 - Scope 3 controls were added at the user’s request with **NO TEST RUN** requested; no calculations, factors, formulas, records, or Phase 7 architecture were changed.

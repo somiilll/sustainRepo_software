@@ -59,7 +59,7 @@ The validated caller-supplied shape is:
 
 ### Persisted superadmin configuration
 
-The superadmin Org Config now persists and delivers the same safe object as `ghg_overrides`. It includes the Process Emissions category control, Custom Fuel control, Process Type checkboxes, and Scope 3 visibility controls for centrally supported C1–C15 categories.
+The superadmin Org Config now persists and delivers the same safe object as `ghg_overrides`. It includes Process Emissions and Flaring (Stationary Combustion) category controls, Custom Fuel control, Process Type checkboxes, and Scope 3 visibility controls for centrally supported C1–C15 categories.
 
 Scope 3 selections use the existing `disabledCategories` mechanism and canonical category codes. They only determine which categories are available for new entries; they do not change Scope 3 methods, activities, calculations, or historical records.
 

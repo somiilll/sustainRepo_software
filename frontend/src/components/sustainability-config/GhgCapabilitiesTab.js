@@ -30,12 +30,20 @@ const SCOPE3_CATEGORIES = [
   { value: 'investments', label: 'C15 — Investments' },
 ];
 
-const MANAGED_CATEGORY_CODES = ['process_emissions', ...SCOPE3_CATEGORIES.map((category) => category.value)];
+const FLARING_CATEGORY_CODE = 'flaring__stationary_combustion';
+const MANAGED_CATEGORY_CODES = [
+  'process_emissions',
+  FLARING_CATEGORY_CODE,
+  ...SCOPE3_CATEGORIES.map((category) => category.value),
+];
 
 export function GhgCapabilitiesTab({ orgConfig, onSave, saving }) {
   const overrides = orgConfig?.ghg_overrides || {};
   const [processEmissionsEnabled, setProcessEmissionsEnabled] = useState(
     !(overrides.disabledCategories || []).includes('process_emissions'),
+  );
+  const [flaringEnabled, setFlaringEnabled] = useState(
+    !(overrides.disabledCategories || []).includes(FLARING_CATEGORY_CODE),
   );
   const [customFuelEnabled, setCustomFuelEnabled] = useState(
     overrides.capabilityOverrides?.customFuel !== false,
@@ -64,6 +72,7 @@ export function GhgCapabilitiesTab({ orgConfig, onSave, saving }) {
       disabledCategories: [
         ...(overrides.disabledCategories || []).filter((category) => !MANAGED_CATEGORY_CODES.includes(category)),
         ...(processEmissionsEnabled ? [] : ['process_emissions']),
+        ...(flaringEnabled ? [] : [FLARING_CATEGORY_CODE]),
         ...SCOPE3_CATEGORIES
           .filter((category) => !scope3Categories.includes(category.value))
           .map((category) => category.value),
@@ -89,6 +98,11 @@ export function GhgCapabilitiesTab({ orgConfig, onSave, saving }) {
         <div className="flex items-center justify-between gap-6 border-b border-stone-200 pb-5" data-testid="process-emissions-capability-control">
           <div><h3 className="font-medium text-stone-800">Process Emissions</h3><p className="mt-1 text-xs text-stone-500">Allow this category for new Scope 1 entries.</p></div>
           <Switch checked={processEmissionsEnabled} onCheckedChange={setProcessEmissionsEnabled} data-testid="process-emissions-enabled-toggle" />
+        </div>
+
+        <div className="flex items-center justify-between gap-6 border-b border-stone-200 pb-5" data-testid="flaring-capability-control">
+          <div><h3 className="font-medium text-stone-800">Flaring (Stationary Combustion)</h3><p className="mt-1 text-xs text-stone-500">Allow this Scope 1 category for new entries.</p></div>
+          <Switch checked={flaringEnabled} onCheckedChange={setFlaringEnabled} data-testid="flaring-enabled-toggle" />
         </div>
 
         <div className="border-b border-stone-200 pb-5" data-testid="process-type-options-control">
