@@ -73,6 +73,7 @@ const CustomFuelMonthFields = ({
   calculationMethodology,
   fieldOptions = DEFAULT_FIELD_OPTIONS,
   centralizedUnits = [],
+  renderFields = true,
 }) => {
   const heatEfUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT]
     || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT];
@@ -119,6 +120,8 @@ const CustomFuelMonthFields = ({
     }
     Object.entries(nextData).forEach(([key, value]) => updateMonthData(monthKey, key, value));
   }, [data.density, data.density_unit, densityRequirement.densityUnit, densityRequirement.required, hasDensitySourceValue, monthKey, updateMonthData]);
+
+  if (!renderFields) return null;
 
   // Density input — shown only when dimension mismatch detected per-methodology
   const renderDensity = (needed, unitLabel) => {
