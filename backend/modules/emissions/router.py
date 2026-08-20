@@ -39,11 +39,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _process_input_value(dynamic_values: dict, predicate) -> Optional[dict]:
+def _process_input_entry(dynamic_values: dict, predicate) -> tuple[Optional[str], Optional[dict]]:
     for key, value in (dynamic_values or {}).items():
         if predicate(str(key).lower()) and isinstance(value, dict):
-            return value
-    return None
+            return key, value
+    return None, None
+
+
+def _process_input_value(dynamic_values: dict, predicate) -> Optional[dict]:
+    _, value = _process_input_entry(dynamic_values, predicate)
+    return value
 
 
 def _unit_dimension(unit: str, unit_definitions: list[dict]) -> Optional[str]:
@@ -78,11 +83,11 @@ async def _validate_process_density_requirement(record_data: EmissionRecordCreat
     if methodology not in {"using_heat_basis_ncv", "using_qty_basis_ef"}:
         return
 
-    quantity = _process_input_value(
+    quantity_key, quantity = _process_input_entry(
         dynamic_values,
         lambda key: key == "qty" or key == "quantity" or key.startswith("qty_") or key.startswith("quantity_"),
     )
-    reference = _process_input_value(
+    reference_key, reference = _process_input_entry(
         dynamic_values,
         (lambda key: "cv" in key or "calorific" in key or "ncv" in key)
         if methodology == "using_heat_basis_ncv"
@@ -108,9 +113,45 @@ async def _validate_process_density_requirement(record_data: EmissionRecordCreat
         {"is_active": True},
         {"_id": 0, "symbol": 1, "aliases": 1, "unit_type": 1, "dimension_vector": 1, "derived_dimension_vector": 1},
     ).to_list(1000)
+    formula_inputs = []
+    if record_data.formula_id:
+        formula = await db.ce_formulas.find_one(
+            {"id": record_data.formula_id, "is_active": True},
+            {"_id": 0, "definition.inputs": 1},
+        )
+        formula_inputs = (formula or {}).get("definition", {}).get("inputs", [])
+
+    expected_quantity_unit = next(
+        (
+            input_definition.get("expected_unit")
+            for input_definition in formula_inputs
+            if input_definition.get("variable") == quantity_key
+        ),
+        "",
+    )
+    expected_reference_unit = next(
+        (
+            str(input_definition.get("expected_unit") or "").split("/", 1)[1].strip()
+            for input_definition in formula_inputs
+            if input_definition.get("variable") == reference_key
+        ),
+        "",
+    )
+
+    required_density_unit = ""
     quantity_dimension = _unit_dimension(quantity_unit, units)
-    reference_dimension = _unit_dimension(reference_unit, units)
-    if {quantity_dimension, reference_dimension} != {"mass", "volume"}:
+    expected_quantity_dimension = _unit_dimension(expected_quantity_unit, units)
+    if {quantity_dimension, expected_quantity_dimension} == {"mass", "volume"}:
+        required_density_unit = f"{expected_quantity_unit}/{quantity_unit}"
+    else:
+        expected_reference_dimension = _unit_dimension(expected_reference_unit, units)
+        reference_dimension = _unit_dimension(reference_unit, units)
+        if {reference_dimension, expected_reference_dimension} == {"mass", "volume"}:
+            required_density_unit = f"{reference_unit}/{expected_reference_unit}"
+        elif {quantity_dimension, reference_dimension} == {"mass", "volume"}:
+            required_density_unit = f"{reference_unit}/{quantity_unit}"
+
+    if not required_density_unit:
         return
 
     density = dynamic_values.get("density") or {}
@@ -118,7 +159,6 @@ async def _validate_process_density_requirement(record_data: EmissionRecordCreat
         density_value = float(density.get("value")) if isinstance(density, dict) else None
     except (TypeError, ValueError):
         density_value = None
-    required_density_unit = f"{reference_unit}/{quantity_unit}"
     if density_value is None or density_value <= 0 or density.get("unit") != required_density_unit:
         raise HTTPException(
             status_code=422,

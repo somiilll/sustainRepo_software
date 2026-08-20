@@ -155,6 +155,14 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution.
 - **P3:** Custom Fuel month-value copy, Scope 1/3 dashboard deduplication, admin disable UI. Phase 7 remains explicitly blocked.
 
+## Change Log — 2026-08-20: Process Emissions Quantity Save Integrity
+
+- P0 fix: Process Emissions now resolves density requirements against the selected formula’s expected input units, not only the entered Quantity/EF pair. A formula that requires mass inputs therefore prompts for directional density even when entered `L` and `kgCO2/L` superficially match.
+- P0 fix: any calculation API failure now blocks the corresponding monthly/yearly record from being saved. The API error is surfaced to the user rather than silently persisting `0` CO₂e.
+- P0 fix: Scope 1 create payloads now mirror the selected Quantity and unit to the record’s top-level `quantity`, `quantity_unit`, and `unit` fields while retaining the exact `dynamic_field_values` unit. This preserves Process Emissions `kg` selections instead of falling back to a legacy `L` display value.
+- P0 fix: `/api/emissions` applies the same formula-aware density check before insert, so bypassed clients cannot persist an unresolved mass↔volume conversion.
+- No calculation-engine files were changed. **NO TEST RUN** was performed at the user’s explicit request.
+
 ## Change Log — 2026-08-20: Process Emissions Unit and Density Save Guard
 
 - Fixed Create-form unit initialization priority for monthly and yearly data: saved selection → configured default unit → formula expected unit → first allowed unit. Process Emissions quantities configured with `kg` no longer default to the alphabetically first `L` option.

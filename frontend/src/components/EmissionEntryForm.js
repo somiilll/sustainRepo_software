@@ -2689,6 +2689,7 @@ export default function EmissionEntryForm({
     isC7EmployeeCommuting, requiresSubcategory, selectedFuel, capabilities: resolvedCapabilities,
     isProcessEmissions: ghgFormContext.isProcessCategory,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
+    matchedFormula: dynamicInputFieldsResult?.matchedFormula,
     // Helpers
     canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
     evaluateFormula, buildDecisionInputs,

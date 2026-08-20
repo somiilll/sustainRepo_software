@@ -29,6 +29,7 @@ function resolveFieldUnit(field, data, ctx) {
     fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
   }
   return data[`${field.variable}_unit`]
+    || data[`${field.fieldKey}_unit`]
     || field.defaultUnit
     || field.default_unit
     || field.expectedUnit
@@ -325,6 +326,11 @@ export function buildCreatePayload(monthData, ctx) {
   } = ctx;
 
   const dynamicFieldValues = buildDynamicFieldValues(monthData, ctx);
+  const quantityField = ctx.dynamicInputFields?.find((field) => (
+    /^(qty|quantity)(_|$)/i.test(field.variable || '')
+    || /^(qty|quantity)(_|$)/i.test(field.fieldKey || '')
+  ));
+  const quantityValue = quantityField ? dynamicFieldValues[quantityField.variable] : null;
   const decisionInputs = buildDecisionInputs ? buildDecisionInputs(monthData) : {};
   const isScope1Like = scope === 'scope1'
     || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
@@ -375,6 +381,10 @@ export function buildCreatePayload(monthData, ctx) {
         biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },
       }),
     },
+
+    quantity: quantityValue?.value ?? null,
+    quantity_unit: quantityValue?.unit ?? null,
+    unit: quantityValue?.unit ?? null,
 
     outputs,
 

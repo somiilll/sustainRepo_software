@@ -81,6 +81,11 @@ class EmissionRecordCreate(BaseModel):
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
     outputs: Optional[Dict[str, Dict[str, Any]]] = {}
 
+    # Primary activity values are mirrored for ledger and export compatibility.
+    quantity: Optional[float] = None
+    quantity_unit: Optional[str] = None
+    unit: Optional[str] = None
+
     # Metadata
     fuel_database_id: Optional[str] = None
     source_of_information: Optional[str] = None
@@ -149,6 +154,9 @@ class EmissionRecordResponse(BaseModel):
 
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
     outputs: Optional[Dict[str, Dict[str, Any]]] = {}
+    quantity: Optional[float] = None
+    quantity_unit: Optional[str] = None
+    unit: Optional[str] = None
 
     co2_emissions: Optional[float] = None
     ch4_emissions: Optional[float] = None

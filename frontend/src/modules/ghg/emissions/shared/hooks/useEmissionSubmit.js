@@ -84,11 +84,24 @@ const resolveProcessDensityRequirement = ({
   dynamicInputFields = [],
   calculationMethodology,
   centralizedUnits = [],
+  matchedFormula,
 }) => {
   const quantityField = dynamicInputFields.find(isQuantityField);
   if (!quantityField || !hasNumericValue(getFieldValue(data, quantityField))) {
     return { required: false };
   }
+
+  const formulaInputFor = (field) => matchedFormula?.inputs?.find((input) => (
+    input.variable === field?.variable || input.variable === field?.fieldKey
+  ));
+  const quantityUnit = getFieldUnit(data, quantityField);
+  const expectedQuantityUnit = formulaInputFor(quantityField)?.expected_unit;
+  const formulaQuantityRequirement = resolveDensityRequirement({
+    quantityUnit,
+    referenceUnit: expectedQuantityUnit,
+    centralizedUnits,
+  });
+  if (formulaQuantityRequirement.required) return formulaQuantityRequirement;
 
   // Prefer the selected methodology, but inspect both supported reference
   // fields if React has not yet synchronized that selector into form state.
@@ -100,9 +113,18 @@ const resolveProcessDensityRequirement = ({
 
   for (const referenceField of referenceFields.filter(Boolean)) {
     if (!hasNumericValue(getFieldValue(data, referenceField))) continue;
+    const referenceUnit = getFieldUnit(data, referenceField);
+    const expectedReferenceUnit = formulaInputFor(referenceField)?.expected_unit;
+    const formulaReferenceRequirement = resolveDensityRequirement({
+      quantityUnit: getUnitDenominator(expectedReferenceUnit),
+      referenceUnit: getUnitDenominator(referenceUnit),
+      centralizedUnits,
+    });
+    if (formulaReferenceRequirement.required) return formulaReferenceRequirement;
+
     const requirement = resolveDensityRequirement({
-      quantityUnit: getFieldUnit(data, quantityField),
-      referenceUnit: getUnitDenominator(getFieldUnit(data, referenceField)),
+      quantityUnit,
+      referenceUnit: getUnitDenominator(referenceUnit),
       centralizedUnits,
     });
     if (requirement.required) return requirement;
@@ -129,7 +151,7 @@ export function useEmissionSubmit(ctx) {
       dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
       onSuccess, getActualYearForMonth, evaluateFormula,
       buildDecisionInputs, editingEmission,
-      decisionFieldValues,
+      decisionFieldValues, matchedFormula,
       capabilities,
       // Optional supplier context
       supplierContext = null,
@@ -204,6 +226,7 @@ export function useEmissionSubmit(ctx) {
             || data?.calculation_methodology
             || buildDecisionInputs?.(data)?.calculation_methodology,
           centralizedUnits,
+          matchedFormula,
         });
         if (!requirement.required) continue;
 
@@ -557,18 +580,15 @@ export function useEmissionSubmit(ctx) {
                   yCalcCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
                   yResolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
                   yAuditLogId = r.audit_log_id || null;
-                } else if (useCustomFuel) {
-                  toast.error('Custom Fuel calculation returned no result.');
+                } else {
+                  toast.error('Calculation returned no result. Please review the entered units and values.');
                   setIsSaving(false);
                   return;
                 }
               } catch (e) {
-                if (useCustomFuel) {
-                  toast.error('Custom Fuel backend calculation failed.');
-                  setIsSaving(false);
-                  return;
-                }
-                // Standard fuel remains unchanged: it can be recalculated later.
+                toast.error(e.response?.data?.detail || 'Calculation failed. Please review the entered units and values.');
+                setIsSaving(false);
+                return;
               }
             }
 
@@ -959,16 +979,14 @@ export function useEmissionSubmit(ctx) {
                 calculatedCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
                 resolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
                 auditLogId = r.audit_log_id || null;
-              } else if (useCustomFuel) {
-                errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: backend calculation returned no result`);
+              } else {
+                errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: calculation returned no result`);
                 continue;
               }
             } catch (e) {
-              if (useCustomFuel) {
-                errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: backend calculation failed`);
-                continue;
-              }
-              // Standard fuel remains unchanged: it can be recalculated later.
+              const detail = e.response?.data?.detail;
+              errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${typeof detail === 'string' ? detail : 'calculation failed'}`);
+              continue;
             }
           }
 
