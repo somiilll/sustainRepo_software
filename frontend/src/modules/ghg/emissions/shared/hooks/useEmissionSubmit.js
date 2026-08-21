@@ -47,10 +47,16 @@ const getApiErrorMessage = (error, fallback) => {
   return typeof detail === 'string' ? detail : fallback;
 };
 
-const getProvidedDensity = (data = {}) => {
-  const value = Number.parseFloat(data.density);
+const getProvidedDensity = (data = {}, selectedFuel = null) => {
+  const rowDensity = Number.parseFloat(data.density);
+  const value = Number.isFinite(rowDensity)
+    ? rowDensity
+    : Number.parseFloat(selectedFuel?.density);
   if (!Number.isFinite(value)) return null;
-  return { value, unit: data.density_unit || 'kg/L' };
+  return {
+    value,
+    unit: data.density_unit || selectedFuel?.density_unit || 'kg/L',
+  };
 };
 
 const hasNumericValue = (value) => (
@@ -247,7 +253,7 @@ export function useEmissionSubmit(ctx) {
         });
         if (!requirement.required) continue;
 
-        const density = getProvidedDensity(data);
+        const density = getProvidedDensity(data, useCustomFuel ? null : selectedFuel);
         if (!density || density.value <= 0 || density.unit !== requirement.densityUnit) {
           const monthName = periodKey === 'yearly'
             ? 'the annual entry'
