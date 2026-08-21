@@ -75,6 +75,7 @@ const CustomFuelMonthFields = ({
   centralizedUnits = [],
   renderFields = true,
   showMethodIndicator = true,
+  isFugitiveCustomFuel = false,
 }) => {
   const heatEfUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT]
     || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT];
@@ -105,6 +106,7 @@ const CustomFuelMonthFields = ({
       : [customQuantity, data.custom_carbon_content].some((value) => value !== '' && value !== null && value !== undefined);
 
   useEffect(() => {
+    if (isFugitiveCustomFuel) return;
     if (!hasDensitySourceValue || !densityRequirement.required || !densityRequirement.densityUnit) return;
     const currentDensityUnit = data.density_unit || '';
     if (currentDensityUnit === densityRequirement.densityUnit) return;
@@ -120,9 +122,9 @@ const CustomFuelMonthFields = ({
       nextData.density = String(1 / Number(data.density));
     }
     Object.entries(nextData).forEach(([key, value]) => updateMonthData(monthKey, key, value));
-  }, [data.density, data.density_unit, densityRequirement.densityUnit, densityRequirement.required, hasDensitySourceValue, monthKey, updateMonthData]);
+  }, [data.density, data.density_unit, densityRequirement.densityUnit, densityRequirement.required, hasDensitySourceValue, isFugitiveCustomFuel, monthKey, updateMonthData]);
 
-  if (!renderFields) return null;
+  if (!renderFields || isFugitiveCustomFuel) return null;
 
   // Density input — shown only when dimension mismatch detected per-methodology
   const renderDensity = (needed, unitLabel) => {

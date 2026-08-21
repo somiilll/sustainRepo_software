@@ -128,6 +128,13 @@ export function buildDynamicValues(ctx) {
       if (hasValue(dynamicFieldValues.density)) {
         dynamicValues.density = { value: parseValue(dynamicFieldValues.density), unit: dynamicFieldValues.density_unit || 'kg/L' };
       }
+      if (ctx.categoryCode === 'fugitive_emissions' && hasValue(dynamicFieldValues.co2_gwp_fugitives)) {
+        dynamicValues.co2_gwp_fugitives = {
+          value: parseValue(dynamicFieldValues.co2_gwp_fugitives),
+          unit: '',
+          is_override: true,
+        };
+      }
     }
   }
 

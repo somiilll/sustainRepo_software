@@ -59,6 +59,8 @@ export function extractInputsForCalcEngine(data, ctx) {
   if (ctx.useCustomFuel) {
     const customFuelCalculation = buildCustomFuelCalculationPayload({
       dynamicFieldValues: data,
+      categoryCode: ctx.categoryCode,
+      categoryName: ctx.category,
       calculationMethodology: ctx.buildDecisionInputs?.(data)?.calculation_methodology,
       centralizedUnits: ctx.centralizedUnits,
     });
@@ -188,6 +190,13 @@ export function buildDynamicFieldValues(data, ctx) {
     if (hasValue(data.density)) {
       out.density = { value: parseValue(data.density), unit: data.density_unit || 'kg/L' };
     }
+    if (ctx.categoryCode === 'fugitive_emissions' && hasValue(data.co2_gwp_fugitives)) {
+      out.co2_gwp_fugitives = {
+        value: parseValue(data.co2_gwp_fugitives),
+        unit: '',
+        is_override: true,
+      };
+    }
     out.calculation_methodology = { value: calculationMethodology, unit: '' };
   }
 
@@ -218,6 +227,8 @@ export function buildDecisionContext(data, ctx) {
   const customFuelDecisionInputs = useCustomFuel
     ? buildCustomFuelCalculationPayload({
       dynamicFieldValues: data,
+      categoryCode,
+      categoryName: category,
       calculationMethodology: buildDecisionInputs(data)?.calculation_methodology,
       centralizedUnits: ctx.centralizedUnits,
     }).decisionInputs
