@@ -321,3 +321,16 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Fixed the Create-form submission boundary for Process Emissions Carbon Composition. Legacy row values stored as `qty` or `quantity` now populate the configured `quantity_used_process_emissions` key before validation, calculation, and persistence.
 - The normalization applies only to the affected Process Emissions Carbon Composition flow; stored dynamic-field names, decision-tree routing, backend APIs, and all calculation-engine code remain unchanged.
 - **TESTING WAS NOT RUN at the user’s explicit request.** No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Fuel Quantity Unit State Initialization
+
+- Fixed P0 Create-form initialization for fuel-backed quantity fields in monthly and yearly entries. When a generic schema default (for example `kg`) is not valid for the selected fuel, form state now initializes to the selected fuel's first valid unit (for example Diesel `L`).
+- This keeps persisted `qty_unit` aligned with the visible dropdown and prevents an untouched volume unit from being submitted as an invalid mass unit.
+- Scope is intentionally limited to unit initialization. **TESTING WAS NOT RUN at the user's explicit request.** No APIs are **MOCKED**.
+
+### Current prioritized backlog
+
+- **P0:** User validation of standard-fuel volume-unit save behavior and Process Emissions Quantity Basis routing in live Create and Edit flows.
+- **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
+- **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
+- **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.

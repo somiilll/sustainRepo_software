@@ -1360,7 +1360,12 @@ export default function EmissionEntryForm({
             const configuredDefaultUnit = field.defaultUnit
               || field.default_unit
               || field.expectedUnit;
-            const initialUnit = configuredDefaultUnit || fieldUnits[0];
+            // Fuel quantity mappings may retain a generic schema default (for
+            // example, kg) that is not valid for the selected fuel. The unit
+            // persisted in row state must match the fuel-backed dropdown.
+            const initialUnit = field.unitSource === 'fuel'
+              ? (fieldUnits.includes(configuredDefaultUnit) ? configuredDefaultUnit : fieldUnits[0])
+              : (configuredDefaultUnit || fieldUnits[0]);
             if (initialUnit) {
               monthData[unitKey] = initialUnit;
               needsUpdate = true;
@@ -1462,7 +1467,11 @@ export default function EmissionEntryForm({
           const configuredDefaultUnit = field.defaultUnit
             || field.default_unit
             || field.expectedUnit;
-          const initialUnit = configuredDefaultUnit || fieldUnits[0];
+          // Keep yearly state aligned with the selected fuel-backed unit,
+          // rather than retaining an invalid generic schema default.
+          const initialUnit = field.unitSource === 'fuel'
+            ? (fieldUnits.includes(configuredDefaultUnit) ? configuredDefaultUnit : fieldUnits[0])
+            : (configuredDefaultUnit || fieldUnits[0]);
           if (initialUnit) {
             updated[unitKey] = initialUnit;
             needsUpdate = true;
@@ -1632,42 +1641,51 @@ export default function EmissionEntryForm({
     // Quantity Basis EF routes to the formula whose expected units match the
     // selected EF denominator. This is an internal tree key; users continue
     // selecting the EF unit directly in the monthly/yearly row.
-    if (
-      (ghgFormContext.categoryCode === 'process_emissions' || useCustomFuel)
-      && decisionInputs.calculation_methodology === 'using_qty_basis_ef'
-    ) {
-      const efField = dynamicInputFields.find((field) => (
-        field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
-      ));
-      const efUnit = useCustomFuel
-        ? monthData?.custom_ef_unit || 'kgCO2/kg'
-        : monthData?.ef_quantity_unit
-        || monthData?.ef_quantity?.unit
-        || efField?.defaultUnit
-        || efField?.default_unit
-        || efField?.expectedUnit
-        || efField?.allowedUnits?.[0];
-      const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
-      if (basis) decisionInputs.ef_quantity_basis = basis;
+    if (decisionInputs.calculation_methodology === 'using_qty_basis_ef') {
+      const isStandardCombustionFuel = ghgFormContext.isStationaryMobileOrFlaringCategory
+        && !useCustomFuel;
+      if (isStandardCombustionFuel) {
+        decisionInputs.ef_quantity_basis = 'mass';
+      } else if (ghgFormContext.categoryCode === 'process_emissions' || useCustomFuel) {
+        const efField = dynamicInputFields.find((field) => (
+          field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
+        ));
+        const efUnit = useCustomFuel
+          ? monthData?.custom_ef_unit || 'kgCO2/kg'
+          : monthData?.ef_quantity_unit
+          || monthData?.ef_quantity?.unit
+          || efField?.defaultUnit
+          || efField?.default_unit
+          || efField?.expectedUnit
+          || efField?.allowedUnits?.[0];
+        const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
+        if (basis) decisionInputs.ef_quantity_basis = basis;
+      }
     }
 
     // Heat Basis routes internally from the selected CV denominator. The CV
     // unit remains the single user-facing choice, while the tree selects the
     // matching mass or volume formula.
     if (decisionInputs.calculation_methodology === 'using_heat_basis_ncv') {
-      const cvField = dynamicInputFields.find((field) => (
-        field.variable === 'cv' || field.fieldKey === 'cv'
-      ));
-      const cvUnit = (useCustomFuel ? monthData?.custom_cv_unit : null)
-        || monthData?.cv_unit
-        || monthData?.cv?.unit
-        || cvField?.defaultUnit
-        || cvField?.default_unit
-        || cvField?.expectedUnit
-        || cvField?.allowedUnits?.[0]
-        || 'TJ/kg';
-      const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
-      if (basis) decisionInputs.cv_quantity_basis = basis;
+      const isStandardCombustionFuel = ghgFormContext.isStationaryMobileOrFlaringCategory
+        && !useCustomFuel;
+      if (isStandardCombustionFuel) {
+        decisionInputs.cv_quantity_basis = 'mass';
+      } else {
+        const cvField = dynamicInputFields.find((field) => (
+          field.variable === 'cv' || field.fieldKey === 'cv'
+        ));
+        const cvUnit = (useCustomFuel ? monthData?.custom_cv_unit : null)
+          || monthData?.cv_unit
+          || monthData?.cv?.unit
+          || cvField?.defaultUnit
+          || cvField?.default_unit
+          || cvField?.expectedUnit
+          || cvField?.allowedUnits?.[0]
+          || 'TJ/kg';
+        const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
+        if (basis) decisionInputs.cv_quantity_basis = basis;
+      }
     }
 
     return decisionInputs;
