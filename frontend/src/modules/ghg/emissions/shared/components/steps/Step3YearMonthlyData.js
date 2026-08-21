@@ -421,6 +421,7 @@ export const Step3YearMonthlyData = ({
   const runtimeConversionFields = isProcessEmissions && normalizedProcessTemplateFields.length > 0
     ? normalizedProcessTemplateFields
     : dynamicInputFields;
+  const supportsRuntimeDensity = isProcessEmissions || useCustomFuel;
 
   useEffect(() => {
     if (!['using_heat_basis_ncv', 'using_qty_basis_ef', 'using_carbon_composition'].includes(calculationMethodology)) return;
@@ -438,6 +439,19 @@ export const Step3YearMonthlyData = ({
       const nextMonths = { ...previousMonths };
       activeMonths.forEach((monthKey) => {
         const current = previousMonths[monthKey] || {};
+        // Unit-based runtime Density is exclusively a Process Emissions and
+        // Custom Fuel concern. Clear a stale requirement if a user switches
+        // back to a standard fuel/category.
+        if (!supportsRuntimeDensity) {
+          if (current.runtime_density_required) {
+            nextMonths[monthKey] = {
+              ...current,
+              runtime_density_required: false,
+            };
+            changed = true;
+          }
+          return;
+        }
         const quantityUnit = resolveEffectiveFieldUnit({
           field: quantityField,
           data: current,
@@ -486,7 +500,7 @@ export const Step3YearMonthlyData = ({
       });
       return changed ? nextMonths : previousMonths;
     });
-  }, [activeMonths, calculationMethodology, centralizedUnits, monthlyData, runtimeConversionFields, setMonthlyData]);
+  }, [activeMonths, calculationMethodology, centralizedUnits, monthlyData, runtimeConversionFields, setMonthlyData, supportsRuntimeDensity]);
 
   return (
     <div className="space-y-8">
@@ -964,7 +978,7 @@ export const Step3YearMonthlyData = ({
                     data,
                   });
                   const hasDynamicDensity = !isDisabled
-                    && !useCustomFuel
+                    && isProcessEmissions
                     && hasDensityInputs
                     && dynamicDensityRequirement.required;
                   const hasLegacyOverrides = !isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') &&
@@ -1223,9 +1237,8 @@ const YearlyDataEntry = ({
 }) => {
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
-  // Carbon Composition formulas operate on mass. This applies equally to
-  // Process Emissions and the Stationary/Mobile Combustion category routes.
-  // Custom Fuel renders the same conditional field through CustomFuelMonthFields.
+  // Process Emissions Carbon Composition formulas operate on mass. Custom Fuel
+  // renders its conditional Density field through CustomFuelMonthFields.
   const isCarbonComposition = calculationMethodology === 'using_carbon_composition';
   const quantityField = dynamicInputFields.find(isQuantityField);
   const carbonContentField = dynamicInputFields.find(isCarbonContentField);
@@ -1241,7 +1254,8 @@ const YearlyDataEntry = ({
     referenceUnit: isCarbonComposition ? 'kg' : '',
     centralizedUnits,
   });
-  const showYearlyProcessDensity = isCarbonComposition
+  const showYearlyProcessDensity = isProcessEmissions
+    && isCarbonComposition
     && hasNumericFieldValue(quantityField, yearlyData)
     && hasNumericFieldValue(carbonContentField, yearlyData)
     && yearlyDensityRequirement.required;
@@ -1699,7 +1713,7 @@ const YearlyDataEntry = ({
             )}
 
             {/* Show density input if volume unit */}
-            {!useCustomFuel && isVolumeUnit(yearlyData.unit || defaultUnit, centralizedUnits) && (
+            {!useCustomFuel && isProcessEmissions && isVolumeUnit(yearlyData.unit || defaultUnit, centralizedUnits) && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Density (kg/L) <span className="text-red-500">*</span></Label>
