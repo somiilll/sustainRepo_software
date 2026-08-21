@@ -19,6 +19,7 @@ class C7MonthlyEntryCreate(BaseModel):
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    submission_batch_id: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None

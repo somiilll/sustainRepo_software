@@ -34,6 +34,19 @@ import {
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+const createSubmissionBatchId = () => (
+  globalThis.crypto?.randomUUID?.()
+  || `emission-batch-${Date.now()}-${Math.random().toString(36).slice(2)}`
+);
+
+const getApiErrorMessage = (error, fallback) => {
+  const detail = error.response?.data?.detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item.msg || item.message || JSON.stringify(item)).join(', ');
+  }
+  return typeof detail === 'string' ? detail : fallback;
+};
+
 const getProvidedDensity = (data = {}) => {
   const value = Number.parseFloat(data.density);
   if (!Number.isFinite(value)) return null;
@@ -176,6 +189,17 @@ export function useEmissionSubmit(ctx) {
     const apiBase = supplierContext 
       ? `${API}/supplier-assessment/my-assessment/emissions`
       : `${API}/emissions`;
+
+    const rollbackSubmissionBatch = async (submissionBatchId) => {
+      try {
+        const response = await axios.post(`${API}/emissions/batch-rollback`, {
+          submission_batch_id: submissionBatchId,
+        }, { headers: getAuthHeader() });
+        return { rolledBackCount: response.data?.rolled_back_count || 0 };
+      } catch (error) {
+        return { error: getApiErrorMessage(error, 'Unable to reverse the saved months') };
+      }
+    };
 
     // Link a calc-engine audit log entry to a newly created emission record.
     // Best-effort: failures are logged but never block the save flow.
@@ -418,32 +442,37 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        let successCount = 0;
         let totalCo2e = 0;
-        const errors = [];
+        const submissionBatchId = createSubmissionBatchId();
+        let saveError = null;
         for (const { monthKey, monthCo2e, payload } of c7Built.payloads) {
           totalCo2e += monthCo2e;
           try {
-            await axios.post(`${API}${c7Built.endpoint}`, payload, {
+            await axios.post(`${API}${c7Built.endpoint}`, {
+              ...payload,
+              submission_batch_id: submissionBatchId,
+            }, {
               headers: getAuthHeader(),
             });
-            successCount++;
           } catch (err) {
             console.error(`[C7] Failed to save ${monthKey}:`, err);
-            errors.push(monthKey);
+            saveError = `${monthKey}: ${getApiErrorMessage(err, 'Unable to save this month')}`;
+            break;
           }
         }
 
-        if (successCount > 0) {
-          if (errors.length > 0) {
-            toast.warning(`Saved ${successCount}/${c7Built.payloads.length} months. Failed: ${errors.join(', ')}`);
-          } else {
-            toast.success(`Saved ${successCount} month(s) for ${employees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
-          }
-          if (typeof onSuccess === 'function') onSuccess();
-        } else {
-          toast.error('Failed to save C7 emissions. Please try again.');
+        if (saveError) {
+          const rollback = await rollbackSubmissionBatch(submissionBatchId);
+          const rollbackMessage = rollback.error
+            ? `Rollback issue: ${rollback.error}`
+            : `${rollback.rolledBackCount} saved month(s) were reverted.`;
+          toast.error(`Nothing was saved. ${saveError}. ${rollbackMessage} Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
         }
+
+        toast.success(`Saved ${c7Built.payloads.length} month(s) for ${employees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
+        if (typeof onSuccess === 'function') onSuccess();
 
         setIsSaving(false);
         return;
@@ -641,51 +670,66 @@ export function useEmissionSubmit(ctx) {
 
       // PROCESS EMISSIONS HANDLING
       if (isProcessEmissions && selectedTemplate) {
-        let successCount = 0;
-        const errors = [];
-        
+        const submissionBatchId = createSubmissionBatchId();
+        const preparedRows = [];
         for (const [monthKey, data] of monthsWithData) {
           const actualYear = getActualYearForMonth(monthKey);
           const reportingPeriod = `${actualYear}-${monthKey}`;
-          
-          const payload = buildLegacyProcessTemplatePayload({
-            data,
-            reportingPeriod,
-            frequencyType: 'monthly',
-            facilityId,
-            category,
-            categoryCode,
-            selectedSubIndustry,
-            selectedTemplate,
-            templateInputValues,
-            evaluateFormula,
-            recordSource,
-            notes,
-            responsiblePerson,
-            responsiblePersonDesignation,
-            responsiblePersonContact,
-          });
-          
           try {
-            await axios.post(apiBase, payload, {
-              headers: getAuthHeader()
+            preparedRows.push({
+              monthKey,
+              reportingPeriod,
+              payload: {
+                ...buildLegacyProcessTemplatePayload({
+                  data,
+                  reportingPeriod,
+                  frequencyType: 'monthly',
+                  facilityId,
+                  category,
+                  categoryCode,
+                  selectedSubIndustry,
+                  selectedTemplate,
+                  templateInputValues,
+                  evaluateFormula,
+                  recordSource,
+                  notes,
+                  responsiblePerson,
+                  responsiblePersonDesignation,
+                  responsiblePersonContact,
+                }),
+                submission_batch_id: submissionBatchId,
+              },
             });
-            successCount++;
           } catch (err) {
-            console.error(`Failed to save process emission for ${reportingPeriod}:`, err);
-            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${err.response?.data?.detail || 'Failed'}`);
+            const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+            toast.error(`Nothing was saved. ${monthName}: ${getApiErrorMessage(err, 'Unable to prepare this month')}. Fix the issue and try again.`, { duration: 10000 });
+            setIsSaving(false);
+            return;
           }
         }
-        
-        if (successCount > 0) {
-          toast.success(`Created ${successCount} process emission record(s) successfully`);
+
+        let saveError = null;
+        for (const { monthKey, payload } of preparedRows) {
+          try {
+            await axios.post(apiBase, payload, { headers: getAuthHeader() });
+          } catch (err) {
+            const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+            saveError = `${monthName}: ${getApiErrorMessage(err, 'Unable to save this month')}`;
+            break;
+          }
         }
-        if (errors.length > 0) {
-          toast.error(`Failed to save: ${errors.join(', ')}`);
+        if (saveError) {
+          const rollback = await rollbackSubmissionBatch(submissionBatchId);
+          const rollbackMessage = rollback.error
+            ? `Rollback issue: ${rollback.error}`
+            : `${rollback.rolledBackCount} saved month(s) were reverted.`;
+          toast.error(`Nothing was saved. ${saveError}. ${rollbackMessage} Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
         }
-        if (successCount > 0) {
-          onSuccess?.();
-        }
+
+        toast.success(`Created ${preparedRows.length} process emission record(s) successfully`);
+        onSuccess?.();
         setIsSaving(false);
         return;
       }
@@ -727,9 +771,9 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        let successCount = 0;
         const errors = [];
-        const savedEmissionIds = []; // Track saved emission IDs for OCR finalize
+        const preparedRows = [];
+        const submissionBatchId = createSubmissionBatchId();
         for (const [monthKey, data] of monthsWithData) {
           const actualYear = getActualYearForMonth(monthKey);
           const reportingPeriod = `${actualYear}-${monthKey}`;
@@ -771,36 +815,56 @@ export function useEmissionSubmit(ctx) {
             continue;
           }
 
-          const payload = dispatchActiveModule.buildCreatePayload(data, {
-            ...baseCtx,
-            ...rowCalculation,
+          preparedRows.push({
+            monthKey,
+            calculation: rowCalculation,
+            payload: {
+              ...dispatchActiveModule.buildCreatePayload(data, {
+                ...baseCtx,
+                ...rowCalculation,
+              }),
+              submission_batch_id: submissionBatchId,
+            },
           });
+        }
 
+        if (errors.length > 0) {
+          toast.error(`Nothing was saved. ${errors.join(' • ')}. Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
+        }
+
+        const savedEmissionIds = [];
+        let saveError = null;
+        for (const { monthKey, calculation, payload } of preparedRows) {
           try {
             const response = await axios.post(apiBase, payload, { headers: getAuthHeader() });
-            successCount++;
-            // Collect emission record ID for OCR finalize
             if (response.data?.id) {
               savedEmissionIds.push(response.data.id);
-              linkAuditLog(rowCalculation.auditLogId, response.data.id);
+              linkAuditLog(calculation.auditLogId, response.data.id);
             }
           } catch (err) {
-            const detail = err.response?.data?.detail;
-            const saveError = Array.isArray(detail)
-              ? detail.map((item) => item.msg || item.message || JSON.stringify(item)).join(', ')
-              : (typeof detail === 'string' ? detail : 'Unable to save this record');
-            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${saveError}`);
+            const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+            saveError = `${monthName}: ${getApiErrorMessage(err, 'Unable to save this record')}`;
+            break;
           }
         }
 
-        // Finalize OCR import if we have saved emission IDs
+        if (saveError) {
+          const rollback = await rollbackSubmissionBatch(submissionBatchId);
+          const rollbackMessage = rollback.error
+            ? `Rollback issue: ${rollback.error}`
+            : `${rollback.rolledBackCount} saved month(s) were reverted.`;
+          toast.error(`Nothing was saved. ${saveError}. ${rollbackMessage} Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
+        }
+
         if (savedEmissionIds.length > 0 && ocrPrefillData?.line_item_id) {
           await finalizeOcrImport(savedEmissionIds);
         }
-
-        if (successCount > 0) toast.success(`Created ${successCount} emission record(s) successfully`);
-        if (errors.length > 0) toast.error(errors.join(' • '), { duration: 10000 });
-        if (successCount > 0) onSuccess?.();
+        toast.success(`Created ${preparedRows.length} emission record(s) successfully`);
+        onSuccess?.();
         setIsSaving(false);
         return;
       }

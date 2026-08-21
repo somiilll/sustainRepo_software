@@ -27,6 +27,7 @@ from modules.approvals.emission_flow_v2 import (
 )
 from modules.auth.dependencies import get_current_user
 from modules.emissions.contracts import (
+    EmissionBatchRollbackRequest,
     EmissionHistoryResponse,
     EmissionRecordCreate,
     EmissionRecordResponse,
@@ -862,6 +863,38 @@ class _AuditLoggerProxy:
 
 
 audit_logger = _AuditLoggerProxy()
+
+
+@router.post("/emissions/batch-rollback")
+async def rollback_emission_submission_batch(
+    rollback_data: EmissionBatchRollbackRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove records created by an incomplete client-side monthly submission."""
+    batch_id = rollback_data.submission_batch_id.strip()
+    if not batch_id:
+        raise HTTPException(status_code=422, detail="submission_batch_id is required")
+
+    created_by = current_user.get("id")
+    rollback_query = {
+        "submission_batch_id": batch_id,
+        "created_by": created_by,
+    }
+    records = await db.emission_records.find(
+        rollback_query,
+        {"_id": 0, "id": 1},
+    ).to_list(100)
+    record_ids = [record["id"] for record in records if record.get("id")]
+    if not record_ids:
+        return {"rolled_back_count": 0}
+
+    await db.approval_requests.delete_many({
+        "entity_type": "emission_record",
+        "entity_id": {"$in": record_ids},
+        "request_type": "create",
+    })
+    delete_result = await db.emission_records.delete_many(rollback_query)
+    return {"rolled_back_count": delete_result.deleted_count}
 
 
 @router.post("/emissions", response_model=EmissionRecordResponse)
