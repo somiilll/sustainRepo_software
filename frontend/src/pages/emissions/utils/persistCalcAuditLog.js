@@ -85,6 +85,7 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       ? buildCustomFuelCalculationPayload({
         dynamicFieldValues,
         formData,
+        categoryName: formData.category || selectedCategory,
         calculationMethodology: editCalcMethodology,
       })
       : null;

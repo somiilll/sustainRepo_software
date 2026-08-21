@@ -50,6 +50,8 @@ const normalizeEmissionFactor = (value, unit, { energyBased = false } = {}) => {
 export const buildCustomFuelCalculationPayload = ({
   dynamicFieldValues = {},
   formData = {},
+  categoryCode = '',
+  categoryName = '',
   calculationMethodology = 'using_heat_basis_ncv',
   centralizedUnits = [],
 }) => {
@@ -75,6 +77,22 @@ export const buildCustomFuelCalculationPayload = ({
 
   const hasQuantity = addInput('qty', quantity, quantityUnit);
   if (!hasQuantity) missingFields.push('Quantity Used');
+  const isFugitiveCustomFuel = categoryCode === 'fugitive_emissions'
+    || String(categoryName || formData.category || '').toLowerCase().includes('fugitive');
+
+  if (isFugitiveCustomFuel) {
+    const gwp = readValue(values, ['co2_gwp_fugitives', 'gwp_fugitives']);
+    const hasGwp = addInput('co2_gwp_fugitives', gwp, '', { override: true });
+    if (!hasGwp) missingFields.push('GWP Fugitives');
+    return {
+      inputs,
+      userOverrides,
+      decisionInputs,
+      isReady: missingFields.length === 0,
+      missingFields,
+    };
+  }
+
   const methodology = calculationMethodology || 'using_heat_basis_ncv';
   let hasMethodInputs = false;
   let referenceUnit = '';

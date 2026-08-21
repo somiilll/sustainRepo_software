@@ -200,7 +200,8 @@ const EvidenceIconCell = ({
  *   2. Process-emission template input_fields
  *   3. Legacy fallback → single "Quantity" column
  */
-const getCustomFuelLedgerColumns = (calculationMethodology) => {
+const getCustomFuelLedgerColumns = (calculationMethodology, isFugitiveCustomFuel) => {
+  if (isFugitiveCustomFuel) return [];
   const factorColumns = calculationMethodology === 'using_heat_basis_ncv'
     ? [
       { key: 'custom_ef', label: 'Emission Factor', customFuelField: 'emission-factor', required: true },
@@ -225,6 +226,7 @@ const deriveLedgerColumns = (
   selectedTemplate,
   useCustomFuel,
   calculationMethodology,
+  isFugitiveCustomFuel,
 ) => {
   if (isProcessEmissions && selectedTemplate?.input_fields?.length > 0) {
     return selectedTemplate.input_fields.map(f => ({
@@ -239,18 +241,19 @@ const deriveLedgerColumns = (
       key: f.variable,
       label: f.label,
       unit: null,
-      required: f.required && !f.isOverride,
-      isOverride: !!f.isOverride,
+      required: (f.required && !f.isOverride)
+        || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives'),
+      isOverride: !!f.isOverride && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives'),
       isOptional: !f.required && !f.isOverride,
     }));
     return useCustomFuel
-      ? [...primaryColumns, ...getCustomFuelLedgerColumns(calculationMethodology)]
+      ? [...primaryColumns, ...getCustomFuelLedgerColumns(calculationMethodology, isFugitiveCustomFuel)]
       : primaryColumns;
   }
   // Legacy fallback
   const primaryColumns = [{ key: 'quantity', label: 'Quantity', unit: null, required: true }];
   return useCustomFuel
-    ? [...primaryColumns, ...getCustomFuelLedgerColumns(calculationMethodology)]
+    ? [...primaryColumns, ...getCustomFuelLedgerColumns(calculationMethodology, isFugitiveCustomFuel)]
     : primaryColumns;
 };
 
@@ -395,6 +398,7 @@ export const Step3YearMonthlyData = ({
   // Backend URL for file viewing
   BACKEND_URL,
 }) => {
+  const isFugitiveCustomFuel = useCustomFuel && String(category || '').toLowerCase().includes('fugitive');
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
   const normalizedProcessTemplateFields = useMemo(() => (
@@ -634,6 +638,7 @@ export const Step3YearMonthlyData = ({
               selectedTemplate,
               useCustomFuel,
               calculationMethodology,
+              isFugitiveCustomFuel,
             );
             const totalCols = ledgerColumns.length + 2; // Month + fields + Evidence
 
@@ -768,7 +773,9 @@ export const Step3YearMonthlyData = ({
                 const field = dynamicInputFields.find(f => f.variable === col.key);
                 if (!field) return null;
 
-                const isOverrideOrOptional = field.isOverride || (!field.required && !field.isOverride);
+                const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
+                const isOverrideOrOptional = !isFugitiveGwpField
+                  && (field.isOverride || (!field.required && !field.isOverride));
                 const overrideKey = `override_${field.variable}`;
                 const isEnabled = !isOverrideOrOptional || data[overrideKey];
                 const defaultValue = getFieldDefaultValue(field, selectedFuel);
@@ -1044,6 +1051,7 @@ export const Step3YearMonthlyData = ({
                           fieldOptions={fieldOptions}
                           centralizedUnits={centralizedUnits}
                           renderFields={false}
+                          isFugitiveCustomFuel={isFugitiveCustomFuel}
                         />
                       )}
 
@@ -1203,6 +1211,7 @@ export const Step3YearMonthlyData = ({
           useCustomFuel={useCustomFuel}
           customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={calculationMethodology}
+          isFugitiveCustomFuel={isFugitiveCustomFuel}
         />
       )}
     </div>
@@ -1234,6 +1243,7 @@ const YearlyDataEntry = ({
   useCustomFuel,
   customFuelQtyUnit,
   calculationMethodology,
+  isFugitiveCustomFuel,
 }) => {
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
@@ -1322,9 +1332,11 @@ const YearlyDataEntry = ({
             )}
             
             {/* Required Inputs Section */}
-            {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
+            {dynamicInputFields.filter(f => (f.required && !f.isOverride)
+              || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).length > 0 && (
               <div className="space-y-4">
-                {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => {
+                {dynamicInputFields.filter(f => (f.required && !f.isOverride)
+                  || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
                   const hideStandardQuantityUnit = useCustomFuel && isQuantityField(field);
                   const showCustomFuelQuantityUnit = useCustomFuel && isQuantityField(field);
@@ -1566,13 +1578,16 @@ const YearlyDataEntry = ({
                 calculationMethodology={calculationMethodology}
                 fieldOptions={fieldOptions}
                 centralizedUnits={centralizedUnits}
+                isFugitiveCustomFuel={isFugitiveCustomFuel}
               />
             )}
             
             {/* Override Properties Section for Yearly */}
-            {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
+            {dynamicInputFields.filter(f => f.isOverride
+              && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).length > 0 && (
               <div className="space-y-6">
-                {dynamicInputFields.filter(f => f.isOverride).map(field => {
+                {dynamicInputFields.filter(f => f.isOverride
+                  && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).map(field => {
                   const overrideKey = `override_${field.variable}`;
                   const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                   const fieldUnits = getFieldUnitsForYearly(field);
@@ -1709,6 +1724,7 @@ const YearlyDataEntry = ({
                 calculationMethodology={calculationMethodology}
               fieldOptions={fieldOptions}
               centralizedUnits={centralizedUnits}
+                isFugitiveCustomFuel={isFugitiveCustomFuel}
               />
             )}
 

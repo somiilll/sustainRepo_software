@@ -109,6 +109,36 @@ describe('buildCustomFuelCalculationPayload — quantity basis EF', () => {
   });
 });
 
+describe('buildCustomFuelCalculationPayload — custom Fugitive Emissions', () => {
+  it('uses only quantity and GWP Fugitives, without EF or calorific value', () => {
+    const result = buildCustomFuelCalculationPayload({
+      categoryCode: 'fugitive_emissions',
+      dynamicFieldValues: {
+        qty: 25,
+        custom_qty_unit: 'kg',
+        co2_gwp_fugitives: 1430,
+      },
+    });
+
+    expect(result.isReady).toBe(true);
+    expect(result.inputs).toEqual({
+      qty: { value: 25, unit: 'kg' },
+      co2_gwp_fugitives: { value: 1430, unit: '' },
+    });
+    expect(result.userOverrides.co2_gwp_fugitives).toEqual({ value: 1430, unit: '' });
+    expect(result.missingFields).toEqual([]);
+  });
+
+  it('requires GWP Fugitives rather than EF or calorific value', () => {
+    const result = buildCustomFuelCalculationPayload({
+      categoryName: 'Fugitive Emissions',
+      dynamicFieldValues: { qty: 25 },
+    });
+
+    expect(result.missingFields).toEqual(['GWP Fugitives']);
+  });
+});
+
 describe('buildCustomFuelCalculationPayload — carbon composition', () => {
   it('sends carbon content as % and oxidation factor as dimensionless', () => {
     const result = buildCustomFuelCalculationPayload({

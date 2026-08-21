@@ -295,6 +295,8 @@ export default function EmissionEditForm(props) {
     ?? editingEmission?.dynamic_field_values?.density?.value
     ?? '';
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT] || [];
+  const isFugitiveCustomFuel = editUseCustomFuel
+    && (formData.category || selectedCategory || '').toLowerCase().includes('fugitive');
 
   // ─────────────────────────────────────────────────────────────────────
   // Data-based loading gate for C7 Employee Commuting (has deeply nested
@@ -874,6 +876,7 @@ export default function EmissionEditForm(props) {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
                         const isQtyField = isQuantityField(field);
+                        const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
                         const showCustomFuelQuantityUnit = editUseCustomFuel && isQtyField;
                         const hideStandardQuantityUnit = false;
                         
@@ -886,7 +889,8 @@ export default function EmissionEditForm(props) {
                           ? dynamicFieldValues.density ?? formData.density ?? editingEmission?.dynamic_field_values?.density?.value
                           : undefined;
                         const overrideKey = `override_${field.variable}`;
-                        const isOverrideEnabled = dynamicFieldValues[overrideKey] === true
+                        const isOverrideEnabled = isFugitiveGwpField
+                          || dynamicFieldValues[overrideKey] === true
                           || (
                             field.variable === 'density'
                             && dynamicFieldValues[overrideKey] === undefined
@@ -975,14 +979,15 @@ export default function EmissionEditForm(props) {
                           (field.variable?.includes('supplier_based') || field.variable?.includes('supplier'));
                         
                         // Show checkbox for override fields OR optional fields (not required and not override)
-                        const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
+                        const showOverrideCheckbox = !isFugitiveGwpField
+                          && (field.isOverride || (!field.required && !field.isOverride));
 
                         return (
                           <div key={field.id || field.variable} className="space-y-2">
                             <div className="flex items-center justify-between">
                               <Label className="font-medium flex items-center gap-1.5">
                                 {field.label}
-                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                                {(field.required || isFugitiveGwpField) && <span className="text-red-500 ml-1">*</span>}
                                 {!hideStandardQuantityUnit && !showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
                                   <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
                                 )}
@@ -1238,6 +1243,7 @@ export default function EmissionEditForm(props) {
                     fieldOptions={fieldOptions}
                     centralizedUnits={centralizedUnits}
                     showMethodIndicator={false}
+                    isFugitiveCustomFuel={isFugitiveCustomFuel}
                   />
                 )}
 
