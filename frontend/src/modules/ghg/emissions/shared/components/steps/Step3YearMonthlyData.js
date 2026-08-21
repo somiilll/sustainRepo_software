@@ -381,6 +381,7 @@ export const Step3YearMonthlyData = ({
   fieldOptions = {},
   biogenicScopeSelection,
   useCustomFuel,
+  customFugitiveQuantityUnits = [],
   selectedFuel,
   centralizedUnits,
   defaultUnit,
@@ -401,6 +402,9 @@ export const Step3YearMonthlyData = ({
   const isFugitiveCustomFuel = useCustomFuel && String(category || '').toLowerCase().includes('fugitive');
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
+  const customQuantityUnitOptions = isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
+    ? customFugitiveQuantityUnits
+    : customFuelQuantityUnits;
   const normalizedProcessTemplateFields = useMemo(() => (
     isProcessEmissions && selectedTemplate?.input_fields?.length
       ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
@@ -879,7 +883,7 @@ export const Step3YearMonthlyData = ({
                         <select
                           value={(() => {
                             if (showCustomFuelQuantityUnit) {
-                              return data.custom_qty_unit || customFuelQtyUnit || customFuelQuantityUnits[0] || '';
+                              return data.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '';
                             }
                             return fieldUnits.find(u => u.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0];
                           })()}
@@ -893,7 +897,7 @@ export const Step3YearMonthlyData = ({
                           disabled={!isEnabled}
                           className={`h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none ${!isEnabled ? 'bg-stone-50 text-stone-600' : ''}`}
                           data-testid={showCustomFuelQuantityUnit ? `month-${monthKey}-custom-qty-unit` : `unit-${field.fieldKey}-${monthKey}`}
-                          dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customFuelQuantityUnits : fieldUnits) }}
+                          dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customQuantityUnitOptions : fieldUnits) }}
                         />
                       )}
                       {showTextUnit && (
@@ -930,14 +934,14 @@ export const Step3YearMonthlyData = ({
                     data-testid={`month-${monthKey}-quantity`}
                   />
                   <select
-                    value={useCustomFuel ? (data.custom_qty_unit || customFuelQtyUnit || customFuelQuantityUnits[0] || '') : (data.unit || defaultUnit)}
+                    value={useCustomFuel ? (data.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '') : (data.unit || defaultUnit)}
                     onChange={(e) => {
                       if (useCustomFuel) updateMonthData(monthKey, 'custom_qty_unit', e.target.value);
                       updateMonthData(monthKey, 'unit', e.target.value);
                     }}
                     className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
                     data-testid={useCustomFuel ? `month-${monthKey}-custom-qty-unit` : `month-${monthKey}-unit`}
-                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(useCustomFuel ? customFuelQuantityUnits : allowedUnits) }}
+                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(useCustomFuel ? customQuantityUnitOptions : allowedUnits) }}
                   />
                 </div>
               );
@@ -1209,6 +1213,7 @@ export const Step3YearMonthlyData = ({
           defaultUnit={defaultUnit}
           isVolumeUnit={isVolumeUnit}
           useCustomFuel={useCustomFuel}
+          customFugitiveQuantityUnits={customFugitiveQuantityUnits}
           customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={calculationMethodology}
           isFugitiveCustomFuel={isFugitiveCustomFuel}
@@ -1241,12 +1246,16 @@ const YearlyDataEntry = ({
   defaultUnit,
   isVolumeUnit,
   useCustomFuel,
+  customFugitiveQuantityUnits,
   customFuelQtyUnit,
   calculationMethodology,
   isFugitiveCustomFuel,
 }) => {
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
+  const customQuantityUnitOptions = isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
+    ? customFugitiveQuantityUnits
+    : customFuelQuantityUnits;
   // Process Emissions Carbon Composition formulas operate on mass. Custom Fuel
   // renders its conditional Density field through CustomFuelMonthFields.
   const isCarbonComposition = calculationMethodology === 'using_carbon_composition';
@@ -1402,7 +1411,7 @@ const YearlyDataEntry = ({
                           {showUnitSelector && (
                             <select
                               value={showCustomFuelQuantityUnit
-                                ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customFuelQuantityUnits[0] || '')
+                                ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '')
                                 : (yearlyData[`${field.variable}_unit`] || fieldUnits[0] || '')}
                               onChange={(e) => setYearlyData(prev => ({
                                 ...prev,
@@ -1411,7 +1420,7 @@ const YearlyDataEntry = ({
                               }))}
                               className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
                               data-testid={showCustomFuelQuantityUnit ? 'yearly-custom-qty-unit' : `yearly-${field.fieldKey}-unit`}
-                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customFuelQuantityUnits : fieldUnits) }}
+                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customQuantityUnitOptions : fieldUnits) }}
                             />
                           )}
                           {showUnitTextInput && (
@@ -1694,7 +1703,7 @@ const YearlyDataEntry = ({
                   />
                   <select
                     value={useCustomFuel
-                      ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customFuelQuantityUnits[0] || '')
+                      ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '')
                       : (yearlyData.unit || defaultUnit)}
                     onChange={(e) => setYearlyData(prev => ({
                       ...prev,
@@ -1705,7 +1714,7 @@ const YearlyDataEntry = ({
                     data-testid={useCustomFuel ? 'yearly-custom-qty-unit' : 'yearly-unit'}
                     dangerouslySetInnerHTML={{
                       __html: useCustomFuel
-                        ? buildNativeOptionsHtml(customFuelQuantityUnits)
+                        ? buildNativeOptionsHtml(customQuantityUnitOptions)
                         : buildNativeOptionsHtml(centralizedUnits, {
                           getValue: (unit) => unit.symbol,
                           getLabel: (unit) => `${unit.symbol} (${unit.name})`,

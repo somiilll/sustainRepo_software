@@ -26,6 +26,7 @@ import {
   DynamicFieldRenderer,
   getFieldUnits as getFieldUnitsShared,
 } from '../modules/ghg/emissions/shared/components/DynamicFieldRenderer';
+import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -1061,16 +1062,28 @@ export default function EmissionEntryForm({
     return mapping?.quantityUnit || 'kg';
   };
 
+  const customFugitiveQuantityUnits = useMemo(() => {
+    if (!useCustomFuel || !category?.toLowerCase().includes('fugitive')) return [];
+    return getCategoryFuelAllowedUnits({
+      fuelDatabase,
+      scope: resolveEffectiveScopeCode(scope, biogenicScopeSelection),
+      categoryName: category,
+    });
+  }, [useCustomFuel, category, fuelDatabase, scope, biogenicScopeSelection]);
+
   // Resolve the quantity unit for custom fuels based on selected methodology
   const customFuelQtyUnit = useMemo(() => {
     if (!useCustomFuel) return null;
+    if (category?.toLowerCase().includes('fugitive')) {
+      return decisionFieldValues._customQtyUnit || customFugitiveQuantityUnits[0] || '';
+    }
     const calcMethod = decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv';
     if (calcMethod === 'using_qty_basis_ef') {
       return getQuantityUnitFromEFUnit(customEmissionFactorUnit);
     }
     // Heat Basis and Carbon Composition: qty unit selected independently
     return decisionFieldValues._customQtyUnit || 'kg';
-  }, [useCustomFuel, decisionFieldValues, customEmissionFactorUnit, getQuantityUnitFromEFUnit]);
+  }, [useCustomFuel, category, decisionFieldValues, customEmissionFactorUnit, customFugitiveQuantityUnits, getQuantityUnitFromEFUnit]);
 
   // Step 2 + Step 3 form state moved to useEmissionFormState (F2 integration).
   // The hook also owns the reporting-year-type org-pref sync useEffect and the
@@ -3001,6 +3014,7 @@ export default function EmissionEntryForm({
           scope={scope}
           biogenicScopeSelection={biogenicScopeSelection}
           useCustomFuel={useCustomFuel}
+          customFugitiveQuantityUnits={customFugitiveQuantityUnits}
           selectedFuel={selectedFuel}
           centralizedUnits={centralizedUnits}
           defaultUnit={defaultUnit}
