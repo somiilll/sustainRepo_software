@@ -335,6 +335,12 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
 
+## Change Log — 2026-08-20: Scope 1 Unit-Key and Density Guard Correction
+
+- Fixed all `activeMonths` state loops in `EmissionEntryForm` to derive the storage key from `month.key`. Unit initialization, default materialization, Scope 3 EF synchronization, and fuel-backed unit synchronization now update the actual month (`"01"`–`"12"`) instead of an object-coerced key.
+- Restricted `/api/emissions` mass/volume Density validation to Process Emissions and Custom Fuel. Standard Stationary and Mobile Combustion records no longer receive a false user-density error; their configured fuel factors remain available to the existing calculation flow.
+- No calculation-engine files were changed. **TESTING WAS NOT RUN at the user’s explicit request.** No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-20: Runtime Density Scope Correction
 
 - Restricted the shared Create-form runtime Density path to Process Emissions and Custom Fuel. Standard Stationary/Mobile fuel rows, including Diesel Quantity Basis, no longer create a runtime Density requirement from a mass/volume unit comparison.

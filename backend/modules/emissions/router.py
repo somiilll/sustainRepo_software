@@ -74,12 +74,7 @@ async def _validate_density_requirement(record_data: EmissionRecordCreate) -> No
     """Reject protected Scope 1 mass/volume conversions without user density."""
     is_process_emissions = record_data.category_code == "process_emissions"
     is_custom_fuel = bool(record_data.is_custom_fuel)
-    category_code = str(record_data.category_code or "").strip().lower()
-    category_name = str(record_data.category or "").strip().lower()
-    is_scope1_combustion = category_code in {"stationary_combustion", "mobile_combustion"} or (
-        "stationary combustion" in category_name or "mobile combustion" in category_name
-    )
-    if not is_process_emissions and not is_custom_fuel and not is_scope1_combustion:
+    if not is_process_emissions and not is_custom_fuel:
         return
 
     dynamic_values = record_data.dynamic_field_values or {}
@@ -152,7 +147,7 @@ async def _validate_density_requirement(record_data: EmissionRecordCreate) -> No
         raise HTTPException(
             status_code=422,
             detail=(
-                f"{'Process Emissions' if is_process_emissions else ('Custom Fuel' if is_custom_fuel else 'Scope 1 Combustion')} requires a positive "
+                f"{'Process Emissions' if is_process_emissions else 'Custom Fuel'} requires a positive "
                 f"user-provided density in {required_density_unit} for this mass/volume conversion"
             ),
         )

@@ -1320,7 +1320,8 @@ export default function EmissionEntryForm({
     setMonthlyData(prev => {
       const updated = { ...prev };
       
-      activeMonths.forEach(monthKey => {
+      activeMonths.forEach(month => {
+        const monthKey = month.key;
         const monthData = updated[monthKey] || {};
         let needsUpdate = false;
         
@@ -1394,7 +1395,8 @@ export default function EmissionEntryForm({
       let changed = false;
       const nextMonths = { ...previousMonths };
 
-      activeMonths.forEach((monthKey) => {
+      activeMonths.forEach((month) => {
+        const monthKey = month.key;
         const currentMonth = previousMonths[monthKey] || {};
         const hasStartedMonth = dynamicInputFields.some((field) => {
           if (field.isOverride || field.presentationOnly) return false;
@@ -1492,7 +1494,8 @@ export default function EmissionEntryForm({
     setMonthlyData(prev => {
       const updated = { ...prev };
       
-      activeMonths.forEach(monthKey => {
+      activeMonths.forEach(month => {
+        const monthKey = month.key;
         const monthData = { ...(updated[monthKey] || {}) };
         let needsUpdate = false;
         
@@ -1541,7 +1544,8 @@ export default function EmissionEntryForm({
       const updated = { ...prev };
       let hasChanges = false;
       
-      activeMonths.forEach(monthKey => {
+      activeMonths.forEach(month => {
+        const monthKey = month.key;
         const monthData = { ...(updated[monthKey] || {}) };
         
         dynamicInputFields.forEach(field => {
