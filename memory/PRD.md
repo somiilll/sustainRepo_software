@@ -356,7 +356,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 
 ### Current prioritized backlog
 
-- **P0:** User validation of the standard-fuel Carbon Composition density fallback, custom Fugitive Fuel quantity × GWP routing, four repaired frontend cases, and monthly atomic-save rollback behavior.
+- **P0:** User validation of the standard-fuel Carbon Composition density fallback, custom Fugitive Fuel quantity × GWP routing and configured-unit list, four repaired frontend cases, and monthly atomic-save rollback behavior.
 - **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
@@ -372,3 +372,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Custom Fuel for Fugitive Emissions now requires only Quantity and GWP Fugitives. Emission Factor, Calorific Value, Carbon Composition, and Density inputs are not rendered or validated for this route.
 - The shared custom-fuel adapter, Create payload, Edit payload, and calculation audit payload preserve GWP Fugitives as a user override while keeping all other custom-fuel routes unchanged.
 - Verified: focused adapter suite passed (16 tests), touched source files passed lint, and the login page completed a browser smoke check. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-21: Data-Driven Custom Fugitive Quantity Units
+
+- Custom Fugitive Fuel quantity selectors now reuse the matching Fugitive fuel-master `allowed_units` for the active scope/category, across monthly Create, yearly Create, and Edit. No new `kg`/`g`/`t` list is hardcoded.
+- The shared resolver deduplicates all units configured for matching Fugitive fuel masters; the general custom-fuel option configuration remains only as a temporary fallback while fuel master data is unavailable.
+- Verified: focused master-unit resolver test passed, touched source files passed lint, and the browser smoke check passed. No APIs are **MOCKED**.

@@ -55,6 +55,7 @@ import {
   isQuantityField,
   resolveDensityRequirement,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -297,6 +298,13 @@ export default function EmissionEditForm(props) {
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT] || [];
   const isFugitiveCustomFuel = editUseCustomFuel
     && (formData.category || selectedCategory || '').toLowerCase().includes('fugitive');
+  const customFugitiveQuantityUnits = isFugitiveCustomFuel
+    ? getCategoryFuelAllowedUnits({
+      fuelDatabase,
+      scope: formData.scope,
+      categoryName: formData.category || selectedCategory,
+    })
+    : [];
 
   // ─────────────────────────────────────────────────────────────────────
   // Data-based loading gate for C7 Employee Commuting (has deeply nested
@@ -966,7 +974,9 @@ export default function EmissionEditForm(props) {
                         const isUnitlessCountField = field.unitSource === 'none';
 
                         const unitSelectorOptions = showCustomFuelQuantityUnit
-                          ? customFuelQuantityUnits
+                          ? (isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
+                            ? customFugitiveQuantityUnits
+                            : customFuelQuantityUnits)
                           : fieldUnits;
                         const showUnitSelector = !isUnitlessCountField
                           && field.unitSource !== 'text'
