@@ -280,7 +280,12 @@ export default function EmissionEditForm(props) {
       : getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField)),
     centralizedUnits,
   });
-  const showVirtualProcessDensity = isProcessEmission
+  // A configured Density field renders in the standard grid. For formulas
+  // that resolve Carbon Composition from a volume quantity, expose the same
+  // runtime conversion input for Process, Stationary, and Mobile Combustion.
+  // Custom Fuel owns this input through CustomFuelMonthFields.
+  const showVirtualProcessDensity = !editUseCustomFuel
+    && (isProcessEmission || editCalcMethodology === 'using_carbon_composition')
     && !hasConfiguredDensityField
     && hasNumericValue(getSavedFieldValue(virtualDensityQuantityField))
     && hasNumericValue(getSavedFieldValue(virtualDensityReferenceField))

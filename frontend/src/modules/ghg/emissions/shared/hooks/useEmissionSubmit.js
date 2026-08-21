@@ -200,21 +200,25 @@ export function useEmissionSubmit(ctx) {
       return;
     }
 
-    // Process Emissions density is a virtual, conditional field. Resolve its
-    // requirement from the exact values about to be persisted so a stale UI
-    // effect cannot allow the calculation engine to use a default factor.
+    // Density is a virtual, conditional field for Process Emissions and for
+    // Stationary/Mobile Carbon Composition. Resolve its requirement from the
+    // exact values about to be persisted so a stale UI effect cannot allow the
+    // calculation engine to use a default factor.
     const isProcessCategory = isProcessEmissions || categoryCode === 'process_emissions';
-    if (isProcessCategory) {
+    const isCombustionCategory = ['stationary_combustion', 'mobile_combustion'].includes(categoryCode);
+    if (isProcessCategory || isCombustionCategory) {
       const rowsToValidate = frequencyType === 'yearly'
         ? [['yearly', yearlyData]]
         : Object.entries(monthlyData || {});
       for (const [periodKey, data] of rowsToValidate) {
+        const calculationMethodology = decisionFieldValues?.calculation_methodology
+          || data?.calculation_methodology
+          || buildDecisionInputs?.(data)?.calculation_methodology;
+        if (!isProcessCategory && calculationMethodology !== 'using_carbon_composition') continue;
         const requirement = resolveProcessDensityRequirement({
           data,
           dynamicInputFields,
-          calculationMethodology: decisionFieldValues?.calculation_methodology
-            || data?.calculation_methodology
-            || buildDecisionInputs?.(data)?.calculation_methodology,
+          calculationMethodology,
           centralizedUnits,
         });
         if (!requirement.required) continue;

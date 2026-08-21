@@ -1223,8 +1223,10 @@ const YearlyDataEntry = ({
 }) => {
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
-  const isCarbonComposition = isProcessEmissions
-    && calculationMethodology === 'using_carbon_composition';
+  // Carbon Composition formulas operate on mass. This applies equally to
+  // Process Emissions and the Stationary/Mobile Combustion category routes.
+  // Custom Fuel renders the same conditional field through CustomFuelMonthFields.
+  const isCarbonComposition = calculationMethodology === 'using_carbon_composition';
   const quantityField = dynamicInputFields.find(isQuantityField);
   const carbonContentField = dynamicInputFields.find(isCarbonContentField);
   const quantityUnit = yearlyData[`${quantityField?.variable}_unit`]

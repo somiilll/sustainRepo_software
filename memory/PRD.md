@@ -302,3 +302,16 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 
 - Removed the `Custom fuel factors · [methodology]` caption from Edit only. The compact Custom fuel badge and amber flame indicator remain beside the Fuel Name.
 - Create retains its own ledger context unchanged. Verified with JavaScript lint and an authenticated Custom Fuel Edit browser smoke; the edit indicator count is zero. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Carbon Composition Density Coverage
+
+- Extended the Carbon Composition mass-conversion rule to Stationary and Mobile Combustion in addition to Process Emissions. A volume Quantity now exposes the directional Density input in yearly Create and Edit, matching the existing monthly behavior; mass quantities remain unchanged.
+- Custom Fuel Carbon Composition continues to use its shared inline Density field for the same mass/volume conversion requirement. Create submission now rejects missing/invalid Density before saving for Stationary and Mobile Carbon Composition, and `/api/emissions` enforces the guard for Process Emissions, Custom Fuel, Stationary Combustion, and Mobile Combustion on both POST and PUT.
+- No calculation-engine files were changed. **TESTING WAS NOT RUN at the user's explicit request.** No APIs are **MOCKED**.
+
+### Current prioritized backlog
+
+- **P0:** User validation of Carbon Composition and existing Custom Fuel/Process Emissions density handling in live Create and Edit flows (implementation complete; user requested no test run).
+- **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
+- **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
+- **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
