@@ -356,7 +356,13 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 
 ### Current prioritized backlog
 
-- **P0:** User validation of the four repaired frontend cases and monthly atomic-save rollback behavior.
+- **P0:** User validation of the standard-fuel Carbon Composition density fallback, four repaired frontend cases, and monthly atomic-save rollback behavior.
 - **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
+
+## Change Log — 2026-08-20: Standard-Fuel Carbon Composition Density Fallback
+
+- P0 fix: Stationary and Mobile Combustion Carbon Composition submission validation now accepts the selected standard fuel's configured density and density unit when the row has no user-entered density.
+- An explicit row density still takes precedence; Custom Fuel remains unchanged. No backend or calculation-engine code was changed.
+- Verified: focused JavaScript lint passed for `useEmissionSubmit.js`. No APIs are **MOCKED**.
