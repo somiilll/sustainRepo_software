@@ -94,6 +94,7 @@ class EmissionRecordCreate(BaseModel):
     notes: Optional[str] = None
     justification: Optional[str] = None
     evidence_url: Optional[str] = None
+    submission_batch_id: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
@@ -101,6 +102,10 @@ class EmissionRecordCreate(BaseModel):
     # Process info
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
+
+
+class EmissionBatchRollbackRequest(BaseModel):
+    submission_batch_id: str
 
 
 class EmissionRecordResponse(BaseModel):

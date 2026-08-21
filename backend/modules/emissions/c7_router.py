@@ -150,6 +150,7 @@ async def create_or_update_c7_monthly_entry(
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
+            "submission_batch_id": entry_data.submission_batch_id,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
