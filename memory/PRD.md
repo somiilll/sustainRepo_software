@@ -93,10 +93,8 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - **RESOLVED**: Nullable `ef_quantity` values are excluded from Quantity Basis methodology inference in `Emissions.js`.
 - Verification was intentionally skipped at the user's request.
 
-### P0: Missing Units in GHG Ledger Views
-- Units for required inputs are missing in monthly/yearly views.
-- **BLOCKED**: Awaiting explicit user permission to fix.
-- Root cause: fallback unit logic removed in a prior commit.
+### Resolved: Required-Input Units in GHG Ledger Views
+- User confirmed the monthly/yearly required-input unit work is fixed and removed it from the active task list (2026-08-21).
 
 ### Resolved: C6 Create Form Layout/Dropdown Overflow
 - Scope 3 C6 calculation-method menu is now constrained to the visible viewport and the create dialog preserves its normal desktop max width.
@@ -105,9 +103,8 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Stale data bleeds into new year view when reporting year is changed.
 - Fix: Reset `formData` to `INITIAL_FORM_DATA` in `BRSRDetailsSection.js` on year change.
 
-### P2: Playwright Locator Timeouts on Shadcn Select
-- E2E tests frequently time out on Shadcn Select elements.
-- Fix: Adjust timeouts, simplify locators, add `data-testid`.
+### Closed: Playwright Locator Timeouts on Shadcn Select
+- User requested that this E2E automation-only concern be removed from the active task list (2026-08-21). No product or test-automation code was changed.
 
 ### P2: Inflation Rate Path for Spend-basis
 - 3 conflicting resolution paths identified.
@@ -149,7 +146,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Added permanent architecture contracts and verified 86 focused frontend tests plus a non-saving authenticated browser smoke. Database counts stayed unchanged: `emission_records` 830, `ce_calculation_audit_logs` 1348, `emission_history` 1773.
 - Repaired invalid table nesting caused by instrumentation wrappers in the Add Emission monthly ledger; strict table structure now verifies in-browser.
 
-### Current prioritized backlog
+### Historical backlog snapshot (superseded)
 
 - **P1:** Persist and deliver `organizationGhgOverrides` only when separately approved; missing monthly/yearly required-input units remains blocked on approval; BRSR Section A stale form data on year switch.
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution.
@@ -241,7 +238,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Generalized the existing POST validation boundary to cover both Process Emissions and records marked `is_custom_fuel`, including Custom Fuel Heat Basis, Quantity Basis, and Carbon Composition. Matching selected dimensions continue without a Density requirement; only an actual mass↔volume mismatch requires the directional Density unit.
 - No calculation-engine files were changed. **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.
 
-### Current prioritized backlog
+### Historical backlog snapshot (superseded)
 
 - **P0:** User validation of Process Emissions Quantity Basis EF mass/volume routing in live Create and Edit flows (implementation complete; user requested no test run).
 - **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
@@ -274,7 +271,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Create/Edit payloads derive the internal route from the selected CV denominator, with a mass fallback while form values are initializing. No files in `/app/backend/calc_engine/` were changed.
 - **NO TEST RUN** was performed at the user's explicit request. No APIs are **MOCKED**.
 
-### Current prioritized backlog
+### Historical backlog snapshot (superseded)
 
 - **P0:** User validation of Custom Fuel Heat Basis mass/volume saving plus Process Emissions Quantity Basis routing in live Create and Edit flows.
 - **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
@@ -309,11 +306,10 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Custom Fuel Carbon Composition continues to use its shared inline Density field for the same mass/volume conversion requirement. Create submission now rejects missing/invalid Density before saving for Stationary and Mobile Carbon Composition, and `/api/emissions` enforces the guard for Process Emissions, Custom Fuel, Stationary Combustion, and Mobile Combustion on both POST and PUT.
 - No calculation-engine files were changed. **TESTING WAS NOT RUN at the user's explicit request.** No APIs are **MOCKED**.
 
-### Current prioritized backlog
+### Historical backlog snapshot (superseded)
 
-- **P0:** User validation of Carbon Composition and existing Custom Fuel/Process Emissions density handling in live Create and Edit flows (implementation complete; user requested no test run).
-- **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
-- **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
+- **P1:** BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
+- **P2:** Correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
 
 ## Change Log — 2026-08-20: Process Emissions Carbon Composition Quantity Save
@@ -328,7 +324,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - This keeps persisted `qty_unit` aligned with the visible dropdown and prevents an untouched volume unit from being submitted as an invalid mass unit.
 - Scope is intentionally limited to unit initialization. **TESTING WAS NOT RUN at the user's explicit request.** No APIs are **MOCKED**.
 
-### Current prioritized backlog
+### Historical backlog snapshot (superseded)
 
 - **P0:** User validation of standard-fuel volume-unit save behavior and Process Emissions Quantity Basis routing in live Create and Edit flows.
 - **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
@@ -354,7 +350,7 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - P0: Changing a Create-form Process Type now explicitly initializes `calculation_methodology` to `using_heat_basis_ncv`, matching the visible default and allowing immediate formula routing.
 - No backend or `/app/backend/calc_engine/` code was changed. **TESTING WAS NOT RUN at the user's explicit request.** No APIs are **MOCKED**.
 
-### Current prioritized backlog
+### Historical backlog snapshot (superseded)
 
 - **P0:** User validation of the standard-fuel Carbon Composition density fallback, custom Fugitive Fuel quantity × GWP routing and configured-unit list, four repaired frontend cases, and monthly atomic-save rollback behavior.
 - **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
@@ -378,3 +374,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Custom Fugitive Fuel quantity selectors now reuse the matching Fugitive fuel-master `allowed_units` for the active scope/category, across monthly Create, yearly Create, and Edit. No new `kg`/`g`/`t` list is hardcoded.
 - The shared resolver deduplicates all units configured for matching Fugitive fuel masters; the general custom-fuel option configuration remains only as a temporary fallback while fuel master data is unavailable.
 - Verified: focused master-unit resolver test passed, touched source files passed lint, and the browser smoke check passed. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-21: User-Confirmed Task Closure
+
+- Removed from the active task list at the user's confirmation: required-input units in monthly/yearly views; atomic monthly-save rollback behavior; standard stationary/mobile quantity-basis routing and Process Emissions quantity validation.
+- Removed the Shadcn Select Playwright locator-timeout item from the active task list at the user's request. It was an E2E automation reliability concern, not a confirmed application defect.
+- No application source, calculation engine, test suite, or test-report artifact was modified in this status-only update.
