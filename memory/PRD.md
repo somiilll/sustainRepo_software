@@ -315,3 +315,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
 - **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
+
+## Change Log — 2026-08-20: Process Emissions Carbon Composition Quantity Save
+
+- Fixed the Create-form submission boundary for Process Emissions Carbon Composition. Legacy row values stored as `qty` or `quantity` now populate the configured `quantity_used_process_emissions` key before validation, calculation, and persistence.
+- The normalization applies only to the affected Process Emissions Carbon Composition flow; stored dynamic-field names, decision-tree routing, backend APIs, and all calculation-engine code remain unchanged.
+- **TESTING WAS NOT RUN at the user’s explicit request.** No APIs are **MOCKED**.

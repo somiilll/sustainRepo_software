@@ -2457,7 +2457,10 @@ export default function EmissionEntryForm({
     processNames, responsiblePerson, requiresAssetName, assetName,
     // Step 3 params
     isC7EmployeeCommuting, employees, dynamicInputFields,
-    frequencyType, yearlyData, monthlyData, filledMonthsCount,
+    frequencyType,
+    yearlyData: submissionYearlyData,
+    monthlyData: submissionMonthlyData,
+    filledMonthsCount: submissionFilledMonthsCount,
     updateMonthData,
   });
 
@@ -2716,13 +2719,62 @@ export default function EmissionEntryForm({
   // Submit handler - creates emissions for each month with data
   // F6 (Option B): handleSubmit body lifted to useEmissionSubmit hook.
   // Form just assembles the ctx and calls submit().
+  const normalizeCarbonCompositionQuantity = useCallback((data = {}) => {
+    if (
+      !ghgFormContext.isProcessCategory
+      || decisionFieldValues.calculation_methodology !== 'using_carbon_composition'
+    ) {
+      return data;
+    }
+
+    const quantityField = dynamicInputFields.find((field) => (
+      field.variable === 'quantity_used_process_emissions'
+      || field.fieldKey === 'quantity_used_process_emissions'
+    ));
+    if (!quantityField) return data;
+
+    const configuredKey = quantityField.variable || quantityField.fieldKey;
+    const configuredValue = data[configuredKey] ?? data[quantityField.fieldKey];
+    if (configuredValue !== undefined && configuredValue !== null && configuredValue !== '') {
+      return data;
+    }
+
+    const legacyValue = data.qty ?? data.quantity;
+    if (legacyValue === undefined || legacyValue === null || legacyValue === '') {
+      return data;
+    }
+
+    const legacyUnit = data.qty_unit || data.quantity_unit || data.unit;
+    return {
+      ...data,
+      [configuredKey]: legacyValue,
+      ...(legacyUnit && { [`${configuredKey}_unit`]: legacyUnit }),
+    };
+  }, [decisionFieldValues.calculation_methodology, dynamicInputFields, ghgFormContext.isProcessCategory]);
+
+  const submissionMonthlyData = useMemo(() => Object.fromEntries(
+    Object.entries(monthlyData).map(([monthKey, data]) => [
+      monthKey,
+      normalizeCarbonCompositionQuantity(data),
+    ]),
+  ), [monthlyData, normalizeCarbonCompositionQuantity]);
+  const submissionYearlyData = useMemo(
+    () => normalizeCarbonCompositionQuantity(yearlyData),
+    [yearlyData, normalizeCarbonCompositionQuantity],
+  );
+  const submissionFilledMonthsCount = useMemo(() => (
+    Object.values(submissionMonthlyData).filter((monthData) =>
+      isMonthlyEntryComplete(monthData, dynamicInputFields),
+    ).length
+  ), [dynamicInputFields, submissionMonthlyData]);
+
   const { submit: handleSubmit } = useEmissionSubmit({
     // State
     facilityId, scope, category, fuelId, useCustomFuel, customFuelName,
     customEmissionFactor, customSource, isSaving, scope3Method, scope3ActivityId,
     scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
     biogenicScopeSelection, employees, frequencyType, reportingYearType, reportingYear,
-    monthlyData, yearlyData, processNames, responsiblePerson,
+    monthlyData: submissionMonthlyData, yearlyData: submissionYearlyData, processNames, responsiblePerson,
     responsiblePersonDesignation, responsiblePersonContact, notes, recordSource, supplierName,
     supplierCode, employeeName, employeeId, assetName, fromLocation, toLocation,
     dynamicCategories,
