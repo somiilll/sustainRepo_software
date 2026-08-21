@@ -380,3 +380,8 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Removed from the active task list at the user's confirmation: required-input units in monthly/yearly views; atomic monthly-save rollback behavior; standard stationary/mobile quantity-basis routing and Process Emissions quantity validation.
 - Removed the Shadcn Select Playwright locator-timeout item from the active task list at the user's request. It was an E2E automation reliability concern, not a confirmed application defect.
 - No application source, calculation engine, test suite, or test-report artifact was modified in this status-only update.
+
+## Change Log — 2026-08-21: Historical Test-Report Cleanup
+
+- At the user's request, removed all historical artifacts from `/app/test_reports` (JSON reports, JUnit XML, screenshots, PDFs, and exported payloads).
+- Kept `/app/test_reports` as an empty destination for future test runs. Source regression suites—including backend golden tests and frontend refactor contracts—remain intact.
