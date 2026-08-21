@@ -161,7 +161,7 @@ const resolveScope12Formula = (formConfig, context) => {
       // Quantity Basis EF routes at calculation time from the selected EF unit.
       // Until a unit is selected, use the mass branch so the shared Quantity
       // Basis fields render without adding a second user-facing selector.
-      ...(context.isProcessCategory
+      ...((context.isProcessCategory || context.isStationaryMobileOrFlaringCategory)
         && decisionFieldValues.calculation_methodology === 'using_qty_basis_ef'
         && !decisionFieldValues.ef_quantity_basis
         ? { ef_quantity_basis: 'mass' }

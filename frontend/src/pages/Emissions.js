@@ -549,39 +549,48 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         decisionInputs['process_type'] = editProcessType;
       }
 
-      if (
-        (editGhgFormContext.categoryCode === 'process_emissions' || editUseCustomFuel)
-        && decisionInputs.calculation_methodology === 'using_qty_basis_ef'
-      ) {
-        const efField = dynamicInputFields.find((field) => (
-          field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
-        ));
-        const efUnit = editUseCustomFuel
-          ? dynamicFieldValues.custom_ef_unit || 'kgCO2/kg'
-          : dynamicFieldValues.ef_quantity_unit
-          || dynamicFieldValues.ef_quantity?.unit
-          || efField?.defaultUnit
-          || efField?.default_unit
-          || efField?.expectedUnit
-          || efField?.allowedUnits?.[0];
-        const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
-        if (basis) decisionInputs.ef_quantity_basis = basis;
+      if (decisionInputs.calculation_methodology === 'using_qty_basis_ef') {
+        const isStandardCombustionFuel = editGhgFormContext.isStationaryMobileOrFlaringCategory
+          && !editUseCustomFuel;
+        if (isStandardCombustionFuel) {
+          decisionInputs.ef_quantity_basis = 'mass';
+        } else if (editGhgFormContext.categoryCode === 'process_emissions' || editUseCustomFuel) {
+          const efField = dynamicInputFields.find((field) => (
+            field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
+          ));
+          const efUnit = editUseCustomFuel
+            ? dynamicFieldValues.custom_ef_unit || 'kgCO2/kg'
+            : dynamicFieldValues.ef_quantity_unit
+            || dynamicFieldValues.ef_quantity?.unit
+            || efField?.defaultUnit
+            || efField?.default_unit
+            || efField?.expectedUnit
+            || efField?.allowedUnits?.[0];
+          const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
+          if (basis) decisionInputs.ef_quantity_basis = basis;
+        }
       }
 
       if (decisionInputs.calculation_methodology === 'using_heat_basis_ncv') {
-        const cvField = dynamicInputFields.find((field) => (
-          field.variable === 'cv' || field.fieldKey === 'cv'
-        ));
-        const cvUnit = (editUseCustomFuel ? dynamicFieldValues.custom_cv_unit : null)
-          || dynamicFieldValues.cv_unit
-          || dynamicFieldValues.cv?.unit
-          || cvField?.defaultUnit
-          || cvField?.default_unit
-          || cvField?.expectedUnit
-          || cvField?.allowedUnits?.[0]
-          || 'TJ/kg';
-        const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
-        if (basis) decisionInputs.cv_quantity_basis = basis;
+        const isStandardCombustionFuel = editGhgFormContext.isStationaryMobileOrFlaringCategory
+          && !editUseCustomFuel;
+        if (isStandardCombustionFuel) {
+          decisionInputs.cv_quantity_basis = 'mass';
+        } else {
+          const cvField = dynamicInputFields.find((field) => (
+            field.variable === 'cv' || field.fieldKey === 'cv'
+          ));
+          const cvUnit = (editUseCustomFuel ? dynamicFieldValues.custom_cv_unit : null)
+            || dynamicFieldValues.cv_unit
+            || dynamicFieldValues.cv?.unit
+            || cvField?.defaultUnit
+            || cvField?.default_unit
+            || cvField?.expectedUnit
+            || cvField?.allowedUnits?.[0]
+            || 'TJ/kg';
+          const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
+          if (basis) decisionInputs.cv_quantity_basis = basis;
+        }
       }
     }
     
