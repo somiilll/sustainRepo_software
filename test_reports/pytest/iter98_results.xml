@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="1.344" timestamp="2026-07-15T10:25:37.841933+00:00" hostname="agent-env-12a91360-e10d-4552-8db7-dbd8191986c1"><testcase classname="backend.tests.test_esg_summary" name="test_esg_summary_2026" time="1.164"><failure message="AssertionError: total_employees.value expected 698, got None&#10;assert None == 698&#10; +  where None = &lt;built-in method get of dict object at 0xfce903ff3640&gt;('value')&#10; +    where &lt;built-in method get of dict object at 0xfce903ff3640&gt; = {}.get">backend/tests/test_esg_summary.py:31: in test_esg_summary_2026
-    assert te.get("value") == 698, f"total_employees.value expected 698, got {te.get('value')}"
-E   AssertionError: total_employees.value expected 698, got None
-E   assert None == 698
-E    +  where None = &lt;built-in method get of dict object at 0xfce903ff3640&gt;('value')
-E    +    where &lt;built-in method get of dict object at 0xfce903ff3640&gt; = {}.get</failure></testcase><testcase classname="backend.tests.test_esg_summary" name="test_esg_analytics_snapshot" time="0.107" /></testsuite></testsuites>
