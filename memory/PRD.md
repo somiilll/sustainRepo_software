@@ -346,3 +346,17 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Restricted the shared Create-form runtime Density path to Process Emissions and Custom Fuel. Standard Stationary/Mobile fuel rows, including Diesel Quantity Basis, no longer create a runtime Density requirement from a mass/volume unit comparison.
 - Cleared stale `runtime_density_required` flags when a user switches back to a standard fuel/category. Yearly Process Density and the legacy volume-density prompt now use the same Process-only boundary.
 - Verified with focused JavaScript lint on `Step3YearMonthlyData.js`. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-20: Monthly Validation and Custom Fuel Edit Repair
+
+- P0: Untouched monthly rows no longer count factor defaults such as Density or Oxidation Factor as an entered emission. Completion, required-field validation, runtime-density validation, and optional-override validation now begin only after a core activity input is supplied.
+- P0: Custom Fuel Edit restores the Quantity Used unit selector. It updates the dedicated `custom_qty_unit` state and the dynamic quantity unit together, preserving the unit selected for recalculation and save.
+- P0: Changing a Create-form Process Type now explicitly initializes `calculation_methodology` to `using_heat_basis_ncv`, matching the visible default and allowing immediate formula routing.
+- No backend or `/app/backend/calc_engine/` code was changed. **TESTING WAS NOT RUN at the user's explicit request.** No APIs are **MOCKED**.
+
+### Current prioritized backlog
+
+- **P0:** User validation of the four repaired frontend cases and monthly atomic-save rollback behavior.
+- **P1:** Missing monthly/yearly required-input units (blocked pending approval); BRSR Section A stale form data on year switch; Custom Dashboard; Target Settings UI; SHA-256 evidence integrity; supplier/customer onboarding; BRSR Word export; MIS preview/bookmarks.
+- **P2:** Stabilize Shadcn Select Playwright locators; correct spend-basis inflation resolution; Custom Fuel month-value copy; repair legacy non-golden backend failures.
+- **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 remains explicitly blocked.
