@@ -20,6 +20,7 @@ import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/Cu
 import { resolveGhgUiState } from '../modules/ghg/config/resolveGhgUiState';
 import {
   getStandardActivityTypeLabel,
+  GHG_FIELD_OPTION_KEYS,
   STANDARD_TYPE_OF_PRODUCT_OPTIONS,
 } from '../modules/ghg/config/standardGhgFormConfig';
 import FlightDetailsSection from './FlightDetailsSection';
@@ -293,6 +294,7 @@ export default function EmissionEditForm(props) {
   const savedVirtualDensity = dynamicFieldValues.density
     ?? editingEmission?.dynamic_field_values?.density?.value
     ?? '';
+  const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT] || [];
 
   // ─────────────────────────────────────────────────────────────────────
   // Data-based loading gate for C7 Employee Commuting (has deeply nested
@@ -872,10 +874,12 @@ export default function EmissionEditForm(props) {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
                         const isQtyField = isQuantityField(field);
-                        const hideStandardQuantityUnit = editUseCustomFuel && isQtyField;
+                        const showCustomFuelQuantityUnit = editUseCustomFuel && isQtyField;
+                        const hideStandardQuantityUnit = false;
                         
                         // Get the currently saved unit for this field
-                        const savedUnit = dynamicFieldValues[`${field.variable}_unit`]
+                        const savedUnit = (showCustomFuelQuantityUnit && dynamicFieldValues.custom_qty_unit)
+                          || dynamicFieldValues[`${field.variable}_unit`]
                           || (field.variable === 'density' ? formData.density_unit : '')
                           || '';
                         const savedDensityValue = field.variable === 'density'
@@ -957,7 +961,12 @@ export default function EmissionEditForm(props) {
                         // Unitless count fields - admin-driven via unit_source === 'none'.
                         const isUnitlessCountField = field.unitSource === 'none';
 
-                        const showUnitSelector = !hideStandardQuantityUnit && !isUnitlessCountField && field.unitSource !== 'text' && fieldUnits.length > 0;
+                        const unitSelectorOptions = showCustomFuelQuantityUnit
+                          ? customFuelQuantityUnits
+                          : fieldUnits;
+                        const showUnitSelector = !isUnitlessCountField
+                          && field.unitSource !== 'text'
+                          && unitSelectorOptions.length > 0;
                         // Freeform text unit input — admin set unit_source = 'text'
                         const showUnitTextInput = !hideStandardQuantityUnit && !isUnitlessCountField && field.unitSource === 'text' && !field.variable?.endsWith('_unit');
                         
@@ -1111,8 +1120,13 @@ export default function EmissionEditForm(props) {
                                 {/* Non-supplier basis - use dropdown for units */}
                                 {!isSupplierBasisUnitField && showUnitSelector && (
                                   <select
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || savedUnit || fieldUnits[0] || ''}
+                                    value={showCustomFuelQuantityUnit
+                                      ? (dynamicFieldValues.custom_qty_unit || savedUnit || unitSelectorOptions[0] || '')
+                                      : (dynamicFieldValues[`${field.variable}_unit`] || savedUnit || unitSelectorOptions[0] || '')}
                                     onChange={(e) => {
+                                      if (showCustomFuelQuantityUnit) {
+                                        updateDynamicFieldValue('custom_qty_unit', e.target.value);
+                                      }
                                       updateDynamicFieldValue(`${field.variable}_unit`, e.target.value);
                                       if (isQtyField) {
                                         setFormData(prev => ({ ...prev, quantity_unit: e.target.value }));
@@ -1120,10 +1134,10 @@ export default function EmissionEditForm(props) {
                                     }}
                                     disabled={showOverrideCheckbox && !isOverrideEnabled}
                                     className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
-                                    data-testid={`edit-unit-${field.fieldKey}`}
+                                    data-testid={showCustomFuelQuantityUnit ? 'edit-custom-fuel-quantity-unit' : `edit-unit-${field.fieldKey}`}
                                   >
                                     {/* savedUnit already included in fieldUnits at line ~4084; no duplicate injection needed */}
-                                    {fieldUnits.map(u => (
+                                    {unitSelectorOptions.map(u => (
                                       <option key={u} value={u}>{u}</option>
                                     ))}
                                   </select>

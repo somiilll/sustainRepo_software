@@ -422,7 +422,11 @@ export const Step1BasicSelection = ({
             <Workflow className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-600" aria-hidden="true" />
             <select
               value={decisionFieldValues.process_type || ''}
-              onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, process_type: event.target.value, calculation_methodology: '' }))}
+              onChange={(event) => setDecisionFieldValues(prev => ({
+                ...prev,
+                process_type: event.target.value,
+                calculation_methodology: 'using_heat_basis_ncv',
+              }))}
               className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               data-testid="process-type-select"
               dangerouslySetInnerHTML={{ __html: processTypeOptionsHtml }}
