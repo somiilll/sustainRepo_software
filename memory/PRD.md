@@ -1,7 +1,7 @@
 # ESG Platform — Product Requirements Document
 
 ## Original Problem Statement
-Simplify the Add/Edit GHG Emission form to a single-page experience without altering the backend, calculation engine, or core shared GHG configuration architecture. Make sure the UI is simple, clean, modern, and aligned correctly.
+Maintain the frozen core GHG engine while extending Supplier Assessment through configurable, module-driven requirements. Phase 1 establishes a backward-compatible ESG/GHG module registry, organization configuration resolution, program revisions, and legacy completion compatibility before any Documents or Training functionality is built.
 
 ## Core Requirements
 - Refine monthly data UX to a compact ledger format.
@@ -20,6 +20,9 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - `/app/frontend/src/modules/ghg/emissions/shared/domain/` — Shared Phase 6 `EmissionDraft` model and pure record adapters.
 - `/app/frontend/src/pages/Emissions.js` — Edit flow state management.
 - `/app/frontend/src/components/EmissionEditForm.jsx` — Edit form rendering.
+- `/app/backend/modules/supplier_assessment/module_registry.py` — Supplier Assessment module contract and ESG/GHG completion adapters.
+- `/app/backend/modules/supplier_assessment/programs.py` — Program revision binding and legacy relationship compatibility resolver.
+- `/app/backend/modules/sustainability_config/` — Single `organization_config` source including `supplier_assessment` configuration.
 
 ## What Has Been Implemented
 
@@ -82,6 +85,14 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Backend golden: 506 passed / 9 skipped
 - Frontend: 1229 passed / 63 snapshots
 
+### Session 3 (2026-08-22) — Supplier Assessment Phase 1 Compatibility Foundation
+- **DONE:** Added the common Supplier Assessment module contract and registry. Only ESG and GHG adapters are registered; each reads the existing questionnaire and supplier-tagged emission collections without migrations or duplicated data.
+- **DONE:** Extended the existing `organization_config` resolver with `supplier_assessment.modules`. ESG/GHG are enabled by default; Documents/Training are schema-only, disabled compatibility shapes—no module, collection, route, UI, upload, or media functionality was added.
+- **DONE:** New supplier relationships bind to immutable `supplier_assessment_programs` revisions through `assessment_program_id` and `assessment_program_version`; relationships do not embed program configuration. Unbound legacy relationships resolve through the historic ESG/GHG completion path.
+- **DONE:** `_update_completion_status()` remains the compatibility facade and now delegates to the registry. Legacy ESG/GHG/revenue weighting is preserved exactly.
+- **Verified:** Python lint and compilation clean; focused Phase 1 + GHG configuration tests passed (19 total locally); independent backend validation passed (12/12) and live `/api/sustainability-config/resolved` smoke passed. No APIs are **MOCKED**.
+- **Known pre-existing test state:** Full GHG golden suite is currently red from prior baseline/live configuration drift outside this phase. No `calc_engine` file or golden artifact was modified.
+
 ## Known Issues
 
 ### P0: Process Emissions and Custom Fuel Density Payload Loss
@@ -114,6 +125,15 @@ Simplify the Add/Edit GHG Emission form to a single-page experience without alte
 - Stale expected record counts in `test_calc_engine_phase3.py` and `test_phase_b5_emissions_refactor.py`.
 
 ## Prioritized Backlog
+
+### P0 — Supplier Assessment (gated)
+- Phase 1 Compatibility Foundation — **DONE (2026-08-22)**
+- Phase 2: Documents module requirements, immutable versions, R2 access, acceptance/upload logic — blocked until Phase 1 user verification.
+- Phase 3: Training content management and tracked media/slide progress — blocked until Phase 2 verification.
+- Phase 4: Supplier module-driven dashboard — blocked until Phases 2–3.
+- Phase 5: Organization/Admin program, document, and training configuration UX — blocked until Phases 2–4.
+- Phase 6: Completion/submission integration — blocked until prior Supplier Assessment phases.
+- Phase 7: Cross-suite hardening and compatibility regression gate — blocked until prior Supplier Assessment phases.
 
 ### P1 — Upcoming
 - Custom Dashboard (consume `kpi_cards`)

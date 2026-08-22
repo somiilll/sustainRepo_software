@@ -147,6 +147,39 @@ class GhgOverridesConfig(BaseModel):
         return values
 
 
+# =============================================================================
+# Supplier assessment program configuration
+# =============================================================================
+
+class SupplierAssessmentModuleConfig(BaseModel):
+    """Configuration shape shared by supplier-assessment modules."""
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+
+
+class SupplierAssessmentGhgModuleConfig(SupplierAssessmentModuleConfig):
+    """GHG supplier-assessment controls; calculation controls stay out of config."""
+    scopes: List[Literal["scope1", "scope2"]] = Field(default_factory=lambda: ["scope1", "scope2"])
+
+
+class SupplierAssessmentModulesConfig(BaseModel):
+    """Declarative module configuration. Documents/training are schema-only in Phase 1."""
+    model_config = ConfigDict(extra="forbid")
+
+    esg: SupplierAssessmentModuleConfig = Field(default_factory=lambda: SupplierAssessmentModuleConfig(enabled=True))
+    ghg: SupplierAssessmentGhgModuleConfig = Field(default_factory=lambda: SupplierAssessmentGhgModuleConfig(enabled=True))
+    documents: SupplierAssessmentModuleConfig = Field(default_factory=lambda: SupplierAssessmentModuleConfig(enabled=False))
+    training: SupplierAssessmentModuleConfig = Field(default_factory=lambda: SupplierAssessmentModuleConfig(enabled=False))
+
+
+class SupplierAssessmentConfig(BaseModel):
+    """Organization-level supplier assessment configuration stored in organization_config."""
+    model_config = ConfigDict(extra="forbid")
+
+    modules: SupplierAssessmentModulesConfig = Field(default_factory=SupplierAssessmentModulesConfig)
+
+
 class OrganizationConfigUpdate(BaseModel):
     """Payload for creating/updating the organization config."""
     modules: Optional[ModulesConfig] = None
@@ -157,3 +190,4 @@ class OrganizationConfigUpdate(BaseModel):
     features: Optional[FeaturesConfig] = None
     ai_query_aliases: Optional[List[AIQueryAlias]] = None
     ghg_overrides: Optional[GhgOverridesConfig] = None
+    supplier_assessment: Optional[SupplierAssessmentConfig] = None
