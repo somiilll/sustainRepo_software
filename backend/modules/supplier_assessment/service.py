@@ -240,6 +240,10 @@ class SupplierAssessmentService:
             {"id": relationship_id, "is_active": True},
             {"_id": 0}
         )
+
+    async def get_program_context(self, relationship: Dict[str, Any]) -> Dict[str, Any]:
+        """Expose the immutable program resolver to transport boundaries."""
+        return await resolve_program_context(relationship)
     
     async def update_supplier(
         self,

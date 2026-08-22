@@ -31,21 +31,24 @@ def _document_key(title: Optional[str], filename: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", source).strip("-") or "agreement"
 
 
+async def _enable_documents_for_org(customer_org_id: str, _user_id: str) -> Dict[str, Any]:
+    """Compatibility seam that now validates the Superadmin-selected Documents workflow.
+
+    The historical helper enabled Documents as a side effect. The organization configuration
+    is now authoritative, so publishing can only continue after Superadmin has enabled it.
+    """
+    config = await sustainability_config_service.resolve_supplier_assessment_config(customer_org_id)
+    if not (config.get("modules", {}).get("documents") or {}).get("enabled"):
+        raise ValueError("Enable the Documents module in Organization Config before publishing an agreement")
+    return config
+
+
 async def _next_document_version_number(customer_org_id: str, document_key: str) -> int:
     latest = await db.supplier_document_versions.find_one(
         {"customer_org_id": customer_org_id, "document_key": document_key},
         {"_id": 0, "version_number": 1}, sort=[("version_number", -1)],
     )
     return (latest.get("version_number", 0) + 1) if latest else 1
-
-
-async def _enable_documents_for_org(customer_org_id: str, user_id: str) -> Dict[str, Any]:
-    config = await sustainability_config_service.resolve_supplier_assessment_config(customer_org_id)
-    config["modules"]["documents"]["enabled"] = True
-    await sustainability_config_service.upsert_org_config(
-        customer_org_id, {"supplier_assessment": config}, user_id
-    )
-    return config
 
 
 async def publish_agreement(
@@ -61,6 +64,8 @@ async def publish_agreement(
         raise ValueError("Only PDF, DOC, and DOCX agreement files are supported")
     if not content or len(content) > MAX_DOCUMENT_SIZE:
         raise ValueError("Agreement files must be between 1 byte and 10MB")
+
+    organization_config = await _enable_documents_for_org(customer_org_id, created_by)
 
     organization = await db.organizations.find_one({"id": customer_org_id}, {"_id": 0, "name": 1})
     upload = await get_r2_storage().upload_file(
@@ -93,19 +98,19 @@ async def publish_agreement(
     await db.supplier_document_versions.insert_one(version)
     version.pop("_id", None)
 
-    default_config = await _enable_documents_for_org(customer_org_id, created_by)
     relationships = await db.supplier_relationships.find(
         {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
     ).to_list(1000)
     revisions: Dict[tuple, Dict[str, Any]] = {}
     if not relationships:
-        revision = await get_or_create_program_revision(customer_org_id, default_config, created_by)
+        revision = await get_or_create_program_revision(customer_org_id, organization_config, created_by)
         revisions[(revision["program_id"], revision["version"])] = revision
 
     for relationship in relationships:
         context = await resolve_program_context(relationship)
         config = deepcopy(context["config"])
-        config.setdefault("modules", {}).setdefault("documents", {})["enabled"] = True
+        configured_documents = organization_config["modules"]["documents"]
+        config.setdefault("modules", {})["documents"] = deepcopy(configured_documents)
         revision = await get_or_create_program_revision(customer_org_id, config, created_by)
         revisions[(revision["program_id"], revision["version"])] = revision
         await db.supplier_relationships.update_one(

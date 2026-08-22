@@ -150,6 +150,10 @@ export default function SupplierDashboard() {
   }
 
   const { relationship, customer_name } = assessment;
+  const assessmentModules = assessment.assessment_modules || [];
+  const configuredModules = new Map(assessmentModules.map((module) => [module.code, module]));
+  const esgModule = configuredModules.get('esg');
+  const ghgModule = configuredModules.get('ghg');
 
   return (
     <div className="space-y-6" data-testid="supplier-dashboard">
@@ -185,7 +189,7 @@ export default function SupplierDashboard() {
               <Progress value={relationship.overall_completion_percent || 0} className="h-3" />
             </div>
             
-            <div className="grid grid-cols-3 gap-4 pt-4">
+            <div className="grid gap-4 pt-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className={`text-center p-4 rounded-lg ${
                 relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
                   ? 'bg-green-50' 
@@ -204,20 +208,11 @@ export default function SupplierDashboard() {
                 </div>
                 <div className="text-xs text-stone-500">Revenue Info</div>
               </div>
-              <div className="text-center p-4 bg-stone-50 rounded-lg">
-                <ClipboardList className="h-6 w-6 mx-auto text-emerald-500 mb-2" />
-                <div className="text-lg font-semibold">
-                  {Math.round(relationship.esg_completion_percent || 0)}%
-                </div>
-                <div className="text-xs text-stone-500">ESG Questionnaire</div>
-              </div>
-              <div className="text-center p-4 bg-stone-50 rounded-lg">
-                <Cloud className="h-6 w-6 mx-auto text-purple-500 mb-2" />
-                <div className="text-lg font-semibold">
-                  {Math.round(relationship.ghg_completion_percent || 0)}%
-                </div>
-                <div className="text-xs text-stone-500">GHG Emissions</div>
-              </div>
+              {assessmentModules.map((module) => <div className="text-center p-4 bg-stone-50 rounded-lg" key={module.code} data-testid={`supplier-module-summary-${module.code}`}>
+                <ClipboardList className="h-6 w-6 mx-auto text-emerald-600 mb-2" />
+                <div className="text-lg font-semibold">{Math.round(module.completion_percent || 0)}%</div>
+                <div className="text-xs text-stone-500">{module.display_name}</div>
+              </div>)}
             </div>
           </div>
         </CardContent>
@@ -322,11 +317,11 @@ export default function SupplierDashboard() {
       </Card>
 
       {/* Questionnaires */}
-      <Card>
+      {esgModule && <Card data-testid="supplier-esg-module-panel">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5 text-emerald-500" />
-            ESG Questionnaires
+            {esgModule.display_name}
           </CardTitle>
           <CardDescription>Complete the assigned questionnaires</CardDescription>
         </CardHeader>
@@ -388,14 +383,14 @@ export default function SupplierDashboard() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* GHG Emissions */}
-      <Card>
+      {ghgModule && <Card data-testid="supplier-ghg-module-panel">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Cloud className="h-5 w-5 text-purple-500" />
-            GHG Emissions
+            {ghgModule.display_name}
           </CardTitle>
           <CardDescription>Report your Scope 1 and Scope 2 emissions</CardDescription>
         </CardHeader>
@@ -416,7 +411,7 @@ export default function SupplierDashboard() {
             </Button>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }
