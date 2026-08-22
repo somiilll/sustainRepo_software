@@ -54,3 +54,15 @@ async def update_progress(relationship: Dict[str, Any], assignment_id: str, perc
     existing=await db.supplier_training_progress.find_one({"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"]},{"_id":0})
     now=_now(); progress={"id":(existing or {}).get("id",str(uuid.uuid4())),"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"],"training_version_id":assignment["requirement_version_id"],"progress_percent":percent,"status":status,"completed_at":now if status=="completed" else None,"updated_by":user_id,"updated_at":now}
     await db.supplier_training_progress.update_one({"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"]},{"$set":progress},upsert=True); progress.pop("_id",None); return progress
+
+async def training_file_for_supplier(relationship: Dict[str, Any], assignment_id: str) -> Optional[Dict[str, Any]]:
+    assignment = await db.supplier_training_assignments.find_one({"id": assignment_id, "supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0})
+    if not assignment: return None
+    return await db.supplier_training_versions.find_one({"id": assignment["requirement_version_id"]}, {"_id": 0})
+
+async def ensure_indexes():
+    await db.supplier_training_contents.create_index("id", unique=True)
+    await db.supplier_training_versions.create_index("id", unique=True)
+    await db.supplier_training_requirements.create_index([("organization_id", 1), ("is_active", 1)])
+    await db.supplier_training_assignments.create_index([("supplier_relationship_id", 1), ("is_active", 1)])
+    await db.supplier_training_progress.create_index([("training_assignment_id", 1), ("supplier_relationship_id", 1)], unique=True)

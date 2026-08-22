@@ -77,6 +77,8 @@ import SupplierAssessmentGHG from './pages/SupplierAssessmentGHG';
 import SupplierAssessmentRanking from './pages/SupplierAssessmentRanking';
 import SupplierDocumentsAdmin from './modules/supplier-assessment/SupplierDocumentsAdmin';
 import SupplierDocuments from './modules/supplier-assessment/SupplierDocuments';
+import SupplierTrainingAdmin from './modules/supplier-assessment/SupplierTrainingAdmin';
+import SupplierTraining from './modules/supplier-assessment/SupplierTraining';
 import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
@@ -363,11 +365,13 @@ const AppRoutes = () => {
             </AdminRoute>
           } />
           <Route path="supplier-assessment/documents" element={<AdminRoute><SupplierDocumentsAdmin /></AdminRoute>} />
+          <Route path="supplier-assessment/trainings" element={<AdminRoute><SupplierTrainingAdmin /></AdminRoute>} />
           
           {/* Supplier Portal Routes (Supplier Users) */}
           <Route path="supplier-assessment/supplier" element={<SupplierPortalDashboard />} />
           <Route path="supplier-assessment/questionnaire/:questionnaireId" element={<SupplierPortalQuestionnaire />} />
           <Route path="supplier-assessment/documents/review" element={<SupplierDocuments />} />
+          <Route path="supplier-assessment/training" element={<SupplierTraining />} />
           {/* supplier-assessment/emissions route removed - suppliers use main GHG Emissions flow */}
           
           <Route path="users" element={

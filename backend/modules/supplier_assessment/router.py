@@ -29,6 +29,7 @@ from modules.supplier_assessment.contracts import (
 )
 from modules.supplier_assessment import documents_service
 from modules.supplier_assessment import training_service
+from r2_storage import get_r2_storage
 from shared.database.mongo import db
 
 router = APIRouter(prefix="/supplier-assessment", tags=["Supplier Assessment"])
@@ -607,6 +608,16 @@ async def save_training_progress(assignment_id: str, progress_percent: float = F
     if not progress: raise HTTPException(status_code=404, detail="Training assignment not found")
     await supplier_service._update_completion_status(relationship["id"])
     return progress
+
+@router.get("/my-assessment/trainings/{assignment_id}/content")
+async def get_training_content(assignment_id: str, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship: raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    version = await training_service.training_file_for_supplier(relationship, assignment_id)
+    if not version: raise HTTPException(status_code=404, detail="Training content not found")
+    try:
+        return {"url": get_r2_storage().generate_presigned_url(version["bucket_type"], version["r2_key"], expiration=900, response_content_disposition=f"inline; filename={version['original_filename']}")}
+    except Exception as error: raise HTTPException(status_code=500, detail=f"Failed to access training content: {error}")
 
 
 @router.get("/my-assessment/questionnaires")
