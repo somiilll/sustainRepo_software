@@ -4,6 +4,7 @@ from copy import deepcopy
 import pytest
 
 from modules.supplier_assessment import programs
+from modules.supplier_assessment import documents_service
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.service import supplier_service
 from modules.sustainability_config.contracts import OrganizationConfigUpdate
@@ -104,7 +105,7 @@ def test_supplier_assessment_configuration_supports_future_schema_without_module
 
 
 def test_registry_registers_only_phase_one_adapters():
-    assert supplier_assessment_module_registry.registered_codes() == ["esg", "ghg"]
+    assert supplier_assessment_module_registry.registered_codes() == ["esg", "ghg", "documents"]
 
 
 @pytest.mark.asyncio
@@ -158,3 +159,55 @@ async def test_completion_facade_preserves_legacy_weighted_result(monkeypatch):
     assert updated["ghg_completion_percent"] == 50.0
     assert updated["overall_completion_percent"] == 60.0
     assert updated["invitation_status"] == "accepted"
+
+
+@pytest.mark.asyncio
+async def test_document_acceptance_is_versioned_and_contributes_to_completion(monkeypatch):
+    relationship = {
+        **_relationship(),
+        "supplier_org_id": "supplier-org-1",
+        "assessment_program_id": "program-documents",
+        "assessment_program_version": 1,
+    }
+    database = _completion_database()
+    database.supplier_relationships.docs = [relationship]
+    database.supplier_assessment_programs.docs = [{
+        "program_id": "program-documents", "version": 1,
+        "config": {"modules": {
+            "esg": {"enabled": True}, "ghg": {"enabled": True}, "documents": {"enabled": True},
+        }},
+    }]
+    database.supplier_document_requirements = _Collection([{
+        "id": "requirement-1", "customer_org_id": "customer-1", "assessment_program_id": "program-documents",
+        "assessment_program_version": 1, "document_version_id": "document-version-1", "is_active": True,
+    }])
+    database.supplier_document_versions = _Collection([{
+        "id": "document-version-1", "original_filename": "nda.pdf", "content_type": "application/pdf",
+        "file_size": 12, "version_number": 1,
+    }])
+    database.supplier_document_acceptances = _Collection([])
+    monkeypatch.setattr(documents_service, "db", database)
+    monkeypatch.setattr(programs, "db", database)
+    monkeypatch.setattr("modules.supplier_assessment.service.db", database)
+
+    document_module = next(module for module in supplier_assessment_module_registry.enabled_modules({
+        "modules": {"documents": {"enabled": True}}
+    }) if module.module_code == "documents")
+    assert (await document_module.get_completion(database, relationship)).completion_percent == 0.0
+    acceptance = await documents_service.accept_supplier_document(relationship, "requirement-1", "supplier-user-1")
+    assert acceptance["document_version_id"] == "document-version-1"
+    assert (await document_module.get_completion(database, relationship)).completion_percent == 100.0
+
+    await supplier_service._update_completion_status("relationship-1")
+    assert database.supplier_relationships.docs[0]["documents_completion_percent"] == 100.0
+    assert database.supplier_relationships.docs[0]["overall_completion_percent"] == 73.3
+
+
+@pytest.mark.asyncio
+async def test_document_version_numbers_increment_per_agreement_lineage(monkeypatch):
+    database = _Database(supplier_document_versions=[{
+        "customer_org_id": "customer-1", "document_key": "supplier-nda", "version_number": 2,
+    }])
+    monkeypatch.setattr(documents_service, "db", database)
+    assert documents_service._document_key("Supplier NDA", "ignored.pdf") == "supplier-nda"
+    assert await documents_service._next_document_version_number("customer-1", "supplier-nda") == 3

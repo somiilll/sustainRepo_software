@@ -18,7 +18,7 @@ class SupplierCreate(BaseModel):
     contact_number: Optional[str] = None
     due_date: Optional[str] = None  # ISO date string
     # Module configuration
-    modules_enabled: Optional[List[Literal["esg", "ghg"]]] = None
+    modules_enabled: Optional[List[Literal["esg", "ghg", "documents"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
 
 
@@ -30,7 +30,7 @@ class SupplierUpdate(BaseModel):
     due_date: Optional[str] = None
     is_active: Optional[bool] = None
     # Module configuration
-    modules_enabled: Optional[List[Literal["esg", "ghg"]]] = None
+    modules_enabled: Optional[List[Literal["esg", "ghg", "documents"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
 
 
@@ -61,6 +61,7 @@ class SupplierResponse(BaseModel):
     # Progress tracking
     esg_completion_percent: float = 0.0
     ghg_completion_percent: float = 0.0
+    documents_completion_percent: float = 0.0
     overall_completion_percent: float = 0.0
     esg_score: Optional[float] = None
     ghg_score: Optional[float] = None
@@ -90,6 +91,20 @@ class RevenueInfoUpdate(BaseModel):
     revenue_percentage: Optional[float] = Field(None, ge=0, le=100)
     revenue_amount: Optional[float] = Field(None, ge=0)  # Amount in currency
     revenue_currency: Optional[str] = "USD"  # Currency code
+
+
+class SupplierDocumentResponse(BaseModel):
+    """Supplier-facing organization document requirement."""
+    id: str
+    title: str
+    original_filename: str
+    content_type: str
+    file_size: int
+    document_version_id: str
+    version_number: int
+    accepted: bool
+    accepted_at: Optional[str] = None
+    created_at: str
 
 
 # ============================================================================

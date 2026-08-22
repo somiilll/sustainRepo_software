@@ -3723,6 +3723,8 @@ async def startup_event():
     await ensure_sustainability_indexes()
     from modules.supplier_assessment.programs import ensure_indexes as ensure_supplier_assessment_indexes
     await ensure_supplier_assessment_indexes()
+    from modules.supplier_assessment.documents_service import ensure_indexes as ensure_supplier_document_indexes
+    await ensure_supplier_document_indexes()
     # Seed airport reference data from CSV
     from modules.airports.service import seed_airports_from_csv
     import os

@@ -75,6 +75,8 @@ import SupplierAssessmentSuppliers from './pages/SupplierAssessmentSuppliers';
 import SupplierAssessmentESG from './pages/SupplierAssessmentESG';
 import SupplierAssessmentGHG from './pages/SupplierAssessmentGHG';
 import SupplierAssessmentRanking from './pages/SupplierAssessmentRanking';
+import SupplierDocumentsAdmin from './modules/supplier-assessment/SupplierDocumentsAdmin';
+import SupplierDocuments from './modules/supplier-assessment/SupplierDocuments';
 import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
@@ -360,10 +362,12 @@ const AppRoutes = () => {
               <SupplierAssessmentRanking />
             </AdminRoute>
           } />
+          <Route path="supplier-assessment/documents" element={<AdminRoute><SupplierDocumentsAdmin /></AdminRoute>} />
           
           {/* Supplier Portal Routes (Supplier Users) */}
           <Route path="supplier-assessment/supplier" element={<SupplierPortalDashboard />} />
           <Route path="supplier-assessment/questionnaire/:questionnaireId" element={<SupplierPortalQuestionnaire />} />
+          <Route path="supplier-assessment/documents/review" element={<SupplierDocuments />} />
           {/* supplier-assessment/emissions route removed - suppliers use main GHG Emissions flow */}
           
           <Route path="users" element={
