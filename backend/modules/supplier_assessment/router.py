@@ -234,6 +234,12 @@ async def create_training(file: UploadFile = File(...), title: str = Form(...), 
 async def list_trainings(current_user: dict = Depends(get_customer_admin)):
     return await db.supplier_training_requirements.find({"organization_id": current_user["organization_id"], "is_active": True}, {"_id": 0}).to_list(200)
 
+@router.get("/trainings/{training_id}/status")
+async def get_training_status(training_id: str, current_user: dict = Depends(get_customer_admin)):
+    status_rows = await training_service.training_status(current_user["organization_id"], training_id)
+    if status_rows is None: raise HTTPException(status_code=404, detail="Training not found")
+    return status_rows
+
 
 # ============================================================================
 # Questionnaire Management (Customer Admin)
@@ -604,7 +610,10 @@ async def get_my_trainings(current_user: dict = Depends(get_supplier_user)):
 async def save_training_progress(assignment_id: str, progress_percent: float = Form(...), current_user: dict = Depends(get_supplier_user)):
     relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
     if not relationship: raise HTTPException(status_code=404, detail="No active supplier relationship found")
-    progress = await training_service.update_progress(relationship, assignment_id, progress_percent, current_user["id"])
+    try:
+        progress = await training_service.update_progress(relationship, assignment_id, progress_percent, current_user["id"])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     if not progress: raise HTTPException(status_code=404, detail="Training assignment not found")
     await supplier_service._update_completion_status(relationship["id"])
     return progress

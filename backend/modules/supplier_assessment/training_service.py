@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
+from modules.supplier_assessment.programs import get_or_create_program_revision, resolve_program_context
 
 TRAINING_BUCKET = "supplier_assessment"
 TRAINING_FOLDER = "supplier-assessment/training"
@@ -31,6 +32,11 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
     await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
     assignments=[]
     for relationship in relationships:
+        context = await resolve_program_context(relationship)
+        program_config = context["config"].copy()
+        program_config["modules"] = {**program_config.get("modules", {}), "training": {"enabled": True}}
+        revision = await get_or_create_program_revision(org_id, program_config, user_id)
+        await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$set": {"assessment_program_id": revision["program_id"], "assessment_program_version": revision["version"], "training_completion_percent": 0.0, "updated_at": now}})
         assignment={"id":str(uuid.uuid4()),"supplier_relationship_id":relationship["id"],"organization_id":org_id,"training_requirement_id":requirement_id,"requirement_version_id":version_id,"assigned_at":now,"is_active":True}
         await db.supplier_training_assignments.insert_one(assignment); assignment.pop("_id",None); assignments.append(assignment)
     for doc in (content_doc, version, requirement): doc.pop("_id", None)
@@ -47,8 +53,10 @@ async def supplier_trainings(relationship: Dict[str, Any]):
     return result
 
 async def update_progress(relationship: Dict[str, Any], assignment_id: str, percent: float, user_id: str):
+    if not 0 <= percent <= 100:
+        raise ValueError("Progress must be between 0 and 100")
     assignment=await db.supplier_training_assignments.find_one({"id":assignment_id,"supplier_relationship_id":relationship["id"],"is_active":True},{"_id":0})
-    if not assignment or not 0 <= percent <= 100: return None
+    if not assignment: return None
     requirement=await db.supplier_training_requirements.find_one({"id":assignment["training_requirement_id"]},{"_id":0})
     status="completed" if percent >= requirement["completion_threshold"] else ("in_progress" if percent else "not_started")
     existing=await db.supplier_training_progress.find_one({"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"]},{"_id":0})
@@ -59,6 +67,17 @@ async def training_file_for_supplier(relationship: Dict[str, Any], assignment_id
     assignment = await db.supplier_training_assignments.find_one({"id": assignment_id, "supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0})
     if not assignment: return None
     return await db.supplier_training_versions.find_one({"id": assignment["requirement_version_id"]}, {"_id": 0})
+
+async def training_status(org_id: str, requirement_id: str) -> Optional[List[Dict[str, Any]]]:
+    requirement = await db.supplier_training_requirements.find_one({"id": requirement_id, "organization_id": org_id, "is_active": True}, {"_id": 0})
+    if not requirement: return None
+    assignments = await db.supplier_training_assignments.find({"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": True}, {"_id": 0}).to_list(1000)
+    result=[]
+    for assignment in assignments:
+        relationship=await db.supplier_relationships.find_one({"id":assignment["supplier_relationship_id"],"customer_org_id":org_id},{"_id":0,"company_name":1})
+        progress=await db.supplier_training_progress.find_one({"training_assignment_id":assignment["id"]},{"_id":0})
+        if relationship: result.append({"supplier_relationship_id":assignment["supplier_relationship_id"],"supplier_name":relationship.get("company_name"),"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started")})
+    return result
 
 async def ensure_indexes():
     await db.supplier_training_contents.create_index("id", unique=True)
