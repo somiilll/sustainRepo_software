@@ -16,6 +16,7 @@ const SUPPLIER_ALLOWED_ROUTES = [
   '/facilities',
   '/supplier-assessment/supplier',
   '/supplier-assessment/questionnaire',
+  '/supplier-assessment/documents/review',
   '/ghg/scope1',
   '/ghg/scope2',
   '/ghg/scope3',

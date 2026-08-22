@@ -100,6 +100,14 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **Explicitly deferred:** supplier uploads, VIEW/ACCEPT/UPLOAD/ACCEPT+UPLOAD rule configuration, document replacement UI, document deletion, submission workflow, Training, PPT conversion, video/audio processing, and all `calc_engine` changes.
 - **Verified:** Scoped backend suite passed (21 tests); authenticated admin list endpoint and frontend agreement page smoke passed; independent validation passed auth boundaries and scoped tests. **MOCKED:** Live R2 upload/accept mutation was intentionally not run to avoid creating preview data.
 
+### Session 5 (2026-08-22) — Documents P0 Verification and Hardening
+- **VERIFIED:** The focused tranche is canonical and passes organization/supplier authorization, immutable acceptance, exact document-version acceptance history, supplier isolation, two-supplier acceptance of one version, lineaged version numbering (1→2→3; separate lineage→1), and Documents completion updates.
+- **VERIFIED LIVE:** Controlled disposable objects were written/read/presigned/deleted in `R2_BUCKET_ORG_FACILITY=organization-facility-data-dev` under `supplier-assessment/verification/<uuid>`. Controlled temporary Mongo program/relationship/document/acceptance records were created, completion recalculated, and all verified deleted.
+- **HARDENED:** Added regression coverage in `test_supplier_documents_p0.py`. Live mutation verification is now opt-in only via `RUN_LIVE_SUPPLIER_DOCUMENTS_P0=1`, preventing routine test runs from writing R2 or Mongo data.
+- **FIXED:** The existing supplier review page was unintentionally covered by Layout's supplier premium gate. Added `/supplier-assessment/documents/review` to the established supplier allowlist; signed-in supplier smoke now renders the agreement page without the gate.
+- **Latest tests:** normal focused suite: **17 passed, 3 opt-in live tests skipped**; explicit live gate: **3 passed**; combined verification: **20 passed** (one existing passlib deprecation warning). No Training or `calc_engine` files were modified.
+- **Remaining verification boundary:** No live multipart admin upload was sent to the production-like customer organization because that would rebind live assessment relationships/configuration. R2 lifecycle, upload metadata, acceptance persistence, and completion are verified through controlled disposable records and focused tests.
+
 ## Known Issues
 
 ### P0: Process Emissions and Custom Fuel Density Payload Loss
