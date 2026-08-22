@@ -93,6 +93,13 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **Verified:** Python lint and compilation clean; focused Phase 1 + GHG configuration tests passed (19 total locally); independent backend validation passed (12/12) and live `/api/sustainability-config/resolved` smoke passed. No APIs are **MOCKED**.
 - **Known pre-existing test state:** Full GHG golden suite is currently red from prior baseline/live configuration drift outside this phase. No `calc_engine` file or golden artifact was modified.
 
+### Session 4 (2026-08-22) — Focused Supplier Documents: NDA/Agreement Acceptance
+- **DONE:** Implemented only the client-required agreement flow: customer admin uploads one PDF/DOC/DOCX NDA or agreement to existing private R2 storage; suppliers assigned to the resulting program revision can list, open via a 15-minute signed URL, and accept it.
+- **DONE:** Added immutable `supplier_document_versions`, revision-bound `supplier_document_requirements`, and immutable `supplier_document_acceptances`. Acceptance records the exact `document_version_id`; numeric version labels increment per normalized agreement lineage.
+- **DONE:** Registered the Documents completion adapter. Documents influence completion for the newly revision-bound assessment only; legacy unbound ESG/GHG relationships retain their prior behavior. Admin and supplier agreement pages are available at `/supplier-assessment/documents` and `/supplier-assessment/documents/review`.
+- **Explicitly deferred:** supplier uploads, VIEW/ACCEPT/UPLOAD/ACCEPT+UPLOAD rule configuration, document replacement UI, document deletion, submission workflow, Training, PPT conversion, video/audio processing, and all `calc_engine` changes.
+- **Verified:** Scoped backend suite passed (21 tests); authenticated admin list endpoint and frontend agreement page smoke passed; independent validation passed auth boundaries and scoped tests. **MOCKED:** Live R2 upload/accept mutation was intentionally not run to avoid creating preview data.
+
 ## Known Issues
 
 ### P0: Process Emissions and Custom Fuel Density Payload Loss
@@ -128,7 +135,7 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 
 ### P0 — Supplier Assessment (gated)
 - Phase 1 Compatibility Foundation — **DONE (2026-08-22)**
-- Phase 2: Documents module requirements, immutable versions, R2 access, acceptance/upload logic — blocked until Phase 1 user verification.
+- Phase 2: Documents module — **focused agreement upload/view/accept/completion tranche DONE (2026-08-22)**. Remaining: configurable rule modes, supplier-upload rules, replacement/deletion management, and broader document administration.
 - Phase 3: Training content management and tracked media/slide progress — blocked until Phase 2 verification.
 - Phase 4: Supplier module-driven dashboard — blocked until Phases 2–3.
 - Phase 5: Organization/Admin program, document, and training configuration UX — blocked until Phases 2–4.

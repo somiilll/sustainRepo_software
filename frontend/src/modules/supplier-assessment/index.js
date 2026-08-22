@@ -11,3 +11,5 @@ export { default as SupplierGHGView } from './SupplierGHGView';
 export { default as SupplierDashboard } from './SupplierDashboard';
 export { default as SupplierQuestionnaire } from './SupplierQuestionnaire';
 export { default as SupplierEmissions } from './SupplierEmissions';
+export { default as SupplierDocuments } from './SupplierDocuments';
+export { default as SupplierDocumentsAdmin } from './SupplierDocumentsAdmin';

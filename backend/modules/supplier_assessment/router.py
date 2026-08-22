@@ -2,7 +2,7 @@
 Supplier Assessment Router - API endpoints for supplier management.
 """
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 
 from modules.auth.dependencies import get_current_user, get_admin_user
 from modules.supplier_assessment.service import supplier_service
@@ -24,7 +24,9 @@ from modules.supplier_assessment.contracts import (
     ReminderSend,
     SupplierEmissionCreate,
     SupplierEmissionResponse,
+    SupplierDocumentResponse,
 )
+from modules.supplier_assessment import documents_service
 from shared.database.mongo import db
 
 router = APIRouter(prefix="/supplier-assessment", tags=["Supplier Assessment"])
@@ -181,6 +183,41 @@ async def send_reminder(
     if success:
         return {"message": "Reminder sent"}
     raise HTTPException(status_code=500, detail="Failed to send reminder")
+
+
+# ============================================================================
+# Organization Agreements (Documents Module — focused NDA/agreement flow)
+# ============================================================================
+
+@router.get("/documents")
+async def list_documents(current_user: dict = Depends(get_customer_admin)):
+    """List this customer's active supplier-agreement requirements."""
+    return await documents_service.list_customer_documents(current_user["organization_id"])
+
+
+@router.post("/documents")
+async def upload_document(
+    file: UploadFile = File(...),
+    title: str = Form(default=""),
+    current_user: dict = Depends(get_customer_admin),
+):
+    """Publish one organization NDA/agreement for the active supplier assessment program."""
+    try:
+        result = await documents_service.publish_agreement(
+            customer_org_id=current_user["organization_id"],
+            created_by=current_user["id"],
+            filename=file.filename or "agreement",
+            content_type=file.content_type or "application/octet-stream",
+            content=await file.read(),
+            title=title,
+        )
+        for relationship_id in result["affected_relationship_ids"]:
+            await supplier_service._update_completion_status(relationship_id)
+        return {"requirements": result["requirements"], "version": result["version"]}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=f"Failed to publish agreement: {error}")
 
 
 # ============================================================================
@@ -485,6 +522,62 @@ async def update_my_revenue(
     if success:
         return {"message": "Revenue information updated"}
     raise HTTPException(status_code=400, detail="Failed to update")
+
+
+@router.get("/my-assessment/documents", response_model=List[SupplierDocumentResponse])
+async def get_my_documents(current_user: dict = Depends(get_supplier_user)):
+    """List the current agreement versions required by this supplier's program."""
+    relationship = await supplier_service.get_supplier_relationship_for_user(
+        user_id=current_user["id"], user_org_id=current_user["organization_id"]
+    )
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    return await documents_service.list_supplier_documents(relationship)
+
+
+@router.get("/my-assessment/documents/{requirement_id}/view")
+async def get_my_document_view_url(
+    requirement_id: str,
+    current_user: dict = Depends(get_supplier_user),
+):
+    """Authorize the supplier and return a short-lived URL for the exact agreement version."""
+    relationship = await supplier_service.get_supplier_relationship_for_user(
+        user_id=current_user["id"], user_org_id=current_user["organization_id"]
+    )
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    document = await documents_service.get_supplier_document(relationship, requirement_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    from r2_storage import get_r2_storage
+    version = document["version"]
+    try:
+        return {"url": get_r2_storage().generate_presigned_url(
+            version["bucket_type"], version["r2_key"], expiration=900,
+            response_content_disposition=f"inline; filename={version['original_filename']}",
+        )}
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=f"Failed to open agreement: {error}")
+
+
+@router.post("/my-assessment/documents/{requirement_id}/accept")
+async def accept_my_document(
+    requirement_id: str,
+    current_user: dict = Depends(get_supplier_user),
+):
+    """Record an immutable acceptance for the currently assigned agreement version."""
+    relationship = await supplier_service.get_supplier_relationship_for_user(
+        user_id=current_user["id"], user_org_id=current_user["organization_id"]
+    )
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    acceptance = await documents_service.accept_supplier_document(
+        relationship, requirement_id, current_user["id"]
+    )
+    if not acceptance:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    await supplier_service._update_completion_status(relationship["id"])
+    return {"acceptance": acceptance}
 
 
 @router.get("/my-assessment/questionnaires")

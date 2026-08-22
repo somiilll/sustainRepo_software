@@ -72,6 +72,42 @@ class GhgAssessmentModule(SupplierAssessmentModule):
         )
 
 
+class DocumentsAssessmentModule(SupplierAssessmentModule):
+    """Completion adapter for organization-provided agreements only."""
+    module_code = "documents"
+    legacy_completion_field = "documents_completion_percent"
+
+    async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
+        requirements = await database.supplier_document_requirements.find(
+            {
+                "customer_org_id": relationship["customer_org_id"],
+                "assessment_program_id": relationship.get("assessment_program_id"),
+                "assessment_program_version": relationship.get("assessment_program_version"),
+                "is_active": True,
+            },
+            {"_id": 0, "id": 1, "document_version_id": 1},
+        ).to_list(100)
+        if not requirements:
+            return ModuleCompletion(self.module_code, 100.0, self.legacy_completion_field)
+
+        accepted = 0
+        for requirement in requirements:
+            acceptance = await database.supplier_document_acceptances.find_one(
+                {
+                    "supplier_relationship_id": relationship["id"],
+                    "document_requirement_id": requirement["id"],
+                    "document_version_id": requirement["document_version_id"],
+                },
+                {"_id": 0, "id": 1},
+            )
+            accepted += int(acceptance is not None)
+        return ModuleCompletion(
+            self.module_code,
+            (accepted / len(requirements)) * 100,
+            self.legacy_completion_field,
+        )
+
+
 class SupplierAssessmentModuleRegistry:
     """Registry lookup replaces module-specific orchestration branches."""
     def __init__(self, modules: Iterable[SupplierAssessmentModule]):
@@ -91,4 +127,5 @@ class SupplierAssessmentModuleRegistry:
 supplier_assessment_module_registry = SupplierAssessmentModuleRegistry([
     EsgAssessmentModule(),
     GhgAssessmentModule(),
+    DocumentsAssessmentModule(),
 ])
