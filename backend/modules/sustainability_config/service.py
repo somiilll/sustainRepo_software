@@ -44,6 +44,36 @@ def _alias_values(alias_rules: list, section: str, category: str, subcategory: s
 _coll = lambda: db["organization_config"]
 
 
+DEFAULT_SUPPLIER_ASSESSMENT_CONFIG = {
+    "modules": {
+        "esg": {"enabled": True},
+        "ghg": {"enabled": True, "scopes": ["scope1", "scope2"]},
+        "documents": {"enabled": False},
+        "training": {"enabled": False},
+    }
+}
+
+
+def resolve_supplier_assessment_config_from_org_config(org_cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Resolve the supplier-assessment module shape without creating another config store."""
+    resolved = {
+        "modules": {
+            code: dict(module_config)
+            for code, module_config in DEFAULT_SUPPLIER_ASSESSMENT_CONFIG["modules"].items()
+        }
+    }
+    configured_modules = ((org_cfg or {}).get("supplier_assessment") or {}).get("modules") or {}
+    for code, module_config in configured_modules.items():
+        if code in resolved["modules"] and isinstance(module_config, dict):
+            resolved["modules"][code].update(module_config)
+    return resolved
+
+
+async def resolve_supplier_assessment_config(org_id: str) -> Dict[str, Any]:
+    """Return the effective supplier-assessment configuration for an organization."""
+    return resolve_supplier_assessment_config_from_org_config(await get_org_config(org_id))
+
+
 # =========================================================================
 # CRUD
 # =========================================================================
@@ -81,6 +111,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             "features": data.get("features", {}),
             "ai_query_aliases": data.get("ai_query_aliases", []),
             "ghg_overrides": data.get("ghg_overrides", {}),
+            "supplier_assessment": data.get("supplier_assessment", DEFAULT_SUPPLIER_ASSESSMENT_CONFIG),
             "created_at": now,
             "updated_at": now,
             "created_by": user_id,
@@ -248,6 +279,7 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         "disabled_modules": disabled_subcats,
         "ai_query_aliases": org_cfg.get("ai_query_aliases") or [],
         "ghg_overrides": org_cfg.get("ghg_overrides") or {},
+        "supplier_assessment": resolve_supplier_assessment_config_from_org_config(org_cfg),
     }
 
 

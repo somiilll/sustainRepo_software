@@ -13,6 +13,13 @@ from modules.supplier_assessment.email_templates import (
     supplier_invitation_email,
     supplier_reminder_email,
 )
+from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
+from modules.supplier_assessment.programs import (
+    apply_legacy_request_overrides,
+    bind_current_program,
+    get_or_create_program_revision,
+    resolve_program_context,
+)
 
 
 class SupplierAssessmentService:
@@ -42,12 +49,6 @@ class SupplierAssessmentService:
         3. Generate temp password and send invitation email
         4. Create supplier_relationship record
         """
-        # Default module configuration
-        if modules_enabled is None:
-            modules_enabled = ["esg", "ghg"]
-        if ghg_scopes_enabled is None:
-            ghg_scopes_enabled = ["scope1", "scope2"]
-        
         # Check if supplier org already exists with this email
         existing_user = await db.users.find_one(
             {"email": email, "is_deleted": {"$ne": True}},
@@ -112,6 +113,21 @@ class SupplierAssessmentService:
             }
             await db.users.insert_one(supplier_user)
         
+        # Bind the relationship to an immutable assessment program revision. The
+        # relationship keeps its established denormalized fields for existing APIs.
+        program_revision = await bind_current_program(
+            customer_org_id=customer_org_id,
+            created_by=created_by,
+            modules_enabled=modules_enabled,
+            ghg_scopes_enabled=ghg_scopes_enabled,
+        )
+        program_modules = program_revision["config"]["modules"]
+        modules_enabled = [
+            code for code in supplier_assessment_module_registry.registered_codes()
+            if (program_modules.get(code) or {}).get("enabled", False)
+        ]
+        ghg_scopes_enabled = (program_modules.get("ghg") or {}).get("scopes", ["scope1", "scope2"])
+
         # Create supplier relationship
         relationship_id = str(uuid.uuid4())
         relationship = {
@@ -131,6 +147,8 @@ class SupplierAssessmentService:
             # Module configuration
             "modules_enabled": modules_enabled,
             "ghg_scopes_enabled": ghg_scopes_enabled,
+            "assessment_program_id": program_revision["program_id"],
+            "assessment_program_version": program_revision["version"],
             # Progress tracking
             "esg_completion_percent": 0.0,
             "ghg_completion_percent": 0.0,
@@ -229,6 +247,23 @@ class SupplierAssessmentService:
         updates: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         """Update supplier relationship."""
+        relationship = await self.get_supplier(relationship_id)
+        if not relationship:
+            return None
+
+        if "modules_enabled" in updates or "ghg_scopes_enabled" in updates:
+            context = await resolve_program_context(relationship)
+            effective_config = apply_legacy_request_overrides(
+                context["config"],
+                updates.get("modules_enabled"),
+                updates.get("ghg_scopes_enabled"),
+            )
+            revision = await get_or_create_program_revision(
+                relationship["customer_org_id"], effective_config, relationship["created_by"]
+            )
+            updates["assessment_program_id"] = revision["program_id"]
+            updates["assessment_program_version"] = revision["version"]
+
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         await db.supplier_relationships.update_one(
@@ -919,54 +954,34 @@ class SupplierAssessmentService:
             return 100.0 if answer else 0.0
     
     async def _update_completion_status(self, relationship_id: str):
-        """Update completion percentages for a supplier relationship."""
+        """Compatibility facade delegating completion to registered assessment modules."""
         relationship = await db.supplier_relationships.find_one(
             {"id": relationship_id},
             {"_id": 0}
         )
         if not relationship:
             return
-        
-        # Calculate ESG completion
-        questionnaires = await db.supplier_questionnaires.find(
-            {"organization_id": relationship["customer_org_id"], "is_active": True},
-            {"_id": 0, "id": 1}
-        ).to_list(100)
-        
-        if questionnaires:
-            total_completion = 0.0
-            for q in questionnaires:
-                response = await db.supplier_questionnaire_responses.find_one(
-                    {
-                        "questionnaire_id": q["id"],
-                        "supplier_relationship_id": relationship_id,
-                    },
-                    {"_id": 0}
-                )
-                if response:
-                    total_questions = await db.supplier_questions.count_documents(
-                        {"questionnaire_id": q["id"], "is_active": True}
-                    )
-                    answered = len([a for a in response.get("answers", {}).values() if a is not None])
-                    if total_questions > 0:
-                        total_completion += (answered / total_questions) * 100
-            
-            esg_completion = total_completion / len(questionnaires) if questionnaires else 0.0
+        context = await resolve_program_context(relationship)
+        enabled_modules = supplier_assessment_module_registry.enabled_modules(context["config"])
+        completions = [
+            await module.get_completion(db, relationship)
+            for module in enabled_modules
+        ]
+        completion_by_code = {completion.module_code: completion for completion in completions}
+        total_module_weight = sum(module.legacy_weight for module in enabled_modules)
+        module_completion = sum(
+            completion_by_code[module.module_code].completion_percent * module.legacy_weight
+            for module in enabled_modules
+        )
+        if context["is_legacy"]:
+            module_completion /= 100.0
+        elif total_module_weight:
+            module_completion = (module_completion / total_module_weight) * 0.8
         else:
-            esg_completion = 0.0
-        
-        # Calculate GHG completion (simplified: has any emissions = 50%, has for all scopes = 100%)
-        ghg_count = await db.emission_records.count_documents({
-            "source": "supplier",
-            "supplier_relationship_id": relationship_id,
-        })
-        ghg_completion = min(100.0, ghg_count * 25)  # Each record adds 25%
-        
-        # Revenue percentage counts as part of overall
-        revenue_done = 1 if relationship.get("revenue_percentage") is not None else 0
-        
-        # Overall = weighted average (ESG 40%, GHG 40%, Revenue 20%)
-        overall_completion = (esg_completion * 0.4) + (ghg_completion * 0.4) + (revenue_done * 100 * 0.2)
+            module_completion = 0.0
+
+        revenue_completion = 20.0 if relationship.get("revenue_percentage") is not None else 0.0
+        overall_completion = module_completion + revenue_completion
         
         # Update status
         status = "pending"
@@ -975,15 +990,18 @@ class SupplierAssessmentService:
         if overall_completion >= 100:
             status = "completed"
         
+        update_fields = {
+            completion.legacy_field: round(completion.completion_percent, 1)
+            for completion in completions
+        }
+        update_fields.update({
+            "overall_completion_percent": round(overall_completion, 1),
+            "invitation_status": status,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
         await db.supplier_relationships.update_one(
             {"id": relationship_id},
-            {"$set": {
-                "esg_completion_percent": round(esg_completion, 1),
-                "ghg_completion_percent": round(ghg_completion, 1),
-                "overall_completion_percent": round(overall_completion, 1),
-                "invitation_status": status,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }}
+            {"$set": update_fields}
         )
     
     # ========================================================================

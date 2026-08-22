@@ -36,6 +36,7 @@ async def get_org_config(
             "features": {},
             "ai_query_aliases": [],
             "ghg_overrides": {},
+            "supplier_assessment": service.DEFAULT_SUPPLIER_ASSESSMENT_CONFIG,
         }
     return cfg
 
@@ -64,6 +65,8 @@ async def update_org_config(
         payload["ai_query_aliases"] = [rule.model_dump() for rule in data.ai_query_aliases]
     if data.ghg_overrides is not None:
         payload["ghg_overrides"] = data.ghg_overrides.model_dump(exclude_none=True)
+    if data.supplier_assessment is not None:
+        payload["supplier_assessment"] = data.supplier_assessment.model_dump()
 
     result = await service.upsert_org_config(org_id, payload, current_user["id"])
     return result

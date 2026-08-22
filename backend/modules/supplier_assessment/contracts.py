@@ -18,8 +18,8 @@ class SupplierCreate(BaseModel):
     contact_number: Optional[str] = None
     due_date: Optional[str] = None  # ISO date string
     # Module configuration
-    modules_enabled: List[Literal["esg", "ghg"]] = ["esg", "ghg"]  # Default: both enabled
-    ghg_scopes_enabled: List[Literal["scope1", "scope2"]] = ["scope1", "scope2"]  # Default: both scopes
+    modules_enabled: Optional[List[Literal["esg", "ghg"]]] = None
+    ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
 
 
 class SupplierUpdate(BaseModel):
@@ -69,6 +69,8 @@ class SupplierResponse(BaseModel):
     created_by: str
     created_at: str
     updated_at: Optional[str] = None
+    assessment_program_id: Optional[str] = None
+    assessment_program_version: Optional[int] = None
 
 
 class SupplierListResponse(BaseModel):
