@@ -108,6 +108,13 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **Latest tests:** normal focused suite: **17 passed, 3 opt-in live tests skipped**; explicit live gate: **3 passed**; combined verification: **20 passed** (one existing passlib deprecation warning). No Training or `calc_engine` files were modified.
 - **Remaining verification boundary:** No live multipart admin upload was sent to the production-like customer organization because that would rebind live assessment relationships/configuration. R2 lifecycle, upload metadata, acceptance persistence, and completion are verified through controlled disposable records and focused tests.
 
+### Session 6 (2026-08-22) — Supplier Training P0 Tranche
+- **DONE:** Added the focused Training model: immutable `supplier_training_contents` and `supplier_training_versions`; organization-owned `supplier_training_requirements`; relationship-backed `supplier_training_assignments`; and mutable, auditable `supplier_training_progress` that preserves the exact immutable `training_version_id` completed.
+- **DONE:** Added admin Training creation/assignment/status routes and pages, plus supplier Training list, protected content URL, and progress routes/pages. Thresholds are per requirement (1–100): `0` is Not Started, values below the threshold are In Progress, and values at/above it are Completed.
+- **DONE:** Training uses the existing R2 client under the dedicated `supplier_assessment` bucket mapping: `R2_BUCKET_SUPPLIER_ASSESSMENT=supplier-assessment-dev`. Training-only audio/video types and up-to-250MB training files are supported without changing global upload limits.
+- **VERIFIED:** Normal focused regression gate: **16 passed, 2 opt-in live tests skipped**. Explicit controlled live R2 gate: **2 passed**. Disposable R2 training object and temporary Mongo content/version/requirement/assignment/progress/program rows were deleted; supplier Training page smoke passed without the premium gate.
+- **FIXED:** Invalid out-of-range progress now returns API 400, while an unknown assignment remains 404. Documents, Supplier ESG/GHG functionality, and `calc_engine` were not modified.
+
 ## Known Issues
 
 ### P0: Process Emissions and Custom Fuel Density Payload Loss
@@ -144,7 +151,7 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 ### P0 — Supplier Assessment (gated)
 - Phase 1 Compatibility Foundation — **DONE (2026-08-22)**
 - Phase 2: Documents module — **focused agreement upload/view/accept/completion tranche DONE (2026-08-22)**. Remaining: configurable rule modes, supplier-upload rules, replacement/deletion management, and broader document administration.
-- Phase 3: Training content management and tracked media/slide progress — blocked until Phase 2 verification.
+- Phase 3: Focused Training content, assignment, protected access, threshold completion, and live-R2 cleanup — **DONE (2026-08-22)**. PPT slide conversion and byte-range media telemetry remain intentionally deferred.
 - Phase 4: Supplier module-driven dashboard — blocked until Phases 2–3.
 - Phase 5: Organization/Admin program, document, and training configuration UX — blocked until Phases 2–4.
 - Phase 6: Completion/submission integration — blocked until prior Supplier Assessment phases.
