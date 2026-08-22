@@ -16,6 +16,9 @@ class SupplierAssessmentModule(ABC):
     module_code: str
     legacy_completion_field: str
     legacy_weight: float = 40.0
+    default_display_name: str
+    supplier_path: str
+    supplier_description: str
 
     @abstractmethod
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
@@ -25,6 +28,9 @@ class SupplierAssessmentModule(ABC):
 class EsgAssessmentModule(SupplierAssessmentModule):
     module_code = "esg"
     legacy_completion_field = "esg_completion_percent"
+    default_display_name = "ESG Questionnaire"
+    supplier_path = "/supplier-assessment/supplier"
+    supplier_description = "Complete the questionnaires assigned by your customer."
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
         questionnaires = await database.supplier_questionnaires.find(
@@ -59,6 +65,9 @@ class EsgAssessmentModule(SupplierAssessmentModule):
 class GhgAssessmentModule(SupplierAssessmentModule):
     module_code = "ghg"
     legacy_completion_field = "ghg_completion_percent"
+    default_display_name = "GHG Emissions"
+    supplier_path = "/ghg/scope1"
+    supplier_description = "Report the greenhouse gas data requested by your customer."
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
         record_count = await database.emission_records.count_documents({
@@ -76,6 +85,9 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
     """Completion adapter for organization-provided agreements only."""
     module_code = "documents"
     legacy_completion_field = "documents_completion_percent"
+    default_display_name = "Documents"
+    supplier_path = "/supplier-assessment/documents/review"
+    supplier_description = "Review and accept the documents shared by your customer."
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
         requirements = await database.supplier_document_requirements.find(
@@ -111,6 +123,9 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
 class TrainingAssessmentModule(SupplierAssessmentModule):
     module_code = "training"
     legacy_completion_field = "training_completion_percent"
+    default_display_name = "Training"
+    supplier_path = "/supplier-assessment/training"
+    supplier_description = "Complete the training assigned by your customer."
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
         assignments = await database.supplier_training_assignments.find(
@@ -137,6 +152,22 @@ class SupplierAssessmentModuleRegistry:
         return [
             module for code, module in self._modules.items()
             if (module_config.get(code) or {}).get("enabled", False)
+        ]
+
+    def supplier_module_summaries(
+        self, program_config: Dict[str, Any], relationship: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Serialize enabled module metadata for the supplier UI from the bound program revision."""
+        module_config = program_config.get("modules") or {}
+        return [
+            {
+                "code": module.module_code,
+                "display_name": (module_config.get(module.module_code) or {}).get("display_name") or module.default_display_name,
+                "completion_percent": relationship.get(module.legacy_completion_field, 0.0),
+                "supplier_path": module.supplier_path,
+                "description": module.supplier_description,
+            }
+            for module in self.enabled_modules(program_config)
         ]
 
 

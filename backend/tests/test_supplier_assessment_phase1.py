@@ -104,6 +104,35 @@ def test_supplier_assessment_configuration_supports_future_schema_without_module
     assert resolved["modules"]["training"]["enabled"] is False
 
 
+def test_supplier_assessment_configuration_supports_registered_workflow_labels():
+    payload = OrganizationConfigUpdate.model_validate({
+        "supplier_assessment": {
+            "modules": {
+                "esg": {"enabled": False, "display_name": "Supplier ESG"},
+                "ghg": {"enabled": True, "display_name": "Carbon Data", "scopes": ["scope1"]},
+                "documents": {"enabled": True, "display_name": "Compliance Documents"},
+                "training": {"enabled": True, "display_name": "Safety Learning"},
+            }
+        }
+    })
+    resolved = resolve_supplier_assessment_config_from_org_config(payload.model_dump())
+    assert resolved["modules"]["documents"] == {"enabled": True, "display_name": "Compliance Documents"}
+    assert resolved["modules"]["training"]["display_name"] == "Safety Learning"
+
+
+def test_registry_serializes_enabled_module_labels_for_supplier_screens():
+    summaries = supplier_assessment_module_registry.supplier_module_summaries({
+        "modules": {
+            "documents": {"enabled": True, "display_name": "Compliance Documents"},
+            "training": {"enabled": True},
+        }
+    }, {"documents_completion_percent": 75.0, "training_completion_percent": 40.0})
+    assert summaries == [
+        {"code": "documents", "display_name": "Compliance Documents", "completion_percent": 75.0, "supplier_path": "/supplier-assessment/documents/review", "description": "Review and accept the documents shared by your customer."},
+        {"code": "training", "display_name": "Training", "completion_percent": 40.0, "supplier_path": "/supplier-assessment/training", "description": "Complete the training assigned by your customer."},
+    ]
+
+
 def test_registry_registers_only_phase_one_adapters():
     assert supplier_assessment_module_registry.registered_codes() == ["esg", "ghg", "documents", "training"]
 

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, 
 
 from modules.auth.dependencies import get_current_user, get_admin_user
 from modules.supplier_assessment.service import supplier_service
+from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.contracts import (
     SupplierCreate,
     SupplierUpdate,
@@ -512,9 +513,13 @@ async def get_my_assessment(
         {"_id": 0, "name": 1}
     )
     
+    program_context = await supplier_service.get_program_context(relationship)
     return {
         "relationship": relationship,
         "customer_name": customer_org.get("name") if customer_org else None,
+        "assessment_modules": supplier_assessment_module_registry.supplier_module_summaries(
+            program_context["config"], relationship
+        ),
     }
 
 

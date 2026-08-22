@@ -156,6 +156,7 @@ class SupplierAssessmentModuleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool
+    display_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
 
 
 class SupplierAssessmentGhgModuleConfig(SupplierAssessmentModuleConfig):
@@ -164,7 +165,7 @@ class SupplierAssessmentGhgModuleConfig(SupplierAssessmentModuleConfig):
 
 
 class SupplierAssessmentModulesConfig(BaseModel):
-    """Declarative module configuration. Documents/training are schema-only in Phase 1."""
+    """Declarative module configuration for registered supplier-assessment workflows."""
     model_config = ConfigDict(extra="forbid")
 
     esg: SupplierAssessmentModuleConfig = Field(default_factory=lambda: SupplierAssessmentModuleConfig(enabled=True))

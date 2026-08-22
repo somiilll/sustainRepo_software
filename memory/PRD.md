@@ -115,6 +115,13 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **VERIFIED:** Normal focused regression gate: **16 passed, 2 opt-in live tests skipped**. Explicit controlled live R2 gate: **2 passed**. Disposable R2 training object and temporary Mongo content/version/requirement/assignment/progress/program rows were deleted; supplier Training page smoke passed without the premium gate.
 - **FIXED:** Invalid out-of-range progress now returns API 400, while an unknown assignment remains 404. Documents, Supplier ESG/GHG functionality, and `calc_engine` were not modified.
 
+### Session 7 (2026-08-22) — Superadmin Supplier Assessment Module Catalog
+- **DONE:** Added a Supplier Assessment tab under Superadmin → Org Config. Per organization, Superadmins can enable/disable the registered ESG, GHG, Documents, and Training workflows; configure GHG Scope 1/Scope 2; and set the supplier-facing display name for every workflow (for example, `Compliance Documents`).
+- **DONE:** Added `display_name` to the validated supplier-assessment module configuration and preserved it in immutable assessment-program revisions. The Module Registry now serializes enabled module metadata—code, display name, completion, route, and description—for supplier-facing surfaces without module-specific completion branches.
+- **DONE:** Supplier Dashboard module progress now uses the bound program’s enabled-module metadata and labels. Disabled ESG/GHG panels are not shown; custom Document/Training labels are ready for the module-driven dashboard expansion.
+- **HARDENED:** Documents and Training are now controlled by the authoritative organization setting. Publishing an agreement or assigning training is rejected while its workflow is disabled; neither action silently re-enables a module. Existing immutable document/training content and completion behavior remain unchanged.
+- **VERIFIED:** Superadmin read-only browser smoke passed after selecting ORG1 and opening the Supplier Assessment tab. Independent validation passed 21/21 focused backend tests and the supplier metadata contract. Root-level focused test execution now works through `pytest.ini`: 20 passed locally. No R2 uploads or live organization-config mutations were made. **MOCKED:** none.
+
 ## Known Issues
 
 ### P0: Process Emissions and Custom Fuel Density Payload Loss
@@ -152,8 +159,8 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Phase 1 Compatibility Foundation — **DONE (2026-08-22)**
 - Phase 2: Documents module — **focused agreement upload/view/accept/completion tranche DONE (2026-08-22)**. Remaining: configurable rule modes, supplier-upload rules, replacement/deletion management, and broader document administration.
 - Phase 3: Focused Training content, assignment, protected access, threshold completion, and live-R2 cleanup — **DONE (2026-08-22)**. PPT slide conversion and byte-range media telemetry remain intentionally deferred.
-- Phase 4: Supplier module-driven dashboard — blocked until Phases 2–3.
-- Phase 5: Organization/Admin program, document, and training configuration UX — blocked until Phases 2–4.
+- Phase 4: Supplier module-driven dashboard — **PARTIALLY DONE (2026-08-22):** registry-backed module labels/progress and ESG/GHG visibility. Remaining: module-specific action cards/routes for Documents and Training, richer module status, and responsive supplier flow closeout.
+- Phase 5: Organization/Admin program, document, and training configuration UX — **PARTIALLY DONE (2026-08-22):** Superadmin organization-level registered workflow selection and display names. Remaining: customer-admin program/document/training configuration and management UX.
 - Phase 6: Completion/submission integration — blocked until prior Supplier Assessment phases.
 - Phase 7: Cross-suite hardening and compatibility regression gate — blocked until prior Supplier Assessment phases.
 

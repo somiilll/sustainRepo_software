@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
 from modules.supplier_assessment.programs import get_or_create_program_revision, resolve_program_context
+from modules.sustainability_config import service as sustainability_config_service
 
 TRAINING_BUCKET = "supplier_assessment"
 TRAINING_FOLDER = "supplier-assessment/training"
@@ -21,6 +22,9 @@ def _now(): return datetime.now(timezone.utc).isoformat()
 async def create_training(org_id: str, user_id: str, title: str, description: str, threshold: float, file_name: str, content_type: str, content: bytes, relationship_ids: List[str]):
     if not title.strip() or not 1 <= threshold <= 100: raise ValueError("Title and a threshold from 1 to 100 are required")
     if content_type not in ALLOWED_TYPES or not content or len(content) > MAX_TRAINING_SIZE: raise ValueError("Unsupported training file or file exceeds 250MB")
+    organization_config = await sustainability_config_service.resolve_supplier_assessment_config(org_id)
+    if not (organization_config.get("modules", {}).get("training") or {}).get("enabled"):
+        raise ValueError("Enable the Training module in Organization Config before assigning training")
     relationships = await db.supplier_relationships.find({"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True}, {"_id": 0, "id": 1}).to_list(1000)
     if len(relationships) != len(set(relationship_ids)): raise ValueError("One or more suppliers are not available to this organization")
     upload = await get_r2_storage().upload_file(content, file_name, TRAINING_BUCKET, content_type, folder=TRAINING_FOLDER, metadata={"uploaded_by": user_id, "kind": "supplier_training"})
@@ -34,7 +38,10 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
     for relationship in relationships:
         context = await resolve_program_context(relationship)
         program_config = context["config"].copy()
-        program_config["modules"] = {**program_config.get("modules", {}), "training": {"enabled": True}}
+        program_config["modules"] = {
+            **program_config.get("modules", {}),
+            "training": organization_config["modules"]["training"],
+        }
         revision = await get_or_create_program_revision(org_id, program_config, user_id)
         await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$set": {"assessment_program_id": revision["program_id"], "assessment_program_version": revision["version"], "training_completion_percent": 0.0, "updated_at": now}})
         assignment={"id":str(uuid.uuid4()),"supplier_relationship_id":relationship["id"],"organization_id":org_id,"training_requirement_id":requirement_id,"requirement_version_id":version_id,"assigned_at":now,"is_active":True}
