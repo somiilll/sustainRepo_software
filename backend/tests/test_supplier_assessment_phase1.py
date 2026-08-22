@@ -105,7 +105,7 @@ def test_supplier_assessment_configuration_supports_future_schema_without_module
 
 
 def test_registry_registers_only_phase_one_adapters():
-    assert supplier_assessment_module_registry.registered_codes() == ["esg", "ghg", "documents"]
+    assert supplier_assessment_module_registry.registered_codes() == ["esg", "ghg", "documents", "training"]
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@
 Supplier Assessment Router - API endpoints for supplier management.
 """
 from typing import Optional, List
+import json
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 
 from modules.auth.dependencies import get_current_user, get_admin_user
@@ -27,6 +28,7 @@ from modules.supplier_assessment.contracts import (
     SupplierDocumentResponse,
 )
 from modules.supplier_assessment import documents_service
+from modules.supplier_assessment import training_service
 from shared.database.mongo import db
 
 router = APIRouter(prefix="/supplier-assessment", tags=["Supplier Assessment"])
@@ -218,6 +220,18 @@ async def upload_document(
         raise HTTPException(status_code=400, detail=str(error))
     except Exception as error:
         raise HTTPException(status_code=500, detail=f"Failed to publish agreement: {error}")
+
+@router.post("/trainings")
+async def create_training(file: UploadFile = File(...), title: str = Form(...), description: str = Form(""), completion_threshold: float = Form(100), supplier_relationship_ids: str = Form(...), current_user: dict = Depends(get_customer_admin)):
+    """Create immutable v1 training content and assign it to selected suppliers."""
+    try:
+        return await training_service.create_training(current_user["organization_id"], current_user["id"], title, description, completion_threshold, file.filename or "training", file.content_type or "application/octet-stream", await file.read(), json.loads(supplier_relationship_ids))
+    except (ValueError, json.JSONDecodeError) as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+@router.get("/trainings")
+async def list_trainings(current_user: dict = Depends(get_customer_admin)):
+    return await db.supplier_training_requirements.find({"organization_id": current_user["organization_id"], "is_active": True}, {"_id": 0}).to_list(200)
 
 
 # ============================================================================
@@ -578,6 +592,21 @@ async def accept_my_document(
         raise HTTPException(status_code=404, detail="Agreement not found")
     await supplier_service._update_completion_status(relationship["id"])
     return {"acceptance": acceptance}
+
+@router.get("/my-assessment/trainings")
+async def get_my_trainings(current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship: raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    return await training_service.supplier_trainings(relationship)
+
+@router.put("/my-assessment/trainings/{assignment_id}/progress")
+async def save_training_progress(assignment_id: str, progress_percent: float = Form(...), current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship: raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    progress = await training_service.update_progress(relationship, assignment_id, progress_percent, current_user["id"])
+    if not progress: raise HTTPException(status_code=404, detail="Training assignment not found")
+    await supplier_service._update_completion_status(relationship["id"])
+    return progress
 
 
 @router.get("/my-assessment/questionnaires")

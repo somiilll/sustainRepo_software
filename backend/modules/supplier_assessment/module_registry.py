@@ -108,6 +108,22 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
         )
 
 
+class TrainingAssessmentModule(SupplierAssessmentModule):
+    module_code = "training"
+    legacy_completion_field = "training_completion_percent"
+
+    async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
+        assignments = await database.supplier_training_assignments.find(
+            {"supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0, "id": 1, "requirement_version_id": 1}
+        ).to_list(200)
+        if not assignments:
+            return ModuleCompletion(self.module_code, 100.0, self.legacy_completion_field)
+        completed = await database.supplier_training_progress.count_documents({
+            "supplier_relationship_id": relationship["id"], "training_assignment_id": {"$in": [item["id"] for item in assignments]}, "status": "completed",
+        })
+        return ModuleCompletion(self.module_code, (completed / len(assignments)) * 100, self.legacy_completion_field)
+
+
 class SupplierAssessmentModuleRegistry:
     """Registry lookup replaces module-specific orchestration branches."""
     def __init__(self, modules: Iterable[SupplierAssessmentModule]):
@@ -128,4 +144,5 @@ supplier_assessment_module_registry = SupplierAssessmentModuleRegistry([
     EsgAssessmentModule(),
     GhgAssessmentModule(),
     DocumentsAssessmentModule(),
+    TrainingAssessmentModule(),
 ])

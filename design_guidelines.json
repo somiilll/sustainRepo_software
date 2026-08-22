@@ -1,102 +1,86 @@
 {
-  "theme": "Light",
-  "design_archetype": "ORGANIC & EARTHY",
   "typography": {
-    "heading_font": "Manrope",
-    "body_font": "IBM Plex Sans",
-    "hierarchy": {
-      "h1": "text-2xl font-bold tracking-tight text-gray-900",
-      "h2": "text-lg font-semibold tracking-tight text-gray-800",
-      "h3": "text-base font-medium text-gray-800",
-      "body": "text-sm leading-relaxed text-gray-600",
-      "badge": "text-xs font-medium uppercase tracking-wider"
+    "headings": {
+      "fontFamily": "Manrope",
+      "weights": [600, 700, 800],
+      "usage": "Use for all main and sub-headings. H1 maximum is text-5xl."
     },
-    "notes": "Do not use Inter for headings. Keep typographic scales moderate for dashboard legibility."
+    "body": {
+      "fontFamily": "Inter",
+      "weights": [400, 500, 600],
+      "usage": "Use for body text, descriptions, and labels."
+    },
+    "mono": {
+      "fontFamily": "JetBrains Mono",
+      "usage": "Use for code, IDs, or technical data."
+    }
   },
   "colors": {
-    "primary_accent": "#10B981",
+    "archetype": "Organic & Earthy",
+    "primary": { "DEFAULT": "#1A4D2E", "foreground": "#FFFFFF" },
+    "secondary": { "DEFAULT": "#4F6F52", "foreground": "#FFFFFF" },
+    "accent": { "DEFAULT": "#E85C0D", "foreground": "#FFFFFF" },
+    "background": "#F5F7F5",
     "surface": "#FFFFFF",
-    "border": "#E5E7EB",
-    "emission_tints": {
-      "CO2": {
-        "bg": "bg-red-50",
-        "border": "border-red-100",
-        "text": "text-red-700",
-        "icon": "text-red-500"
-      },
-      "CH4": {
-        "bg": "bg-orange-50",
-        "border": "border-orange-100",
-        "text": "text-orange-700",
-        "icon": "text-orange-500"
-      },
-      "N2O": {
-        "bg": "bg-yellow-50",
-        "border": "border-yellow-200",
-        "text": "text-yellow-700",
-        "icon": "text-yellow-600"
-      },
-      "CO2e": {
-        "bg": "bg-green-50",
-        "border": "border-green-200",
-        "text": "text-green-800",
-        "icon": "text-green-600"
-      }
+    "text": { "primary": "#1A1A1A", "secondary": "#4A4A4A", "muted": "#71717A" },
+    "border": "#E5E7EB"
+  },
+  "visual_enhancers": {
+    "borders": "1px subtle borders (border-border) on cards and grids",
+    "shadows": "Ambient subtle shadows. On hover: shadow-lg with -translate-y-1",
+    "glassmorphism": "Not recommended for main dashboard content. Use flat solid surfaces."
+  },
+  "grids_layouts": {
+    "dashboard_mode": "High Density Grid (grid-cols-1 md:grid-cols-3 lg:grid-cols-4) with tight gaps (gap-4 or gap-6).",
+    "spacing": "Generous spacing. p-6 or p-8 inside cards to avoid text collision.",
+    "alignment": "Optical alignment over geometrical. Left-align dense content and forms."
+  },
+  "motion": {
+    "hover_states": "Required on all interactive elements. Slight lift for cards (-translate-y-1).",
+    "focus_states": "High contrast ring focus for accessibility.",
+    "global_transitions": "Do not use 'transition: all'. Apply to specific properties like transform and opacity."
+  },
+  "accessibility": {
+    "contrast": "APCA contrast ratios must be met. Normal text >= 4.5:1, Large text >= 3:1.",
+    "testing": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case."
+  },
+  "components": [
+    {
+      "name": "Card",
+      "usage": "Use for grouping related content. Flat background, border-border, no shadow by default."
     },
-    "calculation_rows": {
-      "input": "text-blue-500",
-      "density": "text-orange-500",
-      "calorific": "text-yellow-500",
-      "emission_factor": "text-purple-500",
-      "final": "text-green-600"
+    {
+      "name": "Button",
+      "usage": "Pill-shaped or rounded-md. Hover must explicitly set background and text colors."
+    },
+    {
+      "name": "Progress",
+      "usage": "Use to display training completion progress."
+    },
+    {
+      "name": "Dialog",
+      "usage": "Use for create/assign training modals instead of inline forms where appropriate."
     }
-  },
-  "layout_and_spacing": {
-    "containers": "bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6",
-    "edit_box_grid": "Grid layout MUST be properly proportioned. Wrap in a grid-cols-12 gap-6. Set 'Biogenic' fields to col-span-3 or col-span-4, and 'Reporting Month' to col-span-4 or col-span-5 to prevent reporting month from being too narrow. Eliminate unnecessary blank columns.",
-    "general": "Use generous internal padding (p-4 to p-6) within cards. Avoid tight, crammed data views."
-  },
-  "component_instructions": {
-    "form_fields": {
-      "select_dropdowns": "Add leading icons inside Shadcn SelectTrigger. Add 'pl-10' to the trigger text container, and position the icon absolutely (left-3, top-1/2, -translate-y-1/2) with size 16px.",
-      "radio_buttons": "Override default blue active state. Use custom green accent classes (e.g., text-emerald-600 ring-emerald-600 border-emerald-600) for active/checked states on Scope 1, 2, 3, and biogenic radio groupings."
-    },
-    "calculated_emissions": {
-      "header": "Replace generic calc icon with lucide-react 'Leaf' icon (text-emerald-500) next to the section title.",
-      "disclaimer_badge": "Convert '(Values rounded to 4 decimal places)' to a pill badge: flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500. Place an 'Info' icon (12px) on the right side.",
-      "emission_cards": "Remove solid grey backgrounds. Apply 'emission_tints' colors (red, orange, yellow, green) for bg, border, and text. Add matching lucide-react icons to the left of the card content. For Scope 3 where only CO2e exists, give it a prominent, full-width or beautified UI treatment rather than a small isolated card."
-    },
-    "calculation_details": {
-      "container": "Wrap this entire section in a Shadcn Accordion component, set to be collapsible and collapsed by default.",
-      "row_styling": "Remove solid block backgrounds. Use white backgrounds with a thin bottom border (border-b border-gray-100) and py-3 for a clean list-item look.",
-      "source_badges": "Transform plain text '(Source - IPCC 2006)' into right-aligned pill badges: bg-orange-50 border border-orange-200 text-orange-600 px-2.5 py-0.5 rounded-full text-xs font-medium.",
-      "final_row": "Style the final calculation row with a soft green background tint (bg-green-50), darker green border (border border-green-200), rounded-lg, and green text. Align the 'CO2e: CO2' label cleanly to the right side inside this specific container."
-    }
-  },
-  "iconography_mapping": {
-    "library": "lucide-react",
-    "facility": "Building (text-emerald-500)",
-    "reporting_month": "Calendar (text-emerald-500)",
-    "category": "Car (text-emerald-500) for mobile, Factory for stationary, etc.",
-    "fuel_type": "Droplet (text-blue-500)",
-    "calculation_method": "Calculator (text-blue-500)",
-    "co2_card": "Cloud (text-red-500)",
-    "ch4_card": "Dna (text-orange-500)",
-    "n2o_card": "RefreshCcw (text-yellow-600)",
-    "co2e_card": "Leaf (text-green-600)",
-    "calc_input": "ArrowUpFromLine (text-blue-500)",
-    "calc_density": "FlaskConical (text-orange-500)",
-    "calc_calorific": "Flame (text-yellow-500)",
-    "calc_factor": "Calculator (text-purple-500)",
-    "calc_final": "CheckCircle2 (text-green-600)",
-    "disclaimer_info": "Info (text-gray-400)"
-  },
-  "universal_guidelines_for_main_agent": [
-    "CRITICAL: All components must be written in .js files, not .tsx.",
-    "Include 'data-testid' attributes on ALL interactive elements, form inputs, dropdowns, cards, and vital data points for reliable testing.",
-    "Never use pure transparent backgrounds for overlays, headers, or dropdowns. Always use solid surface colors to prevent text overlapping and readability issues.",
-    "Ensure the green Scope radio buttons and form logic applies consistently across Scope 1, Scope 2, Scope 3, and Biogenic contexts.",
-    "Avoid centering dense forms or dashboard layouts. Use left-alignment (optical alignment) for clear readability.",
-    "Implement subtle hover transitions (e.g., hover:-translate-y-[1px] shadow-sm) for interactive cards and rows."
+  ],
+  "instructions_to_main_agent": [
+    "Do NOT redesign the existing application. Ensure you preserve existing ESG/GHG and Documents architecture.",
+    "Integrate the Training module into the existing Supplier layout and routing.",
+    "Do not use complete transparent background in headers, overlays, or surfaces that have content under them.",
+    "Never use generic placeholder images.",
+    "Ensure all interactive elements have data-testid.",
+    "Use 'supplier-assessment-dev' instead of 'organization-facility-data-dev' for R2 uploads related to training."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Avoid the generic 'AI slop' aesthetic. Make UI distinctive without breaking the existing theme.",
+    "Do not use dark colors as gradients.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "You MUST NOT apply universal transition (transition: all).",
+    "You MUST NOT center align the app container (.App { text-align: center; }).",
+    "Always use modern button styles with interaction animations.",
+    "NEVER use AI assistant Emoji characters (🤖🧠💭💡🔮🎯) for icons.",
+    "Every interaction needs micro-animations (hover states, transitions).",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Prioritize using pre-existing components from src/components/ui.",
+    "Use sonner for toast notifications."
   ]
 }
