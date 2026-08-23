@@ -32,6 +32,17 @@ class SupplierAssessmentService:
     @staticmethod
     def _default_reporting_period() -> str:
         return f"CY{datetime.now(timezone.utc).year}"
+
+    async def _organization_default_reporting_period(self, customer_org_id: str) -> str:
+        organization = await db.organizations.find_one(
+            {"id": customer_org_id}, {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1}
+        ) or {}
+        now = datetime.now(timezone.utc)
+        if organization.get("reporting_year_type") == "calendar_year":
+            return f"CY {now.year}"
+        fiscal_start_month = int(organization.get("financial_year_start_month") or 4)
+        start_year = now.year if now.month >= fiscal_start_month else now.year - 1
+        return f"FY {start_year}-{str(start_year + 1)[-2:]}"
     
     async def create_supplier(
         self,
@@ -148,7 +159,7 @@ class SupplierAssessmentService:
             "revenue_percentage": None,
             "invitation_status": "pending",
             "due_date": due_date,
-            "reporting_period": reporting_period or self._default_reporting_period(),
+            "reporting_period": reporting_period or await self._organization_default_reporting_period(customer_org_id),
             "last_reminder_sent": None,
             "reminder_count": 0,
             "is_active": True,

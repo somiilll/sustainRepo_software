@@ -488,3 +488,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Added one persistent reporting-period selector across the customer-admin Supplier Assessment workspace. It reads available supplier periods, keeps the selected period while navigating among assessment pages, and includes current/adjacent calendar-year options for new periods.
 - Supplier lists, supplier assignment search, rankings, submitted GHG, document requirements/responses, and training assignment/progress are now requested and displayed for the active reporting period. New supplier creation defaults to that same selected period.
 - Per user instruction, this change was **not tested**.
+
+## Change Log — 2026-08-23: Fiscal-Year Default Correction
+
+- Corrected the Supplier Assessment selector and new-supplier default to derive reporting periods from the organization’s `reporting_year_type` and `financial_year_start_month`.
+- Financial-year organizations now receive labels such as `FY 2026-27`; calendar-year organizations receive `CY 2026`. A stale saved selector choice from the wrong type is automatically replaced with the organization’s current default.
+- Per the previous user instruction, this correction was **not tested**.
