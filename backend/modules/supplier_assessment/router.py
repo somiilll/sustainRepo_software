@@ -993,8 +993,8 @@ async def create_my_emission(
         "updated_at": now,
     }
     
-    emission_record["is_submitted"] = False
-    await db.supplier_ghg_entries.insert_one(emission_record)
+    emission_record["submitted_to_parent_org"] = None
+    await db.emission_records.insert_one(emission_record)
     
     # Update completion status
     await supplier_service._update_completion_status(relationship["id"])

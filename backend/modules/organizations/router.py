@@ -93,7 +93,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
     
     org_id = current_user.get("organization_id")
     if not org_id:
-        raise HTTPException(status_code=404, detail="No organization assigned")
+        return OrgModuleConfig()
     
     org = await db.organizations.find_one(
         {"id": org_id},
@@ -101,7 +101,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
     )
     
     if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        return OrgModuleConfig()
     
     return OrgModuleConfig(
         has_ghg=org.get("has_ghg", True),
