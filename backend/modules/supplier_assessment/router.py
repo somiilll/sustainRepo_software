@@ -123,6 +123,7 @@ async def create_supplier(
             modules_enabled=data.modules_enabled,
             ghg_scopes_enabled=data.ghg_scopes_enabled,
             reporting_period=data.reporting_period,
+            questionnaire_ids=data.questionnaire_ids,
             document_requirement_ids=data.document_requirement_ids,
             training_requirement_ids=data.training_requirement_ids,
         )

@@ -21,6 +21,7 @@ class SupplierCreate(BaseModel):
     # Module configuration
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
+    questionnaire_ids: List[str] = Field(default_factory=list)
     document_requirement_ids: List[str] = Field(default_factory=list)
     training_requirement_ids: List[str] = Field(default_factory=list)
 
@@ -36,6 +37,7 @@ class SupplierUpdate(BaseModel):
     # Module configuration
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
+    questionnaire_ids: Optional[List[str]] = None
 
 
 class SupplierResponse(BaseModel):
@@ -62,6 +64,7 @@ class SupplierResponse(BaseModel):
     # Module configuration
     modules_enabled: List[str] = ["esg", "ghg"]
     ghg_scopes_enabled: List[str] = ["scope1", "scope2"]
+    questionnaire_ids: List[str] = []
     
     # Progress tracking
     esg_completion_percent: float = 0.0
