@@ -103,6 +103,12 @@ export default function SupplierTrainingAdmin() {
     }
   };
 
+  const supplierIds = suppliers.map((supplier) => supplier.id);
+  const allSuppliersSelected = supplierIds.length > 0 && supplierIds.every((supplierId) => selected.includes(supplierId));
+  const toggleSupplier = (supplierId, checked) => setSelected((current) => (
+    checked ? [...new Set([...current, supplierId])] : current.filter((id) => id !== supplierId)
+  ));
+
   return <div className="space-y-6" data-testid="training-admin-page">
     <div>
       <h1 className="text-3xl font-semibold" data-testid="training-admin-heading">Supplier {trainingLabel}</h1>
@@ -115,15 +121,22 @@ export default function SupplierTrainingAdmin() {
         <div className="space-y-2"><Label htmlFor="training-description">Description</Label><Input id="training-description" value={description} onChange={(event) => setDescription(event.target.value)} data-testid="training-description-input" /></div>
         <div className="space-y-2"><Label htmlFor="training-due-date">Due date</Label><Input id="training-due-date" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} data-testid="training-due-date-input" /></div>
         <div className="space-y-2"><Label htmlFor="training-file">Content file</Label><Input id="training-file" type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={(event) => setFile(event.target.files?.[0])} data-testid="training-file-input" /></div>
-        <div className="space-y-2"><Label htmlFor="training-suppliers">Suppliers</Label><select id="training-suppliers" multiple value={selected} onChange={(event) => setSelected([...event.target.selectedOptions].map((option) => option.value))} className="min-h-28 w-full border p-2" data-testid="training-supplier-select">{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>)}</select></div>
+        <div className="space-y-3 md:col-span-2" data-testid="training-supplier-selection">
+          <div className="flex flex-wrap items-center justify-between gap-3"><Label>Suppliers</Label><div className="flex items-center gap-2 text-sm font-medium"><input id="select-all-training-suppliers" type="checkbox" checked={allSuppliersSelected} onChange={(event) => setSelected(event.target.checked ? supplierIds : [])} className="h-4 w-4 accent-emerald-700" data-testid="select-all-training-suppliers-checkbox" /><Label htmlFor="select-all-training-suppliers" className="cursor-pointer">Select all suppliers</Label></div></div>
+          <div className="grid gap-2 rounded-md border border-stone-200 p-3 sm:grid-cols-2 lg:grid-cols-3">{suppliers.map((supplier) => <div key={supplier.id} className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-stone-50" data-testid={`training-supplier-option-${supplier.id}`}><input id={`training-supplier-${supplier.id}`} type="checkbox" checked={selected.includes(supplier.id)} onChange={(event) => toggleSupplier(supplier.id, event.target.checked)} className="h-4 w-4 accent-emerald-700" data-testid={`training-supplier-checkbox-${supplier.id}`} /><Label htmlFor={`training-supplier-${supplier.id}`} className="cursor-pointer text-sm font-normal">{supplier.company_name}</Label></div>)}</div>
+          <p className="text-xs text-stone-500" data-testid="selected-training-suppliers-count">{selected.length} of {suppliers.length} suppliers selected</p>
+        </div>
         <div className="flex items-end"><Button onClick={create} disabled={isCreating} data-testid="create-training-button">{isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isCreating ? 'Creating…' : 'Create and assign'}</Button></div>
       </CardContent>
     </Card>
     <div className="space-y-3" data-testid="training-admin-list">
       {trainings.map((training) => <Card key={training.id} data-testid={`training-admin-${training.id}`}>
-        <CardContent className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <CardContent className="flex flex-col gap-4 py-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1"><b data-testid={`training-title-${training.id}`}>{training.title}</b><div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-stone-500"><span data-testid={`training-threshold-${training.id}`}>{training.completion_threshold}% completion required</span><span data-testid={`training-completion-count-${training.id}`}>{(training.status || []).filter((item) => item.status === 'completed').length} of {(training.status || []).length} suppliers complete</span>{!training.is_active && <span className="font-medium text-amber-700" data-testid={`training-disabled-status-${training.id}`}>Disabled</span>}</div></div>
           <div className="flex flex-wrap items-end gap-2"><div className="space-y-1"><Label htmlFor={`training-due-date-${training.id}`} className="text-xs">Due date</Label><Input id={`training-due-date-${training.id}`} type="date" value={dueDates[training.id] ?? training.due_date?.slice(0, 10) ?? ''} onChange={(event) => setDueDates((current) => ({ ...current, [training.id]: event.target.value }))} data-testid={`training-due-date-${training.id}`} /></div><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => updateTraining(training.id, { due_date: dueDates[training.id] ?? training.due_date?.slice(0, 10) ?? null }, 'Due date saved')} data-testid={`save-training-due-date-${training.id}`}><CalendarDays className="mr-1 h-4 w-4" />Save</Button><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => updateTraining(training.id, { is_active: !training.is_active }, training.is_active ? 'Training disabled' : 'Training enabled')} data-testid={`toggle-training-${training.id}`}>{training.is_active ? <Archive className="mr-1 h-4 w-4" /> : <RotateCcw className="mr-1 h-4 w-4" />}{training.is_active ? 'Disable' : 'Enable'}</Button><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => setPendingDelete(training)} data-testid={`delete-training-${training.id}`}><Trash2 className="mr-1 h-4 w-4" />Delete</Button></div>
+          </div>
+          <div className="border-t border-stone-100 pt-3" data-testid={`training-supplier-progress-${training.id}`}><p className="mb-2 text-xs font-medium uppercase text-stone-500">Supplier progress</p>{(training.status || []).length === 0 ? <p className="text-sm text-stone-500" data-testid={`training-supplier-progress-empty-${training.id}`}>No suppliers are currently assigned.</p> : <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{training.status.map((item) => <div key={item.supplier_relationship_id} className="flex items-center justify-between gap-3 border border-stone-200 px-3 py-2" data-testid={`training-supplier-progress-${training.id}-${item.supplier_relationship_id}`}><span className="truncate text-sm font-medium text-stone-800">{item.supplier_name}</span><span className="shrink-0 text-sm text-stone-600">{item.progress_percent}% · {item.status.replace('_', ' ')}</span></div>)}</div>}</div>
         </CardContent>
       </Card>)}
     </div>
