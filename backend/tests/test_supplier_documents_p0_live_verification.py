@@ -140,10 +140,10 @@ def test_live_documents_auth_boundaries(auth_tokens):
 
 # Controlled live R2 verify/upload/read/presign/delete lifecycle
 @pytest.mark.asyncio
-async def test_live_r2_org_facility_lifecycle_disposable_object():
-    bucket = _read_env_value("/app/backend/.env", "R2_BUCKET_ORG_FACILITY")
-    if bucket != "organization-facility-data-dev":
-        pytest.skip("R2 org_facility bucket is not development-scoped; live mutation skipped")
+async def test_live_r2_supplier_assessment_lifecycle_disposable_object():
+    bucket = _read_env_value("/app/backend/.env", "R2_BUCKET_SUPPLIER_ASSESSMENT")
+    if bucket != "supplier-assessment-dev":
+        pytest.skip("R2 supplier_assessment bucket is not development-scoped; live mutation skipped")
 
     storage = get_r2_storage()
     unique_prefix = f"supplier-assessment/verification/{uuid.uuid4()}"
@@ -155,7 +155,7 @@ async def test_live_r2_org_facility_lifecycle_disposable_object():
         uploaded_result = await storage.upload_file(
             file_content=payload,
             filename="minimal.pdf",
-            bucket_type="org_facility",
+            bucket_type="supplier_assessment",
             content_type="application/pdf",
             object_key=key,
             metadata={"purpose": "p0_verification"},
@@ -164,17 +164,17 @@ async def test_live_r2_org_facility_lifecycle_disposable_object():
         assert uploaded_result.get("key") == key
         uploaded = True
 
-        content, content_type = await storage.get_file("org_facility", key)
+        content, content_type = await storage.get_file("supplier_assessment", key)
         assert content == payload
         assert content_type.startswith("application/pdf")
 
-        presigned = storage.generate_presigned_url("org_facility", key, expiration=120)
+        presigned = storage.generate_presigned_url("supplier_assessment", key, expiration=120)
         assert isinstance(presigned, str) and presigned.startswith("http")
     finally:
         if uploaded:
-            deleted = await storage.delete_file("org_facility", key)
+            deleted = await storage.delete_file("supplier_assessment", key)
             assert deleted is True
-            assert await storage.file_exists("org_facility", key) is False
+            assert await storage.file_exists("supplier_assessment", key) is False
 
 
 # Controlled persistence check for immutable acceptance + completion update path
@@ -189,9 +189,9 @@ async def test_live_acceptance_persistence_and_cleanup():
     relationship_one_id = f"rel-a-{unique}"
     relationship_two_id = f"rel-b-{unique}"
 
-    bucket = _read_env_value("/app/backend/.env", "R2_BUCKET_ORG_FACILITY")
-    if bucket != "organization-facility-data-dev":
-        pytest.skip("R2 org_facility bucket is not development-scoped; controlled persistence skipped")
+    bucket = _read_env_value("/app/backend/.env", "R2_BUCKET_SUPPLIER_ASSESSMENT")
+    if bucket != "supplier-assessment-dev":
+        pytest.skip("R2 supplier_assessment bucket is not development-scoped; controlled persistence skipped")
 
     storage = get_r2_storage()
     r2_key = f"supplier-assessment/verification/{unique}/acceptance-source.pdf"
@@ -202,7 +202,7 @@ async def test_live_acceptance_persistence_and_cleanup():
         upload = await storage.upload_file(
             file_content=payload,
             filename="acceptance-source.pdf",
-            bucket_type="org_facility",
+            bucket_type="supplier_assessment",
             content_type="application/pdf",
             object_key=r2_key,
             metadata={"purpose": "p0_acceptance_persistence"},
@@ -254,7 +254,7 @@ async def test_live_acceptance_persistence_and_cleanup():
             "original_filename": "acceptance-source.pdf",
             "content_type": "application/pdf",
             "file_size": len(payload),
-            "bucket_type": "org_facility",
+            "bucket_type": "supplier_assessment",
             "r2_key": r2_key,
             "created_by": "p0-live-test",
             "created_at": now,
@@ -321,5 +321,5 @@ async def test_live_acceptance_persistence_and_cleanup():
         assert cleanup_results["programs"] in [0, 1]
 
         if created_r2:
-            await storage.delete_file("org_facility", r2_key)
-            assert await storage.file_exists("org_facility", r2_key) is False
+            await storage.delete_file("supplier_assessment", r2_key)
+            assert await storage.file_exists("supplier_assessment", r2_key) is False

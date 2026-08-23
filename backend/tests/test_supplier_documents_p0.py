@@ -113,7 +113,7 @@ async def test_publish_keeps_immutable_metadata_and_versions_per_lineage(monkeyp
     assert [version["version_number"] for version in versions] == [1, 2, 3]
     assert separate["version"]["version_number"] == 1
     assert all("_id" not in version for version in versions)
-    assert storage.uploads[0]["bucket_type"] == "org_facility"
+    assert storage.uploads[0]["bucket_type"] == "supplier_assessment"
     assert storage.uploads[0]["folder"] == "supplier-assessment/documents"
     assert storage.uploads[0]["metadata"]["document_type"] == "supplier_agreement"
     assert len(database.supplier_document_versions.docs) == 4

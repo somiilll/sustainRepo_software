@@ -27,6 +27,7 @@ from modules.supplier_assessment.contracts import (
     SupplierEmissionCreate,
     SupplierEmissionResponse,
     SupplierDocumentResponse,
+    TrainingUpdate,
 )
 from modules.supplier_assessment import documents_service
 from modules.supplier_assessment import training_service
@@ -224,16 +225,29 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=f"Failed to publish agreement: {error}")
 
 @router.post("/trainings")
-async def create_training(file: UploadFile = File(...), title: str = Form(...), description: str = Form(""), completion_threshold: float = Form(100), supplier_relationship_ids: str = Form(...), current_user: dict = Depends(get_customer_admin)):
+async def create_training(file: UploadFile = File(...), title: str = Form(...), description: str = Form(""), due_date: Optional[str] = Form(None), supplier_relationship_ids: str = Form(...), current_user: dict = Depends(get_customer_admin)):
     """Create immutable v1 training content and assign it to selected suppliers."""
     try:
-        return await training_service.create_training(current_user["organization_id"], current_user["id"], title, description, completion_threshold, file.filename or "training", file.content_type or "application/octet-stream", await file.read(), json.loads(supplier_relationship_ids))
+        return await training_service.create_training(current_user["organization_id"], current_user["id"], title, description, 100.0, file.filename or "training", file.content_type or "application/octet-stream", await file.read(), json.loads(supplier_relationship_ids), due_date)
     except (ValueError, json.JSONDecodeError) as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 @router.get("/trainings")
 async def list_trainings(current_user: dict = Depends(get_customer_admin)):
-    return await db.supplier_training_requirements.find({"organization_id": current_user["organization_id"], "is_active": True}, {"_id": 0}).to_list(200)
+    return await db.supplier_training_requirements.find({"organization_id": current_user["organization_id"], "is_deleted": {"$ne": True}}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+@router.patch("/trainings/{training_id}")
+async def update_training(training_id: str, data: TrainingUpdate, current_user: dict = Depends(get_customer_admin)):
+    training = await training_service.update_training(current_user["organization_id"], training_id, data.model_dump(exclude_unset=True))
+    if not training:
+        raise HTTPException(status_code=404, detail="Training not found")
+    return training
+
+@router.delete("/trainings/{training_id}")
+async def delete_training(training_id: str, current_user: dict = Depends(get_customer_admin)):
+    if not await training_service.archive_training(current_user["organization_id"], training_id):
+        raise HTTPException(status_code=404, detail="Training not found")
+    return {"message": "Training deleted"}
 
 @router.get("/trainings/{training_id}/status")
 async def get_training_status(training_id: str, current_user: dict = Depends(get_customer_admin)):

@@ -19,8 +19,9 @@ MAX_TRAINING_SIZE = 250 * 1024 * 1024
 
 def _now(): return datetime.now(timezone.utc).isoformat()
 
-async def create_training(org_id: str, user_id: str, title: str, description: str, threshold: float, file_name: str, content_type: str, content: bytes, relationship_ids: List[str]):
-    if not title.strip() or not 1 <= threshold <= 100: raise ValueError("Title and a threshold from 1 to 100 are required")
+async def create_training(org_id: str, user_id: str, title: str, description: str, threshold: float, file_name: str, content_type: str, content: bytes, relationship_ids: List[str], due_date: Optional[str] = None):
+    threshold = 100.0
+    if not title.strip(): raise ValueError("Title is required")
     if content_type not in ALLOWED_TYPES or not content or len(content) > MAX_TRAINING_SIZE: raise ValueError("Unsupported training file or file exceeds 250MB")
     organization_config = await sustainability_config_service.resolve_supplier_assessment_config(org_id)
     if not (organization_config.get("modules", {}).get("training") or {}).get("enabled"):
@@ -32,7 +33,7 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
     now, content_id, requirement_id, version_id = _now(), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     content_doc = {"id": content_id, "organization_id": org_id, "title": title.strip(), "description": description or "", "created_by": user_id, "created_at": now}
     version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": len(content), "bucket_type": TRAINING_BUCKET, "r2_key": upload["key"], "created_by": user_id, "created_at": now}
-    requirement = {"id": requirement_id, "organization_id": org_id, "training_content_id": content_id, "training_version_id": version_id, "completion_threshold": threshold, "title": title.strip(), "description": description or "", "is_active": True, "created_by": user_id, "created_at": now}
+    requirement = {"id": requirement_id, "organization_id": org_id, "training_content_id": content_id, "training_version_id": version_id, "completion_threshold": threshold, "title": title.strip(), "description": description or "", "due_date": due_date or None, "is_active": True, "is_deleted": False, "created_by": user_id, "created_at": now}
     await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
     assignments=[]
     for relationship in relationships:
@@ -56,7 +57,7 @@ async def supplier_trainings(relationship: Dict[str, Any]):
         requirement=await db.supplier_training_requirements.find_one({"id":assignment["training_requirement_id"],"organization_id":relationship["customer_org_id"],"is_active":True},{"_id":0})
         version=await db.supplier_training_versions.find_one({"id":assignment["requirement_version_id"]},{"_id":0})
         progress=await db.supplier_training_progress.find_one({"supplier_relationship_id":relationship["id"],"training_assignment_id":assignment["id"]},{"_id":0})
-        if requirement and version: result.append({"assignment_id":assignment["id"],"title":requirement["title"],"description":requirement["description"],"completion_threshold":requirement["completion_threshold"],"version_number":version["version_number"],"content_type":version["content_type"],"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started")})
+        if requirement and version: result.append({"assignment_id":assignment["id"],"title":requirement["title"],"description":requirement["description"],"completion_threshold":requirement["completion_threshold"],"due_date":requirement.get("due_date"),"version_number":version["version_number"],"content_type":version["content_type"],"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started")})
     return result
 
 async def update_progress(relationship: Dict[str, Any], assignment_id: str, percent: float, user_id: str):
@@ -76,7 +77,7 @@ async def training_file_for_supplier(relationship: Dict[str, Any], assignment_id
     return await db.supplier_training_versions.find_one({"id": assignment["requirement_version_id"]}, {"_id": 0})
 
 async def training_status(org_id: str, requirement_id: str) -> Optional[List[Dict[str, Any]]]:
-    requirement = await db.supplier_training_requirements.find_one({"id": requirement_id, "organization_id": org_id, "is_active": True}, {"_id": 0})
+    requirement = await db.supplier_training_requirements.find_one({"id": requirement_id, "organization_id": org_id, "is_deleted": {"$ne": True}}, {"_id": 0})
     if not requirement: return None
     assignments = await db.supplier_training_assignments.find({"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": True}, {"_id": 0}).to_list(1000)
     result=[]
@@ -85,6 +86,40 @@ async def training_status(org_id: str, requirement_id: str) -> Optional[List[Dic
         progress=await db.supplier_training_progress.find_one({"training_assignment_id":assignment["id"]},{"_id":0})
         if relationship: result.append({"supplier_relationship_id":assignment["supplier_relationship_id"],"supplier_name":relationship.get("company_name"),"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started")})
     return result
+
+async def update_training(org_id: str, requirement_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    requirement = await db.supplier_training_requirements.find_one(
+        {"id": requirement_id, "organization_id": org_id, "is_deleted": {"$ne": True}}, {"_id": 0}
+    )
+    if not requirement:
+        return None
+    allowed_updates = {key: value for key, value in updates.items() if key in {"due_date", "is_active"}}
+    if not allowed_updates:
+        return requirement
+    allowed_updates["updated_at"] = _now()
+    await db.supplier_training_requirements.update_one({"id": requirement_id}, {"$set": allowed_updates})
+    if "is_active" in allowed_updates:
+        await db.supplier_training_assignments.update_many(
+            {"training_requirement_id": requirement_id, "organization_id": org_id},
+            {"$set": {"is_active": allowed_updates["is_active"]}},
+        )
+        relationships = await db.supplier_relationships.find(
+            {"id": {"$in": await db.supplier_training_assignments.distinct("supplier_relationship_id", {"training_requirement_id": requirement_id, "organization_id": org_id})}},
+            {"_id": 0, "id": 1},
+        ).to_list(1000)
+        for relationship in relationships:
+            from modules.supplier_assessment.service import supplier_service
+            await supplier_service._update_completion_status(relationship["id"])
+    return await db.supplier_training_requirements.find_one({"id": requirement_id}, {"_id": 0})
+
+async def archive_training(org_id: str, requirement_id: str) -> bool:
+    training = await update_training(org_id, requirement_id, {"is_active": False})
+    if not training:
+        return False
+    await db.supplier_training_requirements.update_one(
+        {"id": requirement_id, "organization_id": org_id}, {"$set": {"is_deleted": True, "deleted_at": _now()}}
+    )
+    return True
 
 async def ensure_indexes():
     await db.supplier_training_contents.create_index("id", unique=True)

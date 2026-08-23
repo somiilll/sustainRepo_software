@@ -16,6 +16,12 @@ const LOGO_FALLBACK = '/sustainrepo-logo.png';
 const ENV_MODULE_ICONS = { power: 'Zap', water: 'Droplets', steam: 'Cloud', energy: 'Zap', waste: 'Trash2' };
 const SOCIAL_MODULE_ICONS = { workforce: 'Users2', health_safety: 'HeartPulse', community: 'Building2', human_rights: 'Scale' };
 const GOVERNANCE_MODULE_ICONS = { board: 'Shield', ethics: 'Scale', compliance: 'FileCheck', risk: 'AlertTriangle' };
+const SUPPLIER_ASSESSMENT_LABEL_KEYS = {
+  'supplier_assessment.esg': 'esg',
+  'supplier_assessment.ghg': 'ghg',
+  'supplier_assessment.documents': 'documents',
+  'supplier_assessment.trainings': 'training',
+};
 
 function _sectionIcons(section) {
   if (section === 'social') return SOCIAL_MODULE_ICONS;
@@ -25,6 +31,17 @@ function _sectionIcons(section) {
 
 function getIcon(name) {
   return LucideIcons[name] || null;
+}
+
+function withSupplierAssessmentLabels(items, resolvedConfig) {
+  const modules = resolvedConfig?.supplier_assessment?.modules || {};
+  return items.map((item) => ({
+    ...item,
+    label: SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key]
+      ? modules[SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key]]?.display_name || item.label
+      : item.label,
+    children: item.children ? withSupplierAssessmentLabels(item.children, resolvedConfig) : item.children,
+  }));
 }
 
 function isActive(path, loc) {
@@ -123,10 +140,12 @@ export default function Sidebar() {
     if (isSuperAdmin) return superAdminSidebarConfig;
     if (!resolvedConfig?.has_org_config) return sidebarConfig;
 
+    const configuredSidebar = withSupplierAssessmentLabels(sidebarConfig, resolvedConfig);
+
     const mode = resolvedConfig.modules_mode; // "default" | "default_custom" | "custom"
 
     // Pure default → static sidebar as-is
-    if (mode === 'default' && !resolvedConfig.has_enabled_filter) return sidebarConfig;
+    if (mode === 'default' && !resolvedConfig.has_enabled_filter) return configuredSidebar;
 
     // Build environment children based on mode
     const buildEnvChildren = () => {
@@ -165,7 +184,7 @@ export default function Sidebar() {
       }
 
       // default_custom: static defaults (filtered) + custom modules before Others
-      const defaultItems = sidebarConfig.find(s => s.key === 'environment')?.children || [];
+      const defaultItems = configuredSidebar.find(s => s.key === 'environment')?.children || [];
 
       // Filter out disabled defaults; separate Others and Analysis (they go last)
       const filtered = [];
@@ -199,7 +218,7 @@ export default function Sidebar() {
     };
 
     // Social & Governance: never break into sub-modules, always use static config
-    return sidebarConfig.map(item => {
+    return configuredSidebar.map(item => {
       if (item.key === 'environment' && (mode === 'default_custom' || mode === 'custom')) {
         return { ...item, children: buildEnvChildren() };
       }
