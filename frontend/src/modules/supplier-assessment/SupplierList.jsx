@@ -609,11 +609,13 @@ export default function SupplierList() {
                 </div>
               </div>
             )}
-            <div className="space-y-3 border-t pt-4" data-testid="supplier-existing-assignment-options">
-              <Label className="text-sm font-medium">Assign existing content</Label>
-              {documents.length > 0 && <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
-              {trainings.length > 0 && <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-medium"><GraduationCap className="h-4 w-4" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
-            </div>
+            {(documents.length > 0 || trainings.length > 0) && (
+              <div className="space-y-3 border-t pt-4" data-testid="supplier-existing-assignment-options">
+                <Label className="text-sm font-medium">Assign existing content</Label>
+                {documents.length > 0 && <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
+                {trainings.length > 0 && <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-medium"><GraduationCap className="h-4 w-4" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
+              </div>
+            )}
           </div>
           <DialogFooter className="shrink-0 border-t bg-white px-6 py-4">
             <Button variant="outline" onClick={() => setShowAddDialog(false)} data-testid="cancel-add-supplier-button">
