@@ -3,6 +3,7 @@ Supplier Assessment Router - API endpoints for supplier management.
 """
 from typing import Optional, List
 import json
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 
 from modules.auth.dependencies import get_current_user, get_admin_user
@@ -79,10 +80,29 @@ async def get_customer_admin(current_user: dict = Depends(get_admin_user)):
 
 @router.get("/reporting-periods")
 async def list_reporting_periods(current_user: dict = Depends(get_customer_admin)):
+    organization = await db.organizations.find_one(
+        {"id": current_user["organization_id"]},
+        {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1},
+    ) or {}
+    reporting_year_type = organization.get("reporting_year_type") or "financial_year"
+    fiscal_start_month = int(organization.get("financial_year_start_month") or 4)
+    now = datetime.now(timezone.utc)
+    if reporting_year_type == "calendar_year":
+        default_period = f"CY {now.year}"
+        suggested_periods = [f"CY {year}" for year in range(now.year + 1, now.year - 3, -1)]
+    else:
+        start_year = now.year if now.month >= fiscal_start_month else now.year - 1
+        default_period = f"FY {start_year}-{str(start_year + 1)[-2:]}"
+        suggested_periods = [f"FY {year}-{str(year + 1)[-2:]}" for year in range(start_year + 1, start_year - 3, -1)]
     periods = await db.supplier_relationships.distinct(
         "reporting_period", {"customer_org_id": current_user["organization_id"], "is_active": True}
     )
-    return {"periods": sorted([period for period in periods if isinstance(period, str) and period], reverse=True)}
+    return {
+        "periods": list(dict.fromkeys([*suggested_periods, *sorted([period for period in periods if isinstance(period, str) and period], reverse=True)])),
+        "default_period": default_period,
+        "reporting_year_type": reporting_year_type,
+        "financial_year_start_month": fiscal_start_month,
+    }
 
 @router.post("/suppliers", response_model=dict)
 async def create_supplier(
