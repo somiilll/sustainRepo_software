@@ -47,3 +47,24 @@ def test_logs_keep_submitted_supplier_record_until_a_reopened_draft_exists():
     ]
 
     assert exclude_reopened_supplier_submission_revisions(records) == records
+
+
+def test_logs_use_the_explicit_current_revision_flag_for_a_lineage():
+    records = [
+        {
+            "id": "revision-1",
+            "source": "supplier",
+            "revision_lineage_id": "lineage-1",
+            "revision_number": 1,
+            "is_current_revision": False,
+        },
+        {
+            "id": "revision-2",
+            "source": "supplier",
+            "revision_lineage_id": "lineage-1",
+            "revision_number": 2,
+            "is_current_revision": True,
+        },
+    ]
+
+    assert [record["id"] for record in exclude_reopened_supplier_submission_revisions(records)] == ["revision-2"]

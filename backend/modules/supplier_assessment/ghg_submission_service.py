@@ -22,6 +22,13 @@ def aggregate_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def exclude_reopened_supplier_submission_revisions(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Keep the editable draft visible in GHG Logs while retaining its submitted source in storage."""
+    current_lineage_ids = {
+        entry["revision_lineage_id"]
+        for entry in entries
+        if entry.get("source") == "supplier"
+        and entry.get("revision_lineage_id")
+        and entry.get("is_current_revision") is True
+    }
     reopened_submission_ids = {
         entry["resubmission_of"]
         for entry in entries
@@ -29,17 +36,79 @@ def exclude_reopened_supplier_submission_revisions(entries: List[Dict[str, Any]]
         and not entry.get("submitted_to_parent_org")
         and entry.get("resubmission_of")
     }
-    if not reopened_submission_ids:
+    if not current_lineage_ids and not reopened_submission_ids:
         return entries
     return [
         entry
         for entry in entries
         if not (
             entry.get("source") == "supplier"
-            and entry.get("submitted_to_parent_org")
-            and entry.get("submission_id") in reopened_submission_ids
+            and (
+                (
+                    entry.get("revision_lineage_id") in current_lineage_ids
+                    and entry.get("is_current_revision") is False
+                )
+                or (
+                    entry.get("submitted_to_parent_org")
+                    and entry.get("submission_id") in reopened_submission_ids
+                )
+            )
         )
     ]
+
+
+def _revision_number(entry: Dict[str, Any]) -> int:
+    try:
+        return max(1, int(entry.get("revision_number") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _revision_response(entry: Dict[str, Any], lineage_id: str) -> Dict[str, Any]:
+    return {
+        "id": entry["id"],
+        "lineage_id": lineage_id,
+        "revision_number": _revision_number(entry),
+        "is_current_revision": entry.get("is_current_revision", True),
+        "status": entry.get("status") or "draft",
+        "reporting_period": entry.get("reporting_period") or "",
+        "scope": entry.get("scope") or "",
+        "category": entry.get("category") or "",
+        "total_emissions": float(entry.get("total_emissions") or entry.get("co2e_emissions") or 0),
+        "submitted_at": entry.get("submitted_to_parent_org"),
+        "reopened_at": entry.get("reopened_at"),
+        "revised_from_record_id": entry.get("revised_from_record_id"),
+        "created_at": entry.get("created_at"),
+    }
+
+
+async def get_supplier_ghg_revision_history(relationship: Dict[str, Any], emission_id: str) -> Dict[str, Any] | None:
+    entry = await db.emission_records.find_one(
+        {"id": emission_id, "source": "supplier", "supplier_relationship_id": relationship["id"]},
+        {"_id": 0},
+    )
+    if not entry:
+        return None
+
+    lineage_id = entry.get("revision_lineage_id") or entry["id"]
+    revisions = await db.emission_records.find(
+        {
+            "source": "supplier",
+            "supplier_relationship_id": relationship["id"],
+            "$or": [{"revision_lineage_id": lineage_id}, {"id": lineage_id}],
+        },
+        {"_id": 0},
+    ).sort([("revision_number", -1), ("created_at", -1)]).to_list(100)
+    serialized_revisions = [_revision_response(revision, lineage_id) for revision in revisions]
+    current_revision = next(
+        (revision for revision in serialized_revisions if revision["is_current_revision"]),
+        serialized_revisions[0] if serialized_revisions else None,
+    )
+    return {
+        "lineage_id": lineage_id,
+        "current_revision_id": current_revision["id"] if current_revision else None,
+        "revisions": serialized_revisions,
+    }
 
 
 async def get_supplier_ghg_state(relationship: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,6 +132,17 @@ async def submit_supplier_ghg(relationship: Dict[str, Any], submitted_by: str) -
     if not entries:
         raise ValueError("Add at least one GHG entry before submitting")
     now = _now()
+    for entry in entries:
+        lineage_id = entry.get("revision_lineage_id") or entry["id"]
+        revision_number = _revision_number(entry)
+        await db.emission_records.update_one(
+            {"id": entry["id"]},
+            {"$set": {
+                "revision_lineage_id": lineage_id,
+                "revision_number": revision_number,
+                "is_current_revision": True,
+            }},
+        )
     submission = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "status": "submitted", "submitted_by": submitted_by, "submitted_at": now, "entry_count": len(entries), "aggregation": aggregate_entries(entries)}
     if existing:
         await db.emission_records.update_many({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}, {"$set": {"parent_visible": False, "replaced_at": now, "replaced_by_submission_id": submission["id"]}})
@@ -81,15 +161,28 @@ async def reopen_supplier_ghg(relationship: Dict[str, Any], reopened_by: str) ->
     source_submission_id = visible_entries[0].get("submission_id")
     copies = []
     for entry in visible_entries:
+        lineage_id = entry.get("revision_lineage_id") or entry["id"]
+        revision_number = _revision_number(entry) + 1
         draft = {key: value for key, value in entry.items() if key not in {"_id", "id", "submitted_to_parent_org", "submission_id", "submitted_by", "parent_visible", "replaced_at", "replaced_by_submission_id"}}
         draft.update({
             "id": str(uuid.uuid4()), "status": "draft", "approval_status": "draft",
             "submitted_to_parent_org": None, "submission_id": None, "submitted_by": None,
             "resubmission_of": source_submission_id, "reopened_at": now,
             "reopened_by": reopened_by, "created_at": now, "updated_at": now,
+            "revision_lineage_id": lineage_id, "revision_number": revision_number,
+            "is_current_revision": True, "revised_from_record_id": entry["id"],
         })
         copies.append(draft)
     await db.emission_records.insert_many(copies)
+    for entry in visible_entries:
+        await db.emission_records.update_one(
+            {"id": entry["id"]},
+            {"$set": {
+                "revision_lineage_id": entry.get("revision_lineage_id") or entry["id"],
+                "revision_number": _revision_number(entry),
+                "is_current_revision": False,
+            }},
+        )
     return {"status": "reopened", "source_submission_id": source_submission_id, "entry_count": len(copies), "reopened_at": now}
 
 

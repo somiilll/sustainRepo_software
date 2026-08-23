@@ -26,6 +26,7 @@ from modules.supplier_assessment.contracts import (
     ReminderSend,
     SupplierEmissionCreate,
     SupplierEmissionResponse,
+    SupplierEmissionRevisionHistoryResponse,
     SupplierDocumentResponse,
     SupplierDocumentStatusSubmit,
     TrainingUpdate,
@@ -848,6 +849,20 @@ async def get_my_ghg_submission(current_user: dict = Depends(get_supplier_user))
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
     return await ghg_submission_service.get_supplier_ghg_state(relationship)
 
+
+@router.get(
+    "/my-assessment/emissions/{emission_id}/revisions",
+    response_model=SupplierEmissionRevisionHistoryResponse,
+)
+async def get_my_ghg_emission_revisions(emission_id: str, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    history = await ghg_submission_service.get_supplier_ghg_revision_history(relationship, emission_id)
+    if not history:
+        raise HTTPException(status_code=404, detail="Supplier emission record not found")
+    return SupplierEmissionRevisionHistoryResponse(**history)
+
 @router.post("/my-assessment/emissions/submit")
 async def submit_my_ghg(current_user: dict = Depends(get_supplier_user)):
     relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
@@ -984,6 +999,9 @@ async def create_my_emission(
     
     emission_record = {
         "id": emission_id,
+        "revision_lineage_id": emission_id,
+        "revision_number": 1,
+        "is_current_revision": True,
         "facility_id": facility_id,
         "facility_name": facility_name,
         "organization_id": current_user["organization_id"],

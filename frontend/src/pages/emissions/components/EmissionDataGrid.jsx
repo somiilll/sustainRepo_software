@@ -23,6 +23,7 @@ const SortableHeader = ({ label, sortKey, currentSort, onSort, className = '' })
     <button
       onClick={() => onSort(sortKey)}
       className={`flex items-center gap-1 hover:text-stone-900 transition-colors ${className}`}
+      data-testid={`emissions-sort-${sortKey}`}
     >
       <span>{label}</span>
       <Icon className={`w-3 h-3 ${isActive ? 'text-emerald-600' : 'text-stone-400'}`} />
@@ -564,7 +565,7 @@ export default function EmissionDataGrid({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={(e) => { e.stopPropagation(); fetchHistory(emission.id); }}
+                    onClick={(e) => { e.stopPropagation(); fetchHistory(emission); }}
                     title="History"
                     className="h-7 w-7 p-0"
                     data-testid={`history-emission-${emission.id}`}
