@@ -33,8 +33,11 @@ class EsgAssessmentModule(SupplierAssessmentModule):
     supplier_description = "Complete the questionnaires assigned by your customer."
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
+        questionnaire_query = {"organization_id": relationship["customer_org_id"], "is_active": True}
+        if "questionnaire_ids" in relationship:
+            questionnaire_query["id"] = {"$in": relationship.get("questionnaire_ids") or []}
         questionnaires = await database.supplier_questionnaires.find(
-            {"organization_id": relationship["customer_org_id"], "is_active": True},
+            questionnaire_query,
             {"_id": 0, "id": 1},
         ).to_list(100)
         if not questionnaires:

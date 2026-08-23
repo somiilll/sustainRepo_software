@@ -84,6 +84,7 @@ class SupplierAssessmentService:
         modules_enabled: Optional[List[str]] = None,
         ghg_scopes_enabled: Optional[List[str]] = None,
         reporting_period: Optional[str] = None,
+        questionnaire_ids: Optional[List[str]] = None,
         document_requirement_ids: Optional[List[str]] = None,
         training_requirement_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
@@ -173,6 +174,20 @@ class SupplierAssessmentService:
         ]
         ghg_scopes_enabled = (program_modules.get("ghg") or {}).get("scopes", ["scope1", "scope2"])
 
+        assigned_questionnaire_ids: List[str] = []
+        if "esg" in modules_enabled:
+            active_questionnaires = await db.supplier_questionnaires.find(
+                {"organization_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1}
+            ).to_list(100)
+            active_ids = {questionnaire["id"] for questionnaire in active_questionnaires}
+            if not questionnaire_ids:
+                assigned_questionnaire_ids = list(active_ids)
+            else:
+                assigned_questionnaire_ids = list(dict.fromkeys(questionnaire_ids))
+                invalid_ids = set(assigned_questionnaire_ids) - active_ids
+                if invalid_ids:
+                    raise ValueError("Selected ESG questionnaire is unavailable")
+
         # Create supplier relationship
         relationship_id = str(uuid.uuid4())
         relationship = {
@@ -193,6 +208,7 @@ class SupplierAssessmentService:
             # Module configuration
             "modules_enabled": modules_enabled,
             "ghg_scopes_enabled": ghg_scopes_enabled,
+            "questionnaire_ids": assigned_questionnaire_ids,
             "assessment_program_id": program_revision["program_id"],
             "assessment_program_version": program_revision["version"],
             # Progress tracking
@@ -330,6 +346,15 @@ class SupplierAssessmentService:
             )
             updates["assessment_program_id"] = revision["program_id"]
             updates["assessment_program_version"] = revision["version"]
+
+        if "questionnaire_ids" in updates:
+            active_questionnaires = await db.supplier_questionnaires.find(
+                {"organization_id": relationship["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1}
+            ).to_list(100)
+            active_ids = {questionnaire["id"] for questionnaire in active_questionnaires}
+            updates["questionnaire_ids"] = list(dict.fromkeys(updates["questionnaire_ids"] or []))
+            if set(updates["questionnaire_ids"]) - active_ids:
+                raise ValueError("Selected ESG questionnaire is unavailable")
 
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         
@@ -869,9 +894,12 @@ class SupplierAssessmentService:
         if not relationship:
             return []
         
-        # Get all questionnaires for this customer
+        # Relationships created before explicit assignment retain legacy access to all active questionnaires.
+        questionnaire_query = {"organization_id": customer_org_id, "is_active": True}
+        if "questionnaire_ids" in relationship:
+            questionnaire_query["id"] = {"$in": relationship.get("questionnaire_ids") or []}
         questionnaires = await db.supplier_questionnaires.find(
-            {"organization_id": customer_org_id, "is_active": True},
+            questionnaire_query,
             {"_id": 0}
         ).to_list(100)
         
@@ -928,6 +956,8 @@ class SupplierAssessmentService:
         
         # Get supplier's responses
         relationship = await self.get_supplier(supplier_relationship_id)
+        if not relationship or ("questionnaire_ids" in relationship and questionnaire_id not in relationship.get("questionnaire_ids", [])):
+            return None
         response_doc = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id, (relationship or {}).get("reporting_period"))
         
         answers = response_doc.get("answers", {}) if response_doc else {}
@@ -953,6 +983,8 @@ class SupplierAssessmentService:
         """Submit or save draft answers."""
         # Check if response doc exists
         relationship = await self.get_supplier(supplier_relationship_id)
+        if not relationship or ("questionnaire_ids" in relationship and questionnaire_id not in relationship.get("questionnaire_ids", [])):
+            raise ValueError("Questionnaire is not assigned to this supplier")
         reporting_period = (relationship or {}).get("reporting_period") or self._default_reporting_period()
         response_doc = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id, reporting_period)
         if response_doc and response_doc.get("status") == "submitted":

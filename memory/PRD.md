@@ -493,6 +493,12 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - The Add Supplier form now shows “Assign existing content” only when at least one active document or training requirement is available. Empty assignment controls no longer take space in a new workspace.
 - Per user instruction, this focused UI adjustment was not tested. No APIs are **MOCKED**.
 
+## Change Log — 2026-08-23: Explicit ESG Questionnaire Assignment
+
+- Add Supplier now loads active ESG questionnaires and presents a selectable assignment list whenever ESG is enabled. Active questionnaires are preselected for continuity; the parent organization can choose the exact questionnaire set and must retain at least one when ESG is enabled.
+- The selected IDs are persisted on the supplier relationship. Supplier questionnaire lists, direct questionnaire access, answer submission, and ESG completion calculations now use that assigned set. Older relationships without assignment data retain their historical all-active-questionnaire behavior.
+- Existing supplier edit submissions do not change questionnaire assignments. Per user instruction, this implementation was not tested. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Global Supplier Assessment Reporting-Period Selector
 
 - Added one persistent reporting-period selector across the customer-admin Supplier Assessment workspace. It reads available supplier periods, keeps the selected period while navigating among assessment pages, and includes current/adjacent calendar-year options for new periods.

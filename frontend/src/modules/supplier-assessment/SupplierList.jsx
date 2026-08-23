@@ -74,6 +74,7 @@ export default function SupplierList() {
     reporting_period: `CY${new Date().getFullYear()}`,
     modules_enabled: ['esg', 'ghg'],
     ghg_scopes_enabled: ['scope1', 'scope2'],
+    questionnaire_ids: [],
     document_requirement_ids: [],
     training_requirement_ids: [],
   });
@@ -82,6 +83,7 @@ export default function SupplierList() {
   const [unlockingQuestionnaireId, setUnlockingQuestionnaireId] = useState('');
   const [documents, setDocuments] = useState([]);
   const [trainings, setTrainings] = useState([]);
+  const [questionnaires, setQuestionnaires] = useState([]);
   const [reminderTarget, setReminderTarget] = useState(null);
   const [reminderModules, setReminderModules] = useState(['all']);
   const [reviewResponse, setReviewResponse] = useState(null);
@@ -115,15 +117,26 @@ export default function SupplierList() {
     Promise.all([
       axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
-    ]).then(([documentResponse, trainingResponse]) => {
+      axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
+    ]).then(([documentResponse, trainingResponse, questionnaireResponse]) => {
       setDocuments(documentResponse.data || []);
       setTrainings(trainingResponse.data || []);
+      const availableQuestionnaires = questionnaireResponse.data || [];
+      setQuestionnaires(availableQuestionnaires);
+      setFormData((current) => ({
+        ...current,
+        questionnaire_ids: current.questionnaire_ids.length ? current.questionnaire_ids : availableQuestionnaires.map((questionnaire) => questionnaire.id),
+      }));
     }).catch(() => toast.error('Could not load existing assignments'));
   }, [showAddDialog, getAuthHeader, reportingPeriod]);
 
   const handleAdd = async () => {
     if (!formData.company_name || !formData.contact_person || !formData.email) {
       toast.error('Please fill required fields');
+      return;
+    }
+    if (formData.modules_enabled?.includes('esg') && questionnaires.length > 0 && formData.questionnaire_ids.length === 0) {
+      toast.error('Select at least one ESG questionnaire');
       return;
     }
     
@@ -143,6 +156,7 @@ export default function SupplierList() {
         reporting_period: reportingPeriod,
         modules_enabled: ['esg', 'ghg'],
         ghg_scopes_enabled: ['scope1', 'scope2'],
+        questionnaire_ids: [],
         document_requirement_ids: [],
         training_requirement_ids: [],
       });
@@ -289,6 +303,15 @@ export default function SupplierList() {
         return { ...prev, ghg_scopes_enabled: [...current, scope] };
       }
     });
+  };
+
+  const toggleQuestionnaire = (questionnaireId) => {
+    setFormData((current) => ({
+      ...current,
+      questionnaire_ids: current.questionnaire_ids.includes(questionnaireId)
+        ? current.questionnaire_ids.filter((id) => id !== questionnaireId)
+        : [...current.questionnaire_ids, questionnaireId],
+    }));
   };
 
   return (
@@ -575,6 +598,24 @@ export default function SupplierList() {
                 </div>
               </div>
             </div>
+            {formData.modules_enabled?.includes('esg') && questionnaires.length > 0 && (
+              <div className="space-y-3 border-t pt-4" data-testid="supplier-questionnaire-assignment-options">
+                <Label className="text-sm font-medium">Assign ESG questionnaire(s)</Label>
+                <p className="text-xs text-stone-500">Select the questionnaires this supplier must complete.</p>
+                <div className="space-y-2">
+                  {questionnaires.map((questionnaire) => (
+                    <label key={questionnaire.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={formData.questionnaire_ids.includes(questionnaire.id)}
+                        onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
+                        data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
+                      />
+                      {questionnaire.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* GHG Scope Selection - Only shown if GHG is enabled */}
             {formData.modules_enabled?.includes('ghg') && (
