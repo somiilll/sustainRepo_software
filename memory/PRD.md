@@ -499,3 +499,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 
 - Restored the missing `Optional` typing import in `ghg_submission_service.py`, which was preventing the backend from importing and produced `502 Bad Gateway` responses, including on login.
 - Verified the external `POST /api/auth/login` response recovered with HTTP 200 in 0.53 seconds.
+
+## Change Log — 2026-08-23: Confirmed Org1 Supplier Assessment Data Purge
+
+- After explicit confirmation, permanently removed Org1’s supplier-assessment data and linked R2 objects: 5 supplier relationships, 8 supplier GHG records, 3 ESG responses, 1 revenue submission, 4 document versions/requirements, 4 training contents/versions/requirements, 8 training assignments, progress and consumption events, plus legacy document responses.
+- Removed 24 linked R2 assets, including documents and rendered training viewer files. Verification confirmed zero Org1 supplier relationships, document/training records, and zero objects under the Org1 supplier-assessment R2 prefixes.
+- Supplier user accounts and organizations were retained as explicitly scoped during confirmation.
