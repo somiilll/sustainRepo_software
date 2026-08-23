@@ -9,6 +9,7 @@ class ModuleCompletion:
     module_code: str
     completion_percent: float
     legacy_field: str
+    is_applicable: bool = True
 
 
 class SupplierAssessmentModule(ABC):
@@ -100,13 +101,25 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
         requirements = await database.supplier_document_requirements.find(
             {
                 "customer_org_id": relationship["customer_org_id"],
-                "assessment_program_id": relationship.get("assessment_program_id"),
-                "assessment_program_version": relationship.get("assessment_program_version"),
                 "is_active": True,
             },
-            {"_id": 0, "id": 1, "document_version_id": 1, "response_mode": 1, "supplier_relationship_ids": 1},
+            {"_id": 0, "id": 1, "document_version_id": 1, "response_mode": 1, "supplier_relationship_ids": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1},
         ).to_list(100)
-        requirements = [requirement for requirement in requirements if not requirement.get("supplier_relationship_ids") or relationship["id"] in requirement["supplier_relationship_ids"]]
+        requirements = [
+            requirement for requirement in requirements
+            if (
+                (not requirement.get("reporting_period") or requirement["reporting_period"] == relationship.get("reporting_period"))
+                and (
+                    relationship["id"] in (requirement.get("supplier_relationship_ids") or [])
+                    or (
+                        not requirement.get("supplier_relationship_ids")
+                        and
+                        requirement.get("assessment_program_id") == relationship.get("assessment_program_id")
+                        and requirement.get("assessment_program_version") == relationship.get("assessment_program_version")
+                    )
+                )
+            )
+        ]
         if not requirements:
             return ModuleCompletion(self.module_code, 100.0, self.legacy_completion_field)
 
@@ -143,7 +156,7 @@ class TrainingAssessmentModule(SupplierAssessmentModule):
             {"supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0, "id": 1, "requirement_version_id": 1}
         ).to_list(200)
         if not assignments:
-            return ModuleCompletion(self.module_code, 100.0, self.legacy_completion_field)
+            return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field, is_applicable=False)
         completed = await database.supplier_training_progress.count_documents({
             "supplier_relationship_id": relationship["id"], "training_assignment_id": {"$in": [item["id"] for item in assignments]}, "status": "completed",
         })

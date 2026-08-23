@@ -85,7 +85,7 @@ async def test_create_training_requires_title(monkeypatch):
 async def test_create_training_always_stores_a_100_percent_threshold(monkeypatch):
     fake_db = _DB(
         organizations=[{"id": "org-1", "name": "Customer One"}],
-        supplier_relationships=[{"id": "rel-1", "customer_org_id": "org-1", "is_active": True}],
+        supplier_relationships=[{"id": "rel-1", "customer_org_id": "org-1", "reporting_period": "FY 2026-27", "is_active": True}],
         supplier_training_contents=[], supplier_training_versions=[],
         supplier_training_requirements=[], supplier_training_assignments=[],
     )
@@ -98,9 +98,12 @@ async def test_create_training_always_stores_a_100_percent_threshold(monkeypatch
         return {"modules": {"training": {"enabled": True}}}
 
     async def _program_context(_relationship):
-        return {"config": {"modules": {}}}
+        return {"config": {"modules": {"documents": {"enabled": True}}}}
 
-    async def _revision(*_args):
+    captured_configs = []
+
+    async def _revision(_org_id, config, _user_id):
+        captured_configs.append(config)
         return {"program_id": "program-1", "version": 1}
 
     monkeypatch.setattr(training_service, "db", fake_db)
@@ -108,6 +111,13 @@ async def test_create_training_always_stores_a_100_percent_threshold(monkeypatch
     monkeypatch.setattr(training_service.sustainability_config_service, "resolve_supplier_assessment_config", _enabled_training)
     monkeypatch.setattr(training_service, "resolve_program_context", _program_context)
     monkeypatch.setattr(training_service, "get_or_create_program_revision", _revision)
+    refreshed_relationship_ids = []
+
+    async def _refresh_completion(relationship_id):
+        refreshed_relationship_ids.append(relationship_id)
+
+    from modules.supplier_assessment.service import supplier_service
+    monkeypatch.setattr(supplier_service, "_update_completion_status", _refresh_completion)
 
     document = training_service.fitz.open()
     document.new_page().insert_text((72, 72), "Training page")
@@ -122,6 +132,10 @@ async def test_create_training_always_stores_a_100_percent_threshold(monkeypatch
     assert result["training"]["completion_threshold"] == 100.0
     assert fake_db.supplier_training_requirements.docs[0]["completion_threshold"] == 100.0
     assert result["version"]["viewer_manifest"]["viewer_type"] == "pages"
+    assert result["assignments"][0]["reporting_period"] == "FY 2026-27"
+    assert captured_configs[0]["modules"]["documents"]["enabled"] is True
+    assert captured_configs[0]["modules"]["training"]["enabled"] is True
+    assert refreshed_relationship_ids == ["rel-1"]
 
 
 @pytest.mark.asyncio
@@ -213,7 +227,8 @@ async def test_training_module_completion_empty_and_completed_paths():
 
     empty_db = _DB(supplier_training_assignments=[], supplier_training_progress=[])
     empty_completion = await module.get_completion(empty_db, {"id": "relationship-1"})
-    assert empty_completion.completion_percent == 100.0
+    assert empty_completion.completion_percent == 0.0
+    assert empty_completion.is_applicable is False
 
     populated_db = _DB(
         supplier_training_assignments=[

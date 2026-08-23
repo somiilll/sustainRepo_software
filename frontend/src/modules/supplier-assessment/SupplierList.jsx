@@ -246,6 +246,8 @@ export default function SupplierList() {
       modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
       ghg_scopes_enabled: supplier.ghg_scopes_enabled || ['scope1', 'scope2'],
       questionnaire_ids: supplier.questionnaire_ids || [],
+      document_requirement_ids: supplier.document_requirement_ids || [],
+      training_requirement_ids: supplier.training_requirement_ids || [],
     });
     setShowEditDialog(true);
   };

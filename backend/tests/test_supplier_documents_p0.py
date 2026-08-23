@@ -200,6 +200,26 @@ async def test_selected_document_cannot_be_seen_by_an_unselected_supplier(monkey
     assert (await documents_service.list_supplier_documents(selected_supplier))[0]["id"] == "requirement-1"
 
 
+@pytest.mark.asyncio
+async def test_explicit_document_remains_available_after_later_program_revision(monkeypatch):
+    supplier = _relationship("relationship-1", "supplier-1", "program-1", 2)
+    database = _Database(
+        supplier_document_requirements=[{
+            "id": "requirement-1", "customer_org_id": "customer-1",
+            "assessment_program_id": "program-1", "assessment_program_version": 1,
+            "document_version_id": "version-1", "supplier_relationship_ids": ["relationship-1"],
+            "is_active": True, "title": "Assigned NDA", "created_at": "2026-01-01",
+        }],
+        supplier_document_versions=[{"id": "version-1", "original_filename": "assigned.pdf", "content_type": "application/pdf", "file_size": 42, "version_number": 1}],
+        supplier_document_acceptances=[], supplier_document_responses=[],
+    )
+    monkeypatch.setattr(documents_service, "db", database)
+
+    documents = await documents_service.list_supplier_documents(supplier)
+    assert [document["id"] for document in documents] == ["requirement-1"]
+    assert await documents_service.get_supplier_document(supplier, "requirement-1") is not None
+
+
 def test_document_api_exposes_only_the_audit_safe_delete_mutation_route():
     document_routes = [route for route in router.routes if "/documents" in route.path]
     assert document_routes
