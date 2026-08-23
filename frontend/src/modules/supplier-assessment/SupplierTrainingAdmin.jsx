@@ -1,3 +1,134 @@
-import React,{useCallback,useEffect,useState}from'react';import axios from'axios';import{toast}from'sonner';import{Upload}from'lucide-react';import{useAuth}from'../../contexts/AuthContext';import{Button}from'../../components/ui/button';import{Card,CardContent,CardHeader,CardTitle}from'../../components/ui/card';import{Input}from'../../components/ui/input';
-const API=`${process.env.REACT_APP_BACKEND_URL}/api`;
-export default function SupplierTrainingAdmin(){const{getAuthHeader}=useAuth(),[trainings,setTrainings]=useState([]),[suppliers,setSuppliers]=useState([]),[file,setFile]=useState(null),[title,setTitle]=useState(''),[description,setDescription]=useState(''),[threshold,setThreshold]=useState(80),[selected,setSelected]=useState([]);const load=useCallback(async()=>{try{const[h,s]=await Promise.all([axios.get(`${API}/supplier-assessment/trainings`,{headers:getAuthHeader()}),axios.get(`${API}/supplier-assessment/suppliers?page_size=100`,{headers:getAuthHeader()})]);const status=await Promise.all(h.data.map(t=>axios.get(`${API}/supplier-assessment/trainings/${t.id}/status`,{headers:getAuthHeader()})));setTrainings(h.data.map((t,i)=>({...t,status:status[i].data})));setSuppliers(s.data.suppliers||[])}catch(e){toast.error('Could not load training management')}},[getAuthHeader]);useEffect(()=>{load()},[load]);const create=async()=>{if(!file||!title||!selected.length){toast.error('Add a title, file, and supplier');return}try{const d=new FormData();d.append('file',file);d.append('title',title);d.append('description',description);d.append('completion_threshold',threshold);d.append('supplier_relationship_ids',JSON.stringify(selected));await axios.post(`${API}/supplier-assessment/trainings`,d,{headers:getAuthHeader()});toast.success('Training assigned');setTitle('');setFile(null);load()}catch(e){toast.error(e.response?.data?.detail||'Could not create training')}};return <div className="space-y-6" data-testid="training-admin-page"><div><h1 className="text-3xl font-semibold">Supplier training</h1><p className="text-sm text-stone-600 mt-2">Publish private content and assign it to suppliers.</p></div><Card><CardHeader><CardTitle className="flex gap-2"><Upload className="h-5 w-5 text-emerald-700"/>Create training</CardTitle></CardHeader><CardContent className="grid gap-3 md:grid-cols-2"><Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Training title" data-testid="training-title-input"/><Input value={description} onChange={e=>setDescription(e.target.value)} placeholder="Description" data-testid="training-description-input"/><Input type="number" min="1" max="100" value={threshold} onChange={e=>setThreshold(e.target.value)} data-testid="training-threshold-input"/><Input type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={e=>setFile(e.target.files?.[0])} data-testid="training-file-input"/><select multiple value={selected} onChange={e=>setSelected([...e.target.selectedOptions].map(o=>o.value))} className="min-h-28 border p-2" data-testid="training-supplier-select">{suppliers.map(s=><option key={s.id} value={s.id}>{s.company_name}</option>)}</select><Button onClick={create} data-testid="create-training-button">Create and assign</Button></CardContent></Card><div data-testid="training-admin-list">{trainings.map(t=><Card key={t.id} data-testid={`training-admin-${t.id}`}><CardContent className="py-4"><b>{t.title}</b><span className="ml-3 text-sm text-stone-500">{t.completion_threshold}% required · {(t.status||[]).filter(x=>x.status==='completed').length}/{(t.status||[]).length} complete</span></CardContent></Card>)}</div></div>}
+import React, { useCallback, useEffect, useState } from 'react';
+import axios from 'axios';
+import { toast } from 'sonner';
+import { Archive, CalendarDays, Loader2, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+export default function SupplierTrainingAdmin() {
+  const { getAuthHeader } = useAuth();
+  const [trainings, setTrainings] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [file, setFile] = useState(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [selected, setSelected] = useState([]);
+  const [trainingLabel, setTrainingLabel] = useState('Training');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState('');
+  const [dueDates, setDueDates] = useState({});
+  const [pendingDelete, setPendingDelete] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const [trainingResponse, supplierResponse, configResponse] = await Promise.all([
+        axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
+        axios.get(`${API}/supplier-assessment/suppliers?page_size=100`, { headers: getAuthHeader() }),
+        axios.get(`${API}/sustainability-config/resolved`, { headers: getAuthHeader() }),
+      ]);
+      const trainingItems = trainingResponse.data;
+      const statusResults = await Promise.allSettled(trainingItems.map((training) => (
+        axios.get(`${API}/supplier-assessment/trainings/${training.id}/status`, { headers: getAuthHeader() })
+      )));
+      setTrainings(trainingItems.map((training, index) => ({
+        ...training,
+        status: statusResults[index].status === 'fulfilled' ? statusResults[index].value.data : [],
+      })));
+      setSuppliers(supplierResponse.data.suppliers || []);
+      setTrainingLabel(configResponse.data?.supplier_assessment?.modules?.training?.display_name || 'Training');
+    } catch (error) {
+      toast.error('Could not load training management');
+    }
+  }, [getAuthHeader]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const create = async () => {
+    if (!file || !title || !selected.length) {
+      toast.error('Add a title, file, and supplier');
+      return;
+    }
+    setIsCreating(true);
+    try {
+      const data = new FormData();
+      data.append('file', file);
+      data.append('title', title);
+      data.append('description', description);
+      data.append('due_date', dueDate);
+      data.append('completion_threshold', '100');
+      data.append('supplier_relationship_ids', JSON.stringify(selected));
+      await axios.post(`${API}/supplier-assessment/trainings`, data, { headers: getAuthHeader() });
+      toast.success(`${trainingLabel} assigned`);
+      setTitle(''); setDescription(''); setDueDate(''); setFile(null); setSelected([]);
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || `Could not create ${trainingLabel.toLowerCase()}`);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const updateTraining = async (trainingId, updates, successMessage) => {
+    setIsUpdating(trainingId);
+    try {
+      await axios.patch(`${API}/supplier-assessment/trainings/${trainingId}`, updates, { headers: getAuthHeader() });
+      toast.success(successMessage);
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not update training');
+    } finally {
+      setIsUpdating('');
+    }
+  };
+
+  const deleteTraining = async () => {
+    if (!pendingDelete) return;
+    setIsUpdating(pendingDelete.id);
+    try {
+      await axios.delete(`${API}/supplier-assessment/trainings/${pendingDelete.id}`, { headers: getAuthHeader() });
+      toast.success(`${trainingLabel} deleted`);
+      setPendingDelete(null);
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not delete training');
+    } finally {
+      setIsUpdating('');
+    }
+  };
+
+  return <div className="space-y-6" data-testid="training-admin-page">
+    <div>
+      <h1 className="text-3xl font-semibold" data-testid="training-admin-heading">Supplier {trainingLabel}</h1>
+      <p className="mt-2 text-sm text-stone-600">Publish private content and assign it to suppliers.</p>
+    </div>
+    <Card>
+      <CardHeader><CardTitle className="flex gap-2" data-testid="create-training-heading"><Upload className="h-5 w-5 text-emerald-700" />Create {trainingLabel}</CardTitle></CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2"><Label htmlFor="training-title">Title</Label><Input id="training-title" value={title} onChange={(event) => setTitle(event.target.value)} data-testid="training-title-input" /></div>
+        <div className="space-y-2"><Label htmlFor="training-description">Description</Label><Input id="training-description" value={description} onChange={(event) => setDescription(event.target.value)} data-testid="training-description-input" /></div>
+        <div className="space-y-2"><Label htmlFor="training-due-date">Due date</Label><Input id="training-due-date" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} data-testid="training-due-date-input" /></div>
+        <div className="space-y-2"><Label htmlFor="training-file">Content file</Label><Input id="training-file" type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={(event) => setFile(event.target.files?.[0])} data-testid="training-file-input" /></div>
+        <div className="space-y-2"><Label htmlFor="training-suppliers">Suppliers</Label><select id="training-suppliers" multiple value={selected} onChange={(event) => setSelected([...event.target.selectedOptions].map((option) => option.value))} className="min-h-28 w-full border p-2" data-testid="training-supplier-select">{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>)}</select></div>
+        <div className="flex items-end"><Button onClick={create} disabled={isCreating} data-testid="create-training-button">{isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isCreating ? 'Creating…' : 'Create and assign'}</Button></div>
+      </CardContent>
+    </Card>
+    <div className="space-y-3" data-testid="training-admin-list">
+      {trainings.map((training) => <Card key={training.id} data-testid={`training-admin-${training.id}`}>
+        <CardContent className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1"><b data-testid={`training-title-${training.id}`}>{training.title}</b><div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-stone-500"><span data-testid={`training-threshold-${training.id}`}>{training.completion_threshold}% completion required</span><span data-testid={`training-completion-count-${training.id}`}>{(training.status || []).filter((item) => item.status === 'completed').length} of {(training.status || []).length} suppliers complete</span>{!training.is_active && <span className="font-medium text-amber-700" data-testid={`training-disabled-status-${training.id}`}>Disabled</span>}</div></div>
+          <div className="flex flex-wrap items-end gap-2"><div className="space-y-1"><Label htmlFor={`training-due-date-${training.id}`} className="text-xs">Due date</Label><Input id={`training-due-date-${training.id}`} type="date" value={dueDates[training.id] ?? training.due_date?.slice(0, 10) ?? ''} onChange={(event) => setDueDates((current) => ({ ...current, [training.id]: event.target.value }))} data-testid={`training-due-date-${training.id}`} /></div><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => updateTraining(training.id, { due_date: dueDates[training.id] ?? training.due_date?.slice(0, 10) ?? null }, 'Due date saved')} data-testid={`save-training-due-date-${training.id}`}><CalendarDays className="mr-1 h-4 w-4" />Save</Button><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => updateTraining(training.id, { is_active: !training.is_active }, training.is_active ? 'Training disabled' : 'Training enabled')} data-testid={`toggle-training-${training.id}`}>{training.is_active ? <Archive className="mr-1 h-4 w-4" /> : <RotateCcw className="mr-1 h-4 w-4" />}{training.is_active ? 'Disable' : 'Enable'}</Button><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => setPendingDelete(training)} data-testid={`delete-training-${training.id}`}><Trash2 className="mr-1 h-4 w-4" />Delete</Button></div>
+        </CardContent>
+      </Card>)}
+    </div>
+    <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <AlertDialogContent data-testid="delete-training-dialog"><AlertDialogHeader><AlertDialogTitle>Delete {pendingDelete?.title}?</AlertDialogTitle><AlertDialogDescription>This removes it from supplier access and assignment lists. Historical completion records are retained for audit purposes.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-delete-training-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteTraining} data-testid="confirm-delete-training-button">Delete training</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+    </AlertDialog>
+  </div>;
+}

@@ -107,6 +107,12 @@ class SupplierDocumentResponse(BaseModel):
     created_at: str
 
 
+class TrainingUpdate(BaseModel):
+    """Customer-admin changes allowed for an existing training requirement."""
+    due_date: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
 # ============================================================================
 # Questionnaire Schemas
 # ============================================================================

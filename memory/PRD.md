@@ -122,6 +122,12 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **HARDENED:** Documents and Training are now controlled by the authoritative organization setting. Publishing an agreement or assigning training is rejected while its workflow is disabled; neither action silently re-enables a module. Existing immutable document/training content and completion behavior remain unchanged.
 - **VERIFIED:** Superadmin read-only browser smoke passed after selecting ORG1 and opening the Supplier Assessment tab. Independent validation passed 21/21 focused backend tests and the supplier metadata contract. Root-level focused test execution now works through `pytest.ini`: 20 passed locally. No R2 uploads or live organization-config mutations were made. **MOCKED:** none.
 
+### Session 8 (2026-08-23) — Supplier Training Management and Storage Alignment
+- **DONE:** Customer-admin Training now uses the resolved organization display label in its page and sidebar. New assignments are server-enforced at **100% completion**; the threshold field has been removed from the UI and API contract.
+- **DONE:** Added optional per-training due dates, editable after creation; safe disable/enable controls; and audit-preserving delete (removed from supplier access and lists, while immutable history remains). The list now clearly states `100% completion required` and `X of Y suppliers complete`.
+- **FIXED:** Creation has a loading lock to prevent repeated clicks and duplicate uploads while large files are processing. Focused Training suites passed **8/8**; authenticated non-destructive UI/auth checks passed **9/9**. No APIs are **MOCKED**.
+- **DONE:** New Supplier Assessment agreements/documents now upload to the dedicated `supplier_assessment` R2 bucket mapping (`R2_BUCKET_SUPPLIER_ASSESSMENT`, currently `supplier-assessment-dev`) under `supplier-assessment/documents/`. Existing document versions retain their stored bucket mapping and remain readable. Focused document tests passed **3/3**; 3 opt-in live R2 tests were skipped to avoid mutating live storage.
+
 ## Known Issues
 
 ### P0: Process Emissions and Custom Fuel Density Payload Loss

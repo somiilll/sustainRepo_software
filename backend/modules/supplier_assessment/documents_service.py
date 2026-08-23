@@ -11,7 +11,7 @@ from modules.sustainability_config import service as sustainability_config_servi
 from modules.supplier_assessment.programs import get_or_create_program_revision, resolve_program_context
 
 
-DOCUMENT_BUCKET_TYPE = "org_facility"
+DOCUMENT_BUCKET_TYPE = "supplier_assessment"
 DOCUMENT_FOLDER = "supplier-assessment/documents"
 ALLOWED_DOCUMENT_TYPES = {
     "application/pdf",

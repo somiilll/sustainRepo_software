@@ -54,6 +54,9 @@ class _Collection:
         if upsert:
             self.docs.append(deepcopy(update.get("$set", {})))
 
+    async def insert_one(self, doc):
+        self.docs.append(deepcopy(doc))
+
 
 class _DB:
     def __init__(self, **collections):
@@ -62,13 +65,13 @@ class _DB:
 
 
 @pytest.mark.asyncio
-async def test_create_training_rejects_invalid_threshold(monkeypatch):
-    # training_service.create_training validation behavior
-    with pytest.raises(ValueError, match="threshold"):
+async def test_create_training_requires_title(monkeypatch):
+    # Completion is server-owned at 100%; the only early form validation is title presence.
+    with pytest.raises(ValueError, match="Title"):
         await training_service.create_training(
             org_id="org-1",
             user_id="user-1",
-            title="Intro Training",
+            title="",
             description="desc",
             threshold=0,
             file_name="training.pdf",
@@ -76,6 +79,43 @@ async def test_create_training_rejects_invalid_threshold(monkeypatch):
             content=b"%PDF-1.4",
             relationship_ids=["rel-1"],
         )
+
+
+@pytest.mark.asyncio
+async def test_create_training_always_stores_a_100_percent_threshold(monkeypatch):
+    fake_db = _DB(
+        supplier_relationships=[{"id": "rel-1", "customer_org_id": "org-1", "is_active": True}],
+        supplier_training_contents=[], supplier_training_versions=[],
+        supplier_training_requirements=[], supplier_training_assignments=[],
+    )
+
+    class _Storage:
+        async def upload_file(self, *_args, **_kwargs):
+            return {"key": "supplier-assessment/training/test.pdf"}
+
+    async def _enabled_training(_org_id):
+        return {"modules": {"training": {"enabled": True}}}
+
+    async def _program_context(_relationship):
+        return {"config": {"modules": {}}}
+
+    async def _revision(*_args):
+        return {"program_id": "program-1", "version": 1}
+
+    monkeypatch.setattr(training_service, "db", fake_db)
+    monkeypatch.setattr(training_service, "get_r2_storage", lambda: _Storage())
+    monkeypatch.setattr(training_service.sustainability_config_service, "resolve_supplier_assessment_config", _enabled_training)
+    monkeypatch.setattr(training_service, "resolve_program_context", _program_context)
+    monkeypatch.setattr(training_service, "get_or_create_program_revision", _revision)
+
+    result = await training_service.create_training(
+        org_id="org-1", user_id="user-1", title="Safety", description="desc", threshold=1,
+        file_name="training.pdf", content_type="application/pdf", content=b"%PDF-1.4",
+        relationship_ids=["rel-1"], due_date="2026-12-31",
+    )
+
+    assert result["training"]["completion_threshold"] == 100.0
+    assert fake_db.supplier_training_requirements.docs[0]["completion_threshold"] == 100.0
 
 
 @pytest.mark.asyncio
