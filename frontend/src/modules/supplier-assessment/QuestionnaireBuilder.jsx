@@ -158,7 +158,8 @@ export default function QuestionnaireBuilder() {
     response_type: 'yes_no',
     options: [],
     required: true,
-    weight: 1,
+    importance: 'medium',
+    exact_numerical_weight: null,
     category: 'environment',
     order: 0,
     scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
@@ -205,6 +206,7 @@ export default function QuestionnaireBuilder() {
       toast.error('Please enter a name');
       return;
     }
+    if (!validateQuestionnaireWeights()) return;
     
     setSubmitting(true);
     try {
@@ -223,7 +225,7 @@ export default function QuestionnaireBuilder() {
       fetchQuestionnaires();
       setSelectedQuestionnaire(res.data);
     } catch (err) {
-      toast.error('Failed to create questionnaire');
+      toast.error(err.response?.data?.detail || 'Failed to create questionnaire');
     } finally {
       setSubmitting(false);
     }
@@ -231,6 +233,7 @@ export default function QuestionnaireBuilder() {
 
   const handleUpdateQuestionnaire = async () => {
     if (!selectedQuestionnaire) return;
+    if (!validateQuestionnaireWeights()) return;
     
     setSubmitting(true);
     try {
@@ -243,7 +246,7 @@ export default function QuestionnaireBuilder() {
       setShowEditDialog(false);
       fetchQuestionnaires();
     } catch (err) {
-      toast.error('Failed to update questionnaire');
+      toast.error(err.response?.data?.detail || 'Failed to update questionnaire');
     } finally {
       setSubmitting(false);
     }
@@ -353,11 +356,22 @@ export default function QuestionnaireBuilder() {
       response_type: 'yes_no',
       options: [],
       required: true,
-      weight: 1,
+        importance: 'medium',
+        exact_numerical_weight: null,
       category: 'environment',
       order: 0,
       scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
     });
+  };
+
+  const validateQuestionnaireWeights = () => {
+    const esgTotal = Object.values(questionnaireForm.esg_section_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
+    const overallTotal = Object.values(questionnaireForm.overall_supplier_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
+    if (Math.abs(esgTotal - 100) > 0.01 || Math.abs(overallTotal - 100) > 0.01) {
+      toast.error('ESG category and overall component weights must each total 100%.');
+      return false;
+    }
+    return true;
   };
 
   const openEditQuestion = (question) => {
@@ -368,7 +382,8 @@ export default function QuestionnaireBuilder() {
       response_type: question.response_type,
       options: question.options || [],
       required: question.required,
-      weight: question.weight,
+      importance: question.importance || 'medium',
+      exact_numerical_weight: question.exact_numerical_weight ?? (question.importance ? null : question.weight ?? null),
       category: question.category,
       order: question.order,
       scoring: question.scoring || getDefaultScoringConfig(question.response_type),
@@ -579,6 +594,9 @@ export default function QuestionnaireBuilder() {
                                       {scoringRule.label}
                                     </Badge>
                                   )}
+                                  <Badge variant="outline" className="text-xs" data-testid={`question-weight-status-${q.id}`}>
+                                    {q.exact_numerical_weight != null ? `Exact weight ${q.exact_numerical_weight}` : `${q.importance || 'medium'} importance`}
+                                  </Badge>
                                 </div>
                               </div>
                               {q.description && (
@@ -600,6 +618,7 @@ export default function QuestionnaireBuilder() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openEditQuestion(q)}
+                                data-testid={`edit-question-${q.id}`}
                               >
                                 <Edit2 className="h-4 w-4" />
                               </Button>
@@ -608,6 +627,7 @@ export default function QuestionnaireBuilder() {
                                 size="sm"
                                 className="text-red-600"
                                 onClick={() => handleDeleteQuestion(q.id)}
+                                data-testid={`delete-question-${q.id}`}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -637,7 +657,7 @@ export default function QuestionnaireBuilder() {
           <DialogHeader>
             <DialogTitle>Create Questionnaire</DialogTitle>
             <DialogDescription>
-              Configure questionnaire settings and scoring weights
+              Configure the assessment and its score components
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
@@ -673,13 +693,13 @@ export default function QuestionnaireBuilder() {
                 <AccordionTrigger className="text-sm font-medium">
                   <div className="flex items-center gap-2">
                     <Settings2 className="h-4 w-4" />
-                    ESG Section Weights
+                    ESG Category Weight
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="pt-2 space-y-3">
                     <p className="text-xs text-stone-500">
-                      Configure how much each ESG section contributes to the overall ESG score (must total 100%)
+                      Set how Environment, Social, and Governance contribute to ESG (total 100%).
                     </p>
                     <div className="grid grid-cols-3 gap-2">
                       <div>
@@ -687,7 +707,8 @@ export default function QuestionnaireBuilder() {
                         <Input
                           type="number"
                           step="0.01"
-                          value={questionnaireForm.esg_section_weights?.environment || 33.33}
+                          value={questionnaireForm.esg_section_weights?.environment ?? 33.33}
+                          data-testid="esg-category-environment-weight-input"
                           onChange={(e) => setQuestionnaireForm({
                             ...questionnaireForm,
                             esg_section_weights: {
@@ -702,7 +723,8 @@ export default function QuestionnaireBuilder() {
                         <Input
                           type="number"
                           step="0.01"
-                          value={questionnaireForm.esg_section_weights?.social || 33.33}
+                          value={questionnaireForm.esg_section_weights?.social ?? 33.33}
+                          data-testid="esg-category-social-weight-input"
                           onChange={(e) => setQuestionnaireForm({
                             ...questionnaireForm,
                             esg_section_weights: {
@@ -717,7 +739,8 @@ export default function QuestionnaireBuilder() {
                         <Input
                           type="number"
                           step="0.01"
-                          value={questionnaireForm.esg_section_weights?.governance || 33.34}
+                          value={questionnaireForm.esg_section_weights?.governance ?? 33.34}
+                          data-testid="esg-category-governance-weight-input"
                           onChange={(e) => setQuestionnaireForm({
                             ...questionnaireForm,
                             esg_section_weights: {
@@ -736,20 +759,21 @@ export default function QuestionnaireBuilder() {
                 <AccordionTrigger className="text-sm font-medium">
                   <div className="flex items-center gap-2">
                     <Target className="h-4 w-4" />
-                    Overall Supplier Score Weights
+                    Overall Component Weight
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="pt-2 space-y-3">
                     <p className="text-xs text-stone-500">
-                      Configure how ESG, GHG emissions, and revenue contribution impact the final supplier score (must total 100%)
+                      Set how ESG, GHG intensity, and revenue contribute to the final supplier score (total 100%).
                     </p>
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <Label className="text-xs">ESG Score</Label>
                         <Input
                           type="number"
-                          value={questionnaireForm.overall_supplier_weights?.esg || 40}
+                          value={questionnaireForm.overall_supplier_weights?.esg ?? 40}
+                          data-testid="overall-component-esg-weight-input"
                           onChange={(e) => setQuestionnaireForm({
                             ...questionnaireForm,
                             overall_supplier_weights: {
@@ -760,10 +784,11 @@ export default function QuestionnaireBuilder() {
                         />
                       </div>
                       <div>
-                        <Label className="text-xs">GHG Score</Label>
+                        <Label className="text-xs">GHG Intensity</Label>
                         <Input
                           type="number"
-                          value={questionnaireForm.overall_supplier_weights?.ghg || 40}
+                          value={questionnaireForm.overall_supplier_weights?.ghg ?? 40}
+                          data-testid="overall-component-ghg-weight-input"
                           onChange={(e) => setQuestionnaireForm({
                             ...questionnaireForm,
                             overall_supplier_weights: {
@@ -777,7 +802,8 @@ export default function QuestionnaireBuilder() {
                         <Label className="text-xs">Revenue</Label>
                         <Input
                           type="number"
-                          value={questionnaireForm.overall_supplier_weights?.revenue || 20}
+                          value={questionnaireForm.overall_supplier_weights?.revenue ?? 20}
+                          data-testid="overall-component-revenue-weight-input"
                           onChange={(e) => setQuestionnaireForm({
                             ...questionnaireForm,
                             overall_supplier_weights: {
@@ -838,7 +864,7 @@ export default function QuestionnaireBuilder() {
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="esg-weights">
                 <AccordionTrigger className="text-sm font-medium">
-                  ESG Section Weights
+                  ESG Category Weight
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="grid grid-cols-3 gap-2 pt-2">
@@ -847,7 +873,7 @@ export default function QuestionnaireBuilder() {
                       <Input
                         type="number"
                         step="0.01"
-                        value={questionnaireForm.esg_section_weights?.environment || 33.33}
+                        value={questionnaireForm.esg_section_weights?.environment ?? 33.33}
                         onChange={(e) => setQuestionnaireForm({
                           ...questionnaireForm,
                           esg_section_weights: {
@@ -862,7 +888,7 @@ export default function QuestionnaireBuilder() {
                       <Input
                         type="number"
                         step="0.01"
-                        value={questionnaireForm.esg_section_weights?.social || 33.33}
+                        value={questionnaireForm.esg_section_weights?.social ?? 33.33}
                         onChange={(e) => setQuestionnaireForm({
                           ...questionnaireForm,
                           esg_section_weights: {
@@ -877,7 +903,7 @@ export default function QuestionnaireBuilder() {
                       <Input
                         type="number"
                         step="0.01"
-                        value={questionnaireForm.esg_section_weights?.governance || 33.34}
+                        value={questionnaireForm.esg_section_weights?.governance ?? 33.34}
                         onChange={(e) => setQuestionnaireForm({
                           ...questionnaireForm,
                           esg_section_weights: {
@@ -893,7 +919,7 @@ export default function QuestionnaireBuilder() {
               
               <AccordionItem value="overall-weights">
                 <AccordionTrigger className="text-sm font-medium">
-                  Overall Supplier Score Weights
+                  Overall Component Weight
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="grid grid-cols-3 gap-2 pt-2">
@@ -901,7 +927,7 @@ export default function QuestionnaireBuilder() {
                       <Label className="text-xs">ESG Score</Label>
                       <Input
                         type="number"
-                        value={questionnaireForm.overall_supplier_weights?.esg || 40}
+                        value={questionnaireForm.overall_supplier_weights?.esg ?? 40}
                         onChange={(e) => setQuestionnaireForm({
                           ...questionnaireForm,
                           overall_supplier_weights: {
@@ -912,10 +938,10 @@ export default function QuestionnaireBuilder() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">GHG Score</Label>
+                      <Label className="text-xs">GHG Intensity</Label>
                       <Input
                         type="number"
-                        value={questionnaireForm.overall_supplier_weights?.ghg || 40}
+                        value={questionnaireForm.overall_supplier_weights?.ghg ?? 40}
                         onChange={(e) => setQuestionnaireForm({
                           ...questionnaireForm,
                           overall_supplier_weights: {
@@ -929,7 +955,7 @@ export default function QuestionnaireBuilder() {
                       <Label className="text-xs">Revenue</Label>
                       <Input
                         type="number"
-                        value={questionnaireForm.overall_supplier_weights?.revenue || 20}
+                        value={questionnaireForm.overall_supplier_weights?.revenue ?? 20}
                         onChange={(e) => setQuestionnaireForm({
                           ...questionnaireForm,
                           overall_supplier_weights: {
@@ -1021,16 +1047,21 @@ export default function QuestionnaireBuilder() {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Weight</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={questionForm.weight}
-                  onChange={(e) => setQuestionForm({ ...questionForm, weight: parseFloat(e.target.value) || 1 })}
-                />
+                <Label>Question Importance</Label>
+                <Select
+                  value={questionForm.importance}
+                  onValueChange={(importance) => setQuestionForm({ ...questionForm, importance })}
+                >
+                  <SelectTrigger data-testid="question-importance-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Required</Label>
@@ -1038,7 +1069,7 @@ export default function QuestionnaireBuilder() {
                   value={questionForm.required ? 'yes' : 'no'}
                   onValueChange={(v) => setQuestionForm({ ...questionForm, required: v === 'yes' })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger data-testid="question-required-select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1048,6 +1079,36 @@ export default function QuestionnaireBuilder() {
                 </Select>
               </div>
             </div>
+
+            <Accordion type="single" collapsible className="w-full border-y">
+              <AccordionItem value="advanced-question-weight" className="border-0">
+                <AccordionTrigger className="py-3 text-sm font-medium" data-testid="advanced-question-weight-toggle">
+                  Advanced Configuration
+                </AccordionTrigger>
+                <AccordionContent className="pb-4">
+                  <div className="space-y-2 max-w-sm">
+                    <Label>Override with exact weight</Label>
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.1"
+                      value={questionForm.exact_numerical_weight ?? ''}
+                      onChange={(event) => setQuestionForm({
+                        ...questionForm,
+                        exact_numerical_weight: event.target.value === '' ? null : Number(event.target.value),
+                      })}
+                      placeholder="Optional"
+                      data-testid="question-exact-weight-input"
+                    />
+                    <p className="text-xs text-stone-500" data-testid="question-effective-weight-status">
+                      {questionForm.exact_numerical_weight !== null && questionForm.exact_numerical_weight !== ''
+                        ? `Using exact weight: ${questionForm.exact_numerical_weight}`
+                        : `Using ${questionForm.importance} importance`}
+                    </p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
             
             {/* Dropdown Options */}
             {questionForm.response_type === 'dropdown' && (
@@ -1099,11 +1160,11 @@ export default function QuestionnaireBuilder() {
             <div className="border rounded-lg p-4 bg-stone-50/50 space-y-4">
               <div className="flex items-center gap-2">
                 <Settings2 className="h-4 w-4 text-stone-600" />
-                <Label className="text-base font-medium">Scoring Configuration</Label>
+                <Label className="text-base font-medium">Scoring Method</Label>
               </div>
               
               <div className="space-y-2">
-                <Label className="text-sm">Scoring Rule</Label>
+                <Label className="text-sm">How should this answer become a 0–100 score?</Label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {scoringRules.map((rule) => {
                     const Icon = rule.icon;
@@ -1144,6 +1205,7 @@ export default function QuestionnaireBuilder() {
                             ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' 
                             : 'border-stone-200 hover:border-stone-300 hover:bg-white'
                         }`}
+                        data-testid={`question-scoring-method-${rule.value}`}
                       >
                         <div className="flex items-center gap-2">
                           <Icon className={`h-4 w-4 ${isSelected ? 'text-emerald-600' : rule.color}`} />

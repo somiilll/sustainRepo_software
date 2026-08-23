@@ -348,16 +348,20 @@ async def create_questionnaire(
     current_user: dict = Depends(get_customer_admin),
 ):
     """Create a new questionnaire template."""
-    result = await supplier_service.create_questionnaire(
-        organization_id=current_user["organization_id"],
-        name=data.name,
-        description=data.description,
-        due_date=data.due_date,
-        scoring_method=data.scoring_method,
-        section_weights=data.section_weights,
-        created_by=current_user["id"],
-    )
-    return result
+    try:
+        return await supplier_service.create_questionnaire(
+            organization_id=current_user["organization_id"],
+            name=data.name,
+            description=data.description,
+            due_date=data.due_date,
+            scoring_method=data.scoring_method,
+            section_weights=data.section_weights,
+            esg_section_weights=data.esg_section_weights.model_dump() if data.esg_section_weights else None,
+            overall_supplier_weights=data.overall_supplier_weights.model_dump() if data.overall_supplier_weights else None,
+            created_by=current_user["id"],
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.get("/questionnaires", response_model=List[QuestionnaireResponse])
@@ -399,8 +403,10 @@ async def update_questionnaire(
         raise HTTPException(status_code=403, detail="Access denied")
     
     updates = data.model_dump(exclude_unset=True)
-    result = await supplier_service.update_questionnaire(questionnaire_id, updates)
-    return result
+    try:
+        return await supplier_service.update_questionnaire(questionnaire_id, updates)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.delete("/questionnaires/{questionnaire_id}")
@@ -466,6 +472,8 @@ async def add_question(
         options=[o.model_dump() for o in data.options] if data.options else None,
         required=data.required,
         weight=data.weight,
+        importance=data.importance,
+        exact_numerical_weight=data.exact_numerical_weight,
         category=data.category,
         order=data.order,
         scoring=data.scoring.model_dump() if data.scoring else None,

@@ -505,3 +505,16 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - After explicit confirmation, permanently removed Org1’s supplier-assessment data and linked R2 objects: 5 supplier relationships, 8 supplier GHG records, 3 ESG responses, 1 revenue submission, 4 document versions/requirements, 4 training contents/versions/requirements, 8 training assignments, progress and consumption events, plus legacy document responses.
 - Removed 24 linked R2 assets, including documents and rendered training viewer files. Verification confirmed zero Org1 supplier relationships, document/training records, and zero objects under the Org1 supplier-assessment R2 prefixes.
 - Supplier user accounts and organizations were retained as explicitly scoped during confirmation.
+
+## Change Log — 2026-08-23: Canonical Supplier Assessment Scoring
+
+- P0: Questionnaire configuration now persists ESG Category Weight and Overall Component Weight values. Questions use Simple Mode Importance (`Low`, `Medium`, `High`, `Critical`) or an Advanced exact numerical override—never both combined. The builder keeps all six scoring methods and hides raw question weights unless Advanced Configuration is opened.
+- P0: Submission scoring receives the submitted answer payload, persists question/section/ESG breakdowns, and refreshes one relationship-level `canonical_score_snapshot`. GHG is scored from submitted Scope 1+2 emissions intensity per supplier revenue million. Supplier details, rankings, and supplier lists read the persisted canonical snapshot rather than recalculating scores.
+- P0 follow-up: questionnaire creation now defaults `scoring_method` to `question`, avoiding the prior 500 response. Login now has a five-failure, 15-minute account lockout and backend CORS requires explicit configured origins.
+- Verified: Python/JavaScript lint passed; canonical scoring unit suite passed **3/3**; live questionnaire configuration persistence passed with automatic cleanup; ranking/supplier endpoints returned HTTP 200; backend CORS allowed only the configured origin and rejected an untrusted origin; lockout returned HTTP 429 after five invalid attempts. The retained supplier test account has no active relationship because Org1 assessment data was intentionally purged, so a full live supplier submission requires new relationship fixture data. No APIs are **MOCKED**.
+
+### Prioritised Backlog
+
+- **P1:** BRSR Section A year-switch state correction; document replacement/version publishing; advanced document response types; custom dashboard; target settings; evidence integrity; supplier/customer onboarding wizards; BRSR Word export and prior-year columns.
+- **P2:** Spend-basis inflation resolution; MIS schedule preview/report bookmarks; Custom Fuel month-value copy; remaining non-golden backend test cleanup.
+- **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 unified GHG form remains strictly blocked until instructed.
