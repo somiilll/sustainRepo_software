@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
+import { Checkbox } from '../../components/ui/checkbox';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import {
@@ -132,6 +134,7 @@ const getDefaultScoringConfig = (responseType) => {
 
 export default function QuestionnaireBuilder() {
   const { getAuthHeader } = useAuth();
+  const { reportingPeriod } = useSupplierAssessmentPeriod();
   const [questionnaires, setQuestionnaires] = useState([]);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -150,7 +153,11 @@ export default function QuestionnaireBuilder() {
     due_date: '',
     esg_section_weights: { environment: 33.33, social: 33.33, governance: 33.34 },
     overall_supplier_weights: { esg: 40, ghg: 40, revenue: 20 },
+    assignment_mode: 'all',
+    supplier_relationship_ids: [],
+    assignment_reporting_period: reportingPeriod,
   });
+  const [assignmentSuppliers, setAssignmentSuppliers] = useState([]);
   
   const [questionForm, setQuestionForm] = useState({
     question_text: '',
@@ -196,6 +203,17 @@ export default function QuestionnaireBuilder() {
   }, [fetchQuestionnaires]);
 
   useEffect(() => {
+    if (!showCreateDialog) return;
+    setQuestionnaireForm((current) => ({ ...current, assignment_reporting_period: reportingPeriod }));
+    axios.get(`${API}/supplier-assessment/suppliers`, {
+      params: { page: 1, page_size: 100, reporting_period: reportingPeriod },
+      headers: getAuthHeader(),
+    }).then((response) => {
+      setAssignmentSuppliers((response.data.suppliers || []).filter((supplier) => supplier.modules_enabled?.includes('esg')));
+    }).catch(() => toast.error('Could not load suppliers for questionnaire assignment'));
+  }, [showCreateDialog, getAuthHeader, reportingPeriod]);
+
+  useEffect(() => {
     if (selectedQuestionnaire) {
       fetchQuestions(selectedQuestionnaire.id);
     }
@@ -207,10 +225,17 @@ export default function QuestionnaireBuilder() {
       return;
     }
     if (!validateQuestionnaireWeights()) return;
+    if (questionnaireForm.assignment_mode === 'selected' && questionnaireForm.supplier_relationship_ids.length === 0) {
+      toast.error('Select at least one supplier');
+      return;
+    }
     
     setSubmitting(true);
     try {
-      const res = await axios.post(`${API}/supplier-assessment/questionnaires`, questionnaireForm, {
+      const res = await axios.post(`${API}/supplier-assessment/questionnaires`, {
+        ...questionnaireForm,
+        assignment_reporting_period: reportingPeriod,
+      }, {
         headers: getAuthHeader(),
       });
       toast.success('Questionnaire created');
@@ -221,6 +246,9 @@ export default function QuestionnaireBuilder() {
         due_date: '',
         esg_section_weights: { environment: 33.33, social: 33.33, governance: 33.34 },
         overall_supplier_weights: { esg: 40, ghg: 40, revenue: 20 },
+        assignment_mode: 'all',
+        supplier_relationship_ids: [],
+        assignment_reporting_period: reportingPeriod,
       });
       fetchQuestionnaires();
       setSelectedQuestionnaire(res.data);
@@ -372,6 +400,15 @@ export default function QuestionnaireBuilder() {
       return false;
     }
     return true;
+  };
+
+  const toggleAssignedSupplier = (supplierId) => {
+    setQuestionnaireForm((current) => ({
+      ...current,
+      supplier_relationship_ids: current.supplier_relationship_ids.includes(supplierId)
+        ? current.supplier_relationship_ids.filter((id) => id !== supplierId)
+        : [...current.supplier_relationship_ids, supplierId],
+    }));
   };
 
   const openEditQuestion = (question) => {
@@ -686,6 +723,48 @@ export default function QuestionnaireBuilder() {
                 value={questionnaireForm.due_date}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
               />
+            </div>
+
+            <div className="space-y-3 border-t pt-4" data-testid="questionnaire-assignment-controls">
+              <Label className="text-sm font-medium">Assign questionnaire to</Label>
+              <Select
+                value={questionnaireForm.assignment_mode}
+                onValueChange={(assignmentMode) => setQuestionnaireForm({
+                  ...questionnaireForm,
+                  assignment_mode: assignmentMode,
+                  supplier_relationship_ids: assignmentMode === 'all' ? [] : questionnaireForm.supplier_relationship_ids,
+                })}
+              >
+                <SelectTrigger data-testid="questionnaire-assignment-mode-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All eligible suppliers</SelectItem>
+                  <SelectItem value="selected">Selected suppliers</SelectItem>
+                </SelectContent>
+              </Select>
+              {questionnaireForm.assignment_mode === 'all' ? (
+                <p className="text-xs text-stone-500" data-testid="questionnaire-assignment-all-status">
+                  This questionnaire will be assigned to every supplier with ESG enabled for {reportingPeriod}.
+                </p>
+              ) : (
+                <div className="space-y-2" data-testid="questionnaire-assignment-supplier-list">
+                  {assignmentSuppliers.length === 0 ? (
+                    <p className="text-xs text-stone-500" data-testid="questionnaire-assignment-empty-state">No eligible suppliers exist for {reportingPeriod}.</p>
+                  ) : (
+                    <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
+                      {assignmentSuppliers.map((supplier) => (
+                        <label key={supplier.id} className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={questionnaireForm.supplier_relationship_ids.includes(supplier.id)}
+                            onCheckedChange={() => toggleAssignedSupplier(supplier.id)}
+                            data-testid={`questionnaire-assignment-supplier-${supplier.id}`}
+                          />
+                          <span>{supplier.company_name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
             <Accordion type="single" collapsible className="w-full">

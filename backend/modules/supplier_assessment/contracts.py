@@ -277,6 +277,9 @@ class QuestionnaireCreate(BaseModel):
     # New: Explicit weight configurations
     esg_section_weights: Optional[ESGSectionWeightsConfig] = None
     overall_supplier_weights: Optional[OverallSupplierWeightsConfig] = None
+    assignment_mode: Literal["all", "selected"] = "all"
+    supplier_relationship_ids: List[str] = Field(default_factory=list)
+    assignment_reporting_period: Optional[str] = None
 
 
 class QuestionnaireUpdate(BaseModel):
@@ -305,6 +308,9 @@ class QuestionnaireResponse(BaseModel):
     section_weights: Optional[Dict[str, float]] = None
     esg_section_weights: Optional[Dict[str, float]] = None
     overall_supplier_weights: Optional[Dict[str, float]] = None
+    assignment_mode: Optional[str] = None
+    assigned_supplier_ids: List[str] = []
+    assignment_reporting_period: Optional[str] = None
     is_active: bool = True
     question_count: int = 0
     created_by: str
