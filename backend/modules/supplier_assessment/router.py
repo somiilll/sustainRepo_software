@@ -360,6 +360,9 @@ async def create_questionnaire(
             esg_section_weights=data.esg_section_weights.model_dump() if data.esg_section_weights else None,
             overall_supplier_weights=data.overall_supplier_weights.model_dump() if data.overall_supplier_weights else None,
             created_by=current_user["id"],
+            assignment_mode=data.assignment_mode,
+            supplier_relationship_ids=data.supplier_relationship_ids,
+            assignment_reporting_period=data.assignment_reporting_period,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))

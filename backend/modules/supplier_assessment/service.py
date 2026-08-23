@@ -605,6 +605,9 @@ class SupplierAssessmentService:
         esg_section_weights: Optional[Dict[str, float]],
         overall_supplier_weights: Optional[Dict[str, float]],
         created_by: str,
+        assignment_mode: str = "all",
+        supplier_relationship_ids: Optional[List[str]] = None,
+        assignment_reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new questionnaire template."""
         questionnaire_id = str(uuid.uuid4())
@@ -618,6 +621,31 @@ class SupplierAssessmentService:
             {"esg": 40.0, "ghg": 40.0, "revenue": 20.0},
             "Overall component weights",
         )
+        relationship_query = {"customer_org_id": organization_id, "is_active": True}
+        if assignment_reporting_period:
+            relationship_query["reporting_period"] = assignment_reporting_period
+        eligible_relationships = [
+            relationship for relationship in await db.supplier_relationships.find(
+                relationship_query, {"_id": 0, "id": 1, "modules_enabled": 1}
+            ).to_list(1000)
+            if "esg" in (relationship.get("modules_enabled") or ["esg", "ghg"])
+        ]
+        eligible_ids = {relationship["id"] for relationship in eligible_relationships}
+        requested_ids = list(dict.fromkeys(supplier_relationship_ids or []))
+        if assignment_mode == "selected":
+            if not requested_ids:
+                raise ValueError("Select at least one supplier for this questionnaire")
+            if set(requested_ids) - eligible_ids:
+                raise ValueError("Selected supplier is unavailable for this ESG questionnaire")
+            assigned_supplier_ids = requested_ids
+        else:
+            assigned_supplier_ids = [relationship["id"] for relationship in eligible_relationships]
+
+        existing_questionnaire_ids = [
+            item["id"] for item in await db.supplier_questionnaires.find(
+                {"organization_id": organization_id, "is_active": True}, {"_id": 0, "id": 1}
+            ).to_list(1000)
+        ]
         questionnaire = {
             "id": questionnaire_id,
             "organization_id": organization_id,
@@ -628,12 +656,30 @@ class SupplierAssessmentService:
             "section_weights": esg_weights,
             "esg_section_weights": esg_weights,
             "overall_supplier_weights": supplier_weights,
+            "assignment_mode": assignment_mode,
+            "assigned_supplier_ids": assigned_supplier_ids,
+            "assignment_reporting_period": assignment_reporting_period,
             "is_active": True,
             "question_count": 0,
             "created_by": created_by,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.supplier_questionnaires.insert_one(questionnaire)
+        # Freeze historic implicit assignments before applying the new questionnaire's targeting.
+        legacy_relationships = await db.supplier_relationships.find(
+            {"customer_org_id": organization_id, "is_active": True, "questionnaire_ids": {"$exists": False}},
+            {"_id": 0, "id": 1},
+        ).to_list(1000)
+        if legacy_relationships:
+            await db.supplier_relationships.update_many(
+                {"id": {"$in": [relationship["id"] for relationship in legacy_relationships]}},
+                {"$set": {"questionnaire_ids": existing_questionnaire_ids, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+        if assigned_supplier_ids:
+            await db.supplier_relationships.update_many(
+                {"id": {"$in": assigned_supplier_ids}},
+                {"$addToSet": {"questionnaire_ids": questionnaire_id}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
         return questionnaire
     
     async def get_questionnaires(

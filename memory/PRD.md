@@ -499,6 +499,12 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - The selected IDs are persisted on the supplier relationship. Supplier questionnaire lists, direct questionnaire access, answer submission, and ESG completion calculations now use that assigned set. Older relationships without assignment data retain their historical all-active-questionnaire behavior.
 - Existing supplier edit submissions do not change questionnaire assignments. Per user instruction, this implementation was not tested. No APIs are **MOCKED**.
 
+## Change Log — 2026-08-23: Questionnaire Creation Targeting
+
+- New Questionnaire now includes an assignment choice for the active reporting period: assign to all eligible ESG suppliers or select individual suppliers. Supplier selection is required in the selected-suppliers mode.
+- Creation persists the target list, updates each selected relationship’s questionnaire assignment, and freezes legacy implicit relationships to their pre-existing questionnaire set so a newly targeted questionnaire does not leak to unselected suppliers.
+- Per user instruction, this implementation was not tested. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Global Supplier Assessment Reporting-Period Selector
 
 - Added one persistent reporting-period selector across the customer-admin Supplier Assessment workspace. It reads available supplier periods, keeps the selected period while navigating among assessment pages, and includes current/adjacent calendar-year options for new periods.
