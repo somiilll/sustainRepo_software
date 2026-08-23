@@ -492,6 +492,10 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DATA REPAIRED:** Test Supplier (`aede75ba-cc86-48ad-ad8b-b350c29c3c68`) was moved to complete program revision 8, its two training assignments were repaired to `FY 2026-27`, and its progress snapshot was recalculated to 0%.
 - Per user instruction, no further test run was performed after these changes. No APIs are **MOCKED**.
 
+### Follow-up — Training Reporting-Period Visibility
+
+- Confirmed the training creation path now reads the full relationship record and persists `relationship.reporting_period` into each training assignment. Existing active assignments for the affected organization no longer have a null reporting period. Per user instruction, no test suite was run.
+
 ## Change Log — 2026-08-23: Scrollable Supplier Forms
 
 - Updated Add Supplier and Edit Supplier dialogs with viewport-bounded layouts: the header and actions remain visible while the form content scrolls independently, including document/training assignment lists.
