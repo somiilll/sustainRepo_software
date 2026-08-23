@@ -97,25 +97,20 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
                 "assessment_program_version": relationship.get("assessment_program_version"),
                 "is_active": True,
             },
-            {"_id": 0, "id": 1, "document_version_id": 1},
+            {"_id": 0, "id": 1, "document_version_id": 1, "response_mode": 1, "supplier_relationship_ids": 1},
         ).to_list(100)
+        requirements = [requirement for requirement in requirements if not requirement.get("supplier_relationship_ids") or relationship["id"] in requirement["supplier_relationship_ids"]]
         if not requirements:
             return ModuleCompletion(self.module_code, 100.0, self.legacy_completion_field)
 
-        accepted = 0
+        completed = 0
         for requirement in requirements:
-            acceptance = await database.supplier_document_acceptances.find_one(
-                {
-                    "supplier_relationship_id": relationship["id"],
-                    "document_requirement_id": requirement["id"],
-                    "document_version_id": requirement["document_version_id"],
-                },
-                {"_id": 0, "id": 1},
-            )
-            accepted += int(acceptance is not None)
+            response_collection = database.supplier_document_responses if requirement.get("response_mode") == "STATUS" else database.supplier_document_acceptances
+            response = await response_collection.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "document_version_id": requirement["document_version_id"]}, {"_id": 0, "id": 1})
+            completed += int(response is not None)
         return ModuleCompletion(
             self.module_code,
-            (accepted / len(requirements)) * 100,
+            (completed / len(requirements)) * 100,
             self.legacy_completion_field,
         )
 

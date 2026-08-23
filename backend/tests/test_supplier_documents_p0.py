@@ -25,7 +25,13 @@ class _Collection:
 
     @staticmethod
     def _matches(document, query):
-        return all(document.get(key) == value for key, value in query.items())
+        for key, value in query.items():
+            if isinstance(value, dict) and "$in" in value:
+                if document.get(key) not in value["$in"]:
+                    return False
+            elif document.get(key) != value:
+                return False
+        return True
 
     def find(self, query, _projection=None):
         return _Cursor([document for document in self.docs if self._matches(document, query)])
@@ -43,11 +49,13 @@ class _Collection:
         self.docs.append(stored)
         document["_id"] = "mongo-object-id"
 
-    async def update_one(self, query, update):
+    async def update_one(self, query, update, upsert=False):
         for document in self.docs:
             if self._matches(document, query):
                 document.update(update.get("$set", {}))
                 return
+        if upsert:
+            self.docs.append(deepcopy(update.get("$set", {})))
 
 
 class _Database:
@@ -134,6 +142,7 @@ async def test_supplier_isolation_multiple_acceptances_and_immutable_acceptance(
             {"id": "version-2", "original_filename": "other.pdf", "content_type": "application/pdf", "file_size": 42, "version_number": 1},
         ],
         supplier_document_acceptances=[],
+        supplier_document_responses=[],
     )
     monkeypatch.setattr(documents_service, "db", database)
 
@@ -153,6 +162,40 @@ async def test_supplier_isolation_multiple_acceptances_and_immutable_acceptance(
     }) if module.module_code == "documents")
     assert (await documents_module.get_completion(database, supplier_one)).completion_percent == 100.0
     assert (await documents_module.get_completion(database, supplier_two)).completion_percent == 100.0
+
+
+@pytest.mark.asyncio
+async def test_status_response_is_version_bound_and_satisfies_document_completion(monkeypatch):
+    supplier = _relationship("relationship-1", "supplier-1")
+    database = _Database(
+        supplier_document_requirements=[{"id": "requirement-1", "customer_org_id": "customer-1", "assessment_program_id": "program-1", "assessment_program_version": 1, "document_version_id": "version-1", "response_mode": "STATUS", "response_options": ["I have done it", "I will do it"], "is_active": True, "title": "Supplier policy", "created_at": "2026-01-01"}],
+        supplier_document_versions=[{"id": "version-1", "original_filename": "policy.pdf", "content_type": "application/pdf", "file_size": 42, "version_number": 1}],
+        supplier_document_acceptances=[], supplier_document_responses=[],
+    )
+    monkeypatch.setattr(documents_service, "db", database)
+
+    response = await documents_service.respond_to_supplier_document(supplier, "requirement-1", "I will do it", "user-1")
+
+    assert response["document_version_id"] == "version-1"
+    assert (await documents_service.list_supplier_documents(supplier))[0]["selected_response"] == "I will do it"
+    documents_module = next(module for module in supplier_assessment_module_registry.enabled_modules({"modules": {"documents": {"enabled": True}}}) if module.module_code == "documents")
+    assert (await documents_module.get_completion(database, supplier)).completion_percent == 100.0
+
+
+@pytest.mark.asyncio
+async def test_selected_document_cannot_be_seen_by_an_unselected_supplier(monkeypatch):
+    selected_supplier = _relationship("relationship-1", "supplier-1")
+    unselected_supplier = _relationship("relationship-2", "supplier-2")
+    database = _Database(
+        supplier_document_requirements=[{"id": "requirement-1", "customer_org_id": "customer-1", "assessment_program_id": "program-1", "assessment_program_version": 1, "document_version_id": "version-1", "supplier_relationship_ids": ["relationship-1"], "is_active": True, "title": "Selected only", "created_at": "2026-01-01"}],
+        supplier_document_versions=[{"id": "version-1", "original_filename": "selected.pdf", "content_type": "application/pdf", "file_size": 42, "version_number": 1}],
+        supplier_document_acceptances=[], supplier_document_responses=[],
+    )
+    monkeypatch.setattr(documents_service, "db", database)
+
+    assert await documents_service.get_supplier_document(unselected_supplier, "requirement-1") is None
+    assert await documents_service.list_supplier_documents(unselected_supplier) == []
+    assert (await documents_service.list_supplier_documents(selected_supplier))[0]["id"] == "requirement-1"
 
 
 def test_document_api_exposes_only_the_audit_safe_delete_mutation_route():

@@ -19,6 +19,7 @@ ALLOWED_DOCUMENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 MAX_DOCUMENT_SIZE = 10 * 1024 * 1024
+RESPONSE_MODES = {"ACCEPTANCE", "STATUS"}
 
 
 def _now() -> str:
@@ -58,14 +59,31 @@ async def publish_agreement(
     content_type: str,
     content: bytes,
     title: Optional[str],
+    response_mode: str = "ACCEPTANCE",
+    response_options: Optional[List[str]] = None,
+    relationship_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Upload one organization agreement and bind it to immutable program revisions."""
     if not filename or content_type not in ALLOWED_DOCUMENT_TYPES:
         raise ValueError("Only PDF, DOC, and DOCX agreement files are supported")
     if not content or len(content) > MAX_DOCUMENT_SIZE:
         raise ValueError("Agreement files must be between 1 byte and 10MB")
+    response_mode = response_mode.upper()
+    if response_mode not in RESPONSE_MODES:
+        raise ValueError("Document response mode must be ACCEPTANCE or STATUS")
+    response_options = list(dict.fromkeys(option.strip() for option in (response_options or []) if option and option.strip()))
+    if response_mode == "STATUS" and not response_options:
+        raise ValueError("Add at least one status response option")
+    if response_mode == "ACCEPTANCE":
+        response_options = []
 
     organization_config = await _enable_documents_for_org(customer_org_id, created_by)
+    relationship_filter = {"customer_org_id": customer_org_id, "is_active": True}
+    if relationship_ids:
+        relationship_filter["id"] = {"$in": list(set(relationship_ids))}
+    relationships = await db.supplier_relationships.find(relationship_filter, {"_id": 0}).to_list(1000)
+    if relationship_ids and len(relationships) != len(set(relationship_ids)):
+        raise ValueError("One or more selected suppliers are not available to this organization")
 
     organization = await db.organizations.find_one({"id": customer_org_id}, {"_id": 0, "name": 1})
     upload = await get_r2_storage().upload_file(
@@ -98,10 +116,8 @@ async def publish_agreement(
     await db.supplier_document_versions.insert_one(version)
     version.pop("_id", None)
 
-    relationships = await db.supplier_relationships.find(
-        {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
-    ).to_list(1000)
     revisions: Dict[tuple, Dict[str, Any]] = {}
+    revision_relationships: Dict[tuple, List[str]] = {}
     if not relationships:
         revision = await get_or_create_program_revision(customer_org_id, organization_config, created_by)
         revisions[(revision["program_id"], revision["version"])] = revision
@@ -113,6 +129,7 @@ async def publish_agreement(
         config.setdefault("modules", {})["documents"] = deepcopy(configured_documents)
         revision = await get_or_create_program_revision(customer_org_id, config, created_by)
         revisions[(revision["program_id"], revision["version"])] = revision
+        revision_relationships.setdefault((revision["program_id"], revision["version"]), []).append(relationship["id"])
         await db.supplier_relationships.update_one(
             {"id": relationship["id"]},
             {"$set": {
@@ -133,6 +150,9 @@ async def publish_agreement(
             "document_key": document_key,
             "title": (title or filename).strip(),
             "document_version_id": version["id"],
+            "response_mode": response_mode,
+            "response_options": response_options,
+            "supplier_relationship_ids": revision_relationships.get((revision["program_id"], revision["version"]), []),
             "is_active": True,
             "created_by": created_by,
             "created_at": now,
@@ -160,24 +180,28 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
     ).sort("created_at", -1).to_list(100)
     documents = []
     for requirement in requirements:
+        if requirement.get("supplier_relationship_ids") and relationship["id"] not in requirement["supplier_relationship_ids"]:
+            continue
         version = await db.supplier_document_versions.find_one(
             {"id": requirement["document_version_id"]}, {"_id": 0}
         )
         if not version:
             continue
-        acceptance = await db.supplier_document_acceptances.find_one(
-            {
-                "supplier_relationship_id": relationship["id"],
-                "document_requirement_id": requirement["id"],
-                "document_version_id": version["id"],
-            }, {"_id": 0},
-        )
+        response_mode = requirement.get("response_mode", "ACCEPTANCE")
+        response = None
+        if response_mode == "STATUS":
+            response = await db.supplier_document_responses.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "document_version_id": version["id"]}, {"_id": 0})
+        else:
+            response = await db.supplier_document_acceptances.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "document_version_id": version["id"]}, {"_id": 0})
         documents.append({
             "id": requirement["id"], "title": requirement["title"],
             "original_filename": version["original_filename"], "content_type": version["content_type"],
             "file_size": version["file_size"], "document_version_id": version["id"],
-            "version_number": version["version_number"], "accepted": bool(acceptance),
-            "accepted_at": acceptance.get("accepted_at") if acceptance else None,
+            "version_number": version["version_number"], "accepted": bool(response),
+            "accepted_at": response.get("accepted_at") if response else None,
+            "response_mode": response_mode, "response_options": requirement.get("response_options", []),
+            "selected_response": response.get("response_value") if response_mode == "STATUS" and response else None,
+            "responded_at": response.get("responded_at") if response_mode == "STATUS" and response else None,
             "created_at": requirement["created_at"],
         })
     return documents
@@ -191,6 +215,8 @@ async def get_supplier_document(relationship: Dict[str, Any], requirement_id: st
     }, {"_id": 0})
     if not requirement:
         return None
+    if requirement.get("supplier_relationship_ids") and relationship["id"] not in requirement["supplier_relationship_ids"]:
+        return None
     version = await db.supplier_document_versions.find_one({"id": requirement["document_version_id"]}, {"_id": 0})
     return {"requirement": requirement, "version": version} if version else None
 
@@ -200,6 +226,8 @@ async def accept_supplier_document(relationship: Dict[str, Any], requirement_id:
     if not document:
         return None
     requirement, version = document["requirement"], document["version"]
+    if requirement.get("response_mode", "ACCEPTANCE") != "ACCEPTANCE":
+        raise ValueError("Select one of the configured status responses instead")
     existing = await db.supplier_document_acceptances.find_one({
         "supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id,
         "document_version_id": version["id"],
@@ -217,11 +245,47 @@ async def accept_supplier_document(relationship: Dict[str, Any], requirement_id:
     return acceptance
 
 
+async def respond_to_supplier_document(relationship: Dict[str, Any], requirement_id: str, response_value: str, supplier_user_id: str) -> Optional[Dict[str, Any]]:
+    document = await get_supplier_document(relationship, requirement_id)
+    if not document:
+        return None
+    requirement, version = document["requirement"], document["version"]
+    if requirement.get("response_mode", "ACCEPTANCE") != "STATUS":
+        raise ValueError("This document requires acceptance")
+    if response_value not in requirement.get("response_options", []):
+        raise ValueError("Choose one of the configured status responses")
+    response = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": relationship["customer_org_id"], "document_requirement_id": requirement_id, "document_version_id": version["id"], "response_value": response_value, "responded_by": supplier_user_id, "responded_at": _now()}
+    await db.supplier_document_responses.update_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "document_version_id": version["id"]}, {"$set": response}, upsert=True)
+    response.pop("_id", None)
+    return response
+
+
 async def list_customer_documents(customer_org_id: str) -> List[Dict[str, Any]]:
     requirements = await db.supplier_document_requirements.find(
         {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     return requirements
+
+
+async def list_document_supplier_responses(customer_org_id: str, requirement_id: str) -> Optional[Dict[str, Any]]:
+    requirement = await db.supplier_document_requirements.find_one({"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0})
+    if not requirement:
+        return None
+    related_requirements = await db.supplier_document_requirements.find({"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True}, {"_id": 0}).to_list(1000)
+    requirement_by_program = {(item["assessment_program_id"], item["assessment_program_version"]): item for item in related_requirements}
+    suppliers = await db.supplier_relationships.find({"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1, "company_name": 1, "assessment_program_id": 1, "assessment_program_version": 1}).to_list(1000)
+    rows = []
+    for supplier in suppliers:
+        assigned_requirement = requirement_by_program.get((supplier.get("assessment_program_id"), supplier.get("assessment_program_version")))
+        if not assigned_requirement or (assigned_requirement.get("supplier_relationship_ids") and supplier["id"] not in assigned_requirement["supplier_relationship_ids"]):
+            continue
+        if assigned_requirement.get("response_mode", "ACCEPTANCE") == "STATUS":
+            response = await db.supplier_document_responses.find_one({"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "document_version_id": assigned_requirement["document_version_id"]}, {"_id": 0})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": response.get("responded_at") if response else None})
+        else:
+            acceptance = await db.supplier_document_acceptances.find_one({"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "document_version_id": assigned_requirement["document_version_id"]}, {"_id": 0})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": acceptance.get("accepted_at") if acceptance else None})
+    return {"document_version_id": requirement["document_version_id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "response_options": requirement.get("response_options", []), "responses": rows}
 
 
 async def archive_document(customer_org_id: str, requirement_id: str) -> Optional[List[str]]:
@@ -255,5 +319,8 @@ async def ensure_indexes():
         ("customer_org_id", 1), ("document_key", 1), ("version_number", 1)
     ], unique=True)
     await db.supplier_document_acceptances.create_index([
+        ("supplier_relationship_id", 1), ("document_requirement_id", 1), ("document_version_id", 1)
+    ], unique=True)
+    await db.supplier_document_responses.create_index([
         ("supplier_relationship_id", 1), ("document_requirement_id", 1), ("document_version_id", 1)
     ], unique=True)

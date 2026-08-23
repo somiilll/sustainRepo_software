@@ -104,7 +104,15 @@ class SupplierDocumentResponse(BaseModel):
     version_number: int
     accepted: bool
     accepted_at: Optional[str] = None
+    response_mode: Literal["ACCEPTANCE", "STATUS"] = "ACCEPTANCE"
+    response_options: List[str] = []
+    selected_response: Optional[str] = None
+    responded_at: Optional[str] = None
     created_at: str
+
+
+class SupplierDocumentStatusSubmit(BaseModel):
+    response_value: str
 
 
 class TrainingUpdate(BaseModel):

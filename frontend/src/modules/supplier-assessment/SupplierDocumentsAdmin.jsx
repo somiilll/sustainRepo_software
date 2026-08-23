@@ -1,83 +1,44 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
+import { FileText, ListChecks, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { FileText, Upload, ShieldCheck, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function SupplierDocumentsAdmin() {
   const { getAuthHeader } = useAuth();
-  const [documents, setDocuments] = useState([]);
-  const [title, setTitle] = useState('');
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState(null);
-  const [deletingId, setDeletingId] = useState('');
+  const [documents, setDocuments] = useState([]); const [suppliers, setSuppliers] = useState([]); const [selectedSuppliers, setSelectedSuppliers] = useState([]);
+  const [title, setTitle] = useState(''); const [file, setFile] = useState(null); const [responseMode, setResponseMode] = useState('ACCEPTANCE'); const [statusOptions, setStatusOptions] = useState('I have done it\nI will do it\nIt is in progress');
+  const [uploading, setUploading] = useState(false); const [pendingDelete, setPendingDelete] = useState(null); const [deletingId, setDeletingId] = useState(''); const [responseDialog, setResponseDialog] = useState(null); const [responseData, setResponseData] = useState(null); const [loadingResponses, setLoadingResponses] = useState(false);
 
-  const loadDocuments = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API}/supplier-assessment/documents`, { headers: getAuthHeader() });
-      setDocuments(response.data || []);
-    } catch {
-      toast.error('Could not load agreement requirements');
-    }
-  }, [getAuthHeader]);
-
+  const loadDocuments = useCallback(async () => { try { const [documentResponse, supplierResponse] = await Promise.all([axios.get(`${API}/supplier-assessment/documents`, { headers: getAuthHeader() }), axios.get(`${API}/supplier-assessment/suppliers?page_size=100`, { headers: getAuthHeader() })]); setDocuments(documentResponse.data || []); setSuppliers(supplierResponse.data.suppliers || []); } catch { toast.error('Could not load agreement requirements'); } }, [getAuthHeader]);
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
+  const supplierIds = suppliers.map((supplier) => supplier.id); const allSuppliersSelected = supplierIds.length > 0 && supplierIds.every((supplierId) => selectedSuppliers.includes(supplierId));
+  const toggleSupplier = (supplierId, checked) => setSelectedSuppliers((current) => checked ? [...new Set([...current, supplierId])] : current.filter((id) => id !== supplierId));
 
   const uploadAgreement = async () => {
     if (!file) { toast.error('Choose an agreement file first'); return; }
-    const data = new FormData();
-    data.append('file', file);
-    data.append('title', title);
-    setUploading(true);
-    try {
-      await axios.post(`${API}/supplier-assessment/documents`, data, { headers: getAuthHeader() });
-      toast.success('Agreement published to active suppliers');
-      setTitle('');
-      setFile(null);
-      document.getElementById('supplier-agreement-file-input').value = '';
-      loadDocuments();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Could not publish agreement');
-    } finally { setUploading(false); }
+    if (!selectedSuppliers.length) { toast.error('Select at least one supplier'); return; }
+    const options = statusOptions.split('\n').map((option) => option.trim()).filter(Boolean);
+    if (responseMode === 'STATUS' && !options.length) { toast.error('Add at least one status option'); return; }
+    const data = new FormData(); data.append('file', file); data.append('title', title); data.append('response_mode', responseMode); data.append('response_options_json', JSON.stringify(options)); data.append('supplier_relationship_ids', JSON.stringify(selectedSuppliers)); setUploading(true);
+    try { await axios.post(`${API}/supplier-assessment/documents`, data, { headers: getAuthHeader() }); toast.success('Agreement published to selected suppliers'); setTitle(''); setFile(null); setSelectedSuppliers([]); document.getElementById('supplier-agreement-file-input').value = ''; await loadDocuments(); } catch (error) { toast.error(error.response?.data?.detail || 'Could not publish agreement'); } finally { setUploading(false); }
   };
 
-  const deleteAgreement = async () => {
-    if (!pendingDelete) return;
-    setDeletingId(pendingDelete.id);
-    try {
-      await axios.delete(`${API}/supplier-assessment/documents/${pendingDelete.id}`, { headers: getAuthHeader() });
-      toast.success('Agreement deleted from supplier access');
-      setPendingDelete(null);
-      await loadDocuments();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Could not delete agreement');
-    } finally { setDeletingId(''); }
-  };
+  const viewResponses = async (document) => { setResponseDialog(document); setResponseData(null); setLoadingResponses(true); try { setResponseData((await axios.get(`${API}/supplier-assessment/documents/${document.id}/responses`, { headers: getAuthHeader() })).data); } catch (error) { toast.error(error.response?.data?.detail || 'Could not load supplier responses'); } finally { setLoadingResponses(false); } };
+  const deleteAgreement = async () => { if (!pendingDelete) return; setDeletingId(pendingDelete.id); try { await axios.delete(`${API}/supplier-assessment/documents/${pendingDelete.id}`, { headers: getAuthHeader() }); toast.success('Agreement deleted from supplier access'); setPendingDelete(null); await loadDocuments(); } catch (error) { toast.error(error.response?.data?.detail || 'Could not delete agreement'); } finally { setDeletingId(''); } };
 
-  return <div className="space-y-8" data-testid="supplier-documents-admin-page">
-    <div>
-      <h1 className="text-3xl font-semibold text-stone-900">Supplier agreements</h1>
-      <p className="mt-2 text-sm text-stone-600">Publish the NDA or agreement suppliers must review and accept.</p>
-    </div>
-    <Card data-testid="supplier-agreement-upload-card">
-      <CardHeader><CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5 text-emerald-700" />Publish agreement</CardTitle><CardDescription>PDF, DOC, or DOCX up to 10MB.</CardDescription></CardHeader>
-      <CardContent className="grid gap-5 md:grid-cols-[1fr_1.3fr_auto] md:items-end">
-        <div className="space-y-2"><Label htmlFor="supplier-agreement-title">Agreement title</Label><Input id="supplier-agreement-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Supplier NDA" data-testid="supplier-agreement-title-input" /></div>
-        <div className="space-y-2"><Label htmlFor="supplier-agreement-file-input">Agreement file</Label><Input id="supplier-agreement-file-input" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => setFile(event.target.files?.[0] || null)} data-testid="supplier-agreement-file-input" /></div>
-        <Button onClick={uploadAgreement} disabled={uploading} data-testid="publish-supplier-agreement-button">{uploading ? 'Publishing…' : 'Publish agreement'}</Button>
-      </CardContent>
-    </Card>
-    <div className="space-y-3" data-testid="published-supplier-agreements-list">
-      {documents.length === 0 ? <p className="py-8 text-center text-sm text-stone-500" data-testid="supplier-agreements-empty-state">No agreements have been published.</p> : documents.map((document) => <Card key={document.id} data-testid={`published-supplier-agreement-${document.id}`}><CardContent className="flex items-center justify-between gap-4 py-4"><div className="flex items-center gap-4"><ShieldCheck className="h-5 w-5 text-emerald-700" /><div><p className="font-medium text-stone-900">{document.title}</p><p className="text-xs text-stone-500">Program revision {document.assessment_program_version}</p></div></div><Button variant="outline" size="sm" disabled={deletingId === document.id} onClick={() => setPendingDelete(document)} data-testid={`delete-supplier-agreement-${document.id}`}><Trash2 className="mr-1 h-4 w-4" />Delete</Button></CardContent></Card>)}
-    </div>
-    <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}><AlertDialogContent data-testid="delete-supplier-agreement-dialog"><AlertDialogHeader><AlertDialogTitle>Delete {pendingDelete?.title}?</AlertDialogTitle><AlertDialogDescription>This removes the agreement from all active supplier assignments. Its historical acceptance record and stored file are retained for audit purposes.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-delete-supplier-agreement-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteAgreement} data-testid="confirm-delete-supplier-agreement-button">Delete agreement</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+  return <div className="space-y-8" data-testid="supplier-documents-admin-page"><div><h1 className="text-3xl font-semibold text-stone-900">Supplier agreements</h1><p className="mt-2 text-sm text-stone-600">Publish an agreement with the response your selected suppliers must provide.</p></div>
+    <Card data-testid="supplier-agreement-upload-card"><CardHeader><CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5 text-emerald-700" />Publish agreement</CardTitle><CardDescription>PDF, DOC, or DOCX up to 10MB.</CardDescription></CardHeader><CardContent className="grid gap-5 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="supplier-agreement-title">Agreement title</Label><Input id="supplier-agreement-title" value={title} onChange={(event) => setTitle(event.target.value)} data-testid="supplier-agreement-title-input" /></div><div className="space-y-2"><Label htmlFor="supplier-agreement-file-input">Agreement file</Label><Input id="supplier-agreement-file-input" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => setFile(event.target.files?.[0] || null)} data-testid="supplier-agreement-file-input" /></div><div className="space-y-2"><Label htmlFor="supplier-document-response-mode">Supplier response</Label><select id="supplier-document-response-mode" value={responseMode} onChange={(event) => setResponseMode(event.target.value)} className="h-10 w-full border border-stone-300 bg-white px-3 text-sm" data-testid="supplier-document-response-mode-select"><option value="ACCEPTANCE">Acceptance</option><option value="STATUS">Status selection</option></select></div>{responseMode === 'STATUS' && <div className="space-y-2"><Label htmlFor="supplier-document-status-options">Status options</Label><textarea id="supplier-document-status-options" value={statusOptions} onChange={(event) => setStatusOptions(event.target.value)} className="min-h-24 w-full border border-stone-300 p-3 text-sm" data-testid="supplier-document-status-options-input" /></div>}<div className="space-y-3 md:col-span-2" data-testid="document-supplier-selection"><div className="flex flex-wrap items-center justify-between gap-3"><Label>Assign to suppliers</Label><div className="flex items-center gap-2 text-sm font-medium"><input id="select-all-document-suppliers" type="checkbox" checked={allSuppliersSelected} onChange={(event) => setSelectedSuppliers(event.target.checked ? supplierIds : [])} className="h-4 w-4 accent-emerald-700" data-testid="select-all-document-suppliers-checkbox" /><Label htmlFor="select-all-document-suppliers" className="cursor-pointer">Select all suppliers</Label></div></div><div className="grid gap-2 rounded-md border border-stone-200 p-3 sm:grid-cols-2 lg:grid-cols-3">{suppliers.map((supplier) => <div key={supplier.id} className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-stone-50" data-testid={`document-supplier-option-${supplier.id}`}><input id={`document-supplier-${supplier.id}`} type="checkbox" checked={selectedSuppliers.includes(supplier.id)} onChange={(event) => toggleSupplier(supplier.id, event.target.checked)} className="h-4 w-4 accent-emerald-700" data-testid={`document-supplier-checkbox-${supplier.id}`} /><Label htmlFor={`document-supplier-${supplier.id}`} className="cursor-pointer text-sm font-normal">{supplier.company_name}</Label></div>)}</div><p className="text-xs text-stone-500" data-testid="selected-document-suppliers-count">{selectedSuppliers.length} of {suppliers.length} suppliers selected</p></div><div className="md:col-span-2"><Button onClick={uploadAgreement} disabled={uploading} data-testid="publish-supplier-agreement-button">{uploading ? 'Publishing…' : 'Publish agreement'}</Button></div></CardContent></Card>
+    <div className="space-y-3" data-testid="published-supplier-agreements-list">{documents.length === 0 ? <p className="py-8 text-center text-sm text-stone-500" data-testid="supplier-agreements-empty-state">No agreements have been published.</p> : documents.map((document) => <Card key={document.id} data-testid={`published-supplier-agreement-${document.id}`}><CardContent className="flex flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between"><div className="flex items-center gap-4"><ShieldCheck className="h-5 w-5 text-emerald-700" /><div><p className="font-medium text-stone-900">{document.title}</p><p className="text-xs text-stone-500">{document.response_mode === 'STATUS' ? `Status: ${(document.response_options || []).join(' · ')}` : 'Acceptance required'} · Assigned to {document.supplier_relationship_ids ? document.supplier_relationship_ids.length : 'all active'} suppliers</p></div></div><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => viewResponses(document)} data-testid={`view-document-responses-${document.id}`}><ListChecks className="mr-1 h-4 w-4" />Responses</Button><Button variant="outline" size="sm" disabled={deletingId === document.id} onClick={() => setPendingDelete(document)} data-testid={`delete-supplier-agreement-${document.id}`}><Trash2 className="mr-1 h-4 w-4" />Delete</Button></div></CardContent></Card>)}</div>
+    <Dialog open={Boolean(responseDialog)} onOpenChange={(open) => !open && setResponseDialog(null)}><DialogContent className="max-w-3xl" data-testid="document-responses-dialog"><DialogHeader><DialogTitle data-testid="document-responses-dialog-title">Supplier responses — {responseDialog?.title}</DialogTitle></DialogHeader>{loadingResponses ? <p data-testid="document-responses-loading">Loading responses…</p> : <div className="space-y-2" data-testid="document-responses-list">{(responseData?.responses || []).map((response) => <div key={response.supplier_relationship_id} className="flex items-center justify-between gap-4 border-b py-3" data-testid={`document-response-${response.supplier_relationship_id}`}><span className="font-medium">{response.supplier_name}</span><span className="text-sm text-stone-600">{response.selected_response || 'No response yet'}</span></div>)}</div>}</DialogContent></Dialog>
+    <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}><AlertDialogContent data-testid="delete-supplier-agreement-dialog"><AlertDialogHeader><AlertDialogTitle>Delete {pendingDelete?.title}?</AlertDialogTitle><AlertDialogDescription>This removes the agreement from all active supplier assignments. Its historical response record and stored file are retained for audit purposes.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-delete-supplier-agreement-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteAgreement} data-testid="confirm-delete-supplier-agreement-button">Delete agreement</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;
 }

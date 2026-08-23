@@ -27,6 +27,7 @@ from modules.supplier_assessment.contracts import (
     SupplierEmissionCreate,
     SupplierEmissionResponse,
     SupplierDocumentResponse,
+    SupplierDocumentStatusSubmit,
     TrainingUpdate,
     TrainingConsumptionEvent,
 )
@@ -205,10 +206,27 @@ async def list_documents(current_user: dict = Depends(get_customer_admin)):
 async def upload_document(
     file: UploadFile = File(...),
     title: str = Form(default=""),
+    response_mode: str = Form(default="ACCEPTANCE"),
+    response_options_json: str = Form(default="[]"),
+    supplier_relationship_ids: str = Form(default="[]"),
     current_user: dict = Depends(get_customer_admin),
 ):
     """Publish one organization NDA/agreement for the active supplier assessment program."""
     try:
+        try:
+            response_options = json.loads(response_options_json)
+        except json.JSONDecodeError:
+            raise ValueError("Status response options must be valid")
+        if not isinstance(response_options, list) or not all(isinstance(option, str) for option in response_options):
+            raise ValueError("Status response options must be a list of text values")
+        try:
+            relationship_ids = json.loads(supplier_relationship_ids)
+        except json.JSONDecodeError:
+            raise ValueError("Selected suppliers must be valid")
+        if not isinstance(relationship_ids, list) or not all(isinstance(relationship_id, str) for relationship_id in relationship_ids):
+            raise ValueError("Selected suppliers must be a list")
+        if not relationship_ids:
+            raise ValueError("Select at least one supplier")
         result = await documents_service.publish_agreement(
             customer_org_id=current_user["organization_id"],
             created_by=current_user["id"],
@@ -216,6 +234,9 @@ async def upload_document(
             content_type=file.content_type or "application/octet-stream",
             content=await file.read(),
             title=title,
+            response_mode=response_mode,
+            response_options=response_options,
+            relationship_ids=relationship_ids,
         )
         for relationship_id in result["affected_relationship_ids"]:
             await supplier_service._update_completion_status(relationship_id)
@@ -224,6 +245,13 @@ async def upload_document(
         raise HTTPException(status_code=400, detail=str(error))
     except Exception as error:
         raise HTTPException(status_code=500, detail=f"Failed to publish agreement: {error}")
+
+@router.get("/documents/{requirement_id}/responses")
+async def get_document_supplier_responses(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
+    response_data = await documents_service.list_document_supplier_responses(current_user["organization_id"], requirement_id)
+    if not response_data:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    return response_data
 
 @router.delete("/documents/{requirement_id}")
 async def delete_document(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
@@ -628,6 +656,22 @@ async def accept_my_document(
         raise HTTPException(status_code=404, detail="Agreement not found")
     await supplier_service._update_completion_status(relationship["id"])
     return {"acceptance": acceptance}
+
+@router.post("/my-assessment/documents/{requirement_id}/respond")
+async def respond_to_my_document(requirement_id: str, data: SupplierDocumentStatusSubmit, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(
+        user_id=current_user["id"], user_org_id=current_user["organization_id"]
+    )
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        response = await documents_service.respond_to_supplier_document(relationship, requirement_id, data.response_value, current_user["id"])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    if not response:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    await supplier_service._update_completion_status(relationship["id"])
+    return {"response": response}
 
 @router.get("/my-assessment/trainings")
 async def get_my_trainings(current_user: dict = Depends(get_supplier_user)):
