@@ -483,6 +483,13 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **P2:** MIS schedule preview/report bookmarks; Custom Fuel month-value copy; spend-basis inflation resolution; remaining non-golden backend test cleanup.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 unified GHG form remains strictly blocked until instructed.
 
+## Change Log — 2026-08-23: Supplier Portal Task and Submission Clarity
+
+- **DONE:** Revenue Information now has an explicit task checklist for revenue percentage, annual amount, and final submission. Each task visibly reports `Pending`, `Ready to submit`, or `Completed`.
+- **DONE:** Revenue and ESG questionnaire submits now require an in-app confirmation that clearly explains the data will lock after submission. Save Draft and Submit actions have deliberate spacing.
+- **DONE:** The ESG dashboard lists every assigned questionnaire, including multiple assignments, and displays each question with its saved response or a pending-response state.
+- Per user instruction, this frontend-only change was **not tested**. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Supplier Assessment Assignment and Program Repair
 
 - **FIXED:** Edit Supplier now always initializes document and training assignment arrays, preventing the `.includes()` runtime crash.

@@ -9,6 +9,18 @@ import { Badge } from '../../components/ui/badge';
 import { Progress } from '../../components/ui/progress';
 import { Label } from '../../components/ui/label';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
+import RevenueTaskChecklist from './components/RevenueTaskChecklist';
+import QuestionnaireResponseList from './components/QuestionnaireResponseList';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -52,6 +64,7 @@ export default function SupplierDashboard() {
   const [revenueCurrency, setRevenueCurrency] = useState('USD');
   const [saving, setSaving] = useState(false);
   const [submittingRevenue, setSubmittingRevenue] = useState(false);
+  const [showRevenueSubmitConfirm, setShowRevenueSubmitConfirm] = useState(false);
 
   const fetchAssessment = useCallback(async () => {
     try {
@@ -81,7 +94,18 @@ export default function SupplierDashboard() {
       const res = await axios.get(`${API}/supplier-assessment/my-assessment/questionnaires`, {
         headers: getAuthHeader(),
       });
-      setQuestionnaires(res.data || []);
+      const summaries = res.data || [];
+      const detailedQuestionnaires = await Promise.all(summaries.map(async (summary) => {
+        try {
+          const detail = await axios.get(`${API}/supplier-assessment/my-assessment/questionnaires/${summary.questionnaire_id}`, {
+            headers: getAuthHeader(),
+          });
+          return { ...summary, questions: detail.data.questions || [] };
+        } catch (error) {
+          return { ...summary, questions: [] };
+        }
+      }));
+      setQuestionnaires(detailedQuestionnaires);
     } catch (err) {
       console.error('Failed to load questionnaires');
     } finally {
@@ -133,6 +157,7 @@ export default function SupplierDashboard() {
     try {
       await axios.post(`${API}/supplier-assessment/my-assessment/revenue/submit`, {}, { headers: getAuthHeader() });
       toast.success('Revenue information submitted');
+      setShowRevenueSubmitConfirm(false);
       fetchAssessment();
     } catch (err) { toast.error(err.response?.data?.detail || 'Could not submit revenue information'); } finally { setSubmittingRevenue(false); }
   };
@@ -164,6 +189,7 @@ export default function SupplierDashboard() {
   const configuredModules = new Map(assessmentModules.map((module) => [module.code, module]));
   const esgModule = configuredModules.get('esg');
   const ghgModule = configuredModules.get('ghg');
+  const revenueSubmitted = relationship.revenue_submission_status === 'submitted';
 
   return (
     <div className="space-y-6" data-testid="supplier-dashboard">
@@ -234,7 +260,8 @@ export default function SupplierDashboard() {
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-blue-500" />
             Revenue Information
-            <Badge variant="outline" className="ml-2 text-xs">Required</Badge>
+            <Badge variant="outline" className="ml-2 text-xs" data-testid="revenue-required-badge">Required</Badge>
+            <Badge className={revenueSubmitted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} data-testid="revenue-overview-status-badge">{revenueSubmitted ? 'Completed' : 'Yet to be submitted'}</Badge>
           </CardTitle>
           <CardDescription>
             Provide your revenue relationship with {customer_name}. This information is required before submitting your assessment.
@@ -242,6 +269,7 @@ export default function SupplierDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
+            <RevenueTaskChecklist relationship={relationship} />
             {/* Warning if not filled */}
             {(relationship.revenue_percentage === null || relationship.revenue_amount === null) && (
               <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
@@ -319,8 +347,8 @@ export default function SupplierDashboard() {
               </div>
             </div>
             
-            <div className="flex justify-end pt-2">
-              {relationship.revenue_submission_status === 'submitted' ? <Badge className="bg-green-100 text-green-800" data-testid="revenue-submitted-badge">Submitted</Badge> : <><Button onClick={handleSaveRevenue} disabled={saving} data-testid="save-revenue-btn">{saving ? 'Saving...' : 'Save draft'}</Button><Button onClick={handleSubmitRevenue} disabled={submittingRevenue || saving} data-testid="submit-revenue-button">{submittingRevenue ? 'Submitting...' : 'Submit revenue'}</Button></>}
+            <div className="flex justify-end gap-3 pt-2" data-testid="revenue-actions">
+              {revenueSubmitted ? <Badge className="bg-green-100 text-green-800" data-testid="revenue-submitted-badge">Submitted</Badge> : <><Button onClick={handleSaveRevenue} disabled={saving} data-testid="save-revenue-btn">{saving ? 'Saving...' : 'Save draft'}</Button><Button onClick={() => setShowRevenueSubmitConfirm(true)} disabled={submittingRevenue || saving} data-testid="submit-revenue-button">{submittingRevenue ? 'Submitting...' : 'Submit revenue'}</Button></>}
             </div>
           </div>
         </CardContent>
@@ -333,7 +361,7 @@ export default function SupplierDashboard() {
             <ClipboardList className="h-5 w-5 text-emerald-500" />
             {esgModule.display_name}
           </CardTitle>
-          <CardDescription>Complete the assigned questionnaires</CardDescription>
+          <CardDescription>{questionnaires.length > 1 ? `${questionnaires.length} questionnaires assigned` : 'Complete the assigned questionnaire'}</CardDescription>
         </CardHeader>
         <CardContent>
           {questionnaires.length === 0 ? (
@@ -350,7 +378,7 @@ export default function SupplierDashboard() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="font-medium text-stone-900">{q.questionnaire_name}</h3>
+                      <h3 className="font-medium text-stone-900" data-testid={`questionnaire-title-${q.questionnaire_id}`}>{q.questionnaire_name}</h3>
                       <div className="flex items-center gap-4 mt-2 text-sm text-stone-500">
                         <span>{q.answered_count}/{q.total_questions} answered</span>
                         {q.due_date && (
@@ -382,12 +410,14 @@ export default function SupplierDashboard() {
                         variant="outline"
                         size="sm"
                         onClick={() => window.location.href = `/supplier-assessment/questionnaire/${q.questionnaire_id}`}
+                        data-testid={`open-questionnaire-${q.questionnaire_id}`}
                       >
                         {q.status === 'submitted' ? 'View' : 'Continue'}
                         <ArrowRight className="h-4 w-4 ml-1" />
                       </Button>
                     </div>
                   </div>
+                  <QuestionnaireResponseList questionnaire={q} />
                 </div>
               ))}
             </div>
@@ -422,6 +452,18 @@ export default function SupplierDashboard() {
           </div>
         </CardContent>
       </Card>}
+      <AlertDialog open={showRevenueSubmitConfirm} onOpenChange={setShowRevenueSubmitConfirm}>
+        <AlertDialogContent data-testid="confirm-revenue-submit-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle data-testid="confirm-revenue-submit-title">Submit revenue information?</AlertDialogTitle>
+            <AlertDialogDescription data-testid="confirm-revenue-submit-description">Are you sure? Once submitted, your revenue information is locked and cannot be edited unless your customer unlocks it.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="cancel-revenue-submit-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSubmitRevenue} disabled={submittingRevenue} data-testid="confirm-revenue-submit-button">{submittingRevenue ? 'Submitting...' : 'Yes, submit and lock'}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
