@@ -52,6 +52,7 @@ class ScoringEngine:
         supplier_relationship_id: str,
         questionnaire_id: str,
         save_to_db: bool = True,
+        answers_override: Optional[Dict[str, Any]] = None,
     ) -> ScoreBreakdown:
         """
         Calculate complete supplier assessment score.
@@ -90,10 +91,12 @@ class ScoringEngine:
             {
                 "questionnaire_id": questionnaire_id,
                 "supplier_relationship_id": supplier_relationship_id,
+                "status": "submitted",
+                "parent_visible": {"$ne": False},
             },
-            {"_id": 0}
+            {"_id": 0}, sort=[("revision", -1)]
         )
-        answers = response_doc.get("answers", {}) if response_doc else {}
+        answers = answers_override if answers_override is not None else (response_doc.get("answers", {}) if response_doc else {})
         
         # Fetch supplier relationship for revenue and name
         relationship = await self.db.supplier_relationships.find_one(
@@ -101,7 +104,7 @@ class ScoringEngine:
             {"_id": 0}
         )
         supplier_name = relationship.get("company_name") if relationship else None
-        revenue_percentage = relationship.get("revenue_percentage") if relationship else None
+        revenue_percentage = await self._submitted_revenue_percentage(supplier_relationship_id, relationship)
         
         # Calculate GHG score
         ghg_score = await self._calculate_ghg_score(supplier_relationship_id)
@@ -151,6 +154,8 @@ class ScoringEngine:
             {
                 "source": "supplier",
                 "supplier_relationship_id": supplier_relationship_id,
+                "submitted_to_parent_org": {"$exists": True, "$ne": None},
+                "parent_visible": {"$ne": False},
             },
             {"_id": 0, "total_emissions": 1, "scope": 1}
         ).to_list(1000)
@@ -169,6 +174,14 @@ class ScoringEngine:
             return 0.0
         
         return round(100 - (total_emissions / max_acceptable * 100), 2)
+
+    async def _submitted_revenue_percentage(self, supplier_relationship_id: str, relationship: Optional[Dict[str, Any]]) -> Optional[float]:
+        reporting_period = (relationship or {}).get("reporting_period")
+        query = {"supplier_relationship_id": supplier_relationship_id, "status": "submitted", "parent_visible": {"$ne": False}}
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        submission = await self.db.supplier_revenue_submissions.find_one(query, {"_id": 0, "revenue_percentage": 1}, sort=[("revision", -1)])
+        return submission.get("revenue_percentage") if submission else None
     
     def _get_esg_weights(self, questionnaire: Dict[str, Any]) -> ESGSectionWeights:
         """Extract ESG section weights from questionnaire config."""

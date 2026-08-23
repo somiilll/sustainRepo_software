@@ -36,6 +36,9 @@ import {
   Percent,
   Leaf,
   Factory,
+  FileText,
+  GraduationCap,
+  ClipboardCheck,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -66,12 +69,21 @@ export default function SupplierList() {
     email: '',
     contact_number: '',
     due_date: '',
+    reporting_period: `CY${new Date().getFullYear()}`,
     modules_enabled: ['esg', 'ghg'],
     ghg_scopes_enabled: ['scope1', 'scope2'],
+    document_requirement_ids: [],
+    training_requirement_ids: [],
   });
   const [submitting, setSubmitting] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState(null);
   const [unlockingQuestionnaireId, setUnlockingQuestionnaireId] = useState('');
+  const [documents, setDocuments] = useState([]);
+  const [trainings, setTrainings] = useState([]);
+  const [reminderTarget, setReminderTarget] = useState(null);
+  const [reminderModules, setReminderModules] = useState(['all']);
+  const [reviewResponse, setReviewResponse] = useState(null);
+  const [manualScore, setManualScore] = useState('');
 
   const fetchSuppliers = useCallback(async () => {
     setLoading(true);
@@ -95,6 +107,17 @@ export default function SupplierList() {
     fetchSuppliers();
   }, [fetchSuppliers]);
 
+  useEffect(() => {
+    if (!showAddDialog) return;
+    Promise.all([
+      axios.get(`${API}/supplier-assessment/documents`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
+    ]).then(([documentResponse, trainingResponse]) => {
+      setDocuments(documentResponse.data || []);
+      setTrainings(trainingResponse.data || []);
+    }).catch(() => toast.error('Could not load existing assignments'));
+  }, [showAddDialog, getAuthHeader]);
+
   const handleAdd = async () => {
     if (!formData.company_name || !formData.contact_person || !formData.email) {
       toast.error('Please fill required fields');
@@ -114,8 +137,11 @@ export default function SupplierList() {
         email: '', 
         contact_number: '', 
         due_date: '',
+        reporting_period: `CY${new Date().getFullYear()}`,
         modules_enabled: ['esg', 'ghg'],
         ghg_scopes_enabled: ['scope1', 'scope2'],
+        document_requirement_ids: [],
+        training_requirement_ids: [],
       });
       fetchSuppliers();
     } catch (err) {
@@ -157,15 +183,17 @@ export default function SupplierList() {
     }
   };
 
-  const handleReminder = async (supplier) => {
+  const handleReminder = async () => {
+    if (!reminderTarget) return;
     try {
-      await axios.post(`${API}/supplier-assessment/suppliers/${supplier.id}/remind`, {}, {
+      await axios.post(`${API}/supplier-assessment/suppliers/${reminderTarget.id}/remind`, { modules: reminderModules, reporting_period: reminderTarget.reporting_period }, {
         headers: getAuthHeader(),
       });
       toast.success('Reminder sent');
+      setReminderTarget(null);
       fetchSuppliers();
     } catch (err) {
-      toast.error('Failed to send reminder');
+      toast.error(err.response?.data?.detail || 'Failed to send reminder');
     }
   };
 
@@ -177,6 +205,7 @@ export default function SupplierList() {
       email: supplier.contact_email,
       contact_number: supplier.contact_number || '',
       due_date: supplier.due_date || '',
+      reporting_period: supplier.reporting_period || `CY${new Date().getFullYear()}`,
       modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
       ghg_scopes_enabled: supplier.ghg_scopes_enabled || ['scope1', 'scope2'],
     });
@@ -204,6 +233,25 @@ export default function SupplierList() {
     } finally {
       setUnlockingQuestionnaireId('');
     }
+  };
+
+  const openReview = async (questionnaireId) => {
+    if (!selectedSupplier) return;
+    try {
+      const response = await axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/questionnaires/${questionnaireId}/responses`, { headers: getAuthHeader() });
+      setReviewResponse(response.data);
+      setManualScore(response.data.manual_score ?? response.data.calculated_score ?? '');
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not load submitted response'); }
+  };
+
+  const saveManualScore = async () => {
+    if (!selectedSupplier || !reviewResponse || manualScore === '') return;
+    try {
+      await axios.put(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/questionnaires/${reviewResponse.id}/responses/manual-score`, { score: Number(manualScore) }, { headers: getAuthHeader() });
+      toast.success('Manual score saved');
+      setReviewResponse(null);
+      fetchSuppliers();
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not save manual score'); }
   };
 
   // Toggle module in modules_enabled array
@@ -383,7 +431,7 @@ export default function SupplierList() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleReminder(supplier)}
+                        onClick={() => { setReminderTarget(supplier); setReminderModules(['all']); }}
                         data-testid={`remind-supplier-${supplier.id}`}
                       >
                         <Mail className="h-4 w-4" />
@@ -486,6 +534,10 @@ export default function SupplierList() {
                 data-testid="supplier-due-date"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Reporting Period</Label>
+              <Input value={formData.reporting_period} onChange={(e) => setFormData({ ...formData, reporting_period: e.target.value })} placeholder="e.g., CY2026 or FY2026" data-testid="supplier-reporting-period-input" />
+            </div>
             
             {/* Module Selection */}
             <div className="space-y-3 pt-2 border-t">
@@ -554,6 +606,11 @@ export default function SupplierList() {
                 </div>
               </div>
             )}
+            <div className="space-y-3 border-t pt-4" data-testid="supplier-existing-assignment-options">
+              <Label className="text-sm font-medium">Assign existing content</Label>
+              {documents.length > 0 && <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
+              {trainings.length > 0 && <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-medium"><GraduationCap className="h-4 w-4" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
@@ -758,7 +815,7 @@ export default function SupplierList() {
               </div>
               <div className="border-t pt-4" data-testid="supplier-esg-submission-controls">
                 <Label className="text-stone-500">Locked ESG submissions</Label>
-                {!submissionStatus ? <p className="mt-2 text-sm text-stone-500" data-testid="supplier-submission-status-loading">Loading submission status…</p> : (submissionStatus.esg || []).length === 0 ? <p className="mt-2 text-sm text-stone-500" data-testid="supplier-esg-submission-empty">No locked ESG questionnaires.</p> : <div className="mt-2 space-y-2">{submissionStatus.esg.map((submission) => <div key={submission.questionnaire_id} className="flex items-center justify-between gap-3 rounded-md border p-2" data-testid={`supplier-esg-submission-${submission.questionnaire_id}`}><span className="text-sm">Submitted {submission.submitted_at ? new Date(submission.submitted_at).toLocaleDateString() : ''}</span><Button variant="outline" size="sm" disabled={unlockingQuestionnaireId === submission.questionnaire_id} onClick={() => unlockQuestionnaire(submission.questionnaire_id)} data-testid={`unlock-supplier-questionnaire-${submission.questionnaire_id}`}>{unlockingQuestionnaireId === submission.questionnaire_id ? 'Unlocking…' : 'Unlock'}</Button></div>)}</div>}
+                {!submissionStatus ? <p className="mt-2 text-sm text-stone-500" data-testid="supplier-submission-status-loading">Loading submission status…</p> : (submissionStatus.esg || []).length === 0 ? <p className="mt-2 text-sm text-stone-500" data-testid="supplier-esg-submission-empty">No locked ESG questionnaires.</p> : <div className="mt-2 space-y-2">{submissionStatus.esg.map((submission) => <div key={submission.questionnaire_id} className="flex items-center justify-between gap-3 rounded-md border p-2" data-testid={`supplier-esg-submission-${submission.questionnaire_id}`}><span className="text-sm">Submitted {submission.submitted_at ? new Date(submission.submitted_at).toLocaleDateString() : ''}</span><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => openReview(submission.questionnaire_id)} data-testid={`review-supplier-questionnaire-${submission.questionnaire_id}`}><ClipboardCheck className="mr-1 h-4 w-4" />Review</Button><Button variant="outline" size="sm" disabled={unlockingQuestionnaireId === submission.questionnaire_id} onClick={() => unlockQuestionnaire(submission.questionnaire_id)} data-testid={`unlock-supplier-questionnaire-${submission.questionnaire_id}`}>{unlockingQuestionnaireId === submission.questionnaire_id ? 'Unlocking…' : 'Unlock'}</Button></div></div>)}</div>}
               </div>
               
               {(selectedSupplier.esg_score || selectedSupplier.ghg_score) && (
@@ -793,6 +850,19 @@ export default function SupplierList() {
               Close
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(reminderTarget)} onOpenChange={(open) => !open && setReminderTarget(null)}>
+        <DialogContent data-testid="supplier-reminder-dialog"><DialogHeader><DialogTitle>Send assessment reminder</DialogTitle></DialogHeader>
+          <div className="space-y-3"><p className="text-sm text-stone-600" data-testid="supplier-reminder-period">Reporting period: {reminderTarget?.reporting_period || 'Current period'}</p>{['all', 'esg', 'ghg', 'documents', 'training', 'revenue'].map((module) => <label key={module} className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes(module)} onCheckedChange={(checked) => setReminderModules(checked ? [...new Set([...reminderModules, module])] : reminderModules.filter((item) => item !== module))} data-testid={`supplier-reminder-module-${module}`} />{module === 'all' ? 'All pending modules' : module[0].toUpperCase() + module.slice(1)}</label>)}</div>
+          <DialogFooter><Button variant="outline" onClick={() => setReminderTarget(null)} data-testid="cancel-supplier-reminder-button">Cancel</Button><Button onClick={handleReminder} data-testid="send-supplier-reminder-button">Send reminder</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(reviewResponse)} onOpenChange={(open) => !open && setReviewResponse(null)}>
+        <DialogContent className="max-w-2xl" data-testid="supplier-response-review-dialog"><DialogHeader><DialogTitle>Submitted ESG response</DialogTitle></DialogHeader>
+          <div className="max-h-80 space-y-3 overflow-y-auto">{(reviewResponse?.questions || []).map((question) => <div key={question.id} className="border-b pb-2" data-testid={`supplier-response-answer-${question.id}`}><p className="text-sm font-medium">{question.question_text}</p><p className="text-sm text-stone-600">{String(question.answer ?? 'No response')}</p></div>)}</div>
+          <div className="space-y-2"><Label htmlFor="manual-score-input">Manual score (0–100)</Label><Input id="manual-score-input" type="number" min="0" max="100" value={manualScore} onChange={(event) => setManualScore(event.target.value)} data-testid="manual-score-input" /></div>
+          <DialogFooter><Button variant="outline" onClick={() => setReviewResponse(null)} data-testid="cancel-manual-score-button">Cancel</Button><Button onClick={saveManualScore} data-testid="save-manual-score-button">Save manual score</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

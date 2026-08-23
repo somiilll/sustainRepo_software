@@ -40,24 +40,23 @@ class EsgAssessmentModule(SupplierAssessmentModule):
         if not questionnaires:
             return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field)
 
-        total_completion = 0.0
+        submitted_questionnaires = 0
         for questionnaire in questionnaires:
+            response_query = {
+                "questionnaire_id": questionnaire["id"], "supplier_relationship_id": relationship["id"],
+                "status": "submitted", "parent_visible": {"$ne": False},
+            }
+            if relationship.get("reporting_period"):
+                response_query["reporting_period"] = relationship["reporting_period"]
             response = await database.supplier_questionnaire_responses.find_one(
-                {"questionnaire_id": questionnaire["id"], "supplier_relationship_id": relationship["id"]},
+                response_query,
                 {"_id": 0},
             )
-            if not response:
-                continue
-            total_questions = await database.supplier_questions.count_documents(
-                {"questionnaire_id": questionnaire["id"], "is_active": True}
-            )
-            answered = len([answer for answer in response.get("answers", {}).values() if answer is not None])
-            if total_questions > 0:
-                total_completion += (answered / total_questions) * 100
+            submitted_questionnaires += int(response is not None)
 
         return ModuleCompletion(
             self.module_code,
-            total_completion / len(questionnaires),
+            (submitted_questionnaires / len(questionnaires)) * 100,
             self.legacy_completion_field,
         )
 
@@ -70,10 +69,15 @@ class GhgAssessmentModule(SupplierAssessmentModule):
     supplier_description = "Report the greenhouse gas data requested by your customer."
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
-        record_count = await database.emission_records.count_documents({
+        query = {
             "source": "supplier",
             "supplier_relationship_id": relationship["id"],
-        })
+            "submitted_to_parent_org": {"$exists": True, "$ne": None},
+            "parent_visible": {"$ne": False},
+        }
+        if relationship.get("reporting_period"):
+            query["reporting_period"] = relationship["reporting_period"]
+        record_count = await database.emission_records.count_documents(query)
         return ModuleCompletion(
             self.module_code,
             min(100.0, record_count * 25),

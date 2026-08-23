@@ -468,3 +468,17 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 
 - At the user's request, removed all historical artifacts from `/app/test_reports` (JSON reports, JUnit XML, screenshots, PDFs, and exported payloads).
 - Kept `/app/test_reports` as an empty destination for future test runs. Source regression suites—including backend golden tests and frontend refactor contracts—remain intact.
+
+## Change Log — 2026-08-23: Supplier Assessment P0/P1 Submission, Review, Period, Assignment, and Reminder Workflows
+
+- P0: ESG, GHG, Document, and Revenue completion now recognises only submitted parent-visible data. Revenue has an explicit draft → submitted workflow and blocks edits after submission. Supplier questionnaire responses, manual scores, rankings, GHG progress, and revenue submissions use the relationship reporting period.
+- P0: Parent organisations can open a submitted ESG response and save a validated manual score. Submission scoring receives the current answers rather than reading an unsaved response from MongoDB.
+- P1: Supplier creation supports reporting periods plus assigning existing document/training content. Document and Training assignment screens use searchable, paginated supplier pickers; document requirements support due dates.
+- P1: Manual reminders accept empty or module-specific payloads, support ESG/GHG/Documents/Training/Revenue choices, respect a reporting period, and include pending document/training due dates. The unreachable Resend send call was corrected.
+- Verified: Supplier Assessment P0/P1 live suite passed **7 passed, 1 skipped**; Python and JavaScript lint passed; signed-in Suppliers smoke check passed. No APIs are **MOCKED**.
+
+### Prioritised Backlog
+
+- **P1:** Automatic reminder scheduler; document replacement/version publishing; advanced document response types; custom dashboard; target settings; evidence integrity; supplier/customer onboarding wizards; BRSR Word export and prior-year columns.
+- **P2:** Global Supplier Assessment reporting-period selector; MIS schedule preview/report bookmarks; Custom Fuel month-value copy; spend-basis inflation resolution; remaining non-golden backend test cleanup.
+- **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 unified GHG form remains strictly blocked until instructed.
