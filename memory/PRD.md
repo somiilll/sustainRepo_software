@@ -139,6 +139,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** ESG answers remain supplier-visible as drafts but are hidden from parent response views until final submission. Final ESG questionnaire submission is immutable; draft saves, re-submission, and admin reopen are blocked afterward.
 - **VERIFIED:** Python/JS lint clean; focused local supplier assessment suite **23 passed**. Supplier GHG submission route smoke-tested successfully. Independent non-destructive verification: **2 passed, 3 data-dependent checks skipped** because no matching seed states were created. **MOCKED: none.**
 - **FIXED:** Replaced a supplier-service hardcoded frontend URL fallback with required `FRONTEND_URL` environment configuration and restarted the backend successfully.
+- **DONE:** Simplified Supplier Assessment GHG persistence at user request. `supplier_ghg_entries` and `supplier_ghg_submissions` were confirmed empty and physically dropped. The existing `emission_records` now stores `submitted_to_parent_org`, `submission_id`, and `submitted_by`; null/missing status means draft, while populated status means the immutable, parent-visible one-time submission. Existing Scope 1 supplier records now appear in Supplier Assessment as unsubmitted drafts and remain invisible to parent views until submitted.
+- **VERIFIED:** Focused local GHG checks **11 passed**. Read-only live verification **4/4 passed**: no runtime references to dropped collections, parent excluded draft IDs, and supplier legacy Scope 1 drafts aggregated to 103.73 tCO₂e. **MOCKED: none.**
+- **FIXED:** Supplier/admin post-login module bootstrap no longer returns 404 when a supplier organization document is absent; `/api/organization/module-config` now returns the existing default module configuration. Verified both roles receive HTTP 200.
 
 ## Known Issues
 

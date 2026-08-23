@@ -1102,10 +1102,10 @@ class SupplierAssessmentService:
             gov_score = min(100, sum(gov_scores) / len(gov_scores)) if gov_scores else None
             
             # Supplier GHG contributes to customer dashboards only after the one-time submission snapshot.
-            ghg_submission = await db.supplier_ghg_submissions.find_one(
-                {"supplier_relationship_id": s["id"], "status": "submitted"}, {"_id": 0, "entries": 1}
-            )
-            ghg_emissions = (ghg_submission or {}).get("entries", [])
+            ghg_emissions = await db.emission_records.find(
+                {"source": "supplier", "supplier_relationship_id": s["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}},
+                {"_id": 0, "total_emissions": 1, "scope": 1},
+            ).to_list(1000)
             
             scope1 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_1", "scope1"])
             scope2 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_2", "scope2"])
