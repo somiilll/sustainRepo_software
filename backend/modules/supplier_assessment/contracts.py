@@ -65,6 +65,7 @@ class SupplierResponse(BaseModel):
     modules_enabled: List[str] = ["esg", "ghg"]
     ghg_scopes_enabled: List[str] = ["scope1", "scope2"]
     questionnaire_ids: List[str] = []
+    questionnaire_assignment_is_implicit: bool = False
     
     # Progress tracking
     esg_completion_percent: float = 0.0
