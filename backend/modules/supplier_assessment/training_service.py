@@ -218,10 +218,13 @@ async def record_consumption_event(relationship: Dict[str, Any], assignment_id: 
     await db.supplier_training_consumption_events.insert_one({"id": str(uuid.uuid4()), "training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"], "training_version_id": assignment["requirement_version_id"], "event_type": event["event_type"], "unit_index": event.get("unit_index"), "position_seconds": event.get("position_seconds"), "progress_percent": percent, "recorded_at": now, "recorded_by": user_id})
     return await update_progress(relationship, assignment_id, percent, user_id)
 
-async def training_status(org_id: str, requirement_id: str) -> Optional[List[Dict[str, Any]]]:
+async def training_status(org_id: str, requirement_id: str, reporting_period: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
     requirement = await db.supplier_training_requirements.find_one({"id": requirement_id, "organization_id": org_id, "is_deleted": {"$ne": True}}, {"_id": 0})
     if not requirement: return None
-    assignments = await db.supplier_training_assignments.find({"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": True}, {"_id": 0}).to_list(1000)
+    assignment_query = {"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": True}
+    if reporting_period:
+        assignment_query["reporting_period"] = reporting_period
+    assignments = await db.supplier_training_assignments.find(assignment_query, {"_id": 0}).to_list(1000)
     result=[]
     for assignment in assignments:
         relationship=await db.supplier_relationships.find_one({"id":assignment["supplier_relationship_id"],"customer_org_id":org_id},{"_id":0,"company_name":1})

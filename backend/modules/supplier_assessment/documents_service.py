@@ -332,9 +332,12 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
     return response
 
 
-async def list_customer_documents(customer_org_id: str) -> List[Dict[str, Any]]:
+async def list_customer_documents(customer_org_id: str, reporting_period: Optional[str] = None) -> List[Dict[str, Any]]:
+    query = {"customer_org_id": customer_org_id, "is_active": True}
+    if reporting_period:
+        query["reporting_period"] = reporting_period
     requirements = await db.supplier_document_requirements.find(
-        {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+        query, {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     return requirements
 

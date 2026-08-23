@@ -80,12 +80,14 @@ import SupplierDocuments from './modules/supplier-assessment/SupplierDocuments';
 import SupplierTrainingAdmin from './modules/supplier-assessment/SupplierTrainingAdmin';
 import SupplierTraining from './modules/supplier-assessment/SupplierTraining';
 import SupplierGHGSubmission from './modules/supplier-assessment/SupplierGHGSubmission';
+import SupplierAssessmentAdminLayout from './modules/supplier-assessment/SupplierAssessmentAdminLayout';
 import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
 import OCRInvoice from './pages/OCRInvoice';
 import SustainabilityConfig from './pages/SustainabilityConfig';
 import { OCRProvider } from './contexts/OCRContext';
+import { SupplierAssessmentPeriodProvider } from './contexts/SupplierAssessmentPeriodContext';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -345,28 +347,14 @@ const AppRoutes = () => {
           <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
           
           {/* Supplier Assessment Routes (Customer Admin) */}
-          <Route path="supplier-assessment/suppliers" element={
-            <AdminRoute>
-              <SupplierAssessmentSuppliers />
-            </AdminRoute>
-          } />
-          <Route path="supplier-assessment/esg" element={
-            <AdminRoute>
-              <SupplierAssessmentESG />
-            </AdminRoute>
-          } />
-          <Route path="supplier-assessment/ghg" element={
-            <AdminRoute>
-              <SupplierAssessmentGHG />
-            </AdminRoute>
-          } />
-          <Route path="supplier-assessment/ranking" element={
-            <AdminRoute>
-              <SupplierAssessmentRanking />
-            </AdminRoute>
-          } />
-          <Route path="supplier-assessment/documents" element={<AdminRoute><SupplierDocumentsAdmin /></AdminRoute>} />
-          <Route path="supplier-assessment/trainings" element={<AdminRoute><SupplierTrainingAdmin /></AdminRoute>} />
+          <Route path="supplier-assessment" element={<AdminRoute><SupplierAssessmentPeriodProvider><SupplierAssessmentAdminLayout /></SupplierAssessmentPeriodProvider></AdminRoute>}>
+            <Route path="suppliers" element={<SupplierAssessmentSuppliers />} />
+            <Route path="esg" element={<SupplierAssessmentESG />} />
+            <Route path="ghg" element={<SupplierAssessmentGHG />} />
+            <Route path="ranking" element={<SupplierAssessmentRanking />} />
+            <Route path="documents" element={<SupplierDocumentsAdmin />} />
+            <Route path="trainings" element={<SupplierTrainingAdmin />} />
+          </Route>
           
           {/* Supplier Portal Routes (Supplier Users) */}
           <Route path="supplier-assessment/supplier" element={<SupplierPortalDashboard />} />

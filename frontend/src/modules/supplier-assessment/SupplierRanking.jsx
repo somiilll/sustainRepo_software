@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -79,6 +80,7 @@ const PIE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444'];
 
 export default function SupplierRanking() {
   const { getAuthHeader } = useAuth();
+  const { reportingPeriod } = useSupplierAssessmentPeriod();
   const [rankings, setRankings] = useState([]);
   const [stats, setStats] = useState({ 
     total: 0, 
@@ -93,7 +95,7 @@ export default function SupplierRanking() {
 
   const fetchRankings = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/supplier-assessment/rankings`, {
+      const res = await axios.get(`${API}/supplier-assessment/rankings?reporting_period=${encodeURIComponent(reportingPeriod)}`, {
         headers: getAuthHeader(),
       });
       setRankings(res.data.rankings || []);
@@ -109,7 +111,7 @@ export default function SupplierRanking() {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, reportingPeriod]);
 
   useEffect(() => {
     fetchRankings();

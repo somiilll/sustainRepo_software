@@ -186,10 +186,16 @@ async def reopen_supplier_ghg(relationship: Dict[str, Any], reopened_by: str) ->
     return {"status": "reopened", "source_submission_id": source_submission_id, "entry_count": len(copies), "reopened_at": now}
 
 
-async def get_parent_submitted_ghg(customer_org_id: str) -> Dict[str, Any]:
-    relationships = await db.supplier_relationships.find({"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1, "company_name": 1}).to_list(1000)
+async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optional[str] = None) -> Dict[str, Any]:
+    relationship_query = {"customer_org_id": customer_org_id, "is_active": True}
+    if reporting_period:
+        relationship_query["reporting_period"] = reporting_period
+    relationships = await db.supplier_relationships.find(relationship_query, {"_id": 0, "id": 1, "company_name": 1}).to_list(1000)
     relationship_names = {relationship["id"]: relationship.get("company_name", "Unknown") for relationship in relationships}
-    entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": {"$in": list(relationship_names)}, "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}, {"_id": 0}).to_list(10000)
+    entry_query = {"source": "supplier", "supplier_relationship_id": {"$in": list(relationship_names)}, "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}
+    if reporting_period:
+        entry_query["reporting_period"] = reporting_period
+    entries = await db.emission_records.find(entry_query, {"_id": 0}).to_list(10000)
     emissions = []
     supplier_totals: Dict[str, Dict[str, Any]] = {}
     aggregation_rows: Dict[tuple, Dict[str, Any]] = {}

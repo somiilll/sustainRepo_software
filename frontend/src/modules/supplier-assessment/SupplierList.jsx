@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -51,6 +52,7 @@ const statusColors = {
 
 export default function SupplierList() {
   const { getAuthHeader } = useAuth();
+  const { reportingPeriod } = useSupplierAssessmentPeriod();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -88,7 +90,7 @@ export default function SupplierList() {
   const fetchSuppliers = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page, page_size: pageSize });
+      const params = new URLSearchParams({ page, page_size: pageSize, reporting_period: reportingPeriod });
       if (search) params.append('search', search);
       
       const res = await axios.get(`${API}/supplier-assessment/suppliers?${params}`, {
@@ -101,7 +103,7 @@ export default function SupplierList() {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader, page, search]);
+  }, [getAuthHeader, page, search, reportingPeriod]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -109,14 +111,15 @@ export default function SupplierList() {
 
   useEffect(() => {
     if (!showAddDialog) return;
+    setFormData((current) => ({ ...current, reporting_period: reportingPeriod }));
     Promise.all([
-      axios.get(`${API}/supplier-assessment/documents`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
     ]).then(([documentResponse, trainingResponse]) => {
       setDocuments(documentResponse.data || []);
       setTrainings(trainingResponse.data || []);
     }).catch(() => toast.error('Could not load existing assignments'));
-  }, [showAddDialog, getAuthHeader]);
+  }, [showAddDialog, getAuthHeader, reportingPeriod]);
 
   const handleAdd = async () => {
     if (!formData.company_name || !formData.contact_person || !formData.email) {
@@ -137,7 +140,7 @@ export default function SupplierList() {
         email: '', 
         contact_number: '', 
         due_date: '',
-        reporting_period: `CY${new Date().getFullYear()}`,
+        reporting_period: reportingPeriod,
         modules_enabled: ['esg', 'ghg'],
         ghg_scopes_enabled: ['scope1', 'scope2'],
         document_requirement_ids: [],

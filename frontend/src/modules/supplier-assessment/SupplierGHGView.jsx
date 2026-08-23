@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -28,6 +29,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function SupplierGHGView() {
   const { getAuthHeader } = useAuth();
+  const { reportingPeriod } = useSupplierAssessmentPeriod();
   const [emissions, setEmissions] = useState([]);
   const [supplierTotals, setSupplierTotals] = useState([]);
   const [aggregations, setAggregations] = useState([]);
@@ -40,7 +42,7 @@ export default function SupplierGHGView() {
 
   const fetchEmissions = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/supplier-assessment/emissions/all`, {
+      const res = await axios.get(`${API}/supplier-assessment/emissions/all?reporting_period=${encodeURIComponent(reportingPeriod)}`, {
         headers: getAuthHeader(),
       });
       setEmissions(res.data.emissions || []);
@@ -52,7 +54,7 @@ export default function SupplierGHGView() {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, reportingPeriod]);
 
   useEffect(() => {
     fetchEmissions();
