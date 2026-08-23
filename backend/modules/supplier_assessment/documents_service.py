@@ -32,6 +32,13 @@ def _document_key(title: Optional[str], filename: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", source).strip("-") or "agreement"
 
 
+async def _current_document_submission(relationship_id: str, requirement_id: str, version_id: str) -> Optional[Dict[str, Any]]:
+    return await db.supplier_document_submissions.find_one(
+        {"supplier_relationship_id": relationship_id, "document_requirement_id": requirement_id, "document_version_id": version_id, "is_current": True},
+        {"_id": 0}, sort=[("revision", -1)],
+    )
+
+
 async def _enable_documents_for_org(customer_org_id: str, _user_id: str) -> Dict[str, Any]:
     """Compatibility seam that now validates the Superadmin-selected Documents workflow.
 
@@ -188,20 +195,23 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
         if not version:
             continue
         response_mode = requirement.get("response_mode", "ACCEPTANCE")
-        response = None
-        if response_mode == "STATUS":
-            response = await db.supplier_document_responses.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "document_version_id": version["id"]}, {"_id": 0})
-        else:
-            response = await db.supplier_document_acceptances.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "document_version_id": version["id"]}, {"_id": 0})
+        response = await _current_document_submission(relationship["id"], requirement["id"], version["id"])
+        if not response:
+            if response_mode == "STATUS":
+                response = await db.supplier_document_responses.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "document_version_id": version["id"]}, {"_id": 0})
+            else:
+                response = await db.supplier_document_acceptances.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "document_version_id": version["id"]}, {"_id": 0})
+        is_reopened = bool(response and response.get("status") == "reopened")
         documents.append({
             "id": requirement["id"], "title": requirement["title"],
             "original_filename": version["original_filename"], "content_type": version["content_type"],
             "file_size": version["file_size"], "document_version_id": version["id"],
-            "version_number": version["version_number"], "accepted": bool(response),
+            "version_number": version["version_number"], "accepted": bool(response) and not is_reopened,
             "accepted_at": response.get("accepted_at") if response else None,
             "response_mode": response_mode, "response_options": requirement.get("response_options", []),
-            "selected_response": response.get("response_value") if response_mode == "STATUS" and response else None,
-            "responded_at": response.get("responded_at") if response_mode == "STATUS" and response else None,
+            "selected_response": response.get("response_value") if response_mode == "STATUS" and response and not is_reopened else None,
+            "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response_mode == "STATUS" and response and not is_reopened else None,
+            "submission_status": "reopened" if is_reopened else ("submitted" if response else "not_started"),
             "created_at": requirement["created_at"],
         })
     return documents
@@ -228,17 +238,26 @@ async def accept_supplier_document(relationship: Dict[str, Any], requirement_id:
     requirement, version = document["requirement"], document["version"]
     if requirement.get("response_mode", "ACCEPTANCE") != "ACCEPTANCE":
         raise ValueError("Select one of the configured status responses instead")
-    existing = await db.supplier_document_acceptances.find_one({
+    existing = await _current_document_submission(relationship["id"], requirement_id, version["id"])
+    if existing and existing.get("status") == "reopened":
+        now = _now()
+        await db.supplier_document_submissions.update_one({"id": existing["id"]}, {"$set": {"status": "submitted", "response_value": "Accepted", "accepted_by": supplier_user_id, "accepted_at": now, "submitted_at": now, "parent_visible": True}})
+        await db.supplier_document_submissions.update_many({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "id": {"$ne": existing["id"]}}, {"$set": {"parent_visible": False}})
+        return await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
+    if existing:
+        return existing
+    legacy = await db.supplier_document_acceptances.find_one({
         "supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id,
         "document_version_id": version["id"],
     }, {"_id": 0})
-    if existing:
-        return existing
+    if legacy:
+        return legacy
     acceptance = {
         "id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"],
         "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": relationship["customer_org_id"],
         "document_requirement_id": requirement_id, "document_version_id": version["id"],
-        "accepted_by": supplier_user_id, "accepted_at": _now(),
+        "accepted_by": supplier_user_id, "accepted_at": _now(), "status": "submitted", "revision": 1,
+        "is_current": True, "parent_visible": True,
     }
     await db.supplier_document_acceptances.insert_one(acceptance)
     acceptance.pop("_id", None)
@@ -254,13 +273,24 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
         raise ValueError("This document requires acceptance")
     if response_value not in requirement.get("response_options", []):
         raise ValueError("Choose one of the configured status responses")
-    existing = await db.supplier_document_responses.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "document_version_id": version["id"]}, {"_id": 0})
+    existing = await _current_document_submission(relationship["id"], requirement_id, version["id"])
+    if existing and existing.get("status") == "reopened":
+        now = _now()
+        await db.supplier_document_submissions.update_one({"id": existing["id"]}, {"$set": {"status": "submitted", "response_value": response_value, "responded_by": supplier_user_id, "responded_at": now, "submitted_at": now, "parent_visible": True}})
+        await db.supplier_document_submissions.update_many({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "id": {"$ne": existing["id"]}}, {"$set": {"parent_visible": False}})
+        return await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
     if existing:
         if existing.get("response_value") == response_value:
             return existing
         raise ValueError("This document response has already been submitted and is locked")
+    legacy = await db.supplier_document_responses.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "document_version_id": version["id"]}, {"_id": 0})
+    if legacy:
+        if legacy.get("response_value") == response_value:
+            return legacy
+        raise ValueError("This document response has already been submitted and is locked")
     response = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": relationship["customer_org_id"], "document_requirement_id": requirement_id, "document_version_id": version["id"], "response_value": response_value, "responded_by": supplier_user_id, "responded_at": _now()}
-    await db.supplier_document_responses.update_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "document_version_id": version["id"]}, {"$set": response}, upsert=True)
+    response.update({"status": "submitted", "revision": 1, "is_current": True, "parent_visible": True, "submitted_at": response["responded_at"]})
+    await db.supplier_document_submissions.insert_one(response)
     response.pop("_id", None)
     return response
 
@@ -284,12 +314,17 @@ async def list_document_supplier_responses(customer_org_id: str, requirement_id:
         assigned_requirement = requirement_by_program.get((supplier.get("assessment_program_id"), supplier.get("assessment_program_version")))
         if not assigned_requirement or (assigned_requirement.get("supplier_relationship_ids") and supplier["id"] not in assigned_requirement["supplier_relationship_ids"]):
             continue
+        current_submission = await _current_document_submission(supplier["id"], assigned_requirement["id"], assigned_requirement["document_version_id"])
+        visible_submission = await db.supplier_document_submissions.find_one(
+            {"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "parent_visible": True, "status": "submitted"},
+            {"_id": 0}, sort=[("revision", -1)],
+        )
         if assigned_requirement.get("response_mode", "ACCEPTANCE") == "STATUS":
-            response = await db.supplier_document_responses.find_one({"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "document_version_id": assigned_requirement["document_version_id"]}, {"_id": 0})
-            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": response.get("responded_at") if response else None})
+            response = visible_submission or await db.supplier_document_responses.find_one({"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "document_version_id": assigned_requirement["document_version_id"]}, {"_id": 0})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else "submitted"})
         else:
-            acceptance = await db.supplier_document_acceptances.find_one({"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "document_version_id": assigned_requirement["document_version_id"]}, {"_id": 0})
-            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": acceptance.get("accepted_at") if acceptance else None})
+            acceptance = visible_submission or await db.supplier_document_acceptances.find_one({"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "document_version_id": assigned_requirement["document_version_id"]}, {"_id": 0})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": (acceptance.get("accepted_at") or acceptance.get("submitted_at")) if acceptance else None, "can_unlock": bool(acceptance), "submission_status": current_submission.get("status", "submitted") if current_submission else "submitted"})
     return {"document_version_id": requirement["document_version_id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "response_options": requirement.get("response_options", []), "responses": rows}
 
 
@@ -315,6 +350,30 @@ async def archive_document(customer_org_id: str, requirement_id: str) -> Optiona
     return [relationship["id"] for relationship in relationships]
 
 
+async def reopen_supplier_document(customer_org_id: str, supplier_relationship_id: str, requirement_id: str, reopened_by: str) -> Dict[str, Any]:
+    relationship = await db.supplier_relationships.find_one({"id": supplier_relationship_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0})
+    if not relationship:
+        raise ValueError("Supplier not found")
+    document = await get_supplier_document(relationship, requirement_id)
+    if not document:
+        raise ValueError("Agreement not found")
+    requirement, version = document["requirement"], document["version"]
+    current = await _current_document_submission(relationship["id"], requirement_id, version["id"])
+    if current and current.get("status") == "reopened":
+        raise ValueError("This document is already unlocked for resubmission")
+    legacy_collection = db.supplier_document_responses if requirement.get("response_mode") == "STATUS" else db.supplier_document_acceptances
+    legacy = await legacy_collection.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "document_version_id": version["id"]}, {"_id": 0})
+    if not current and not legacy:
+        raise ValueError("No submitted document response is available to unlock")
+    if current:
+        await db.supplier_document_submissions.update_one({"id": current["id"]}, {"$set": {"is_current": False}})
+    latest = await db.supplier_document_submissions.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id}, {"_id": 0, "revision": 1}, sort=[("revision", -1)])
+    draft = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": customer_org_id, "document_requirement_id": requirement_id, "document_version_id": version["id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "status": "reopened", "revision": (latest.get("revision", 1) + 1) if latest else 2, "is_current": True, "parent_visible": False, "reopened_by": reopened_by, "reopened_at": _now()}
+    await db.supplier_document_submissions.insert_one(draft)
+    draft.pop("_id", None)
+    return draft
+
+
 async def ensure_indexes():
     await db.supplier_document_requirements.create_index([
         ("customer_org_id", 1), ("assessment_program_id", 1), ("assessment_program_version", 1)
@@ -329,3 +388,5 @@ async def ensure_indexes():
     await db.supplier_document_responses.create_index([
         ("supplier_relationship_id", 1), ("document_requirement_id", 1), ("document_version_id", 1)
     ], unique=True)
+    await db.supplier_document_submissions.create_index("id", unique=True)
+    await db.supplier_document_submissions.create_index([("supplier_relationship_id", 1), ("document_requirement_id", 1), ("is_current", 1)])

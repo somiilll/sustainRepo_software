@@ -620,6 +620,18 @@ class SupplierAssessmentService:
     # ========================================================================
     # Supplier Response Management
     # ========================================================================
+
+    async def _current_questionnaire_response(self, questionnaire_id: str, supplier_relationship_id: str) -> Optional[Dict[str, Any]]:
+        response = await db.supplier_questionnaire_responses.find_one(
+            {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "is_current": True},
+            {"_id": 0}, sort=[("revision", -1)],
+        )
+        if response:
+            return response
+        return await db.supplier_questionnaire_responses.find_one(
+            {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "is_current": {"$exists": False}},
+            {"_id": 0}, sort=[("submitted_at", -1)],
+        )
     
     async def get_supplier_questionnaire_status(
         self,
@@ -648,13 +660,7 @@ class SupplierAssessmentService:
         statuses = []
         for q in questionnaires:
             # Get response status
-            response_doc = await db.supplier_questionnaire_responses.find_one(
-                {
-                    "questionnaire_id": q["id"],
-                    "supplier_relationship_id": relationship["id"],
-                },
-                {"_id": 0}
-            )
+            response_doc = await self._current_questionnaire_response(q["id"], relationship["id"])
             
             # Count questions
             total_questions = await db.supplier_questions.count_documents(
@@ -703,13 +709,7 @@ class SupplierAssessmentService:
             return None
         
         # Get supplier's responses
-        response_doc = await db.supplier_questionnaire_responses.find_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-            },
-            {"_id": 0}
-        )
+        response_doc = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id)
         
         answers = response_doc.get("answers", {}) if response_doc else {}
         
@@ -719,6 +719,7 @@ class SupplierAssessmentService:
         
         questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
         questionnaire["submitted_at"] = response_doc.get("submitted_at") if response_doc else None
+        questionnaire["reopened_at"] = response_doc.get("reopened_at") if response_doc else None
         
         return questionnaire
     
@@ -732,13 +733,7 @@ class SupplierAssessmentService:
     ) -> Dict[str, Any]:
         """Submit or save draft answers."""
         # Check if response doc exists
-        response_doc = await db.supplier_questionnaire_responses.find_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-            },
-            {"_id": 0}
-        )
+        response_doc = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id)
         if response_doc and response_doc.get("status") == "submitted":
             raise ValueError("Questionnaire already submitted and locked")
         
@@ -768,7 +763,11 @@ class SupplierAssessmentService:
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
             if submitted_at:
-                update_data["submitted_at"] = submitted_at
+                update_data.update({"submitted_at": submitted_at, "parent_visible": True})
+                await db.supplier_questionnaire_responses.update_many(
+                    {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "id": {"$ne": response_doc["id"]}, "parent_visible": True},
+                    {"$set": {"parent_visible": False, "replaced_at": submitted_at}},
+                )
             if calculated_score is not None:
                 update_data["calculated_score"] = calculated_score
             
@@ -788,6 +787,9 @@ class SupplierAssessmentService:
                 "status": status,
                 "calculated_score": calculated_score,
                 "submitted_at": submitted_at,
+                "revision": 1,
+                "is_current": True,
+                "parent_visible": not is_draft,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             await db.supplier_questionnaire_responses.insert_one(new_doc)
@@ -1208,13 +1210,10 @@ class SupplierAssessmentService:
             return None
         
         response_doc = await db.supplier_questionnaire_responses.find_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-            },
-            {"_id": 0}
+            {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "status": "submitted", "parent_visible": {"$ne": False}},
+            {"_id": 0}, sort=[("revision", -1)],
         )
-        if response_doc and response_doc.get("status") != "submitted":
+        if not response_doc:
             return None
         
         answers = response_doc.get("answers", {}) if response_doc else {}
@@ -1233,9 +1232,42 @@ class SupplierAssessmentService:
         self,
         supplier_relationship_id: str,
         questionnaire_id: str,
+        reopened_by: Optional[str] = None,
     ) -> bool:
-        """Admin reopens a questionnaire for a supplier to edit."""
-        return False
+        """Create a private draft revision while preserving the parent-visible submission."""
+        visible_response = await db.supplier_questionnaire_responses.find_one(
+            {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "status": "submitted", "parent_visible": {"$ne": False}},
+            {"_id": 0}, sort=[("revision", -1)],
+        )
+        if not visible_response:
+            return False
+        current = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id)
+        if current and current.get("status") != "submitted":
+            return False
+        if current and current.get("id") != visible_response.get("id"):
+            return False
+        now = datetime.now(timezone.utc).isoformat()
+        if current:
+            await db.supplier_questionnaire_responses.update_one({"id": current["id"]}, {"$set": {"is_current": False}})
+        revision = int(visible_response.get("revision") or 1) + 1
+        draft = {
+            "id": str(uuid.uuid4()), "questionnaire_id": questionnaire_id,
+            "supplier_relationship_id": supplier_relationship_id,
+            "supplier_org_id": visible_response.get("supplier_org_id"),
+            "answers": visible_response.get("answers", {}), "status": "in_progress",
+            "calculated_score": None, "submitted_at": None, "revision": revision,
+            "is_current": True, "parent_visible": False, "reopened_at": now,
+            "reopened_by": reopened_by, "created_at": now, "updated_at": now,
+        }
+        await db.supplier_questionnaire_responses.insert_one(draft)
+        return True
+
+    async def get_supplier_submission_status(self, supplier_relationship_id: str) -> Dict[str, Any]:
+        esg = await db.supplier_questionnaire_responses.find(
+            {"supplier_relationship_id": supplier_relationship_id, "status": "submitted", "parent_visible": {"$ne": False}},
+            {"_id": 0, "questionnaire_id": 1, "submitted_at": 1, "revision": 1},
+        ).to_list(100)
+        return {"esg": esg}
 
 
 # Singleton instance

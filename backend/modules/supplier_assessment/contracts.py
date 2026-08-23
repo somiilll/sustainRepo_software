@@ -108,6 +108,7 @@ class SupplierDocumentResponse(BaseModel):
     response_options: List[str] = []
     selected_response: Optional[str] = None
     responded_at: Optional[str] = None
+    submission_status: Optional[str] = None
     created_at: str
 
 
