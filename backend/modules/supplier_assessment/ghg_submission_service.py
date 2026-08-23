@@ -1,7 +1,7 @@
 """One-time Supplier Assessment GHG submission state on existing emission records."""
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from shared.database.mongo import db
 

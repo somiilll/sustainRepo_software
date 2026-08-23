@@ -494,3 +494,8 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Corrected the Supplier Assessment selector and new-supplier default to derive reporting periods from the organization’s `reporting_year_type` and `financial_year_start_month`.
 - Financial-year organizations now receive labels such as `FY 2026-27`; calendar-year organizations receive `CY 2026`. A stale saved selector choice from the wrong type is automatically replaced with the organization’s current default.
 - Per the previous user instruction, this correction was **not tested**.
+
+## Change Log — 2026-08-23: API Startup Recovery
+
+- Restored the missing `Optional` typing import in `ghg_submission_service.py`, which was preventing the backend from importing and produced `502 Bad Gateway` responses, including on login.
+- Verified the external `POST /api/auth/login` response recovered with HTTP 200 in 0.53 seconds.
