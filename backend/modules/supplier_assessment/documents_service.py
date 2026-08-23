@@ -224,6 +224,28 @@ async def list_customer_documents(customer_org_id: str) -> List[Dict[str, Any]]:
     return requirements
 
 
+async def archive_document(customer_org_id: str, requirement_id: str) -> Optional[List[str]]:
+    """Remove an agreement from active supplier access while retaining its audit history."""
+    requirement = await db.supplier_document_requirements.find_one(
+        {"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    )
+    if not requirement:
+        return None
+    now = _now()
+    await db.supplier_document_requirements.update_many(
+        {"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True},
+        {"$set": {"is_active": False, "deleted_at": now}},
+    )
+    await db.supplier_document_versions.update_one(
+        {"id": requirement["document_version_id"], "customer_org_id": customer_org_id},
+        {"$set": {"is_deleted": True, "deleted_at": now}},
+    )
+    relationships = await db.supplier_relationships.find(
+        {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1}
+    ).to_list(1000)
+    return [relationship["id"] for relationship in relationships]
+
+
 async def ensure_indexes():
     await db.supplier_document_requirements.create_index([
         ("customer_org_id", 1), ("assessment_program_id", 1), ("assessment_program_version", 1)

@@ -224,6 +224,16 @@ async def upload_document(
     except Exception as error:
         raise HTTPException(status_code=500, detail=f"Failed to publish agreement: {error}")
 
+@router.delete("/documents/{requirement_id}")
+async def delete_document(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
+    """Remove an agreement from active supplier access while retaining immutable records."""
+    relationship_ids = await documents_service.archive_document(current_user["organization_id"], requirement_id)
+    if relationship_ids is None:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    for relationship_id in relationship_ids:
+        await supplier_service._update_completion_status(relationship_id)
+    return {"message": "Agreement deleted"}
+
 @router.post("/trainings")
 async def create_training(file: UploadFile = File(...), title: str = Form(...), description: str = Form(""), due_date: Optional[str] = Form(None), supplier_relationship_ids: str = Form(...), current_user: dict = Depends(get_customer_admin)):
     """Create immutable v1 training content and assign it to selected suppliers."""

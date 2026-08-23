@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { FileText, Upload, ShieldCheck } from 'lucide-react';
+import { FileText, Upload, ShieldCheck, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -16,6 +17,8 @@ export default function SupplierDocumentsAdmin() {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deletingId, setDeletingId] = useState('');
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -46,6 +49,19 @@ export default function SupplierDocumentsAdmin() {
     } finally { setUploading(false); }
   };
 
+  const deleteAgreement = async () => {
+    if (!pendingDelete) return;
+    setDeletingId(pendingDelete.id);
+    try {
+      await axios.delete(`${API}/supplier-assessment/documents/${pendingDelete.id}`, { headers: getAuthHeader() });
+      toast.success('Agreement deleted from supplier access');
+      setPendingDelete(null);
+      await loadDocuments();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not delete agreement');
+    } finally { setDeletingId(''); }
+  };
+
   return <div className="space-y-8" data-testid="supplier-documents-admin-page">
     <div>
       <h1 className="text-3xl font-semibold text-stone-900">Supplier agreements</h1>
@@ -60,7 +76,8 @@ export default function SupplierDocumentsAdmin() {
       </CardContent>
     </Card>
     <div className="space-y-3" data-testid="published-supplier-agreements-list">
-      {documents.length === 0 ? <p className="py-8 text-center text-sm text-stone-500" data-testid="supplier-agreements-empty-state">No agreements have been published.</p> : documents.map((document) => <Card key={document.id} data-testid={`published-supplier-agreement-${document.id}`}><CardContent className="flex items-center gap-4 py-4"><ShieldCheck className="h-5 w-5 text-emerald-700" /><div><p className="font-medium text-stone-900">{document.title}</p><p className="text-xs text-stone-500">Program revision {document.assessment_program_version}</p></div></CardContent></Card>)}
+      {documents.length === 0 ? <p className="py-8 text-center text-sm text-stone-500" data-testid="supplier-agreements-empty-state">No agreements have been published.</p> : documents.map((document) => <Card key={document.id} data-testid={`published-supplier-agreement-${document.id}`}><CardContent className="flex items-center justify-between gap-4 py-4"><div className="flex items-center gap-4"><ShieldCheck className="h-5 w-5 text-emerald-700" /><div><p className="font-medium text-stone-900">{document.title}</p><p className="text-xs text-stone-500">Program revision {document.assessment_program_version}</p></div></div><Button variant="outline" size="sm" disabled={deletingId === document.id} onClick={() => setPendingDelete(document)} data-testid={`delete-supplier-agreement-${document.id}`}><Trash2 className="mr-1 h-4 w-4" />Delete</Button></CardContent></Card>)}
     </div>
+    <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}><AlertDialogContent data-testid="delete-supplier-agreement-dialog"><AlertDialogHeader><AlertDialogTitle>Delete {pendingDelete?.title}?</AlertDialogTitle><AlertDialogDescription>This removes the agreement from all active supplier assignments. Its historical acceptance record and stored file are retained for audit purposes.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-delete-supplier-agreement-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteAgreement} data-testid="confirm-delete-supplier-agreement-button">Delete agreement</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;
 }
