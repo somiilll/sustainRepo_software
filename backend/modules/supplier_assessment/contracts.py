@@ -373,6 +373,30 @@ class SupplierEmissionResponse(BaseModel):
     updated_at: Optional[str] = None
 
 
+class SupplierEmissionRevisionResponse(BaseModel):
+    """Supplier-facing immutable revision metadata for one emission entry."""
+    id: str
+    lineage_id: str
+    revision_number: int
+    is_current_revision: bool
+    status: str
+    reporting_period: str
+    scope: str
+    category: str
+    total_emissions: float = 0.0
+    submitted_at: Optional[str] = None
+    reopened_at: Optional[str] = None
+    revised_from_record_id: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class SupplierEmissionRevisionHistoryResponse(BaseModel):
+    """All immutable revisions belonging to one supplier emission lineage."""
+    lineage_id: str
+    current_revision_id: Optional[str] = None
+    revisions: List[SupplierEmissionRevisionResponse]
+
+
 # ============================================================================
 # Ranking Schemas
 # ============================================================================
