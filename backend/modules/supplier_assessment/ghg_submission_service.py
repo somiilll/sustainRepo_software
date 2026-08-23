@@ -20,6 +20,28 @@ def aggregate_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted(totals.values(), key=lambda row: (row["scope"] or "", row["category"]))
 
 
+def exclude_reopened_supplier_submission_revisions(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Keep the editable draft visible in GHG Logs while retaining its submitted source in storage."""
+    reopened_submission_ids = {
+        entry["resubmission_of"]
+        for entry in entries
+        if entry.get("source") == "supplier"
+        and not entry.get("submitted_to_parent_org")
+        and entry.get("resubmission_of")
+    }
+    if not reopened_submission_ids:
+        return entries
+    return [
+        entry
+        for entry in entries
+        if not (
+            entry.get("source") == "supplier"
+            and entry.get("submitted_to_parent_org")
+            and entry.get("submission_id") in reopened_submission_ids
+        )
+    ]
+
+
 async def get_supplier_ghg_state(relationship: Dict[str, Any]) -> Dict[str, Any]:
     entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": relationship["id"]}, {"_id": 0}).sort("created_at", -1).to_list(5000)
     submitted_entries = [entry for entry in entries if entry.get("submitted_to_parent_org") and entry.get("parent_visible", True)]
