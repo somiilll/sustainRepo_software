@@ -113,6 +113,12 @@ class TrainingUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class TrainingConsumptionEvent(BaseModel):
+    event_type: Literal["page_view", "media_progress"]
+    unit_index: Optional[int] = Field(default=None, ge=1)
+    position_seconds: Optional[float] = Field(default=None, ge=0)
+
+
 # ============================================================================
 # Questionnaire Schemas
 # ============================================================================
