@@ -84,6 +84,7 @@ export default function SupplierList() {
   const [documents, setDocuments] = useState([]);
   const [trainings, setTrainings] = useState([]);
   const [questionnaires, setQuestionnaires] = useState([]);
+  const [questionnaireAssignmentsLoaded, setQuestionnaireAssignmentsLoaded] = useState(false);
   const [reminderTarget, setReminderTarget] = useState(null);
   const [reminderModules, setReminderModules] = useState(['all']);
   const [reviewResponse, setReviewResponse] = useState(null);
@@ -130,6 +131,23 @@ export default function SupplierList() {
     }).catch(() => toast.error('Could not load existing assignments'));
   }, [showAddDialog, getAuthHeader, reportingPeriod]);
 
+  useEffect(() => {
+    if (!showEditDialog || !selectedSupplier) return;
+    setQuestionnaireAssignmentsLoaded(false);
+    Promise.all([
+      axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/submission-status`, { headers: getAuthHeader() }),
+    ]).then(([questionnaireResponse, statusResponse]) => {
+      const availableQuestionnaires = questionnaireResponse.data || [];
+      setQuestionnaires(availableQuestionnaires);
+      setSubmissionStatus(statusResponse.data);
+      if (selectedSupplier.questionnaire_assignment_is_implicit) {
+        setFormData((current) => ({ ...current, questionnaire_ids: availableQuestionnaires.map((questionnaire) => questionnaire.id) }));
+      }
+      setQuestionnaireAssignmentsLoaded(true);
+    }).catch(() => toast.error('Could not load questionnaire assignments'));
+  }, [showEditDialog, selectedSupplier, getAuthHeader]);
+
   const handleAdd = async () => {
     if (!formData.company_name || !formData.contact_person || !formData.email) {
       toast.error('Please fill required fields');
@@ -173,7 +191,8 @@ export default function SupplierList() {
     
     setSubmitting(true);
     try {
-      await axios.put(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}`, formData, {
+      const { questionnaire_ids, ...supplierDetails } = formData;
+      await axios.put(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}`, questionnaireAssignmentsLoaded ? formData : supplierDetails, {
         headers: getAuthHeader(),
       });
       toast.success('Supplier updated');
@@ -216,6 +235,7 @@ export default function SupplierList() {
 
   const openEditDialog = (supplier) => {
     setSelectedSupplier(supplier);
+    setQuestionnaireAssignmentsLoaded(false);
     setFormData({
       company_name: supplier.company_name,
       contact_person: supplier.contact_person,
@@ -225,6 +245,7 @@ export default function SupplierList() {
       reporting_period: supplier.reporting_period || `CY${new Date().getFullYear()}`,
       modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
       ghg_scopes_enabled: supplier.ghg_scopes_enabled || ['scope1', 'scope2'],
+      questionnaire_ids: supplier.questionnaire_ids || [],
     });
     setShowEditDialog(true);
   };
@@ -736,6 +757,29 @@ export default function SupplierList() {
                 </div>
               </div>
             </div>
+            {formData.modules_enabled?.includes('esg') && questionnaires.length > 0 && (
+              <div className="space-y-3 border-t pt-4" data-testid="edit-supplier-questionnaire-assignments">
+                <Label className="text-sm font-medium">Assigned ESG questionnaires</Label>
+                <p className="text-xs text-stone-500">Submitted questionnaires remain assigned to preserve the supplier’s assessment history.</p>
+                <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
+                  {questionnaires.map((questionnaire) => {
+                    const isSubmitted = (submissionStatus?.esg || []).some((submission) => submission.questionnaire_id === questionnaire.id);
+                    return (
+                      <label key={questionnaire.id} className={`flex items-center gap-2 text-sm ${isSubmitted ? 'text-stone-500' : ''}`}>
+                        <Checkbox
+                          checked={formData.questionnaire_ids.includes(questionnaire.id)}
+                          disabled={isSubmitted}
+                          onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
+                          data-testid={`edit-supplier-questionnaire-${questionnaire.id}`}
+                        />
+                        <span>{questionnaire.name}</span>
+                        {isSubmitted && <Badge variant="outline" className="ml-auto text-xs" data-testid={`submitted-questionnaire-lock-${questionnaire.id}`}>Submitted</Badge>}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             
             {/* GHG Scope Selection */}
             {formData.modules_enabled?.includes('ghg') && (

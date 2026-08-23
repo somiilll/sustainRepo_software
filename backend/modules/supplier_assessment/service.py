@@ -305,6 +305,8 @@ class SupplierAssessmentService:
             query,
             {"_id": 0}
         ).sort("created_at", -1).skip(skip).limit(page_size).to_list(page_size)
+        for supplier in suppliers:
+            supplier["questionnaire_assignment_is_implicit"] = "questionnaire_ids" not in supplier
         
         return {
             "suppliers": suppliers,
@@ -355,6 +357,21 @@ class SupplierAssessmentService:
             updates["questionnaire_ids"] = list(dict.fromkeys(updates["questionnaire_ids"] or []))
             if set(updates["questionnaire_ids"]) - active_ids:
                 raise ValueError("Selected ESG questionnaire is unavailable")
+            current_questionnaire_ids = relationship.get("questionnaire_ids")
+            if current_questionnaire_ids is None:
+                current_questionnaire_ids = list(active_ids)
+            removed_questionnaire_ids = set(current_questionnaire_ids) - set(updates["questionnaire_ids"])
+            if removed_questionnaire_ids:
+                submitted_response = await db.supplier_questionnaire_responses.find_one(
+                    {
+                        "supplier_relationship_id": relationship_id,
+                        "questionnaire_id": {"$in": list(removed_questionnaire_ids)},
+                        "status": "submitted",
+                    },
+                    {"_id": 0, "questionnaire_id": 1},
+                )
+                if submitted_response:
+                    raise ValueError("A submitted questionnaire cannot be removed from this supplier")
 
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         
@@ -362,6 +379,8 @@ class SupplierAssessmentService:
             {"id": relationship_id},
             {"$set": updates}
         )
+        if "questionnaire_ids" in updates:
+            await self._update_completion_status(relationship_id)
         
         return await self.get_supplier(relationship_id)
     
