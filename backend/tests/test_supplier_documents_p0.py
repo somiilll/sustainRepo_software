@@ -178,6 +178,8 @@ async def test_status_response_is_version_bound_and_satisfies_document_completio
 
     assert response["document_version_id"] == "version-1"
     assert (await documents_service.list_supplier_documents(supplier))[0]["selected_response"] == "I will do it"
+    with pytest.raises(ValueError, match="locked"):
+        await documents_service.respond_to_supplier_document(supplier, "requirement-1", "I have done it", "user-1")
     documents_module = next(module for module in supplier_assessment_module_registry.enabled_modules({"modules": {"documents": {"enabled": True}}}) if module.module_code == "documents")
     assert (await documents_module.get_completion(database, supplier)).completion_percent == 100.0
 

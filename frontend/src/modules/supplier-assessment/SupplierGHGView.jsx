@@ -29,6 +29,7 @@ export default function SupplierGHGView() {
   const { getAuthHeader } = useAuth();
   const [emissions, setEmissions] = useState([]);
   const [supplierTotals, setSupplierTotals] = useState([]);
+  const [aggregations, setAggregations] = useState([]);
   const [grandTotal, setGrandTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -41,6 +42,7 @@ export default function SupplierGHGView() {
       });
       setEmissions(res.data.emissions || []);
       setSupplierTotals(res.data.supplier_totals || []);
+      setAggregations(res.data.aggregations || []);
       setGrandTotal(res.data.grand_total || 0);
     } catch (err) {
       toast.error('Failed to load emissions');
@@ -153,6 +155,11 @@ export default function SupplierGHGView() {
       )}
 
       {/* Filters */}
+      <Card data-testid="submitted-ghg-aggregation-card">
+        <CardHeader><CardTitle>Submitted emissions by scope and category</CardTitle></CardHeader>
+        <CardContent>{aggregations.length === 0 ? <p className="text-sm text-stone-500" data-testid="submitted-ghg-aggregation-empty">No supplier GHG submission has been received.</p> : <Table data-testid="submitted-ghg-aggregation-table"><TableHeader><TableRow><TableHead>Scope</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Entries</TableHead><TableHead className="text-right">Emissions (tCO₂e)</TableHead></TableRow></TableHeader><TableBody>{aggregations.map((row) => <TableRow key={`${row.scope}-${row.category}`} data-testid={`submitted-ghg-aggregation-${row.scope}-${row.category}`}><TableCell>{row.scope === 'scope1' ? 'Scope 1' : 'Scope 2'}</TableCell><TableCell>{row.category}</TableCell><TableCell className="text-right">{row.entry_count}</TableCell><TableCell className="text-right font-mono">{row.total_emissions.toFixed(4)}</TableCell></TableRow>)}</TableBody></Table>}</CardContent>
+      </Card>
+
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />

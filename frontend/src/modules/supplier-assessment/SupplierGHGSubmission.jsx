@@ -1,0 +1,26 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import { Lock, Send } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '../../contexts/AuthContext';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+export default function SupplierGHGSubmission() {
+  const { getAuthHeader } = useAuth(); const [state, setState] = useState(null); const [submitting, setSubmitting] = useState(false); const [confirmOpen, setConfirmOpen] = useState(false);
+  const load = useCallback(async () => { try { setState((await axios.get(`${API}/supplier-assessment/my-assessment/emissions/submission`, { headers: getAuthHeader() })).data); } catch (error) { toast.error(error.response?.data?.detail || 'Could not load GHG submission'); } }, [getAuthHeader]);
+  useEffect(() => { load(); }, [load]);
+  const totals = useMemo(() => (state?.draft_aggregation || []).reduce((all, row) => ({ ...all, [row.scope]: (all[row.scope] || 0) + row.total_emissions }), {}), [state]);
+  const submit = async () => { setSubmitting(true); try { await axios.post(`${API}/supplier-assessment/my-assessment/emissions/submit`, {}, { headers: getAuthHeader() }); toast.success('GHG submission sent'); setConfirmOpen(false); await load(); } catch (error) { toast.error(error.response?.data?.detail || 'Could not submit GHG data'); } finally { setSubmitting(false); } };
+  const locked = Boolean(state?.submission);
+  return <div className="space-y-6" data-testid="supplier-ghg-submission-page"><div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-semibold">Supplier Assessment GHG</h1><p className="mt-2 text-sm text-stone-600">Review your logged GHG data before submitting it to your customer.</p></div>{locked ? <Badge className="bg-stone-200 text-stone-700" data-testid="supplier-ghg-submission-locked"><Lock className="mr-1 h-3 w-3" />Submitted and locked</Badge> : <Button disabled={!state?.can_submit || submitting} onClick={() => setConfirmOpen(true)} data-testid="submit-supplier-ghg-button"><Send className="mr-2 h-4 w-4" />Submit GHG data</Button>}</div>
+    <div className="grid gap-4 md:grid-cols-2"><Card data-testid="supplier-ghg-scope1-total"><CardContent className="pt-6"><p className="text-sm text-stone-500">Scope 1 draft total</p><p className="mt-1 text-2xl font-semibold">{(totals.scope1 || 0).toFixed(2)} tCO₂e</p></CardContent></Card><Card data-testid="supplier-ghg-scope2-total"><CardContent className="pt-6"><p className="text-sm text-stone-500">Scope 2 draft total</p><p className="mt-1 text-2xl font-semibold">{(totals.scope2 || 0).toFixed(2)} tCO₂e</p></CardContent></Card></div>
+    <Card data-testid="supplier-ghg-submission-aggregation"><CardHeader><CardTitle>Scope and category summary</CardTitle></CardHeader><CardContent>{!state ? <p data-testid="supplier-ghg-submission-loading">Loading…</p> : (state.draft_aggregation || []).length === 0 ? <p className="text-sm text-stone-500" data-testid="supplier-ghg-submission-empty">No unsubmitted GHG entries are available.</p> : <Table data-testid="supplier-ghg-submission-table"><TableHeader><TableRow><TableHead>Scope</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Entries</TableHead><TableHead className="text-right">Emissions (tCO₂e)</TableHead></TableRow></TableHeader><TableBody>{state.draft_aggregation.map((row) => <TableRow key={`${row.scope}-${row.category}`} data-testid={`supplier-ghg-submission-row-${row.scope}-${row.category}`}><TableCell>{row.scope === 'scope1' ? 'Scope 1' : 'Scope 2'}</TableCell><TableCell>{row.category}</TableCell><TableCell className="text-right">{row.entry_count}</TableCell><TableCell className="text-right font-mono">{row.total_emissions.toFixed(4)}</TableCell></TableRow>)}</TableBody></Table>}</CardContent></Card>
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}><AlertDialogContent data-testid="confirm-supplier-ghg-submit-dialog"><AlertDialogHeader><AlertDialogTitle>Submit GHG data?</AlertDialogTitle><AlertDialogDescription>This sends the current GHG snapshot to your customer. You can continue to add entries afterwards, but this submission cannot be replaced.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-supplier-ghg-submit-button">Cancel</AlertDialogCancel><AlertDialogAction disabled={submitting} onClick={submit} data-testid="confirm-supplier-ghg-submit-button">{submitting ? 'Submitting…' : 'Submit GHG data'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+  </div>;
+}
