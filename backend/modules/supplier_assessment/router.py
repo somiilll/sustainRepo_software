@@ -637,15 +637,7 @@ async def get_my_trainings(current_user: dict = Depends(get_supplier_user)):
 
 @router.put("/my-assessment/trainings/{assignment_id}/progress")
 async def save_training_progress(assignment_id: str, progress_percent: float = Form(...), current_user: dict = Depends(get_supplier_user)):
-    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
-    if not relationship: raise HTTPException(status_code=404, detail="No active supplier relationship found")
-    try:
-        progress = await training_service.update_progress(relationship, assignment_id, progress_percent, current_user["id"])
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error))
-    if not progress: raise HTTPException(status_code=404, detail="Training assignment not found")
-    await supplier_service._update_completion_status(relationship["id"])
-    return progress
+    raise HTTPException(status_code=403, detail="Supplier training progress cannot be self-reported")
 
 @router.get("/my-assessment/trainings/{assignment_id}/content")
 async def get_training_content(assignment_id: str, current_user: dict = Depends(get_supplier_user)):

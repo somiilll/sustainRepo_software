@@ -130,6 +130,7 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **IN PROGRESS / USER-REQUESTED NO TEST:** Replaced Training supplier multi-select with clear native checkboxes and a Select all control. Customer-admin Training cards now expose per-supplier progress, including name, percentage, and status.
 - **IN PROGRESS / USER-REQUESTED NO TEST:** Added customer-admin Document deletion. This is an audit-safe archive: it removes the agreement from all active supplier assignments and recalculates completion, while retaining the immutable document version, acceptance history, and R2 object. Physical R2 purge remains intentionally excluded to preserve audit evidence.
 - **DONE:** Supplier Assessment storage hierarchy now uses the dedicated bucket without a redundant top-level prefix: new Training uploads use `training/<parent-organization>/<YYYYMMDD>/<uuid>`, while new Documents use `documents/<parent-organization>/<YYYYMMDD>/<uuid>`. Existing version records remain accessible from their stored keys. Verified locally: focused Training/Documents suite **9 passed**; no R2 objects were uploaded or changed.
+- **IN PROGRESS / USER-REQUESTED NO TEST:** Removed all supplier-side `0%`, `50%`, and `Mark complete` Training controls. The supplier training progress endpoint now rejects self-reported progress with HTTP 403, while the supplier can still open assigned content and the parent organization retains the progress view.
 
 ## Known Issues
 
