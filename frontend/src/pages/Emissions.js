@@ -54,6 +54,13 @@ import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+const SUPPLIER_GHG_LOCKED_MESSAGE = 'Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.';
+
+const getEmissionUpdateErrorMessage = (error) => (
+  error?.response?.data?.detail === SUPPLIER_GHG_LOCKED_MESSAGE
+    ? SUPPLIER_GHG_LOCKED_MESSAGE
+    : 'Failed to update emissions. Please try again.'
+);
 
 export default function Emissions({ organizationGhgOverrides = null }) {
   // ============================================================================
@@ -2177,7 +2184,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           fetchData(); // Refresh the emissions list
         }
       } catch (error) {
-        toast.error('Failed to update emissions. Please try again.');
+        toast.error(getEmissionUpdateErrorMessage(error));
       } finally {
         setIsSaving(false);
       }
@@ -2275,7 +2282,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           fetchData();
         }
       } catch (error) {
-        toast.error('Failed to update emissions. Please try again.');
+        toast.error(getEmissionUpdateErrorMessage(error));
       } finally {
         setIsSaving(false);
       }
