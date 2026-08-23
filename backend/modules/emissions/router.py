@@ -26,6 +26,7 @@ from modules.approvals.emission_flow_v2 import (
     PENDING_STATUSES,
 )
 from modules.auth.dependencies import get_current_user
+from modules.supplier_assessment.ghg_submission_service import exclude_reopened_supplier_submission_revisions
 from modules.emissions.contracts import (
     EmissionBatchRollbackRequest,
     EmissionHistoryResponse,
@@ -1535,6 +1536,11 @@ async def get_emission_records(
 
     # Use the new fetch_emissions_for_user which combines approved + pending
     records = await fetch_emissions_for_user(current_user, query)
+
+    # A supplier unlock creates editable draft copies and preserves the submitted
+    # source revision for audit and parent visibility. GHG Logs should show the
+    # active draft rather than rendering both revisions as duplicate entries.
+    records = exclude_reopened_supplier_submission_revisions(records)
     
     # KPI Assignment-based filtering (admins bypass)
     if user_role not in ["admin", "super_admin"]:
