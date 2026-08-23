@@ -11,6 +11,16 @@ import { Badge } from '../../components/ui/badge';
 import { Label } from '../../components/ui/label';
 import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +51,7 @@ export default function SupplierQuestionnaire() {
   const [submitting, setSubmitting] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
   const fetchQuestionnaire = useCallback(async () => {
     try {
@@ -119,11 +130,7 @@ export default function SupplierQuestionnaire() {
       return;
     }
     
-    if (!window.confirm('Submit your answers? You will not be able to edit them after submission.')) {
-      return;
-    }
-    
-    handleSave(true);
+    setShowSubmitConfirm(true);
   };
 
   if (loading) {
@@ -326,7 +333,7 @@ export default function SupplierQuestionnaire() {
           Previous
         </Button>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3" data-testid="supplier-questionnaire-actions">
           {!isReadOnly && (
             <>
               <Button variant="outline" onClick={() => handleSave(false)} disabled={saving} data-testid="save-supplier-questionnaire-draft-button">
@@ -351,6 +358,18 @@ export default function SupplierQuestionnaire() {
           <ArrowRight className="h-4 w-4 ml-1" />
         </Button>
       </div>
+      <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
+        <AlertDialogContent data-testid="supplier-questionnaire-submit-confirmation-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle data-testid="supplier-questionnaire-submit-confirmation-title">Submit and lock this questionnaire?</AlertDialogTitle>
+            <AlertDialogDescription data-testid="supplier-questionnaire-submit-confirmation-description">Are you sure you want to submit? Your answers will be locked and cannot be edited unless your customer unlocks the questionnaire.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="cancel-supplier-questionnaire-submit-button">Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleSave(true)} disabled={submitting} data-testid="confirm-supplier-questionnaire-submit-button">{submitting ? 'Submitting...' : 'Submit and lock'}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
