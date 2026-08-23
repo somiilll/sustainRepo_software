@@ -254,6 +254,11 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
         raise ValueError("This document requires acceptance")
     if response_value not in requirement.get("response_options", []):
         raise ValueError("Choose one of the configured status responses")
+    existing = await db.supplier_document_responses.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "document_version_id": version["id"]}, {"_id": 0})
+    if existing:
+        if existing.get("response_value") == response_value:
+            return existing
+        raise ValueError("This document response has already been submitted and is locked")
     response = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": relationship["customer_org_id"], "document_requirement_id": requirement_id, "document_version_id": version["id"], "response_value": response_value, "responded_by": supplier_user_id, "responded_at": _now()}
     await db.supplier_document_responses.update_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "document_version_id": version["id"]}, {"$set": response}, upsert=True)
     response.pop("_id", None)

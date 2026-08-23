@@ -170,7 +170,9 @@ class SupplierAssessmentService:
         customer_name = customer_org.get("name", "Your Customer") if customer_org else "Your Customer"
         
         # Send invitation email
-        frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-ai-routing.preview.emergentagent.com')
+        frontend_url = os.environ.get('FRONTEND_URL')
+        if not frontend_url:
+            raise ValueError("FRONTEND_URL must be configured")
         login_link = f"{frontend_url}/login"
         
         email_body = supplier_invitation_email(
@@ -305,7 +307,9 @@ class SupplierAssessmentService:
         )
         customer_name = customer_org.get("name", "Your Customer") if customer_org else "Your Customer"
         
-        frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-ai-routing.preview.emergentagent.com')
+        frontend_url = os.environ.get('FRONTEND_URL')
+        if not frontend_url:
+            raise ValueError("FRONTEND_URL must be configured")
         login_link = f"{frontend_url}/login"
         
         # Determine pending modules
@@ -735,6 +739,8 @@ class SupplierAssessmentService:
             },
             {"_id": 0}
         )
+        if response_doc and response_doc.get("status") == "submitted":
+            raise ValueError("Questionnaire already submitted and locked")
         
         # Build answers dict
         answers_dict = {}
@@ -1095,20 +1101,11 @@ class SupplierAssessmentService:
             social_score = min(100, sum(social_scores) / len(social_scores)) if social_scores else None
             gov_score = min(100, sum(gov_scores) / len(gov_scores)) if gov_scores else None
             
-            # Get GHG emissions by scope (Scope 1 & 2 only for suppliers)
-            # First try supplier-specific emissions, then fall back to org-level emissions
-            ghg_emissions = await db.emission_records.find(
-                {
-                    "$or": [
-                        # Option 1: Emissions tagged with supplier relationship
-                        {"source": "supplier", "supplier_relationship_id": s["id"]},
-                        # Option 2: Emissions from supplier's organization
-                        {"organization_id": s.get("supplier_org_id")},
-                    ],
-                    "scope": {"$in": ["scope_1", "scope_2", "scope1", "scope2"]},  # Handle both formats
-                },
-                {"_id": 0, "total_emissions": 1, "scope": 1}
-            ).to_list(1000)
+            # Supplier GHG contributes to customer dashboards only after the one-time submission snapshot.
+            ghg_submission = await db.supplier_ghg_submissions.find_one(
+                {"supplier_relationship_id": s["id"], "status": "submitted"}, {"_id": 0, "entries": 1}
+            )
+            ghg_emissions = (ghg_submission or {}).get("entries", [])
             
             scope1 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_1", "scope1"])
             scope2 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_2", "scope2"])
@@ -1217,6 +1214,8 @@ class SupplierAssessmentService:
             },
             {"_id": 0}
         )
+        if response_doc and response_doc.get("status") != "submitted":
+            return None
         
         answers = response_doc.get("answers", {}) if response_doc else {}
         
@@ -1236,21 +1235,7 @@ class SupplierAssessmentService:
         questionnaire_id: str,
     ) -> bool:
         """Admin reopens a questionnaire for a supplier to edit."""
-        result = await db.supplier_questionnaire_responses.update_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-            },
-            {"$set": {
-                "status": "in_progress",
-                "reopened_at": datetime.now(timezone.utc).isoformat(),
-            }}
-        )
-        
-        if result.modified_count > 0:
-            await self._update_completion_status(supplier_relationship_id)
-        
-        return result.modified_count > 0
+        return False
 
 
 # Singleton instance

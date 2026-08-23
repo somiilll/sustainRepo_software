@@ -33,6 +33,7 @@ from modules.supplier_assessment.contracts import (
 )
 from modules.supplier_assessment import documents_service
 from modules.supplier_assessment import training_service
+from modules.supplier_assessment import ghg_submission_service
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
 
@@ -780,8 +781,8 @@ async def submit_my_answers(
         {"_id": 0, "status": 1}
     )
     
-    if response_doc and response_doc.get("status") == "submitted" and not data.is_draft:
-        raise HTTPException(status_code=400, detail="Questionnaire already submitted")
+    if response_doc and response_doc.get("status") == "submitted":
+        raise HTTPException(status_code=409, detail="Questionnaire already submitted and locked")
     
     result = await supplier_service.submit_supplier_answers(
         questionnaire_id=questionnaire_id,
@@ -811,15 +812,27 @@ async def get_my_emissions(
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
     
-    emissions = await db.emission_records.find(
-        {
-            "source": "supplier",
-            "supplier_relationship_id": relationship["id"],
-        },
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(1000)
-    
-    return emissions
+    state = await ghg_submission_service.get_supplier_ghg_state(relationship)
+    return state["entries"]
+
+@router.get("/my-assessment/emissions/submission")
+async def get_my_ghg_submission(current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    return await ghg_submission_service.get_supplier_ghg_state(relationship)
+
+@router.post("/my-assessment/emissions/submit")
+async def submit_my_ghg(current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        submission = await ghg_submission_service.submit_supplier_ghg(relationship, current_user["id"])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    await supplier_service._update_completion_status(relationship["id"])
+    return submission
 
 
 @router.post("/my-assessment/emissions")
@@ -980,7 +993,8 @@ async def create_my_emission(
         "updated_at": now,
     }
     
-    await db.emission_records.insert_one(emission_record)
+    emission_record["is_submitted"] = False
+    await db.supplier_ghg_entries.insert_one(emission_record)
     
     # Update completion status
     await supplier_service._update_completion_status(relationship["id"])
@@ -1007,13 +1021,8 @@ async def get_supplier_emissions(
     if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=404, detail="Supplier not found")
     
-    emissions = await db.emission_records.find(
-        {
-            "source": "supplier",
-            "supplier_relationship_id": supplier_id,
-        },
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(1000)
+    submitted = await ghg_submission_service.get_parent_submitted_ghg(current_user["organization_id"])
+    emissions = [entry for entry in submitted["emissions"] if entry.get("supplier_relationship_id") == supplier_id]
     
     # Calculate totals
     total_scope1 = sum(e.get("total_emissions", 0) or 0 for e in emissions if e.get("scope") == "scope1")
@@ -1034,49 +1043,5 @@ async def get_supplier_emissions(
 async def get_all_supplier_emissions(
     current_user: dict = Depends(get_customer_admin),
 ):
-    """Admin views all supplier emissions."""
-    # Get all supplier relationships for this customer
-    relationships = await db.supplier_relationships.find(
-        {"customer_org_id": current_user["organization_id"], "is_active": True},
-        {"_id": 0, "id": 1, "company_name": 1}
-    ).to_list(1000)
-    
-    rel_map = {r["id"]: r["company_name"] for r in relationships}
-    rel_ids = list(rel_map.keys())
-    
-    emissions = await db.emission_records.find(
-        {
-            "source": "supplier",
-            "supplier_relationship_id": {"$in": rel_ids},
-        },
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(10000)
-    
-    # Add supplier name to each emission
-    for e in emissions:
-        e["supplier_name"] = rel_map.get(e.get("supplier_relationship_id"), "Unknown")
-    
-    # Calculate totals by supplier
-    supplier_totals = {}
-    for e in emissions:
-        supplier_id = e.get("supplier_relationship_id")
-        if supplier_id not in supplier_totals:
-            supplier_totals[supplier_id] = {
-                "supplier_name": rel_map.get(supplier_id, "Unknown"),
-                "scope1": 0,
-                "scope2": 0,
-                "total": 0,
-            }
-        
-        amount = e.get("total_emissions", 0) or 0
-        supplier_totals[supplier_id]["total"] += amount
-        if e.get("scope") == "scope1":
-            supplier_totals[supplier_id]["scope1"] += amount
-        elif e.get("scope") == "scope2":
-            supplier_totals[supplier_id]["scope2"] += amount
-    
-    return {
-        "emissions": emissions,
-        "supplier_totals": list(supplier_totals.values()),
-        "grand_total": sum(t["total"] for t in supplier_totals.values()),
-    }
+    """Admin views only supplier GHG snapshots that were explicitly submitted."""
+    return await ghg_submission_service.get_parent_submitted_ghg(current_user["organization_id"])
