@@ -45,6 +45,37 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+LOGIN_LOCKOUT_DURATION = timedelta(minutes=15)
+
+
+def _login_attempt_identifier(email: str) -> str:
+    return email.strip().lower()
+
+
+async def _ensure_login_not_locked(identifier: str) -> None:
+    attempt = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0})
+    locked_until = (attempt or {}).get("locked_until")
+    if not locked_until:
+        return
+    try:
+        if datetime.now(timezone.utc) < datetime.fromisoformat(str(locked_until).replace("Z", "+00:00")):
+            raise HTTPException(status_code=429, detail="Too many login attempts. Please try again later.")
+    except ValueError:
+        await db.login_attempts.delete_one({"identifier": identifier})
+
+
+async def _record_failed_login(identifier: str) -> None:
+    now = datetime.now(timezone.utc)
+    existing = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0, "failed_attempts": 1})
+    failed_attempts = int((existing or {}).get("failed_attempts", 0)) + 1
+    locked_until = (now + LOGIN_LOCKOUT_DURATION).isoformat() if failed_attempts >= MAX_FAILED_LOGIN_ATTEMPTS else None
+    await db.login_attempts.update_one(
+        {"identifier": identifier},
+        {"$set": {"failed_attempts": failed_attempts, "locked_until": locked_until, "updated_at": now.isoformat()}},
+        upsert=True,
+    )
+
 
 def _validate_password_strength(pwd: str) -> None:
     """Shared validation used by both /change-password and /reset-password.
@@ -101,9 +132,11 @@ async def signup(request: Request, user_data: UserCreate):
 @limiter.limit("10/minute")
 async def login(request: Request, credentials: UserLogin):
     logger.info(f"[AUTH_LOGIN] Attempt: email={credentials.email}")
-    
-    user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
+    identifier = _login_attempt_identifier(credentials.email)
+    await _ensure_login_not_locked(identifier)
+    user = await db.users.find_one({"email": credentials.email.strip().lower()}, {"_id": 0})
     if not user or not verify_password(credentials.password, user["password_hash"]):
+        await _record_failed_login(identifier)
         logger.warning(f"[AUTH_LOGIN] Failed: email={credentials.email}, reason=invalid_credentials")
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
@@ -140,6 +173,7 @@ async def login(request: Request, credentials: UserLogin):
     access_token = create_access_token(data={"sub": user["id"]})
     refresh_token = create_refresh_token(data={"sub": user["id"]})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
+    await db.login_attempts.delete_one({"identifier": identifier})
 
     logger.info(f"[AUTH_LOGIN] Success: email={credentials.email}, user_id={user['id']}, role={user.get('role')}")
     return TokenResponse(access_token=access_token, refresh_token=refresh_token, token_type="bearer", user=user_response)

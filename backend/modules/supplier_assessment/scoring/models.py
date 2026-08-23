@@ -125,6 +125,8 @@ class QuestionScore(BaseModel):
     raw_score: float  # 0-100 normalized score
     weight: float
     weighted_score: float  # raw_score * weight
+    importance: Optional[str] = None
+    weight_source: str = "importance"
     
     # Audit trail
     calculation_details: Dict[str, Any] = Field(default_factory=dict)
@@ -171,6 +173,8 @@ class SupplierScore(BaseModel):
     esg_score: Optional[ESGScore] = None
     ghg_score: Optional[float] = None
     revenue_score: Optional[float] = None
+    ghg_intensity_tco2e_per_million_revenue: Optional[float] = None
+    ghg_total_emissions: Optional[float] = None
     
     # Final score
     overall_score: float

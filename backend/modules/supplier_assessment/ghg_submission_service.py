@@ -147,6 +147,8 @@ async def submit_supplier_ghg(relationship: Dict[str, Any], submitted_by: str) -
     if existing:
         await db.emission_records.update_many({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}, {"$set": {"parent_visible": False, "replaced_at": now, "replaced_by_submission_id": submission["id"]}})
     await db.emission_records.update_many({"id": {"$in": [entry["id"] for entry in entries]}}, {"$set": {"submitted_to_parent_org": now, "submission_id": submission["id"], "submitted_by": submitted_by, "parent_visible": True, "status": "submitted", "approval_status": "submitted"}})
+    from modules.supplier_assessment.service import supplier_service
+    submission["canonical_score"] = await supplier_service.refresh_supplier_canonical_score(relationship["id"])
     return submission
 
 

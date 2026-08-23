@@ -3684,8 +3684,10 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS — restrict to trusted origins in production
-_cors_origins = os.environ.get('CORS_ORIGINS', '').strip()
-_allowed_origins = [o.strip() for o in _cors_origins.split(',') if o.strip()] if _cors_origins and _cors_origins != '*' else ["*"]
+_cors_origins = os.environ["CORS_ORIGINS"].strip()
+_allowed_origins = [origin.strip() for origin in _cors_origins.split(",") if origin.strip()]
+if not _allowed_origins or "*" in _allowed_origins:
+    raise RuntimeError("CORS_ORIGINS must list explicit trusted origins when credentials are enabled")
 
 app.add_middleware(
     CORSMiddleware,

@@ -64,6 +64,8 @@ class ScoreCalculator:
         response_type: str,
         raw_value: Any,
         weight: float,
+        importance: Optional[str],
+        weight_source: str,
         scoring_config: ScoringConfig,
     ) -> QuestionScore:
         """
@@ -101,6 +103,8 @@ class ScoreCalculator:
             raw_score=raw_score,
             weight=weight,
             weighted_score=weighted_score,
+            importance=importance,
+            weight_source=weight_source,
             calculation_details=result["calculation_details"],
         )
     
@@ -342,6 +346,21 @@ class ScoreCalculator:
                 notes.append(f"Invalid scoring config for '{question_id}': {e}")
                 continue
             
+            exact_weight = q.get("exact_numerical_weight")
+            importance = (q.get("importance") or "medium").lower()
+            importance_weights = {"low": 1.0, "medium": 2.0, "high": 3.0, "critical": 4.0}
+            if importance not in importance_weights:
+                importance = "medium"
+            if exact_weight is not None:
+                weight = float(exact_weight)
+                weight_source = "exact"
+            elif q.get("importance") is not None:
+                weight = importance_weights[importance]
+                weight_source = "importance"
+            else:
+                weight = float(q.get("weight", 1.0))
+                weight_source = "legacy"
+
             # Calculate question score
             try:
                 q_score = self.calculate_question_score(
@@ -350,7 +369,9 @@ class ScoreCalculator:
                     section=q.get("category", q.get("section", "environment")),
                     response_type=q.get("response_type", "text"),
                     raw_value=raw_value,
-                    weight=q.get("weight", 1.0),
+                    weight=weight,
+                    importance=importance,
+                    weight_source=weight_source,
                     scoring_config=scoring_config,
                 )
                 question_scores.append(q_score)

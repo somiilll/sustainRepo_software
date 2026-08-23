@@ -846,6 +846,18 @@ export default function SupplierList() {
                   </div>
                 </div>
               )}
+              {selectedSupplier.canonical_score_snapshot && (
+                <div className="border-t pt-4" data-testid="supplier-canonical-score-breakdown">
+                  <Label className="text-stone-500">Submitted score breakdown</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+                    <div><span className="text-stone-500">Environment</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.environment_score ?? 'Pending'}</p></div>
+                    <div><span className="text-stone-500">Social</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.social_score ?? 'Pending'}</p></div>
+                    <div><span className="text-stone-500">Governance</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.governance_score ?? 'Pending'}</p></div>
+                    <div><span className="text-stone-500">GHG intensity</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.ghg_intensity_tco2e_per_million_revenue ?? 'Pending'} tCO₂e / revenue million</p></div>
+                  </div>
+                  {!selectedSupplier.canonical_score_snapshot.is_complete && <p className="mt-3 text-xs text-stone-500" data-testid="supplier-canonical-score-pending">Overall score will appear after all weighted components are submitted.</p>}
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
@@ -864,6 +876,7 @@ export default function SupplierList() {
       <Dialog open={Boolean(reviewResponse)} onOpenChange={(open) => !open && setReviewResponse(null)}>
         <DialogContent className="max-w-2xl" data-testid="supplier-response-review-dialog"><DialogHeader><DialogTitle>Submitted ESG response</DialogTitle></DialogHeader>
           <div className="max-h-80 space-y-3 overflow-y-auto">{(reviewResponse?.questions || []).map((question) => <div key={question.id} className="border-b pb-2" data-testid={`supplier-response-answer-${question.id}`}><p className="text-sm font-medium">{question.question_text}</p><p className="text-sm text-stone-600">{String(question.answer ?? 'No response')}</p></div>)}</div>
+          {reviewResponse?.score_breakdown && <div className="border-t pt-3" data-testid="supplier-response-score-breakdown"><Label className="text-stone-500">Submitted scoring summary</Label><div className="mt-2 space-y-2 text-sm">{(reviewResponse.score_breakdown.question_scores || []).map((item) => <div key={item.question_id} className="flex items-center justify-between"><span className="truncate pr-4">{item.question_text}</span><span className="font-medium">{item.raw_score} / 100</span></div>)}</div></div>}
           <div className="space-y-2"><Label htmlFor="manual-score-input">Manual score (0–100)</Label><Input id="manual-score-input" type="number" min="0" max="100" value={manualScore} onChange={(event) => setManualScore(event.target.value)} data-testid="manual-score-input" /></div>
           <DialogFooter><Button variant="outline" onClick={() => setReviewResponse(null)} data-testid="cancel-manual-score-button">Cancel</Button><Button onClick={saveManualScore} data-testid="save-manual-score-button">Save manual score</Button></DialogFooter>
         </DialogContent>

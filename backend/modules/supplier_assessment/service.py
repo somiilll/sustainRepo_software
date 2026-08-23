@@ -24,6 +24,33 @@ from modules.supplier_assessment.programs import (
 
 class SupplierAssessmentService:
     """Service for supplier assessment operations."""
+
+    IMPORTANCE_WEIGHTS = {"low": 1.0, "medium": 2.0, "high": 3.0, "critical": 4.0}
+
+    @staticmethod
+    def _validated_weight_config(weights: Optional[Dict[str, float]], defaults: Dict[str, float], label: str) -> Dict[str, float]:
+        resolved = {**defaults, **(weights or {})}
+        if set(resolved) != set(defaults):
+            raise ValueError(f"{label} must include: {', '.join(defaults)}")
+        try:
+            normalized = {key: float(value) for key, value in resolved.items()}
+        except (TypeError, ValueError):
+            raise ValueError(f"{label} must contain numeric values")
+        if any(value < 0 for value in normalized.values()) or abs(sum(normalized.values()) - 100) > 0.01:
+            raise ValueError(f"{label} must total 100%")
+        return normalized
+
+    @classmethod
+    def _resolve_question_weight(cls, importance: Optional[str], exact_numerical_weight: Optional[float], legacy_weight: Optional[float]) -> tuple[str, Optional[float], float]:
+        normalized_importance = (importance or "medium").lower()
+        if normalized_importance not in cls.IMPORTANCE_WEIGHTS:
+            normalized_importance = "medium"
+        if exact_numerical_weight is not None:
+            return normalized_importance, float(exact_numerical_weight), float(exact_numerical_weight)
+        # Preserve historic API clients which only supplied `weight`.
+        if importance is None and legacy_weight not in (None, 1, 1.0):
+            return normalized_importance, float(legacy_weight), float(legacy_weight)
+        return normalized_importance, None, cls.IMPORTANCE_WEIGHTS[normalized_importance]
     
     # ========================================================================
     # Supplier Management
@@ -520,6 +547,7 @@ class SupplierAssessmentService:
         }
         await db.supplier_revenue_submissions.insert_one(submission)
         submission.pop("_id", None)
+        await self.refresh_supplier_canonical_score(relationship_id)
         await self._update_completion_status(relationship_id)
         return submission
     
@@ -549,18 +577,32 @@ class SupplierAssessmentService:
         due_date: Optional[str],
         scoring_method: str,
         section_weights: Optional[Dict[str, float]],
+        esg_section_weights: Optional[Dict[str, float]],
+        overall_supplier_weights: Optional[Dict[str, float]],
         created_by: str,
     ) -> Dict[str, Any]:
         """Create a new questionnaire template."""
         questionnaire_id = str(uuid.uuid4())
+        esg_weights = self._validated_weight_config(
+            esg_section_weights or section_weights,
+            {"environment": 33.33, "social": 33.33, "governance": 33.34},
+            "ESG category weights",
+        )
+        supplier_weights = self._validated_weight_config(
+            overall_supplier_weights,
+            {"esg": 40.0, "ghg": 40.0, "revenue": 20.0},
+            "Overall component weights",
+        )
         questionnaire = {
             "id": questionnaire_id,
             "organization_id": organization_id,
             "name": name,
             "description": description,
             "due_date": due_date,
-            "scoring_method": scoring_method,
-            "section_weights": section_weights or {"environment": 33.33, "social": 33.33, "governance": 33.34},
+            "scoring_method": scoring_method or "question",
+            "section_weights": esg_weights,
+            "esg_section_weights": esg_weights,
+            "overall_supplier_weights": supplier_weights,
             "is_active": True,
             "question_count": 0,
             "created_by": created_by,
@@ -578,6 +620,8 @@ class SupplierAssessmentService:
             {"organization_id": organization_id, "is_active": True},
             {"_id": 0}
         ).sort("created_at", -1).to_list(100)
+        for questionnaire in questionnaires:
+            questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
         return questionnaires
     
     async def get_questionnaire(self, questionnaire_id: str) -> Optional[Dict[str, Any]]:
@@ -587,6 +631,7 @@ class SupplierAssessmentService:
             {"_id": 0}
         )
         if questionnaire:
+            questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
             questions = await db.supplier_questions.find(
                 {"questionnaire_id": questionnaire_id, "is_active": True},
                 {"_id": 0}
@@ -600,6 +645,22 @@ class SupplierAssessmentService:
         updates: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         """Update questionnaire."""
+        existing = await self.get_questionnaire(questionnaire_id)
+        if not existing:
+            return None
+        if "esg_section_weights" in updates or "section_weights" in updates:
+            updates["esg_section_weights"] = self._validated_weight_config(
+                updates.get("esg_section_weights") or updates.get("section_weights"),
+                {"environment": 33.33, "social": 33.33, "governance": 33.34},
+                "ESG category weights",
+            )
+            updates["section_weights"] = updates["esg_section_weights"]
+        if "overall_supplier_weights" in updates:
+            updates["overall_supplier_weights"] = self._validated_weight_config(
+                updates["overall_supplier_weights"],
+                {"esg": 40.0, "ghg": 40.0, "revenue": 20.0},
+                "Overall component weights",
+            )
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.supplier_questionnaires.update_one(
             {"id": questionnaire_id},
@@ -634,6 +695,8 @@ class SupplierAssessmentService:
             due_date=original.get("due_date"),
             scoring_method=original.get("scoring_method", "question"),
             section_weights=original.get("section_weights"),
+            esg_section_weights=original.get("esg_section_weights"),
+            overall_supplier_weights=original.get("overall_supplier_weights"),
             created_by=created_by,
         )
         
@@ -647,8 +710,11 @@ class SupplierAssessmentService:
                 options=q.get("options"),
                 required=q.get("required", True),
                 weight=q.get("weight", 1.0),
+                importance=q.get("importance"),
+                exact_numerical_weight=q.get("exact_numerical_weight"),
                 category=q["category"],
                 order=q.get("order", 0),
+                scoring=q.get("scoring"),
             )
         
         return await self.get_questionnaire(new_questionnaire["id"])
@@ -665,13 +731,18 @@ class SupplierAssessmentService:
         response_type: str,
         options: Optional[List[Dict[str, Any]]],
         required: bool,
-        weight: float,
+        weight: Optional[float],
+        importance: Optional[str],
+        exact_numerical_weight: Optional[float],
         category: str,
         order: int,
         scoring: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Add a question to a questionnaire."""
         question_id = str(uuid.uuid4())
+        importance, exact_numerical_weight, effective_weight = self._resolve_question_weight(
+            importance, exact_numerical_weight, weight
+        )
         question = {
             "id": question_id,
             "questionnaire_id": questionnaire_id,
@@ -680,7 +751,9 @@ class SupplierAssessmentService:
             "response_type": response_type,
             "options": options,
             "required": required,
-            "weight": weight,
+            "weight": effective_weight,
+            "importance": importance,
+            "exact_numerical_weight": exact_numerical_weight,
             "category": category,
             "order": order,
             "scoring": scoring,  # New: Scoring configuration
@@ -703,6 +776,20 @@ class SupplierAssessmentService:
         updates: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         """Update a question."""
+        existing = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
+        if not existing:
+            return None
+        if {"importance", "exact_numerical_weight", "weight"}.intersection(updates):
+            importance, exact_weight, effective_weight = self._resolve_question_weight(
+                updates.get("importance", existing.get("importance")),
+                updates.get("exact_numerical_weight", existing.get("exact_numerical_weight")),
+                updates.get("weight", existing.get("weight")),
+            )
+            updates.update({
+                "importance": importance,
+                "exact_numerical_weight": exact_weight,
+                "weight": effective_weight,
+            })
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.supplier_questions.update_one(
             {"id": question_id},
@@ -934,11 +1021,15 @@ class SupplierAssessmentService:
             await db.supplier_questionnaire_responses.insert_one(new_doc)
         
         # Update completion status
+        canonical_score = None
+        if not is_draft:
+            canonical_score = await self.refresh_supplier_canonical_score(supplier_relationship_id)
         await self._update_completion_status(supplier_relationship_id)
         
         return {
             "status": status,
             "calculated_score": calculated_score,
+            "canonical_score": canonical_score,
             "message": "Answers saved" if is_draft else "Questionnaire submitted",
         }
     
@@ -1000,6 +1091,7 @@ class SupplierAssessmentService:
                     questionnaire_id=questionnaire_id,
                     save_to_db=False,
                     answers_override=answers,
+                    reporting_period=(await self.get_supplier(supplier_relationship_id) if supplier_relationship_id else {}).get("reporting_period") if supplier_relationship_id else None,
                 )
                 return breakdown.esg_score.overall_score, breakdown.model_dump()
             except Exception as e:
@@ -1104,6 +1196,92 @@ class SupplierAssessmentService:
         else:  # text
             # Text answers get full score if answered
             return 100.0 if answer else 0.0
+
+    async def refresh_supplier_canonical_score(self, supplier_relationship_id: str) -> Optional[Dict[str, Any]]:
+        """Persist the only supplier-level score consumed by tables, rankings, and details."""
+        relationship = await self.get_supplier(supplier_relationship_id)
+        if not relationship:
+            return None
+        reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+        responses = await db.supplier_questionnaire_responses.find(
+            {
+                "supplier_relationship_id": supplier_relationship_id,
+                "reporting_period": reporting_period,
+                "status": "submitted",
+                "parent_visible": {"$ne": False},
+            },
+            {"_id": 0, "questionnaire_id": 1, "submitted_at": 1, "calculated_score": 1, "manual_score": 1, "score_breakdown": 1},
+        ).sort("submitted_at", -1).to_list(100)
+        scored_responses = [
+            response for response in responses
+            if response.get("manual_score") is not None or response.get("calculated_score") is not None
+        ]
+        latest_breakdown = next((response.get("score_breakdown") for response in scored_responses if response.get("score_breakdown")), None)
+        weights = (latest_breakdown or {}).get("overall_weights") or {"esg": 40.0, "ghg": 40.0, "revenue": 20.0}
+        weights = self._validated_weight_config(weights, {"esg": 40.0, "ghg": 40.0, "revenue": 20.0}, "Overall component weights")
+
+        esg_values = [
+            float(response["manual_score"] if response.get("manual_score") is not None else response["calculated_score"])
+            for response in scored_responses
+        ]
+        section_values = {"environment": [], "social": [], "governance": []}
+        for response in scored_responses:
+            esg_score = (response.get("score_breakdown") or {}).get("esg_score") or {}
+            for section in section_values:
+                section_score = (esg_score.get(section) or {}).get("score")
+                if section_score is not None:
+                    section_values[section].append(float(section_score))
+        section_scores = {
+            section: round(sum(values) / len(values), 2) if values else None
+            for section, values in section_values.items()
+        }
+        esg_score = round(sum(esg_values) / len(esg_values), 2) if esg_values else None
+
+        from modules.supplier_assessment.scoring import ScoringEngine
+        engine = ScoringEngine(db)
+        revenue_component = await engine.get_revenue_component(supplier_relationship_id, reporting_period)
+        ghg_component = await engine.get_ghg_component(
+            supplier_relationship_id, reporting_period, revenue_component.get("revenue_amount")
+        )
+        revenue_percentage = revenue_component.get("revenue_percentage")
+        revenue_score = min(100.0, float(revenue_percentage)) if revenue_percentage is not None else None
+        components = {"esg": esg_score, "ghg": ghg_component.get("score"), "revenue": revenue_score}
+        required_components = [name for name, weight in weights.items() if weight > 0]
+        is_complete = all(components.get(name) is not None for name in required_components)
+        overall_score = round(sum(float(components[name]) * weights[name] / 100 for name in required_components), 2) if is_complete else None
+        now = datetime.now(timezone.utc).isoformat()
+        snapshot = {
+            "version": "supplier-assessment-canonical-v1",
+            "reporting_period": reporting_period,
+            "questionnaire_count": len(scored_responses),
+            "esg_score": esg_score,
+            "environment_score": section_scores["environment"],
+            "social_score": section_scores["social"],
+            "governance_score": section_scores["governance"],
+            "ghg_score": ghg_component.get("score"),
+            "ghg_intensity_tco2e_per_million_revenue": ghg_component.get("intensity"),
+            "scope1_emissions": ghg_component.get("scope1_emissions", 0.0),
+            "scope2_emissions": ghg_component.get("scope2_emissions", 0.0),
+            "total_emissions": ghg_component.get("total_emissions", 0.0),
+            "revenue_score": revenue_score,
+            "revenue_amount": revenue_component.get("revenue_amount"),
+            "component_weights": weights,
+            "overall_score": overall_score,
+            "is_complete": is_complete,
+            "calculated_at": now,
+        }
+        await db.supplier_relationships.update_one(
+            {"id": supplier_relationship_id},
+            {"$set": {
+                "canonical_score_snapshot": snapshot,
+                "esg_score": esg_score,
+                "ghg_score": ghg_component.get("score"),
+                "overall_score": overall_score,
+                "last_scored_at": now,
+                "updated_at": now,
+            }},
+        )
+        return snapshot
     
     async def _update_completion_status(self, relationship_id: str):
         """Compatibility facade delegating completion to registered assessment modules."""
@@ -1170,7 +1348,7 @@ class SupplierAssessmentService:
         customer_org_id: str,
         reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get supplier rankings for a customer with detailed breakdown."""
+        """Read rankings exclusively from the persisted canonical score snapshot."""
         supplier_query = {"customer_org_id": customer_org_id, "is_active": True}
         if reporting_period:
             supplier_query["reporting_period"] = reporting_period
@@ -1179,106 +1357,18 @@ class SupplierAssessmentService:
             {"_id": 0}
         ).to_list(1000)
         
-        # Calculate scores for each supplier
         rankings = []
         for s in suppliers:
-            # Get ESG score from questionnaire responses with breakdown
-            esg_scores = []
-            env_scores = []
-            social_scores = []
-            gov_scores = []
-            
-            response_query = {"supplier_relationship_id": s["id"], "status": "submitted", "parent_visible": {"$ne": False}}
-            if s.get("reporting_period"):
-                response_query["reporting_period"] = s["reporting_period"]
-            responses = await db.supplier_questionnaire_responses.find(
-                response_query,
-                {"_id": 0, "calculated_score": 1, "manual_score": 1, "score_breakdown": 1, "esg_score": 1, "questionnaire_id": 1, "answers": 1}
-            ).to_list(100)
-            
-            for r in responses:
-                response_score = r.get("manual_score") if r.get("manual_score") is not None else r.get("calculated_score")
-                if response_score is not None:
-                    esg_scores.append(response_score)
-                
-                # Try to extract section scores from breakdown first
-                breakdown = r.get("score_breakdown", {})
-                has_breakdown = False
-                if breakdown:
-                    esg_data = breakdown.get("esg_score", {})
-                    if esg_data:
-                        env = esg_data.get("environment", {})
-                        social = esg_data.get("social", {})
-                        gov = esg_data.get("governance", {})
-                        if env and env.get("score"):
-                            env_scores.append(env["score"])
-                            has_breakdown = True
-                        if social and social.get("score"):
-                            social_scores.append(social["score"])
-                            has_breakdown = True
-                        if gov and gov.get("score"):
-                            gov_scores.append(gov["score"])
-                            has_breakdown = True
-                
-                # Fallback: Calculate E/S/G from question answers if no breakdown
-                if not has_breakdown and r.get("questionnaire_id") and r.get("answers"):
-                    questions = await db.supplier_questions.find(
-                        {"questionnaire_id": r["questionnaire_id"], "is_active": True},
-                        {"_id": 0, "id": 1, "category": 1, "response_type": 1, "weight": 1}
-                    ).to_list(200)
-                    
-                    cat_scores = {"environment": [], "social": [], "governance": []}
-                    for q in questions:
-                        ans = r["answers"].get(q["id"])
-                        if ans is not None:
-                            # Simple scoring: yes_no -> 100/0, else use answer if numeric
-                            score = 0
-                            if q.get("response_type") == "yes_no":
-                                score = 100 if str(ans).lower() in ["yes", "true", "1"] else 0
-                            elif isinstance(ans, (int, float)):
-                                score = min(100, max(0, float(ans)))
-                            else:
-                                score = 100  # Text answers = full score if answered
-                            
-                            cat = q.get("category", "environment")
-                            if cat in cat_scores:
-                                cat_scores[cat].append(score * q.get("weight", 1))
-                    
-                    if cat_scores["environment"]:
-                        env_scores.append(sum(cat_scores["environment"]) / len(cat_scores["environment"]))
-                    if cat_scores["social"]:
-                        social_scores.append(sum(cat_scores["social"]) / len(cat_scores["social"]))
-                    if cat_scores["governance"]:
-                        gov_scores.append(sum(cat_scores["governance"]) / len(cat_scores["governance"]))
-            
-            esg_score = sum(esg_scores) / len(esg_scores) if esg_scores else None
-            env_score = min(100, sum(env_scores) / len(env_scores)) if env_scores else None
-            social_score = min(100, sum(social_scores) / len(social_scores)) if social_scores else None
-            gov_score = min(100, sum(gov_scores) / len(gov_scores)) if gov_scores else None
-            
-            # Supplier GHG contributes to customer dashboards only after the one-time submission snapshot.
-            ghg_query = {"source": "supplier", "supplier_relationship_id": s["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}
-            if s.get("reporting_period"):
-                ghg_query["reporting_period"] = s["reporting_period"]
-            ghg_emissions = await db.emission_records.find(
-                ghg_query,
-                {"_id": 0, "total_emissions": 1, "scope": 1},
-            ).to_list(1000)
-            
-            scope1 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_1", "scope1"])
-            scope2 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_2", "scope2"])
-            total_ghg = scope1 + scope2
-            
-            ghg_score = None
-            if ghg_emissions:
-                # Normalize: assume 1000 tCO2e is "bad" (score 0), 0 is "good" (score 100)
-                ghg_score = max(0, 100 - (total_ghg / 10))  # Simple normalization
-            
-            # Calculate overall score
-            overall_score = None
-            if esg_score is not None or ghg_score is not None:
-                scores = [sc for sc in [esg_score, ghg_score] if sc is not None]
-                overall_score = sum(scores) / len(scores)
+            snapshot = s.get("canonical_score_snapshot") or {}
+            esg_score = snapshot.get("esg_score")
+            env_score = snapshot.get("environment_score")
+            social_score = snapshot.get("social_score")
+            gov_score = snapshot.get("governance_score")
+            ghg_score = snapshot.get("ghg_score")
+            scope1 = snapshot.get("scope1_emissions", 0.0)
+            scope2 = snapshot.get("scope2_emissions", 0.0)
+            total_ghg = snapshot.get("total_emissions", 0.0)
+            overall_score = snapshot.get("overall_score")
             
             # Determine completion status
             completion_status = "not_started"
@@ -1290,17 +1380,17 @@ class SupplierAssessmentService:
             rankings.append({
                 "supplier_id": s["id"],
                 "company_name": s["company_name"],
-                "esg_score": round(esg_score, 1) if esg_score else None,
-                "environment_score": round(env_score, 1) if env_score else None,
-                "social_score": round(social_score, 1) if social_score else None,
-                "governance_score": round(gov_score, 1) if gov_score else None,
-                "ghg_score": round(ghg_score, 1) if ghg_score else None,
+                "esg_score": round(esg_score, 1) if esg_score is not None else None,
+                "environment_score": round(env_score, 1) if env_score is not None else None,
+                "social_score": round(social_score, 1) if social_score is not None else None,
+                "governance_score": round(gov_score, 1) if gov_score is not None else None,
+                "ghg_score": round(ghg_score, 1) if ghg_score is not None else None,
                 "scope1_emissions": round(scope1, 2),
                 "scope2_emissions": round(scope2, 2),
                 "total_emissions": round(total_ghg, 2),
-                "overall_score": round(overall_score, 1) if overall_score else None,
+                "overall_score": round(overall_score, 1) if overall_score is not None else None,
                 "completion_status": completion_status,
-                "revenue_percentage": s.get("revenue_percentage"),
+                "revenue_percentage": snapshot.get("revenue_score"),
             })
         
         # Sort by overall score (None at end)
@@ -1384,6 +1474,8 @@ class SupplierAssessmentService:
         questionnaire["manual_score"] = response_doc.get("manual_score") if response_doc else None
         questionnaire["manual_score_note"] = response_doc.get("manual_score_note") if response_doc else None
         questionnaire["submitted_at"] = response_doc.get("submitted_at") if response_doc else None
+        questionnaire["score_breakdown"] = response_doc.get("score_breakdown") if response_doc else None
+        questionnaire["canonical_score_snapshot"] = (relationship or {}).get("canonical_score_snapshot")
         
         return questionnaire
 
@@ -1398,9 +1490,7 @@ class SupplierAssessmentService:
         await db.supplier_questionnaire_responses.update_one(
             {"id": response["id"]}, {"$set": {"manual_score": score, "manual_score_note": note, "manual_scored_by": scored_by, "manual_scored_at": now}}
         )
-        await db.supplier_relationships.update_one(
-            {"id": supplier_relationship_id}, {"$set": {"esg_score": score, "last_scored_at": now, "updated_at": now}}
-        )
+        await self.refresh_supplier_canonical_score(supplier_relationship_id)
         return {"questionnaire_id": questionnaire_id, "manual_score": score, "manual_score_note": note, "manual_scored_at": now}
     
     async def reopen_questionnaire(

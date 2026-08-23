@@ -71,6 +71,7 @@ class SupplierResponse(BaseModel):
     esg_score: Optional[float] = None
     ghg_score: Optional[float] = None
     overall_score: Optional[float] = None
+    canonical_score_snapshot: Optional[Dict[str, Any]] = None
     revenue_submission_status: str = "not_started"
     
     created_by: str
@@ -198,7 +199,11 @@ class QuestionCreate(BaseModel):
     response_type: str  # yes_no, numeric, text, dropdown, percentage, currency
     options: Optional[List[QuestionOption]] = None  # For dropdown
     required: bool = True
-    weight: float = 1.0  # Question weight for scoring
+    # `weight` is retained for older API clients. New clients use importance or
+    # an exact override; the service persists the effective value in `weight`.
+    weight: Optional[float] = None
+    importance: Literal["low", "medium", "high", "critical"] = "medium"
+    exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: str  # environment, social, governance
     order: int = 0
     # New: Scoring configuration
@@ -213,6 +218,8 @@ class QuestionUpdate(BaseModel):
     options: Optional[List[QuestionOption]] = None
     required: Optional[bool] = None
     weight: Optional[float] = None
+    importance: Optional[Literal["low", "medium", "high", "critical"]] = None
+    exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
     order: Optional[int] = None
     is_active: Optional[bool] = None
@@ -232,6 +239,8 @@ class QuestionResponse(BaseModel):
     options: Optional[List[Dict[str, Any]]] = None
     required: bool = True
     weight: float = 1.0
+    importance: str = "medium"
+    exact_numerical_weight: Optional[float] = None
     category: str
     order: int = 0
     is_active: bool = True
@@ -260,7 +269,7 @@ class QuestionnaireCreate(BaseModel):
     description: Optional[str] = None
     due_date: Optional[str] = None
     # Legacy field (kept for backward compatibility)
-    scoring_method: Optional[str] = None  # Deprecated - use per-question scoring
+    scoring_method: Optional[str] = "question"  # Deprecated - use per-question scoring
     section_weights: Optional[Dict[str, float]] = None  # Deprecated - use esg_section_weights
     # New: Explicit weight configurations
     esg_section_weights: Optional[ESGSectionWeightsConfig] = None
@@ -291,6 +300,8 @@ class QuestionnaireResponse(BaseModel):
     due_date: Optional[str] = None
     scoring_method: str = "question"
     section_weights: Optional[Dict[str, float]] = None
+    esg_section_weights: Optional[Dict[str, float]] = None
+    overall_supplier_weights: Optional[Dict[str, float]] = None
     is_active: bool = True
     question_count: int = 0
     created_by: str

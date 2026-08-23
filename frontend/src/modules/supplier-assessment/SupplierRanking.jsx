@@ -219,11 +219,11 @@ export default function SupplierRanking() {
         <div>
           <h1 className="text-2xl font-semibold text-stone-900">Supplier Rankings</h1>
           <p className="text-sm text-stone-500 mt-1">
-            Compare supplier performance across ESG dimensions and emissions
+            Compare submitted supplier score snapshots across ESG and GHG intensity
           </p>
         </div>
         <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-48">
+            <SelectTrigger className="w-48" data-testid="supplier-ranking-sort-select">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
@@ -232,7 +232,7 @@ export default function SupplierRanking() {
             <SelectItem value="environment">Environment</SelectItem>
             <SelectItem value="social">Social</SelectItem>
             <SelectItem value="governance">Governance</SelectItem>
-            <SelectItem value="ghg">GHG Score</SelectItem>
+            <SelectItem value="ghg">GHG Intensity Score</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -693,7 +693,7 @@ export default function SupplierRanking() {
                         <TableHead className="text-center">
                           <div className="flex items-center justify-center gap-1">
                             <Factory className="h-3 w-3 text-amber-500" />
-                            GHG
+                            GHG intensity
                           </div>
                         </TableHead>
                         <TableHead>Status</TableHead>
