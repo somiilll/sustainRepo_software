@@ -28,6 +28,7 @@ from modules.supplier_assessment.contracts import (
     SupplierEmissionResponse,
     SupplierDocumentResponse,
     TrainingUpdate,
+    TrainingConsumptionEvent,
 )
 from modules.supplier_assessment import documents_service
 from modules.supplier_assessment import training_service
@@ -599,7 +600,6 @@ async def get_my_document_view_url(
     document = await documents_service.get_supplier_document(relationship, requirement_id)
     if not document:
         raise HTTPException(status_code=404, detail="Agreement not found")
-    from r2_storage import get_r2_storage
     version = document["version"]
     try:
         return {"url": get_r2_storage().generate_presigned_url(
@@ -641,13 +641,29 @@ async def save_training_progress(assignment_id: str, progress_percent: float = F
 
 @router.get("/my-assessment/trainings/{assignment_id}/content")
 async def get_training_content(assignment_id: str, current_user: dict = Depends(get_supplier_user)):
+    raise HTTPException(status_code=410, detail="Training content is available only through the in-app viewer")
+
+@router.get("/my-assessment/trainings/{assignment_id}/viewer")
+async def get_training_viewer(assignment_id: str, current_user: dict = Depends(get_supplier_user)):
     relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
     if not relationship: raise HTTPException(status_code=404, detail="No active supplier relationship found")
-    version = await training_service.training_file_for_supplier(relationship, assignment_id)
-    if not version: raise HTTPException(status_code=404, detail="Training content not found")
+    viewer = await training_service.training_viewer_for_supplier(relationship, assignment_id)
+    if not viewer: raise HTTPException(status_code=409, detail="This legacy training must be republished for in-app viewing")
     try:
-        return {"url": get_r2_storage().generate_presigned_url(version["bucket_type"], version["r2_key"], expiration=900, response_content_disposition=f"inline; filename={version['original_filename']}")}
+        return viewer
     except Exception as error: raise HTTPException(status_code=500, detail=f"Failed to access training content: {error}")
+
+@router.post("/my-assessment/trainings/{assignment_id}/consumption-events")
+async def record_training_consumption(assignment_id: str, event: TrainingConsumptionEvent, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship: raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        progress = await training_service.record_consumption_event(relationship, assignment_id, event.model_dump(exclude_none=True), current_user["id"])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    if not progress: raise HTTPException(status_code=404, detail="Training assignment not found")
+    await supplier_service._update_completion_status(relationship["id"])
+    return progress
 
 
 @router.get("/my-assessment/questionnaires")

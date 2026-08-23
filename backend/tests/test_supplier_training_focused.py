@@ -109,14 +109,39 @@ async def test_create_training_always_stores_a_100_percent_threshold(monkeypatch
     monkeypatch.setattr(training_service, "resolve_program_context", _program_context)
     monkeypatch.setattr(training_service, "get_or_create_program_revision", _revision)
 
+    document = training_service.fitz.open()
+    document.new_page().insert_text((72, 72), "Training page")
+    pdf_content = document.tobytes()
+    document.close()
     result = await training_service.create_training(
         org_id="org-1", user_id="user-1", title="Safety", description="desc", threshold=1,
-        file_name="training.pdf", content_type="application/pdf", content=b"%PDF-1.4",
+        file_name="training.pdf", content_type="application/pdf", content=pdf_content,
         relationship_ids=["rel-1"], due_date="2026-12-31",
     )
 
     assert result["training"]["completion_threshold"] == 100.0
     assert fake_db.supplier_training_requirements.docs[0]["completion_threshold"] == 100.0
+    assert result["version"]["viewer_manifest"]["viewer_type"] == "pages"
+
+
+@pytest.mark.asyncio
+async def test_page_consumption_events_control_progress(monkeypatch):
+    fake_db = _DB(
+        supplier_training_assignments=[{"id": "assignment-1", "supplier_relationship_id": "rel-1", "training_requirement_id": "requirement-1", "requirement_version_id": "version-1", "is_active": True}],
+        supplier_training_versions=[{"id": "version-1", "viewer_manifest": {"viewer_type": "pages", "page_count": 2}}],
+        supplier_training_requirements=[{"id": "requirement-1", "completion_threshold": 100}],
+        supplier_training_progress=[], supplier_training_consumption_events=[],
+    )
+    monkeypatch.setattr(training_service, "db", fake_db)
+    relationship = {"id": "rel-1"}
+
+    progress = await training_service.record_consumption_event(relationship, "assignment-1", {"event_type": "page_view", "unit_index": 1}, "supplier-user")
+
+    assert progress["progress_percent"] == 50.0
+    assert progress["status"] == "in_progress"
+    assert fake_db.supplier_training_consumption_events.docs[0]["event_type"] == "page_view"
+    with pytest.raises(ValueError, match="Invalid training page event"):
+        await training_service.record_consumption_event(relationship, "assignment-1", {"event_type": "page_view", "unit_index": 3}, "supplier-user")
 
 
 @pytest.mark.asyncio

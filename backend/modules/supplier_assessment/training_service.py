@@ -1,7 +1,14 @@
 """Focused, version-aware supplier training content and progress service."""
+import asyncio
+import json
+import subprocess
+import tempfile
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import fitz
 
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
@@ -16,8 +23,56 @@ ALLOWED_TYPES = {
     "audio/mpeg", "audio/mp4", "audio/wav", "video/mp4", "video/webm",
 }
 MAX_TRAINING_SIZE = 250 * 1024 * 1024
+MAX_RENDERED_PAGES = 200
 
 def _now(): return datetime.now(timezone.utc).isoformat()
+
+def _viewer_type(content_type: str) -> str:
+    if content_type in {"application/pdf", "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation"}:
+        return "pages"
+    if content_type.startswith("audio/"):
+        return "audio"
+    if content_type.startswith("video/"):
+        return "video"
+    raise ValueError("Unsupported training viewer format")
+
+def _render_pages(content: bytes, file_name: str, content_type: str) -> List[bytes]:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        source = Path(temp_dir) / f"source{Path(file_name).suffix.lower()}"
+        source.write_bytes(content)
+        pdf_path = source
+        if content_type != "application/pdf":
+            result = subprocess.run(["soffice", "--headless", "--convert-to", "pdf", "--outdir", temp_dir, str(source)], capture_output=True, text=True, timeout=120)
+            candidates = list(Path(temp_dir).glob("*.pdf"))
+            if result.returncode != 0 or not candidates:
+                raise ValueError("Could not prepare this presentation for in-app viewing")
+            pdf_path = candidates[0]
+        document = fitz.open(pdf_path)
+        if not 1 <= len(document) <= MAX_RENDERED_PAGES:
+            raise ValueError(f"Training documents must contain 1 to {MAX_RENDERED_PAGES} pages")
+        images = []
+        for page in document:
+            images.append(page.get_pixmap(matrix=fitz.Matrix(1.4, 1.4), alpha=False).tobytes("png"))
+        document.close()
+        return images
+
+def _probe_media_duration(content: bytes, file_name: str) -> float:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        source = Path(temp_dir) / f"source{Path(file_name).suffix.lower()}"
+        source.write_bytes(content)
+        result = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(source)], capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            raise ValueError("Could not read this media file for in-app playback")
+        duration = float(json.loads(result.stdout).get("format", {}).get("duration") or 0)
+        if duration <= 0:
+            raise ValueError("Training media must have a valid duration")
+        return duration
+
+async def _prepare_viewer(content: bytes, file_name: str, content_type: str) -> Dict[str, Any]:
+    viewer_type = _viewer_type(content_type)
+    if viewer_type == "pages":
+        return {"viewer_type": viewer_type, "page_images": await asyncio.to_thread(_render_pages, content, file_name, content_type)}
+    return {"viewer_type": viewer_type, "duration_seconds": await asyncio.to_thread(_probe_media_duration, content, file_name)}
 
 async def create_training(org_id: str, user_id: str, title: str, description: str, threshold: float, file_name: str, content_type: str, content: bytes, relationship_ids: List[str], due_date: Optional[str] = None):
     threshold = 100.0
@@ -29,11 +84,34 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
     relationships = await db.supplier_relationships.find({"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True}, {"_id": 0, "id": 1}).to_list(1000)
     if len(relationships) != len(set(relationship_ids)): raise ValueError("One or more suppliers are not available to this organization")
     organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1, "organization_name": 1})
-    upload = await get_r2_storage().upload_file(content, file_name, TRAINING_BUCKET, content_type, folder=TRAINING_FOLDER, metadata={"uploaded_by": user_id, "kind": "supplier_training"}, org_name=(organization or {}).get("organization_name") or (organization or {}).get("name"))
+    viewer_seed = await _prepare_viewer(content, file_name, content_type)
+    storage = get_r2_storage()
+    upload = await storage.upload_file(content, file_name, TRAINING_BUCKET, content_type, folder=TRAINING_FOLDER, metadata={"uploaded_by": user_id, "kind": "supplier_training"}, org_name=(organization or {}).get("organization_name") or (organization or {}).get("name"))
     if upload.get("error"): raise ValueError(upload["error"])
+    viewer_manifest = {"viewer_type": viewer_seed["viewer_type"]}
+    uploaded_render_keys = []
+    try:
+        if viewer_seed["viewer_type"] == "pages":
+            prefix = upload["key"].rsplit(".", 1)[0]
+            pages = []
+            for index, image in enumerate(viewer_seed["page_images"], start=1):
+                key = f"{prefix}/viewer/page-{index}.png"
+                rendered = await storage.upload_file(image, f"page-{index}.png", TRAINING_BUCKET, "image/png", object_key=key, metadata={"kind": "supplier_training_page", "source": upload["key"]})
+                if rendered.get("error"):
+                    raise ValueError(rendered["error"])
+                uploaded_render_keys.append(key)
+                pages.append({"index": index, "r2_key": key})
+            viewer_manifest.update({"page_count": len(pages), "pages": pages})
+        else:
+            viewer_manifest["duration_seconds"] = viewer_seed["duration_seconds"]
+    except Exception:
+        for key in uploaded_render_keys:
+            await storage.delete_file(TRAINING_BUCKET, key)
+        await storage.delete_file(TRAINING_BUCKET, upload["key"])
+        raise
     now, content_id, requirement_id, version_id = _now(), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     content_doc = {"id": content_id, "organization_id": org_id, "title": title.strip(), "description": description or "", "created_by": user_id, "created_at": now}
-    version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": len(content), "bucket_type": TRAINING_BUCKET, "r2_key": upload["key"], "created_by": user_id, "created_at": now}
+    version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": len(content), "bucket_type": TRAINING_BUCKET, "r2_key": upload["key"], "viewer_manifest": viewer_manifest, "created_by": user_id, "created_at": now}
     requirement = {"id": requirement_id, "organization_id": org_id, "training_content_id": content_id, "training_version_id": version_id, "completion_threshold": threshold, "title": title.strip(), "description": description or "", "due_date": due_date or None, "is_active": True, "is_deleted": False, "created_by": user_id, "created_at": now}
     await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
     assignments=[]
@@ -76,6 +154,69 @@ async def training_file_for_supplier(relationship: Dict[str, Any], assignment_id
     assignment = await db.supplier_training_assignments.find_one({"id": assignment_id, "supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0})
     if not assignment: return None
     return await db.supplier_training_versions.find_one({"id": assignment["requirement_version_id"]}, {"_id": 0})
+
+async def _ensure_viewer_manifest(version: Dict[str, Any]) -> Dict[str, Any]:
+    if version.get("viewer_manifest"):
+        return version
+    storage = get_r2_storage()
+    content, content_type = await storage.get_file(version["bucket_type"], version["r2_key"])
+    viewer_seed = await _prepare_viewer(content, version["original_filename"], version.get("content_type") or content_type)
+    manifest = {"viewer_type": viewer_seed["viewer_type"]}
+    uploaded_render_keys = []
+    try:
+        if viewer_seed["viewer_type"] == "pages":
+            prefix = version["r2_key"].rsplit(".", 1)[0]
+            pages = []
+            for index, image in enumerate(viewer_seed["page_images"], start=1):
+                key = f"{prefix}/viewer/page-{index}.png"
+                rendered = await storage.upload_file(image, f"page-{index}.png", version["bucket_type"], "image/png", object_key=key, metadata={"kind": "supplier_training_page", "source": version["r2_key"]})
+                if rendered.get("error"):
+                    raise ValueError(rendered["error"])
+                uploaded_render_keys.append(key)
+                pages.append({"index": index, "r2_key": key})
+            manifest.update({"page_count": len(pages), "pages": pages})
+        else:
+            manifest["duration_seconds"] = viewer_seed["duration_seconds"]
+    except Exception:
+        for key in uploaded_render_keys:
+            await storage.delete_file(version["bucket_type"], key)
+        raise
+    await db.supplier_training_versions.update_one({"id": version["id"]}, {"$set": {"viewer_manifest": manifest, "viewer_prepared_at": _now()}})
+    return {**version, "viewer_manifest": manifest}
+
+async def training_viewer_for_supplier(relationship: Dict[str, Any], assignment_id: str) -> Optional[Dict[str, Any]]:
+    version = await training_file_for_supplier(relationship, assignment_id)
+    if not version:
+        return None
+    version = await _ensure_viewer_manifest(version)
+    manifest = version["viewer_manifest"]
+    storage = get_r2_storage()
+    if manifest["viewer_type"] == "pages":
+        return {"viewer_type": "pages", "page_count": manifest["page_count"], "page_urls": [storage.generate_presigned_url(version["bucket_type"], page["r2_key"], expiration=900) for page in manifest["pages"]]}
+    return {"viewer_type": manifest["viewer_type"], "duration_seconds": manifest["duration_seconds"], "asset_url": storage.generate_presigned_url(version["bucket_type"], version["r2_key"], expiration=900, response_content_disposition="inline")}
+
+async def record_consumption_event(relationship: Dict[str, Any], assignment_id: str, event: Dict[str, Any], user_id: str) -> Optional[Dict[str, Any]]:
+    assignment = await db.supplier_training_assignments.find_one({"id": assignment_id, "supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0})
+    if not assignment:
+        return None
+    version = await db.supplier_training_versions.find_one({"id": assignment["requirement_version_id"]}, {"_id": 0})
+    manifest = (version or {}).get("viewer_manifest")
+    if not manifest:
+        raise ValueError("This legacy training must be republished for in-app viewing")
+    existing = await db.supplier_training_progress.find_one({"training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"]}, {"_id": 0})
+    current_percent = float((existing or {}).get("progress_percent", 0))
+    if event["event_type"] == "page_view":
+        if manifest["viewer_type"] != "pages" or event.get("unit_index") is None or not 1 <= event["unit_index"] <= manifest["page_count"]:
+            raise ValueError("Invalid training page event")
+        percent = max(current_percent, round(event["unit_index"] / manifest["page_count"] * 100, 2))
+    else:
+        if manifest["viewer_type"] not in {"audio", "video"} or event.get("position_seconds") is None:
+            raise ValueError("Invalid training media event")
+        duration = manifest["duration_seconds"]
+        percent = max(current_percent, round(min(max(event["position_seconds"], 0), duration) / duration * 100, 2))
+    now = _now()
+    await db.supplier_training_consumption_events.insert_one({"id": str(uuid.uuid4()), "training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"], "training_version_id": assignment["requirement_version_id"], "event_type": event["event_type"], "unit_index": event.get("unit_index"), "position_seconds": event.get("position_seconds"), "progress_percent": percent, "recorded_at": now, "recorded_by": user_id})
+    return await update_progress(relationship, assignment_id, percent, user_id)
 
 async def training_status(org_id: str, requirement_id: str) -> Optional[List[Dict[str, Any]]]:
     requirement = await db.supplier_training_requirements.find_one({"id": requirement_id, "organization_id": org_id, "is_deleted": {"$ne": True}}, {"_id": 0})
@@ -128,3 +269,4 @@ async def ensure_indexes():
     await db.supplier_training_requirements.create_index([("organization_id", 1), ("is_active", 1)])
     await db.supplier_training_assignments.create_index([("supplier_relationship_id", 1), ("is_active", 1)])
     await db.supplier_training_progress.create_index([("training_assignment_id", 1), ("supplier_relationship_id", 1)], unique=True)
+    await db.supplier_training_consumption_events.create_index([("training_assignment_id", 1), ("recorded_at", 1)])
