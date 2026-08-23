@@ -483,6 +483,11 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **P2:** MIS schedule preview/report bookmarks; Custom Fuel month-value copy; spend-basis inflation resolution; remaining non-golden backend test cleanup.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 unified GHG form remains strictly blocked until instructed.
 
+## Change Log — 2026-08-23: Scrollable Supplier Forms
+
+- Updated Add Supplier and Edit Supplier dialogs with viewport-bounded layouts: the header and actions remain visible while the form content scrolls independently, including document/training assignment lists.
+- Added stable test identifiers for the dialogs, scroll areas, and form actions. JavaScript lint completed before the user requested no further testing; no browser or flow testing was run. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Global Supplier Assessment Reporting-Period Selector
 
 - Added one persistent reporting-period selector across the customer-admin Supplier Assessment workspace. It reads available supplier periods, keeps the selected period while navigating among assessment pages, and includes current/adjacent calendar-year options for new periods.
