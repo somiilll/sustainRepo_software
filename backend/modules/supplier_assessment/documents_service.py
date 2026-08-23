@@ -69,6 +69,7 @@ async def publish_agreement(
     response_mode: str = "ACCEPTANCE",
     response_options: Optional[List[str]] = None,
     relationship_ids: Optional[List[str]] = None,
+    due_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Upload one organization agreement and bind it to immutable program revisions."""
     if not filename or content_type not in ALLOWED_DOCUMENT_TYPES:
@@ -136,7 +137,7 @@ async def publish_agreement(
         config.setdefault("modules", {})["documents"] = deepcopy(configured_documents)
         revision = await get_or_create_program_revision(customer_org_id, config, created_by)
         revisions[(revision["program_id"], revision["version"])] = revision
-        revision_relationships.setdefault((revision["program_id"], revision["version"]), []).append(relationship["id"])
+        revision_relationships.setdefault((revision["program_id"], revision["version"], relationship.get("reporting_period")), []).append(relationship["id"])
         await db.supplier_relationships.update_one(
             {"id": relationship["id"]},
             {"$set": {
@@ -159,20 +160,55 @@ async def publish_agreement(
             "document_version_id": version["id"],
             "response_mode": response_mode,
             "response_options": response_options,
-            "supplier_relationship_ids": revision_relationships.get((revision["program_id"], revision["version"]), []),
+            "supplier_relationship_ids": revision_relationships.get((revision["program_id"], revision["version"], None), []),
             "is_active": True,
             "created_by": created_by,
             "created_at": now,
         }
-        await db.supplier_document_requirements.insert_one(requirement)
-        requirement.pop("_id", None)
-        requirements.append(requirement)
+        matching_assignments = [
+            (period, ids) for (program_id, version, period), ids in revision_relationships.items()
+            if program_id == revision["program_id"] and version == revision["version"]
+        ] or [(None, [])]
+        for period, assigned_ids in matching_assignments:
+            period_requirement = {**requirement, "id": str(uuid.uuid4()), "supplier_relationship_ids": assigned_ids, "reporting_period": period, "due_date": due_date or None}
+            await db.supplier_document_requirements.insert_one(period_requirement)
+            period_requirement.pop("_id", None)
+            requirements.append(period_requirement)
 
     return {
         "requirements": requirements,
         "version": version,
         "affected_relationship_ids": [relationship["id"] for relationship in relationships],
     }
+
+
+async def assign_existing_documents_to_supplier(customer_org_id: str, relationship: Dict[str, Any], requirement_ids: List[str], created_by: str) -> List[str]:
+    """Assign existing immutable document versions to a newly created supplier."""
+    sources = await db.supplier_document_requirements.find(
+        {"id": {"$in": list(set(requirement_ids))}, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    ).to_list(1000)
+    if len(sources) != len(set(requirement_ids)):
+        raise ValueError("One or more selected documents are unavailable")
+    now = _now()
+    created_ids = []
+    for source in sources:
+        duplicate = await db.supplier_document_requirements.find_one(
+            {"customer_org_id": customer_org_id, "assessment_program_id": relationship.get("assessment_program_id"), "assessment_program_version": relationship.get("assessment_program_version"), "document_version_id": source["document_version_id"], "reporting_period": relationship.get("reporting_period"), "supplier_relationship_ids": relationship["id"], "is_active": True}, {"_id": 0, "id": 1}
+        )
+        if duplicate:
+            created_ids.append(duplicate["id"])
+            continue
+        requirement = {
+            "id": str(uuid.uuid4()), "customer_org_id": customer_org_id,
+            "assessment_program_id": relationship.get("assessment_program_id"), "assessment_program_version": relationship.get("assessment_program_version"),
+            "document_key": source.get("document_key"), "title": source["title"], "document_version_id": source["document_version_id"],
+            "response_mode": source.get("response_mode", "ACCEPTANCE"), "response_options": source.get("response_options", []),
+            "due_date": source.get("due_date"), "reporting_period": relationship.get("reporting_period"),
+            "supplier_relationship_ids": [relationship["id"]], "is_active": True, "created_by": created_by, "created_at": now,
+        }
+        await db.supplier_document_requirements.insert_one(requirement)
+        created_ids.append(requirement["id"])
+    return created_ids
 
 
 async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -185,6 +221,7 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
         },
         {"_id": 0},
     ).sort("created_at", -1).to_list(100)
+    requirements = [item for item in requirements if not item.get("reporting_period") or item["reporting_period"] == relationship.get("reporting_period")]
     documents = []
     for requirement in requirements:
         if requirement.get("supplier_relationship_ids") and relationship["id"] not in requirement["supplier_relationship_ids"]:
@@ -212,7 +249,7 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
             "selected_response": response.get("response_value") if response_mode == "STATUS" and response and not is_reopened else None,
             "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response_mode == "STATUS" and response and not is_reopened else None,
             "submission_status": "reopened" if is_reopened else ("submitted" if response else "not_started"),
-            "created_at": requirement["created_at"],
+            "created_at": requirement["created_at"], "due_date": requirement.get("due_date"), "reporting_period": requirement.get("reporting_period") or relationship.get("reporting_period"),
         })
     return documents
 

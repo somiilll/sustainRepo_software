@@ -51,6 +51,7 @@ export default function SupplierDashboard() {
   const [revenueAmount, setRevenueAmount] = useState('');
   const [revenueCurrency, setRevenueCurrency] = useState('USD');
   const [saving, setSaving] = useState(false);
+  const [submittingRevenue, setSubmittingRevenue] = useState(false);
 
   const fetchAssessment = useCallback(async () => {
     try {
@@ -125,6 +126,15 @@ export default function SupplierDashboard() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSubmitRevenue = async () => {
+    setSubmittingRevenue(true);
+    try {
+      await axios.post(`${API}/supplier-assessment/my-assessment/revenue/submit`, {}, { headers: getAuthHeader() });
+      toast.success('Revenue information submitted');
+      fetchAssessment();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Could not submit revenue information'); } finally { setSubmittingRevenue(false); }
   };
 
   if (loading) {
@@ -266,6 +276,7 @@ export default function SupplierDashboard() {
                     placeholder="e.g., 15.5"
                     className="max-w-[150px]"
                     data-testid="revenue-percentage-input"
+                    disabled={relationship.revenue_submission_status === 'submitted'}
                   />
                   <span className="text-stone-500 font-medium">%</span>
                 </div>
@@ -281,7 +292,7 @@ export default function SupplierDashboard() {
                   What is the total annual revenue you receive from this customer?
                 </p>
                 <div className="flex items-center gap-2">
-                  <Select value={revenueCurrency} onValueChange={setRevenueCurrency}>
+                  <Select value={revenueCurrency} onValueChange={setRevenueCurrency} disabled={relationship.revenue_submission_status === 'submitted'}>
                     <SelectTrigger className="w-[100px]" data-testid="revenue-currency-select">
                       <SelectValue />
                     </SelectTrigger>
@@ -302,15 +313,14 @@ export default function SupplierDashboard() {
                     placeholder="e.g., 500000"
                     className="flex-1"
                     data-testid="revenue-amount-input"
+                    disabled={relationship.revenue_submission_status === 'submitted'}
                   />
                 </div>
               </div>
             </div>
             
             <div className="flex justify-end pt-2">
-              <Button onClick={handleSaveRevenue} disabled={saving} data-testid="save-revenue-btn">
-                {saving ? 'Saving...' : 'Save Revenue Information'}
-              </Button>
+              {relationship.revenue_submission_status === 'submitted' ? <Badge className="bg-green-100 text-green-800" data-testid="revenue-submitted-badge">Submitted</Badge> : <><Button onClick={handleSaveRevenue} disabled={saving} data-testid="save-revenue-btn">{saving ? 'Saving...' : 'Save draft'}</Button><Button onClick={handleSubmitRevenue} disabled={submittingRevenue || saving} data-testid="submit-revenue-button">{submittingRevenue ? 'Submitting...' : 'Submit revenue'}</Button></>}
             </div>
           </div>
         </CardContent>

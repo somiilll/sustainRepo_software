@@ -8,13 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
+import { SupplierAssignmentPicker } from './components/SupplierAssignmentPicker';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function SupplierTrainingAdmin() {
   const { getAuthHeader } = useAuth();
   const [trainings, setTrainings] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -28,9 +28,8 @@ export default function SupplierTrainingAdmin() {
 
   const load = useCallback(async () => {
     try {
-      const [trainingResponse, supplierResponse, configResponse] = await Promise.all([
+      const [trainingResponse, configResponse] = await Promise.all([
         axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
-        axios.get(`${API}/supplier-assessment/suppliers?page_size=100`, { headers: getAuthHeader() }),
         axios.get(`${API}/sustainability-config/resolved`, { headers: getAuthHeader() }),
       ]);
       const trainingItems = trainingResponse.data;
@@ -41,7 +40,6 @@ export default function SupplierTrainingAdmin() {
         ...training,
         status: statusResults[index].status === 'fulfilled' ? statusResults[index].value.data : [],
       })));
-      setSuppliers(supplierResponse.data.suppliers || []);
       setTrainingLabel(configResponse.data?.supplier_assessment?.modules?.training?.display_name || 'Training');
     } catch (error) {
       toast.error('Could not load training management');
@@ -103,11 +101,6 @@ export default function SupplierTrainingAdmin() {
     }
   };
 
-  const supplierIds = suppliers.map((supplier) => supplier.id);
-  const allSuppliersSelected = supplierIds.length > 0 && supplierIds.every((supplierId) => selected.includes(supplierId));
-  const toggleSupplier = (supplierId, checked) => setSelected((current) => (
-    checked ? [...new Set([...current, supplierId])] : current.filter((id) => id !== supplierId)
-  ));
 
   return <div className="space-y-6" data-testid="training-admin-page">
     <div>
@@ -121,11 +114,7 @@ export default function SupplierTrainingAdmin() {
         <div className="space-y-2"><Label htmlFor="training-description">Description</Label><Input id="training-description" value={description} onChange={(event) => setDescription(event.target.value)} data-testid="training-description-input" /></div>
         <div className="space-y-2"><Label htmlFor="training-due-date">Due date</Label><Input id="training-due-date" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} data-testid="training-due-date-input" /></div>
         <div className="space-y-2"><Label htmlFor="training-file">Content file</Label><Input id="training-file" type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={(event) => setFile(event.target.files?.[0])} data-testid="training-file-input" /></div>
-        <div className="space-y-3 md:col-span-2" data-testid="training-supplier-selection">
-          <div className="flex flex-wrap items-center justify-between gap-3"><Label>Suppliers</Label><div className="flex items-center gap-2 text-sm font-medium"><input id="select-all-training-suppliers" type="checkbox" checked={allSuppliersSelected} onChange={(event) => setSelected(event.target.checked ? supplierIds : [])} className="h-4 w-4 accent-emerald-700" data-testid="select-all-training-suppliers-checkbox" /><Label htmlFor="select-all-training-suppliers" className="cursor-pointer">Select all suppliers</Label></div></div>
-          <div className="grid gap-2 rounded-md border border-stone-200 p-3 sm:grid-cols-2 lg:grid-cols-3">{suppliers.map((supplier) => <div key={supplier.id} className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-stone-50" data-testid={`training-supplier-option-${supplier.id}`}><input id={`training-supplier-${supplier.id}`} type="checkbox" checked={selected.includes(supplier.id)} onChange={(event) => toggleSupplier(supplier.id, event.target.checked)} className="h-4 w-4 accent-emerald-700" data-testid={`training-supplier-checkbox-${supplier.id}`} /><Label htmlFor={`training-supplier-${supplier.id}`} className="cursor-pointer text-sm font-normal">{supplier.company_name}</Label></div>)}</div>
-          <p className="text-xs text-stone-500" data-testid="selected-training-suppliers-count">{selected.length} of {suppliers.length} suppliers selected</p>
-        </div>
+        <div className="md:col-span-2"><SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" /></div>
         <div className="flex items-end"><Button onClick={create} disabled={isCreating} data-testid="create-training-button">{isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isCreating ? 'Creating…' : 'Create and assign'}</Button></div>
       </CardContent>
     </Card>

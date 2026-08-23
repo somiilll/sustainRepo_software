@@ -17,9 +17,12 @@ class SupplierCreate(BaseModel):
     email: EmailStr
     contact_number: Optional[str] = None
     due_date: Optional[str] = None  # ISO date string
+    reporting_period: Optional[str] = None
     # Module configuration
-    modules_enabled: Optional[List[Literal["esg", "ghg", "documents"]]] = None
+    modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
+    document_requirement_ids: List[str] = Field(default_factory=list)
+    training_requirement_ids: List[str] = Field(default_factory=list)
 
 
 class SupplierUpdate(BaseModel):
@@ -28,9 +31,10 @@ class SupplierUpdate(BaseModel):
     contact_person: Optional[str] = None
     contact_number: Optional[str] = None
     due_date: Optional[str] = None
+    reporting_period: Optional[str] = None
     is_active: Optional[bool] = None
     # Module configuration
-    modules_enabled: Optional[List[Literal["esg", "ghg", "documents"]]] = None
+    modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
 
 
@@ -50,6 +54,7 @@ class SupplierResponse(BaseModel):
     revenue_currency: Optional[str] = "USD"
     invitation_status: str  # pending, accepted, completed
     due_date: Optional[str] = None
+    reporting_period: Optional[str] = None
     last_reminder_sent: Optional[str] = None
     reminder_count: int = 0
     is_active: bool = True
@@ -66,6 +71,7 @@ class SupplierResponse(BaseModel):
     esg_score: Optional[float] = None
     ghg_score: Optional[float] = None
     overall_score: Optional[float] = None
+    revenue_submission_status: str = "not_started"
     
     created_by: str
     created_at: str
@@ -91,6 +97,11 @@ class RevenueInfoUpdate(BaseModel):
     revenue_percentage: Optional[float] = Field(None, ge=0, le=100)
     revenue_amount: Optional[float] = Field(None, ge=0)  # Amount in currency
     revenue_currency: Optional[str] = "USD"  # Currency code
+
+
+class ManualScoreUpdate(BaseModel):
+    score: float = Field(ge=0, le=100)
+    note: Optional[str] = Field(default=None, max_length=2000)
 
 
 class SupplierDocumentResponse(BaseModel):
@@ -459,5 +470,6 @@ class SupplierRankingResponse(BaseModel):
 
 class ReminderSend(BaseModel):
     """Send reminder to supplier."""
-    supplier_relationship_id: str
     custom_message: Optional[str] = None
+    modules: List[Literal["all", "esg", "ghg", "documents", "training", "revenue"]] = Field(default_factory=lambda: ["all"])
+    reporting_period: Optional[str] = None

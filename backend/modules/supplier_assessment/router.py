@@ -24,6 +24,7 @@ from modules.supplier_assessment.contracts import (
     SupplierQuestionnaireStatusResponse,
     SupplierRankingResponse,
     ReminderSend,
+    ManualScoreUpdate,
     SupplierEmissionCreate,
     SupplierEmissionResponse,
     SupplierEmissionRevisionHistoryResponse,
@@ -94,6 +95,9 @@ async def create_supplier(
             created_by_email=current_user["email"],
             modules_enabled=data.modules_enabled,
             ghg_scopes_enabled=data.ghg_scopes_enabled,
+            reporting_period=data.reporting_period,
+            document_requirement_ids=data.document_requirement_ids,
+            training_requirement_ids=data.training_requirement_ids,
         )
         return result
     except ValueError as e:
@@ -187,7 +191,9 @@ async def send_reminder(
         raise HTTPException(status_code=403, detail="Access denied")
     
     custom_message = data.custom_message if data else None
-    success = await supplier_service.send_reminder(supplier_id, custom_message)
+    success = await supplier_service.send_reminder(
+        supplier_id, custom_message, data.modules if data else None, data.reporting_period if data else None
+    )
     
     if success:
         return {"message": "Reminder sent"}
@@ -211,6 +217,7 @@ async def upload_document(
     response_mode: str = Form(default="ACCEPTANCE"),
     response_options_json: str = Form(default="[]"),
     supplier_relationship_ids: str = Form(default="[]"),
+    due_date: Optional[str] = Form(default=None),
     current_user: dict = Depends(get_customer_admin),
 ):
     """Publish one organization NDA/agreement for the active supplier assessment program."""
@@ -239,6 +246,7 @@ async def upload_document(
             response_mode=response_mode,
             response_options=response_options,
             relationship_ids=relationship_ids,
+            due_date=due_date,
         )
         for relationship_id in result["affected_relationship_ids"]:
             await supplier_service._update_completion_status(relationship_id)
@@ -534,6 +542,24 @@ async def reopen_questionnaire(
     raise HTTPException(status_code=400, detail="Could not reopen questionnaire")
 
 
+@router.put("/suppliers/{supplier_id}/questionnaires/{questionnaire_id}/responses/manual-score")
+async def set_manual_questionnaire_score(
+    supplier_id: str,
+    questionnaire_id: str,
+    data: ManualScoreUpdate,
+    current_user: dict = Depends(get_customer_admin),
+):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    result = await supplier_service.set_manual_questionnaire_score(
+        supplier_id, questionnaire_id, data.score, data.note, current_user["id"]
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Submitted questionnaire response not found")
+    return result
+
+
 @router.get("/suppliers/{supplier_id}/submission-status")
 async def get_supplier_submission_status(supplier_id: str, current_user: dict = Depends(get_customer_admin)):
     supplier = await supplier_service.get_supplier(supplier_id)
@@ -624,17 +650,35 @@ async def update_my_revenue(
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
     
-    success = await supplier_service.update_revenue_info(
-        relationship_id=relationship["id"],
-        supplier_org_id=current_user["organization_id"],
-        revenue_percentage=data.revenue_percentage,
-        revenue_amount=data.revenue_amount,
-        revenue_currency=data.revenue_currency,
-    )
+    try:
+        success = await supplier_service.update_revenue_info(
+            relationship_id=relationship["id"],
+            supplier_org_id=current_user["organization_id"],
+            revenue_percentage=data.revenue_percentage,
+            revenue_amount=data.revenue_amount,
+            revenue_currency=data.revenue_currency,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error))
     
     if success:
         return {"message": "Revenue information updated"}
     raise HTTPException(status_code=400, detail="Failed to update")
+
+
+@router.post("/my-assessment/revenue/submit")
+async def submit_my_revenue(current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(
+        user_id=current_user["id"], user_org_id=current_user["organization_id"]
+    )
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        return await supplier_service.submit_revenue_info(
+            relationship["id"], current_user["organization_id"], current_user["id"]
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.get("/my-assessment/documents", response_model=List[SupplierDocumentResponse])

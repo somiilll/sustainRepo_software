@@ -124,7 +124,7 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
         }
         revision = await get_or_create_program_revision(org_id, program_config, user_id)
         await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$set": {"assessment_program_id": revision["program_id"], "assessment_program_version": revision["version"], "training_completion_percent": 0.0, "updated_at": now}})
-        assignment={"id":str(uuid.uuid4()),"supplier_relationship_id":relationship["id"],"organization_id":org_id,"training_requirement_id":requirement_id,"requirement_version_id":version_id,"assigned_at":now,"is_active":True}
+        assignment={"id":str(uuid.uuid4()),"supplier_relationship_id":relationship["id"],"organization_id":org_id,"training_requirement_id":requirement_id,"requirement_version_id":version_id,"reporting_period":relationship.get("reporting_period"),"assigned_at":now,"is_active":True}
         await db.supplier_training_assignments.insert_one(assignment); assignment.pop("_id",None); assignments.append(assignment)
     for doc in (content_doc, version, requirement): doc.pop("_id", None)
     return {"training": requirement, "version": version, "assignments": assignments}
@@ -136,7 +136,7 @@ async def supplier_trainings(relationship: Dict[str, Any]):
         requirement=await db.supplier_training_requirements.find_one({"id":assignment["training_requirement_id"],"organization_id":relationship["customer_org_id"],"is_active":True},{"_id":0})
         version=await db.supplier_training_versions.find_one({"id":assignment["requirement_version_id"]},{"_id":0})
         progress=await db.supplier_training_progress.find_one({"supplier_relationship_id":relationship["id"],"training_assignment_id":assignment["id"]},{"_id":0})
-        if requirement and version: result.append({"assignment_id":assignment["id"],"title":requirement["title"],"description":requirement["description"],"completion_threshold":requirement["completion_threshold"],"due_date":requirement.get("due_date"),"version_number":version["version_number"],"content_type":version["content_type"],"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started")})
+        if requirement and version: result.append({"assignment_id":assignment["id"],"title":requirement["title"],"description":requirement["description"],"completion_threshold":requirement["completion_threshold"],"due_date":requirement.get("due_date"),"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"version_number":version["version_number"],"content_type":version["content_type"],"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started")})
     return result
 
 async def update_progress(relationship: Dict[str, Any], assignment_id: str, percent: float, user_id: str):
@@ -147,7 +147,7 @@ async def update_progress(relationship: Dict[str, Any], assignment_id: str, perc
     requirement=await db.supplier_training_requirements.find_one({"id":assignment["training_requirement_id"]},{"_id":0})
     status="completed" if percent >= requirement["completion_threshold"] else ("in_progress" if percent else "not_started")
     existing=await db.supplier_training_progress.find_one({"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"]},{"_id":0})
-    now=_now(); progress={"id":(existing or {}).get("id",str(uuid.uuid4())),"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"],"training_version_id":assignment["requirement_version_id"],"progress_percent":percent,"status":status,"completed_at":now if status=="completed" else None,"updated_by":user_id,"updated_at":now}
+    now=_now(); progress={"id":(existing or {}).get("id",str(uuid.uuid4())),"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"],"training_version_id":assignment["requirement_version_id"],"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"progress_percent":percent,"status":status,"completed_at":now if status=="completed" else None,"updated_by":user_id,"updated_at":now}
     await db.supplier_training_progress.update_one({"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"]},{"$set":progress},upsert=True); progress.pop("_id",None); return progress
 
 async def training_file_for_supplier(relationship: Dict[str, Any], assignment_id: str) -> Optional[Dict[str, Any]]:
@@ -228,6 +228,27 @@ async def training_status(org_id: str, requirement_id: str) -> Optional[List[Dic
         progress=await db.supplier_training_progress.find_one({"training_assignment_id":assignment["id"]},{"_id":0})
         if relationship: result.append({"supplier_relationship_id":assignment["supplier_relationship_id"],"supplier_name":relationship.get("company_name"),"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started")})
     return result
+
+
+async def assign_existing_trainings_to_supplier(org_id: str, relationship: Dict[str, Any], requirement_ids: List[str]) -> List[str]:
+    """Create auditable assignments for selected existing trainings during supplier onboarding."""
+    requirements = await db.supplier_training_requirements.find(
+        {"id": {"$in": list(set(requirement_ids))}, "organization_id": org_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0}
+    ).to_list(1000)
+    if len(requirements) != len(set(requirement_ids)):
+        raise ValueError("One or more selected trainings are unavailable")
+    created_ids = []
+    for requirement in requirements:
+        existing = await db.supplier_training_assignments.find_one(
+            {"supplier_relationship_id": relationship["id"], "training_requirement_id": requirement["id"], "is_active": True}, {"_id": 0, "id": 1}
+        )
+        if existing:
+            created_ids.append(existing["id"])
+            continue
+        assignment = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id, "training_requirement_id": requirement["id"], "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True}
+        await db.supplier_training_assignments.insert_one(assignment)
+        created_ids.append(assignment["id"])
+    return created_ids
 
 async def update_training(org_id: str, requirement_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     requirement = await db.supplier_training_requirements.find_one(
