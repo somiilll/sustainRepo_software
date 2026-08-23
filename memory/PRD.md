@@ -483,6 +483,15 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **P2:** MIS schedule preview/report bookmarks; Custom Fuel month-value copy; spend-basis inflation resolution; remaining non-golden backend test cleanup.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 unified GHG form remains strictly blocked until instructed.
 
+## Change Log — 2026-08-23: Supplier Assessment Assignment and Program Repair
+
+- **FIXED:** Edit Supplier now always initializes document and training assignment arrays, preventing the `.includes()` runtime crash.
+- **FIXED:** Training creation now loads the complete supplier relationship, preserves its reporting period and full program configuration, and refreshes completion immediately after assignments are stored.
+- **FIXED:** Explicitly targeted document requirements remain accessible and count toward completion after later program revisions; unassigned suppliers remain excluded.
+- **FIXED:** Training with no active assignments is excluded from overall-progress weighting rather than counted as 100% complete.
+- **DATA REPAIRED:** Test Supplier (`aede75ba-cc86-48ad-ad8b-b350c29c3c68`) was moved to complete program revision 8, its two training assignments were repaired to `FY 2026-27`, and its progress snapshot was recalculated to 0%.
+- Per user instruction, no further test run was performed after these changes. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Scrollable Supplier Forms
 
 - Updated Add Supplier and Edit Supplier dialogs with viewport-bounded layouts: the header and actions remain visible while the form content scrolls independently, including document/training assignment lists.

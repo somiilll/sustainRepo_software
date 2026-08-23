@@ -32,6 +32,19 @@ def _document_key(title: Optional[str], filename: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", source).strip("-") or "agreement"
 
 
+def _is_requirement_available_to_relationship(requirement: Dict[str, Any], relationship: Dict[str, Any]) -> bool:
+    """Keep a supplier's explicit document assignments stable across program revisions."""
+    requirement_period = requirement.get("reporting_period")
+    if requirement_period and requirement_period != relationship.get("reporting_period"):
+        return False
+    explicitly_assigned = relationship["id"] in (requirement.get("supplier_relationship_ids") or [])
+    same_program = (
+        requirement.get("assessment_program_id") == relationship.get("assessment_program_id")
+        and requirement.get("assessment_program_version") == relationship.get("assessment_program_version")
+    )
+    return explicitly_assigned or (not requirement.get("supplier_relationship_ids") and same_program)
+
+
 async def _current_document_submission(relationship_id: str, requirement_id: str, version_id: str) -> Optional[Dict[str, Any]]:
     return await db.supplier_document_submissions.find_one(
         {"supplier_relationship_id": relationship_id, "document_requirement_id": requirement_id, "document_version_id": version_id, "is_current": True},
@@ -215,17 +228,16 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
     requirements = await db.supplier_document_requirements.find(
         {
             "customer_org_id": relationship["customer_org_id"],
-            "assessment_program_id": relationship.get("assessment_program_id"),
-            "assessment_program_version": relationship.get("assessment_program_version"),
             "is_active": True,
         },
         {"_id": 0},
     ).sort("created_at", -1).to_list(100)
-    requirements = [item for item in requirements if not item.get("reporting_period") or item["reporting_period"] == relationship.get("reporting_period")]
+    requirements = [
+        requirement for requirement in requirements
+        if _is_requirement_available_to_relationship(requirement, relationship)
+    ]
     documents = []
     for requirement in requirements:
-        if requirement.get("supplier_relationship_ids") and relationship["id"] not in requirement["supplier_relationship_ids"]:
-            continue
         version = await db.supplier_document_versions.find_one(
             {"id": requirement["document_version_id"]}, {"_id": 0}
         )
@@ -257,12 +269,9 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
 async def get_supplier_document(relationship: Dict[str, Any], requirement_id: str) -> Optional[Dict[str, Any]]:
     requirement = await db.supplier_document_requirements.find_one({
         "id": requirement_id, "customer_org_id": relationship["customer_org_id"],
-        "assessment_program_id": relationship.get("assessment_program_id"),
-        "assessment_program_version": relationship.get("assessment_program_version"), "is_active": True,
+        "is_active": True,
     }, {"_id": 0})
-    if not requirement:
-        return None
-    if requirement.get("supplier_relationship_ids") and relationship["id"] not in requirement["supplier_relationship_ids"]:
+    if not requirement or not _is_requirement_available_to_relationship(requirement, relationship):
         return None
     version = await db.supplier_document_versions.find_one({"id": requirement["document_version_id"]}, {"_id": 0})
     return {"requirement": requirement, "version": version} if version else None

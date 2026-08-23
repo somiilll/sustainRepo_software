@@ -472,15 +472,12 @@ class SupplierAssessmentService:
             if not revenue:
                 pending.append(labels["revenue"])
         if "documents" in requested_modules:
+            from modules.supplier_assessment.documents_service import _is_requirement_available_to_relationship
             requirements = await db.supplier_document_requirements.find(
                 {"customer_org_id": relationship["customer_org_id"], "is_active": True}, {"_id": 0, "title": 1, "due_date": 1, "supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1, "reporting_period": 1}
             ).to_list(1000)
             for requirement in requirements:
-                if requirement.get("assessment_program_id") != relationship.get("assessment_program_id") or requirement.get("assessment_program_version") != relationship.get("assessment_program_version"):
-                    continue
-                if requirement.get("reporting_period") and requirement["reporting_period"] != reporting_period:
-                    continue
-                if requirement.get("supplier_relationship_ids") and relationship["id"] not in requirement["supplier_relationship_ids"]:
+                if not _is_requirement_available_to_relationship(requirement, relationship):
                     continue
                 submitted = await db.supplier_document_submissions.find_one(
                     {"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "status": "submitted", "parent_visible": {"$ne": False}}, {"_id": 0, "id": 1}
@@ -1395,10 +1392,14 @@ class SupplierAssessmentService:
             for module in enabled_modules
         ]
         completion_by_code = {completion.module_code: completion for completion in completions}
-        total_module_weight = sum(module.legacy_weight for module in enabled_modules)
+        applicable_modules = [
+            module for module in enabled_modules
+            if completion_by_code[module.module_code].is_applicable
+        ]
+        total_module_weight = sum(module.legacy_weight for module in applicable_modules)
         module_completion = sum(
             completion_by_code[module.module_code].completion_percent * module.legacy_weight
-            for module in enabled_modules
+            for module in applicable_modules
         )
         if context["is_legacy"]:
             module_completion /= 100.0
