@@ -526,10 +526,42 @@ async def reopen_questionnaire(
     if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=404, detail="Supplier not found")
     
-    success = await supplier_service.reopen_questionnaire(supplier_id, questionnaire_id)
+    success = await supplier_service.reopen_questionnaire(supplier_id, questionnaire_id, current_user["id"])
     if success:
+        await supplier_service._update_completion_status(supplier_id)
         return {"message": "Questionnaire reopened"}
     raise HTTPException(status_code=400, detail="Could not reopen questionnaire")
+
+
+@router.get("/suppliers/{supplier_id}/submission-status")
+async def get_supplier_submission_status(supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return await supplier_service.get_supplier_submission_status(supplier_id)
+
+
+@router.post("/suppliers/{supplier_id}/emissions/reopen")
+async def reopen_supplier_ghg(supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    try:
+        result = await ghg_submission_service.reopen_supplier_ghg(supplier, current_user["id"])
+        await supplier_service._update_completion_status(supplier_id)
+        return result
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.post("/suppliers/{supplier_id}/documents/{requirement_id}/reopen")
+async def reopen_supplier_document(supplier_id: str, requirement_id: str, current_user: dict = Depends(get_customer_admin)):
+    try:
+        result = await documents_service.reopen_supplier_document(current_user["organization_id"], supplier_id, requirement_id, current_user["id"])
+        await supplier_service._update_completion_status(supplier_id)
+        return result
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 
 # ============================================================================
@@ -773,13 +805,7 @@ async def submit_my_answers(
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
     
     # Check if questionnaire is still open for editing
-    response_doc = await db.supplier_questionnaire_responses.find_one(
-        {
-            "questionnaire_id": questionnaire_id,
-            "supplier_relationship_id": relationship["id"],
-        },
-        {"_id": 0, "status": 1}
-    )
+    response_doc = await supplier_service._current_questionnaire_response(questionnaire_id, relationship["id"])
     
     if response_doc and response_doc.get("status") == "submitted":
         raise HTTPException(status_code=409, detail="Questionnaire already submitted and locked")

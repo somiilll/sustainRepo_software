@@ -70,6 +70,8 @@ export default function SupplierList() {
     ghg_scopes_enabled: ['scope1', 'scope2'],
   });
   const [submitting, setSubmitting] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState(null);
+  const [unlockingQuestionnaireId, setUnlockingQuestionnaireId] = useState('');
 
   const fetchSuppliers = useCallback(async () => {
     setLoading(true);
@@ -183,7 +185,25 @@ export default function SupplierList() {
 
   const openViewDialog = (supplier) => {
     setSelectedSupplier(supplier);
+    setSubmissionStatus(null);
     setShowViewDialog(true);
+    axios.get(`${API}/supplier-assessment/suppliers/${supplier.id}/submission-status`, { headers: getAuthHeader() })
+      .then((response) => setSubmissionStatus(response.data))
+      .catch(() => toast.error('Could not load submission status'));
+  };
+
+  const unlockQuestionnaire = async (questionnaireId) => {
+    if (!selectedSupplier || !window.confirm('Unlock this ESG questionnaire for resubmission? The current submitted answers stay visible until the supplier resubmits.')) return;
+    setUnlockingQuestionnaireId(questionnaireId);
+    try {
+      await axios.post(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/questionnaires/${questionnaireId}/reopen`, {}, { headers: getAuthHeader() });
+      toast.success('Questionnaire unlocked for resubmission');
+      setSubmissionStatus((current) => ({ ...current, esg: (current?.esg || []).filter((item) => item.questionnaire_id !== questionnaireId) }));
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not unlock questionnaire');
+    } finally {
+      setUnlockingQuestionnaireId('');
+    }
   };
 
   // Toggle module in modules_enabled array
@@ -735,6 +755,10 @@ export default function SupplierList() {
                     />
                   </div>
                 </div>
+              </div>
+              <div className="border-t pt-4" data-testid="supplier-esg-submission-controls">
+                <Label className="text-stone-500">Locked ESG submissions</Label>
+                {!submissionStatus ? <p className="mt-2 text-sm text-stone-500" data-testid="supplier-submission-status-loading">Loading submission status…</p> : (submissionStatus.esg || []).length === 0 ? <p className="mt-2 text-sm text-stone-500" data-testid="supplier-esg-submission-empty">No locked ESG questionnaires.</p> : <div className="mt-2 space-y-2">{submissionStatus.esg.map((submission) => <div key={submission.questionnaire_id} className="flex items-center justify-between gap-3 rounded-md border p-2" data-testid={`supplier-esg-submission-${submission.questionnaire_id}`}><span className="text-sm">Submitted {submission.submitted_at ? new Date(submission.submitted_at).toLocaleDateString() : ''}</span><Button variant="outline" size="sm" disabled={unlockingQuestionnaireId === submission.questionnaire_id} onClick={() => unlockQuestionnaire(submission.questionnaire_id)} data-testid={`unlock-supplier-questionnaire-${submission.questionnaire_id}`}>{unlockingQuestionnaireId === submission.questionnaire_id ? 'Unlocking…' : 'Unlock'}</Button></div>)}</div>}
               </div>
               
               {(selectedSupplier.esg_score || selectedSupplier.ghg_score) && (

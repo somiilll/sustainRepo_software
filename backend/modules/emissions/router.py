@@ -1298,6 +1298,9 @@ async def update_emission_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
 
+    if existing.get("source") == "supplier" and existing.get("submitted_to_parent_org"):
+        raise HTTPException(status_code=409, detail="Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.")
+
     await _validate_density_requirement(record_data)
     
     org_id = existing.get("organization_id")
@@ -1800,6 +1803,9 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     existing, source_collection = await find_record(record_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
+
+    if existing.get("source") == "supplier" and existing.get("submitted_to_parent_org"):
+        raise HTTPException(status_code=409, detail="Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.")
 
     # Approval-workflow gate
     delete_action, delete_payload = await approval_intercept_delete(record_id, current_user)

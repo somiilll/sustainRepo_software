@@ -143,6 +143,13 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **VERIFIED:** Focused local GHG checks **11 passed**. Read-only live verification **4/4 passed**: no runtime references to dropped collections, parent excluded draft IDs, and supplier legacy Scope 1 drafts aggregated to 103.73 tCO₂e. **MOCKED: none.**
 - **FIXED:** Supplier/admin post-login module bootstrap no longer returns 404 when a supplier organization document is absent; `/api/organization/module-config` now returns the existing default module configuration. Verified both roles receive HTTP 200.
 
+### Session 9 (2026-08-23) — Immutable Supplier Submissions and Parent-Controlled Resubmission
+- **DONE:** ESG questionnaire submissions are now revisioned. A parent unlock preserves the currently parent-visible submitted revision, creates a private supplier draft revision, and only switches parent visibility when the revised questionnaire is submitted.
+- **DONE:** GHG submissions are immutable after submission. Parent unlock creates private draft copies of the submitted emission records; existing submitted records remain parent-visible until the supplier resubmits. Generic emission update/delete endpoints reject submitted supplier GHG records.
+- **DONE:** Document acceptance/status responses now support parent-controlled unlocks through a revision layer. Unlocking creates a private reopened response while the parent continues to see the prior response; supplier re-submission atomically becomes the visible response.
+- **DONE:** Added parent unlock controls for ESG (Supplier detail), GHG (Supplier GHG view), and Documents (response dialog), plus supplier-facing locked/reopened states and stable test IDs for new controls and questionnaire/GHG filter inputs.
+- **VERIFIED:** Python and JavaScript lint clean; focused backend suites **8 passed, 2 skipped** only because the live dataset lacks deterministic eligible STATUS-document/in-progress-ESG data; authenticated Supplier administration browser smoke passed. Testing-agent live regression: **5 passed, 2 skipped**. **MOCKED: none.**
+
 ## Known Issues
 
 ### P0: Process Emissions and Custom Fuel Density Payload Loss
@@ -184,6 +191,7 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Phase 5: Organization/Admin program, document, and training configuration UX — **PARTIALLY DONE (2026-08-22):** Superadmin organization-level registered workflow selection and display names. Remaining: customer-admin program/document/training configuration and management UX.
 - Phase 6: Completion/submission integration — blocked until prior Supplier Assessment phases.
 - Phase 7: Cross-suite hardening and compatibility regression gate — blocked until prior Supplier Assessment phases.
+- Immutable submission and parent-controlled unlock workflow — **DONE (2026-08-23)**. Follow-up: add disposable deterministic fixtures for complete unlock/resubmit mutation coverage without altering shared preview data.
 
 ### P1 — Upcoming
 - Custom Dashboard (consume `kpi_cards`)

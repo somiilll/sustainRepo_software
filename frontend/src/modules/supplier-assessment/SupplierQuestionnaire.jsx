@@ -138,7 +138,7 @@ export default function SupplierQuestionnaire() {
     return (
       <div className="text-center py-12">
         <p className="text-stone-500">No questions found in this questionnaire.</p>
-        <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>
+        <Button variant="outline" className="mt-4" onClick={() => navigate(-1)} data-testid="supplier-questionnaire-empty-back-button">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Go Back
         </Button>
@@ -161,13 +161,14 @@ export default function SupplierQuestionnaire() {
             onValueChange={(v) => handleAnswer(question.id, v === 'true')}
             disabled={isReadOnly}
             className="flex gap-4"
+            data-testid={`supplier-questionnaire-answer-${question.id}`}
           >
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="true" id={`${question.id}-yes`} />
+              <RadioGroupItem value="true" id={`${question.id}-yes`} data-testid={`supplier-questionnaire-answer-${question.id}-yes`} />
               <Label htmlFor={`${question.id}-yes`}>Yes</Label>
             </div>
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="false" id={`${question.id}-no`} />
+              <RadioGroupItem value="false" id={`${question.id}-no`} data-testid={`supplier-questionnaire-answer-${question.id}-no`} />
               <Label htmlFor={`${question.id}-no`}>No</Label>
             </div>
           </RadioGroup>
@@ -182,6 +183,7 @@ export default function SupplierQuestionnaire() {
             disabled={isReadOnly}
             placeholder="Enter a number"
             className="max-w-xs"
+            data-testid={`supplier-questionnaire-answer-${question.id}`}
           />
         );
       
@@ -192,7 +194,7 @@ export default function SupplierQuestionnaire() {
             onValueChange={(v) => handleAnswer(question.id, v)}
             disabled={isReadOnly}
           >
-            <SelectTrigger className="max-w-xs">
+            <SelectTrigger className="max-w-xs" data-testid={`supplier-questionnaire-answer-${question.id}`}>
               <SelectValue placeholder="Select an option" />
             </SelectTrigger>
             <SelectContent>
@@ -214,6 +216,7 @@ export default function SupplierQuestionnaire() {
             disabled={isReadOnly}
             placeholder="Enter your answer"
             rows={4}
+            data-testid={`supplier-questionnaire-answer-${question.id}`}
           />
         );
     }
@@ -224,7 +227,7 @@ export default function SupplierQuestionnaire() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} data-testid="supplier-questionnaire-back-button">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
@@ -234,10 +237,13 @@ export default function SupplierQuestionnaire() {
           )}
         </div>
         {isReadOnly && (
-          <Badge className="bg-green-100 text-green-800">
+          <Badge className="bg-green-100 text-green-800" data-testid="supplier-questionnaire-locked-badge">
             <CheckCircle className="h-3 w-3 mr-1" />
             Submitted
           </Badge>
+        )}
+        {questionnaire.response_status === 'in_progress' && questionnaire.reopened_at && (
+          <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-questionnaire-reopened-badge">Unlocked for resubmission</Badge>
         )}
       </div>
 
@@ -264,6 +270,7 @@ export default function SupplierQuestionnaire() {
               <button
                 key={q.id}
                 onClick={() => setCurrentIndex(i)}
+                data-testid={`supplier-questionnaire-step-${i + 1}`}
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs transition-colors ${
                   i === currentIndex
                     ? 'bg-emerald-500 text-white'
@@ -313,6 +320,7 @@ export default function SupplierQuestionnaire() {
           variant="outline"
           onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
           disabled={currentIndex === 0}
+          data-testid="supplier-questionnaire-previous-button"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
           Previous
@@ -321,11 +329,11 @@ export default function SupplierQuestionnaire() {
         <div className="flex items-center gap-2">
           {!isReadOnly && (
             <>
-              <Button variant="outline" onClick={() => handleSave(false)} disabled={saving}>
+              <Button variant="outline" onClick={() => handleSave(false)} disabled={saving} data-testid="save-supplier-questionnaire-draft-button">
                 <Save className="h-4 w-4 mr-1" />
                 {saving ? 'Saving...' : 'Save Draft'}
               </Button>
-              <Button onClick={handleSubmit} disabled={submitting}>
+              <Button onClick={handleSubmit} disabled={submitting} data-testid="submit-supplier-questionnaire-button">
                 <Send className="h-4 w-4 mr-1" />
                 {submitting ? 'Submitting...' : 'Submit'}
               </Button>
@@ -337,6 +345,7 @@ export default function SupplierQuestionnaire() {
           variant="outline"
           onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
           disabled={currentIndex === questions.length - 1}
+          data-testid="supplier-questionnaire-next-button"
         >
           Next
           <ArrowRight className="h-4 w-4 ml-1" />

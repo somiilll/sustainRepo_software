@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { Search, Cloud, Factory, Filter } from 'lucide-react';
+import { Search, Cloud, Factory, Filter, LockOpen } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -34,6 +35,8 @@ export default function SupplierGHGView() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
+  const [unlockTarget, setUnlockTarget] = useState(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   const fetchEmissions = useCallback(async () => {
     try {
@@ -54,6 +57,21 @@ export default function SupplierGHGView() {
   useEffect(() => {
     fetchEmissions();
   }, [fetchEmissions]);
+
+  const unlockSupplierGhg = async () => {
+    if (!unlockTarget) return;
+    setUnlocking(true);
+    try {
+      await axios.post(`${API}/supplier-assessment/suppliers/${unlockTarget.supplier_relationship_id}/emissions/reopen`, {}, { headers: getAuthHeader() });
+      toast.success(`${unlockTarget.supplier_name} can now revise and resubmit GHG data`);
+      setUnlockTarget(null);
+      await fetchEmissions();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not unlock GHG data');
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   const filteredEmissions = emissions.filter((e) => {
     const matchesSearch = !search || 
@@ -136,7 +154,7 @@ export default function SupplierGHGView() {
                   <TableHead>Supplier</TableHead>
                   <TableHead className="text-right">Scope 1 (tCO2e)</TableHead>
                   <TableHead className="text-right">Scope 2 (tCO2e)</TableHead>
-                  <TableHead className="text-right">Total (tCO2e)</TableHead>
+                  <TableHead className="text-right">Total (tCO2e)</TableHead><TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -145,7 +163,7 @@ export default function SupplierGHGView() {
                     <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
                     <TableCell className="text-right">{(supplier.scope1 || 0).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{(supplier.scope2 || 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-semibold">{(supplier.total || 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-semibold">{(supplier.total || 0).toFixed(2)}</TableCell><TableCell className="text-right"><Button variant="outline" size="sm" onClick={() => setUnlockTarget(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="mr-1 h-4 w-4" />Unlock</Button></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -159,6 +177,7 @@ export default function SupplierGHGView() {
         <CardHeader><CardTitle>Submitted emissions by scope and category</CardTitle></CardHeader>
         <CardContent>{aggregations.length === 0 ? <p className="text-sm text-stone-500" data-testid="submitted-ghg-aggregation-empty">No supplier GHG submission has been received.</p> : <Table data-testid="submitted-ghg-aggregation-table"><TableHeader><TableRow><TableHead>Scope</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Entries</TableHead><TableHead className="text-right">Emissions (tCO₂e)</TableHead></TableRow></TableHeader><TableBody>{aggregations.map((row) => <TableRow key={`${row.scope}-${row.category}`} data-testid={`submitted-ghg-aggregation-${row.scope}-${row.category}`}><TableCell>{row.scope === 'scope1' ? 'Scope 1' : 'Scope 2'}</TableCell><TableCell>{row.category}</TableCell><TableCell className="text-right">{row.entry_count}</TableCell><TableCell className="text-right font-mono">{row.total_emissions.toFixed(4)}</TableCell></TableRow>)}</TableBody></Table>}</CardContent>
       </Card>
+      <AlertDialog open={Boolean(unlockTarget)} onOpenChange={(open) => !open && setUnlockTarget(null)}><AlertDialogContent data-testid="unlock-supplier-ghg-dialog"><AlertDialogHeader><AlertDialogTitle>Unlock GHG data for resubmission?</AlertDialogTitle><AlertDialogDescription>The supplier receives a private draft copy. Their current submitted data remains visible here until they resubmit.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-unlock-supplier-ghg-button">Cancel</AlertDialogCancel><AlertDialogAction disabled={unlocking} onClick={unlockSupplierGhg} data-testid="confirm-unlock-supplier-ghg-button">{unlocking ? 'Unlocking…' : 'Unlock for resubmission'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
@@ -168,10 +187,11 @@ export default function SupplierGHGView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
+            data-testid="supplier-ghg-search-input"
           />
         </div>
         <Select value={scopeFilter} onValueChange={setScopeFilter}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" data-testid="supplier-ghg-scope-filter">
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Filter scope" />
           </SelectTrigger>
