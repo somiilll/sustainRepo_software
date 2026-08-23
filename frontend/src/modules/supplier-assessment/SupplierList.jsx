@@ -486,11 +486,11 @@ export default function SupplierList() {
 
       {/* Add Supplier Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md" data-testid="add-supplier-dialog">
+          <DialogHeader className="shrink-0 border-b px-6 py-5">
             <DialogTitle>Add Supplier</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4" data-testid="add-supplier-form-scroll-area">
             <div className="space-y-2">
               <Label>Company Name *</Label>
               <Input
@@ -615,8 +615,8 @@ export default function SupplierList() {
               {trainings.length > 0 && <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-medium"><GraduationCap className="h-4 w-4" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+          <DialogFooter className="shrink-0 border-t bg-white px-6 py-4">
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} data-testid="cancel-add-supplier-button">
               Cancel
             </Button>
             <Button onClick={handleAdd} disabled={submitting} data-testid="submit-supplier">
@@ -628,11 +628,11 @@ export default function SupplierList() {
 
       {/* Edit Supplier Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md" data-testid="edit-supplier-dialog">
+          <DialogHeader className="shrink-0 border-b px-6 py-5">
             <DialogTitle>Edit Supplier</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4" data-testid="edit-supplier-form-scroll-area">
             <div className="space-y-2">
               <Label>Company Name</Label>
               <Input
@@ -725,11 +725,11 @@ export default function SupplierList() {
               </div>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+          <DialogFooter className="shrink-0 border-t bg-white px-6 py-4">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)} data-testid="cancel-edit-supplier-button">
               Cancel
             </Button>
-            <Button onClick={handleEdit} disabled={submitting}>
+            <Button onClick={handleEdit} disabled={submitting} data-testid="submit-edit-supplier-button">
               {submitting ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
