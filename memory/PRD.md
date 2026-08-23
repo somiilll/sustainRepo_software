@@ -480,5 +480,11 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 ### Prioritised Backlog
 
 - **P1:** Automatic reminder scheduler; document replacement/version publishing; advanced document response types; custom dashboard; target settings; evidence integrity; supplier/customer onboarding wizards; BRSR Word export and prior-year columns.
-- **P2:** Global Supplier Assessment reporting-period selector; MIS schedule preview/report bookmarks; Custom Fuel month-value copy; spend-basis inflation resolution; remaining non-golden backend test cleanup.
+- **P2:** MIS schedule preview/report bookmarks; Custom Fuel month-value copy; spend-basis inflation resolution; remaining non-golden backend test cleanup.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 unified GHG form remains strictly blocked until instructed.
+
+## Change Log — 2026-08-23: Global Supplier Assessment Reporting-Period Selector
+
+- Added one persistent reporting-period selector across the customer-admin Supplier Assessment workspace. It reads available supplier periods, keeps the selected period while navigating among assessment pages, and includes current/adjacent calendar-year options for new periods.
+- Supplier lists, supplier assignment search, rankings, submitted GHG, document requirements/responses, and training assignment/progress are now requested and displayed for the active reporting period. New supplier creation defaults to that same selected period.
+- Per user instruction, this change was **not tested**.

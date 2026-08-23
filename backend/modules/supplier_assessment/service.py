@@ -224,6 +224,7 @@ class SupplierAssessmentService:
         page_size: int = 20,
         status_filter: Optional[str] = None,
         search: Optional[str] = None,
+        reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get paginated list of suppliers for a customer."""
         query = {
@@ -233,6 +234,8 @@ class SupplierAssessmentService:
         
         if status_filter:
             query["invitation_status"] = status_filter
+        if reporting_period:
+            query["reporting_period"] = reporting_period
         
         if search:
             query["$or"] = [
@@ -1154,10 +1157,14 @@ class SupplierAssessmentService:
     async def get_supplier_rankings(
         self,
         customer_org_id: str,
+        reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get supplier rankings for a customer with detailed breakdown."""
+        supplier_query = {"customer_org_id": customer_org_id, "is_active": True}
+        if reporting_period:
+            supplier_query["reporting_period"] = reporting_period
         suppliers = await db.supplier_relationships.find(
-            {"customer_org_id": customer_org_id, "is_active": True},
+            supplier_query,
             {"_id": 0}
         ).to_list(1000)
         

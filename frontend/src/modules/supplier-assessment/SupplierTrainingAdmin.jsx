@@ -3,6 +3,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { Archive, CalendarDays, Loader2, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
@@ -14,6 +15,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function SupplierTrainingAdmin() {
   const { getAuthHeader } = useAuth();
+  const { reportingPeriod } = useSupplierAssessmentPeriod();
   const [trainings, setTrainings] = useState([]);
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState('');
@@ -29,12 +31,12 @@ export default function SupplierTrainingAdmin() {
   const load = useCallback(async () => {
     try {
       const [trainingResponse, configResponse] = await Promise.all([
-        axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
+        axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
         axios.get(`${API}/sustainability-config/resolved`, { headers: getAuthHeader() }),
       ]);
       const trainingItems = trainingResponse.data;
       const statusResults = await Promise.allSettled(trainingItems.map((training) => (
-        axios.get(`${API}/supplier-assessment/trainings/${training.id}/status`, { headers: getAuthHeader() })
+        axios.get(`${API}/supplier-assessment/trainings/${training.id}/status?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() })
       )));
       setTrainings(trainingItems.map((training, index) => ({
         ...training,
@@ -44,7 +46,7 @@ export default function SupplierTrainingAdmin() {
     } catch (error) {
       toast.error('Could not load training management');
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, reportingPeriod]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -114,7 +116,7 @@ export default function SupplierTrainingAdmin() {
         <div className="space-y-2"><Label htmlFor="training-description">Description</Label><Input id="training-description" value={description} onChange={(event) => setDescription(event.target.value)} data-testid="training-description-input" /></div>
         <div className="space-y-2"><Label htmlFor="training-due-date">Due date</Label><Input id="training-due-date" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} data-testid="training-due-date-input" /></div>
         <div className="space-y-2"><Label htmlFor="training-file">Content file</Label><Input id="training-file" type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={(event) => setFile(event.target.files?.[0])} data-testid="training-file-input" /></div>
-        <div className="md:col-span-2"><SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" /></div>
+        <div className="md:col-span-2"><SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" reportingPeriod={reportingPeriod} /></div>
         <div className="flex items-end"><Button onClick={create} disabled={isCreating} data-testid="create-training-button">{isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isCreating ? 'Creating…' : 'Create and assign'}</Button></div>
       </CardContent>
     </Card>

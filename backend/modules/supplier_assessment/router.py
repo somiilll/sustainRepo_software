@@ -77,6 +77,13 @@ async def get_customer_admin(current_user: dict = Depends(get_admin_user)):
 # Supplier Management (Customer Admin)
 # ============================================================================
 
+@router.get("/reporting-periods")
+async def list_reporting_periods(current_user: dict = Depends(get_customer_admin)):
+    periods = await db.supplier_relationships.distinct(
+        "reporting_period", {"customer_org_id": current_user["organization_id"], "is_active": True}
+    )
+    return {"periods": sorted([period for period in periods if isinstance(period, str) and period], reverse=True)}
+
 @router.post("/suppliers", response_model=dict)
 async def create_supplier(
     data: SupplierCreate,
@@ -110,6 +117,7 @@ async def list_suppliers(
     page_size: int = Query(20, ge=1, le=100),
     status: Optional[str] = None,
     search: Optional[str] = None,
+    reporting_period: Optional[str] = None,
     current_user: dict = Depends(get_customer_admin),
 ):
     """Get paginated list of suppliers."""
@@ -119,6 +127,7 @@ async def list_suppliers(
         page_size=page_size,
         status_filter=status,
         search=search,
+        reporting_period=reporting_period,
     )
     return result
 
@@ -205,9 +214,9 @@ async def send_reminder(
 # ============================================================================
 
 @router.get("/documents")
-async def list_documents(current_user: dict = Depends(get_customer_admin)):
+async def list_documents(reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     """List this customer's active supplier-agreement requirements."""
-    return await documents_service.list_customer_documents(current_user["organization_id"])
+    return await documents_service.list_customer_documents(current_user["organization_id"], reporting_period)
 
 
 @router.post("/documents")
@@ -282,8 +291,12 @@ async def create_training(file: UploadFile = File(...), title: str = Form(...), 
         raise HTTPException(status_code=400, detail=str(error))
 
 @router.get("/trainings")
-async def list_trainings(current_user: dict = Depends(get_customer_admin)):
-    return await db.supplier_training_requirements.find({"organization_id": current_user["organization_id"], "is_deleted": {"$ne": True}}, {"_id": 0}).sort("created_at", -1).to_list(200)
+async def list_trainings(reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
+    query = {"organization_id": current_user["organization_id"], "is_deleted": {"$ne": True}}
+    if reporting_period:
+        assignment_ids = await db.supplier_training_assignments.distinct("training_requirement_id", {"organization_id": current_user["organization_id"], "reporting_period": reporting_period, "is_active": True})
+        query["id"] = {"$in": assignment_ids}
+    return await db.supplier_training_requirements.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
 
 @router.patch("/trainings/{training_id}")
 async def update_training(training_id: str, data: TrainingUpdate, current_user: dict = Depends(get_customer_admin)):
@@ -299,8 +312,8 @@ async def delete_training(training_id: str, current_user: dict = Depends(get_cus
     return {"message": "Training deleted"}
 
 @router.get("/trainings/{training_id}/status")
-async def get_training_status(training_id: str, current_user: dict = Depends(get_customer_admin)):
-    status_rows = await training_service.training_status(current_user["organization_id"], training_id)
+async def get_training_status(training_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
+    status_rows = await training_service.training_status(current_user["organization_id"], training_id, reporting_period)
     if status_rows is None: raise HTTPException(status_code=404, detail="Training not found")
     return status_rows
 
@@ -597,10 +610,11 @@ async def reopen_supplier_document(supplier_id: str, requirement_id: str, curren
 
 @router.get("/rankings", response_model=SupplierRankingResponse)
 async def get_rankings(
+    reporting_period: Optional[str] = None,
     current_user: dict = Depends(get_customer_admin),
 ):
     """Get supplier rankings."""
-    return await supplier_service.get_supplier_rankings(current_user["organization_id"])
+    return await supplier_service.get_supplier_rankings(current_user["organization_id"], reporting_period)
 
 
 # ============================================================================
@@ -1129,7 +1143,8 @@ async def get_supplier_emissions(
 
 @router.get("/emissions/all")
 async def get_all_supplier_emissions(
+    reporting_period: Optional[str] = None,
     current_user: dict = Depends(get_customer_admin),
 ):
     """Admin views only supplier GHG snapshots that were explicitly submitted."""
-    return await ghg_submission_service.get_parent_submitted_ghg(current_user["organization_id"])
+    return await ghg_submission_service.get_parent_submitted_ghg(current_user["organization_id"], reporting_period)

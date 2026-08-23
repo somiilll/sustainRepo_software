@@ -7,7 +7,7 @@ import { Label } from '../../../components/ui/label';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-export const SupplierAssignmentPicker = ({ selectedIds, onChange, getAuthHeader, testIdPrefix }) => {
+export const SupplierAssignmentPicker = ({ selectedIds, onChange, getAuthHeader, testIdPrefix, reportingPeriod }) => {
   const [suppliers, setSuppliers] = useState([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -17,10 +17,11 @@ export const SupplierAssignmentPicker = ({ selectedIds, onChange, getAuthHeader,
   const load = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
     if (search.trim()) params.set('search', search.trim());
+    if (reportingPeriod) params.set('reporting_period', reportingPeriod);
     const response = await axios.get(`${API}/supplier-assessment/suppliers?${params}`, { headers: getAuthHeader() });
     setSuppliers(response.data.suppliers || []);
     setTotal(response.data.total || 0);
-  }, [getAuthHeader, page, search]);
+  }, [getAuthHeader, page, search, reportingPeriod]);
 
   useEffect(() => { load().catch(() => setSuppliers([])); }, [load]);
   useEffect(() => { setPage(1); }, [search]);
