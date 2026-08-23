@@ -9,7 +9,7 @@ from modules.supplier_assessment.programs import get_or_create_program_revision,
 from modules.sustainability_config import service as sustainability_config_service
 
 TRAINING_BUCKET = "supplier_assessment"
-TRAINING_FOLDER = "supplier-assessment/training"
+TRAINING_FOLDER = "training"
 ALLOWED_TYPES = {
     "application/pdf", "application/vnd.ms-powerpoint",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -28,7 +28,8 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
         raise ValueError("Enable the Training module in Organization Config before assigning training")
     relationships = await db.supplier_relationships.find({"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True}, {"_id": 0, "id": 1}).to_list(1000)
     if len(relationships) != len(set(relationship_ids)): raise ValueError("One or more suppliers are not available to this organization")
-    upload = await get_r2_storage().upload_file(content, file_name, TRAINING_BUCKET, content_type, folder=TRAINING_FOLDER, metadata={"uploaded_by": user_id, "kind": "supplier_training"})
+    organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1, "organization_name": 1})
+    upload = await get_r2_storage().upload_file(content, file_name, TRAINING_BUCKET, content_type, folder=TRAINING_FOLDER, metadata={"uploaded_by": user_id, "kind": "supplier_training"}, org_name=(organization or {}).get("organization_name") or (organization or {}).get("name"))
     if upload.get("error"): raise ValueError(upload["error"])
     now, content_id, requirement_id, version_id = _now(), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     content_doc = {"id": content_id, "organization_id": org_id, "title": title.strip(), "description": description or "", "created_by": user_id, "created_at": now}

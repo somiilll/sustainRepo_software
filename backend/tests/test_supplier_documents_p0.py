@@ -114,7 +114,7 @@ async def test_publish_keeps_immutable_metadata_and_versions_per_lineage(monkeyp
     assert separate["version"]["version_number"] == 1
     assert all("_id" not in version for version in versions)
     assert storage.uploads[0]["bucket_type"] == "supplier_assessment"
-    assert storage.uploads[0]["folder"] == "supplier-assessment/documents"
+    assert storage.uploads[0]["folder"] == "documents"
     assert storage.uploads[0]["metadata"]["document_type"] == "supplier_agreement"
     assert len(database.supplier_document_versions.docs) == 4
 
@@ -155,7 +155,8 @@ async def test_supplier_isolation_multiple_acceptances_and_immutable_acceptance(
     assert (await documents_module.get_completion(database, supplier_two)).completion_percent == 100.0
 
 
-def test_document_api_exposes_no_update_or_delete_mutation_routes():
+def test_document_api_exposes_only_the_audit_safe_delete_mutation_route():
     document_routes = [route for route in router.routes if "/documents" in route.path]
     assert document_routes
-    assert all("PUT" not in route.methods and "DELETE" not in route.methods for route in document_routes)
+    assert all("PUT" not in route.methods for route in document_routes)
+    assert any(route.path == "/supplier-assessment/documents/{requirement_id}" and "DELETE" in route.methods for route in document_routes)
