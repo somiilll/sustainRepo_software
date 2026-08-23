@@ -1,37 +1,20 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { toast } from 'sonner';
 import { CheckCircle2, ExternalLink, FileText } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
+import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function SupplierDocuments() {
-  const { getAuthHeader } = useAuth();
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [acceptingId, setAcceptingId] = useState(null);
-  const loadDocuments = useCallback(async () => {
-    try { const response = await axios.get(`${API}/supplier-assessment/my-assessment/documents`, { headers: getAuthHeader() }); setDocuments(response.data || []); }
-    catch (error) { if (error.response?.status !== 404) toast.error('Could not load agreements'); }
-    finally { setLoading(false); }
-  }, [getAuthHeader]);
+  const { getAuthHeader } = useAuth(); const [documents, setDocuments] = useState([]); const [loading, setLoading] = useState(true); const [submittingId, setSubmittingId] = useState(null);
+  const loadDocuments = useCallback(async () => { try { setDocuments((await axios.get(`${API}/supplier-assessment/my-assessment/documents`, { headers: getAuthHeader() })).data || []); } catch (error) { if (error.response?.status !== 404) toast.error('Could not load agreements'); } finally { setLoading(false); } }, [getAuthHeader]);
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
-  const viewDocument = async (document) => {
-    try { const response = await axios.get(`${API}/supplier-assessment/my-assessment/documents/${document.id}/view`, { headers: getAuthHeader() }); window.open(response.data.url, '_blank', 'noopener,noreferrer'); }
-    catch (error) { toast.error(error.response?.data?.detail || 'Could not open agreement'); }
-  };
-  const acceptDocument = async (document) => {
-    setAcceptingId(document.id);
-    try { await axios.post(`${API}/supplier-assessment/my-assessment/documents/${document.id}/accept`, {}, { headers: getAuthHeader() }); toast.success('Agreement accepted'); loadDocuments(); }
-    catch (error) { toast.error(error.response?.data?.detail || 'Could not record acceptance'); }
-    finally { setAcceptingId(null); }
-  };
-  return <div className="space-y-8" data-testid="supplier-documents-page">
-    <div><h1 className="text-3xl font-semibold text-stone-900">Agreements</h1><p className="mt-2 text-sm text-stone-600">Review and accept the current agreements from your customer.</p></div>
-    {loading ? <p className="py-10 text-center text-sm text-stone-500" data-testid="supplier-documents-loading">Loading agreements…</p> : documents.length === 0 ? <Card data-testid="supplier-documents-empty-state"><CardContent className="py-12 text-center text-sm text-stone-500">No agreements are required for this assessment.</CardContent></Card> : documents.map((document) => <Card key={document.id} data-testid={`supplier-document-card-${document.id}`}><CardHeader><div className="flex items-start justify-between gap-4"><div><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5 text-emerald-700" />{document.title}</CardTitle><CardDescription className="mt-2">{document.original_filename} · Version {document.version_number}</CardDescription></div>{document.accepted ? <Badge className="bg-emerald-100 text-emerald-800" data-testid={`supplier-document-accepted-${document.id}`}><CheckCircle2 className="mr-1 h-3 w-3" />Accepted</Badge> : <Badge variant="outline" data-testid={`supplier-document-pending-${document.id}`}>Review required</Badge>}</div></CardHeader><CardContent className="flex flex-wrap gap-3"><Button variant="outline" onClick={() => viewDocument(document)} data-testid={`view-supplier-document-${document.id}`}>View agreement<ExternalLink className="ml-2 h-4 w-4" /></Button>{!document.accepted && <Button onClick={() => acceptDocument(document)} disabled={acceptingId === document.id} data-testid={`accept-supplier-document-${document.id}`}>{acceptingId === document.id ? 'Recording…' : 'Accept agreement'}</Button>}</CardContent></Card>)}
-  </div>;
+  const viewDocument = async (document) => { try { const response = await axios.get(`${API}/supplier-assessment/my-assessment/documents/${document.id}/view`, { headers: getAuthHeader() }); window.open(response.data.url, '_blank', 'noopener,noreferrer'); } catch (error) { toast.error(error.response?.data?.detail || 'Could not open agreement'); } };
+  const acceptDocument = async (document) => { setSubmittingId(document.id); try { await axios.post(`${API}/supplier-assessment/my-assessment/documents/${document.id}/accept`, {}, { headers: getAuthHeader() }); toast.success('Agreement accepted'); await loadDocuments(); } catch (error) { toast.error(error.response?.data?.detail || 'Could not record acceptance'); } finally { setSubmittingId(null); } };
+  const selectStatus = async (document, responseValue) => { setSubmittingId(document.id); try { await axios.post(`${API}/supplier-assessment/my-assessment/documents/${document.id}/respond`, { response_value: responseValue }, { headers: getAuthHeader() }); toast.success('Response saved'); await loadDocuments(); } catch (error) { toast.error(error.response?.data?.detail || 'Could not save response'); } finally { setSubmittingId(null); } };
+  return <div className="space-y-8" data-testid="supplier-documents-page"><div><h1 className="text-3xl font-semibold text-stone-900">Agreements</h1><p className="mt-2 text-sm text-stone-600">Review the current agreements from your customer and provide the requested response.</p></div>{loading ? <p className="py-10 text-center text-sm text-stone-500" data-testid="supplier-documents-loading">Loading agreements…</p> : documents.length === 0 ? <Card data-testid="supplier-documents-empty-state"><CardContent className="py-12 text-center text-sm text-stone-500">No agreements are required for this assessment.</CardContent></Card> : documents.map((document) => <Card key={document.id} data-testid={`supplier-document-card-${document.id}`}><CardHeader><div className="flex items-start justify-between gap-4"><div><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5 text-emerald-700" />{document.title}</CardTitle><CardDescription className="mt-2">{document.original_filename} · Version {document.version_number}</CardDescription></div>{document.selected_response || document.accepted ? <Badge className="bg-emerald-100 text-emerald-800" data-testid={`supplier-document-response-${document.id}`}><CheckCircle2 className="mr-1 h-3 w-3" />{document.selected_response || 'Accepted'}</Badge> : <Badge variant="outline" data-testid={`supplier-document-pending-${document.id}`}>Response required</Badge>}</div></CardHeader><CardContent className="flex flex-wrap gap-3"><Button variant="outline" onClick={() => viewDocument(document)} data-testid={`view-supplier-document-${document.id}`}>View agreement<ExternalLink className="ml-2 h-4 w-4" /></Button>{document.response_mode === 'STATUS' ? document.response_options.map((option) => <Button key={option} variant={document.selected_response === option ? 'default' : 'outline'} disabled={submittingId === document.id} onClick={() => selectStatus(document, option)} data-testid={`document-status-option-${document.id}-${option.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{option}</Button>) : !document.accepted && <Button onClick={() => acceptDocument(document)} disabled={submittingId === document.id} data-testid={`accept-supplier-document-${document.id}`}>{submittingId === document.id ? 'Recording…' : 'Accept agreement'}</Button>}</CardContent></Card>)}</div>;
 }
