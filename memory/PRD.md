@@ -488,6 +488,11 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Updated Add Supplier and Edit Supplier dialogs with viewport-bounded layouts: the header and actions remain visible while the form content scrolls independently, including document/training assignment lists.
 - Added stable test identifiers for the dialogs, scroll areas, and form actions. JavaScript lint completed before the user requested no further testing; no browser or flow testing was run. No APIs are **MOCKED**.
 
+## Change Log — 2026-08-23: Empty Supplier Assignment Cleanup
+
+- The Add Supplier form now shows “Assign existing content” only when at least one active document or training requirement is available. Empty assignment controls no longer take space in a new workspace.
+- Per user instruction, this focused UI adjustment was not tested. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Global Supplier Assessment Reporting-Period Selector
 
 - Added one persistent reporting-period selector across the customer-admin Supplier Assessment workspace. It reads available supplier periods, keeps the selected period while navigating among assessment pages, and includes current/adjacent calendar-year options for new periods.
