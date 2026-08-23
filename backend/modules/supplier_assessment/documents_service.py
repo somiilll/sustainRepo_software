@@ -12,7 +12,7 @@ from modules.supplier_assessment.programs import get_or_create_program_revision,
 
 
 DOCUMENT_BUCKET_TYPE = "supplier_assessment"
-DOCUMENT_FOLDER = "supplier-assessment/documents"
+DOCUMENT_FOLDER = "documents"
 ALLOWED_DOCUMENT_TYPES = {
     "application/pdf",
     "application/msword",

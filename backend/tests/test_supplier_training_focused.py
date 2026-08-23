@@ -84,6 +84,7 @@ async def test_create_training_requires_title(monkeypatch):
 @pytest.mark.asyncio
 async def test_create_training_always_stores_a_100_percent_threshold(monkeypatch):
     fake_db = _DB(
+        organizations=[{"id": "org-1", "name": "Customer One"}],
         supplier_relationships=[{"id": "rel-1", "customer_org_id": "org-1", "is_active": True}],
         supplier_training_contents=[], supplier_training_versions=[],
         supplier_training_requirements=[], supplier_training_assignments=[],
