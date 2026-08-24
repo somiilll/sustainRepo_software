@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
+import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
 import { 
   Plus, 
   Search, 
@@ -81,7 +82,7 @@ export default function SupplierList() {
     email: '',
     contact_number: '',
     due_date: '',
-    reporting_period: `CY${new Date().getFullYear()}`,
+    reporting_period: reportingPeriod,
     modules_enabled: ['esg', 'ghg'],
     ghg_scopes_enabled: ['scope1', 'scope2'],
     revenue_required: false,
@@ -174,7 +175,10 @@ export default function SupplierList() {
     
     setSubmitting(true);
     try {
-      await axios.post(`${API}/supplier-assessment/suppliers`, formData, {
+      await axios.post(`${API}/supplier-assessment/suppliers`, {
+        ...formData,
+        reporting_period: reportingPeriod,
+      }, {
         headers: getAuthHeader(),
       });
       toast.success('Supplier added and invitation sent');
@@ -544,8 +548,8 @@ export default function SupplierList() {
 
       {/* Add Supplier Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl" data-testid="add-supplier-dialog">
-          <DialogHeader className="shrink-0 border-b border-emerald-100 bg-emerald-50/60 px-7 py-5">
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden bg-white p-0 sm:max-w-4xl" data-testid="add-supplier-dialog">
+          <DialogHeader className="shrink-0 border-b border-stone-200 bg-white px-7 py-5">
             <DialogTitle className="text-xl">Add Supplier</DialogTitle>
             <p className="mt-1 text-sm text-stone-600">Documents and training are selected by default. Opt out only of the requirements this supplier should not receive.</p>
           </DialogHeader>
@@ -568,24 +572,26 @@ export default function SupplierList() {
                 data-testid="supplier-contact-person"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Email *</Label>
-              <Input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="Enter email address"
-                data-testid="supplier-email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Contact Number</Label>
-              <Input
-                value={formData.contact_number}
-                onChange={(e) => setFormData({ ...formData, contact_number: e.target.value })}
-                placeholder="Enter phone number"
-                data-testid="supplier-phone"
-              />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="Enter email address"
+                  data-testid="supplier-email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Contact Number</Label>
+                <Input
+                  value={formData.contact_number}
+                  onChange={(e) => setFormData({ ...formData, contact_number: e.target.value })}
+                  placeholder="Enter phone number"
+                  data-testid="supplier-phone"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Due Date</Label>
@@ -596,11 +602,19 @@ export default function SupplierList() {
                 data-testid="supplier-due-date"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Reporting Period</Label>
-              <Input value={formData.reporting_period} onChange={(e) => setFormData({ ...formData, reporting_period: e.target.value })} placeholder="e.g., CY2026 or FY2026" data-testid="supplier-reporting-period-input" />
+            <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-4">
+              <Label>Is Annual Revenue required?</Label>
+              <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-5" data-testid="annual-revenue-required-control">
+                <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="annual-revenue-optional">
+                  <RadioGroupItem id="annual-revenue-optional" value="optional" data-testid="annual-revenue-optional-radio" />
+                  Optional
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="annual-revenue-required">
+                  <RadioGroupItem id="annual-revenue-required" value="required" data-testid="annual-revenue-required-radio" />
+                  Required
+                </label>
+              </RadioGroup>
             </div>
-            <div className="space-y-2 rounded-lg border border-amber-100 bg-amber-50/60 p-4"><Label>Is Annual Revenue required?</Label><div className="inline-flex border border-stone-200 bg-white p-1" data-testid="annual-revenue-required-control"><Button type="button" size="sm" variant={!formData.revenue_required ? 'secondary' : 'ghost'} onClick={() => setFormData({ ...formData, revenue_required: false })} data-testid="annual-revenue-optional-button">Optional</Button><Button type="button" size="sm" variant={formData.revenue_required ? 'secondary' : 'ghost'} onClick={() => setFormData({ ...formData, revenue_required: true })} data-testid="annual-revenue-required-button">Required</Button></div></div>
             
             {/* Module Selection */}
             <div className="space-y-3 pt-2 border-t">
