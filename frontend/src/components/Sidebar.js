@@ -76,7 +76,7 @@ function MenuItem(props) {
   if (!hasAccess(item.key)) return null;
 
   var isSupplier = userType === 'supplier' || orgType === 'supplier';
-  var supplierAccessibleItem = item.supplierOnly || item.key === 'dashboard' || item.key === 'environment' || item.key?.startsWith('environment.ghg');
+  var supplierAccessibleItem = item.supplierOnly || ['dashboard', 'facilities', 'profile', 'supplier_assessment'].includes(item.key) || item.key === 'environment' || item.key?.startsWith('environment.ghg');
   var mutedForSupplier = inheritedMuted || (isSupplier && !supplierAccessibleItem);
 
   var hasChildren = item.children && item.children.length > 0;
