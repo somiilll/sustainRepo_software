@@ -10,6 +10,7 @@ from modules.organizations.contracts import OrganizationCreate, OrganizationResp
 from shared.database.mongo import db
 from shared.utils.timezone_utils import get_common_timezones, get_default_timezone_for_country
 from modules.entitlements.service import resolve_entitlements
+from modules.sustainability_config.service import resolve_organization_settings
 
 router = APIRouter()
 
@@ -109,6 +110,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
         return OrgModuleConfig()
     
     entitlements = await resolve_entitlements(org_id, migrate=True)
+    organization_settings = await resolve_organization_settings(org_id, migrate=True)
     from modules.entitlements.service import entitlement_access_map
     org_config = await db["organization_config"].find_one({"organization_id": org_id}, {"_id": 0, "entitlements": 1})
     permissions = entitlement_access_map((org_config or {}).get("entitlements"))
@@ -116,9 +118,9 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
         has_ghg=entitlements["environment"],
         has_esg=any(entitlements[code] for code in ("environment", "social", "governance")),
         enabled_access=org.get("enabled_access"),
-        esg_frameworks_enabled=org.get("esg_frameworks_enabled"),
-        approval_workflow_enabled=org.get("approval_workflow_enabled", False),
-        multi_level_approval_enabled=org.get("multi_level_approval_enabled", False),
+        esg_frameworks_enabled=organization_settings["esg_frameworks_enabled"],
+        approval_workflow_enabled=organization_settings["approval_workflow_enabled"],
+        multi_level_approval_enabled=organization_settings["multi_level_approval_enabled"],
         timezone=org.get("timezone") or "Asia/Kolkata",  # Default to IST
         entitlements=entitlements,
         permissions=permissions,

@@ -89,6 +89,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **VERIFIED:** Focused entitlement regression **8/8 passed**; Pydantic validation passed; Super Admin public browser flow rendered all detailed conditional controls; no APIs are **MOCKED**.
 - **P1 FOLLOW-UP:** Numeric plan limits are persisted and displayed but still need enforcement at each relevant creation/publish/storage boundary (monthly ESG rows, MIS configuration creation, supplier onboarding, and evidence uploads).
 - **DONE (2026-08-24):** Added persisted `ai_credits` to Org Config. It defaults to **0**, rejects negative values, and appears above Platform Access. AI-credit consumption/deduction enforcement is intentionally deferred; this field currently stores the organization balance only.
+- **DONE (2026-08-24):** Consolidated Modules Mode, Custom Categories, KPI Overrides, AI Query Aliases, and Features under the single **ESG Data Setup** Org Config tab, preserving each existing save flow.
+- **DONE (2026-08-24):** Moved Approval Workflow, Multi-Level Approval, and BRSR/GRI framework controls out of the Super Admin Organizations form into **Org Config → ESG Data Setup → Features**. Canonical values now live in `organization_config.organization_settings`; legacy `organizations` fields are read-migrated and mirrored only for compatibility. The regular-user module bootstrap resolves these canonical settings.
+- **VERIFIED:** Focused relocation regression passed all feature checks (8 passing). The application server returns explicit CORS origins correctly. **KNOWN EXTERNAL LIMITATION:** the preview gateway overwrites preflight CORS responses with `Access-Control-Allow-Origin: *`; this is outside this repository’s middleware and caused one external-only auth CORS assertion to fail.
 
 ### Regression Status
 - Backend golden: 506 passed / 9 skipped

@@ -54,6 +54,50 @@ DEFAULT_SUPPLIER_ASSESSMENT_CONFIG = {
     }
 }
 
+DEFAULT_ORGANIZATION_SETTINGS = {
+    "approval_workflow_enabled": False,
+    "multi_level_approval_enabled": False,
+    "esg_frameworks_enabled": [],
+}
+
+
+def normalize_organization_settings(value: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    supplied = value or {}
+    return {
+        "approval_workflow_enabled": bool(supplied.get("approval_workflow_enabled", False)),
+        "multi_level_approval_enabled": bool(supplied.get("multi_level_approval_enabled", False)),
+        "esg_frameworks_enabled": [framework for framework in supplied.get("esg_frameworks_enabled", []) if framework in {"BRSR", "GRI"}],
+    }
+
+
+async def resolve_organization_settings(org_id: str, *, migrate: bool = False) -> Dict[str, Any]:
+    """Resolve Org Config settings, using deprecated organization fields only for migration."""
+    config = await _coll().find_one({"organization_id": org_id}, {"_id": 0, "organization_settings": 1})
+    configured = (config or {}).get("organization_settings")
+    if configured is not None:
+        return normalize_organization_settings(configured)
+
+    organization = await db["organizations"].find_one(
+        {"id": org_id}, {"_id": 0, "approval_workflow_enabled": 1, "multi_level_approval_enabled": 1, "esg_frameworks_enabled": 1},
+    )
+    settings = normalize_organization_settings(organization)
+    if migrate:
+        now = _now()
+        await _coll().update_one(
+            {"organization_id": org_id},
+            {"$set": {"organization_settings": settings, "updated_at": now, "updated_by": "legacy_organization_settings_migration"},
+             "$setOnInsert": {"organization_id": org_id, "created_at": now, "created_by": "legacy_organization_settings_migration"}},
+            upsert=True,
+        )
+    return settings
+
+
+async def sync_legacy_organization_settings_mirror(org_id: str, settings: Dict[str, Any]) -> None:
+    """Retain legacy organization fields for older consumers while Org Config is authoritative."""
+    await db["organizations"].update_one(
+        {"id": org_id}, {"$set": normalize_organization_settings(settings)},
+    )
+
 
 def resolve_supplier_assessment_config_from_org_config(org_cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Resolve the supplier-assessment module shape without creating another config store."""
@@ -102,6 +146,8 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
         )
         if "entitlements" in updates:
             await sync_legacy_entitlement_mirror(org_id, updates["entitlements"])
+        if "organization_settings" in updates:
+            await sync_legacy_organization_settings_mirror(org_id, updates["organization_settings"])
         return result
     else:
         doc = {
@@ -117,6 +163,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             "supplier_assessment": data.get("supplier_assessment", DEFAULT_SUPPLIER_ASSESSMENT_CONFIG),
             "entitlements": normalize_entitlement_config(data.get("entitlements", DEFAULT_ENTITLEMENT_CONFIG)),
             "ai_credits": data.get("ai_credits", 0),
+            "organization_settings": normalize_organization_settings(data.get("organization_settings", DEFAULT_ORGANIZATION_SETTINGS)),
             "created_at": now,
             "updated_at": now,
             "created_by": user_id,
@@ -125,6 +172,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
         await _coll().insert_one(doc)
         doc.pop("_id", None)
         await sync_legacy_entitlement_mirror(org_id, doc["entitlements"])
+        await sync_legacy_organization_settings_mirror(org_id, doc["organization_settings"])
         return doc
 
 
@@ -289,6 +337,7 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         "entitlements": normalize_entitlements(org_cfg.get("entitlements")),
         "entitlement_config": normalize_entitlement_config(org_cfg.get("entitlements")),
         "ai_credits": org_cfg.get("ai_credits", 0),
+        "organization_settings": normalize_organization_settings(org_cfg.get("organization_settings")),
     }
 
 

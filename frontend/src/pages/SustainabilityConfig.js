@@ -15,15 +15,11 @@ import { toast } from 'sonner';
 import { Building2, ChevronRight, Settings2 } from 'lucide-react';
 import {
   OrgOverview,
-  ModulesTab,
-  KPIOverridesTab,
   TargetOverridesTab,
-  CustomCategoriesTab,
-  FeaturesTab,
-  AIQueryAliasesTab,
   GhgCapabilitiesTab,
   SupplierAssessmentTab,
   EntitlementsTab,
+  EsgDataSetupTab,
 } from '../components/sustainability-config';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -118,12 +114,8 @@ export default function SustainabilityConfig() {
           <Tabs defaultValue="entitlements">
             <TabsList className="flex-wrap">
               <TabsTrigger value="entitlements" data-testid="entitlements-tab-trigger">Platform Access</TabsTrigger>
-              <TabsTrigger value="modules">Modules</TabsTrigger>
-              <TabsTrigger value="kpi-overrides">KPI Overrides</TabsTrigger>
+              <TabsTrigger value="esg-data-setup" data-testid="esg-data-setup-tab-trigger">ESG Data Setup</TabsTrigger>
               <TabsTrigger value="target-overrides" data-testid="target-overrides-tab-trigger">Target Overrides</TabsTrigger>
-              <TabsTrigger value="custom-categories">Custom Categories</TabsTrigger>
-              <TabsTrigger value="features" data-testid="features-tab-trigger">Features</TabsTrigger>
-              <TabsTrigger value="ai-query-aliases" data-testid="ai-query-aliases-tab-trigger">AI Query Aliases</TabsTrigger>
               <TabsTrigger value="ghg-capabilities" data-testid="ghg-capabilities-tab-trigger">GHG Capabilities</TabsTrigger>
               <TabsTrigger value="supplier-assessment" data-testid="supplier-assessment-tab-trigger">Supplier Assessment</TabsTrigger>
             </TabsList>
@@ -131,23 +123,11 @@ export default function SustainabilityConfig() {
             <TabsContent value="entitlements" className="mt-4">
               <EntitlementsTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
             </TabsContent>
-            <TabsContent value="modules" className="mt-4">
-              <ModulesTab orgConfig={orgConfig} defaultModules={allDefaultModules.environment} onSave={saveConfig} saving={saving} />
-            </TabsContent>
-            <TabsContent value="kpi-overrides" className="mt-4">
-              <KPIOverridesTab orgConfig={orgConfig} allDefaultModules={allDefaultModules} onSave={saveConfig} saving={saving} />
+            <TabsContent value="esg-data-setup" className="mt-4">
+              <EsgDataSetupTab orgConfig={orgConfig} allDefaultModules={allDefaultModules} onSave={saveConfig} saving={saving} />
             </TabsContent>
             <TabsContent value="target-overrides" className="mt-4">
               <TargetOverridesTab orgConfig={orgConfig} allDefaultModules={allDefaultModules} onSave={saveConfig} saving={saving} />
-            </TabsContent>
-            <TabsContent value="custom-categories" className="mt-4">
-              <CustomCategoriesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
-            </TabsContent>
-            <TabsContent value="features" className="mt-4">
-              <FeaturesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
-            </TabsContent>
-            <TabsContent value="ai-query-aliases" className="mt-4">
-              <AIQueryAliasesTab orgConfig={orgConfig} allDefaultModules={allDefaultModules} onSave={saveConfig} saving={saving} />
             </TabsContent>
             <TabsContent value="ghg-capabilities" className="mt-4">
               <GhgCapabilitiesTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
