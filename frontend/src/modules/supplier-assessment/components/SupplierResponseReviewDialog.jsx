@@ -19,6 +19,32 @@ const scoreStatus = (score) => {
   return { label: 'Needs attention', className: 'text-rose-700' };
 };
 
+const scoreColor = (score) => {
+  if (!Number.isFinite(Number(score))) return '#a8a29e';
+  if (Number(score) >= 80) return '#059669';
+  if (Number(score) >= 60) return '#0f766e';
+  if (Number(score) >= 40) return '#d97706';
+  return '#e11d48';
+};
+
+const ScoreRing = ({ value, label, prominent = false, testId, status }) => {
+  const score = Number(value);
+  const hasScore = Number.isFinite(score);
+  const diameter = prominent ? 'h-32 w-32' : 'h-[4.75rem] w-[4.75rem]';
+  const inner = prominent ? 'h-[6.35rem] w-[6.35rem]' : 'h-[3.75rem] w-[3.75rem]';
+  const progress = hasScore ? Math.min(100, Math.max(0, score)) : 0;
+  return <div className="flex flex-col items-center text-center" data-testid={testId}>
+    <div className={`${diameter} flex items-center justify-center rounded-full p-1`} role="img" aria-label={`${label}: ${formatScore(value)} out of 100`} style={{ background: hasScore ? `conic-gradient(${scoreColor(score)} ${progress}%, #e7e5e4 ${progress}% 100%)` : '#e7e5e4' }}>
+      <div className={`${inner} flex flex-col items-center justify-center rounded-full bg-white`}>
+        <span className={prominent ? 'text-3xl font-semibold leading-none text-stone-900' : 'text-lg font-semibold leading-none text-stone-900'}>{formatScore(value)}</span>
+        <span className="mt-1 text-[10px] font-medium uppercase text-stone-500">/ 100</span>
+        {prominent && <span className={`mt-1 text-[10px] font-semibold ${status.className}`} data-testid="supplier-response-score-status">{status.label}</span>}
+      </div>
+    </div>
+    <span className={`${prominent ? 'mt-3 text-sm' : 'mt-2 text-xs'} font-medium text-stone-700`}>{label}</span>
+  </div>;
+};
+
 export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, supplierId, getAuthHeader, onScoreSaved }) => {
   const [scores, setScores] = useState({});
   const [savingQuestionId, setSavingQuestionId] = useState('');
@@ -65,15 +91,12 @@ export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, sup
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto" data-testid="supplier-response-review-dialog">
       <DialogHeader><DialogTitle data-testid="supplier-response-review-title">Submitted ESG response</DialogTitle></DialogHeader>
-      <section className="grid gap-4 border-y border-stone-200 py-4 sm:grid-cols-[minmax(10rem,0.75fr)_1.25fr]" data-testid="supplier-response-score-summary">
-        <div className="flex items-center gap-3">
-          <div className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-full border-8 border-emerald-100 bg-emerald-50 text-center" data-testid="supplier-response-overall-score">
-            <span className="text-2xl font-semibold leading-none text-stone-900">{formatScore(overallScore)}</span><span className="mt-1 text-[10px] font-medium uppercase text-stone-500">/ 100</span>
-          </div>
-          <div><p className="text-xs font-medium uppercase tracking-wide text-stone-500">ESG score</p><p className={`mt-1 text-sm font-semibold ${status.className}`} data-testid="supplier-response-score-status">{status.label}</p></div>
+      <section className="grid gap-6 border-y border-stone-200 bg-stone-50/70 px-1 py-5 sm:grid-cols-[minmax(10rem,0.72fr)_1.28fr] sm:px-4" data-testid="supplier-response-score-summary">
+        <div className="flex items-center justify-center border-b border-stone-200 pb-5 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-6">
+          <ScoreRing value={overallScore} label="Overall ESG" prominent testId="supplier-response-overall-score" status={status} />
         </div>
-        <dl className="grid grid-cols-3 gap-2" data-testid="supplier-response-section-scores">
-          {sections.map((section) => <div key={section.id} className="border-l border-stone-200 pl-3 first:border-l-0 first:pl-0" data-testid={`supplier-response-${section.id}-score`}><dt className="text-xs text-stone-500">{section.label}</dt><dd className="mt-1 text-lg font-semibold text-stone-900">{formatScore(section.value)}<span className="ml-0.5 text-xs font-normal text-stone-500">/100</span></dd></div>)}
+        <dl className="grid grid-cols-3 gap-3 self-center" data-testid="supplier-response-section-scores">
+          {sections.map((section) => <div key={section.id} data-testid={`supplier-response-${section.id}-score`}><dt className="sr-only">{section.label}</dt><dd><ScoreRing value={section.value} label={section.label} testId={`supplier-response-${section.id}-score-ring`} status={status} /></dd></div>)}
         </dl>
       </section>
       <div className="space-y-3" data-testid="supplier-response-review-questions">
