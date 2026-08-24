@@ -82,6 +82,7 @@ import SupplierTraining from './modules/supplier-assessment/SupplierTraining';
 import SupplierGHGSubmission from './modules/supplier-assessment/SupplierGHGSubmission';
 import SupplierAssessmentAdminLayout from './modules/supplier-assessment/SupplierAssessmentAdminLayout';
 import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
+import SupplierPortalESG from './pages/SupplierPortalESG';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
 import OCRInvoice from './pages/OCRInvoice';
@@ -358,6 +359,7 @@ const AppRoutes = () => {
           
           {/* Supplier Portal Routes (Supplier Users) */}
           <Route path="supplier-assessment/supplier" element={<SupplierPortalDashboard />} />
+          <Route path="supplier-assessment/supplier/esg" element={<SupplierPortalESG />} />
           <Route path="supplier-assessment/questionnaire/:questionnaireId" element={<SupplierPortalQuestionnaire />} />
           <Route path="supplier-assessment/documents/review" element={<SupplierDocuments />} />
           <Route path="supplier-assessment/training" element={<SupplierTraining />} />
