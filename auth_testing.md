@@ -12,3 +12,10 @@
 3. Confirm a valid admin login still succeeds after the unrelated lockout check.
 4. Send an OPTIONS request to `/api/auth/login` from the configured frontend origin; it must return that explicit origin.
 5. Send the same request from an untrusted origin; it must not return an `Access-Control-Allow-Origin` header.
+
+## Supplier Soft-Deactivation Checks
+
+1. Sign in with an active supplier account and retain the access and refresh tokens.
+2. As the parent organization, call `DELETE /api/supplier-assessment/suppliers/{supplier_id}`.
+3. Confirm subsequent supplier login, `POST /api/auth/refresh`, and authenticated `/api/auth/me` requests return HTTP 403 with the supplier-access deactivation message.
+4. Confirm the supplier relationship and all related assessment documents remain in MongoDB; only `supplier_relationships.is_active` is set to `false`.

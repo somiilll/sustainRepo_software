@@ -19,6 +19,24 @@ from shared.helpers.tokens import decode_access_token
 security = HTTPBearer()
 
 
+async def ensure_supplier_relationship_active(user: dict, organization: dict | None = None) -> None:
+    """Prevent supplier accounts with no active customer relationship from accessing the platform."""
+    if user.get("role") == "super_admin" or not user.get("organization_id"):
+        return
+    organization = organization or await db.organizations.find_one(
+        {"id": user["organization_id"]}, {"_id": 0, "org_type": 1}
+    )
+    is_supplier = user.get("user_type") == "supplier" or (organization or {}).get("org_type") == "supplier"
+    if not is_supplier:
+        return
+    relationship = await db.supplier_relationships.find_one(
+        {"supplier_org_id": user["organization_id"], "is_active": True},
+        {"_id": 0, "id": 1},
+    )
+    if not relationship:
+        raise HTTPException(status_code=403, detail="Your supplier access has been deactivated by your customer.")
+
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """
     Resolve and validate the bearer token, returning the user document.
@@ -52,15 +70,16 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if not user.get("is_active", True):
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
 
+    organization = None
     if user.get("role") != "super_admin" and user.get("organization_id"):
-        org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
+        organization = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
 
-        if org and (org.get("is_deleted") or not org.get("is_active", True)):
+        if organization and (organization.get("is_deleted") or not organization.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
 
-        if org and org.get("subscription_expires_at"):
+        if organization and organization.get("subscription_expires_at"):
             try:
-                expires_str = org["subscription_expires_at"]
+                expires_str = organization["subscription_expires_at"]
                 now = datetime.now(timezone.utc)
                 if "T" in str(expires_str):
                     expires_at = datetime.fromisoformat(expires_str.replace("Z", "+00:00"))
@@ -74,6 +93,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 # Same lenient behaviour as the legacy implementation —
                 # date parse failures don't block login.
                 pass
+
+    await ensure_supplier_relationship_active(user, organization)
 
     return user
 
