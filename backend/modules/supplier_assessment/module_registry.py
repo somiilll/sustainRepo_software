@@ -80,7 +80,8 @@ class GhgAssessmentModule(SupplierAssessmentModule):
             "parent_visible": {"$ne": False},
         }
         if relationship.get("reporting_period"):
-            query["reporting_period"] = relationship["reporting_period"]
+            from modules.supplier_assessment.ghg_submission_service import reporting_period_values
+            query["reporting_period"] = {"$in": reporting_period_values(relationship["reporting_period"])}
         record_count = await database.emission_records.count_documents(query)
         return ModuleCompletion(
             self.module_code,
