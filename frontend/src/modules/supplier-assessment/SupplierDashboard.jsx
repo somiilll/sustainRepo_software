@@ -20,7 +20,6 @@ import {
 } from '../../components/ui/alert-dialog';
 import RevenueTaskChecklist from './components/RevenueTaskChecklist';
 import { SupplierOnboarding } from './components/SupplierOnboarding';
-import { SupplierTaskLaunchpad } from './components/SupplierTaskLaunchpad';
 import {
   Select,
   SelectContent,
@@ -246,8 +245,6 @@ export default function SupplierDashboard() {
           <Badge className="mt-4 border border-white/30 bg-white/15 text-white" data-testid="supplier-assessment-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(relationship.due_date).toLocaleDateString()}</Badge>
         )}
       </div>
-
-      {onboarding && <SupplierTaskLaunchpad onboarding={onboarding} />}
 
       {/* Progress Overview */}
       <Card>
