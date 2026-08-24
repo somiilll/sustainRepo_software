@@ -507,7 +507,10 @@ class SupplierRankingEntry(BaseModel):
     scope2_emissions: float = 0
     total_emissions: float = 0
     overall_score: Optional[float] = None
-    completion_status: str  # not_started, in_progress, completed
+    completion_status: str
+    status_label: Optional[str] = None
+    question_progress: Optional[str] = None
+    attention_reasons: List[str] = []
     revenue_percentage: Optional[float] = None
 
 

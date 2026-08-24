@@ -1484,6 +1484,38 @@ class SupplierAssessmentService:
             {"_id": 0}
         ).to_list(1000)
         
+        active_questionnaires = await db.supplier_questionnaires.find(
+            {"organization_id": customer_org_id, "is_active": True},
+            {"_id": 0, "id": 1, "question_count": 1, "due_date": 1},
+        ).to_list(500)
+        questionnaire_by_id = {questionnaire["id"]: questionnaire for questionnaire in active_questionnaires}
+        all_questionnaire_ids = set(questionnaire_by_id)
+        supplier_ids = [supplier["id"] for supplier in suppliers]
+        response_docs = await db.supplier_questionnaire_responses.find(
+            {"supplier_relationship_id": {"$in": supplier_ids}},
+            {"_id": 0, "supplier_relationship_id": 1, "questionnaire_id": 1, "reporting_period": 1, "status": 1, "answers": 1, "revision": 1, "updated_at": 1},
+        ).sort([("revision", -1), ("updated_at", -1)]).to_list(10000)
+        supplier_by_id = {supplier["id"]: supplier for supplier in suppliers}
+        current_responses: Dict[tuple[str, str], Dict[str, Any]] = {}
+        for response in response_docs:
+            supplier = supplier_by_id.get(response["supplier_relationship_id"])
+            if not supplier:
+                continue
+            response_period = response.get("reporting_period")
+            if response_period and response_period != supplier.get("reporting_period"):
+                continue
+            key = (response["supplier_relationship_id"], response["questionnaire_id"])
+            if key not in current_responses:
+                current_responses[key] = response
+
+        def due_date_has_passed(value: Optional[str]) -> bool:
+            if not value:
+                return False
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).date() < datetime.now(timezone.utc).date()
+            except ValueError:
+                return False
+
         rankings = []
         for s in suppliers:
             snapshot = s.get("canonical_score_snapshot") or {}
@@ -1497,12 +1529,43 @@ class SupplierAssessmentService:
             total_ghg = snapshot.get("total_emissions", 0.0)
             overall_score = snapshot.get("overall_score")
             
-            # Determine completion status
-            completion_status = "not_started"
-            if s.get("overall_completion_percent", 0) > 0:
-                completion_status = "in_progress"
+            assigned_questionnaire_ids = set(s.get("questionnaire_ids") or all_questionnaire_ids)
+            assigned_questionnaire_ids &= all_questionnaire_ids
+            supplier_responses = [
+                current_responses[(s["id"], questionnaire_id)]
+                for questionnaire_id in assigned_questionnaire_ids
+                if (s["id"], questionnaire_id) in current_responses
+            ]
+            total_questions = sum(int(questionnaire_by_id[questionnaire_id].get("question_count") or 0) for questionnaire_id in assigned_questionnaire_ids)
+            answered_questions = sum(
+                len([answer for answer in (response.get("answers") or {}).values() if answer not in (None, "")])
+                for response in supplier_responses
+            )
+            submitted_count = len([response for response in supplier_responses if response.get("status") == "submitted"])
+            is_overdue = any(due_date_has_passed(value) for value in [s.get("due_date"), *[questionnaire_by_id[qid].get("due_date") for qid in assigned_questionnaire_ids]])
+            all_assigned_submitted = bool(assigned_questionnaire_ids) and submitted_count == len(assigned_questionnaire_ids)
             if s.get("overall_completion_percent", 0) >= 100:
-                completion_status = "completed"
+                completion_status, status_label = "completed", "Completed"
+            elif is_overdue and not all_assigned_submitted:
+                completion_status, status_label = "overdue", "Overdue"
+            elif all_assigned_submitted:
+                completion_status, status_label = "submitted", "Submitted"
+            elif answered_questions > 0:
+                completion_status, status_label = "in_progress", "In Progress"
+            elif s.get("invitation_status") == "pending":
+                completion_status, status_label = "invited", "Invited"
+            else:
+                completion_status, status_label = "not_started", "Not Started"
+            attention_reasons = []
+            if overall_score is not None and overall_score < 60:
+                attention_reasons.append("Overall score needs improvement")
+            for label, value in (("Environment", env_score), ("Social", social_score), ("Governance", gov_score)):
+                if value is None and esg_score is not None:
+                    attention_reasons.append(f"{label} assessment missing")
+            if ghg_score is None and "ghg" in (s.get("modules_enabled") or []):
+                attention_reasons.append("GHG assessment not completed")
+            if completion_status == "overdue":
+                attention_reasons.append("Assessment is overdue")
             
             rankings.append({
                 "supplier_id": s["id"],
@@ -1517,6 +1580,9 @@ class SupplierAssessmentService:
                 "total_emissions": round(total_ghg, 2),
                 "overall_score": round(overall_score, 1) if overall_score is not None else None,
                 "completion_status": completion_status,
+                "status_label": status_label,
+                "question_progress": f"{answered_questions} / {total_questions} questions" if completion_status == "in_progress" and total_questions else None,
+                "attention_reasons": attention_reasons,
                 "revenue_percentage": snapshot.get("revenue_score"),
             })
         
@@ -1532,10 +1598,10 @@ class SupplierAssessmentService:
         
         # Score distribution buckets
         score_distribution = {
-            "excellent": len([r for r in ranked_suppliers if r["overall_score"] and r["overall_score"] >= 80]),
-            "good": len([r for r in ranked_suppliers if r["overall_score"] and 60 <= r["overall_score"] < 80]),
-            "average": len([r for r in ranked_suppliers if r["overall_score"] and 40 <= r["overall_score"] < 60]),
-            "poor": len([r for r in ranked_suppliers if r["overall_score"] and r["overall_score"] < 40]),
+            "excellent": len([r for r in ranked_suppliers if r["overall_score"] is not None and r["overall_score"] >= 80]),
+            "good": len([r for r in ranked_suppliers if r["overall_score"] is not None and 60 <= r["overall_score"] < 80]),
+            "average": len([r for r in ranked_suppliers if r["overall_score"] is not None and 40 <= r["overall_score"] < 60]),
+            "poor": len([r for r in ranked_suppliers if r["overall_score"] is not None and r["overall_score"] < 40]),
         }
         
         # Average scores
