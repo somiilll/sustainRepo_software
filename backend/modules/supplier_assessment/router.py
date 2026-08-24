@@ -765,6 +765,8 @@ async def get_my_assessment_onboarding(current_user: dict = Depends(get_supplier
     document_pending = [item for item in documents if not item.get("accepted") and not item.get("selected_response") and item.get("submission_status") != "submitted"]
     training_pending = [item for item in trainings if item.get("status") != "completed"]
     ghg_module = next((module for module in modules if module.get("code") == "ghg"), None)
+    facility_required = bool(ghg_module)
+    facility_status = "completed" if facility or not facility_required else "not_started"
     submission = ghg_state.get("submission") or {}
     ghg_pending = bool(ghg_module) and submission.get("status") != "submitted"
     assessment_status = "completed" if questionnaires and not questionnaire_pending else "in_progress" if any(item.get("status") == "in_progress" for item in questionnaires) else "not_started"
@@ -773,9 +775,9 @@ async def get_my_assessment_onboarding(current_user: dict = Depends(get_supplier
     return {
         "parent_name": customer_org.get("name", "your customer"),
         "relationship": {"id": relationship["id"], "reporting_period": relationship.get("reporting_period"), "due_date": relationship.get("due_date")},
-        "facility": {"status": "completed" if facility else "not_started", "facility": facility},
-        "steps": {"facility": "completed" if facility else "not_started", "assessment": assessment_status, "tasks": task_status},
-        "onboarding_complete": bool(facility),
+        "facility": {"required": facility_required, "status": facility_status, "facility": facility},
+        "steps": {"facility": facility_status, "assessment": assessment_status, "tasks": task_status},
+        "onboarding_complete": bool(facility) or not facility_required,
         "modules": modules,
         "tasks": {
             "questionnaires": questionnaires,
