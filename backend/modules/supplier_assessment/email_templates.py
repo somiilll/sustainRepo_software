@@ -1,6 +1,7 @@
 """
 Supplier Assessment Email Templates.
 """
+from html import escape
 from typing import Optional, List
 
 SUSTAINREPO_LOGO_URL = (
@@ -20,6 +21,7 @@ def supplier_invitation_email(
     """HTML body for supplier invitation email."""
     credentials_section = ""
     if temp_password:
+        displayed_password = escape(temp_password)
         credentials_section = f"""
         <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -33,7 +35,7 @@ def supplier_invitation_email(
                     <td style="padding: 10px 0;">
                         <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
                         <div style="background-color: #ffffff; padding: 14px 20px; border-radius: 8px; border: 2px solid #2eb67d; display: inline-block;">
-                            <code style="color: #000000; font-size: 20px; font-family: 'Courier New', Courier, monospace; letter-spacing: 3px; font-weight: bold;">{temp_password}</code>
+                            <code style="color: #000000; font-size: 20px; font-family: 'Courier New', Courier, monospace; letter-spacing: 3px; font-weight: bold;">{displayed_password}</code>
                         </div>
                     </td>
                 </tr>
