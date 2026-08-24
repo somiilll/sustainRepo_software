@@ -98,8 +98,15 @@ export default function SupplierDashboard() {
         headers: getAuthHeader(),
       });
       setAssessment(res.data);
-      const onboardingResponse = await axios.get(`${API}/supplier-assessment/my-assessment/onboarding`, { headers: getAuthHeader() });
-      setOnboarding(onboardingResponse.data);
+      try {
+        const onboardingResponse = await axios.get(`${API}/supplier-assessment/my-assessment/onboarding`, {
+          headers: getAuthHeader(),
+        });
+        setOnboarding(onboardingResponse.data);
+      } catch (onboardingError) {
+        setOnboarding(null);
+        toast.error('Failed to load onboarding checklist');
+      }
       await fetchWorkflowStates(res.data.assessment_modules);
       const rel = res.data.relationship;
       if (rel?.revenue_percentage !== null && rel?.revenue_percentage !== undefined) {

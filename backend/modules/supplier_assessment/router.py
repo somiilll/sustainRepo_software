@@ -765,7 +765,8 @@ async def get_my_assessment_onboarding(current_user: dict = Depends(get_supplier
     document_pending = [item for item in documents if not item.get("accepted") and not item.get("selected_response") and item.get("submission_status") != "submitted"]
     training_pending = [item for item in trainings if item.get("status") != "completed"]
     ghg_module = next((module for module in modules if module.get("code") == "ghg"), None)
-    ghg_pending = bool(ghg_module) and ghg_state.get("submission", {}).get("status") != "submitted"
+    submission = ghg_state.get("submission") or {}
+    ghg_pending = bool(ghg_module) and submission.get("status") != "submitted"
     assessment_status = "completed" if questionnaires and not questionnaire_pending else "in_progress" if any(item.get("status") == "in_progress" for item in questionnaires) else "not_started"
     task_total = len(questionnaire_pending) + len(document_pending) + len(training_pending) + int(ghg_pending)
     task_status = "completed" if task_total == 0 else "in_progress" if any(item.get("status") == "in_progress" for item in questionnaires) or ghg_state.get("draft_aggregation") else "not_started"

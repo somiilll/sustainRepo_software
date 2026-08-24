@@ -611,3 +611,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Customer-admin Documents now groups requirement records by their immutable document version. A shared NDA/agreement published across program or reporting-period assignments appears as one document row rather than duplicate entries.
 - The existing archive action remains file-level and now matches what the list communicates: deleting the single row removes that shared document from all of its active supplier assignments while preserving audit records.
 - Verified with JavaScript lint and an authenticated browser smoke of the Supplier Documents workspace. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Supplier Onboarding Null-Submission Recovery
+
+- **FIXED:** The supplier onboarding endpoint now treats a missing GHG submission as an empty submission, correctly marking GHG as pending instead of raising a 500 error for new suppliers.
+- **HARDENED:** Supplier Dashboard now loads the assessment and onboarding checklist independently. An onboarding-only failure no longer replaces a valid assessment view with the generic assessment-load error.
+- Verified before the user paused further testing: Python/JavaScript lint clean; authenticated supplier endpoint returned HTTP 200 with `ghg_pending: true`; supplier dashboard browser smoke loaded successfully. **MOCKED: none.**
