@@ -51,6 +51,24 @@ class SupplierAssessmentService:
         if importance is None and legacy_weight not in (None, 1, 1.0):
             return normalized_importance, float(legacy_weight), float(legacy_weight)
         return normalized_importance, None, cls.IMPORTANCE_WEIGHTS[normalized_importance]
+
+    @staticmethod
+    def _synchronize_choice_mapping(
+        scoring: Optional[Dict[str, Any]],
+        options: Optional[List[Dict[str, Any]]],
+    ) -> Optional[Dict[str, Any]]:
+        """Keep dropdown option scores and canonical choice mappings aligned."""
+        normalized = dict(scoring or {})
+        if normalized.get("rule") != "choice_mapping":
+            return scoring
+        option_scores = {
+            str(option["value"]): float(option["score"])
+            for option in (options or [])
+            if option.get("value") not in (None, "") and option.get("score") is not None
+        }
+        if option_scores:
+            normalized["choices"] = option_scores
+        return normalized
     
     # ========================================================================
     # Supplier Management
@@ -830,6 +848,7 @@ class SupplierAssessmentService:
         importance, exact_numerical_weight, effective_weight = self._resolve_question_weight(
             importance, exact_numerical_weight, weight
         )
+        scoring = self._synchronize_choice_mapping(scoring, options)
         question = {
             "id": question_id,
             "questionnaire_id": questionnaire_id,
@@ -877,12 +896,21 @@ class SupplierAssessmentService:
                 "exact_numerical_weight": exact_weight,
                 "weight": effective_weight,
             })
+        if "scoring" in updates or "options" in updates:
+            updates["scoring"] = self._synchronize_choice_mapping(
+                updates.get("scoring", existing.get("scoring")),
+                updates.get("options", existing.get("options")),
+            )
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.supplier_questions.update_one(
             {"id": question_id},
             {"$set": updates}
         )
-        return await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
+        updated_question = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
+        if updated_question and ("scoring" in updates or "options" in updates or {"importance", "exact_numerical_weight", "weight"}.intersection(updates)):
+            from modules.supplier_assessment.scoring import ScoringEngine
+            await ScoringEngine(db).recalculate_all_suppliers(updated_question["questionnaire_id"])
+        return updated_question
     
     async def delete_question(self, question_id: str) -> bool:
         """Soft delete a question."""
