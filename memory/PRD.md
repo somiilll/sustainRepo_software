@@ -504,6 +504,12 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** Removed per-training percentage display. Each training now reports only `Not started`, `In progress`, or `Completed`.
 - Frontend lint passed before the user paused testing; per user instruction, no further test was run. No APIs are **MOCKED**.
 
+## Change Log — 2026-08-23: Consistent Documents and Trainings Labels
+
+- **DONE:** Supplier-side navigation, page headings, empty states, actions, dashboard copy, and notices now use `Documents` and `Trainings` rather than `Agreements` and singular `Training`.
+- **DONE:** Parent navigation labels now use the same module names for consistent organization and supplier terminology.
+- Per user instruction, this frontend wording change was **not tested**. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Supplier Assessment Assignment and Program Repair
 
 - **FIXED:** Edit Supplier now always initializes document and training assignment arrays, preventing the `.includes()` runtime crash.
