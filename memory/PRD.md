@@ -623,3 +623,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** The Facility Information onboarding action now opens `/facilities`, using the existing supplier-friendly Add Facility form where only the facility name is mandatory.
 - Facility completion remains server-derived: as soon as the supplier has at least one active facility, the onboarding API marks Facility Information as completed.
 - **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Supplier GHG Empty and Locked Guidance
+
+- **DONE:** The Supplier GHG summary now provides an `Add GHG data` action that opens `/ghg` whenever no unsubmitted draft entries exist.
+- **DONE:** Submitted, locked GHG data now clearly instructs the supplier to ask their customer for an unlock before entering or editing values.
+- **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
