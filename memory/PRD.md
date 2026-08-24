@@ -490,6 +490,13 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** The ESG dashboard lists every assigned questionnaire, including multiple assignments, and displays each question with its saved response or a pending-response state.
 - Per user instruction, this frontend-only change was **not tested**. No APIs are **MOCKED**.
 
+## Change Log — 2026-08-23: Supplier Dashboard Workflow Routing
+
+- **DONE:** ESG now shows only each questionnaire’s progress and submission state; unfinished questionnaires provide a direct Continue ESG action.
+- **DONE:** GHG distinguishes no entries (opens Environment → GHG Logs) from unsubmitted entries (opens Supplier Assessment → GHG submission). Submitted GHG shows its submitted state without an action.
+- **DONE:** Configured Documents and Training modules now appear as status cards with completion, pending/completed/no-assignment states, and direct task actions only when work remains.
+- Per user instruction, no further UI test was run after implementation. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Supplier Assessment Assignment and Program Repair
 
 - **FIXED:** Edit Supplier now always initializes document and training assignment arrays, preventing the `.includes()` runtime crash.
