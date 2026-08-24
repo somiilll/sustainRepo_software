@@ -598,3 +598,16 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Fixed supplier invitation emails so temporary passwords containing HTML-sensitive punctuation such as `<`, `>`, or `&` are rendered as the exact password instead of being interpreted as HTML and appearing truncated.
 - The change is limited to the Supplier Assessment invitation email template; password generation, hashing, first-login password-change requirements, and authentication behavior are unchanged.
 - Verified with a targeted rendering assertion using `=g<Ab&9>` plus Python lint. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Questionnaire Builder Scoring Configuration P0
+
+- Replaced score-input fallback handling that silently turned valid `0` values into defaults. The builder now preserves entered zeroes and blocks incomplete or invalid values instead of changing them.
+- Choice Mapping now has one source of truth: each dropdown option carries its own score and the API mapping is generated from those options on save. Empty/duplicate option values and missing/out-of-range option scores are blocked.
+- Clarified numeric scoring terminology: `Max Acceptable` is now `Zero-score threshold`; target and minimum labels now describe their scoring outcome. Builder and API validate 0–100 score caps/mappings, ordered thresholds, and positive target-based targets.
+- **TESTING PAUSED AT USER REQUEST.** No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Consolidated Supplier Document List
+
+- Customer-admin Documents now groups requirement records by their immutable document version. A shared NDA/agreement published across program or reporting-period assignments appears as one document row rather than duplicate entries.
+- The existing archive action remains file-level and now matches what the list communicates: deleting the single row removes that shared document from all of its active supplier assignments while preserving audit records.
+- Verified with JavaScript lint and an authenticated browser smoke of the Supplier Documents workspace. No APIs are **MOCKED**.
