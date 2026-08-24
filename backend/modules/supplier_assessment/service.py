@@ -1621,7 +1621,10 @@ class SupplierAssessmentService:
                 "question_progress": f"{answered_questions} / {total_questions} questions" if completion_status == "in_progress" and total_questions else None,
                 "attention_reasons": attention_reasons,
                 "module_progress": module_progress,
-                "revenue_percentage": snapshot.get("revenue_score"),
+                "due_date": s.get("due_date"),
+                "revenue_percentage": s.get("revenue_percentage"),
+                "revenue_amount": s.get("revenue_amount"),
+                "revenue_currency": s.get("revenue_currency"),
             })
         
         # Sort by overall score (None at end)
@@ -1907,6 +1910,7 @@ class SupplierAssessmentService:
                 "status": "locked" if submitted else "pending",
                 "locked_at": submitted.get("submitted_at") if submitted else None,
                 "submitted_at": submitted.get("submitted_at") if submitted else None,
+                "due_date": relationship.get("due_date"),
             })
         from modules.supplier_assessment.ghg_submission_service import reporting_period_values
         ghg_entries = await db.emission_records.find(
@@ -1921,17 +1925,17 @@ class SupplierAssessmentService:
         from modules.supplier_assessment.documents_service import list_supplier_documents
         from modules.supplier_assessment.training_service import supplier_trainings
         documents = [
-            {"id": item["id"], "name": item.get("title", "Document"), "status": "locked" if item.get("submission_status") == "submitted" else "pending", "locked_at": item.get("responded_at")}
+            {"id": item["id"], "name": item.get("title", "Document"), "status": "locked" if item.get("submission_status") == "submitted" else "pending", "locked_at": item.get("responded_at"), "due_date": item.get("due_date") or relationship.get("due_date")}
             for item in await list_supplier_documents(relationship)
         ]
         training = [
-            {"id": item["assignment_id"], "name": item.get("title", "Training"), "status": item.get("status", "pending"), "completed_at": item.get("completed_at"), "progress_percent": item.get("progress_percent", 0)}
+            {"id": item["assignment_id"], "name": item.get("title", "Training"), "status": item.get("status", "pending"), "completed_at": item.get("completed_at"), "progress_percent": item.get("progress_percent", 0), "due_date": item.get("due_date") or relationship.get("due_date")}
             for item in await supplier_trainings(relationship)
         ]
         return {
             "esg": [item for item in esg_items if item["status"] == "locked"],
             "esg_items": esg_items,
-            "ghg": {"status": "locked" if ghg_entries else "pending", "locked_at": locked_at, "entry_count": len(ghg_entries)},
+            "ghg": {"status": "locked" if ghg_entries else "pending", "locked_at": locked_at, "entry_count": len(ghg_entries), "due_date": relationship.get("due_date")},
             "documents": documents,
             "training": training,
         }

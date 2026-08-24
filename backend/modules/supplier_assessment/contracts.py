@@ -512,7 +512,10 @@ class SupplierRankingEntry(BaseModel):
     question_progress: Optional[str] = None
     attention_reasons: List[str] = []
     module_progress: Dict[str, float] = {}
+    due_date: Optional[str] = None
     revenue_percentage: Optional[float] = None
+    revenue_amount: Optional[float] = None
+    revenue_currency: Optional[str] = None
 
 
 class ScoreDistribution(BaseModel):
