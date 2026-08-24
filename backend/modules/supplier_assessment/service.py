@@ -1883,11 +1883,58 @@ class SupplierAssessmentService:
 
     async def get_supplier_submission_status(self, supplier_relationship_id: str) -> Dict[str, Any]:
         relationship = await self.get_supplier(supplier_relationship_id)
-        esg = await db.supplier_questionnaire_responses.find(
+        if not relationship:
+            return {"esg": [], "esg_items": [], "ghg": {"status": "pending"}, "documents": [], "training": []}
+        submitted_responses = await db.supplier_questionnaire_responses.find(
             {"supplier_relationship_id": supplier_relationship_id, "reporting_period": (relationship or {}).get("reporting_period"), "status": "submitted", "parent_visible": {"$ne": False}},
             {"_id": 0, "questionnaire_id": 1, "submitted_at": 1, "revision": 1},
         ).to_list(100)
-        return {"esg": esg}
+        submitted_by_questionnaire = {item["questionnaire_id"]: item for item in submitted_responses}
+        questionnaire_ids = relationship.get("questionnaire_ids") or []
+        questionnaire_query: Dict[str, Any] = {"organization_id": relationship["customer_org_id"], "is_active": True}
+        if questionnaire_ids:
+            questionnaire_query["id"] = {"$in": questionnaire_ids}
+        questionnaires = await db.supplier_questionnaires.find(
+            questionnaire_query,
+            {"_id": 0, "id": 1, "name": 1},
+        ).to_list(500)
+        esg_items = []
+        for questionnaire in questionnaires:
+            submitted = submitted_by_questionnaire.get(questionnaire["id"])
+            esg_items.append({
+                "questionnaire_id": questionnaire["id"],
+                "name": questionnaire.get("name", "Questionnaire"),
+                "status": "locked" if submitted else "pending",
+                "locked_at": submitted.get("submitted_at") if submitted else None,
+                "submitted_at": submitted.get("submitted_at") if submitted else None,
+            })
+        from modules.supplier_assessment.ghg_submission_service import reporting_period_values
+        ghg_entries = await db.emission_records.find(
+            {
+                "source": "supplier", "supplier_relationship_id": supplier_relationship_id,
+                "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False},
+                "reporting_period": {"$in": reporting_period_values(relationship.get("reporting_period"))},
+            },
+            {"_id": 0, "submitted_to_parent_org": 1},
+        ).to_list(1000)
+        locked_at = min((entry.get("submitted_to_parent_org") for entry in ghg_entries if entry.get("submitted_to_parent_org")), default=None)
+        from modules.supplier_assessment.documents_service import list_supplier_documents
+        from modules.supplier_assessment.training_service import supplier_trainings
+        documents = [
+            {"id": item["id"], "name": item.get("title", "Document"), "status": "locked" if item.get("submission_status") == "submitted" else "pending", "locked_at": item.get("responded_at")}
+            for item in await list_supplier_documents(relationship)
+        ]
+        training = [
+            {"id": item["assignment_id"], "name": item.get("title", "Training"), "status": item.get("status", "pending"), "completed_at": item.get("completed_at"), "progress_percent": item.get("progress_percent", 0)}
+            for item in await supplier_trainings(relationship)
+        ]
+        return {
+            "esg": [item for item in esg_items if item["status"] == "locked"],
+            "esg_items": esg_items,
+            "ghg": {"status": "locked" if ghg_entries else "pending", "locked_at": locked_at, "entry_count": len(ghg_entries)},
+            "documents": documents,
+            "training": training,
+        }
 
 
 # Singleton instance
