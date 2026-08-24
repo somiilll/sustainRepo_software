@@ -132,8 +132,8 @@ export default function SupplierDashboard() {
   }, [fetchAssessment, fetchQuestionnaires]);
 
   const handleSaveRevenue = async () => {
-    const percentage = revenuePercentage ? parseFloat(revenuePercentage) : null;
-    const amount = revenueAmount ? parseFloat(revenueAmount) : null;
+    const percentage = revenuePercentage === '' ? null : parseFloat(revenuePercentage);
+    const amount = revenueAmount === '' ? null : parseFloat(revenueAmount);
     
     if (percentage !== null && (isNaN(percentage) || percentage < 0 || percentage > 100)) {
       toast.error('Please enter a valid percentage (0-100)');
@@ -166,8 +166,15 @@ export default function SupplierDashboard() {
   };
 
   const handleSubmitRevenue = async () => {
+    const percentage = revenuePercentage === '' ? null : parseFloat(revenuePercentage);
+    const amount = revenueAmount === '' ? null : parseFloat(revenueAmount);
+    if (percentage === null || amount === null || Number.isNaN(percentage) || Number.isNaN(amount) || percentage < 0 || percentage > 100 || amount < 0) {
+      toast.error('Enter a valid revenue percentage and amount before submitting');
+      return;
+    }
     setSubmittingRevenue(true);
     try {
+      await axios.put(`${API}/supplier-assessment/my-assessment/revenue`, { revenue_percentage: percentage, revenue_amount: amount, revenue_currency: revenueCurrency }, { headers: getAuthHeader() });
       await axios.post(`${API}/supplier-assessment/my-assessment/revenue/submit`, {}, { headers: getAuthHeader() });
       toast.success('Revenue information submitted');
       setShowRevenueSubmitConfirm(false);
@@ -451,7 +458,7 @@ export default function SupplierDashboard() {
         <AlertDialogContent data-testid="confirm-revenue-submit-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle data-testid="confirm-revenue-submit-title">Submit revenue information?</AlertDialogTitle>
-            <AlertDialogDescription data-testid="confirm-revenue-submit-description">Are you sure? Once submitted, your revenue information is locked and cannot be edited unless your customer unlocks it.</AlertDialogDescription>
+            <AlertDialogDescription data-testid="confirm-revenue-submit-description">Are you sure? Once submitted, your revenue information is locked and cannot be edited.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="cancel-revenue-submit-button">Cancel</AlertDialogCancel>
