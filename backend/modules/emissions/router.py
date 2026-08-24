@@ -26,6 +26,7 @@ from modules.approvals.emission_flow_v2 import (
     PENDING_STATUSES,
 )
 from modules.auth.dependencies import get_current_user
+from modules.entitlements.dependencies import assert_ghg_scope_access, assert_monthly_row_limit
 from modules.supplier_assessment.ghg_submission_service import exclude_reopened_supplier_submission_revisions
 from modules.emissions.contracts import (
     EmissionBatchRollbackRequest,
@@ -916,6 +917,8 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     # Admin org check
     if user_role == "admin" and org_id != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
+
+    await assert_ghg_scope_access(org_id, record_data.scope, record_data.biogenic_scope_selection)
     
     # KPI Assignment-based access control (admins bypass)
     if user_role not in ["admin", "super_admin"]:
@@ -960,20 +963,13 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                 detail="For monthly frequency, reporting_period must be in format 'YYYY-MM' (e.g., '2025-03')"
             )
     
-    # Check organization's enabled_access for emissions
-    organization = await db.organizations.find_one({"id": facility["organization_id"]}, {"_id": 0})
-    if organization:
-        enabled_access = organization.get("enabled_access")
-        # If enabled_access is None, default to scope1_2. If it's an empty list, no access.
-        if enabled_access is None:
-            enabled_access = ["scope1_2"]
-        # Check if organization has access to create emissions (scope1_2 or scope1_2_3 allows Scope 1, 2, biogenic)
-        has_emission_access = any(access in enabled_access for access in ["scope1_2", "scope1_2_3"])
-        if not has_emission_access:
-            raise HTTPException(
-                status_code=403, 
-                detail="Your organization does not have access to add emissions. Please contact your administrator."
-            )
+    if frequency_type == "monthly":
+        await assert_monthly_row_limit(
+            org_id,
+            "ghg",
+            "emission_records",
+            {"organization_id": org_id, "frequency_type": "monthly"},
+        )
     
     record_dict = record_data.model_dump()
     record_id = str(uuid.uuid4())
@@ -1299,6 +1295,12 @@ async def update_emission_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
 
+    await assert_ghg_scope_access(
+        existing.get("organization_id"),
+        existing.get("scope"),
+        existing.get("biogenic_scope_selection"),
+    )
+
     if existing.get("source") == "supplier" and existing.get("submitted_to_parent_org"):
         raise HTTPException(status_code=409, detail="Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.")
 
@@ -1308,6 +1310,7 @@ async def update_emission_record(
     user_id = current_user.get("id")
     user_role = current_user.get("role", "user")
     is_admin = user_role in ["admin", "super_admin"]
+    await assert_ghg_scope_access(org_id, record_data.scope, record_data.biogenic_scope_selection)
     
     # Check if approval workflow is enabled for org
     from modules.approvals.emission_flow_v2 import is_approval_enabled_for_org
@@ -1562,18 +1565,14 @@ async def get_emission_records(
         from modules.approvals.emission_flow_v2 import REJECTED_STATUSES
         records = [r for r in records if r.get("approval_status") not in REJECTED_STATUSES]
     
-    # Filter out biogenic records with biogenic_scope_selection='scope3' for orgs without scope3 access
+    # Platform Access is the outer boundary for Scope 3 and indirect biogenic data.
     if user_role != "super_admin" and org_id:
-        organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "enabled_access": 1})
-        enabled_access = organization.get("enabled_access") if organization else None
-        if enabled_access is None:
-            enabled_access = ["scope1_2"]
-        
-        has_scope3_access = "scope1_2_3" in enabled_access
-        if not has_scope3_access:
+        from modules.entitlements.service import entitlement_access_map, resolve_entitlement_config
+        permissions = entitlement_access_map(await resolve_entitlement_config(org_id, migrate=True))
+        if not permissions.get("environment.ghg.scope_3"):
             records = [
                 r for r in records
-                if not (r.get("scope") == "biogenic" and r.get("biogenic_scope_selection") == "scope3")
+                if r.get("scope") != "scope3" and not (r.get("scope") == "biogenic" and r.get("biogenic_scope_selection") == "scope3")
             ]
 
     # Batch-resolve display names for created_by / updated_by ids.
@@ -1651,6 +1650,12 @@ async def get_emission_record(record_id: str, current_user: dict = Depends(get_c
     
     if not record:
         raise HTTPException(status_code=404, detail="Emission record not found")
+
+    record_org_id = record.get("organization_id")
+    if not record_org_id and record.get("facility_id"):
+        facility = await db.facilities.find_one({"id": record["facility_id"]}, {"_id": 0, "organization_id": 1})
+        record_org_id = (facility or {}).get("organization_id")
+    await assert_ghg_scope_access(record_org_id, record.get("scope"), record.get("biogenic_scope_selection"))
     
     # If user has a pending proposal, overlay their proposed values onto the record
     if user_pending_proposal:
@@ -1809,6 +1814,12 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     existing, source_collection = await find_record(record_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
+
+    await assert_ghg_scope_access(
+        existing.get("organization_id"),
+        existing.get("scope"),
+        existing.get("biogenic_scope_selection"),
+    )
 
     if existing.get("source") == "supplier" and existing.get("submitted_to_parent_org"):
         raise HTTPException(status_code=409, detail="Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.")

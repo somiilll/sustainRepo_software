@@ -16,6 +16,7 @@ import uuid
 import hashlib
 
 from modules.auth.dependencies import get_current_user
+from modules.entitlements.dependencies import assert_entitlement, assert_monthly_row_limit
 from .service import esg_records_service
 from .ghg_integration import get_ghg_integration_service
 from .category_config_service import category_config_service
@@ -28,6 +29,30 @@ from shared.database import get_database
 from shared.database.mongo import db
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
+
+
+def _environment_entitlement_for_category(category: str) -> Optional[str]:
+    normalized = _to_code(category)
+    mapping = {
+        "energy": "environment.energy",
+        "water": "environment.water",
+        "waste": "environment.waste",
+        "biodiversity": "environment.biodiversity",
+        "climate_change": "environment.climate_change",
+        "material": "environment.material",
+        "other_emissions": "environment.other_emissions",
+        "ghg_emissions": "environment.ghg",
+    }
+    return mapping.get(normalized)
+
+
+async def _assert_record_category_access(org_id: str, section: ESG_SECTION, category: str) -> Optional[str]:
+    if section != "environment":
+        return None
+    entitlement = _environment_entitlement_for_category(category)
+    if entitlement:
+        await assert_entitlement(org_id, entitlement)
+    return entitlement
 
 
 def _dashboard_facility_scope(current_user: dict, requested_facilities: Optional[List[str]]) -> Optional[List[str]]:
@@ -241,6 +266,14 @@ async def list_categories(
         org_cfg = await get_org_config(org_id)
         if org_cfg:
             categories = _apply_org_overrides(categories, org_cfg, section)
+        if section == "environment":
+            from modules.entitlements.service import entitlement_access_map, resolve_entitlement_config
+            permissions = entitlement_access_map(await resolve_entitlement_config(org_id, migrate=True))
+            categories = [
+                category for category in categories
+                if not (access := _environment_entitlement_for_category(category.get("category", "")))
+                or permissions.get(access, False)
+            ]
 
     return {"categories": categories, "total": len(categories)}
 
@@ -422,6 +455,14 @@ async def create_record(
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
+
+    entitlement = await _assert_record_category_access(org_id, section, data.category)
+    if entitlement and data.reporting_period.reporting_type == "monthly":
+        module_code = entitlement.rsplit(".", 1)[-1]
+        await assert_monthly_row_limit(
+            org_id, module_code, f"{section}_records",
+            {"org_id": org_id, "section": section, "category": data.category, "reporting_period.reporting_type": "monthly", "is_current": True},
+        )
     
     user_id = current_user.get("id") or current_user.get("user_id")
     user_role = current_user.get("role", "")
@@ -554,6 +595,10 @@ async def list_records(
     categories_list = None
     if categories:
         categories_list = [c.strip() for c in categories.split(",") if c.strip()]
+    if category:
+        await _assert_record_category_access(org_id, section, category)
+    for selected_category in categories_list or []:
+        await _assert_record_category_access(org_id, section, selected_category)
     
     filters = RecordListFilters(
         category=category,
@@ -579,6 +624,11 @@ async def list_records(
     )
     
     # Get GHG-imported records if enabled and section is environment
+    if include_imported and section == "environment":
+        try:
+            await assert_entitlement(org_id, "environment.ghg")
+        except HTTPException:
+            include_imported = False
     if include_imported and section == "environment":
         db = get_database()
         ghg_service = get_ghg_integration_service(db)
@@ -761,6 +811,7 @@ async def update_record(
     existing = await esg_records_service.get_record(section, record_id, org_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Record not found")
+    await _assert_record_category_access(org_id, section, existing.get("category", ""))
     
     updated = await esg_records_service.update_record(
         section=section,
@@ -786,6 +837,10 @@ async def delete_record(
     
     user_id = current_user.get("id")
     user_role = current_user.get("role", "user")
+    existing = await esg_records_service.get_record(section, record_id, org_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Record not found")
+    await _assert_record_category_access(org_id, section, existing.get("category", ""))
     
     deleted = await esg_records_service.delete_record(
         section=section,

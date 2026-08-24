@@ -94,6 +94,7 @@ async def get_dashboard_stats(
     end_period: Optional[str] = None,
     facility_id: List[str] = Query(default=[])
 ):
+    can_view_scope3 = current_user.get("role") == "super_admin"
     # Track organization for equity share calculations
     organization = None
     use_equity_share = False
@@ -130,6 +131,10 @@ async def get_dashboard_stats(
         
         # Get organization to check for equity share approach
         organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+        from modules.entitlements.service import entitlement_access_map, resolve_entitlement_config
+        can_view_scope3 = entitlement_access_map(
+            await resolve_entitlement_config(org_id, migrate=True)
+        ).get("environment.ghg.scope_3", False)
         if organization and organization.get("org_boundaries_approach") == "equity_share":
             use_equity_share = True
         
@@ -199,21 +204,14 @@ async def get_dashboard_stats(
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
 
     # ===========================================
-    # Filter out biogenic scope3 records for orgs without scope1_2_3 access
+    # Platform Access is the only source for whether Scope 3 is aggregated.
     # ===========================================
     # Super admins see all; for other users check org's enabled_access
     if current_user["role"] != "super_admin" and organization:
-        enabled_access = organization.get("enabled_access")
-        # Default to scope1_2 if enabled_access is None
-        if enabled_access is None:
-            enabled_access = ["scope1_2"]
-        
-        # If org does NOT have scope1_2_3 access, filter out biogenic records with scope3 selection
-        has_scope3_access = "scope1_2_3" in enabled_access
-        if not has_scope3_access:
+        if not can_view_scope3:
             all_emissions = [
                 e for e in all_emissions
-                if not (e.get("scope") == "biogenic" and e.get("biogenic_scope_selection") == "scope3")
+                if e.get("scope") != "scope3" and not (e.get("scope") == "biogenic" and e.get("biogenic_scope_selection") == "scope3")
             ]
     
     def extract_year_from_period(period: str) -> str:
@@ -987,6 +985,9 @@ async def get_supplier_hotspots(
     end_period: Optional[str] = None,
     facility_id: List[str] = Query(default=[])
 ):
+    if current_user.get("role") != "super_admin":
+        from modules.entitlements.dependencies import assert_entitlement
+        await assert_entitlement(current_user.get("organization_id"), "environment.ghg.scope_3")
     """
     Get aggregated Scope 3 emissions by supplier for heatmap visualization.
     Returns hierarchical data: Category -> Supplier -> Emissions

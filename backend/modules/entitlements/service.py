@@ -175,6 +175,11 @@ def legacy_entitlements(organization: Optional[Dict[str, Any]]) -> Dict[str, boo
 
 async def resolve_entitlements(org_id: str, *, migrate: bool = False) -> Dict[str, bool]:
     """Resolve canonical access, optionally materializing legacy organizations."""
+    return normalize_entitlements(await resolve_entitlement_config(org_id, migrate=migrate))
+
+
+async def resolve_entitlement_config(org_id: str, *, migrate: bool = False) -> Dict[str, Any]:
+    """Resolve the complete entitlement document used by every policy boundary."""
     organization = await db["organizations"].find_one(
         {"id": org_id},
         {"_id": 0, "has_ghg": 1, "has_esg": 1, "repo_pilot_enabled": 1,
@@ -190,7 +195,7 @@ async def resolve_entitlements(org_id: str, *, migrate: bool = False) -> Dict[st
             await db["organization_config"].update_one(
                 {"organization_id": org_id}, {"$set": {"entitlements": normalized, "updated_at": _now()}},
             )
-        return normalize_entitlements(normalized)
+        return normalized
 
     resolved = legacy_entitlements(organization)
     nested = normalize_entitlement_config(resolved)
@@ -212,7 +217,7 @@ async def resolve_entitlements(org_id: str, *, migrate: bool = False) -> Dict[st
             },
             upsert=True,
         )
-    return normalize_entitlements(nested)
+    return nested
 
 
 async def sync_legacy_entitlement_mirror(org_id: str, entitlements: Dict[str, Any]) -> None:

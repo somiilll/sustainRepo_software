@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 
 from modules.auth.dependencies import get_current_user, get_admin_user
+from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_supplier_limit
 from modules.supplier_assessment.service import supplier_service
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.contracts import (
@@ -135,6 +136,7 @@ async def create_supplier(
 ):
     """Create a new supplier and send invitation."""
     try:
+        await assert_supplier_limit(current_user["organization_id"])
         result = await supplier_service.create_supplier(
             customer_org_id=current_user["organization_id"],
             company_name=data.company_name,
@@ -291,12 +293,14 @@ async def upload_document(
             raise ValueError("Selected suppliers must be a list")
         if not relationship_ids:
             raise ValueError("Select at least one supplier")
+        content = await file.read()
+        await assert_evidence_storage_limit(current_user["organization_id"], len(content))
         result = await documents_service.publish_agreement(
             customer_org_id=current_user["organization_id"],
             created_by=current_user["id"],
             filename=file.filename or "agreement",
             content_type=file.content_type or "application/octet-stream",
-            content=await file.read(),
+            content=content,
             title=title,
             response_mode=response_mode,
             response_options=response_options,
@@ -332,7 +336,9 @@ async def delete_document(requirement_id: str, current_user: dict = Depends(get_
 async def create_training(file: UploadFile = File(...), title: str = Form(...), description: str = Form(""), due_date: Optional[str] = Form(None), supplier_relationship_ids: str = Form(...), current_user: dict = Depends(get_customer_admin)):
     """Create immutable v1 training content and assign it to selected suppliers."""
     try:
-        return await training_service.create_training(current_user["organization_id"], current_user["id"], title, description, 100.0, file.filename or "training", file.content_type or "application/octet-stream", await file.read(), json.loads(supplier_relationship_ids), due_date)
+        content = await file.read()
+        await assert_evidence_storage_limit(current_user["organization_id"], len(content))
+        return await training_service.create_training(current_user["organization_id"], current_user["id"], title, description, 100.0, file.filename or "training", file.content_type or "application/octet-stream", content, json.loads(supplier_relationship_ids), due_date)
     except (ValueError, json.JSONDecodeError) as error:
         raise HTTPException(status_code=400, detail=str(error))
 
