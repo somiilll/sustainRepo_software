@@ -617,3 +617,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **FIXED:** The supplier onboarding endpoint now treats a missing GHG submission as an empty submission, correctly marking GHG as pending instead of raising a 500 error for new suppliers.
 - **HARDENED:** Supplier Dashboard now loads the assessment and onboarding checklist independently. An onboarding-only failure no longer replaces a valid assessment view with the generic assessment-load error.
 - Verified before the user paused further testing: Python/JavaScript lint clean; authenticated supplier endpoint returned HTTP 200 with `ghg_pending: true`; supplier dashboard browser smoke loaded successfully. **MOCKED: none.**
+
+## Change Log — 2026-03-31: Supplier Onboarding Facility Routing
+
+- **DONE:** The Facility Information onboarding action now opens `/facilities`, using the existing supplier-friendly Add Facility form where only the facility name is mandatory.
+- Facility completion remains server-derived: as soon as the supplier has at least one active facility, the onboarding API marks Facility Information as completed.
+- **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
