@@ -366,7 +366,7 @@ export default function SupplierQuestionnaire() {
         <AlertDialogContent data-testid="supplier-questionnaire-submit-confirmation-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle data-testid="supplier-questionnaire-submit-confirmation-title">Submit and lock this questionnaire?</AlertDialogTitle>
-            <AlertDialogDescription data-testid="supplier-questionnaire-submit-confirmation-description">Are you sure you want to submit? Your answers will be locked and cannot be edited unless your customer unlocks the questionnaire.</AlertDialogDescription>
+            <AlertDialogDescription data-testid="supplier-questionnaire-submit-confirmation-description">Are you sure you want to submit? Your answers will be locked and cannot be edited.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="cancel-supplier-questionnaire-submit-button">Keep editing</AlertDialogCancel>
