@@ -651,3 +651,8 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 
 - **DONE:** The Add Supplier Training assignment panel now uses a white background, neutral border accent, and neutral icon color instead of the previous amber treatment.
 - **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Supplier Dashboard Duplicate Task Removal
+
+- **DONE:** Removed the duplicate Supplier Home / Your Tasks launchpad from the completed supplier dashboard, leaving the existing module cards as the single task surface.
+- **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.

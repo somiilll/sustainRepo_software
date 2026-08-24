@@ -551,7 +551,6 @@ export default function SupplierList() {
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden bg-white p-0 sm:max-w-4xl" data-testid="add-supplier-dialog">
           <DialogHeader className="shrink-0 border-b border-stone-200 bg-white px-7 py-5">
             <DialogTitle className="text-xl">Add Supplier</DialogTitle>
-            <p className="mt-1 text-sm text-stone-600">Documents and training are selected by default. Opt out only of the requirements this supplier should not receive.</p>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-7 py-5" data-testid="add-supplier-form-scroll-area">
             <div className="space-y-2">
