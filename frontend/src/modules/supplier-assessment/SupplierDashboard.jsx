@@ -221,6 +221,7 @@ export default function SupplierDashboard() {
   const documentsModule = configuredModules.get('documents');
   const trainingModule = configuredModules.get('training');
   const revenueSubmitted = relationship.revenue_submission_status === 'submitted';
+  const revenueRequired = relationship.revenue_required === true;
   const ghgSubmitted = ghgState?.submission?.status === 'submitted';
   const ghgHasDraftEntries = (ghgState?.draft_aggregation || []).some((entry) => entry.entry_count > 0);
   const pendingDocuments = documents.filter((document) => !document.accepted && !document.selected_response);
@@ -263,17 +264,17 @@ export default function SupplierDashboard() {
               <div className={`text-center p-4 rounded-lg ${
                 relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
                   ? 'bg-green-50' 
-                  : 'bg-amber-50'
+                  : revenueRequired ? 'bg-amber-50' : 'bg-stone-50'
               }`}>
                 <DollarSign className={`h-6 w-6 mx-auto mb-2 ${
                   relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
                     ? 'text-green-500' 
-                    : 'text-amber-500'
+                    : revenueRequired ? 'text-amber-500' : 'text-stone-400'
                 }`} />
                 <div className="text-lg font-semibold">
                   {relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
                     ? <CheckCircle className="h-5 w-5 mx-auto text-green-500" />
-                    : <AlertCircle className="h-5 w-5 mx-auto text-amber-500" />
+                    : revenueRequired ? <AlertCircle className="h-5 w-5 mx-auto text-amber-500" /> : <DollarSign className="h-5 w-5 mx-auto text-stone-400" />
                   }
                 </div>
                 <div className="text-xs text-stone-500">Revenue Info</div>
@@ -294,18 +295,18 @@ export default function SupplierDashboard() {
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-blue-500" />
             Revenue Information
-            <Badge variant="outline" className="ml-2 text-xs" data-testid="revenue-required-badge">Required</Badge>
-            <Badge className={revenueSubmitted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} data-testid="revenue-overview-status-badge">{revenueSubmitted ? 'Completed' : 'Yet to be submitted'}</Badge>
+            <Badge variant="outline" className="ml-2 text-xs" data-testid="revenue-required-badge">{revenueRequired ? 'Required' : 'Optional'}</Badge>
+            {revenueRequired && <Badge className={revenueSubmitted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} data-testid="revenue-overview-status-badge">{revenueSubmitted ? 'Completed' : 'Yet to be submitted'}</Badge>}
           </CardTitle>
           <CardDescription>
-            Provide your revenue relationship with {customer_name}. This information is required before submitting your assessment.
+            {revenueRequired ? `Provide your revenue relationship with ${customer_name}. This information is required before submitting your assessment.` : `Revenue information for ${customer_name} is optional. You may add it if available.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            <RevenueTaskChecklist relationship={relationship} />
+            <RevenueTaskChecklist relationship={relationship} required={revenueRequired} />
             {/* Warning if not filled */}
-            {(relationship.revenue_percentage === null || relationship.revenue_amount === null) && (
+            {revenueRequired && (relationship.revenue_percentage === null || relationship.revenue_amount === null) && (
               <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                 <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div>
@@ -322,7 +323,7 @@ export default function SupplierDashboard() {
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <Percent className="h-4 w-4 text-stone-500" />
-                  Revenue Percentage from {customer_name} *
+                  Revenue Percentage from {customer_name}{revenueRequired ? ' *' : ''}
                 </Label>
                 <p className="text-xs text-stone-500 mb-2">
                   What percentage of your total annual revenue comes from this customer?
@@ -348,7 +349,7 @@ export default function SupplierDashboard() {
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-stone-500" />
-                  Annual Revenue Amount from {customer_name} *
+                  Annual Revenue Amount from {customer_name}{revenueRequired ? ' *' : ''}
                 </Label>
                 <p className="text-xs text-stone-500 mb-2">
                   What is the total annual revenue you receive from this customer?

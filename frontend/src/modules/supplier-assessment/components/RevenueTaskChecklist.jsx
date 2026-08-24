@@ -8,7 +8,8 @@ const statusPresentation = {
   pending: { label: 'Pending', icon: Circle, className: 'bg-amber-100 text-amber-800' },
 };
 
-export default function RevenueTaskChecklist({ relationship }) {
+export default function RevenueTaskChecklist({ relationship, required = true }) {
+  if (!required) return null;
   const percentageEntered = relationship.revenue_percentage !== null && relationship.revenue_percentage !== undefined;
   const amountEntered = relationship.revenue_amount !== null && relationship.revenue_amount !== undefined;
   const submitted = relationship.revenue_submission_status === 'submitted';
