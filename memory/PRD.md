@@ -646,3 +646,8 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** ESG questionnaire assignment now appears directly beneath the ESG Questionnaire module control, while GHG Scope selection appears directly beneath GHG Emissions.
 - Existing module, questionnaire, and scope selections remain unchanged; the new cards stack responsively on smaller screens.
 - **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Add Supplier Training Panel Neutralization
+
+- **DONE:** The Add Supplier Training assignment panel now uses a white background, neutral border accent, and neutral icon color instead of the previous amber treatment.
+- **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
