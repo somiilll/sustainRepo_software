@@ -9,7 +9,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Label } from '../../components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { CardTitle } from '../../components/ui/card';
 import {
   Select,
   SelectContent,
@@ -147,6 +147,15 @@ const hydrateDropdownOptionScores = (options, scoring) => (options || []).map((o
   ...option,
   score: option.score ?? scoring?.choices?.[option.value] ?? null,
 }));
+
+const questionTypeLabel = (value) => responseTypes.find((type) => type.value === value)?.label || value;
+const scoringLabel = (value) => scoringRules.find((rule) => rule.value === value)?.label || 'Not configured';
+const importanceClasses = {
+  low: 'border-sky-200 bg-sky-50 text-sky-700',
+  medium: 'border-amber-200 bg-amber-50 text-amber-700',
+  high: 'border-orange-200 bg-orange-50 text-orange-700',
+  critical: 'border-rose-200 bg-rose-50 text-rose-700',
+};
 
 export default function QuestionnaireBuilder() {
   const { getAuthHeader } = useAuth();
@@ -606,60 +615,55 @@ export default function QuestionnaireBuilder() {
   };
 
   return (
-    <div className="space-y-6" data-testid="questionnaire-builder">
+    <div className="space-y-7" data-testid="questionnaire-builder">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
-          <h1 className="text-2xl font-semibold text-stone-900">ESG Questionnaires</h1>
-          <p className="text-sm text-stone-500 mt-1">Build and manage supplier assessment questionnaires</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Supplier assessment</p>
+          <h1 className="mt-1 text-3xl font-semibold text-stone-900">ESG Questionnaires</h1>
+          <p className="mt-1 text-sm text-stone-500">Build, organise, and review supplier assessments for {reportingPeriod}.</p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn">
-          <Plus className="h-4 w-4 mr-2" />
-          New Questionnaire
-        </Button>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={openSubmissions} disabled={!selectedQuestionnaire} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="mr-2 h-4 w-4" />Review responses</Button><Button onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn"><Plus className="mr-2 h-4 w-4" />New Questionnaire</Button></div>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         {/* Questionnaire List */}
-        <div className="col-span-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Questionnaires</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
+        <aside className="xl:col-span-3" data-testid="questionnaire-navigation-panel">
+          <div className="border border-stone-200 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3"><CardTitle className="text-base">Questionnaires</CardTitle><span className="text-xs text-stone-500" data-testid="questionnaire-count-label">{questionnaires.length}</span></div>
+            <div className="p-2">
               {loading ? (
-                <div className="p-4 text-center text-stone-500">Loading...</div>
+                <div className="p-6 text-center text-sm text-stone-500" data-testid="questionnaire-list-loading">Loading…</div>
               ) : questionnaires.length === 0 ? (
-                <div className="p-4 text-center text-stone-500">
-                  No questionnaires yet. Create your first one.
-                </div>
+                <div className="p-6 text-center text-sm text-stone-500" data-testid="questionnaire-list-empty">No questionnaires yet.</div>
               ) : (
-                <div className="divide-y">
+                <div className="space-y-1">
                   {questionnaires.map((q) => (
                     <div
                       key={q.id}
-                      className={`p-4 cursor-pointer hover:bg-stone-50 transition-colors ${
-                        selectedQuestionnaire?.id === q.id ? 'bg-emerald-50 border-l-2 border-emerald-500' : ''
+                      className={`group cursor-pointer border px-3 py-3 transition-colors ${
+                        selectedQuestionnaire?.id === q.id ? 'border-emerald-200 bg-emerald-50/70' : 'border-transparent hover:border-stone-200 hover:bg-stone-50'
                       }`}
                       onClick={() => setSelectedQuestionnaire(q)}
                       data-testid={`questionnaire-${q.id}`}
                     >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-medium text-stone-900">{q.name}</h3>
-                          <p className="text-sm text-stone-500 mt-1">
-                            {q.question_count} questions
-                          </p>
+                      <div className="flex items-start gap-2">
+                        <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${selectedQuestionnaire?.id === q.id ? 'bg-emerald-500' : 'bg-stone-300'}`} />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate text-sm font-semibold text-stone-900">{q.name}</h3>
+                          <p className="mt-1 text-xs text-stone-500">{q.question_count} questions</p>
                         </div>
                         <div className="flex items-center gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
+                            aria-label={`Edit ${q.name}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               openEditQuestionnaire(q);
                               setSelectedQuestionnaire(q);
                             }}
+                            data-testid={`edit-questionnaire-${q.id}`}
                           >
                             <Edit2 className="h-3 w-3" />
                           </Button>
@@ -670,6 +674,7 @@ export default function QuestionnaireBuilder() {
                               e.stopPropagation();
                               handleDuplicateQuestionnaire(q.id, q.name);
                             }}
+                            data-testid={`duplicate-questionnaire-${q.id}`}
                           >
                             <Copy className="h-3 w-3" />
                           </Button>
@@ -681,6 +686,7 @@ export default function QuestionnaireBuilder() {
                               e.stopPropagation();
                               handleDeleteQuestionnaire(q.id);
                             }}
+                            data-testid={`delete-questionnaire-${q.id}`}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -689,122 +695,36 @@ export default function QuestionnaireBuilder() {
                     </div>
                   ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              )}</div>
+          </div>
+        </aside>
 
         {/* Question Builder */}
-        <div className="col-span-8">
+        <main className="xl:col-span-9">
           {selectedQuestionnaire ? (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>{selectedQuestionnaire.name}</CardTitle>
-                  <p className="text-sm text-stone-500 mt-1">
-                    {selectedQuestionnaire.description || 'No description'}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={openSubmissions} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="mr-2 h-4 w-4" />Review responses</Button><Button onClick={() => {
+            <section className="border border-stone-200 bg-white" data-testid="selected-questionnaire-panel">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 px-5 py-4">
+                <div><div className="flex items-center gap-2"><CardTitle className="text-xl">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700" data-testid="selected-questionnaire-active-status">Active</Badge></div><p className="mt-1 text-sm text-stone-500">{selectedQuestionnaire.description || 'No description'}</p></div>
+                <Button onClick={() => {
                   resetQuestionForm();
                   setEditingQuestion(null);
                   setShowQuestionDialog(true);
-                }} data-testid="add-question-btn"><Plus className="h-4 w-4 mr-2" />Add Question</Button></div>
-              </CardHeader>
-              <CardContent>
+                }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Question</Button>
+              </div>
+              <div className="px-5 py-3" data-testid="question-table">
+                <div className="hidden grid-cols-[2.5rem_minmax(13rem,1fr)_7rem_7rem_9rem_7rem_7.5rem] items-center gap-3 border-b border-stone-200 pb-2 text-[11px] font-medium uppercase tracking-wide text-stone-500 lg:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
                 {questions.length === 0 ? (
-                  <div className="text-center py-12 text-stone-500">
-                    <FileText className="h-12 w-12 mx-auto mb-4 text-stone-300" />
-                    <p>No questions yet. Add your first question.</p>
-                  </div>
+                  <div className="py-14 text-center text-stone-500" data-testid="question-list-empty"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">No questions yet. Add your first question.</p></div>
                 ) : (
-                  <div className="space-y-3">
-                    {questions.map((q, index) => {
-                      const scoringRule = scoringRules.find(r => r.value === q.scoring?.rule);
-                      return (
-                        <div
-                          key={q.id}
-                          className="border rounded-lg p-4 hover:shadow-sm transition-shadow"
-                          data-testid={`question-${q.id}`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="text-stone-400 cursor-grab">
-                              <GripVertical className="h-5 w-5" />
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <span className="text-sm text-stone-400 mr-2">Q{index + 1}.</span>
-                                  <span className="font-medium">{q.question_text}</span>
-                                  {q.required && <span className="text-red-500 ml-1">*</span>}
-                                </div>
-                                <div className="flex items-center gap-1 flex-wrap justify-end">
-                                  <Badge variant="outline" className="text-xs">
-                                    {categories.find(c => c.value === q.category)?.label || q.category}
-                                  </Badge>
-                                  <Badge variant="outline" className="text-xs">
-                                    {responseTypes.find(r => r.value === q.response_type)?.label || q.response_type}
-                                  </Badge>
-                                  {scoringRule && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      {scoringRule.label}
-                                    </Badge>
-                                  )}
-                                  <Badge variant="outline" className="text-xs" data-testid={`question-weight-status-${q.id}`}>
-                                    {q.exact_numerical_weight != null ? `Exact weight ${q.exact_numerical_weight}` : `${q.importance || 'medium'} importance`}
-                                  </Badge>
-                                </div>
-                              </div>
-                              {q.description && (
-                                <p className="text-sm text-stone-500 mt-1">{q.description}</p>
-                              )}
-                              {q.options && q.options.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1">
-                                  {q.options.map((opt, i) => (
-                                    <Badge key={i} variant="secondary" className="text-xs">
-                                      {opt.label || opt.value}
-                                      {opt.score != null && <span className="ml-1 text-stone-400">({opt.score})</span>}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEditQuestion(q)}
-                                data-testid={`edit-question-${q.id}`}
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-600"
-                                onClick={() => handleDeleteQuestion(q.id)}
-                                data-testid={`delete-question-${q.id}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <div>{questions.map((q, index) => <div key={q.id} className="grid gap-2 border-b border-stone-100 py-3 last:border-0 lg:grid-cols-[2.5rem_minmax(13rem,1fr)_7rem_7rem_9rem_7rem_7.5rem] lg:items-center lg:gap-3" data-testid={`question-${q.id}`}><div className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-xs font-semibold text-stone-600" data-testid={`question-order-${q.id}`}>{index + 1}</div><div className="min-w-0"><p className="text-sm font-medium text-stone-900">{q.question_text}{q.required && <span className="ml-1 text-rose-500">*</span>}</p>{q.description && <p className="mt-0.5 truncate text-xs text-stone-500">{q.description}</p>}</div><div><span className="text-xs text-stone-500 lg:hidden">Category: </span><Badge variant="outline" className="text-xs">{categories.find((category) => category.value === q.category)?.label || q.category}</Badge></div><div className="text-xs text-stone-600"><span className="text-stone-500 lg:hidden">Type: </span>{questionTypeLabel(q.response_type)}</div><div className="text-xs text-stone-600"><span className="text-stone-500 lg:hidden">Field type: </span>{scoringLabel(q.scoring?.rule)}</div><div><span className="text-xs text-stone-500 lg:hidden">Importance: </span><Badge variant="outline" className={`text-xs ${importanceClasses[q.importance] || importanceClasses.medium}`} data-testid={`question-weight-status-${q.id}`}>{q.importance || 'medium'}</Badge></div><div className="flex items-center gap-1 lg:justify-end"><Button variant="ghost" size="sm" aria-label={`Edit question ${index + 1}`} onClick={() => openEditQuestion(q)} data-testid={`edit-question-${q.id}`}><Edit2 className="h-4 w-4" /></Button><Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700" aria-label={`Delete question ${index + 1}`} onClick={() => handleDeleteQuestion(q.id)} data-testid={`delete-question-${q.id}`}><Trash2 className="h-4 w-4" /></Button><GripVertical className="ml-1 h-4 w-4 text-stone-300" data-testid={`question-reorder-handle-${q.id}`} /></div></div>)}</div>
                 )}
-              </CardContent>
-            </Card>
+                {questions.length > 1 && <p className="pt-3 text-xs text-stone-400" data-testid="question-reorder-hint">Drag and drop to reorder questions</p>}
+              </div>
+            </section>
           ) : (
-            <Card>
-              <CardContent className="py-12 text-center text-stone-500">
-                <FileText className="h-12 w-12 mx-auto mb-4 text-stone-300" />
-                <p>Select a questionnaire to view and edit questions</p>
-              </CardContent>
-            </Card>
+            <div className="border border-dashed border-stone-300 bg-stone-50 px-6 py-20 text-center text-stone-500" data-testid="questionnaire-empty-selection"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">Select a questionnaire to view and edit its questions.</p></div>
           )}
-        </div>
+        </main>
       </div>
 
       <Dialog open={showSubmissionsDialog} onOpenChange={setShowSubmissionsDialog}>
