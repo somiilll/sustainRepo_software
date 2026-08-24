@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import re
 
 from shared.database.mongo import db
+from modules.entitlements.service import DEFAULT_ENTITLEMENT_CONFIG, normalize_entitlement_config, normalize_entitlements, sync_legacy_entitlement_mirror
 
 
 def _now() -> str:
@@ -99,6 +100,8 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             return_document=True,
             projection={"_id": 0},
         )
+        if "entitlements" in updates:
+            await sync_legacy_entitlement_mirror(org_id, updates["entitlements"])
         return result
     else:
         doc = {
@@ -112,6 +115,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             "ai_query_aliases": data.get("ai_query_aliases", []),
             "ghg_overrides": data.get("ghg_overrides", {}),
             "supplier_assessment": data.get("supplier_assessment", DEFAULT_SUPPLIER_ASSESSMENT_CONFIG),
+            "entitlements": normalize_entitlement_config(data.get("entitlements", DEFAULT_ENTITLEMENT_CONFIG)),
             "created_at": now,
             "updated_at": now,
             "created_by": user_id,
@@ -119,6 +123,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
         }
         await _coll().insert_one(doc)
         doc.pop("_id", None)
+        await sync_legacy_entitlement_mirror(org_id, doc["entitlements"])
         return doc
 
 
@@ -280,6 +285,8 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         "ai_query_aliases": org_cfg.get("ai_query_aliases") or [],
         "ghg_overrides": org_cfg.get("ghg_overrides") or {},
         "supplier_assessment": resolve_supplier_assessment_config_from_org_config(org_cfg),
+        "entitlements": normalize_entitlements(org_cfg.get("entitlements")),
+        "entitlement_config": normalize_entitlement_config(org_cfg.get("entitlements")),
     }
 
 

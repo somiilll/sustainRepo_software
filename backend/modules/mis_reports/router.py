@@ -24,6 +24,7 @@ from modules.mis_reports.contracts import (
 )
 from shared.database.mongo import db
 from modules.mis_reports.service import ReportingPeriodService, aggregate_emissions, build_executive_excel, build_executive_mis_report, build_executive_pdf, next_run_at, now_iso, send_schedule
+from modules.entitlements.service import resolve_entitlements
 
 
 router = APIRouter()
@@ -55,8 +56,8 @@ async def get_mis_reporting_context(current_user: dict) -> tuple[Optional[dict],
     if not organization:
         return None, False
 
-    module_access = organization.get("module_access") or {}
-    mis_reports_enabled = module_access.get("mis_reports", module_access.get("reports", True))
+    entitlements = await resolve_entitlements(organization_id, migrate=True)
+    mis_reports_enabled = entitlements["mis_reports"]
     return organization, current_user.get("role") == "admin" and mis_reports_enabled
 
 

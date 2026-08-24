@@ -150,10 +150,6 @@ export default function OrganizationManagement() {
     approval_workflow_enabled: false,
     multi_level_approval_enabled: false,
     esg_frameworks_enabled: [],
-    sbti_targets_enabled: false,
-    repo_pilot_enabled: false,
-    has_ghg: true,
-    has_esg: true,
     // SuperAdmin Internal Fields
     date_of_joining: '',
     selected_plan: '',
@@ -372,10 +368,6 @@ export default function OrganizationManagement() {
       approval_workflow_enabled: !!org.approval_workflow_enabled,
       multi_level_approval_enabled: !!org.multi_level_approval_enabled,
       esg_frameworks_enabled: org.esg_frameworks_enabled || [],
-      sbti_targets_enabled: !!org.sbti_targets_enabled,
-      repo_pilot_enabled: !!org.repo_pilot_enabled,
-      has_ghg: org.has_ghg !== false,
-      has_esg: org.has_esg !== false,
       // SuperAdmin Internal Fields
       date_of_joining: org.date_of_joining ? org.date_of_joining.split('T')[0] : '',
       selected_plan: org.selected_plan || '',
@@ -418,9 +410,6 @@ export default function OrganizationManagement() {
       approval_workflow_enabled: false,
       multi_level_approval_enabled: false,
       esg_frameworks_enabled: [],
-      sbti_targets_enabled: false,
-      has_ghg: true,
-      has_esg: true,
       // SuperAdmin Internal Fields
       date_of_joining: '',
       selected_plan: '',
@@ -664,84 +653,6 @@ export default function OrganizationManagement() {
                     />
                   </div>
                   
-                  {/* Report Access Control */}
-                  <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">Module Access</Label>
-                    <p className="text-xs text-text-muted mb-3">Select which modules this organization can access</p>
-                    
-                    {/* GHG Module Toggle */}
-                    <div className="space-y-3 mb-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.has_ghg !== false}
-                          onChange={(e) => setFormData({ ...formData, has_ghg: e.target.checked })}
-                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                          data-testid="has-ghg-toggle"
-                        />
-                        <span className="text-sm font-medium">Enable GHG Module</span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${formData.has_ghg !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
-                          {formData.has_ghg !== false ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </label>
-                      
-                      {/* GHG Scope Options - Only show if GHG is enabled */}
-                      {formData.has_ghg !== false && (
-                        <div className="ml-6 space-y-2 p-3 bg-stone-50 rounded-lg">
-                          <p className="text-xs text-text-muted">GHG Scope Access</p>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.enabled_access?.includes('scope1_2')}
-                              onChange={(e) => {
-                                const newAccess = e.target.checked
-                                  ? [...(formData.enabled_access || []), 'scope1_2']
-                                  : (formData.enabled_access || []).filter(a => a !== 'scope1_2');
-                                setFormData({ ...formData, enabled_access: newAccess });
-                              }}
-                              className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                              data-testid="access-scope1-2"
-                            />
-                            <span className="text-sm">Scope 1 & 2</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.enabled_access?.includes('scope1_2_3')}
-                              onChange={(e) => {
-                                const newAccess = e.target.checked
-                                  ? [...(formData.enabled_access || []), 'scope1_2_3']
-                                  : (formData.enabled_access || []).filter(a => a !== 'scope1_2_3');
-                                setFormData({ ...formData, enabled_access: newAccess });
-                              }}
-                              className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                              data-testid="access-scope1-2-3"
-                            />
-                            <span className="text-sm">Scope 1, 2 & 3</span>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* ESG Module Toggle */}
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.has_esg !== false}
-                          onChange={(e) => setFormData({ ...formData, has_esg: e.target.checked })}
-                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                          data-testid="has-esg-toggle"
-                        />
-                        <span className="text-sm font-medium">Enable ESG Module</span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${formData.has_esg !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
-                          {formData.has_esg !== false ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </label>
-                      <p className="text-xs text-text-muted ml-6">Includes Environment, Social, and Governance modules</p>
-                    </div>
-                  </div>
-
                   {/* Approval Workflow Toggle */}
                   <div className="pt-4 border-t border-stone-200">
                     <Label className="text-sm font-medium">Approval Workflow</Label>
@@ -869,44 +780,6 @@ export default function OrganizationManagement() {
                     )}
                   </div>
 
-                  {/* SBTi Targets — separate toggle */}
-                  <div className="pt-4 border-t border-stone-200">
-                    <div className="flex items-center gap-3 p-3 border rounded-lg transition-all border-stone-200 bg-white">
-                      <Checkbox
-                        id="sbti-targets-toggle"
-                        checked={!!formData.sbti_targets_enabled}
-                        onCheckedChange={(checked) => setFormData({ ...formData, sbti_targets_enabled: !!checked })}
-                        data-testid="sbti-targets-toggle"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <label htmlFor="sbti-targets-toggle" className="text-sm font-medium cursor-pointer">SBTi Targets</label>
-                          <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                            <CheckCircle2 className="w-3 h-3 mr-1" />Available
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-text-muted mt-0.5">Science Based Targets initiative — emission reduction targets aligned with Paris Agreement</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Repo Pilot toggle */}
-                  <div className="flex items-center gap-3 p-3 border rounded-lg transition-all border-stone-200 bg-white">
-                    <Checkbox
-                      id="repo-pilot-toggle"
-                      checked={!!formData.repo_pilot_enabled}
-                      onCheckedChange={(checked) => setFormData({ ...formData, repo_pilot_enabled: !!checked })}
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <label htmlFor="repo-pilot-toggle" className="text-sm font-medium cursor-pointer">Repo Pilot</label>
-                        <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                          <CheckCircle2 className="w-3 h-3 mr-1" />Available
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-text-muted mt-0.5">AI-powered ESG document assistant — upload reports and ask questions</p>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -1249,7 +1122,7 @@ export default function OrganizationManagement() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-stone-500 italic">No payment entries. Click "Add Entry" to start tracking payments.</p>
+                          <p className="text-sm text-stone-500 italic">No payment entries. Click &quot;Add Entry&quot; to start tracking payments.</p>
                         )}
                       </div>
 

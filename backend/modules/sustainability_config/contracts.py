@@ -6,7 +6,8 @@ Single-collection override layer:
 """
 
 from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from modules.entitlements.service import normalize_entitlement_config
 
 
 # =============================================================================
@@ -181,6 +182,108 @@ class SupplierAssessmentConfig(BaseModel):
     modules: SupplierAssessmentModulesConfig = Field(default_factory=SupplierAssessmentModulesConfig)
 
 
+class MonthlyEntryEntitlement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool = True
+    monthly_rows_allowed: Optional[int] = Field(default=None, ge=1)
+
+
+class GhgEntitlement(MonthlyEntryEntitlement):
+    coverage: Literal["scope_1_2", "scope_3", "scope_1_2_3"] = "scope_1_2_3"
+
+
+class EnvironmentEntitlement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ghg: GhgEntitlement = Field(default_factory=GhgEntitlement)
+    energy: MonthlyEntryEntitlement = Field(default_factory=MonthlyEntryEntitlement)
+    water: MonthlyEntryEntitlement = Field(default_factory=MonthlyEntryEntitlement)
+    waste: MonthlyEntryEntitlement = Field(default_factory=MonthlyEntryEntitlement)
+    biodiversity: MonthlyEntryEntitlement = Field(default_factory=MonthlyEntryEntitlement)
+    climate_change: MonthlyEntryEntitlement = Field(default_factory=MonthlyEntryEntitlement)
+    material: MonthlyEntryEntitlement = Field(default_factory=MonthlyEntryEntitlement)
+    other_emissions: MonthlyEntryEntitlement = Field(default_factory=MonthlyEntryEntitlement)
+
+
+class RepoPilotEntitlement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    internal_data_ai: bool = False
+    data_retrieval: bool = False
+
+
+class EnabledEntitlement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool = True
+
+
+class MaterialityEntitlement(EnabledEntitlement):
+    assessment_types: List[Literal["traditional", "double"]] = Field(default_factory=lambda: ["traditional", "double"])
+
+
+class ReportingEntitlement(EnabledEntitlement):
+    brsr: bool = True
+    gri: bool = True
+
+
+class WorkflowEntitlement(EnabledEntitlement):
+    workflow_type: Literal["single_level", "multi_level"] = "multi_level"
+
+
+class UploadsEntitlement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    bulk_upload: bool = True
+    ocr: bool = True
+
+
+class TargetsEntitlement(EnabledEntitlement):
+    enabled: bool = False
+    voluntary: bool = False
+    sbti: bool = False
+
+
+class ReportsEntitlement(EnabledEntitlement):
+    scope_1_2: bool = True
+    scope_1_2_3: bool = True
+    ai_executive_summary: bool = True
+
+
+class MisReportsEntitlement(EnabledEntitlement):
+    configurations_allowed: Optional[int] = Field(default=None, ge=1)
+
+
+class SupplierAssessmentEntitlement(EnabledEntitlement):
+    suppliers_allowed: Optional[int] = Field(default=None, ge=1)
+
+
+class EvidenceStorageEntitlement(EnabledEntitlement):
+    storage_limit_gb: Optional[int] = Field(default=None, ge=1)
+
+
+class EntitlementsConfig(BaseModel):
+    """Detailed, canonical organization access and plan limits."""
+    model_config = ConfigDict(extra="forbid")
+
+    repo_pilot: RepoPilotEntitlement = Field(default_factory=RepoPilotEntitlement)
+    environment: EnvironmentEntitlement = Field(default_factory=EnvironmentEntitlement)
+    social: EnabledEntitlement = Field(default_factory=EnabledEntitlement)
+    governance: EnabledEntitlement = Field(default_factory=EnabledEntitlement)
+    materiality: MaterialityEntitlement = Field(default_factory=MaterialityEntitlement)
+    reporting: ReportingEntitlement = Field(default_factory=ReportingEntitlement)
+    workflow: WorkflowEntitlement = Field(default_factory=WorkflowEntitlement)
+    uploads: UploadsEntitlement = Field(default_factory=UploadsEntitlement)
+    targets: TargetsEntitlement = Field(default_factory=TargetsEntitlement)
+    reports: ReportsEntitlement = Field(default_factory=ReportsEntitlement)
+    mis_reports: MisReportsEntitlement = Field(default_factory=MisReportsEntitlement)
+    peer_benchmarking: EnabledEntitlement = Field(default_factory=EnabledEntitlement)
+    supplier_assessment: SupplierAssessmentEntitlement = Field(default_factory=SupplierAssessmentEntitlement)
+    audit_trails: EnabledEntitlement = Field(default_factory=EnabledEntitlement)
+    evidence_storage: EvidenceStorageEntitlement = Field(default_factory=EvidenceStorageEntitlement)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_flat_entitlement_payload(cls, value):
+        return normalize_entitlement_config(value) if isinstance(value, dict) else value
+
+
 class OrganizationConfigUpdate(BaseModel):
     """Payload for creating/updating the organization config."""
     modules: Optional[ModulesConfig] = None
@@ -192,3 +295,4 @@ class OrganizationConfigUpdate(BaseModel):
     ai_query_aliases: Optional[List[AIQueryAlias]] = None
     ghg_overrides: Optional[GhgOverridesConfig] = None
     supplier_assessment: Optional[SupplierAssessmentConfig] = None
+    entitlements: Optional[EntitlementsConfig] = None

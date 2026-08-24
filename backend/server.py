@@ -62,6 +62,7 @@ from app.bootstrap.contract_verifier import verify_module_contracts
 # server.py keeps the legacy class definitions and route handlers commented
 # out / removed below; the new modular routers are included in the api_router.
 from modules.auth.dependencies import get_current_user, get_super_admin_user, get_admin_user, security
+from modules.entitlements.dependencies import require_entitlement
 from modules.auth.router import router as auth_router
 from modules.users.router import router as users_admin_router
 from app.router.health import router as health_router
@@ -135,15 +136,15 @@ api_router.include_router(facilities_router)
 api_router.include_router(organizations_router)
 api_router.include_router(sinks_router)
 # Phase B4 router (emissions read/list — POST/PUT remain in this file until Phase B5)
-api_router.include_router(emissions_router)
+api_router.include_router(emissions_router, dependencies=[Depends(require_entitlement("environment"))])
 # Phase B5 router (C7 Employee Commuting — 7 routes)
-api_router.include_router(c7_router)
+api_router.include_router(c7_router, dependencies=[Depends(require_entitlement("environment"))])
 # Phase B7 router (Dashboards — 2 routes)
 api_router.include_router(dashboards_router)
 # Phase B11+ WebSocket router (Live cockpit — /ws/dashboard)
 api_router.include_router(dashboards_ws_router)
 # Phase B8 router (Reports — 5 routes)
-api_router.include_router(reports_router)
+api_router.include_router(reports_router, dependencies=[Depends(require_entitlement("reports"))])
 # MIS Reports V1 module (catalog, shared filters, and run history).
 api_router.include_router(mis_reports_router)
 # Phase B9 router (Super-admin / Platform Config — ~91 routes)
@@ -153,14 +154,14 @@ api_router.include_router(superadmin_router)
 api_router.include_router(approvals_router)
 
 # Enterprise Approval Workflow Engine
-api_router.include_router(approval_workflow_router)
+api_router.include_router(approval_workflow_router, dependencies=[Depends(require_entitlement("workflow"))])
 
 # Multi-Proposal Management
 from modules.approval_workflow.proposal_router import router as proposal_router
-api_router.include_router(proposal_router)
+api_router.include_router(proposal_router, dependencies=[Depends(require_entitlement("workflow"))])
 
 # ESG Tracking Module
-api_router.include_router(esg_tracking_router)
+api_router.include_router(esg_tracking_router, dependencies=[Depends(require_entitlement("workflow"))])
 
 # Production quantity module (for Carbon Intensity calculations)
 api_router.include_router(production_router)
@@ -178,14 +179,14 @@ api_router.include_router(framework_details_router)
 api_router.include_router(esg_questionnaire_router)
 # ESG Records system (Environment/Social/Governance records)
 api_router.include_router(esg_records_router)
-api_router.include_router(hr_workforce_router)
-api_router.include_router(governance_router)
+api_router.include_router(hr_workforce_router, dependencies=[Depends(require_entitlement("social"))])
+api_router.include_router(governance_router, dependencies=[Depends(require_entitlement("governance"))])
 # ESG Records Super Admin Config
 api_router.include_router(esg_records_admin_router)
 # ESG Assignments & Access Control
 api_router.include_router(esg_assignments_router)
 # ESG Targets Module (KPI-level targets)
-api_router.include_router(esg_targets_router, prefix="/esg-targets", tags=["ESG Targets"])
+api_router.include_router(esg_targets_router, prefix="/esg-targets", tags=["ESG Targets"], dependencies=[Depends(require_entitlement("targets"))])
 # ESG KPI Definitions Module (Super Admin - reusable metric configurations)
 api_router.include_router(esg_kpi_definitions_router)
 # KPI Calculation Engine (reusable calculation module)
@@ -196,24 +197,24 @@ from modules.notifications.router import router as notifications_router
 api_router.include_router(notifications_router, tags=["Notifications"])
 # SBTi Targets Module
 from modules.sbti_targets.router import router as sbti_targets_router
-api_router.include_router(sbti_targets_router, prefix="/sbti-targets", tags=["SBTi Targets"])
+api_router.include_router(sbti_targets_router, prefix="/sbti-targets", tags=["SBTi Targets"], dependencies=[Depends(require_entitlement("targets"))])
 # Repo Pilot Module
 from modules.repo_pilot.router import router as repo_pilot_router
-api_router.include_router(repo_pilot_router, prefix="/repo-pilot", tags=["Repo Pilot"])
+api_router.include_router(repo_pilot_router, prefix="/repo-pilot", tags=["Repo Pilot"], dependencies=[Depends(require_entitlement("repo_pilot"))])
 
 from modules.internal_data_ai.router import router as internal_ai_router
 api_router.include_router(internal_ai_router, tags=["Internal Data AI"])
 
 # Peer Benchmarking Module
 from modules.benchmarking.router import router as benchmarking_router
-api_router.include_router(benchmarking_router, tags=["Peer Benchmarking"])
+api_router.include_router(benchmarking_router, tags=["Peer Benchmarking"], dependencies=[Depends(require_entitlement("peer_benchmarking"))])
 
 # Materiality Assessment Module
-api_router.include_router(materiality_router, tags=["Materiality Assessment"])
+api_router.include_router(materiality_router, tags=["Materiality Assessment"], dependencies=[Depends(require_entitlement("materiality"))])
 
 # Supplier Assessment Module
 from modules.supplier_assessment.router import router as supplier_assessment_router
-api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment"])
+api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment"], dependencies=[Depends(require_entitlement("supplier_assessment"))])
 
 # Sustainability Module Configuration (Organization-scoped modules/KPIs/questions)
 from modules.sustainability_config.router import router as sustainability_config_router
@@ -221,11 +222,11 @@ api_router.include_router(sustainability_config_router, tags=["Sustainability Co
 
 # BRSR Report Generation Module (Annexure II PDF)
 from modules.brsr_report.router import router as brsr_report_router
-api_router.include_router(brsr_report_router, tags=["BRSR Report"])
+api_router.include_router(brsr_report_router, tags=["BRSR Report"], dependencies=[Depends(require_entitlement("reporting"))])
 
 # OCR Invoice Extractor Module (Scope 1 & 2 emissions from utility invoices)
 from modules.ocr_invoice.router import router as ocr_invoice_router
-api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"])
+api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"], dependencies=[Depends(require_entitlement("uploads"))])
 
 # Airports reference data (search + distance calculation)
 api_router.include_router(airports_router, tags=["Airports"])
