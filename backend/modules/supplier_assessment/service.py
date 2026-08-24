@@ -1604,12 +1604,17 @@ class SupplierAssessmentService:
             "poor": len([r for r in ranked_suppliers if r["overall_score"] is not None and r["overall_score"] < 40]),
         }
         
-        # Average scores
-        avg_esg = sum(r["esg_score"] for r in ranked_suppliers if r["esg_score"]) / len([r for r in ranked_suppliers if r["esg_score"]]) if any(r["esg_score"] for r in ranked_suppliers) else 0
-        avg_env = sum(r["environment_score"] for r in ranked_suppliers if r["environment_score"]) / len([r for r in ranked_suppliers if r["environment_score"]]) if any(r["environment_score"] for r in ranked_suppliers) else 0
-        avg_social = sum(r["social_score"] for r in ranked_suppliers if r["social_score"]) / len([r for r in ranked_suppliers if r["social_score"]]) if any(r["social_score"] for r in ranked_suppliers) else 0
-        avg_gov = sum(r["governance_score"] for r in ranked_suppliers if r["governance_score"]) / len([r for r in ranked_suppliers if r["governance_score"]]) if any(r["governance_score"] for r in ranked_suppliers) else 0
-        avg_ghg = sum(r["ghg_score"] for r in ranked_suppliers if r["ghg_score"]) / len([r for r in ranked_suppliers if r["ghg_score"]]) if any(r["ghg_score"] for r in ranked_suppliers) else 0
+        # ESG data remains useful even when a supplier lacks another component
+        # required for an Overall Score (for example, GHG or revenue).
+        def average_score(field: str) -> float:
+            values = [float(row[field]) for row in rankings if row.get(field) is not None]
+            return round(sum(values) / len(values), 1) if values else 0
+
+        avg_esg = average_score("esg_score")
+        avg_env = average_score("environment_score")
+        avg_social = average_score("social_score")
+        avg_gov = average_score("governance_score")
+        avg_ghg = average_score("ghg_score")
         
         # Total emissions by scope (Scope 1 & 2 only)
         total_scope1 = sum(r["scope1_emissions"] for r in rankings)
