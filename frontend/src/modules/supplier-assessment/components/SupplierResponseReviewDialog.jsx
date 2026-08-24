@@ -30,26 +30,26 @@ const scoreColor = (score) => {
 const ScoreRing = ({ value, label, prominent = false, testId, status }) => {
   const score = Number(value);
   const hasScore = Number.isFinite(score);
-  const diameter = prominent ? 'h-32 w-32' : 'h-[4.75rem] w-[4.75rem]';
-  const inner = prominent ? 'h-[6.35rem] w-[6.35rem]' : 'h-[3.75rem] w-[3.75rem]';
+  const diameter = prominent ? 'h-28 w-28' : 'h-16 w-16';
+  const inner = prominent ? 'h-[5.5rem] w-[5.5rem]' : 'h-12 w-12';
   const progress = hasScore ? Math.min(100, Math.max(0, score)) : 0;
   return <div className="flex flex-col items-center text-center" data-testid={testId}>
     <div className={`${diameter} flex items-center justify-center rounded-full p-1`} role="img" aria-label={`${label}: ${formatScore(value)} out of 100`} style={{ background: hasScore ? `conic-gradient(${scoreColor(score)} ${progress}%, #e7e5e4 ${progress}% 100%)` : '#e7e5e4' }}>
       <div className={`${inner} flex flex-col items-center justify-center rounded-full bg-white`}>
-        <span className={prominent ? 'text-3xl font-semibold leading-none text-stone-900' : 'text-lg font-semibold leading-none text-stone-900'}>{formatScore(value)}</span>
-        <span className="mt-1 text-[10px] font-medium uppercase text-stone-500">/ 100</span>
-        {prominent && <span className={`mt-1 text-[10px] font-semibold ${status.className}`} data-testid="supplier-response-score-status">{status.label}</span>}
+        <span className={prominent ? 'text-2xl font-semibold leading-none text-stone-900' : 'text-base font-semibold leading-none text-stone-900'}>{formatScore(value)}</span>
+        <span className="mt-0.5 text-[9px] font-medium uppercase text-stone-500">/ 100</span>
+        {prominent && <span className={`mt-0.5 text-[9px] font-semibold ${status.className}`} data-testid="supplier-response-score-status">{status.label}</span>}
       </div>
     </div>
-    <span className={`${prominent ? 'mt-3 text-sm' : 'mt-2 text-xs'} font-medium text-stone-700`}>{label}</span>
+    <span className={`${prominent ? 'mt-2 text-sm' : 'mt-1.5 text-xs'} font-medium text-stone-700`}>{label}</span>
   </div>;
 };
 
 const QuestionScore = ({ value, testId }) => {
   const score = Number(value);
   const colorClass = !Number.isFinite(score) ? 'border-stone-200 bg-stone-100 text-stone-500' : score >= 60 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : score >= 40 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-rose-200 bg-rose-50 text-rose-700';
-  return <div className={`min-w-24 border px-3 py-2 text-center ${colorClass}`} data-testid={testId}>
-    <p className="text-lg font-semibold">{formatScore(value)}<span className="ml-0.5 text-xs font-normal opacity-70">/100</span></p>
+  return <div className={`min-w-[4.5rem] border px-2 py-1 text-center ${colorClass}`} data-testid={testId}>
+    <p className="text-sm font-semibold">{formatScore(value)}<span className="ml-0.5 text-[10px] font-normal opacity-70">/100</span></p>
   </div>;
 };
 
@@ -99,21 +99,21 @@ export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, sup
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto" data-testid="supplier-response-review-dialog">
       <DialogHeader><DialogTitle data-testid="supplier-response-review-title">Submitted ESG response</DialogTitle></DialogHeader>
-      <section className="grid gap-6 border-y border-stone-200 bg-stone-50/70 px-1 py-5 sm:grid-cols-[minmax(10rem,0.72fr)_1.28fr] sm:px-4" data-testid="supplier-response-score-summary">
-        <div className="flex items-center justify-center border-b border-stone-200 pb-5 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-6">
+      <section className="grid gap-4 border-y border-stone-200 bg-stone-50/70 px-1 py-4 sm:grid-cols-[minmax(9rem,0.72fr)_1.28fr] sm:px-3" data-testid="supplier-response-score-summary">
+        <div className="flex items-center justify-center border-b border-stone-200 pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
           <ScoreRing value={overallScore} label="Overall ESG" prominent testId="supplier-response-overall-score" status={status} />
         </div>
-        <dl className="grid grid-cols-3 gap-3 self-center" data-testid="supplier-response-section-scores">
+        <dl className="grid grid-cols-3 gap-2 self-center" data-testid="supplier-response-section-scores">
           {sections.map((section) => <div key={section.id} data-testid={`supplier-response-${section.id}-score`}><dt className="sr-only">{section.label}</dt><dd><ScoreRing value={section.value} label={section.label} testId={`supplier-response-${section.id}-score-ring`} status={status} /></dd></div>)}
         </dl>
       </section>
-      <div className="space-y-3" data-testid="supplier-response-review-questions">
+      <div className="space-y-1" data-testid="supplier-response-review-questions">
         {(response?.questions || []).map((question, index) => {
           const isManual = question.scoring?.rule === 'manual';
           const calculatedScore = calculatedScores[question.id];
-          return <section key={question.id} className="grid gap-3 border-b border-stone-200 py-4 first:pt-1 last:border-0 last:pb-0 sm:grid-cols-[2.25rem_minmax(0,1fr)_auto] sm:items-center" data-testid={`supplier-response-answer-${question.id}`}>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-sm font-semibold text-emerald-700" data-testid={`supplier-response-number-${question.id}`}>{index + 1}</div>
-            <div className="min-w-0"><p className="text-sm font-semibold leading-5 text-stone-900">{question.question_text}</p><div className="mt-2 border-l-2 border-stone-200 bg-stone-50 px-3 py-2" data-testid={`supplier-response-value-${question.id}`}><p className="whitespace-pre-wrap text-sm text-stone-700">{String(question.answer ?? 'No response')}</p></div></div>
+          return <section key={question.id} className="grid gap-2 border-b border-stone-200 py-3 first:pt-1 last:border-0 last:pb-0 sm:grid-cols-[1.75rem_minmax(0,1fr)_auto] sm:items-center" data-testid={`supplier-response-answer-${question.id}`}>
+            <div className="flex h-7 w-7 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-700" data-testid={`supplier-response-number-${question.id}`}>{index + 1}</div>
+            <div className="min-w-0"><p className="text-sm font-semibold leading-5 text-stone-900">{question.question_text}</p><div className="mt-1 border-l-2 border-stone-200 px-2" data-testid={`supplier-response-value-${question.id}`}><p className="whitespace-pre-wrap text-sm text-stone-700">{String(question.answer ?? 'No response')}</p></div></div>
             {isManual ? <div className="flex flex-wrap items-end justify-end gap-2 sm:min-w-64" data-testid={`manual-question-score-controls-${question.id}`}>
               <div className="w-28 space-y-1"><Label htmlFor={`manual-question-score-${question.id}`} className="text-xs">Parent score</Label><Input id={`manual-question-score-${question.id}`} type="number" min="0" max="100" value={scores[question.id] ?? ''} onChange={(event) => setScores((current) => ({ ...current, [question.id]: event.target.value }))} data-testid={`manual-question-score-input-${question.id}`} /></div>
               <Button size="sm" onClick={() => saveQuestionScore(question)} disabled={savingQuestionId === question.id} data-testid={`save-manual-question-score-${question.id}`}><PencilLine className="mr-1 h-4 w-4" />{savingQuestionId === question.id ? 'Saving…' : 'Save'}</Button>
