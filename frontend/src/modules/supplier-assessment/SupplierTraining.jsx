@@ -7,10 +7,15 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
-import { Progress } from '../../components/ui/progress';
 import { TrainingViewer } from './TrainingViewer';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+const trainingStatus = (status) => ({
+  not_started: { label: 'Not started', className: 'bg-amber-100 text-amber-800' },
+  in_progress: { label: 'In progress', className: 'bg-blue-100 text-blue-800' },
+  completed: { label: 'Completed', className: 'bg-emerald-100 text-emerald-800' },
+}[status] || { label: 'Not started', className: 'bg-amber-100 text-amber-800' });
 
 export default function SupplierTraining() {
   const { getAuthHeader } = useAuth();
@@ -40,7 +45,7 @@ export default function SupplierTraining() {
 
   return <div className="space-y-6" data-testid="supplier-training-page">
     <div><h1 className="text-3xl font-semibold">Training</h1><p className="mt-2 text-sm text-stone-600">Complete training assigned by your customer.</p></div>
-    {items.length === 0 ? <Card data-testid="supplier-training-empty"><CardContent className="py-10 text-center text-sm text-stone-500">No training is assigned.</CardContent></Card> : items.map((item) => <Card key={item.assignment_id} data-testid={`supplier-training-${item.assignment_id}`}><CardHeader><div className="flex justify-between gap-4"><div><CardTitle className="flex gap-2"><BookOpen className="h-5 w-5 text-emerald-700" />{item.title}</CardTitle><CardDescription>{item.description} · Version {item.version_number}</CardDescription></div><Badge data-testid={`supplier-training-status-${item.assignment_id}`}>{item.status.replace('_', ' ')}</Badge></div></CardHeader><CardContent className="space-y-4"><div className="text-sm" data-testid={`supplier-training-progress-${item.assignment_id}`}>{item.progress_percent}% complete · {item.completion_threshold}% required</div><Progress value={item.progress_percent} /><Button variant="outline" onClick={() => openViewer(item)} disabled={isOpening} data-testid={`open-training-viewer-${item.assignment_id}`}>{isOpening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}Open training</Button></CardContent></Card>)}
+    {items.length === 0 ? <Card data-testid="supplier-training-empty"><CardContent className="py-10 text-center text-sm text-stone-500">No training is assigned.</CardContent></Card> : items.map((item) => { const status = trainingStatus(item.status); return <Card key={item.assignment_id} data-testid={`supplier-training-${item.assignment_id}`}><CardHeader><div className="flex justify-between gap-4"><div><CardTitle className="flex gap-2"><BookOpen className="h-5 w-5 text-emerald-700" />{item.title}</CardTitle><CardDescription>{item.description} · Version {item.version_number}</CardDescription></div><Badge className={status.className} data-testid={`supplier-training-status-${item.assignment_id}`}>{status.label}</Badge></div></CardHeader><CardContent><Button variant="outline" onClick={() => openViewer(item)} disabled={isOpening} data-testid={`open-training-viewer-${item.assignment_id}`}>{isOpening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}Open training</Button></CardContent></Card>; })}
     <Dialog open={Boolean(activeTraining && viewer)} onOpenChange={closeViewer}><DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto" data-testid="training-viewer-dialog"><DialogHeader><DialogTitle data-testid="training-viewer-title">{activeTraining?.title}</DialogTitle></DialogHeader>{viewer && activeTraining && <TrainingViewer assignmentId={activeTraining.assignment_id} viewer={viewer} getAuthHeader={getAuthHeader} onProgress={(progress) => updateProgress(activeTraining.assignment_id, progress)} />}</DialogContent></Dialog>
   </div>;
 }

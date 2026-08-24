@@ -408,7 +408,7 @@ export default function SupplierDashboard() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.location.href = `/supplier-assessment/questionnaire/${q.questionnaire_id}`}
+                        onClick={() => window.location.href = '/supplier-assessment/supplier/esg'}
                         data-testid={`open-questionnaire-${q.questionnaire_id}`}
                       >
                         Continue ESG

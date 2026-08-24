@@ -497,6 +497,13 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** Configured Documents and Training modules now appear as status cards with completion, pending/completed/no-assignment states, and direct task actions only when work remains.
 - Per user instruction, no further UI test was run after implementation. No APIs are **MOCKED**.
 
+## Change Log — 2026-08-23: Dedicated Supplier ESG and Training States
+
+- **DONE:** Added a dedicated supplier ESG route at `/supplier-assessment/supplier/esg`, linked from the supplier dashboard and sidebar. It presents every assigned questionnaire, its questions, saved answers, pending responses, progress, and a direct continuation action.
+- **DONE:** The parent organization’s `/supplier-assessment/esg` questionnaire builder remains unchanged and separate from the supplier portal route.
+- **DONE:** Removed per-training percentage display. Each training now reports only `Not started`, `In progress`, or `Completed`.
+- Frontend lint passed before the user paused testing; per user instruction, no further test was run. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Supplier Assessment Assignment and Program Repair
 
 - **FIXED:** Edit Supplier now always initializes document and training assignment arrays, preventing the `.includes()` runtime crash.
