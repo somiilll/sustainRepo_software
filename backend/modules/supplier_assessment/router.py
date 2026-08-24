@@ -1053,8 +1053,8 @@ async def create_my_emission(
     
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
-    if data.reporting_period != relationship.get("reporting_period"):
-        raise HTTPException(status_code=400, detail="Use the reporting period assigned by your customer")
+    if not ghg_submission_service.period_belongs_to_parent(data.reporting_period, relationship.get("reporting_period")):
+        raise HTTPException(status_code=400, detail="Use a month within the reporting period assigned by your customer")
     
     # Validate scope (only scope1 and scope2 allowed for suppliers)
     allowed_scopes = relationship.get("ghg_scopes_enabled", ["scope1", "scope2"])

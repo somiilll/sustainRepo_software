@@ -1,6 +1,7 @@
 """One-time Supplier Assessment GHG submission state on existing emission records."""
 import uuid
 from datetime import datetime, timezone
+import re
 from typing import Any, Dict, List, Optional
 
 from shared.database.mongo import db
@@ -8,6 +9,21 @@ from shared.database.mongo import db
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def reporting_period_values(parent_period: str | None) -> list[str]:
+    """Return valid supplier month periods for a parent FY, including the FY label for legacy rows."""
+    if not parent_period:
+        return []
+    match = re.fullmatch(r"FY\s+(\d{4})-(\d{2}|\d{4})", parent_period.strip())
+    if not match:
+        return [parent_period]
+    start_year = int(match.group(1))
+    return [parent_period, *[f"{year}-{month:02d}" for year, month in [(start_year, month) for month in range(4, 13)] + [(start_year + 1, month) for month in range(1, 4)]]]
+
+
+def period_belongs_to_parent(submission_period: str | None, parent_period: str | None) -> bool:
+    return bool(submission_period and submission_period in reporting_period_values(parent_period))
 
 
 def aggregate_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -114,7 +130,7 @@ async def get_supplier_ghg_revision_history(relationship: Dict[str, Any], emissi
 async def get_supplier_ghg_state(relationship: Dict[str, Any]) -> Dict[str, Any]:
     query = {"source": "supplier", "supplier_relationship_id": relationship["id"]}
     if relationship.get("reporting_period"):
-        query["reporting_period"] = relationship["reporting_period"]
+        query["reporting_period"] = {"$in": reporting_period_values(relationship["reporting_period"])}
     entries = await db.emission_records.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
     submitted_entries = [entry for entry in entries if entry.get("submitted_to_parent_org") and entry.get("parent_visible", True)]
     drafts = [entry for entry in entries if not entry.get("submitted_to_parent_org")]
@@ -133,7 +149,7 @@ async def get_supplier_ghg_state(relationship: Dict[str, Any]) -> Dict[str, Any]
 
 
 async def submit_supplier_ghg(relationship: Dict[str, Any], submitted_by: str) -> Dict[str, Any]:
-    period_filter = {"reporting_period": relationship["reporting_period"]} if relationship.get("reporting_period") else {}
+    period_filter = {"reporting_period": {"$in": reporting_period_values(relationship["reporting_period"])}} if relationship.get("reporting_period") else {}
     existing = await db.emission_records.find_one({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}, **period_filter}, {"_id": 0, "id": 1})
     entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": relationship["id"], "$or": [{"submitted_to_parent_org": {"$exists": False}}, {"submitted_to_parent_org": None}], **period_filter}, {"_id": 0}).to_list(5000)
     is_reopened = any(entry.get("resubmission_of") for entry in entries)
@@ -202,17 +218,18 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
     relationship_query = {"customer_org_id": customer_org_id, "is_active": True}
     if reporting_period:
         relationship_query["reporting_period"] = reporting_period
-    relationships = await db.supplier_relationships.find(relationship_query, {"_id": 0, "id": 1, "company_name": 1}).to_list(1000)
+    relationships = await db.supplier_relationships.find(relationship_query, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1}).to_list(1000)
     relationship_names = {relationship["id"]: relationship.get("company_name", "Unknown") for relationship in relationships}
+    relationship_periods = {relationship["id"]: relationship.get("reporting_period") for relationship in relationships}
     entry_query = {"source": "supplier", "supplier_relationship_id": {"$in": list(relationship_names)}, "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}
-    if reporting_period:
-        entry_query["reporting_period"] = reporting_period
     entries = await db.emission_records.find(entry_query, {"_id": 0}).to_list(10000)
     emissions = []
     supplier_totals: Dict[str, Dict[str, Any]] = {}
     aggregation_rows: Dict[tuple, Dict[str, Any]] = {}
     for entry in entries:
         supplier_id = entry["supplier_relationship_id"]
+        if not period_belongs_to_parent(entry.get("reporting_period"), relationship_periods.get(supplier_id)):
+            continue
         supplier_name = relationship_names.get(supplier_id, "Unknown")
         emissions.append({**entry, "supplier_name": supplier_name, "submitted_at": entry["submitted_to_parent_org"]})
         total = supplier_totals.setdefault(supplier_id, {"supplier_relationship_id": supplier_id, "supplier_name": supplier_name, "scope1": 0.0, "scope2": 0.0, "total": 0.0})
