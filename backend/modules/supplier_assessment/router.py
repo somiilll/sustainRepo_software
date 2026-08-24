@@ -1048,7 +1048,12 @@ async def get_my_ghg_submission(current_user: dict = Depends(get_supplier_user))
     relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
-    return await ghg_submission_service.get_supplier_ghg_state(relationship)
+    customer_org = await db.organizations.find_one(
+        {"id": relationship["customer_org_id"]},
+        {"_id": 0, "name": 1},
+    ) or {}
+    state = await ghg_submission_service.get_supplier_ghg_state(relationship)
+    return {**state, "customer_name": customer_org.get("name") or "your customer"}
 
 
 @router.get("/my-assessment/emissions/config")
