@@ -18,6 +18,7 @@ class SupplierCreate(BaseModel):
     contact_number: Optional[str] = None
     due_date: Optional[str] = None  # ISO date string
     reporting_period: Optional[str] = None
+    revenue_required: bool = False
     # Module configuration
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
@@ -54,6 +55,7 @@ class SupplierResponse(BaseModel):
     revenue_percentage: Optional[float] = None
     revenue_amount: Optional[float] = None
     revenue_currency: Optional[str] = "USD"
+    revenue_required: bool = False
     invitation_status: str  # pending, accepted, completed
     due_date: Optional[str] = None
     reporting_period: Optional[str] = None

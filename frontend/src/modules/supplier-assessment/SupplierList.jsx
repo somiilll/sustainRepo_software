@@ -84,6 +84,7 @@ export default function SupplierList() {
     reporting_period: `CY${new Date().getFullYear()}`,
     modules_enabled: ['esg', 'ghg'],
     ghg_scopes_enabled: ['scope1', 'scope2'],
+    revenue_required: false,
     questionnaire_ids: [],
     document_requirement_ids: [],
     training_requirement_ids: [],
@@ -129,13 +130,17 @@ export default function SupplierList() {
       axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
     ]).then(([documentResponse, trainingResponse, questionnaireResponse]) => {
-      setDocuments(groupAvailableDocuments(documentResponse.data));
-      setTrainings(trainingResponse.data || []);
+      const availableDocuments = groupAvailableDocuments(documentResponse.data);
+      const availableTrainings = trainingResponse.data || [];
+      setDocuments(availableDocuments);
+      setTrainings(availableTrainings);
       const availableQuestionnaires = questionnaireResponse.data || [];
       setQuestionnaires(availableQuestionnaires);
       setFormData((current) => ({
         ...current,
         questionnaire_ids: current.questionnaire_ids.length ? current.questionnaire_ids : availableQuestionnaires.map((questionnaire) => questionnaire.id),
+        document_requirement_ids: availableDocuments.map((document) => document.id),
+        training_requirement_ids: availableTrainings.map((training) => training.id),
       }));
     }).catch(() => toast.error('Could not load existing assignments'));
   }, [showAddDialog, getAuthHeader, reportingPeriod]);
@@ -539,11 +544,12 @@ export default function SupplierList() {
 
       {/* Add Supplier Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md" data-testid="add-supplier-dialog">
-          <DialogHeader className="shrink-0 border-b px-6 py-5">
-            <DialogTitle>Add Supplier</DialogTitle>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl" data-testid="add-supplier-dialog">
+          <DialogHeader className="shrink-0 border-b border-emerald-100 bg-emerald-50/60 px-7 py-5">
+            <DialogTitle className="text-xl">Add Supplier</DialogTitle>
+            <p className="mt-1 text-sm text-stone-600">Documents and training are selected by default. Opt out only of the requirements this supplier should not receive.</p>
           </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4" data-testid="add-supplier-form-scroll-area">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-7 py-5" data-testid="add-supplier-form-scroll-area">
             <div className="space-y-2">
               <Label>Company Name *</Label>
               <Input
@@ -594,6 +600,7 @@ export default function SupplierList() {
               <Label>Reporting Period</Label>
               <Input value={formData.reporting_period} onChange={(e) => setFormData({ ...formData, reporting_period: e.target.value })} placeholder="e.g., CY2026 or FY2026" data-testid="supplier-reporting-period-input" />
             </div>
+            <div className="space-y-2 rounded-lg border border-amber-100 bg-amber-50/60 p-4"><Label>Is Annual Revenue required?</Label><div className="inline-flex border border-stone-200 bg-white p-1" data-testid="annual-revenue-required-control"><Button type="button" size="sm" variant={!formData.revenue_required ? 'secondary' : 'ghost'} onClick={() => setFormData({ ...formData, revenue_required: false })} data-testid="annual-revenue-optional-button">Optional</Button><Button type="button" size="sm" variant={formData.revenue_required ? 'secondary' : 'ghost'} onClick={() => setFormData({ ...formData, revenue_required: true })} data-testid="annual-revenue-required-button">Required</Button></div></div>
             
             {/* Module Selection */}
             <div className="space-y-3 pt-2 border-t">
@@ -682,9 +689,8 @@ export default function SupplierList() {
             )}
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="space-y-3 border-t pt-4" data-testid="supplier-existing-assignment-options">
-                <Label className="text-sm font-medium">Assign existing content</Label>
-                {documents.length > 0 && <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-medium"><FileText className="h-4 w-4" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
-                {trainings.length > 0 && <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-medium"><GraduationCap className="h-4 w-4" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
+                {documents.length > 0 && <div className="space-y-2 border-l-2 border-sky-300 bg-sky-50/50 p-4"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sky-700" />Documents</span><p className="text-xs text-stone-500">Selected by default. Uncheck any document this supplier should not receive.</p>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
+                {trainings.length > 0 && <div className="space-y-2 border-l-2 border-amber-300 bg-amber-50/50 p-4"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-amber-700" />Training</span><p className="text-xs text-stone-500">Selected by default. Uncheck any training this supplier should not receive.</p>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
               </div>
             )}
           </div>
