@@ -1620,11 +1620,13 @@ class SupplierAssessmentService:
                 "environment_score": round(env_score, 1) if env_score is not None else None,
                 "social_score": round(social_score, 1) if social_score is not None else None,
                 "governance_score": round(gov_score, 1) if gov_score is not None else None,
-                "ghg_score": round(ghg_score, 1) if ghg_score is not None else None,
+                # Parent rankings intentionally do not expose a separate GHG score.
+                "ghg_score": None,
                 "scope1_emissions": round(scope1, 2) if scope1 is not None else None,
                 "scope2_emissions": round(scope2, 2) if scope2 is not None else None,
                 "total_emissions": round(total_ghg, 2) if total_ghg is not None else None,
-                "overall_score": round(overall_score, 1) if overall_score is not None else None,
+                # Rankings are ESG-led: GHG is tracked in its dedicated emissions view.
+                "overall_score": round(esg_score, 1) if esg_score is not None else None,
                 "completion_status": completion_status,
                 "status_label": status_label,
                 "question_progress": f"{answered_questions} / {total_questions} questions" if completion_status == "in_progress" and total_questions else None,
@@ -1636,7 +1638,7 @@ class SupplierAssessmentService:
                 "revenue_currency": s.get("revenue_currency"),
             })
         
-        # Sort by overall score (None at end)
+        # Sort and rank suppliers by ESG score. GHG has its own parent-emissions experience.
         rankings.sort(key=lambda x: (x["overall_score"] is None, -(x["overall_score"] or 0)))
         
         # Add ranks

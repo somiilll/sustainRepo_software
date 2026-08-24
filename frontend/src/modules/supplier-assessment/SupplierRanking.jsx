@@ -20,7 +20,7 @@ const moduleName = (key) => ({ esg: 'ESG', ghg: 'GHG', documents: 'Documents', t
 const formatDate = (value) => value ? new Date(value).toLocaleDateString() : '—';
 const isPastDue = (dueDate) => dueDate && new Date(`${dueDate}T23:59:59`).getTime() < Date.now();
 const scoreMeta = (value) => {
-  if (!hasValue(value)) return { label: 'Not scored', color: '#d6d3d1', badge: 'border-stone-200 bg-stone-100 text-stone-600', bar: 'bg-stone-300' };
+  if (!hasValue(value)) return { label: 'Awaiting ESG', color: '#d6d3d1', badge: 'border-stone-200 bg-stone-100 text-stone-600', bar: 'bg-stone-300' };
   if (Number(value) >= 80) return { label: 'Excellent', color: '#10b981', badge: 'border-emerald-200 bg-emerald-50 text-emerald-800', bar: 'bg-emerald-500' };
   if (Number(value) >= 60) return { label: 'Good', color: '#3b82f6', badge: 'border-blue-200 bg-blue-50 text-blue-800', bar: 'bg-blue-500' };
   if (Number(value) >= 40) return { label: 'Needs improvement', color: '#f59e0b', badge: 'border-amber-200 bg-amber-50 text-amber-800', bar: 'bg-amber-500' };
