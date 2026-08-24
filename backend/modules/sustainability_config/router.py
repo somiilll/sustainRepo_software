@@ -11,6 +11,7 @@ from typing import Optional
 from modules.auth.dependencies import get_current_user, get_super_admin_user
 from . import service
 from .contracts import OrganizationConfigUpdate
+from modules.entitlements.service import DEFAULT_ENTITLEMENT_CONFIG, resolve_entitlements
 
 router = APIRouter(prefix="/sustainability-config", tags=["Sustainability Config"])
 
@@ -25,6 +26,7 @@ async def get_org_config(
     current_user: dict = Depends(get_super_admin_user),
 ):
     """Get the organization's configuration overrides (raw document). SuperAdmin only."""
+    await resolve_entitlements(org_id, migrate=True)
     cfg = await service.get_org_config(org_id)
     if not cfg:
         return {
@@ -37,6 +39,7 @@ async def get_org_config(
             "ai_query_aliases": [],
             "ghg_overrides": {},
             "supplier_assessment": service.DEFAULT_SUPPLIER_ASSESSMENT_CONFIG,
+            "entitlements": DEFAULT_ENTITLEMENT_CONFIG,
         }
     return cfg
 
@@ -67,6 +70,8 @@ async def update_org_config(
         payload["ghg_overrides"] = data.ghg_overrides.model_dump(exclude_none=True)
     if data.supplier_assessment is not None:
         payload["supplier_assessment"] = data.supplier_assessment.model_dump()
+    if data.entitlements is not None:
+        payload["entitlements"] = data.entitlements.model_dump()
 
     result = await service.upsert_org_config(org_id, payload, current_user["id"])
     return result

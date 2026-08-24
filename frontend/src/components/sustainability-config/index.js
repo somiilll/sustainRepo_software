@@ -8,3 +8,4 @@ export { FieldEditorDialog } from './FieldEditorDialog';
 export { AIQueryAliasesTab } from './AIQueryAliasesTab';
 export { GhgCapabilitiesTab } from './GhgCapabilitiesTab';
 export { SupplierAssessmentTab } from './SupplierAssessmentTab';
+export { EntitlementsTab } from './EntitlementsTab';

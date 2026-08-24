@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from modules.auth.dependencies import get_current_user
 from shared.database.mongo import db
+from modules.entitlements.dependencies import assert_entitlement
 from shared.utils.period_utils import extract_year
 from .contracts import SBTiTargetCreate, SBTiTargetUpdate
 from . import service
@@ -20,9 +21,8 @@ def _require_sbti_enabled(current_user: dict):
 
 
 async def _check_sbti_access(org_id: str):
-    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "sbti_targets_enabled": 1})
-    if not org or not org.get("sbti_targets_enabled"):
-        raise HTTPException(status_code=403, detail="SBTi Targets not enabled for this organization")
+    await assert_entitlement(org_id, "targets")
+    await assert_entitlement(org_id, "targets.sbti")
 
 
 @router.get("")

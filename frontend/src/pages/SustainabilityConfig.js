@@ -23,6 +23,7 @@ import {
   AIQueryAliasesTab,
   GhgCapabilitiesTab,
   SupplierAssessmentTab,
+  EntitlementsTab,
 } from '../components/sustainability-config';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -114,8 +115,9 @@ export default function SustainabilityConfig() {
             </Button>
           </Card>
 
-          <Tabs defaultValue="modules">
+          <Tabs defaultValue="entitlements">
             <TabsList className="flex-wrap">
+              <TabsTrigger value="entitlements" data-testid="entitlements-tab-trigger">Platform Access</TabsTrigger>
               <TabsTrigger value="modules">Modules</TabsTrigger>
               <TabsTrigger value="kpi-overrides">KPI Overrides</TabsTrigger>
               <TabsTrigger value="target-overrides" data-testid="target-overrides-tab-trigger">Target Overrides</TabsTrigger>
@@ -126,6 +128,9 @@ export default function SustainabilityConfig() {
               <TabsTrigger value="supplier-assessment" data-testid="supplier-assessment-tab-trigger">Supplier Assessment</TabsTrigger>
             </TabsList>
 
+            <TabsContent value="entitlements" className="mt-4">
+              <EntitlementsTab orgConfig={orgConfig} onSave={saveConfig} saving={saving} />
+            </TabsContent>
             <TabsContent value="modules" className="mt-4">
               <ModulesTab orgConfig={orgConfig} defaultModules={allDefaultModules.environment} onSave={saveConfig} saving={saving} />
             </TabsContent>

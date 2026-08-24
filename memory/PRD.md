@@ -81,6 +81,14 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
   - Retained the async historical hydration effect and page-owned calculation preview after dependency analysis; neither had a safe small extraction boundary.
   - Verified: frontend 1229 passed / 63 snapshots, backend golden 506 passed / 9 skipped, C7 9/9, Phase 1 equivalence 785/785, architecture contract 16/16, and authenticated no-save Edit smoke test.
 
+### Session 10 (2026-08-24) — Detailed Super Admin Org Config Entitlements
+- **DONE:** Replaced the flat enable/disable catalog with the user-defined nested, 15-area entitlement schema in the canonical `organization_config` document. The catalog covers RepoPilot sub-capabilities; eight Environment modules with GHG coverage and conditional monthly-row limits; Social; Governance; multi-select Material Assessment; Reporting BRSR/GRI; conditional Workflow type; Bulk Upload/OCR; Voluntary/SBTi Targets; GHG-dependent Report options; MIS limits; Peer Benchmarking; Supplier Assessment limits; Audit Trails; and Evidence Storage limits.
+- **DONE:** Blank numeric values mean unlimited; configured values must be positive. Environment monthly-row fields only render while the relevant module is enabled. Evidence Storage is included now with an optional GB limit.
+- **DONE:** Legacy flat flags are read-migrated to the detailed document shape and mirrored only for older consumers. Regular-user bootstrap now returns a stable 15-key top-level map plus granular `permissions` for navigation and API policy checks.
+- **DONE:** Shared backend guards protect the registered environment, social, governance, reporting, workflow, uploads, targets, RepoPilot, peer-benchmarking, materiality, supplier-assessment, BRSR, and SBTi routes; SBTi additionally checks the detailed `targets.sbti` permission. `/app/backend/calc_engine/` remains untouched.
+- **VERIFIED:** Focused entitlement regression **8/8 passed**; Pydantic validation passed; Super Admin public browser flow rendered all detailed conditional controls; no APIs are **MOCKED**.
+- **P1 FOLLOW-UP:** Numeric plan limits are persisted and displayed but still need enforcement at each relevant creation/publish/storage boundary (monthly ESG rows, MIS configuration creation, supplier onboarding, and evidence uploads).
+
 ### Regression Status
 - Backend golden: 506 passed / 9 skipped
 - Frontend: 1229 passed / 63 snapshots

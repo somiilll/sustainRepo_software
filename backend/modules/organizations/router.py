@@ -1,7 +1,7 @@
 """Organization "self" routes — Admin can edit, User views own org."""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Dict, Optional, List
 from datetime import datetime, timezone
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
@@ -9,6 +9,7 @@ from modules.auth.dependencies import get_admin_user, get_current_user
 from modules.organizations.contracts import OrganizationCreate, OrganizationResponse
 from shared.database.mongo import db
 from shared.utils.timezone_utils import get_common_timezones, get_default_timezone_for_country
+from modules.entitlements.service import resolve_entitlements
 
 router = APIRouter()
 
@@ -74,6 +75,8 @@ class OrgModuleConfig(BaseModel):
     approval_workflow_enabled: bool = False  # Single-level approval workflow
     multi_level_approval_enabled: bool = False  # Multi-level approval chain feature flag
     timezone: str = "UTC"  # Organization's IANA timezone
+    entitlements: Dict[str, bool] = {}
+    permissions: Dict[str, bool] = {}
 
 
 @router.get("/organization/module-config")
@@ -88,7 +91,9 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
             esg_frameworks_enabled=["BRSR", "GRI"],
             approval_workflow_enabled=True,
             multi_level_approval_enabled=True,  # Super admin can see all features
-            timezone="UTC"  # Super admin uses UTC
+            timezone="UTC",  # Super admin uses UTC
+            entitlements={},
+            permissions={}
         )
     
     org_id = current_user.get("organization_id")
@@ -103,14 +108,20 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
     if not org:
         return OrgModuleConfig()
     
+    entitlements = await resolve_entitlements(org_id, migrate=True)
+    from modules.entitlements.service import entitlement_access_map
+    org_config = await db["organization_config"].find_one({"organization_id": org_id}, {"_id": 0, "entitlements": 1})
+    permissions = entitlement_access_map((org_config or {}).get("entitlements"))
     return OrgModuleConfig(
-        has_ghg=org.get("has_ghg", True),
-        has_esg=org.get("has_esg", True),
+        has_ghg=entitlements["environment"],
+        has_esg=any(entitlements[code] for code in ("environment", "social", "governance")),
         enabled_access=org.get("enabled_access"),
         esg_frameworks_enabled=org.get("esg_frameworks_enabled"),
         approval_workflow_enabled=org.get("approval_workflow_enabled", False),
         multi_level_approval_enabled=org.get("multi_level_approval_enabled", False),
-        timezone=org.get("timezone") or "Asia/Kolkata"  # Default to IST
+        timezone=org.get("timezone") or "Asia/Kolkata",  # Default to IST
+        entitlements=entitlements,
+        permissions=permissions,
     )
 
 
@@ -132,6 +143,10 @@ async def get_my_organization(current_user: dict = Depends(get_current_user)):
         org["org_type"] = "customer"
     if "timezone" not in org or not org.get("timezone"):
         org["timezone"] = "Asia/Kolkata"  # IST
+    entitlements = await resolve_entitlements(current_user["organization_id"], migrate=True)
+    org["module_access"] = entitlements
+    org["has_ghg"] = entitlements["environment"]
+    org["has_esg"] = any(entitlements[code] for code in ("environment", "social", "governance"))
     
     return OrganizationResponse(**org)
 
@@ -150,7 +165,7 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     update_dict = org_data.model_dump(exclude_unset=True)
 
     # Fields that admin shouldn't be able to overwrite (super-admin only).
-    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at', 'approval_workflow_enabled', 'multi_level_approval_enabled']
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at', 'approval_workflow_enabled', 'multi_level_approval_enabled', 'has_ghg', 'has_esg', 'sbti_targets_enabled', 'repo_pilot_enabled', 'module_access']
     for field in fields_to_preserve:
         update_dict.pop(field, None)
 
