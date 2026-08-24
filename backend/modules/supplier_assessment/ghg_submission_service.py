@@ -218,9 +218,10 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
     relationship_query = {"customer_org_id": customer_org_id, "is_active": True}
     if reporting_period:
         relationship_query["reporting_period"] = reporting_period
-    relationships = await db.supplier_relationships.find(relationship_query, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1}).to_list(1000)
+    relationships = await db.supplier_relationships.find(relationship_query, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "revenue_percentage": 1, "revenue_amount": 1}).to_list(1000)
     relationship_names = {relationship["id"]: relationship.get("company_name", "Unknown") for relationship in relationships}
     relationship_periods = {relationship["id"]: relationship.get("reporting_period") for relationship in relationships}
+    relationship_revenue = {relationship["id"]: relationship for relationship in relationships}
     entry_query = {"source": "supplier", "supplier_relationship_id": {"$in": list(relationship_names)}, "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}
     entries = await db.emission_records.find(entry_query, {"_id": 0}).to_list(10000)
     emissions = []
@@ -231,15 +232,37 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
         if not period_belongs_to_parent(entry.get("reporting_period"), relationship_periods.get(supplier_id)):
             continue
         supplier_name = relationship_names.get(supplier_id, "Unknown")
-        emissions.append({**entry, "supplier_name": supplier_name, "submitted_at": entry["submitted_to_parent_org"]})
-        total = supplier_totals.setdefault(supplier_id, {"supplier_relationship_id": supplier_id, "supplier_name": supplier_name, "scope1": 0.0, "scope2": 0.0, "total": 0.0})
+        revenue = relationship_revenue.get(supplier_id, {})
+        revenue_percentage = revenue.get("revenue_percentage")
+        factor = float(revenue_percentage) / 100 if revenue_percentage is not None else None
         value = float(entry.get("total_emissions") or entry.get("co2e_emissions") or 0)
+        attributed_value = value * factor if factor is not None else None
+        emissions.append({**entry, "supplier_name": supplier_name, "submitted_at": entry["submitted_to_parent_org"], "attributed_emissions": attributed_value, "revenue_percentage": revenue_percentage})
+        total = supplier_totals.setdefault(supplier_id, {"supplier_relationship_id": supplier_id, "supplier_name": supplier_name, "scope1": 0.0, "scope2": 0.0, "total": 0.0, "revenue_percentage": revenue_percentage, "annual_revenue_amount": revenue.get("revenue_amount"), "attribution_available": factor is not None})
         scope = entry.get("scope")
-        if scope == "scope1": total["scope1"] += value
-        if scope == "scope2": total["scope2"] += value
-        total["total"] += value
+        if attributed_value is not None:
+            if scope == "scope1": total["scope1"] += attributed_value
+            if scope == "scope2": total["scope2"] += attributed_value
+            total["total"] += attributed_value
         aggregate_key = (scope, entry.get("category") or "Uncategorized")
-        aggregate = aggregation_rows.setdefault(aggregate_key, {"scope": scope, "category": aggregate_key[1], "entry_count": 0, "total_emissions": 0.0})
+        aggregate = aggregation_rows.setdefault(aggregate_key, {"scope": scope, "category": aggregate_key[1], "entry_count": 0, "total_emissions": 0.0, "available_count": 0})
         aggregate["entry_count"] += 1
-        aggregate["total_emissions"] += value
-    return {"emissions": emissions, "supplier_totals": list(supplier_totals.values()), "grand_total": sum(row["total"] for row in supplier_totals.values()), "aggregations": sorted(aggregation_rows.values(), key=lambda row: (row["scope"] or "", row["category"]))}
+        if attributed_value is not None:
+            aggregate["total_emissions"] += attributed_value
+            aggregate["available_count"] += 1
+    for total in supplier_totals.values():
+        if not total["attribution_available"]:
+            total["scope1"] = total["scope2"] = total["total"] = None
+            total["scope1_intensity"] = total["scope2_intensity"] = total["total_intensity"] = None
+        elif total.get("annual_revenue_amount") and float(total["annual_revenue_amount"]) > 0:
+            denominator = float(total["annual_revenue_amount"])
+            total["scope1_intensity"] = total["scope1"] / denominator
+            total["scope2_intensity"] = total["scope2"] / denominator
+            total["total_intensity"] = total["total"] / denominator
+        else:
+            total["scope1_intensity"] = total["scope2_intensity"] = total["total_intensity"] = None
+    for aggregate in aggregation_rows.values():
+        if not aggregate.pop("available_count"):
+            aggregate["total_emissions"] = None
+    totals = list(supplier_totals.values())
+    return {"emissions": emissions, "supplier_totals": totals, "grand_total": sum(row["total"] or 0 for row in totals), "aggregations": sorted(aggregation_rows.values(), key=lambda row: (row["scope"] or "", row["category"]))}

@@ -505,9 +505,9 @@ class SupplierRankingEntry(BaseModel):
     social_score: Optional[float] = None
     governance_score: Optional[float] = None
     ghg_score: Optional[float] = None
-    scope1_emissions: float = 0
-    scope2_emissions: float = 0
-    total_emissions: float = 0
+    scope1_emissions: Optional[float] = None
+    scope2_emissions: Optional[float] = None
+    total_emissions: Optional[float] = None
     overall_score: Optional[float] = None
     completion_status: str
     status_label: Optional[str] = None

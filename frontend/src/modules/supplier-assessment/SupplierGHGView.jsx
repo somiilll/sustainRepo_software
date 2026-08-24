@@ -26,6 +26,7 @@ import { Search, Cloud, Factory, Filter, LockOpen } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const displayValue = (value, digits = 2) => value === null || value === undefined ? '—' : Number(value).toFixed(digits);
 
 export default function SupplierGHGView() {
   const { getAuthHeader } = useAuth();
@@ -82,6 +83,7 @@ export default function SupplierGHGView() {
     const matchesScope = scopeFilter === 'all' || e.scope === scopeFilter;
     return matchesSearch && matchesScope;
   });
+  const hasIntensity = supplierTotals.some((supplier) => supplier.total_intensity !== null && supplier.total_intensity !== undefined);
 
   return (
     <div className="space-y-6" data-testid="supplier-ghg-view">
@@ -89,7 +91,7 @@ export default function SupplierGHGView() {
       <div>
         <h1 className="text-2xl font-semibold text-stone-900">Supplier GHG Emissions</h1>
         <p className="text-sm text-stone-500 mt-1">
-          View and analyze emissions data from all suppliers
+          View attributed supplier emissions using each supplier’s revenue share.
         </p>
       </div>
 
@@ -99,10 +101,10 @@ export default function SupplierGHGView() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
               <Cloud className="h-4 w-4" />
-              <span className="text-sm">Total Emissions</span>
+              <span className="text-sm">Attributed Emissions</span>
             </div>
             <div className="text-2xl font-bold text-stone-900">
-              {grandTotal.toFixed(2)} <span className="text-sm font-normal text-stone-500">tCO2e</span>
+              {displayValue(grandTotal)} <span className="text-sm font-normal text-stone-500">tCO2e</span>
             </div>
           </CardContent>
         </Card>
@@ -154,18 +156,20 @@ export default function SupplierGHGView() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Supplier</TableHead>
-                  <TableHead className="text-right">Scope 1 (tCO2e)</TableHead>
-                  <TableHead className="text-right">Scope 2 (tCO2e)</TableHead>
-                  <TableHead className="text-right">Total (tCO2e)</TableHead><TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right">Scope 1 (attributed)</TableHead>
+                  <TableHead className="text-right">Scope 2 (attributed)</TableHead>
+                  <TableHead className="text-right">Total (attributed)</TableHead>
+                  {hasIntensity && <><TableHead className="text-right">Intensity S1</TableHead><TableHead className="text-right">Intensity S2</TableHead><TableHead className="text-right">Intensity S1 + S2</TableHead></>}<TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {supplierTotals.map((supplier, index) => (
                   <TableRow key={index}>
                     <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
-                    <TableCell className="text-right">{(supplier.scope1 || 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{(supplier.scope2 || 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-semibold">{(supplier.total || 0).toFixed(2)}</TableCell><TableCell className="text-right"><Button variant="outline" size="sm" onClick={() => setUnlockTarget(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="mr-1 h-4 w-4" />Unlock</Button></TableCell>
+                    <TableCell className="text-right">{displayValue(supplier.scope1)}</TableCell>
+                    <TableCell className="text-right">{displayValue(supplier.scope2)}</TableCell>
+                    <TableCell className="text-right font-semibold">{displayValue(supplier.total)}</TableCell>
+                    {hasIntensity && <><TableCell className="text-right">{supplier.scope1_intensity === null || supplier.scope1_intensity === undefined ? <span className="text-stone-400">Intensity not available</span> : displayValue(supplier.scope1_intensity, 6)}</TableCell><TableCell className="text-right">{supplier.scope2_intensity === null || supplier.scope2_intensity === undefined ? <span className="text-stone-400">Intensity not available</span> : displayValue(supplier.scope2_intensity, 6)}</TableCell><TableCell className="text-right">{supplier.total_intensity === null || supplier.total_intensity === undefined ? <span className="text-stone-400">Intensity not available</span> : displayValue(supplier.total_intensity, 6)}</TableCell></>}<TableCell className="text-right"><Button variant="outline" size="sm" onClick={() => setUnlockTarget(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="mr-1 h-4 w-4" />Unlock</Button></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -176,8 +180,8 @@ export default function SupplierGHGView() {
 
       {/* Filters */}
       <Card data-testid="submitted-ghg-aggregation-card">
-        <CardHeader><CardTitle>Submitted emissions by scope and category</CardTitle></CardHeader>
-        <CardContent>{aggregations.length === 0 ? <p className="text-sm text-stone-500" data-testid="submitted-ghg-aggregation-empty">No supplier GHG submission has been received.</p> : <Table data-testid="submitted-ghg-aggregation-table"><TableHeader><TableRow><TableHead>Scope</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Entries</TableHead><TableHead className="text-right">Emissions (tCO₂e)</TableHead></TableRow></TableHeader><TableBody>{aggregations.map((row) => <TableRow key={`${row.scope}-${row.category}`} data-testid={`submitted-ghg-aggregation-${row.scope}-${row.category}`}><TableCell>{row.scope === 'scope1' ? 'Scope 1' : 'Scope 2'}</TableCell><TableCell>{row.category}</TableCell><TableCell className="text-right">{row.entry_count}</TableCell><TableCell className="text-right font-mono">{row.total_emissions.toFixed(4)}</TableCell></TableRow>)}</TableBody></Table>}</CardContent>
+        <CardHeader><CardTitle>Attributed emissions by scope and category</CardTitle></CardHeader>
+        <CardContent>{aggregations.length === 0 ? <p className="text-sm text-stone-500" data-testid="submitted-ghg-aggregation-empty">No supplier GHG submission has been received.</p> : <Table data-testid="submitted-ghg-aggregation-table"><TableHeader><TableRow><TableHead>Scope</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Entries</TableHead><TableHead className="text-right">Attributed emissions (tCO₂e)</TableHead></TableRow></TableHeader><TableBody>{aggregations.map((row) => <TableRow key={`${row.scope}-${row.category}`} data-testid={`submitted-ghg-aggregation-${row.scope}-${row.category}`}><TableCell>{row.scope === 'scope1' ? 'Scope 1' : 'Scope 2'}</TableCell><TableCell>{row.category}</TableCell><TableCell className="text-right">{row.entry_count}</TableCell><TableCell className="text-right font-mono">{displayValue(row.total_emissions, 4)}</TableCell></TableRow>)}</TableBody></Table>}</CardContent>
       </Card>
       <AlertDialog open={Boolean(unlockTarget)} onOpenChange={(open) => !open && setUnlockTarget(null)}><AlertDialogContent data-testid="unlock-supplier-ghg-dialog"><AlertDialogHeader><AlertDialogTitle>Unlock GHG data for resubmission?</AlertDialogTitle><AlertDialogDescription>The supplier receives a private draft copy. Their current submitted data remains visible here until they resubmit.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-unlock-supplier-ghg-button">Cancel</AlertDialogCancel><AlertDialogAction disabled={unlocking} onClick={unlockSupplierGhg} data-testid="confirm-unlock-supplier-ghg-button">{unlocking ? 'Unlocking…' : 'Unlock for resubmission'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
@@ -226,7 +230,7 @@ export default function SupplierGHGView() {
                   <TableHead>Scope</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Subcategory</TableHead>
-                  <TableHead className="text-right">Emissions (tCO₂e)</TableHead>
+                  <TableHead className="text-right">Attributed emissions (tCO₂e)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -242,7 +246,7 @@ export default function SupplierGHGView() {
                     <TableCell>{emission.category || '-'}</TableCell>
                     <TableCell>{emission.fuel_type || emission.sub_category || '-'}</TableCell>
                     <TableCell className="text-right font-mono">
-                      {(emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)}
+                      {displayValue(emission.attributed_emissions, 4)}
                     </TableCell>
                   </TableRow>
                 ))}

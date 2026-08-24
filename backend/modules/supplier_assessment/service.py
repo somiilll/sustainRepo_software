@@ -1545,9 +1545,13 @@ class SupplierAssessmentService:
             social_score = snapshot.get("social_score")
             gov_score = snapshot.get("governance_score")
             ghg_score = snapshot.get("ghg_score")
-            scope1 = snapshot.get("scope1_emissions", 0.0)
-            scope2 = snapshot.get("scope2_emissions", 0.0)
-            total_ghg = snapshot.get("total_emissions", 0.0)
+            attribution_factor = float(s["revenue_percentage"]) / 100 if s.get("revenue_percentage") is not None else None
+            raw_scope1 = snapshot.get("scope1_emissions", 0.0)
+            raw_scope2 = snapshot.get("scope2_emissions", 0.0)
+            raw_total = snapshot.get("total_emissions", 0.0)
+            scope1 = float(raw_scope1) * attribution_factor if attribution_factor is not None else None
+            scope2 = float(raw_scope2) * attribution_factor if attribution_factor is not None else None
+            total_ghg = float(raw_total) * attribution_factor if attribution_factor is not None else None
             overall_score = snapshot.get("overall_score")
             
             assigned_questionnaire_ids = set(s.get("questionnaire_ids") or all_questionnaire_ids)
@@ -1617,9 +1621,9 @@ class SupplierAssessmentService:
                 "social_score": round(social_score, 1) if social_score is not None else None,
                 "governance_score": round(gov_score, 1) if gov_score is not None else None,
                 "ghg_score": round(ghg_score, 1) if ghg_score is not None else None,
-                "scope1_emissions": round(scope1, 2),
-                "scope2_emissions": round(scope2, 2),
-                "total_emissions": round(total_ghg, 2),
+                "scope1_emissions": round(scope1, 2) if scope1 is not None else None,
+                "scope2_emissions": round(scope2, 2) if scope2 is not None else None,
+                "total_emissions": round(total_ghg, 2) if total_ghg is not None else None,
                 "overall_score": round(overall_score, 1) if overall_score is not None else None,
                 "completion_status": completion_status,
                 "status_label": status_label,
@@ -1663,8 +1667,8 @@ class SupplierAssessmentService:
         avg_ghg = average_score("ghg_score")
         
         # Total emissions by scope (Scope 1 & 2 only)
-        total_scope1 = sum(r["scope1_emissions"] for r in rankings)
-        total_scope2 = sum(r["scope2_emissions"] for r in rankings)
+        total_scope1 = sum(r["scope1_emissions"] or 0 for r in rankings)
+        total_scope2 = sum(r["scope2_emissions"] or 0 for r in rankings)
         module_summary = {
             code: {
                 "configured_suppliers": int(totals["configured_suppliers"]),

@@ -1284,15 +1284,16 @@ async def get_supplier_emissions(
     emissions = [entry for entry in submitted["emissions"] if entry.get("supplier_relationship_id") == supplier_id]
     
     # Calculate totals
-    total_scope1 = sum(e.get("total_emissions", 0) or 0 for e in emissions if e.get("scope") == "scope1")
-    total_scope2 = sum(e.get("total_emissions", 0) or 0 for e in emissions if e.get("scope") == "scope2")
+    has_attributed_values = any(entry.get("attributed_emissions") is not None for entry in emissions)
+    total_scope1 = sum(e.get("attributed_emissions", 0) or 0 for e in emissions if e.get("scope") == "scope1") if has_attributed_values else None
+    total_scope2 = sum(e.get("attributed_emissions", 0) or 0 for e in emissions if e.get("scope") == "scope2") if has_attributed_values else None
     
     return {
         "emissions": emissions,
         "summary": {
             "total_scope1": total_scope1,
             "total_scope2": total_scope2,
-            "total": total_scope1 + total_scope2,
+            "total": (total_scope1 + total_scope2) if total_scope1 is not None and total_scope2 is not None else None,
             "record_count": len(emissions),
         }
     }

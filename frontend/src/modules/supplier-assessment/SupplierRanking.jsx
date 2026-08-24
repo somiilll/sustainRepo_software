@@ -55,7 +55,7 @@ export default function SupplierRanking() {
   useEffect(() => { load(); }, [load]);
   const overall = useMemo(() => rankings.filter((row) => hasValue(row.overall_score)).sort((a, b) => b.overall_score - a.overall_score), [rankings]);
   const esg = useMemo(() => rankings.filter((row) => hasValue(row.esg_score)).sort((a, b) => b.esg_score - a.esg_score), [rankings]);
-  const emissions = useMemo(() => rankings.filter((row) => row.total_emissions > 0).sort((a, b) => b.total_emissions - a.total_emissions), [rankings]);
+  const emissions = useMemo(() => rankings.filter((row) => (row.total_emissions || 0) > 0).sort((a, b) => (b.total_emissions || 0) - (a.total_emissions || 0)), [rankings]);
   const rows = useMemo(() => rankings.filter((row) => row.company_name.toLowerCase().includes(search.trim().toLowerCase())), [rankings, search]);
   const attention = useMemo(() => rankings.filter((row) => (hasValue(row.overall_score) && row.overall_score < 60) || (row.attention_reasons || []).length).slice(0, 5), [rankings]);
   const distribution = [{ name: 'Excellent', value: stats.score_distribution.excellent || 0, color: '#10b981' }, { name: 'Good', value: stats.score_distribution.good || 0, color: '#3b82f6' }, { name: 'Needs improvement', value: stats.score_distribution.average || 0, color: '#f59e0b' }, { name: 'Critical', value: stats.score_distribution.poor || 0, color: '#ef4444' }];
