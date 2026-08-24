@@ -163,7 +163,8 @@ class ScoringEngine:
             "parent_visible": {"$ne": False},
         }
         if reporting_period:
-            query["reporting_period"] = reporting_period
+            from modules.supplier_assessment.ghg_submission_service import reporting_period_values
+            query["reporting_period"] = {"$in": reporting_period_values(reporting_period)}
         emissions = await self.db.emission_records.find(
             query,
             {"_id": 0, "total_emissions": 1, "scope": 1}

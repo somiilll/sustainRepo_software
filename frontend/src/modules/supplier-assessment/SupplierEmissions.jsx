@@ -34,6 +34,11 @@ import { Plus, Cloud, Trash2 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+const firstMonthOfParentPeriod = (period) => {
+  const match = /^FY\s+(\d{4})-(\d{2}|\d{4})$/.exec(period || '');
+  return match ? `${match[1]}-04` : period || '';
+};
+
 export default function SupplierEmissions() {
   const { getAuthHeader } = useAuth();
   const [emissions, setEmissions] = useState([]);
@@ -63,7 +68,7 @@ export default function SupplierEmissions() {
       setEmissions(emissionsResponse.data || []);
       const nextProgram = configResponse.data || {};
       setProgram(nextProgram);
-      setFormData((current) => ({ ...current, reporting_period: nextProgram.reporting_period || '', scope: nextProgram.enabled_scopes?.includes(current.scope) ? current.scope : (nextProgram.enabled_scopes?.[0] || 'scope1') }));
+      setFormData((current) => ({ ...current, reporting_period: /^\d{4}-\d{2}$/.test(current.reporting_period) ? current.reporting_period : firstMonthOfParentPeriod(nextProgram.reporting_period), scope: nextProgram.enabled_scopes?.includes(current.scope) ? current.scope : (nextProgram.enabled_scopes?.[0] || 'scope1') }));
     } catch (err) {
       toast.error('Failed to load emissions');
     } finally {
@@ -77,7 +82,7 @@ export default function SupplierEmissions() {
 
   const resetForm = () => {
     setFormData({
-      reporting_period: program.reporting_period || '',
+      reporting_period: firstMonthOfParentPeriod(program.reporting_period),
       scope: program.enabled_scopes?.[0] || 'scope1',
       category: '',
       category_id: null,
@@ -114,6 +119,12 @@ export default function SupplierEmissions() {
   const totalScope1 = emissions.filter(e => e.scope === 'scope1').reduce((sum, e) => sum + (e.total_emissions || 0), 0);
   const totalScope2 = emissions.filter(e => e.scope === 'scope2').reduce((sum, e) => sum + (e.total_emissions || 0), 0);
   const categoryOptions = useMemo(() => program.categories?.[formData.scope] || [], [program.categories, formData.scope]);
+  const reportingMonthBounds = useMemo(() => {
+    const match = /^FY\s+(\d{4})-(\d{2}|\d{4})$/.exec(program.reporting_period || '');
+    if (!match) return { min: undefined, max: undefined };
+    const year = Number(match[1]);
+    return { min: `${year}-04`, max: `${year + 1}-03` };
+  }, [program.reporting_period]);
 
   return (
     <div className="space-y-6" data-testid="supplier-emissions">
@@ -233,7 +244,8 @@ export default function SupplierEmissions() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Reporting Period *</Label>
-              <Input value={formData.reporting_period} readOnly data-testid="emission-period" />
+              <Input type="month" min={reportingMonthBounds.min} max={reportingMonthBounds.max} value={formData.reporting_period} onChange={(event) => setFormData({ ...formData, reporting_period: event.target.value })} data-testid="emission-period" />
+              <p className="text-xs text-stone-500" data-testid="emission-parent-reporting-period">Parent reporting period: {program.reporting_period || '—'}</p>
             </div>
             
             <div className="space-y-2">
