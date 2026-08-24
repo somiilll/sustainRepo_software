@@ -76,7 +76,8 @@ function MenuItem(props) {
   if (!hasAccess(item.key)) return null;
 
   var isSupplier = userType === 'supplier' || orgType === 'supplier';
-  var mutedForSupplier = inheritedMuted || (isSupplier && ['environment', 'social', 'governance'].includes(item.key));
+  var supplierAccessibleItem = item.supplierOnly || item.key === 'dashboard' || item.key === 'environment' || item.key?.startsWith('environment.ghg');
+  var mutedForSupplier = inheritedMuted || (isSupplier && !supplierAccessibleItem);
 
   var hasChildren = item.children && item.children.length > 0;
   var active = item.path ? isActive(item.path, location) : false;
