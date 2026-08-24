@@ -14,6 +14,20 @@ import { SupplierAssignmentPicker } from './components/SupplierAssignmentPicker'
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+const groupPublishedDocuments = (requirements) => Object.values((requirements || []).reduce((groups, requirement) => {
+  const key = requirement.document_version_id || requirement.id;
+  const existing = groups[key];
+  if (!existing) {
+    groups[key] = { ...requirement, supplier_relationship_ids: [...(requirement.supplier_relationship_ids || [])] };
+    return groups;
+  }
+  existing.supplier_relationship_ids = [...new Set([
+    ...(existing.supplier_relationship_ids || []),
+    ...(requirement.supplier_relationship_ids || []),
+  ])];
+  return groups;
+}, {}));
+
 export default function SupplierDocumentsAdmin() {
   const { getAuthHeader } = useAuth();
   const { reportingPeriod } = useSupplierAssessmentPeriod();
@@ -21,7 +35,7 @@ export default function SupplierDocumentsAdmin() {
   const [title, setTitle] = useState(''); const [file, setFile] = useState(null); const [dueDate, setDueDate] = useState(''); const [responseMode, setResponseMode] = useState('ACCEPTANCE'); const [statusOptions, setStatusOptions] = useState('I have done it\nI will do it\nIt is in progress');
   const [uploading, setUploading] = useState(false); const [pendingDelete, setPendingDelete] = useState(null); const [deletingId, setDeletingId] = useState(''); const [responseDialog, setResponseDialog] = useState(null); const [responseData, setResponseData] = useState(null); const [loadingResponses, setLoadingResponses] = useState(false); const [unlockingSupplierId, setUnlockingSupplierId] = useState('');
 
-  const loadDocuments = useCallback(async () => { try { const documentResponse = await axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }); setDocuments(documentResponse.data || []); } catch { toast.error('Could not load agreement requirements'); } }, [getAuthHeader, reportingPeriod]);
+  const loadDocuments = useCallback(async () => { try { const documentResponse = await axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }); setDocuments(groupPublishedDocuments(documentResponse.data)); } catch { toast.error('Could not load agreement requirements'); } }, [getAuthHeader, reportingPeriod]);
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
 
   const uploadAgreement = async () => {

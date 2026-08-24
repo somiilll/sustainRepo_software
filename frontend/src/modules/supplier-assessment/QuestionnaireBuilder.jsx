@@ -132,6 +132,20 @@ const getDefaultScoringConfig = (responseType) => {
   }
 };
 
+const parseNumericInput = (value) => {
+  if (value === '') return '';
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : value;
+};
+
+const isFiniteNumber = (value) => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
+const isScore = (value) => isFiniteNumber(value) && Number(value) >= 0 && Number(value) <= 100;
+
+const hydrateDropdownOptionScores = (options, scoring) => (options || []).map((option) => ({
+  ...option,
+  score: option.score ?? scoring?.choices?.[option.value] ?? null,
+}));
+
 export default function QuestionnaireBuilder() {
   const { getAuthHeader } = useAuth();
   const { reportingPeriod } = useSupplierAssessmentPeriod();
@@ -317,13 +331,11 @@ export default function QuestionnaireBuilder() {
       toast.error('Please enter question text');
       return;
     }
+    if (!validateQuestionScoring()) return;
     
     setSubmitting(true);
     try {
-      const payload = {
-        ...questionForm,
-        order: questions.length,
-      };
+      const payload = buildQuestionPayload(questions.length);
       
       await axios.post(
         `${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`,
@@ -343,12 +355,13 @@ export default function QuestionnaireBuilder() {
 
   const handleUpdateQuestion = async () => {
     if (!editingQuestion) return;
+    if (!validateQuestionScoring()) return;
     
     setSubmitting(true);
     try {
       await axios.put(
         `${API}/supplier-assessment/questions/${editingQuestion.id}`,
-        questionForm,
+        buildQuestionPayload(questionForm.order),
         { headers: getAuthHeader() }
       );
       toast.success('Question updated');
@@ -412,18 +425,19 @@ export default function QuestionnaireBuilder() {
   };
 
   const openEditQuestion = (question) => {
+    const scoring = question.scoring || getDefaultScoringConfig(question.response_type);
     setEditingQuestion(question);
     setQuestionForm({
       question_text: question.question_text,
       description: question.description || '',
       response_type: question.response_type,
-      options: question.options || [],
+      options: hydrateDropdownOptionScores(question.options, scoring),
       required: question.required,
       importance: question.importance || 'medium',
       exact_numerical_weight: question.exact_numerical_weight ?? (question.importance ? null : question.weight ?? null),
       category: question.category,
       order: question.order,
-      scoring: question.scoring || getDefaultScoringConfig(question.response_type),
+      scoring,
     });
     setShowQuestionDialog(true);
   };
@@ -458,6 +472,83 @@ export default function QuestionnaireBuilder() {
         [field]: value,
       },
     });
+  };
+
+  const buildQuestionPayload = (order) => {
+    const options = questionForm.options.map((option) => ({
+      ...option,
+      value: option.value.trim(),
+      label: option.label.trim(),
+    }));
+    const scoring = { ...questionForm.scoring };
+    if (scoring.rule === 'choice_mapping') {
+      scoring.choices = Object.fromEntries(options.map((option) => [option.value, Number(option.score)]));
+    }
+    return { ...questionForm, options, scoring, order };
+  };
+
+  const validateQuestionScoring = () => {
+    const scoring = questionForm.scoring || {};
+    const { rule } = scoring;
+    const requireNumber = (value, label) => {
+      if (!isFiniteNumber(value)) {
+        toast.error(`${label} must be a number.`);
+        return false;
+      }
+      return true;
+    };
+    const requireScore = (value, label) => {
+      if (!isScore(value)) {
+        toast.error(`${label} must be between 0 and 100.`);
+        return false;
+      }
+      return true;
+    };
+
+    if (['higher_is_better', 'lower_is_better', 'target_based'].includes(rule)
+      && !requireScore(scoring.max_score, 'Score cap')) return false;
+
+    if (rule === 'higher_is_better') {
+      if (!requireNumber(scoring.min, 'Lowest value') || !requireNumber(scoring.target, 'Target value')) return false;
+      if (Number(scoring.target) <= Number(scoring.min)) {
+        toast.error('Target value must be greater than the lowest value.');
+        return false;
+      }
+    }
+    if (rule === 'lower_is_better') {
+      if (!requireNumber(scoring.min, 'Best value') || !requireNumber(scoring.max_acceptable, 'Zero-score threshold')) return false;
+      if (Number(scoring.max_acceptable) <= Number(scoring.min)) {
+        toast.error('Zero-score threshold must be greater than the best value.');
+        return false;
+      }
+    }
+    if (rule === 'target_based') {
+      if (!requireNumber(scoring.target, 'Target value') || Number(scoring.target) <= 0) {
+        toast.error('Target value must be greater than zero.');
+        return false;
+      }
+    }
+    if (rule === 'boolean' && (!requireScore(scoring.true_score, 'Yes score') || !requireScore(scoring.false_score, 'No score'))) return false;
+    if (rule === 'choice_mapping') {
+      if (questionForm.response_type !== 'dropdown') {
+        toast.error('Choice Mapping is only available for dropdown questions.');
+        return false;
+      }
+      if (!questionForm.options.length) {
+        toast.error('Add at least one dropdown option.');
+        return false;
+      }
+      const values = questionForm.options.map((option) => option.value.trim());
+      if (values.some((value) => !value) || new Set(values).size !== values.length) {
+        toast.error('Each dropdown option needs a unique value.');
+        return false;
+      }
+      if (questionForm.options.some((option) => !isScore(option.score))) {
+        toast.error('Each dropdown option score must be between 0 and 100.');
+        return false;
+      }
+    }
+    return true;
   };
 
   const addOption = () => {
@@ -1194,7 +1285,7 @@ export default function QuestionnaireBuilder() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Options</Label>
-                  <Button variant="outline" size="sm" onClick={addOption}>
+                  <Button variant="outline" size="sm" onClick={addOption} data-testid="add-dropdown-option-button">
                     <Plus className="h-3 w-3 mr-1" />
                     Add Option
                   </Button>
@@ -1207,25 +1298,31 @@ export default function QuestionnaireBuilder() {
                         value={opt.value}
                         onChange={(e) => updateOption(index, 'value', e.target.value)}
                         className="w-1/3"
+                        data-testid={`dropdown-option-value-${index}`}
                       />
                       <Input
                         placeholder="Label"
                         value={opt.label}
                         onChange={(e) => updateOption(index, 'label', e.target.value)}
                         className="w-1/3"
+                        data-testid={`dropdown-option-label-${index}`}
                       />
                       <Input
                         type="number"
                         placeholder="Score"
-                        value={opt.score || ''}
-                        onChange={(e) => updateOption(index, 'score', e.target.value ? parseFloat(e.target.value) : null)}
+                        min="0"
+                        max="100"
+                        value={opt.score ?? ''}
+                        onChange={(e) => updateOption(index, 'score', parseNumericInput(e.target.value))}
                         className="w-1/4"
+                        data-testid={`dropdown-option-score-${index}`}
                       />
                       <Button
                         variant="ghost"
                         size="sm"
                         className="text-red-600"
                         onClick={() => removeOption(index)}
+                        data-testid={`remove-dropdown-option-${index}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -1262,20 +1359,16 @@ export default function QuestionnaireBuilder() {
                             newScoring.target = 100;
                             newScoring.min = 0;
                             newScoring.max = 100;
+                            newScoring.max_score = 100;
                           } else if (rule.value === 'lower_is_better') {
                             newScoring.max_acceptable = 100;
                             newScoring.min = 0;
+                            newScoring.max_score = 100;
                           } else if (rule.value === 'target_based') {
                             newScoring.target = 100;
+                            newScoring.max_score = 100;
                           } else if (rule.value === 'choice_mapping') {
-                            // Build choices from options if available
-                            const choices = {};
-                            questionForm.options?.forEach(opt => {
-                              if (opt.value) {
-                                choices[opt.value] = opt.score || 0;
-                              }
-                            });
-                            newScoring.choices = choices;
+                            newScoring.choices = {};
                           }
                           setQuestionForm({ ...questionForm, scoring: newScoring });
                         }}
@@ -1303,30 +1396,35 @@ export default function QuestionnaireBuilder() {
               {questionForm.scoring?.rule === 'higher_is_better' && (
                 <div className="grid grid-cols-3 gap-3 pt-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Min Value</Label>
+                    <Label className="text-xs">Lowest value (0 score)</Label>
                     <Input
                       type="number"
                       value={questionForm.scoring.min ?? 0}
-                      onChange={(e) => updateScoringConfig('min', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => updateScoringConfig('min', parseNumericInput(e.target.value))}
                       placeholder="0"
+                      data-testid="higher-is-better-min-input"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Target (100% score)</Label>
+                    <Label className="text-xs">Target value (full score)</Label>
                     <Input
                       type="number"
                       value={questionForm.scoring.target ?? 100}
-                      onChange={(e) => updateScoringConfig('target', parseFloat(e.target.value) || 100)}
+                      onChange={(e) => updateScoringConfig('target', parseNumericInput(e.target.value))}
                       placeholder="100"
+                      data-testid="higher-is-better-target-input"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Max Score</Label>
+                    <Label className="text-xs">Score cap</Label>
                     <Input
                       type="number"
+                      min="0"
+                      max="100"
                       value={questionForm.scoring.max_score ?? 100}
-                      onChange={(e) => updateScoringConfig('max_score', parseFloat(e.target.value) || 100)}
+                      onChange={(e) => updateScoringConfig('max_score', parseNumericInput(e.target.value))}
                       placeholder="100"
+                      data-testid="higher-is-better-score-cap-input"
                     />
                   </div>
                 </div>
@@ -1335,30 +1433,35 @@ export default function QuestionnaireBuilder() {
               {questionForm.scoring?.rule === 'lower_is_better' && (
                 <div className="grid grid-cols-3 gap-3 pt-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Best Value (100% score)</Label>
+                    <Label className="text-xs">Best value (full score)</Label>
                     <Input
                       type="number"
                       value={questionForm.scoring.min ?? 0}
-                      onChange={(e) => updateScoringConfig('min', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => updateScoringConfig('min', parseNumericInput(e.target.value))}
                       placeholder="0"
+                      data-testid="lower-is-better-best-value-input"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Max Acceptable (0% score)</Label>
+                    <Label className="text-xs">Zero-score threshold</Label>
                     <Input
                       type="number"
                       value={questionForm.scoring.max_acceptable ?? 100}
-                      onChange={(e) => updateScoringConfig('max_acceptable', parseFloat(e.target.value) || 100)}
+                      onChange={(e) => updateScoringConfig('max_acceptable', parseNumericInput(e.target.value))}
                       placeholder="100"
+                      data-testid="lower-is-better-zero-score-threshold-input"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Max Score</Label>
+                    <Label className="text-xs">Score cap</Label>
                     <Input
                       type="number"
+                      min="0"
+                      max="100"
                       value={questionForm.scoring.max_score ?? 100}
-                      onChange={(e) => updateScoringConfig('max_score', parseFloat(e.target.value) || 100)}
+                      onChange={(e) => updateScoringConfig('max_score', parseNumericInput(e.target.value))}
                       placeholder="100"
+                      data-testid="lower-is-better-score-cap-input"
                     />
                   </div>
                 </div>
@@ -1370,18 +1473,24 @@ export default function QuestionnaireBuilder() {
                     <Label className="text-xs">Yes/True Score</Label>
                     <Input
                       type="number"
+                      min="0"
+                      max="100"
                       value={questionForm.scoring.true_score ?? 100}
-                      onChange={(e) => updateScoringConfig('true_score', parseFloat(e.target.value) || 100)}
+                      onChange={(e) => updateScoringConfig('true_score', parseNumericInput(e.target.value))}
                       placeholder="100"
+                      data-testid="boolean-true-score-input"
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">No/False Score</Label>
                     <Input
                       type="number"
+                      min="0"
+                      max="100"
                       value={questionForm.scoring.false_score ?? 0}
-                      onChange={(e) => updateScoringConfig('false_score', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => updateScoringConfig('false_score', parseNumericInput(e.target.value))}
                       placeholder="0"
+                      data-testid="boolean-false-score-input"
                     />
                   </div>
                 </div>
@@ -1390,21 +1499,25 @@ export default function QuestionnaireBuilder() {
               {questionForm.scoring?.rule === 'target_based' && (
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Target Value</Label>
+                    <Label className="text-xs">Target value (full score)</Label>
                     <Input
                       type="number"
                       value={questionForm.scoring.target ?? 100}
-                      onChange={(e) => updateScoringConfig('target', parseFloat(e.target.value) || 100)}
+                      onChange={(e) => updateScoringConfig('target', parseNumericInput(e.target.value))}
                       placeholder="100"
+                      data-testid="target-based-target-input"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Max Score</Label>
+                    <Label className="text-xs">Score cap</Label>
                     <Input
                       type="number"
+                      min="0"
+                      max="100"
                       value={questionForm.scoring.max_score ?? 100}
-                      onChange={(e) => updateScoringConfig('max_score', parseFloat(e.target.value) || 100)}
+                      onChange={(e) => updateScoringConfig('max_score', parseNumericInput(e.target.value))}
                       placeholder="100"
+                      data-testid="target-based-score-cap-input"
                     />
                   </div>
                 </div>
@@ -1415,31 +1528,9 @@ export default function QuestionnaireBuilder() {
                   <div className="flex items-center gap-2">
                     <Info className="h-3 w-3 text-stone-400" />
                     <span className="text-xs text-stone-500">
-                      Set scores in the Options section above, or configure them below
+                      Set one 0–100 score for each dropdown option above.
                     </span>
                   </div>
-                  {questionForm.options?.length > 0 && (
-                    <div className="space-y-2">
-                      {questionForm.options.map((opt, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <span className="text-sm text-stone-600 w-1/2 truncate">
-                            {opt.label || opt.value || `Option ${index + 1}`}
-                          </span>
-                          <Input
-                            type="number"
-                            placeholder="Score"
-                            value={questionForm.scoring.choices?.[opt.value] ?? opt.score ?? ''}
-                            onChange={(e) => {
-                              const newChoices = { ...questionForm.scoring.choices };
-                              newChoices[opt.value] = parseFloat(e.target.value) || 0;
-                              updateScoringConfig('choices', newChoices);
-                            }}
-                            className="w-1/2"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
               

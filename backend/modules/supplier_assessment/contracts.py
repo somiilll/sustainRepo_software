@@ -3,7 +3,7 @@ Supplier Assessment Pydantic contracts/schemas.
 """
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, ConfigDict, Field
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, model_validator
 
 
 # ============================================================================
@@ -195,6 +195,39 @@ class QuestionScoringConfig(BaseModel):
     # For manual
     requires_manual_review: bool = False
 
+    @model_validator(mode="after")
+    def validate_rule_configuration(self):
+        if not 0 < self.max_score <= 100:
+            raise ValueError("max_score must be greater than 0 and no more than 100")
+
+        if self.rule == "higher_is_better":
+            if self.min is None or self.target is None:
+                raise ValueError("higher_is_better requires a lowest value and target value")
+            if self.target <= self.min:
+                raise ValueError("higher_is_better target must be greater than its lowest value")
+
+        if self.rule == "lower_is_better":
+            if self.min is None or self.max_acceptable is None:
+                raise ValueError("lower_is_better requires a best value and zero-score threshold")
+            if self.max_acceptable <= self.min:
+                raise ValueError("lower_is_better zero-score threshold must be greater than its best value")
+
+        if self.rule == "target_based" and (self.target is None or self.target <= 0):
+            raise ValueError("target_based requires a target value greater than zero")
+
+        if self.rule == "boolean" and (not 0 <= self.true_score <= 100 or not 0 <= self.false_score <= 100):
+            raise ValueError("boolean scores must be between 0 and 100")
+
+        if self.rule == "choice_mapping":
+            if not self.choices:
+                raise ValueError("choice_mapping requires at least one choice score")
+            for choice, score in self.choices.items():
+                if not choice.strip():
+                    raise ValueError("choice_mapping values cannot be blank")
+                if not 0 <= score <= 100:
+                    raise ValueError("choice_mapping scores must be between 0 and 100")
+        return self
+
 
 class QuestionCreate(BaseModel):
     """Create a questionnaire question."""
@@ -213,6 +246,19 @@ class QuestionCreate(BaseModel):
     # New: Scoring configuration
     scoring: Optional[QuestionScoringConfig] = None
 
+    @model_validator(mode="after")
+    def validate_choice_mapping_options(self):
+        if not self.scoring or self.scoring.rule != "choice_mapping":
+            return self
+        if self.response_type != "dropdown":
+            raise ValueError("choice_mapping can only be used with dropdown responses")
+        option_values = [option.value.strip() for option in self.options or []]
+        if not option_values or any(not value for value in option_values) or len(set(option_values)) != len(option_values):
+            raise ValueError("dropdown options must have unique, non-empty values")
+        if set(self.scoring.choices or {}) != set(option_values):
+            raise ValueError("choice mappings must match the configured dropdown options")
+        return self
+
 
 class QuestionUpdate(BaseModel):
     """Update a question."""
@@ -229,6 +275,20 @@ class QuestionUpdate(BaseModel):
     is_active: Optional[bool] = None
     # New: Scoring configuration
     scoring: Optional[QuestionScoringConfig] = None
+
+    @model_validator(mode="after")
+    def validate_choice_mapping_options(self):
+        if not self.scoring or self.scoring.rule != "choice_mapping":
+            return self
+        if self.response_type is not None and self.response_type != "dropdown":
+            raise ValueError("choice_mapping can only be used with dropdown responses")
+        if self.options is not None:
+            option_values = [option.value.strip() for option in self.options]
+            if not option_values or any(not value for value in option_values) or len(set(option_values)) != len(option_values):
+                raise ValueError("dropdown options must have unique, non-empty values")
+            if set(self.scoring.choices or {}) != set(option_values):
+                raise ValueError("choice mappings must match the configured dropdown options")
+        return self
 
 
 class QuestionResponse(BaseModel):
