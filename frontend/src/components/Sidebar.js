@@ -65,6 +65,7 @@ function MenuItem(props) {
   var userRole = props.userRole;
   var userType = props.userType;
   var orgType = props.orgType;
+  var inheritedMuted = props.inheritedMuted;
 
   // Check adminOnly
   if (item.adminOnly && userRole !== 'admin' && userRole !== 'super_admin') return null;
@@ -73,6 +74,9 @@ function MenuItem(props) {
   // Hide admin supplier items from supplier users
   if (!item.supplierOnly && item.key?.startsWith('supplier_assessment.') && (userType === 'supplier' || orgType === 'supplier')) return null;
   if (!hasAccess(item.key)) return null;
+
+  var isSupplier = userType === 'supplier' || orgType === 'supplier';
+  var mutedForSupplier = inheritedMuted || (isSupplier && ['environment', 'social', 'governance'].includes(item.key));
 
   var hasChildren = item.children && item.children.length > 0;
   var active = item.path ? isActive(item.path, location) : false;
@@ -86,7 +90,7 @@ function MenuItem(props) {
       React.createElement('button', {
         type: 'button',
         onClick: function() { onToggle(item.key); },
-        className: 'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (groupActive ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
+        className: 'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : groupActive ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
         'data-testid': 'sidebar-' + item.key,
       },
         React.createElement('span', { className: 'flex items-center gap-2.5' },
@@ -100,7 +104,7 @@ function MenuItem(props) {
           return React.createElement(MenuItem, {
             key: child.key, item: child, depth: depth + 1, expanded: expanded,
             onToggle: onToggle, location: location, hasAccess: hasAccess, userRole: userRole,
-            userType: userType, orgType: orgType
+            userType: userType, orgType: orgType, inheritedMuted: mutedForSupplier
           });
         })
       ) : null
@@ -109,7 +113,7 @@ function MenuItem(props) {
 
   return React.createElement(Link, {
     to: item.path,
-    className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
+    className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
     'data-testid': 'sidebar-' + item.key,
   },
     Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,

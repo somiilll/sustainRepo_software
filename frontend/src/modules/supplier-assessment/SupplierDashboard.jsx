@@ -19,6 +19,8 @@ import {
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
 import RevenueTaskChecklist from './components/RevenueTaskChecklist';
+import { SupplierOnboarding } from './components/SupplierOnboarding';
+import { SupplierTaskLaunchpad } from './components/SupplierTaskLaunchpad';
 import {
   Select,
   SelectContent,
@@ -69,6 +71,7 @@ export default function SupplierDashboard() {
   const [ghgState, setGhgState] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [trainings, setTrainings] = useState([]);
+  const [onboarding, setOnboarding] = useState(null);
 
   const fetchWorkflowStates = useCallback(async (modules) => {
     const enabledCodes = new Set((modules || []).map((module) => module.code));
@@ -95,6 +98,8 @@ export default function SupplierDashboard() {
         headers: getAuthHeader(),
       });
       setAssessment(res.data);
+      const onboardingResponse = await axios.get(`${API}/supplier-assessment/my-assessment/onboarding`, { headers: getAuthHeader() });
+      setOnboarding(onboardingResponse.data);
       await fetchWorkflowStates(res.data.assessment_modules);
       const rel = res.data.relationship;
       if (rel?.revenue_percentage !== null && rel?.revenue_percentage !== undefined) {
@@ -204,6 +209,10 @@ export default function SupplierDashboard() {
     );
   }
 
+  if (onboarding && !onboarding.onboarding_complete) {
+    return <SupplierOnboarding onboarding={onboarding} />;
+  }
+
   const { relationship, customer_name } = assessment;
   const assessmentModules = assessment.assessment_modules || [];
   const configuredModules = new Map(assessmentModules.map((module) => [module.code, module]));
@@ -229,6 +238,8 @@ export default function SupplierDashboard() {
           <Badge className="mt-4 border border-white/30 bg-white/15 text-white" data-testid="supplier-assessment-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(relationship.due_date).toLocaleDateString()}</Badge>
         )}
       </div>
+
+      {onboarding && <SupplierTaskLaunchpad onboarding={onboarding} />}
 
       {/* Progress Overview */}
       <Card>

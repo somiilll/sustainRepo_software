@@ -1,105 +1,74 @@
 {
-  "theme": "Light mode preferred for data-heavy dashboard readability. Use neutral grays and stark contrast.",
+  "persona_and_vision": "E1: Top 1% Creative Designer. Organic & Earthy archetype tailored for ESG (Environmental, Social, Governance) compliance. Rejects typical 'SaaS Blue' in favor of grounded, trust-building aesthetics.",
   "typography": {
-    "strategy": "The Soft Utility (Dashboard App)",
-    "heading_font": "Manrope",
-    "body_font": "IBM Plex Sans",
-    "forbidden_fonts": ["Inter", "Roboto", "Open Sans", "Space Grotesk"],
-    "hierarchy": {
-      "h1": "text-2xl sm:text-3xl tracking-tight font-bold",
-      "h2": "text-xl sm:text-2xl tracking-tight font-semibold",
-      "h3": "text-lg sm:text-xl font-medium",
-      "body": "text-sm text-slate-700 leading-relaxed",
-      "small_labels": "text-xs tracking-[0.05em] uppercase font-semibold text-slate-500"
+    "headings": "Cabinet Grotesk",
+    "body": "IBM Plex Sans",
+    "rules": {
+      "h1": "text-4xl sm:text-5xl tracking-tight leading-none text-forest-900",
+      "h2": "text-2xl sm:text-3xl tracking-tight text-forest-800",
+      "body_text": "text-base leading-relaxed text-charcoal-700",
+      "labels": "text-xs uppercase tracking-[0.2em] font-medium text-stone-500",
+      "anti_patterns": "DO NOT use Inter, Roboto, or Open Sans for headings. NEVER use text-7xl+ for dashboards."
     }
   },
   "colors": {
-    "archetype": "Swiss & High-Contrast (Authority, Clarity, Truth)",
-    "base": {
-      "background": "#FAFAFA",
-      "surface": "#FFFFFF",
-      "border": "#E2E8F0",
-      "text_primary": "#0F172A",
-      "text_secondary": "#64748B"
+    "archetype": "Organic & Earthy (Trust, Growth, Calm)",
+    "palette": {
+      "background": "#F9F8F6 (Warm Sand/Bone White)",
+      "surface": "#FFFFFF (Pure White) with 1px border-stone-200",
+      "primary": "#1A3626 (Deep Forest Green)",
+      "accent": "#4A6B53 (Moss)",
+      "text_primary": "#1C1C1C (Deep Charcoal)",
+      "text_secondary": "#57534E (Stone 600)",
+      "disabled": "#D6D3D1 (Stone 300)"
     },
-    "semantic_scores": {
-      "excellent": { "range": "80-100", "color": "#10B981", "bg_subtle": "#D1FAE5", "text": "#065F46" },
-      "good": { "range": "60-79", "color": "#3B82F6", "bg_subtle": "#DBEAFE", "text": "#1E40AF" },
-      "needs_improvement": { "range": "40-59", "color": "#F59E0B", "bg_subtle": "#FEF3C7", "text": "#92400E" },
-      "critical": { "range": "0-39", "color": "#EF4444", "bg_subtle": "#FEE2E2", "text": "#991B1B" }
-    },
-    "forbidden_colors": ["#1B93A4", "#7351B7"],
-    "rules": [
-      "Color should communicate performance, not category. Do not make 'Environment' inherently green and 'Governance' inherently purple.",
-      "Categories must use neutral styling (e.g., slate grays).",
-      "Hover states must be a lighter hue of the active state. Never rely on inheritance."
-    ]
+    "rules": "No pure black or pure white without purpose. No full-screen gradients. Use solid colors with crisp 1px borders for UI surfaces."
   },
-  "visual_enhancers": {
-    "surfaces": "Neumorphism (The Tactile Variant) - Mix soft shadows with sharp 1px inner borders for dashboards.",
-    "cards": "Flat background, 1px subtle border, no shadow by default. Hover: slight lift and shadow-sm.",
-    "borders": "Use subtle nested borders. Child border-radius should be less than parent."
+  "layout_and_spacing": {
+    "strategy": "The Bento Grid Protocol (Dashboard Density)",
+    "onboarding_launchpad": "Use grid-cols-1 md:grid-cols-12 gap-6. Active step (Facility Info) takes col-span-12 or col-span-8 with prominent CTA. Future steps (Assessments, Tasks) take col-span-4 or stack elegantly.",
+    "spacing_scale": "Generous Spacing. Use p-6, p-8, p-12. Avoid cramped p-2/p-4 unless deep inside a component.",
+    "alignment": "Left-align dense text and forms. Left-align CTAs relative to container."
   },
-  "layouts": {
-    "strategy": "Mode B: High Density Grid (For Dashboards / Analytics)",
-    "overview_grid": "grid-cols-1 md:grid-cols-3 gap-6 for summary cards.",
-    "kpi_section": "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4",
-    "attention_required_section": "Use an alert-style block or compact card layout with distinct emphasis (warning icon, neutral background)."
-  },
-  "components": {
-    "kpi_cards": {
-      "description": "Suppliers assessed, Avg ESG Score, Top Performer, Needs Attention.",
-      "style": "Minimalist card, large numeric value, subtle label."
+  "components_and_features": {
+    "onboarding_checklist": {
+      "style": "Not a rigid wizard. A launchpad. Cards with crisp 1px borders.",
+      "active_step": "Surface: White. Border: 2px solid #1A3626. Features the primary 'Continue Setup' CTA.",
+      "completed_step": "Surface: Stone-50 (dimmed). Shows a green checkmark or 'Completed' badge.",
+      "future_step": "Surface: White. Border: 1px solid Stone-200. No primary CTA until prerequisites are met."
     },
-    "summary_cards": {
-      "description": "Three compact cards replacing the donut chart: Excellent, Good, Needs Attention.",
-      "style": "Show the semantic score dot/icon, title, and count of suppliers."
+    "unavailable_modules": {
+      "style": "De-emphasize visually to avoid distracting from core tasks.",
+      "classes": "opacity-40 grayscale cursor-not-allowed hover:none transition-none",
+      "context": "Applies to Social, Environment, Energy, Water modules if the supplier shouldn't access them yet."
     },
-    "top_performing_bars": {
-      "description": "Supplier score bars with the score value at the end of the bar.",
-      "style": "Horizontal progress bar. Use the semantic score color based on value. Score aligned to the right of the bar."
+    "headers_and_nav": {
+      "style": "Crystal Glassmorphism if floating (backdrop-blur-xl bg-white/80 border-b border-stone-200), OR Solid White with crisp bottom border.",
+      "anti_pattern": "NEVER use a fully transparent header over content."
     },
-    "supplier_ranking_table": {
-      "description": "Hierarchical rows replacing flat rows. Show main supplier info with sub-categories below.",
-      "style": "Row structure: Top line -> Supplier name, Medal (if applicable), Overall Score, Band Name (Excellent/Good). Bottom line -> Neutral text 'Environment 100 · Social 50 · GHG 99.4'. On row hover, show 'View ->' action button on the far right.",
-      "status_formatting": "Display richer status (Not Started, Invited, In Progress, Submitted, Under Review, Completed, Overdue). Show 'x / y questions' for 'In Progress'."
-    },
-    "tooltip": {
-      "description": "Tooltips for additional context.",
-      "usage": "Use an info icon next to 'Overall Score' in table headers. Content: 'Combined ESG + GHG performance score'."
+    "buttons": {
+      "primary": "bg-[#1A3626] text-white hover:bg-[#132A1C] transition-colors rounded-md px-6 py-3 font-medium shadow-sm",
+      "secondary": "bg-transparent border border-[#1A3626] text-[#1A3626] hover:bg-stone-100 transition-colors rounded-md px-6 py-3 font-medium"
     }
   },
-  "motion": {
-    "hover_states": "Row hover shows the 'View ->' action via opacity transition (opacity-0 to opacity-100).",
-    "transitions": "Use specific properties: 'transition-all duration-200 ease-in-out' ONLY for colors/opacity, NOT transforms universally.",
-    "accessibility": "Respect prefers-reduced-motion."
+  "motion_and_interaction": {
+    "hover_states": "All interactive elements MUST have hover states (e.g., hover:-translate-y-0.5, hover:shadow-md).",
+    "transitions": "transition-all duration-200 ease-in-out. DO NOT use generic 'transition: all' in CSS files if it breaks transforms.",
+    "entrance": "Staggered fade-in-up for checklist items."
   },
-  "accessibility": {
-    "contrast": "Ensure all semantic score colors have > 3:1 contrast against their backgrounds.",
-    "tooltips": "Tooltips must be keyboard focusable.",
-    "data_testid": "ALL interactive elements, key KPI values, table rows, and buttons MUST include data-testid. Examples: 'kpi-suppliers-assessed', 'supplier-row-{id}', 'view-supplier-btn'."
+  "accessibility_and_testing": {
+    "contrast": "Ensure minimum 4.5:1 for standard text against backgrounds.",
+    "testing_attributes": "CRITICAL: All interactive elements MUST have `data-testid` (e.g., `data-testid=\"onboarding-facility-setup-btn\"`).",
+    "focus_states": "focus:ring-2 focus:ring-[#4A6B53] focus:outline-none focus-visible:ring-offset-2"
   },
-  "icons": {
-    "library": "lucide-react",
-    "usage": "Use semantic icons for status. Info icon for tooltips. Arrow-right for View action."
-  },
-  "instructions_to_main_agent": [
-    "Remove the Overall Score/GHG Intensity dropdown completely. Hardcode the logic to display Overall Score.",
-    "Refactor the Overview dashboard to remove the donut chart and add the 3 summary compact cards.",
-    "Implement Top Performing Suppliers horizontal bars using standard divs with percentage width or Shadcn Progress component.",
-    "Add 'Attention Required' section clearly calling out missing assessments or scores needing attention.",
-    "Update the table structure to be hierarchical. The top row of a cell has the main name and score; the bottom row has category breakdown separated by middle dots (·).",
-    "Make category texts neutral colors (e.g., text-slate-500) and remove previously hardcoded category colors.",
-    "Add a hover effect on table rows that reveals a 'View ->' link or button on the right side.",
-    "Integrate Shadcn Tooltip component for the 'Overall Score' column header.",
-    "Ensure all components use `data-testid` for testing."
-  ],
-  "universal_guidelines": [
-    "Prioritize using pre-existing components from src/components/ui when applicable.",
-    "Do not use generic centered layouts or simplistic gradients.",
-    "Never use complete transparent background in header or overlays.",
-    "Add micro-interactions like hover states and transitions.",
-    "Follow the semantic scoring system strictly for score displays.",
-    "Write code for React JS (.js) rather than TSX."
+  "universal_guidelines_for_main_agent": [
+    "Use .js files (JSX), NOT .tsx files. Do not write TypeScript.",
+    "DO NOT create generic centered layouts (e.g., .App { text-align: center; }).",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Never use placeholder AI emojis.",
+    "Reuse existing components from src/components/ui.",
+    "For toasts, use 'sonner' if applicable.",
+    "Ensure unavailable modules (Energy, Water, etc.) are visually muted (opacity-50, grayscale) to establish hierarchy.",
+    "Do not redesign existing facility or task modules; focus purely on the launchpad/entry-point experience."
   ]
 }

@@ -37,6 +37,8 @@ from modules.supplier_assessment.contracts import (
 from modules.supplier_assessment import documents_service
 from modules.supplier_assessment import training_service
 from modules.supplier_assessment import ghg_submission_service
+from modules.facilities.contracts import FacilityCreate, FacilityResponse
+from modules.facilities.router import create_facility_for_organization
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
 
@@ -739,6 +741,54 @@ async def get_my_assessment(
             program_context["config"], relationship
         ),
     }
+
+
+@router.get("/my-assessment/onboarding")
+async def get_my_assessment_onboarding(current_user: dict = Depends(get_supplier_user)):
+    """Supplier launchpad data, built from existing facility and assignment records."""
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    customer_org = await db.organizations.find_one({"id": relationship["customer_org_id"]}, {"_id": 0, "name": 1}) or {}
+    facility = await db.facilities.find_one(
+        {"organization_id": current_user["organization_id"], "is_active": True},
+        {"_id": 0, "id": 1, "name": 1, "updated_at": 1, "created_at": 1},
+    )
+    questionnaires = await supplier_service.get_supplier_questionnaire_status(current_user["organization_id"], relationship["customer_org_id"])
+    documents = await documents_service.list_supplier_documents(relationship)
+    trainings = await training_service.supplier_trainings(relationship)
+    ghg_state = await ghg_submission_service.get_supplier_ghg_state(relationship)
+    program_context = await supplier_service.get_program_context(relationship)
+    modules = supplier_assessment_module_registry.supplier_module_summaries(program_context["config"], relationship)
+    questionnaire_pending = [item for item in questionnaires if item.get("status") != "submitted"]
+    document_pending = [item for item in documents if not item.get("accepted") and not item.get("selected_response") and item.get("submission_status") != "submitted"]
+    training_pending = [item for item in trainings if item.get("status") != "completed"]
+    ghg_module = next((module for module in modules if module.get("code") == "ghg"), None)
+    ghg_pending = bool(ghg_module) and ghg_state.get("submission", {}).get("status") != "submitted"
+    assessment_status = "completed" if questionnaires and not questionnaire_pending else "in_progress" if any(item.get("status") == "in_progress" for item in questionnaires) else "not_started"
+    task_total = len(questionnaire_pending) + len(document_pending) + len(training_pending) + int(ghg_pending)
+    task_status = "completed" if task_total == 0 else "in_progress" if any(item.get("status") == "in_progress" for item in questionnaires) or ghg_state.get("draft_aggregation") else "not_started"
+    return {
+        "parent_name": customer_org.get("name", "your customer"),
+        "relationship": {"id": relationship["id"], "reporting_period": relationship.get("reporting_period"), "due_date": relationship.get("due_date")},
+        "facility": {"status": "completed" if facility else "not_started", "facility": facility},
+        "steps": {"facility": "completed" if facility else "not_started", "assessment": assessment_status, "tasks": task_status},
+        "onboarding_complete": bool(facility),
+        "modules": modules,
+        "tasks": {
+            "questionnaires": questionnaires,
+            "documents": documents,
+            "trainings": trainings,
+            "ghg_pending": ghg_pending,
+            "remaining": task_total,
+        },
+    }
+
+
+@router.post("/my-assessment/facility", response_model=FacilityResponse)
+async def create_my_supplier_facility(data: FacilityCreate, current_user: dict = Depends(get_supplier_user)):
+    """Supplier-facing entry point that reuses the shared facility validation and persistence."""
+    return await create_facility_for_organization(data, current_user["organization_id"], current_user)
 
 
 @router.put("/my-assessment/revenue")

@@ -1,0 +1,17 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, ClipboardList, Cloud, FileText, GraduationCap } from 'lucide-react';
+import { Button } from '../../../components/ui/button';
+
+const taskCards = (tasks) => [
+  { id: 'assessments', title: 'Supplier Assessments', detail: `${tasks.questionnaires?.length || 0} questionnaire${(tasks.questionnaires?.length || 0) === 1 ? '' : 's'} assigned`, remaining: (tasks.questionnaires || []).filter((item) => item.status !== 'submitted').length, route: '/supplier-assessment/supplier/esg', action: 'Continue', Icon: ClipboardList },
+  { id: 'documents', title: 'Required Documents', detail: `${tasks.documents?.length || 0} document${(tasks.documents?.length || 0) === 1 ? '' : 's'} requested`, remaining: (tasks.documents || []).filter((item) => !item.accepted && !item.selected_response && item.submission_status !== 'submitted').length, route: '/supplier-assessment/documents/review', action: 'View Tasks', Icon: FileText },
+  { id: 'training', title: 'Supplier Training', detail: `${tasks.trainings?.length || 0} training item${(tasks.trainings?.length || 0) === 1 ? '' : 's'} assigned`, remaining: (tasks.trainings || []).filter((item) => item.status !== 'completed').length, route: '/supplier-assessment/training', action: 'Start', Icon: GraduationCap },
+  ...(tasks.ghg_pending ? [{ id: 'ghg', title: 'GHG Emissions', detail: 'Emissions data needs review', remaining: 1, route: '/supplier-assessment/emissions', action: 'Continue', Icon: Cloud }] : []),
+].filter((item) => item.detail !== '0 questionnaires assigned' && item.detail !== '0 documents requested' && item.detail !== '0 training items assigned');
+
+export const SupplierTaskLaunchpad = ({ onboarding }) => {
+  const navigate = useNavigate();
+  const cards = taskCards(onboarding.tasks || {});
+  return <section className="border-y border-stone-200 py-6" data-testid="supplier-task-launchpad"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Supplier home</p><h2 className="mt-1 text-xl font-semibold text-stone-900">Your Tasks</h2><p className="mt-1 text-sm text-stone-600">Focus on the work that needs your attention next.</p></div><span className="text-sm text-stone-500" data-testid="supplier-tasks-remaining-count">{onboarding.tasks?.remaining || 0} remaining</span></div>{cards.length === 0 ? <div className="mt-5 border border-dashed border-stone-300 bg-stone-50 p-6 text-sm text-stone-600" data-testid="supplier-tasks-empty">You’re all set for now. Your organization hasn’t assigned any supplier assessments yet. We’ll let you know when something is assigned.</div> : <div className="mt-5 grid gap-3 lg:grid-cols-3">{cards.map(({ id, title, detail, remaining, route, action, Icon }) => <article key={id} className="border border-stone-200 bg-white p-4" data-testid={`supplier-task-card-${id}`}><Icon className="h-5 w-5 text-stone-500" /><h3 className="mt-3 text-sm font-semibold text-stone-900">{title}</h3><p className="mt-1 text-sm text-stone-600">{detail}</p><div className="mt-4 flex items-center justify-between"><span className="text-xs font-medium text-stone-500">{remaining ? `${remaining} remaining` : 'Completed'}</span><Button variant="ghost" size="sm" onClick={() => navigate(route)} data-testid={`supplier-task-action-${id}`}>{action}<ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></div></article>)}</div>}</section>;
+};

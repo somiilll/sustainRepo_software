@@ -84,6 +84,7 @@ import SupplierAssessmentAdminLayout from './modules/supplier-assessment/Supplie
 import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
 import SupplierPortalESG from './pages/SupplierPortalESG';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
+import SupplierFacilitySetup from './modules/supplier-assessment/SupplierFacilitySetup';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
 import OCRInvoice from './pages/OCRInvoice';
 import SustainabilityConfig from './pages/SustainabilityConfig';
@@ -155,10 +156,10 @@ const AppRoutes = () => {
   return (
     <>
       <Routes>
-        <Route path="/login" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <Login />} />
+        <Route path="/login" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : user.org_type === 'supplier' ? '/supplier-assessment/supplier' : '/dashboard'} replace /> : <Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <Navigate to="/login" replace />} />
+        <Route path="/" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : user.org_type === 'supplier' ? '/supplier-assessment/supplier' : '/dashboard'} replace /> : <Navigate to="/login" replace />} />
         
         <Route path="/" element={
           <ProtectedRoute>
@@ -359,6 +360,7 @@ const AppRoutes = () => {
           
           {/* Supplier Portal Routes (Supplier Users) */}
           <Route path="supplier-assessment/supplier" element={<SupplierPortalDashboard />} />
+          <Route path="supplier-assessment/supplier/facility" element={<SupplierFacilitySetup />} />
           <Route path="supplier-assessment/supplier/esg" element={<SupplierPortalESG />} />
           <Route path="supplier-assessment/questionnaire/:questionnaireId" element={<SupplierPortalQuestionnaire />} />
           <Route path="supplier-assessment/documents/review" element={<SupplierDocuments />} />
