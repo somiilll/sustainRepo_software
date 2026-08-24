@@ -392,6 +392,21 @@ async def get_questionnaire(
     return questionnaire
 
 
+@router.get("/questionnaires/{questionnaire_id}/submissions")
+async def get_questionnaire_submissions(
+    questionnaire_id: str,
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_customer_admin),
+):
+    """List parent-visible submitted responses for one questionnaire."""
+    result = await supplier_service.get_questionnaire_submissions_for_admin(
+        current_user["organization_id"], questionnaire_id, reporting_period
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Questionnaire not found")
+    return result
+
+
 @router.put("/questionnaires/{questionnaire_id}", response_model=QuestionnaireResponse)
 async def update_questionnaire(
     questionnaire_id: str,
@@ -600,6 +615,28 @@ async def set_manual_questionnaire_score(
     result = await supplier_service.set_manual_questionnaire_score(
         supplier_id, questionnaire_id, data.score, data.note, current_user["id"]
     )
+    if not result:
+        raise HTTPException(status_code=404, detail="Submitted questionnaire response not found")
+    return result
+
+
+@router.put("/suppliers/{supplier_id}/questionnaires/{questionnaire_id}/questions/{question_id}/manual-score")
+async def set_manual_question_score(
+    supplier_id: str,
+    questionnaire_id: str,
+    question_id: str,
+    data: ManualScoreUpdate,
+    current_user: dict = Depends(get_customer_admin),
+):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    try:
+        result = await supplier_service.set_manual_question_score(
+            supplier_id, questionnaire_id, question_id, data.score, data.note, current_user["id"]
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     if not result:
         raise HTTPException(status_code=404, detail="Submitted questionnaire response not found")
     return result

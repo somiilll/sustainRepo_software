@@ -46,7 +46,9 @@ import {
   Target,
   Pencil,
   Info,
+  ClipboardCheck,
 } from 'lucide-react';
+import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -159,6 +161,11 @@ export default function QuestionnaireBuilder() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
+  const [showSubmissionsDialog, setShowSubmissionsDialog] = useState(false);
+  const [submissions, setSubmissions] = useState([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [reviewResponse, setReviewResponse] = useState(null);
+  const [reviewSupplier, setReviewSupplier] = useState(null);
   
   // Form states
   const [questionnaireForm, setQuestionnaireForm] = useState({
@@ -388,6 +395,33 @@ export default function QuestionnaireBuilder() {
     } catch (err) {
       toast.error('Failed to delete question');
     }
+  };
+
+  const openSubmissions = async () => {
+    if (!selectedQuestionnaire) return;
+    setShowSubmissionsDialog(true);
+    setLoadingSubmissions(true);
+    try {
+      const response = await axios.get(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/submissions`, {
+        params: { reporting_period: reportingPeriod }, headers: getAuthHeader(),
+      });
+      setSubmissions(response.data.submissions || []);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not load submitted responses');
+      setSubmissions([]);
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
+
+  const openSubmissionReview = async (submission) => {
+    if (!selectedQuestionnaire) return;
+    try {
+      const response = await axios.get(`${API}/supplier-assessment/suppliers/${submission.supplier_id}/questionnaires/${selectedQuestionnaire.id}/responses`, { headers: getAuthHeader() });
+      setReviewSupplier(submission);
+      setReviewResponse(response.data);
+      setShowSubmissionsDialog(false);
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not load supplier response'); }
   };
 
   const resetQuestionForm = () => {
@@ -671,17 +705,11 @@ export default function QuestionnaireBuilder() {
                     {selectedQuestionnaire.description || 'No description'}
                   </p>
                 </div>
-                <Button
-                  onClick={() => {
-                    resetQuestionForm();
-                    setEditingQuestion(null);
-                    setShowQuestionDialog(true);
-                  }}
-                  data-testid="add-question-btn"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Question
-                </Button>
+                <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={openSubmissions} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="mr-2 h-4 w-4" />Review responses</Button><Button onClick={() => {
+                  resetQuestionForm();
+                  setEditingQuestion(null);
+                  setShowQuestionDialog(true);
+                }} data-testid="add-question-btn"><Plus className="h-4 w-4 mr-2" />Add Question</Button></div>
               </CardHeader>
               <CardContent>
                 {questions.length === 0 ? (
@@ -778,6 +806,11 @@ export default function QuestionnaireBuilder() {
           )}
         </div>
       </div>
+
+      <Dialog open={showSubmissionsDialog} onOpenChange={setShowSubmissionsDialog}>
+        <DialogContent className="max-w-2xl" data-testid="questionnaire-submissions-dialog"><DialogHeader><DialogTitle data-testid="questionnaire-submissions-title">Submitted responses — {selectedQuestionnaire?.name}</DialogTitle></DialogHeader><div className="max-h-96 space-y-2 overflow-y-auto" data-testid="questionnaire-submissions-list">{loadingSubmissions ? <p className="text-sm text-stone-500" data-testid="questionnaire-submissions-loading">Loading submitted responses…</p> : submissions.length === 0 ? <p className="text-sm text-stone-500" data-testid="questionnaire-submissions-empty">No suppliers have submitted this questionnaire for the selected reporting period.</p> : submissions.map((submission) => <div key={submission.supplier_id} className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 py-3" data-testid={`questionnaire-submission-${submission.supplier_id}`}><div><p className="font-medium text-stone-900" data-testid={`questionnaire-submission-supplier-${submission.supplier_id}`}>{submission.supplier_name}</p><p className="text-xs text-stone-500" data-testid={`questionnaire-submission-score-${submission.supplier_id}`}>Questionnaire score: {submission.calculated_score ?? 'Pending'} · Manual questions scored: {submission.manual_question_count}</p></div><Button variant="outline" size="sm" onClick={() => openSubmissionReview(submission)} data-testid={`review-questionnaire-submission-${submission.supplier_id}`}>Review response</Button></div>)}</div><DialogFooter><Button variant="outline" onClick={() => setShowSubmissionsDialog(false)} data-testid="close-questionnaire-submissions-button">Close</Button></DialogFooter></DialogContent>
+      </Dialog>
+      <SupplierResponseReviewDialog open={Boolean(reviewResponse)} onOpenChange={(open) => !open && setReviewResponse(null)} response={reviewResponse} supplierId={reviewSupplier?.supplier_id} getAuthHeader={getAuthHeader} onScoreSaved={() => { if (reviewSupplier) openSubmissionReview(reviewSupplier); }} />
 
       {/* Create Questionnaire Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

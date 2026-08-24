@@ -53,6 +53,7 @@ class ScoringEngine:
         questionnaire_id: str,
         save_to_db: bool = True,
         answers_override: Optional[Dict[str, Any]] = None,
+        manual_scores_override: Optional[Dict[str, Any]] = None,
         reporting_period: Optional[str] = None,
     ) -> ScoreBreakdown:
         """
@@ -87,25 +88,29 @@ class ScoringEngine:
             {"_id": 0}
         ).to_list(500)
         
-        # Fetch supplier's responses
-        response_doc = await self.db.supplier_questionnaire_responses.find_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-                "status": "submitted",
-                "parent_visible": {"$ne": False},
-            },
-            {"_id": 0}, sort=[("revision", -1)]
-        )
-        answers = answers_override if answers_override is not None else (response_doc.get("answers", {}) if response_doc else {})
-        
-        # Fetch supplier relationship for revenue and name
+        # Fetch supplier relationship before selecting the period-specific submitted response.
         relationship = await self.db.supplier_relationships.find_one(
             {"id": supplier_relationship_id},
             {"_id": 0}
         )
         supplier_name = relationship.get("company_name") if relationship else None
         effective_period = reporting_period or (relationship or {}).get("reporting_period")
+
+        # Fetch the parent-visible response for the active reporting period.
+        response_query: Dict[str, Any] = {
+            "questionnaire_id": questionnaire_id,
+            "supplier_relationship_id": supplier_relationship_id,
+            "status": "submitted",
+            "parent_visible": {"$ne": False},
+        }
+        if effective_period:
+            response_query["reporting_period"] = effective_period
+        response_doc = await self.db.supplier_questionnaire_responses.find_one(
+            response_query,
+            {"_id": 0}, sort=[("revision", -1)]
+        )
+        answers = answers_override if answers_override is not None else (response_doc.get("answers", {}) if response_doc else {})
+        manual_scores = manual_scores_override if manual_scores_override is not None else (response_doc.get("manual_question_scores", {}) if response_doc else {})
         revenue = await self.get_revenue_component(supplier_relationship_id, effective_period)
         
         # Calculate GHG score
@@ -129,6 +134,7 @@ class ScoringEngine:
             overall_weights=overall_weights,
             ghg_score=ghg_component.get("score"),
             revenue_percentage=revenue.get("revenue_percentage"),
+            manual_scores=manual_scores,
         )
         breakdown.supplier_score.ghg_intensity_tco2e_per_million_revenue = ghg_component.get("intensity")
         breakdown.supplier_score.ghg_total_emissions = ghg_component.get("total_emissions")
@@ -222,6 +228,8 @@ class ScoringEngine:
             {
                 "questionnaire_id": questionnaire_id,
                 "supplier_relationship_id": supplier_relationship_id,
+                "status": "submitted",
+                "parent_visible": {"$ne": False},
             },
             {"$set": {
                 "calculated_score": breakdown.esg_score.overall_score,
