@@ -219,10 +219,7 @@ export default function SupplierDashboard() {
           Complete your assessment for <span className="font-semibold">{customer_name}</span>
         </p>
         {relationship.due_date && (
-          <div className="flex items-center gap-2 mt-4 text-emerald-100">
-            <Calendar className="h-4 w-4" />
-            <span>Due: {new Date(relationship.due_date).toLocaleDateString()}</span>
-          </div>
+          <Badge className="mt-4 border border-white/30 bg-white/15 text-white" data-testid="supplier-assessment-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(relationship.due_date).toLocaleDateString()}</Badge>
         )}
       </div>
 

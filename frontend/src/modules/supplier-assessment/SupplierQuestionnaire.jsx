@@ -33,6 +33,7 @@ import {
   Save,
   Send,
   CheckCircle,
+  Calendar,
   Circle,
 } from 'lucide-react';
 
@@ -243,6 +244,8 @@ export default function SupplierQuestionnaire() {
             <p className="text-sm text-stone-500 mt-1">{questionnaire.description}</p>
           )}
         </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+        {questionnaire.due_date && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900" data-testid="supplier-questionnaire-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(questionnaire.due_date).toLocaleDateString()}</Badge>}
         {isReadOnly && (
           <Badge className="bg-green-100 text-green-800" data-testid="supplier-questionnaire-locked-badge">
             <CheckCircle className="h-3 w-3 mr-1" />
@@ -252,6 +255,7 @@ export default function SupplierQuestionnaire() {
         {questionnaire.response_status === 'in_progress' && questionnaire.reopened_at && (
           <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-questionnaire-reopened-badge">Unlocked for resubmission</Badge>
         )}
+        </div>
       </div>
 
       {/* Progress */}
