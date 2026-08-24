@@ -662,3 +662,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** Supplier users now route directly to `/supplier-assessment/supplier` after login and when opening the root/login paths while already authenticated.
 - **DONE:** Facility setup is now required only when the supplier has the GHG module assigned; suppliers without GHG can proceed directly to their assigned assessment work.
 - **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Supplier Soft-Deactivation Access Control
+
+- **DONE:** Parent supplier deletion remains a soft delete: the relationship is marked inactive and all supplier, assessment, and evidence records are retained.
+- **DONE:** Suppliers with no active customer relationship are now denied at login, token refresh, and all bearer-token protected endpoints, with a clear deactivation message.
+- **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.

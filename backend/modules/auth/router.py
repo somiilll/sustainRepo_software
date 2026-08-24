@@ -38,7 +38,7 @@ from modules.auth.contracts import (
     UserResponse,
     TokenResponse,
 )
-from modules.auth.dependencies import get_current_user
+from modules.auth.dependencies import ensure_supplier_relationship_active, get_current_user
 from modules.auth.email_templates import password_reset_email
 
 logger = logging.getLogger(__name__)
@@ -148,14 +148,15 @@ async def login(request: Request, credentials: UserLogin):
         logger.warning(f"[AUTH_LOGIN] Failed: email={credentials.email}, reason=account_inactive")
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
 
+    organization = None
     if user.get("role") != "super_admin" and user.get("organization_id"):
-        org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
-        if org and (org.get("is_deleted") or not org.get("is_active", True)):
+        organization = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
+        if organization and (organization.get("is_deleted") or not organization.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
 
-        if org and org.get("subscription_expires_at"):
+        if organization and organization.get("subscription_expires_at"):
             try:
-                expires_str = org["subscription_expires_at"]
+                expires_str = organization["subscription_expires_at"]
                 now = datetime.now(timezone.utc)
                 if 'T' in str(expires_str):
                     expires_at = datetime.fromisoformat(expires_str.replace('Z', '+00:00'))
@@ -169,6 +170,8 @@ async def login(request: Request, credentials: UserLogin):
             except (ValueError, TypeError) as e:
                 # Lenient — date parse failures don't block login (legacy behaviour).
                 print(f"Subscription date parse error: {e}")
+
+    await ensure_supplier_relationship_active(user, organization)
 
     access_token = create_access_token(data={"sub": user["id"]})
     refresh_token = create_refresh_token(data={"sub": user["id"]})
@@ -297,6 +300,7 @@ async def refresh_token(request: Request, data: RefreshRequest):
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    await ensure_supplier_relationship_active(user)
 
     new_access = create_access_token(data={"sub": user_id})
     new_refresh = create_refresh_token(data={"sub": user_id})
