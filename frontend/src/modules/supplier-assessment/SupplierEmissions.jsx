@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -34,32 +34,19 @@ import { Plus, Cloud, Trash2 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-// Simplified categories for suppliers
-const scopeCategories = {
-  scope1: [
-    { value: 'stationary_combustion', label: 'Stationary Combustion' },
-    { value: 'mobile_combustion', label: 'Mobile Combustion' },
-    { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-    { value: 'process_emissions', label: 'Process Emissions' },
-  ],
-  scope2: [
-    { value: 'purchased_electricity', label: 'Purchased Electricity' },
-    { value: 'purchased_heating', label: 'Purchased Heating/Cooling' },
-    { value: 'purchased_steam', label: 'Purchased Steam' },
-  ],
-};
-
 export default function SupplierEmissions() {
   const { getAuthHeader } = useAuth();
   const [emissions, setEmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [program, setProgram] = useState({ reporting_period: '', enabled_scopes: ['scope1', 'scope2'], categories: {} });
   
   const [formData, setFormData] = useState({
     reporting_period: '',
     scope: 'scope1',
     category: '',
+    category_id: null,
     sub_category: '',
     notes: '',
     dynamic_field_values: {
@@ -69,10 +56,14 @@ export default function SupplierEmissions() {
 
   const fetchEmissions = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/supplier-assessment/my-assessment/emissions`, {
-        headers: getAuthHeader(),
-      });
-      setEmissions(res.data || []);
+      const [emissionsResponse, configResponse] = await Promise.all([
+        axios.get(`${API}/supplier-assessment/my-assessment/emissions`, { headers: getAuthHeader() }),
+        axios.get(`${API}/supplier-assessment/my-assessment/emissions/config`, { headers: getAuthHeader() }),
+      ]);
+      setEmissions(emissionsResponse.data || []);
+      const nextProgram = configResponse.data || {};
+      setProgram(nextProgram);
+      setFormData((current) => ({ ...current, reporting_period: nextProgram.reporting_period || '', scope: nextProgram.enabled_scopes?.includes(current.scope) ? current.scope : (nextProgram.enabled_scopes?.[0] || 'scope1') }));
     } catch (err) {
       toast.error('Failed to load emissions');
     } finally {
@@ -86,9 +77,10 @@ export default function SupplierEmissions() {
 
   const resetForm = () => {
     setFormData({
-      reporting_period: '',
-      scope: 'scope1',
+      reporting_period: program.reporting_period || '',
+      scope: program.enabled_scopes?.[0] || 'scope1',
       category: '',
+      category_id: null,
       sub_category: '',
       notes: '',
       dynamic_field_values: {
@@ -121,6 +113,7 @@ export default function SupplierEmissions() {
 
   const totalScope1 = emissions.filter(e => e.scope === 'scope1').reduce((sum, e) => sum + (e.total_emissions || 0), 0);
   const totalScope2 = emissions.filter(e => e.scope === 'scope2').reduce((sum, e) => sum + (e.total_emissions || 0), 0);
+  const categoryOptions = useMemo(() => program.categories?.[formData.scope] || [], [program.categories, formData.scope]);
 
   return (
     <div className="space-y-6" data-testid="supplier-emissions">
@@ -240,26 +233,20 @@ export default function SupplierEmissions() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Reporting Period *</Label>
-              <Input
-                type="month"
-                value={formData.reporting_period}
-                onChange={(e) => setFormData({ ...formData, reporting_period: e.target.value })}
-                data-testid="emission-period"
-              />
+              <Input value={formData.reporting_period} readOnly data-testid="emission-period" />
             </div>
             
             <div className="space-y-2">
               <Label>Scope *</Label>
               <Select
                 value={formData.scope}
-                onValueChange={(v) => setFormData({ ...formData, scope: v, category: '', sub_category: '' })}
+                onValueChange={(v) => setFormData({ ...formData, scope: v, category: '', category_id: null, sub_category: '' })}
               >
                 <SelectTrigger data-testid="emission-scope">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="scope1">Scope 1 - Direct Emissions</SelectItem>
-                  <SelectItem value="scope2">Scope 2 - Purchased Energy</SelectItem>
+                  {(program.enabled_scopes || []).map((scope) => <SelectItem key={scope} value={scope}>{scope === 'scope1' ? 'Scope 1 - Direct Emissions' : 'Scope 2 - Purchased Energy'}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -268,19 +255,21 @@ export default function SupplierEmissions() {
               <Label>Category *</Label>
               <Select
                 value={formData.category}
-                onValueChange={(v) => setFormData({ ...formData, category: v })}
+                onValueChange={(v) => { const category = categoryOptions.find((option) => option.value === v); setFormData({ ...formData, category: v, category_id: category?.category_id || null }); }}
+                disabled={!categoryOptions.length}
               >
                 <SelectTrigger data-testid="emission-category">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {scopeCategories[formData.scope].map((cat) => (
+                  {categoryOptions.map((cat) => (
                     <SelectItem key={cat.value} value={cat.value}>
                       {cat.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {!categoryOptions.length && <p className="text-xs text-stone-500" data-testid="emission-category-config-empty">Your customer has not configured a category for this scope.</p>}
             </div>
             
             <div className="space-y-2">
@@ -349,7 +338,7 @@ export default function SupplierEmissions() {
             <Button variant="outline" onClick={() => { setShowDialog(false); resetForm(); }}>
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={submitting} data-testid="save-emission-btn">
+            <Button onClick={handleCreate} disabled={submitting || !categoryOptions.length} data-testid="save-emission-btn">
               {submitting ? 'Creating...' : 'Create'}
             </Button>
           </DialogFooter>

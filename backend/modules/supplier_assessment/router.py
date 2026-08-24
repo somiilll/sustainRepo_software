@@ -74,6 +74,28 @@ async def get_customer_admin(current_user: dict = Depends(get_admin_user)):
     return current_user
 
 
+async def _parent_ghg_categories(relationship: dict) -> dict:
+    """Return the parent organization's configured Scope 1/2 categories for one supplier program."""
+    enabled_scopes = relationship.get("ghg_scopes_enabled") or ["scope1", "scope2"]
+    records = await db.emission_records.find(
+        {
+            "organization_id": relationship["customer_org_id"],
+            "scope": {"$in": enabled_scopes},
+            "category": {"$nin": [None, ""]},
+        },
+        {"_id": 0, "scope": 1, "category": 1, "category_id": 1},
+    ).to_list(5000)
+    categories = {scope: [] for scope in enabled_scopes}
+    seen = set()
+    for record in records:
+        key = (record.get("scope"), record.get("category"))
+        if key in seen or key[0] not in categories:
+            continue
+        seen.add(key)
+        categories[key[0]].append({"value": record["category"], "label": record["category"], "category_id": record.get("category_id")})
+    return categories
+
+
 # ============================================================================
 # Supplier Management (Customer Admin)
 # ============================================================================
@@ -977,6 +999,16 @@ async def get_my_ghg_submission(current_user: dict = Depends(get_supplier_user))
     return await ghg_submission_service.get_supplier_ghg_state(relationship)
 
 
+@router.get("/my-assessment/emissions/config")
+async def get_my_emissions_config(current_user: dict = Depends(get_supplier_user)):
+    """Expose only the parent organization's active Scope 1/2 categories to its supplier."""
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    enabled_scopes = relationship.get("ghg_scopes_enabled") or ["scope1", "scope2"]
+    return {"reporting_period": relationship.get("reporting_period"), "enabled_scopes": enabled_scopes, "categories": await _parent_ghg_categories(relationship)}
+
+
 @router.get(
     "/my-assessment/emissions/{emission_id}/revisions",
     response_model=SupplierEmissionRevisionHistoryResponse,
@@ -1021,6 +1053,8 @@ async def create_my_emission(
     
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    if data.reporting_period != relationship.get("reporting_period"):
+        raise HTTPException(status_code=400, detail="Use the reporting period assigned by your customer")
     
     # Validate scope (only scope1 and scope2 allowed for suppliers)
     allowed_scopes = relationship.get("ghg_scopes_enabled", ["scope1", "scope2"])
@@ -1029,6 +1063,9 @@ async def create_my_emission(
             status_code=400, 
             detail=f"Scope {data.scope} is not enabled. Allowed: {allowed_scopes}"
         )
+    allowed_categories = {item["value"] for item in (await _parent_ghg_categories(relationship)).get(data.scope, [])}
+    if data.category not in allowed_categories:
+        raise HTTPException(status_code=400, detail="This emission category is not configured by your customer for the selected scope")
     
     # Get or create a default facility for the supplier org
     supplier_facility = await db.facilities.find_one(

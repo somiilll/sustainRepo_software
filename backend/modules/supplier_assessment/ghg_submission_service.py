@@ -112,7 +112,10 @@ async def get_supplier_ghg_revision_history(relationship: Dict[str, Any], emissi
 
 
 async def get_supplier_ghg_state(relationship: Dict[str, Any]) -> Dict[str, Any]:
-    entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": relationship["id"]}, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    query = {"source": "supplier", "supplier_relationship_id": relationship["id"]}
+    if relationship.get("reporting_period"):
+        query["reporting_period"] = relationship["reporting_period"]
+    entries = await db.emission_records.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
     submitted_entries = [entry for entry in entries if entry.get("submitted_to_parent_org") and entry.get("parent_visible", True)]
     drafts = [entry for entry in entries if not entry.get("submitted_to_parent_org")]
     submission = None
@@ -120,12 +123,19 @@ async def get_supplier_ghg_state(relationship: Dict[str, Any]) -> Dict[str, Any]
         first_submission = min(submitted_entries, key=lambda entry: entry.get("submitted_to_parent_org", ""))
         resubmission_open = any(entry.get("resubmission_of") for entry in drafts)
         submission = {"id": first_submission.get("submission_id"), "status": "reopened" if resubmission_open else "submitted", "submitted_at": first_submission.get("submitted_to_parent_org"), "entry_count": len(submitted_entries)}
-    return {"entries": drafts if submission and submission["status"] == "reopened" else entries, "draft_aggregation": aggregate_entries(drafts), "submission": submission, "can_submit": bool(drafts) and (submission is None or submission["status"] == "reopened")}
+    return {
+        "entries": drafts if submission and submission["status"] == "reopened" else entries,
+        "draft_aggregation": aggregate_entries(drafts),
+        "last_submitted_aggregation": aggregate_entries(submitted_entries),
+        "submission": submission,
+        "can_submit": bool(drafts) and (submission is None or submission["status"] == "reopened"),
+    }
 
 
 async def submit_supplier_ghg(relationship: Dict[str, Any], submitted_by: str) -> Dict[str, Any]:
-    existing = await db.emission_records.find_one({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}, {"_id": 0, "id": 1})
-    entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": relationship["id"], "$or": [{"submitted_to_parent_org": {"$exists": False}}, {"submitted_to_parent_org": None}]}, {"_id": 0}).to_list(5000)
+    period_filter = {"reporting_period": relationship["reporting_period"]} if relationship.get("reporting_period") else {}
+    existing = await db.emission_records.find_one({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}, **period_filter}, {"_id": 0, "id": 1})
+    entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": relationship["id"], "$or": [{"submitted_to_parent_org": {"$exists": False}}, {"submitted_to_parent_org": None}], **period_filter}, {"_id": 0}).to_list(5000)
     is_reopened = any(entry.get("resubmission_of") for entry in entries)
     if existing and not is_reopened:
         raise ValueError("This supplier GHG submission is locked")
