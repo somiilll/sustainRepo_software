@@ -54,6 +54,7 @@ import Reporting from './pages/Reporting';
 import BRSRModule from './components/BRSRModule';
 import GRIModule from './components/GRIModule';
 import Layout from './components/Layout';
+import EntitlementRoute from './components/EntitlementRoute';
 import PasswordChangeModal from './components/PasswordChangeModal';
 import ApproverQueue from './components/ApproverQueue';
 import MyAssignments from './pages/MyAssignments';
@@ -292,24 +293,24 @@ const AppRoutes = () => {
           <Route path="organization" element={<OrganizationDetails />} />
           <Route path="facilities" element={<Facilities />} />
           <Route path="emissions" element={<Navigate to="/ghg/scope1" replace />} />
-          <Route path="ghg" element={<Emissions />} />
-          <Route path="ghg/scope1" element={<Emissions />} />
-          <Route path="ghg/scope2" element={<Emissions />} />
-          <Route path="ghg/scope3" element={<Emissions />} />
-          <Route path="ghg/biogenic" element={<Emissions />} />
+          <Route path="ghg" element={<EntitlementRoute entitlement="environment.ghg"><Emissions /></EntitlementRoute>} />
+          <Route path="ghg/scope1" element={<EntitlementRoute entitlement="environment.ghg.scope_1_2"><Emissions /></EntitlementRoute>} />
+          <Route path="ghg/scope2" element={<EntitlementRoute entitlement="environment.ghg.scope_1_2"><Emissions /></EntitlementRoute>} />
+          <Route path="ghg/scope3" element={<EntitlementRoute entitlement="environment.ghg.scope_3"><Emissions /></EntitlementRoute>} />
+          <Route path="ghg/biogenic" element={<EntitlementRoute entitlement="environment.ghg"><Emissions /></EntitlementRoute>} />
           <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
           <Route path="bulk-upload" element={<BulkUpload />} />
-          <Route path="ghg/analysis" element={<GHGAnalysis />} />
-          <Route path="sinks" element={<Sinks />} />
+          <Route path="ghg/analysis" element={<EntitlementRoute entitlement="environment.ghg"><GHGAnalysis /></EntitlementRoute>} />
+          <Route path="sinks" element={<EntitlementRoute entitlement="environment.ghg"><Sinks /></EntitlementRoute>} />
           <Route path="base-year-emissions" element={<BaseYearAndTargets />} />
           <Route path="environment" element={<Environment />} />
-          <Route path="environment/energy" element={<Environment preFilterCategory="Energy" />} />
+          <Route path="environment/energy" element={<EntitlementRoute entitlement="environment.energy"><Environment preFilterCategory="Energy" /></EntitlementRoute>} />
           <Route path="environment/water" element={<Environment preFilterCategory="Water" />} />
           <Route path="environment/waste" element={<Environment preFilterCategory="Waste" />} />
           <Route path="environment/biodiversity" element={<Environment preFilterCategory="Biodiversity" />} />
           <Route path="environment/others" element={<Environment preFilterCategory="Others" />} />
           <Route path="environment/analysis" element={<EnvironmentAnalysis />} />
-          <Route path="environment/energy/analysis" element={<EnergyAnalysis />} />
+          <Route path="environment/energy/analysis" element={<EntitlementRoute entitlement="environment.energy"><EnergyAnalysis /></EntitlementRoute>} />
           <Route path="environment/water/analysis" element={<WaterAnalysis />} />
           <Route path="environment/waste/analysis" element={<WasteAnalysis />} />
           {/* Catch-all for org-specific environment modules (Power, Steam, etc.) */}
@@ -335,11 +336,11 @@ const AppRoutes = () => {
           <Route path="workflow/my-task" element={<WorkflowMyTask />} />
           <Route path="workflow/approver-queue" element={<WorkflowApproverQueue />} />
           <Route path="uploads/ghg-entry" element={<Emissions />} />
-          <Route path="ghg/base-year" element={<BaseYearEmissions />} />
-          <Route path="uploads/bulk" element={<BulkUpload />} />
+          <Route path="ghg/base-year" element={<EntitlementRoute entitlement="environment.ghg"><BaseYearEmissions /></EntitlementRoute>} />
+          <Route path="uploads/bulk" element={<EntitlementRoute entitlement="uploads"><BulkUpload /></EntitlementRoute>} />
           <Route path="uploads/ocr" element={<OCRInvoice />} />
           <Route path="uploads/kpi-metrics" element={<PlaceholderPage title="KPI Metrics" />} />
-          <Route path="targets/voluntary/environment" element={<ESGTargetsTab section="environment" />} />
+          <Route path="targets/voluntary/environment" element={<EntitlementRoute entitlement="targets"><ESGTargetsTab section="environment" /></EntitlementRoute>} />
           <Route path="targets/voluntary/social" element={<ESGTargetsTab section="social" />} />
           <Route path="targets/voluntary/governance" element={<ESGTargetsTab section="governance" />} />
           <Route path="targets/sbti" element={<SBTiTargets />} />

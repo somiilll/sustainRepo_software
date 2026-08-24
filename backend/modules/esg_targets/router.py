@@ -999,7 +999,9 @@ async def get_categories_for_targets(
     """
     from shared.database.mongo import db
     
-    _get_org_id(current_user)  # Validate user has org
+    org_id = _get_org_id(current_user)  # Validate user has org
+    from modules.entitlements.service import entitlement_access_map, resolve_entitlement_config
+    permissions = entitlement_access_map(await resolve_entitlement_config(org_id, migrate=True))
     
     # Get all active, target-enabled KPIs for this section
     kpis = await db.esg_kpi_definitions.find(
@@ -1042,13 +1044,23 @@ async def get_categories_for_targets(
     
     # Special handling for GHG Emissions in environment section
     if section == "environment":
-        hierarchy["GHG Emissions"] = _get_ghg_subcategories()
+        if permissions.get("environment.ghg"):
+            ghg_subcategories = _get_ghg_subcategories()
+            if not permissions.get("environment.ghg.scope_3"):
+                ghg_subcategories = {
+                    name: values for name, values in ghg_subcategories.items()
+                    if "Scope 3" not in name and "Scope 1, 2 & 3" not in name
+                }
+            hierarchy["GHG Emissions"] = ghg_subcategories
         # Add Total Energy Consumption to Energy category
-        if "Energy" not in hierarchy:
-            hierarchy["Energy"] = {}
-        hierarchy["Energy"]["Total Energy Consumption"] = _get_energy_total_kpi()
-        hierarchy["Energy"]["Renewable Energy"] = _get_renewable_energy_kpi()
-        hierarchy["Energy"]["Non-Renewable Energy"] = _get_non_renewable_energy_kpi()
+        if permissions.get("environment.energy"):
+            if "Energy" not in hierarchy:
+                hierarchy["Energy"] = {}
+            hierarchy["Energy"]["Total Energy Consumption"] = _get_energy_total_kpi()
+            hierarchy["Energy"]["Renewable Energy"] = _get_renewable_energy_kpi()
+            hierarchy["Energy"]["Non-Renewable Energy"] = _get_non_renewable_energy_kpi()
+        else:
+            hierarchy.pop("Energy", None)
     
     return {
         "section": section,

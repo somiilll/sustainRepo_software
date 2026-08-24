@@ -62,7 +62,7 @@ from app.bootstrap.contract_verifier import verify_module_contracts
 # server.py keeps the legacy class definitions and route handlers commented
 # out / removed below; the new modular routers are included in the api_router.
 from modules.auth.dependencies import get_current_user, get_super_admin_user, get_admin_user, security
-from modules.entitlements.dependencies import require_entitlement
+from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_ghg_scope_access, require_entitlement
 from modules.auth.router import router as auth_router
 from modules.users.router import router as users_admin_router
 from app.router.health import router as health_router
@@ -1121,6 +1121,11 @@ class BaseYearEmissionsResponse(BaseModel):
     updated_by_name: Optional[str] = None
 
 
+async def _assert_base_year_scope_access(org_id: str, scope_group: Optional[str]) -> None:
+    """Apply Platform Access to legacy Base Year route handlers."""
+    await assert_ghg_scope_access(org_id, "scope3" if scope_group == "scope3" else "scope1")
+
+
 # ============================================================================
 # Configuration / Label Mappings Endpoint
 # Provides centralized labels for calculation methods, activity types, etc.
@@ -1251,6 +1256,7 @@ async def get_oldest_reporting_year(
     scope_group: Optional[str] = None  # "scope12" or "scope3" - Phase 2 scope filtering
 ):
     """Get the oldest reporting year with emissions data for an entity, optionally filtered by scope group"""
+    await _assert_base_year_scope_access(current_user.get("organization_id") if entity_type == "facility" else entity_id, scope_group)
     if entity_type == "facility":
         query = {"facility_id": entity_id}
     else:  # organization
@@ -1384,6 +1390,7 @@ async def get_emission_combinations(
     scope_group: Optional[str] = None,  # Phase 2: "scope12" or "scope3" for filtering
     base_year_format: Optional[str] = None  # Phase 2: e.g., "FY 2023-2024" or "2024" for proportional allocation
 ):
+    await _assert_base_year_scope_access(current_user.get("organization_id") if entity_type == "facility" else entity_id, scope_group)
     """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation.
     
     Phase 2 Enhancement: Supports proportional allocation when base year crosses calendar/financial boundaries.
@@ -2019,6 +2026,7 @@ async def create_base_year_emissions(
     current_user: dict = Depends(get_current_user)
 ):
     """Create base year emissions record (admin only)"""
+    await _assert_base_year_scope_access(data.organization_id, data.scope_group)
     # Admin permission required
     if current_user.get("role") not in ("admin", "super_admin"):
         raise HTTPException(status_code=403, detail="Admin permission required to create base year emissions")
@@ -2152,6 +2160,7 @@ async def get_base_year_emissions(
     scope_group: Optional[str] = None  # "scope12" or "scope3"
 ):
     """Get base year emissions records"""
+    await _assert_base_year_scope_access(current_user.get("organization_id"), scope_group)
     query = {}
     
     if current_user["role"] == "super_admin":
@@ -2229,6 +2238,7 @@ async def update_base_year_emissions(
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    await _assert_base_year_scope_access(record.get("organization_id"), record.get("scope_group"))
     
     # Validate no negative values (except for Sinks)
     if data.emissions_data is not None:
@@ -2418,6 +2428,7 @@ async def delete_base_year_emissions(
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    await _assert_base_year_scope_access(record.get("organization_id"), record.get("scope_group"))
     
     # Get existing version history before we modify anything
     version_history = list(record.get("version_history", []))
@@ -2510,6 +2521,7 @@ async def change_base_year(
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    await _assert_base_year_scope_access(record.get("organization_id"), record.get("scope_group"))
     
     old_base_year = record.get("base_year")
     entity_type = "facility" if record.get("facility_id") else "organization"
@@ -2869,6 +2881,9 @@ async def upload_evidence_file(
             org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
             if org:
                 org_name = org.get("name")
+
+        if org_id:
+            await assert_evidence_storage_limit(org_id, len(file_content))
         
         logger.info(f"[EVIDENCE_UPLOAD] Starting upload: file={file.filename}, bucket={bucket_type}, org={org_name}, user={current_user.get('email')}")
         
@@ -2898,6 +2913,7 @@ async def upload_evidence_file(
             "bucket_type": bucket_type,
             "r2_key": result['key'],
             "file_size": len(file_content),
+            "organization_id": org_id,
             "content_type": file.content_type,
             "uploaded_by": current_user["id"],
             "uploaded_at": datetime.now(timezone.utc).isoformat()

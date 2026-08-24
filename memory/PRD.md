@@ -680,3 +680,14 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** Parent supplier deletion remains a soft delete: the relationship is marked inactive and all supplier, assessment, and evidence records are retained.
 - **DONE:** Suppliers with no active customer relationship are now denied at login, token refresh, and all bearer-token protected endpoints, with a clear deactivation message.
 - **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
+
+## Change Log — 2026-08-24: Hard Platform-Access Boundary and Plan Limits
+
+- **DONE:** Platform Access is now the resolved outer boundary for GHG Scope 3, Energy, target lookup, dashboard aggregation, base-year data, protected routes, legacy organization access mirrors, and direct emission record reads/writes/deletes.
+- **DONE:** Numeric limits now block new monthly GHG/ESG rows, suppliers, MIS schedules, and tracked evidence uploads at backend creation/storage boundaries. **AI credits are intentionally NOT enforced and remain P1 future work.**
+- Verified: Python/JavaScript lint and compilation passed; authenticated API and browser smoke passed. **MOCKED: none.** The external preview gateway still returns wildcard CORS for auth OPTIONS despite the application’s explicit-origin CORS policy.
+
+### Prioritized Next Steps
+- **P1:** Add AI-credit consumption/deduction enforcement and a credit ledger; complete the canonical target catalog unification.
+- **P1:** Fix BRSR Section A year-switch state and continue Document Replacement / Version Publishing UI.
+- **P2:** Create the Super Admin Effective Settings read-only summary.
