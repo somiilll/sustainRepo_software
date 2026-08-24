@@ -88,6 +88,7 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** Shared backend guards protect the registered environment, social, governance, reporting, workflow, uploads, targets, RepoPilot, peer-benchmarking, materiality, supplier-assessment, BRSR, and SBTi routes; SBTi additionally checks the detailed `targets.sbti` permission. `/app/backend/calc_engine/` remains untouched.
 - **VERIFIED:** Focused entitlement regression **8/8 passed**; Pydantic validation passed; Super Admin public browser flow rendered all detailed conditional controls; no APIs are **MOCKED**.
 - **P1 FOLLOW-UP:** Numeric plan limits are persisted and displayed but still need enforcement at each relevant creation/publish/storage boundary (monthly ESG rows, MIS configuration creation, supplier onboarding, and evidence uploads).
+- **DONE (2026-08-24):** Added persisted `ai_credits` to Org Config. It defaults to **0**, rejects negative values, and appears above Platform Access. AI-credit consumption/deduction enforcement is intentionally deferred; this field currently stores the organization balance only.
 
 ### Regression Status
 - Backend golden: 506 passed / 9 skipped

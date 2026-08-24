@@ -116,6 +116,7 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             "ghg_overrides": data.get("ghg_overrides", {}),
             "supplier_assessment": data.get("supplier_assessment", DEFAULT_SUPPLIER_ASSESSMENT_CONFIG),
             "entitlements": normalize_entitlement_config(data.get("entitlements", DEFAULT_ENTITLEMENT_CONFIG)),
+            "ai_credits": data.get("ai_credits", 0),
             "created_at": now,
             "updated_at": now,
             "created_by": user_id,
@@ -287,6 +288,7 @@ async def resolve_config(org_id: str) -> Dict[str, Any]:
         "supplier_assessment": resolve_supplier_assessment_config_from_org_config(org_cfg),
         "entitlements": normalize_entitlements(org_cfg.get("entitlements")),
         "entitlement_config": normalize_entitlement_config(org_cfg.get("entitlements")),
+        "ai_credits": org_cfg.get("ai_credits", 0),
     }
 
 

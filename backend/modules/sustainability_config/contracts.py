@@ -296,3 +296,4 @@ class OrganizationConfigUpdate(BaseModel):
     ghg_overrides: Optional[GhgOverridesConfig] = None
     supplier_assessment: Optional[SupplierAssessmentConfig] = None
     entitlements: Optional[EntitlementsConfig] = None
+    ai_credits: Optional[int] = Field(default=None, ge=0)
