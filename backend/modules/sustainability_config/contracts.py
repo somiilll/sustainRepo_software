@@ -258,6 +258,14 @@ class EvidenceStorageEntitlement(EnabledEntitlement):
     storage_limit_gb: Optional[int] = Field(default=None, ge=1)
 
 
+class OrganizationSettingsConfig(BaseModel):
+    """Organization-wide workflow and reporting settings owned by Org Config."""
+    model_config = ConfigDict(extra="forbid")
+    approval_workflow_enabled: bool = False
+    multi_level_approval_enabled: bool = False
+    esg_frameworks_enabled: List[Literal["BRSR", "GRI"]] = Field(default_factory=list)
+
+
 class EntitlementsConfig(BaseModel):
     """Detailed, canonical organization access and plan limits."""
     model_config = ConfigDict(extra="forbid")
@@ -297,3 +305,4 @@ class OrganizationConfigUpdate(BaseModel):
     supplier_assessment: Optional[SupplierAssessmentConfig] = None
     entitlements: Optional[EntitlementsConfig] = None
     ai_credits: Optional[int] = Field(default=None, ge=0)
+    organization_settings: Optional[OrganizationSettingsConfig] = None

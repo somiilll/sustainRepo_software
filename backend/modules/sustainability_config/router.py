@@ -27,6 +27,7 @@ async def get_org_config(
 ):
     """Get the organization's configuration overrides (raw document). SuperAdmin only."""
     await resolve_entitlements(org_id, migrate=True)
+    await service.resolve_organization_settings(org_id, migrate=True)
     cfg = await service.get_org_config(org_id)
     if not cfg:
         return {
@@ -41,6 +42,7 @@ async def get_org_config(
             "supplier_assessment": service.DEFAULT_SUPPLIER_ASSESSMENT_CONFIG,
             "entitlements": DEFAULT_ENTITLEMENT_CONFIG,
             "ai_credits": 0,
+            "organization_settings": service.DEFAULT_ORGANIZATION_SETTINGS,
         }
     cfg["ai_credits"] = cfg.get("ai_credits", 0)
     return cfg
@@ -76,6 +78,8 @@ async def update_org_config(
         payload["entitlements"] = data.entitlements.model_dump()
     if data.ai_credits is not None:
         payload["ai_credits"] = data.ai_credits
+    if data.organization_settings is not None:
+        payload["organization_settings"] = data.organization_settings.model_dump()
 
     result = await service.upsert_org_config(org_id, payload, current_user["id"])
     return result

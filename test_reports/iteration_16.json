@@ -1,0 +1,62 @@
+{
+  "summary": "Executed focused backend+frontend regression for Org Config ownership of workflow/framework settings. Backend passed 8/9 tests; frontend confirmed control relocation and visibility in Org Config Features.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login (OPTIONS preflight)",
+        "issue": "CORS returns Access-Control-Allow-Origin: * for trusted-origin preflight instead of explicit origin while credentials are expected.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Super Admin Organization edit form payload inspection",
+        "issue": "Playwright route interception captured PUT trigger but payload parsing in-run was inconclusive due script/runtime scoping; relied on code review + UI removal checks for non-submission confidence.",
+        "affected_selectors": [
+          "[data-testid='submit-org-btn']",
+          "[data-testid^='edit-org-']"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Super Admin > Organizations edit dialog",
+        "issues": [
+          "Console shows hydration/DOM nesting warnings around select/option markup while dialog is open.",
+          "DialogContent accessibility warning: missing description/aria-describedby in console."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_org_config_workflow_frameworks_iter16.py",
+    "/app/test_reports/pytest/pytest_results_iter16.xml"
+  ],
+  "action_items": [
+    "Fix auth CORS policy to return explicit allowed origin (not '*') for credentialed flows.",
+    "Optionally add a dedicated test-only data-testid/network hook to reliably assert OrganizationManagement submit payload exclusions in browser automation.",
+    "Review and resolve select/dialog console accessibility/hydration warnings in OrganizationManagement modal."
+  ],
+  "critical_code_review_comments": [
+    "OrganizationManagement form state and submit payload do not include approval_workflow_enabled, multi_level_approval_enabled, or esg_frameworks_enabled (expected removal confirmed by code).",
+    "Org Config contracts correctly constrain organization_settings.esg_frameworks_enabled to Literal['BRSR','GRI'].",
+    "organization/module-config now reads workflow/framework values via resolve_organization_settings (canonical org_config path), matching requested ownership shift."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_org_config_workflow_frameworks_iter16.py",
+    "/app/test_reports/iteration_16.json"
+  ],
+  "success_rate": {
+    "backend": "89%",
+    "frontend": "80%"
+  },
+  "seed_data_creation": "Created and cleaned temporary legacy org/config records during migration-read test (TEST_LEGACY_*).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression file includes restore fixture for admin org canonical+legacy settings. Frontend paths are /super-admin/organizations and /super-admin/org-config (not /organizations or /org-config).",
+  "rca of the issue": "CORS failure RCA: auth preflight currently responds with wildcard origin, which conflicts with strict credentialed-origin requirements in the auth playbook. Repro: OPTIONS /api/auth/login with Origin=https://esg-ai-routing.preview.emergentagent.com + Access-Control-Request-Method: POST returns ACAO='*'. Mitigation: configure explicit allowlist origin reflection with allow_credentials=true."
+}
