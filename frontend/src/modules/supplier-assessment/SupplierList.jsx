@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { toast } from 'sonner';
@@ -60,6 +61,8 @@ const groupAvailableDocuments = (requirements) => Object.values((requirements ||
 export default function SupplierList() {
   const { getAuthHeader } = useAuth();
   const { reportingPeriod } = useSupplierAssessmentPeriod();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -266,6 +269,15 @@ export default function SupplierList() {
       .then((response) => setSubmissionStatus(response.data))
       .catch(() => toast.error('Could not load submission status'));
   };
+
+  useEffect(() => {
+    const supplierId = location.state?.selectedSupplierId;
+    const supplier = suppliers.find((item) => item.id === supplierId);
+    if (supplier) {
+      openViewDialog(supplier);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate, suppliers]);
 
   const unlockQuestionnaire = async (questionnaireId) => {
     if (!selectedSupplier || !window.confirm('Unlock this ESG questionnaire for resubmission? The current submitted answers stay visible until the supplier resubmits.')) return;
