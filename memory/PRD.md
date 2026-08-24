@@ -588,6 +588,13 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 
 ### Prioritised Backlog
 
+- **P0:** ESG Questionnaire Builder scoring terminology/validation corrections (pending user confirmation of the earlier audit scope).
 - **P1:** BRSR Section A year-switch state correction; document replacement/version publishing; advanced document response types; custom dashboard; target settings; evidence integrity; supplier/customer onboarding wizards; BRSR Word export and prior-year columns.
 - **P2:** Spend-basis inflation resolution; MIS schedule preview/report bookmarks; Custom Fuel month-value copy; remaining non-golden backend test cleanup.
 - **P3:** Scope 1/3 dashboard deduplication; admin disable UI. Phase 7 unified GHG form remains strictly blocked until instructed.
+
+## Change Log — 2026-03-31: Supplier Invitation Password Rendering
+
+- Fixed supplier invitation emails so temporary passwords containing HTML-sensitive punctuation such as `<`, `>`, or `&` are rendered as the exact password instead of being interpreted as HTML and appearing truncated.
+- The change is limited to the Supplier Assessment invitation email template; password generation, hashing, first-login password-change requirements, and authentication behavior are unchanged.
+- Verified with a targeted rendering assertion using `=g<Ab&9>` plus Python lint. No APIs are **MOCKED**.
