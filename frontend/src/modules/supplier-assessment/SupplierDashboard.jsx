@@ -19,7 +19,6 @@ import {
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
 import RevenueTaskChecklist from './components/RevenueTaskChecklist';
-import QuestionnaireResponseList from './components/QuestionnaireResponseList';
 import {
   Select,
   SelectContent,
@@ -31,6 +30,8 @@ import {
   Building2, 
   ClipboardList, 
   Cloud, 
+  FileText,
+  GraduationCap,
   Percent, 
   Calendar,
   CheckCircle,
@@ -55,7 +56,7 @@ const CURRENCIES = [
 ];
 
 export default function SupplierDashboard() {
-  const { getAuthHeader, user } = useAuth();
+  const { getAuthHeader } = useAuth();
   const [assessment, setAssessment] = useState(null);
   const [questionnaires, setQuestionnaires] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +66,28 @@ export default function SupplierDashboard() {
   const [saving, setSaving] = useState(false);
   const [submittingRevenue, setSubmittingRevenue] = useState(false);
   const [showRevenueSubmitConfirm, setShowRevenueSubmitConfirm] = useState(false);
+  const [ghgState, setGhgState] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [trainings, setTrainings] = useState([]);
+
+  const fetchWorkflowStates = useCallback(async (modules) => {
+    const enabledCodes = new Set((modules || []).map((module) => module.code));
+    const safeGet = async (path) => {
+      try {
+        return (await axios.get(`${API}${path}`, { headers: getAuthHeader() })).data;
+      } catch (error) {
+        return null;
+      }
+    };
+    const [ghg, documentItems, trainingItems] = await Promise.all([
+      enabledCodes.has('ghg') ? safeGet('/supplier-assessment/my-assessment/emissions/submission') : null,
+      enabledCodes.has('documents') ? safeGet('/supplier-assessment/my-assessment/documents') : null,
+      enabledCodes.has('training') ? safeGet('/supplier-assessment/my-assessment/trainings') : null,
+    ]);
+    setGhgState(ghg);
+    setDocuments(documentItems || []);
+    setTrainings(trainingItems || []);
+  }, [getAuthHeader]);
 
   const fetchAssessment = useCallback(async () => {
     try {
@@ -72,6 +95,7 @@ export default function SupplierDashboard() {
         headers: getAuthHeader(),
       });
       setAssessment(res.data);
+      await fetchWorkflowStates(res.data.assessment_modules);
       const rel = res.data.relationship;
       if (rel?.revenue_percentage !== null && rel?.revenue_percentage !== undefined) {
         setRevenuePercentage(rel.revenue_percentage.toString());
@@ -87,25 +111,14 @@ export default function SupplierDashboard() {
         toast.error('Failed to load assessment');
       }
     }
-  }, [getAuthHeader]);
+  }, [fetchWorkflowStates, getAuthHeader]);
 
   const fetchQuestionnaires = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/supplier-assessment/my-assessment/questionnaires`, {
         headers: getAuthHeader(),
       });
-      const summaries = res.data || [];
-      const detailedQuestionnaires = await Promise.all(summaries.map(async (summary) => {
-        try {
-          const detail = await axios.get(`${API}/supplier-assessment/my-assessment/questionnaires/${summary.questionnaire_id}`, {
-            headers: getAuthHeader(),
-          });
-          return { ...summary, questions: detail.data.questions || [] };
-        } catch (error) {
-          return { ...summary, questions: [] };
-        }
-      }));
-      setQuestionnaires(detailedQuestionnaires);
+      setQuestionnaires(res.data || []);
     } catch (err) {
       console.error('Failed to load questionnaires');
     } finally {
@@ -189,7 +202,13 @@ export default function SupplierDashboard() {
   const configuredModules = new Map(assessmentModules.map((module) => [module.code, module]));
   const esgModule = configuredModules.get('esg');
   const ghgModule = configuredModules.get('ghg');
+  const documentsModule = configuredModules.get('documents');
+  const trainingModule = configuredModules.get('training');
   const revenueSubmitted = relationship.revenue_submission_status === 'submitted';
+  const ghgSubmitted = ghgState?.submission?.status === 'submitted';
+  const ghgHasDraftEntries = (ghgState?.draft_aggregation || []).some((entry) => entry.entry_count > 0);
+  const pendingDocuments = documents.filter((document) => !document.accepted && !document.selected_response);
+  const completedTrainings = trainings.filter((training) => training.status === 'completed');
 
   return (
     <div className="space-y-6" data-testid="supplier-dashboard">
@@ -354,7 +373,7 @@ export default function SupplierDashboard() {
         </CardContent>
       </Card>
 
-      {/* Questionnaires */}
+      {/* ESG questionnaires */}
       {esgModule && <Card data-testid="supplier-esg-module-panel">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -369,55 +388,34 @@ export default function SupplierDashboard() {
               No questionnaires assigned yet.
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {questionnaires.map((q) => (
                 <div
                   key={q.questionnaire_id}
-                  className="border rounded-lg p-4 hover:shadow-sm transition-shadow"
+                  className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-100 py-4 last:border-b-0"
                   data-testid={`questionnaire-card-${q.questionnaire_id}`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-stone-900" data-testid={`questionnaire-title-${q.questionnaire_id}`}>{q.questionnaire_name}</h3>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-stone-500">
-                        <span>{q.answered_count}/{q.total_questions} answered</span>
-                        {q.due_date && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Due: {new Date(q.due_date).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-3">
-                        <Progress value={q.completion_percent} className="h-2" />
-                      </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-medium text-stone-900" data-testid={`questionnaire-title-${q.questionnaire_id}`}>{q.questionnaire_name}</h3>
+                    <div className="mt-2 flex items-center gap-3 text-sm text-stone-600">
+                      <span data-testid={`questionnaire-progress-${q.questionnaire_id}`}>{Math.round(q.completion_percent || 0)}% complete</span>
+                      <Progress value={q.completion_percent || 0} className="h-2 w-28" data-testid={`questionnaire-progress-bar-${q.questionnaire_id}`} />
                     </div>
-                    <div className="flex items-center gap-3 ml-4">
-                      {q.status === 'submitted' ? (
-                        <Badge className="bg-green-100 text-green-800">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Submitted
-                        </Badge>
-                      ) : q.status === 'in_progress' ? (
-                        <Badge className="bg-blue-100 text-blue-800">
-                          <Clock className="h-3 w-3 mr-1" />
-                          In Progress
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-stone-100 text-stone-800">Not Started</Badge>
-                      )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {q.status === 'submitted' ? <Badge className="bg-emerald-100 text-emerald-800" data-testid={`questionnaire-status-${q.questionnaire_id}`}><CheckCircle className="mr-1 h-3 w-3" />Submitted</Badge> : <Badge className={q.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'} data-testid={`questionnaire-status-${q.questionnaire_id}`}>{q.status === 'in_progress' ? 'In progress' : 'Not started'}</Badge>}
+                    {q.status !== 'submitted' && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => window.location.href = `/supplier-assessment/questionnaire/${q.questionnaire_id}`}
                         data-testid={`open-questionnaire-${q.questionnaire_id}`}
                       >
-                        {q.status === 'submitted' ? 'View' : 'Continue'}
+                        Continue ESG
                         <ArrowRight className="h-4 w-4 ml-1" />
                       </Button>
-                    </div>
+                    )}
                   </div>
-                  <QuestionnaireResponseList questionnaire={q} />
                 </div>
               ))}
             </div>
@@ -425,32 +423,32 @@ export default function SupplierDashboard() {
         </CardContent>
       </Card>}
 
-      {/* GHG Emissions */}
+      {/* GHG emissions */}
       {ghgModule && <Card data-testid="supplier-ghg-module-panel">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Cloud className="h-5 w-5 text-purple-500" />
             {ghgModule.display_name}
           </CardTitle>
-          <CardDescription>Report your Scope 1 and Scope 2 emissions</CardDescription>
+          <CardDescription>Log your emissions, then submit the completed GHG snapshot to your customer.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-stone-600">
-                Enter your organization&apos;s greenhouse gas emissions data for Scope 1 (direct emissions)
-                and Scope 2 (purchased energy).
-              </p>
+          <div className="flex flex-wrap items-center justify-between gap-4" data-testid="supplier-ghg-status-card">
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-stone-600" data-testid="supplier-ghg-progress">{Math.round(ghgModule.completion_percent || 0)}% complete</span>
+              {ghgSubmitted ? <Badge className="bg-emerald-100 text-emerald-800" data-testid="supplier-ghg-status">Submitted</Badge> : ghgHasDraftEntries ? <Badge className="bg-blue-100 text-blue-800" data-testid="supplier-ghg-status">Entries ready to submit</Badge> : <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-ghg-status">Not started</Badge>}
             </div>
-            <Button
-              variant="outline"
-              onClick={() => window.location.href = '/supplier-assessment/emissions'}
-            >
-              Manage Emissions
-              <ArrowRight className="h-4 w-4 ml-1" />
-            </Button>
+            {!ghgSubmitted && <Button variant="outline" onClick={() => { window.location.href = ghgHasDraftEntries ? '/supplier-assessment/emissions' : '/ghg'; }} data-testid="supplier-ghg-action-button">{ghgHasDraftEntries ? 'Review & submit GHG' : 'Add GHG entries'}<ArrowRight className="ml-1 h-4 w-4" /></Button>}
           </div>
         </CardContent>
+      </Card>}
+      {documentsModule && <Card data-testid="supplier-documents-module-panel">
+        <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5 text-emerald-600" />{documentsModule.display_name}</CardTitle><CardDescription>Review the agreements and responses assigned by your customer.</CardDescription></CardHeader>
+        <CardContent><div className="flex flex-wrap items-center justify-between gap-4" data-testid="supplier-documents-status-card"><div className="flex items-center gap-3"><span className="text-sm text-stone-600" data-testid="supplier-documents-progress">{Math.round(documentsModule.completion_percent || 0)}% complete</span>{documents.length === 0 ? <Badge variant="outline" data-testid="supplier-documents-status">No documents assigned</Badge> : pendingDocuments.length === 0 ? <Badge className="bg-emerald-100 text-emerald-800" data-testid="supplier-documents-status">Completed</Badge> : <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-documents-status">{pendingDocuments.length} pending</Badge>}</div>{pendingDocuments.length > 0 && <Button variant="outline" onClick={() => { window.location.href = '/supplier-assessment/documents/review'; }} data-testid="supplier-documents-action-button">Review documents<ArrowRight className="ml-1 h-4 w-4" /></Button>}</div></CardContent>
+      </Card>}
+      {trainingModule && <Card data-testid="supplier-training-module-panel">
+        <CardHeader><CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5 text-emerald-600" />{trainingModule.display_name}</CardTitle><CardDescription>Complete the training assigned by your customer.</CardDescription></CardHeader>
+        <CardContent><div className="flex flex-wrap items-center justify-between gap-4" data-testid="supplier-training-status-card"><div className="flex items-center gap-3"><span className="text-sm text-stone-600" data-testid="supplier-training-progress">{Math.round(trainingModule.completion_percent || 0)}% complete</span>{trainings.length === 0 ? <Badge variant="outline" data-testid="supplier-training-status">No training assigned</Badge> : completedTrainings.length === trainings.length ? <Badge className="bg-emerald-100 text-emerald-800" data-testid="supplier-training-status">Completed</Badge> : <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-training-status">{trainings.length - completedTrainings.length} pending</Badge>}</div>{trainings.length > completedTrainings.length && <Button variant="outline" onClick={() => { window.location.href = '/supplier-assessment/training'; }} data-testid="supplier-training-action-button">Open training<ArrowRight className="ml-1 h-4 w-4" /></Button>}</div></CardContent>
       </Card>}
       <AlertDialog open={showRevenueSubmitConfirm} onOpenChange={setShowRevenueSubmitConfirm}>
         <AlertDialogContent data-testid="confirm-revenue-submit-dialog">
