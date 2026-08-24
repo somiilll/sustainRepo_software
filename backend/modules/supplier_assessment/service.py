@@ -1508,6 +1508,21 @@ class SupplierAssessmentService:
             if key not in current_responses:
                 current_responses[key] = response
 
+        document_requirements_exist = await db.supplier_document_requirements.count_documents({
+            "customer_org_id": customer_org_id,
+            "is_active": True,
+            "$or": [{"reporting_period": reporting_period}, {"reporting_period": {"$exists": False}}, {"reporting_period": None}],
+        }) > 0
+        training_assignments = await db.supplier_training_assignments.find(
+            {"supplier_relationship_id": {"$in": supplier_ids}, "is_active": True},
+            {"_id": 0, "supplier_relationship_id": 1, "reporting_period": 1},
+        ).to_list(10000)
+        training_supplier_ids = {
+            assignment["supplier_relationship_id"]
+            for assignment in training_assignments
+            if not assignment.get("reporting_period") or assignment.get("reporting_period") == reporting_period
+        }
+
         def due_date_has_passed(value: Optional[str]) -> bool:
             if not value:
                 return False
@@ -1517,6 +1532,7 @@ class SupplierAssessmentService:
                 return False
 
         rankings = []
+        module_totals: Dict[str, Dict[str, float]] = {}
         for s in suppliers:
             snapshot = s.get("canonical_score_snapshot") or {}
             esg_score = snapshot.get("esg_score")
@@ -1566,6 +1582,27 @@ class SupplierAssessmentService:
                 attention_reasons.append("GHG assessment not completed")
             if completion_status == "overdue":
                 attention_reasons.append("Assessment is overdue")
+            module_progress: Dict[str, float] = {}
+            module_fields = {
+                "esg": "esg_completion_percent",
+                "ghg": "ghg_completion_percent",
+                "documents": "documents_completion_percent",
+                "training": "training_completion_percent",
+            }
+            enabled_modules = set(s.get("modules_enabled") or ["esg", "ghg"])
+            for module_code, completion_field in module_fields.items():
+                if module_code not in enabled_modules:
+                    continue
+                if module_code == "documents" and not document_requirements_exist:
+                    continue
+                if module_code == "training" and s["id"] not in training_supplier_ids:
+                    continue
+                completion = round(float(s.get(completion_field) or 0), 1)
+                module_progress[module_code] = completion
+                totals = module_totals.setdefault(module_code, {"configured_suppliers": 0.0, "completed_suppliers": 0.0, "completion_total": 0.0})
+                totals["configured_suppliers"] += 1
+                totals["completed_suppliers"] += int(completion >= 100)
+                totals["completion_total"] += completion
             
             rankings.append({
                 "supplier_id": s["id"],
@@ -1583,6 +1620,7 @@ class SupplierAssessmentService:
                 "status_label": status_label,
                 "question_progress": f"{answered_questions} / {total_questions} questions" if completion_status == "in_progress" and total_questions else None,
                 "attention_reasons": attention_reasons,
+                "module_progress": module_progress,
                 "revenue_percentage": snapshot.get("revenue_score"),
             })
         
@@ -1606,9 +1644,9 @@ class SupplierAssessmentService:
         
         # ESG data remains useful even when a supplier lacks another component
         # required for an Overall Score (for example, GHG or revenue).
-        def average_score(field: str) -> float:
+        def average_score(field: str) -> Optional[float]:
             values = [float(row[field]) for row in rankings if row.get(field) is not None]
-            return round(sum(values) / len(values), 1) if values else 0
+            return round(sum(values) / len(values), 1) if values else None
 
         avg_esg = average_score("esg_score")
         avg_env = average_score("environment_score")
@@ -1619,6 +1657,14 @@ class SupplierAssessmentService:
         # Total emissions by scope (Scope 1 & 2 only)
         total_scope1 = sum(r["scope1_emissions"] for r in rankings)
         total_scope2 = sum(r["scope2_emissions"] for r in rankings)
+        module_summary = {
+            code: {
+                "configured_suppliers": int(totals["configured_suppliers"]),
+                "completed_suppliers": int(totals["completed_suppliers"]),
+                "average_completion": round(totals["completion_total"] / totals["configured_suppliers"], 1) if totals["configured_suppliers"] else 0.0,
+            }
+            for code, totals in module_totals.items()
+        }
         
         return {
             "rankings": rankings,
@@ -1626,17 +1672,18 @@ class SupplierAssessmentService:
             "ranked_suppliers": len(ranked_suppliers),
             "score_distribution": score_distribution,
             "averages": {
-                "esg": round(avg_esg, 1),
-                "environment": round(avg_env, 1),
-                "social": round(avg_social, 1),
-                "governance": round(avg_gov, 1),
-                "ghg": round(avg_ghg, 1),
+                "esg": avg_esg,
+                "environment": avg_env,
+                "social": avg_social,
+                "governance": avg_gov,
+                "ghg": avg_ghg,
             },
             "emissions_by_scope": {
                 "scope1": round(total_scope1, 2),
                 "scope2": round(total_scope2, 2),
                 "total": round(total_scope1 + total_scope2, 2),
             },
+            "module_summary": module_summary,
         }
     
     # ========================================================================
