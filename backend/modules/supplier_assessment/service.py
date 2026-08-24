@@ -1566,7 +1566,7 @@ class SupplierAssessmentService:
                 completion_status, status_label = "overdue", "Overdue"
             elif all_assigned_submitted:
                 completion_status, status_label = "submitted", "Submitted"
-            elif answered_questions > 0:
+            elif answered_questions > 0 or any(float(s.get(field) or 0) > 0 for field in ("esg_completion_percent", "ghg_completion_percent", "documents_completion_percent", "training_completion_percent")):
                 completion_status, status_label = "in_progress", "In Progress"
             elif s.get("invitation_status") == "pending":
                 completion_status, status_label = "invited", "Invited"
