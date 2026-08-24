@@ -617,12 +617,12 @@ export default function SupplierList() {
             </div>
             
             {/* Module Selection */}
-            <div className="space-y-3 pt-2 border-t">
+            <div className="space-y-3 border-t pt-2">
               <Label className="text-base font-medium">Assessment Modules *</Label>
               <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
-              
-              <div className="flex gap-6">
-                <div className="flex items-center gap-2">
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="space-y-4 rounded-lg border border-stone-200 bg-white p-4">
+                  <div className="flex items-center gap-2">
                   <Checkbox
                     id="module-esg"
                     checked={formData.modules_enabled?.includes('esg')}
@@ -633,49 +633,45 @@ export default function SupplierList() {
                     <Leaf className="h-4 w-4 text-emerald-600" />
                     ESG Questionnaire
                   </label>
+                  </div>
+                  {formData.modules_enabled?.includes('esg') && questionnaires.length > 0 && (
+                    <div className="space-y-3 border-t border-stone-100 pt-3" data-testid="supplier-questionnaire-assignment-options">
+                      <Label className="text-sm font-medium">Assign ESG questionnaire(s)</Label>
+                      <p className="text-xs text-stone-500">Select the questionnaires this supplier must complete.</p>
+                      <div className="space-y-2">
+                        {questionnaires.map((questionnaire) => (
+                          <label key={questionnaire.id} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={formData.questionnaire_ids.includes(questionnaire.id)}
+                              onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
+                              data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
+                            />
+                            {questionnaire.name}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="module-ghg"
-                    checked={formData.modules_enabled?.includes('ghg')}
-                    onCheckedChange={() => toggleModule('ghg')}
-                    data-testid="module-ghg-checkbox"
-                  />
-                  <label htmlFor="module-ghg" className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Factory className="h-4 w-4 text-blue-600" />
-                    GHG Emissions
-                  </label>
-                </div>
-              </div>
-            </div>
-            {formData.modules_enabled?.includes('esg') && questionnaires.length > 0 && (
-              <div className="space-y-3 border-t pt-4" data-testid="supplier-questionnaire-assignment-options">
-                <Label className="text-sm font-medium">Assign ESG questionnaire(s)</Label>
-                <p className="text-xs text-stone-500">Select the questionnaires this supplier must complete.</p>
-                <div className="space-y-2">
-                  {questionnaires.map((questionnaire) => (
-                    <label key={questionnaire.id} className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={formData.questionnaire_ids.includes(questionnaire.id)}
-                        onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
-                        data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
-                      />
-                      {questionnaire.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* GHG Scope Selection - Only shown if GHG is enabled */}
-            {formData.modules_enabled?.includes('ghg') && (
-              <div className="space-y-3 pl-4 border-l-2 border-blue-200 ml-2">
-                <Label className="text-sm font-medium">GHG Scopes</Label>
-                <p className="text-xs text-stone-500">Select which scopes the supplier should report</p>
-                
-                <div className="flex gap-6">
+                <div className="space-y-4 rounded-lg border border-stone-200 bg-white p-4">
                   <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="module-ghg"
+                      checked={formData.modules_enabled?.includes('ghg')}
+                      onCheckedChange={() => toggleModule('ghg')}
+                      data-testid="module-ghg-checkbox"
+                    />
+                    <label htmlFor="module-ghg" className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Factory className="h-4 w-4 text-blue-600" />
+                      GHG Emissions
+                    </label>
+                  </div>
+                  {formData.modules_enabled?.includes('ghg') && (
+                    <div className="space-y-3 border-t border-stone-100 pt-3" data-testid="supplier-ghg-scope-options">
+                      <Label className="text-sm font-medium">GHG Scopes</Label>
+                      <p className="text-xs text-stone-500">Select which scopes the supplier should report</p>
+                      <div className="flex flex-wrap gap-6">
+                        <div className="flex items-center gap-2">
                     <Checkbox
                       id="scope-1"
                       checked={formData.ghg_scopes_enabled?.includes('scope1')}
@@ -685,9 +681,8 @@ export default function SupplierList() {
                     <label htmlFor="scope-1" className="text-sm cursor-pointer">
                       Scope 1 (Direct Emissions)
                     </label>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
+                        </div>
+                        <div className="flex items-center gap-2">
                     <Checkbox
                       id="scope-2"
                       checked={formData.ghg_scopes_enabled?.includes('scope2')}
@@ -697,10 +692,13 @@ export default function SupplierList() {
                     <label htmlFor="scope-2" className="text-sm cursor-pointer">
                       Scope 2 (Indirect Emissions)
                     </label>
-                  </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="space-y-3 border-t pt-4" data-testid="supplier-existing-assignment-options">
                 {documents.length > 0 && <div className="space-y-2 border-l-2 border-sky-300 bg-sky-50/50 p-4"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sky-700" />Documents</span><p className="text-xs text-stone-500">Selected by default. Uncheck any document this supplier should not receive.</p>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}

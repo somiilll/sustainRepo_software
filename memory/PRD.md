@@ -640,3 +640,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** Email and Contact Number now share a responsive row; the selected workspace reporting period is applied on submission without exposing an editable form field.
 - **DONE:** Annual revenue requirement now uses clear Optional/Required radio buttons, and the Add Supplier dialog/header and revenue setting surface use a white background instead of the prior tinted treatment.
 - **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Add Supplier Module Grouping
+
+- **DONE:** ESG questionnaire assignment now appears directly beneath the ESG Questionnaire module control, while GHG Scope selection appears directly beneath GHG Emissions.
+- Existing module, questionnaire, and scope selections remain unchanged; the new cards stack responsively on smaller screens.
+- **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
