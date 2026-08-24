@@ -510,6 +510,11 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** Parent navigation labels now use the same module names for consistent organization and supplier terminology.
 - Per user instruction, this frontend wording change was **not tested**. No APIs are **MOCKED**.
 
+## Change Log — 2026-08-23: Supplier Due-Date Visibility
+
+- **DONE:** Added concise due-date badges to the Supplier Assessment header, supplier ESG workspace questionnaire cards, and individual questionnaires whenever a deadline is available.
+- Per user instruction, this frontend change was **not tested**. No APIs are **MOCKED**.
+
 ## Change Log — 2026-08-23: Supplier Assessment Assignment and Program Repair
 
 - **FIXED:** Edit Supplier now always initializes document and training assignment arrays, preventing the `.includes()` runtime crash.
