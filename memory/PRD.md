@@ -634,3 +634,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 
 - **DONE:** The supplier GHG submission state now includes the assigned customer organization name, and the locked notice tells the supplier exactly which customer to contact for an unlock.
 - **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Add Supplier Form Simplification
+
+- **DONE:** Email and Contact Number now share a responsive row; the selected workspace reporting period is applied on submission without exposing an editable form field.
+- **DONE:** Annual revenue requirement now uses clear Optional/Required radio buttons, and the Add Supplier dialog/header and revenue setting surface use a white background instead of the prior tinted treatment.
+- **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
