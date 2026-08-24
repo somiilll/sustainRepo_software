@@ -656,3 +656,9 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 
 - **DONE:** Removed the duplicate Supplier Home / Your Tasks launchpad from the completed supplier dashboard, leaving the existing module cards as the single task surface.
 - **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Supplier Login and Conditional Facility Onboarding
+
+- **DONE:** Supplier users now route directly to `/supplier-assessment/supplier` after login and when opening the root/login paths while already authenticated.
+- **DONE:** Facility setup is now required only when the supplier has the GHG module assigned; suppliers without GHG can proceed directly to their assigned assessment work.
+- **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.

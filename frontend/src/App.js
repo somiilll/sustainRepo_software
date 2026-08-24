@@ -152,14 +152,19 @@ const AdminRoute = ({ children }) => {
 
 const AppRoutes = () => {
   const { user } = useAuth();
+  const defaultRoute = user?.role === 'super_admin'
+    ? '/super-admin'
+    : user?.user_type === 'supplier' || user?.org_type === 'supplier'
+      ? '/supplier-assessment/supplier'
+      : '/dashboard';
 
   return (
     <>
       <Routes>
-        <Route path="/login" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : user.org_type === 'supplier' ? '/supplier-assessment/supplier' : '/dashboard'} replace /> : <Login />} />
+        <Route path="/login" element={user ? <Navigate to={defaultRoute} replace /> : <Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : user.org_type === 'supplier' ? '/supplier-assessment/supplier' : '/dashboard'} replace /> : <Navigate to="/login" replace />} />
+        <Route path="/" element={user ? <Navigate to={defaultRoute} replace /> : <Navigate to="/login" replace />} />
         
         <Route path="/" element={
           <ProtectedRoute>

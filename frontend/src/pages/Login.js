@@ -38,6 +38,8 @@ export default function Login() {
       // Redirect based on user role
       if (userData.role === 'super_admin') {
         navigate('/super-admin');
+      } else if (userData.user_type === 'supplier' || userData.org_type === 'supplier') {
+        navigate('/supplier-assessment/supplier');
       } else {
         navigate('/dashboard');
       }
