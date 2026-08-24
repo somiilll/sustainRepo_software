@@ -629,3 +629,8 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **DONE:** The Supplier GHG summary now provides an `Add GHG data` action that opens `/ghg` whenever no unsubmitted draft entries exist.
 - **DONE:** Submitted, locked GHG data now clearly instructs the supplier to ask their customer for an unlock before entering or editing values.
 - **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
+
+## Change Log — 2026-03-31: Supplier GHG Locked Customer Context
+
+- **DONE:** The supplier GHG submission state now includes the assigned customer organization name, and the locked notice tells the supplier exactly which customer to contact for an unlock.
+- **TESTING NOT RUN** at the user’s request. No APIs are **MOCKED**.
