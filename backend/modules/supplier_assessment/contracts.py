@@ -511,6 +511,7 @@ class SupplierRankingEntry(BaseModel):
     status_label: Optional[str] = None
     question_progress: Optional[str] = None
     attention_reasons: List[str] = []
+    module_progress: Dict[str, float] = {}
     revenue_percentage: Optional[float] = None
 
 
@@ -524,11 +525,11 @@ class ScoreDistribution(BaseModel):
 
 class AverageScores(BaseModel):
     """Average scores across suppliers."""
-    esg: float = 0
-    environment: float = 0
-    social: float = 0
-    governance: float = 0
-    ghg: float = 0
+    esg: Optional[float] = None
+    environment: Optional[float] = None
+    social: Optional[float] = None
+    governance: Optional[float] = None
+    ghg: Optional[float] = None
 
 
 class EmissionsByScope(BaseModel):
@@ -546,6 +547,7 @@ class SupplierRankingResponse(BaseModel):
     score_distribution: Optional[ScoreDistribution] = None
     averages: Optional[AverageScores] = None
     emissions_by_scope: Optional[EmissionsByScope] = None
+    module_summary: Dict[str, Dict[str, Any]] = {}
 
 
 # ============================================================================
