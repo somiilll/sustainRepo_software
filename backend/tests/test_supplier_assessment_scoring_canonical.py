@@ -41,6 +41,30 @@ def test_exact_weight_overrides_importance_without_combining_values():
     assert score.weighted_score == 350
 
 
+def test_parent_manual_question_score_overrides_only_manual_question_score():
+    breakdown = ScoreCalculator().calculate_full_score(
+        supplier_id="supplier-1",
+        questionnaire_id="questionnaire-1",
+        questionnaire_title="Test questionnaire",
+        supplier_name="Test supplier",
+        questions=[{
+            "id": "question-1", "question_text": "Describe your governance policy.",
+            "category": "governance", "response_type": "text", "importance": "high",
+            "scoring": {"rule": "manual", "requires_manual_review": True},
+        }],
+        answers={"question-1": "The policy is independently audited."},
+        manual_scores={"question-1": {"score": 72, "scored_by": "admin-1"}},
+        esg_weights=ESGSectionWeights(),
+        overall_weights=OverallSupplierWeights(),
+    )
+
+    question_score = breakdown.question_scores[0]
+    assert question_score.raw_response == "The policy is independently audited."
+    assert question_score.raw_score == 72
+    assert question_score.calculation_details["manual_score"] == 72
+    assert question_score.calculation_details["score_source"] == "parent_manual_review"
+
+
 class _Cursor:
     def __init__(self, rows):
         self.rows = rows

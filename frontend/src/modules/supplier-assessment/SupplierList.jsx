@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
 import { Checkbox } from '../../components/ui/checkbox';
+import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
 import {
   Table,
   TableBody,
@@ -50,6 +51,12 @@ const statusColors = {
   completed: 'bg-green-100 text-green-800',
 };
 
+const groupAvailableDocuments = (requirements) => Object.values((requirements || []).reduce((groups, requirement) => {
+  const key = requirement.document_version_id || requirement.id;
+  if (!groups[key]) groups[key] = requirement;
+  return groups;
+}, {}));
+
 export default function SupplierList() {
   const { getAuthHeader } = useAuth();
   const { reportingPeriod } = useSupplierAssessmentPeriod();
@@ -88,7 +95,6 @@ export default function SupplierList() {
   const [reminderTarget, setReminderTarget] = useState(null);
   const [reminderModules, setReminderModules] = useState(['all']);
   const [reviewResponse, setReviewResponse] = useState(null);
-  const [manualScore, setManualScore] = useState('');
 
   const fetchSuppliers = useCallback(async () => {
     setLoading(true);
@@ -120,7 +126,7 @@ export default function SupplierList() {
       axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
     ]).then(([documentResponse, trainingResponse, questionnaireResponse]) => {
-      setDocuments(documentResponse.data || []);
+      setDocuments(groupAvailableDocuments(documentResponse.data));
       setTrainings(trainingResponse.data || []);
       const availableQuestionnaires = questionnaireResponse.data || [];
       setQuestionnaires(availableQuestionnaires);
@@ -280,18 +286,7 @@ export default function SupplierList() {
     try {
       const response = await axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/questionnaires/${questionnaireId}/responses`, { headers: getAuthHeader() });
       setReviewResponse(response.data);
-      setManualScore(response.data.manual_score ?? response.data.calculated_score ?? '');
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not load submitted response'); }
-  };
-
-  const saveManualScore = async () => {
-    if (!selectedSupplier || !reviewResponse || manualScore === '') return;
-    try {
-      await axios.put(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/questionnaires/${reviewResponse.id}/responses/manual-score`, { score: Number(manualScore) }, { headers: getAuthHeader() });
-      toast.success('Manual score saved');
-      setReviewResponse(null);
-      fetchSuppliers();
-    } catch (error) { toast.error(error.response?.data?.detail || 'Could not save manual score'); }
   };
 
   // Toggle module in modules_enabled array
@@ -962,14 +957,7 @@ export default function SupplierList() {
           <DialogFooter><Button variant="outline" onClick={() => setReminderTarget(null)} data-testid="cancel-supplier-reminder-button">Cancel</Button><Button onClick={handleReminder} data-testid="send-supplier-reminder-button">Send reminder</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(reviewResponse)} onOpenChange={(open) => !open && setReviewResponse(null)}>
-        <DialogContent className="max-w-2xl" data-testid="supplier-response-review-dialog"><DialogHeader><DialogTitle>Submitted ESG response</DialogTitle></DialogHeader>
-          <div className="max-h-80 space-y-3 overflow-y-auto">{(reviewResponse?.questions || []).map((question) => <div key={question.id} className="border-b pb-2" data-testid={`supplier-response-answer-${question.id}`}><p className="text-sm font-medium">{question.question_text}</p><p className="text-sm text-stone-600">{String(question.answer ?? 'No response')}</p></div>)}</div>
-          {reviewResponse?.score_breakdown && <div className="border-t pt-3" data-testid="supplier-response-score-breakdown"><Label className="text-stone-500">Submitted scoring summary</Label><div className="mt-2 space-y-2 text-sm">{(reviewResponse.score_breakdown.question_scores || []).map((item) => <div key={item.question_id} className="flex items-center justify-between"><span className="truncate pr-4">{item.question_text}</span><span className="font-medium">{item.raw_score} / 100</span></div>)}</div></div>}
-          <div className="space-y-2"><Label htmlFor="manual-score-input">Manual score (0–100)</Label><Input id="manual-score-input" type="number" min="0" max="100" value={manualScore} onChange={(event) => setManualScore(event.target.value)} data-testid="manual-score-input" /></div>
-          <DialogFooter><Button variant="outline" onClick={() => setReviewResponse(null)} data-testid="cancel-manual-score-button">Cancel</Button><Button onClick={saveManualScore} data-testid="save-manual-score-button">Save manual score</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SupplierResponseReviewDialog open={Boolean(reviewResponse)} onOpenChange={(open) => !open && setReviewResponse(null)} response={reviewResponse} supplierId={selectedSupplier?.id} getAuthHeader={getAuthHeader} onScoreSaved={() => { fetchSuppliers(); openReview(reviewResponse.id); }} />
     </div>
   );
 }

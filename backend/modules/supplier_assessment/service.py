@@ -1185,6 +1185,7 @@ class SupplierAssessmentService:
                     questionnaire_id=questionnaire_id,
                     save_to_db=False,
                     answers_override=answers,
+                    manual_scores_override={},
                     reporting_period=(await self.get_supplier(supplier_relationship_id) if supplier_relationship_id else {}).get("reporting_period") if supplier_relationship_id else None,
                 )
                 return breakdown.esg_score.overall_score, breakdown.model_dump()
@@ -1564,8 +1565,12 @@ class SupplierAssessmentService:
         answers = response_doc.get("answers", {}) if response_doc else {}
         
         # Merge answers into questions
+        manual_question_scores = response_doc.get("manual_question_scores", {})
         for q in questionnaire.get("questions", []):
             q["answer"] = answers.get(q["id"])
+            manual_entry = manual_question_scores.get(q["id"])
+            q["manual_score"] = manual_entry.get("score") if isinstance(manual_entry, dict) else manual_entry
+            q["manual_score_note"] = manual_entry.get("note") if isinstance(manual_entry, dict) else None
         
         questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
         questionnaire["calculated_score"] = response_doc.get("calculated_score") if response_doc else None
@@ -1576,6 +1581,48 @@ class SupplierAssessmentService:
         questionnaire["canonical_score_snapshot"] = (relationship or {}).get("canonical_score_snapshot")
         
         return questionnaire
+
+    async def get_questionnaire_submissions_for_admin(
+        self,
+        customer_org_id: str,
+        questionnaire_id: str,
+        reporting_period: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        questionnaire = await db.supplier_questionnaires.find_one(
+            {"id": questionnaire_id, "organization_id": customer_org_id, "is_active": True},
+            {"_id": 0, "id": 1, "name": 1},
+        )
+        if not questionnaire:
+            return None
+        query: Dict[str, Any] = {
+            "questionnaire_id": questionnaire_id,
+            "status": "submitted",
+            "parent_visible": {"$ne": False},
+        }
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        responses = await db.supplier_questionnaire_responses.find(
+            query,
+            {"_id": 0, "supplier_relationship_id": 1, "submitted_at": 1, "calculated_score": 1, "manual_question_scores": 1},
+        ).sort("submitted_at", -1).to_list(1000)
+        supplier_ids = [response["supplier_relationship_id"] for response in responses]
+        suppliers = await db.supplier_relationships.find(
+            {"id": {"$in": supplier_ids}, "customer_org_id": customer_org_id, "is_active": True},
+            {"_id": 0, "id": 1, "company_name": 1},
+        ).to_list(1000)
+        supplier_names = {supplier["id"]: supplier.get("company_name") for supplier in suppliers}
+        submissions = [
+            {
+                "supplier_id": response["supplier_relationship_id"],
+                "supplier_name": supplier_names.get(response["supplier_relationship_id"], "Supplier"),
+                "submitted_at": response.get("submitted_at"),
+                "calculated_score": response.get("calculated_score"),
+                "manual_question_count": len(response.get("manual_question_scores") or {}),
+            }
+            for response in responses
+            if response["supplier_relationship_id"] in supplier_names
+        ]
+        return {"questionnaire_id": questionnaire["id"], "questionnaire_name": questionnaire["name"], "submissions": submissions}
 
     async def set_manual_questionnaire_score(self, supplier_relationship_id: str, questionnaire_id: str, score: float, note: Optional[str], scored_by: str) -> Optional[Dict[str, Any]]:
         relationship = await self.get_supplier(supplier_relationship_id)
@@ -1590,6 +1637,67 @@ class SupplierAssessmentService:
         )
         await self.refresh_supplier_canonical_score(supplier_relationship_id)
         return {"questionnaire_id": questionnaire_id, "manual_score": score, "manual_score_note": note, "manual_scored_at": now}
+
+    async def set_manual_question_score(
+        self,
+        supplier_relationship_id: str,
+        questionnaire_id: str,
+        question_id: str,
+        score: float,
+        note: Optional[str],
+        scored_by: str,
+    ) -> Optional[Dict[str, Any]]:
+        relationship = await self.get_supplier(supplier_relationship_id)
+        if not relationship:
+            return None
+        question = await db.supplier_questions.find_one(
+            {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True},
+            {"_id": 0, "id": 1, "scoring": 1},
+        )
+        if not question:
+            raise ValueError("Question not found")
+        if (question.get("scoring") or {}).get("rule") != "manual":
+            raise ValueError("Only Manual Review questions can receive a parent score")
+        response = await db.supplier_questionnaire_responses.find_one(
+            {
+                "supplier_relationship_id": supplier_relationship_id,
+                "questionnaire_id": questionnaire_id,
+                "reporting_period": relationship.get("reporting_period"),
+                "status": "submitted",
+                "parent_visible": {"$ne": False},
+            },
+            {"_id": 0},
+            sort=[("revision", -1)],
+        )
+        if not response:
+            return None
+        answer = (response.get("answers") or {}).get(question_id)
+        if answer is None or answer == "":
+            raise ValueError("A supplier response is required before this question can be scored")
+        now = datetime.now(timezone.utc).isoformat()
+        manual_scores = dict(response.get("manual_question_scores") or {})
+        manual_scores[question_id] = {"score": float(score), "note": note, "scored_by": scored_by, "scored_at": now}
+        await db.supplier_questionnaire_responses.update_one(
+            {"id": response["id"]},
+            {
+                "$set": {"manual_question_scores": manual_scores, "updated_at": now},
+                "$unset": {"manual_score": "", "manual_score_note": "", "manual_scored_by": "", "manual_scored_at": ""},
+            },
+        )
+        from modules.supplier_assessment.scoring import ScoringEngine
+        breakdown = await ScoringEngine(db).calculate_supplier_assessment(
+            supplier_relationship_id=supplier_relationship_id,
+            questionnaire_id=questionnaire_id,
+            save_to_db=True,
+            reporting_period=relationship.get("reporting_period"),
+        )
+        return {
+            "questionnaire_id": questionnaire_id,
+            "question_id": question_id,
+            "manual_score": manual_scores[question_id],
+            "calculated_score": breakdown.esg_score.overall_score,
+            "score_breakdown": breakdown.model_dump(),
+        }
     
     async def reopen_questionnaire(
         self,
