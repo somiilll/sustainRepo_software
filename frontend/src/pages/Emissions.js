@@ -68,6 +68,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // CORE DATA - Fetched via custom hook (Phase 1 refactor)
   // ============================================================================
   const { getAuthHeader, user } = useAuth();
+  const isSupplierUser = user?.user_type === 'supplier';
   const {
     emissions, facilities, organization, fuelDatabase,
     formulaDefinitions, formulaParameters, emissionConfigurations,
@@ -75,8 +76,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     dynamicScopes, dynamicCategories, configLabels, organizationGhgOverrides: resolvedOrganizationGhgOverrides,
     scope3EFData: initialScope3EFData,
     fugitiveEmissionsData: initialFugitiveData,
+    supplierReportingConfig,
     refresh: fetchData
-  } = useEmissionsCoreData(getAuthHeader);
+  } = useEmissionsCoreData(getAuthHeader, { isSupplier: isSupplierUser });
   const effectiveOrganizationGhgOverrides = organizationGhgOverrides || resolvedOrganizationGhgOverrides;
   
   // ============================================================================
@@ -3102,6 +3104,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   configLabels={configLabels}
                   organization={organization}
                   organizationGhgOverrides={effectiveOrganizationGhgOverrides}
+                  assignedReportingPeriod={supplierReportingConfig}
                   onFormChange={markFormDirty}
                   kpiAccessInfo={kpiAccessInfo}
                   kpiCanAccessScope={kpiCanAccessScope}
@@ -3188,6 +3191,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   handleDeleteExistingEvidence={handleDeleteExistingEvidence}
                   handleDeleteAllEvidences={handleDeleteAllEvidences}
                   handleDialogChange={handleDialogChange}
+                  assignedReportingPeriod={supplierReportingConfig}
                 />
               )}
             </DialogContent>

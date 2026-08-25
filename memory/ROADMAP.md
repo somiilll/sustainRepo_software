@@ -46,6 +46,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Supplier GHG reporting-period lock across Add, Edit, list, and backend create/update paths.
 - Required, auditable supplier data-verification acknowledgement for final ESG and GHG submissions.
 - Organization-aware Bulk Upload templates and validation.
 - Scope 1/2/3 capability parity, Flaring, Process Emissions, and custom-fuel auto-detection.

@@ -1,5 +1,14 @@
 # ESG Platform Changelog
 
+## August 25, 2026 — Supplier GHG Reporting-Period Lock
+- Fixed supplier GHG forms inheriting the supplier organization's calendar-year default instead of the parent-assigned reporting period.
+- Supplier Add now displays the assigned period, such as `FY 2026-27`, and prevents changing the reporting year.
+- Financial-year monthly entry is constrained to April through March; yearly entry uses the exact assigned FY label.
+- Supplier Edit keeps its reporting period read-only and displays the active customer assignment.
+- Added backend create/update enforcement for both generic and supplier-specific GHG paths.
+- Supplier GHG lists now return only records belonging to the active relationship and assigned annual/monthly periods.
+- Added parsing support for both financial-year and calendar-year supplier assignments, including legacy calendar labels.
+
 ## August 25, 2026 — Supplier ESG/GHG Verification Acknowledgement
 - Added a required supplier checkbox to both ESG questionnaire and GHG submission confirmation dialogs.
 - Final submission remains disabled until the supplier confirms the data was reviewed and verified for accuracy and completeness.

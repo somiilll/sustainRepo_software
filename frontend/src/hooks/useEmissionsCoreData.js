@@ -11,7 +11,7 @@ const API = `${BACKEND_URL}/api`;
  * @param {Function} getAuthHeader - Auth header getter from useAuth()
  * @returns {Object} All core data + loading state + refresh function
  */
-export function useEmissionsCoreData(getAuthHeader) {
+export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {}) {
   const [data, setData] = useState({
     emissions: [],
     facilities: [],
@@ -28,6 +28,7 @@ export function useEmissionsCoreData(getAuthHeader) {
     scope3EFData: [],
     fugitiveEmissionsData: [],
     organizationGhgOverrides: null,
+    supplierReportingConfig: null,
     configLabels: {
       calculation_methods: {},
       calculation_methods_short: {},
@@ -46,7 +47,7 @@ export function useEmissionsCoreData(getAuthHeader) {
         emissionsRes, facilitiesRes, fuelDbRes, formulasRes, 
         paramsRes, unitsRes, configsRes, gwpRes, 
         templatesRes, orgRes, scopesRes, catsRes, labelsRes,
-        scope3EfRes, resolvedConfigRes
+        scope3EfRes, resolvedConfigRes, supplierConfigRes
       ] = await Promise.all([
         axios.get(`${API}/emissions`, headers),
         axios.get(`${API}/facilities`, headers),
@@ -62,7 +63,10 @@ export function useEmissionsCoreData(getAuthHeader) {
         axios.get(`${API}/categories`, headers).catch(() => ({ data: [] })),
         axios.get(`${API}/config/labels`, headers).catch(() => ({ data: null })),
         axios.get(`${API}/scope3-ef?limit=10000`, headers).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API}/sustainability-config/resolved`, headers).catch(() => ({ data: {} }))
+        axios.get(`${API}/sustainability-config/resolved`, headers).catch(() => ({ data: {} })),
+        isSupplier
+          ? axios.get(`${API}/supplier-assessment/my-assessment/emissions/config`, headers).catch(() => ({ data: null }))
+          : Promise.resolve({ data: null })
       ]);
 
       // Derive fugitive emissions from fuel_database (needed for Scope 3 C8/C10/C11/C13/C14)
@@ -102,6 +106,7 @@ export function useEmissionsCoreData(getAuthHeader) {
         scope3EFData,
         fugitiveEmissionsData,
         organizationGhgOverrides: resolvedConfigRes.data?.ghg_overrides || null,
+        supplierReportingConfig: supplierConfigRes.data,
         configLabels: labelsRes.data || data.configLabels,
       });
     } catch (error) {
@@ -113,7 +118,7 @@ export function useEmissionsCoreData(getAuthHeader) {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [isSupplier]);
 
   return { ...data, loading, refresh: fetchData };
 }

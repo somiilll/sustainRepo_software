@@ -165,6 +165,7 @@ export function useEmissionSubmit(ctx) {
       capabilities,
       // Optional supplier context
       supplierContext = null,
+      assignedReportingPeriod = null,
       // OCR context for finalize-import
       ocrPrefillData = null,
     } = ctx;
@@ -489,9 +490,9 @@ export function useEmissionSubmit(ctx) {
       // ===========================================
       if (frequencyType === 'yearly') {
         // Build reporting period string for yearly
-        const yearlyReportingPeriod = reportingYearType === 'financial' 
+        const yearlyReportingPeriod = assignedReportingPeriod?.reporting_period || (reportingYearType === 'financial' 
           ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
-          : `CY${reportingYear}`;
+          : `CY${reportingYear}`);
         
         // Validate yearly data has at least one value
         let hasYearlyData = false;

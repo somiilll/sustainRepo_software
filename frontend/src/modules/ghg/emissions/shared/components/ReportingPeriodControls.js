@@ -12,12 +12,15 @@ export const ReportingPeriodControls = ({
   setMonthlyData,
   setYearlyData,
   setExpandedMonths,
+  assignedReportingPeriod = null,
 }) => {
-  const yearOptionsHtml = useMemo(() => Array.from({ length: 6 }, (_, index) => {
+  const yearOptionsHtml = useMemo(() => assignedReportingPeriod
+    ? `<option value="${assignedReportingPeriod.reporting_year}">${assignedReportingPeriod.reporting_period}</option>`
+    : Array.from({ length: 6 }, (_, index) => {
     const year = new Date().getFullYear() - index;
     const label = reportingYearType === 'financial' ? `FY ${year}-${String(year + 1).slice(-2)}` : year;
     return `<option value="${year}">${label}</option>`;
-  }).join(''), [reportingYearType]);
+  }).join(''), [assignedReportingPeriod, reportingYearType]);
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2" data-testid="emission-reporting-period-controls">
@@ -34,11 +37,13 @@ export const ReportingPeriodControls = ({
             setReportingYear(event.target.value);
             setMonthlyData({});
           }}
+          disabled={Boolean(assignedReportingPeriod)}
           className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
           data-testid="reporting-year-select"
           dangerouslySetInnerHTML={{ __html: yearOptionsHtml }}
         />
       </div>
+      {assignedReportingPeriod && <p className="text-xs text-emerald-700" data-testid="supplier-assigned-reporting-period-message">Assigned by your customer: {assignedReportingPeriod.reporting_period}</p>}
     </div>
 
     <div className="space-y-2">

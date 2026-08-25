@@ -182,6 +182,7 @@ export default function EmissionEditForm(props) {
 
     // Optional props for approval mode
     hideSubmitButton = false,
+    assignedReportingPeriod = null,
   } = props;
 
   const setDraftField = useCallback((field, valueOrUpdater) => {
@@ -340,13 +341,14 @@ export default function EmissionEditForm(props) {
                   markFormDirty={markFormDirty}
                   reportingPeriod={(
                     <div className="w-full min-w-[15rem] space-y-1.5" data-testid="edit-reporting-period-field">
-                      {editFrequencyType === 'yearly' ? (
+                      {editFrequencyType === 'yearly' || assignedReportingPeriod ? (
                         <>
-                          <Label>Reporting Year</Label>
+                          <Label>{editFrequencyType === 'yearly' ? 'Reporting Year' : 'Reporting Month'}</Label>
                           <div className="flex items-center h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-stone-800 font-medium" data-testid="edit-reporting-year-display">
                             <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
                             {editingEmission.reporting_period || 'N/A'}
                           </div>
+                          {assignedReportingPeriod && <p className="text-xs text-emerald-700" data-testid="supplier-edit-assigned-reporting-period-message">Assigned by your customer: {assignedReportingPeriod.reporting_period}</p>}
                         </>
                       ) : (
                         <>

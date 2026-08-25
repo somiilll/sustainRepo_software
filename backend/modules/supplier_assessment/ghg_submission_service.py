@@ -12,14 +12,79 @@ def _now() -> str:
 
 
 def reporting_period_values(parent_period: str | None) -> list[str]:
-    """Return valid supplier month periods for a parent FY, including the FY label for legacy rows."""
-    if not parent_period:
+    """Return the assigned annual label and its twelve valid supplier months."""
+    assignment = describe_reporting_period(parent_period)
+    if not assignment:
         return []
-    match = re.fullmatch(r"FY\s+(\d{4})-(\d{2}|\d{4})", parent_period.strip())
-    if not match:
-        return [parent_period]
-    start_year = int(match.group(1))
-    return [parent_period, *[f"{year}-{month:02d}" for year, month in [(start_year, month) for month in range(4, 13)] + [(start_year + 1, month) for month in range(1, 4)]]]
+    return list(dict.fromkeys([
+        parent_period.strip(),
+        assignment["reporting_period"],
+        *assignment["allowed_months"],
+    ]))
+
+
+def describe_reporting_period(parent_period: str | None) -> Dict[str, Any] | None:
+    """Normalize a supplier assignment into frontend and validation constraints."""
+    if not parent_period or not parent_period.strip():
+        return None
+    period = parent_period.strip()
+    financial_match = re.fullmatch(r"FY\s*(\d{4})\s*-\s*(\d{2}|\d{4})", period, re.IGNORECASE)
+    if financial_match:
+        start_year = int(financial_match.group(1))
+        end_year = start_year + 1
+        canonical_period = f"FY {start_year}-{str(end_year)[-2:]}"
+        allowed_months = [
+            f"{year}-{month:02d}"
+            for year, month in (
+                [(start_year, month) for month in range(4, 13)]
+                + [(end_year, month) for month in range(1, 4)]
+            )
+        ]
+        return {
+            "reporting_period": canonical_period,
+            "reporting_year_type": "financial",
+            "reporting_year": str(start_year),
+            "allowed_months": allowed_months,
+        }
+
+    calendar_match = re.fullmatch(r"CY\s*(\d{4})", period, re.IGNORECASE)
+    if calendar_match:
+        year = int(calendar_match.group(1))
+        return {
+            "reporting_period": f"CY{year}",
+            "reporting_year_type": "calendar",
+            "reporting_year": str(year),
+            "allowed_months": [f"{year}-{month:02d}" for month in range(1, 13)],
+        }
+
+    return {
+        "reporting_period": period,
+        "reporting_year_type": None,
+        "reporting_year": None,
+        "allowed_months": [],
+    }
+
+
+def supplier_emission_period_allowed(
+    submission_period: str | None,
+    frequency_type: str | None,
+    parent_period: str | None,
+) -> bool:
+    """Require monthly rows inside the assignment and yearly rows on its exact year."""
+    assignment = describe_reporting_period(parent_period)
+    if not assignment or not submission_period:
+        return False
+    if (frequency_type or "monthly") == "yearly":
+        return submission_period.strip().replace(" ", "").upper() == assignment["reporting_period"].replace(" ", "").upper()
+    return submission_period.strip() in assignment["allowed_months"]
+
+
+def supplier_period_error(parent_period: str | None, frequency_type: str | None) -> str:
+    assignment = describe_reporting_period(parent_period)
+    assigned_label = assignment["reporting_period"] if assignment else parent_period or "the assigned reporting period"
+    if (frequency_type or "monthly") == "yearly":
+        return f"Yearly GHG data must use the assigned reporting period {assigned_label}"
+    return f"Monthly GHG data must use a month within the assigned reporting period {assigned_label}"
 
 
 def period_belongs_to_parent(submission_period: str | None, parent_period: str | None) -> bool:
