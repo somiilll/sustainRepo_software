@@ -9,6 +9,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Label } from '../../components/ui/label';
+import { SupplierDataVerificationAcknowledgement } from './components/SupplierDataVerificationAcknowledgement';
 import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
 import {
   AlertDialog,
@@ -53,6 +54,7 @@ export default function SupplierQuestionnaire() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [verificationAccepted, setVerificationAccepted] = useState(false);
 
   const fetchQuestionnaire = useCallback(async () => {
     try {
@@ -89,6 +91,7 @@ export default function SupplierQuestionnaire() {
   };
 
   const handleSave = async (isFinal = false) => {
+    if (isFinal && !verificationAccepted) return;
     const saveFn = isFinal ? setSubmitting : setSaving;
     saveFn(true);
     
@@ -100,12 +103,13 @@ export default function SupplierQuestionnaire() {
       
       await axios.post(
         `${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/answers`,
-        { answers: answersList, is_draft: !isFinal },
+        { answers: answersList, is_draft: !isFinal, data_verified: isFinal && verificationAccepted },
         { headers: getAuthHeader() }
       );
       
       if (isFinal) {
         toast.success('Questionnaire submitted successfully');
+        setVerificationAccepted(false);
         navigate('/supplier-assessment/supplier');
       } else {
         toast.success('Progress saved');
@@ -131,6 +135,7 @@ export default function SupplierQuestionnaire() {
       return;
     }
     
+    setVerificationAccepted(false);
     setShowSubmitConfirm(true);
   };
 
@@ -362,15 +367,20 @@ export default function SupplierQuestionnaire() {
           <ArrowRight className="h-4 w-4 ml-1" />
         </Button>
       </div>
-      <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
+      <AlertDialog open={showSubmitConfirm} onOpenChange={(open) => { setShowSubmitConfirm(open); if (!open) setVerificationAccepted(false); }}>
         <AlertDialogContent data-testid="supplier-questionnaire-submit-confirmation-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle data-testid="supplier-questionnaire-submit-confirmation-title">Submit and lock this questionnaire?</AlertDialogTitle>
             <AlertDialogDescription data-testid="supplier-questionnaire-submit-confirmation-description">Are you sure you want to submit? Your answers will be locked and cannot be edited.</AlertDialogDescription>
           </AlertDialogHeader>
+          <SupplierDataVerificationAcknowledgement
+            checked={verificationAccepted}
+            onCheckedChange={setVerificationAccepted}
+            testIdPrefix="supplier-esg-data-verification"
+          />
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="cancel-supplier-questionnaire-submit-button">Keep editing</AlertDialogCancel>
-            <AlertDialogAction onClick={() => handleSave(true)} disabled={submitting} data-testid="confirm-supplier-questionnaire-submit-button">{submitting ? 'Submitting...' : 'Submit and lock'}</AlertDialogAction>
+            <AlertDialogAction onClick={() => handleSave(true)} disabled={submitting || !verificationAccepted} data-testid="confirm-supplier-questionnaire-submit-button">{submitting ? 'Submitting...' : 'Submit and lock'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

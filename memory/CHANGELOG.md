@@ -1,5 +1,12 @@
 # ESG Platform Changelog
 
+## August 25, 2026 — Supplier ESG/GHG Verification Acknowledgement
+- Added a required supplier checkbox to both ESG questionnaire and GHG submission confirmation dialogs.
+- Final submission remains disabled until the supplier confirms the data was reviewed and verified for accuracy and completeness.
+- Added backend enforcement so direct API calls cannot bypass the acknowledgement.
+- Persisted `data_verified`, `data_verified_at`, and `data_verified_by` on final ESG responses and submitted GHG records.
+- Added unique test identifiers for the acknowledgement, statement, and checkbox controls.
+
 ## August 25, 2026 — GHG Period Row Allowance Parity
 - Reinterpreted `environment.ghg.monthly_rows_allowed` as a per-reporting-month organization limit instead of one lifetime total across all monthly records.
 - Added yearly-frequency allowance at `monthly_rows_allowed × 12` per reporting year.

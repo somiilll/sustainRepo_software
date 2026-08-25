@@ -1071,6 +1071,8 @@ class SupplierAssessmentService:
         supplier_org_id: str,
         answers: List[Dict[str, Any]],
         is_draft: bool,
+        data_verified: bool = False,
+        verified_by: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Submit or save draft answers."""
         # Check if response doc exists
@@ -1092,6 +1094,8 @@ class SupplierAssessmentService:
         
         status = "in_progress" if is_draft else "submitted"
         submitted_at = None if is_draft else datetime.now(timezone.utc).isoformat()
+        if not is_draft and not data_verified:
+            raise ValueError("Confirm that the submitted data has been reviewed and verified")
         
         # Calculate score if submitting
         calculated_score = None
@@ -1110,7 +1114,13 @@ class SupplierAssessmentService:
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
             if submitted_at:
-                update_data.update({"submitted_at": submitted_at, "parent_visible": True})
+                update_data.update({
+                    "submitted_at": submitted_at,
+                    "parent_visible": True,
+                    "data_verified": True,
+                    "data_verified_at": submitted_at,
+                    "data_verified_by": verified_by,
+                })
                 await db.supplier_questionnaire_responses.update_many(
                     {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "id": {"$ne": response_doc["id"]}, "parent_visible": True},
                     {"$set": {"parent_visible": False, "replaced_at": submitted_at}},
@@ -1140,6 +1150,9 @@ class SupplierAssessmentService:
                 "revision": 1,
                 "is_current": True,
                 "parent_visible": not is_draft,
+                "data_verified": bool(data_verified) if not is_draft else False,
+                "data_verified_at": submitted_at,
+                "data_verified_by": verified_by if not is_draft else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             await db.supplier_questionnaire_responses.insert_one(new_doc)

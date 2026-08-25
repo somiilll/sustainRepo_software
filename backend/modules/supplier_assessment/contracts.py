@@ -395,6 +395,18 @@ class SupplierResponsesSubmit(BaseModel):
     """Submit multiple answers at once."""
     answers: List[SupplierAnswerSubmit]
     is_draft: bool = True  # False = final submission
+    data_verified: bool = False
+
+    @model_validator(mode="after")
+    def require_final_submission_verification(self):
+        if not self.is_draft and not self.data_verified:
+            raise ValueError("Confirm that the submitted data has been reviewed and verified")
+        return self
+
+
+class SupplierDataVerificationSubmit(BaseModel):
+    """Required acknowledgement for a final supplier submission."""
+    data_verified: Literal[True]
 
 
 class SupplierQuestionnaireStatusResponse(BaseModel):
