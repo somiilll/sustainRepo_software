@@ -11,6 +11,7 @@ from ..models import (
     ValidationError, ErrorSeverity, RowResult, CATEGORY_COLUMNS
 )
 from ..validators import FieldValidator
+from ..ghg_config_resolver import ResolvedGhgCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +20,15 @@ class Scope12RowProcessor:
     """Processes individual rows from Scope 1 and Scope 2 bulk upload sheets"""
     
     def __init__(self, db, organization_id: str, user_id: str,
-                 user_email: str = "", user_name: str = ""):
+                 user_email: str = "", user_name: str = "",
+                 capabilities: Optional[ResolvedGhgCapabilities] = None):
         self.db = db
         self.organization_id = organization_id
         self.user_id = user_id
         self.user_email = user_email
         self.user_name = user_name
         self.field_validator = FieldValidator(db, organization_id)
+        self.capabilities = capabilities or ResolvedGhgCapabilities()
         self._fuel_cache = {}  # Cache for fuel lookups
     
     async def get_fuel_by_name(self, fuel_name: str, category: str = None, sector: str = None) -> Optional[Dict]:
@@ -109,6 +112,10 @@ class Scope12RowProcessor:
             return 'mobile_combustion'
         elif cat_lower in ['fugitive emissions', 'fugitive_emissions', 'fugitiveemissions']:
             return 'fugitive_emissions'
+        elif cat_lower in ['flaring', 'flaring (stationary combustion)', 'flaring__stationary_combustion']:
+            return 'flaring'
+        elif cat_lower in ['process emissions', 'process_emissions', 'processemissions']:
+            return 'process_emissions'
         
         # Scope 2 categories
         elif cat_lower in ['purchased electricity', 'purchased_electricity', 'purchasedelectricity']:
@@ -152,20 +159,72 @@ class Scope12RowProcessor:
         # 4. Validate category
         category = row_data.get("category", "").strip()
         category_key = self._normalize_category(category)
+        valid_scope1_keys = [
+            'stationary_combustion', 'mobile_combustion', 'fugitive_emissions',
+            'flaring', 'process_emissions',
+        ]
         if not category:
             errors.append(ValidationError(
                 sheet=sheet_name, row=row_num, column="Category",
                 error_type="MISSING_CATEGORY",
                 message="Category is required",
-                suggestion="Use: Stationary Combustion, Mobile Combustion, or Fugitive Emissions",
+                suggestion="Use: Stationary Combustion, Mobile Combustion, Fugitive Emissions, Flaring, or Process Emissions",
                 severity=ErrorSeverity.ERROR
             ))
-        elif category_key not in ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions']:
+        elif category_key not in valid_scope1_keys:
             errors.append(ValidationError(
                 sheet=sheet_name, row=row_num, column="Category",
                 error_type="INVALID_CATEGORY",
                 message=f"Invalid category: '{category}'",
-                suggestion="Use: Stationary Combustion, Mobile Combustion, or Fugitive Emissions",
+                suggestion="Use: Stationary Combustion, Mobile Combustion, Fugitive Emissions, Flaring, or Process Emissions",
+                severity=ErrorSeverity.ERROR
+            ))
+        elif not self.capabilities.is_scope1_category_enabled(category_key):
+            errors.append(ValidationError(
+                sheet=sheet_name, row=row_num, column="Category",
+                error_type="DISABLED_CATEGORY",
+                message=f"Category '{category}' is disabled for your organization",
+                suggestion="Contact your administrator to enable this category, or remove these rows",
+                severity=ErrorSeverity.ERROR
+            ))
+        
+        # 4b. Validate process type (applicable for Process Emissions and optionally Fugitive Emissions)
+        process_type = row_data.get("process_type", "").strip() if row_data.get("process_type") else ""
+        process_type_key = ""
+        if process_type:
+            pt_lower = process_type.lower().strip()
+            pt_map = {
+                "venting": "venting",
+                "n2o from overall combustion": "n2o_overall_combustion",
+                "n2o_overall_combustion": "n2o_overall_combustion",
+                "ch4 from overall combustion": "ch4_overall_combustion",
+                "ch4_overall_combustion": "ch4_overall_combustion",
+            }
+            process_type_key = pt_map.get(pt_lower, "")
+            if not process_type_key:
+                errors.append(ValidationError(
+                    sheet=sheet_name, row=row_num, column="Process Type",
+                    error_type="INVALID_PROCESS_TYPE",
+                    message=f"Invalid process type: '{process_type}'",
+                    suggestion="Use: Venting, N2O from Overall Combustion, or CH4 from Overall Combustion",
+                    severity=ErrorSeverity.ERROR
+                ))
+            elif not self.capabilities.is_process_type_allowed(process_type_key):
+                errors.append(ValidationError(
+                    sheet=sheet_name, row=row_num, column="Process Type",
+                    error_type="DISABLED_PROCESS_TYPE",
+                    message=f"Process type '{process_type}' is disabled for your organization",
+                    suggestion="Contact your administrator to enable this process type",
+                    severity=ErrorSeverity.ERROR
+                ))
+        
+        # Process type is required for Process Emissions category
+        if category_key == "process_emissions" and not process_type_key:
+            errors.append(ValidationError(
+                sheet=sheet_name, row=row_num, column="Process Type",
+                error_type="MISSING_PROCESS_TYPE",
+                message="Process Type is required for Process Emissions category",
+                suggestion="Use: Venting, N2O from Overall Combustion, or CH4 from Overall Combustion",
                 severity=ErrorSeverity.ERROR
             ))
         
@@ -503,14 +562,26 @@ class Scope12RowProcessor:
             "stationary combustion": "stationary_combustion",
             "mobile combustion": "mobile_combustion",
             "fugitive emissions": "fugitive_emissions",
+            "flaring": "flaring",
+            "process emissions": "process_emissions",
         }
         category_code = category_code_map.get(category_name.lower(), category_key)
         
-        # Get category from emission_categories (same as Scope 3)
+        # Flaring is stored as a sub-type of stationary combustion in some DBs.
+        # Try the canonical code first, fall back to stationary_combustion lookup.
         category_doc = await self.db.emission_categories.find_one(
             {"code": category_code, "is_active": True},
             {"_id": 0, "id": 1, "name": 1}
         )
+        if not category_doc and category_code == "flaring":
+            # Flaring may be registered under its compound code or name
+            category_doc = await self.db.emission_categories.find_one(
+                {"$or": [
+                    {"code": "flaring__stationary_combustion", "is_active": True},
+                    {"name": {"$regex": "flaring", "$options": "i"}, "is_active": True},
+                ]},
+                {"_id": 0, "id": 1, "name": 1}
+            )
         if not category_doc:
             # Try with name match
             category_doc = await self.db.emission_categories.find_one(
@@ -534,6 +605,21 @@ class Scope12RowProcessor:
             "fuel_database_id": fuel_data.get("id"),
             "ef_quantity_provided": str(ef_quantity_provided).lower(),  # "true" or "false"
         }
+        
+        # Add process_type to decision inputs when provided (for fugitive/process emissions)
+        process_type_key = ""
+        raw_pt = row_data.get("process_type", "")
+        if raw_pt:
+            pt_map = {
+                "venting": "venting",
+                "n2o from overall combustion": "n2o_overall_combustion",
+                "n2o_overall_combustion": "n2o_overall_combustion",
+                "ch4 from overall combustion": "ch4_overall_combustion",
+                "ch4_overall_combustion": "ch4_overall_combustion",
+            }
+            process_type_key = pt_map.get(str(raw_pt).lower().strip(), "")
+        if process_type_key:
+            decision_inputs["process_type"] = process_type_key
         
         logger.debug(f"[SCOPE1_BULK] Decision inputs: {decision_inputs}")
         
@@ -658,6 +744,10 @@ class Scope12RowProcessor:
             dynamic_field_values["co2_gwp_fugitives"] = user_overrides.get("co2_gwp_fugitives", {})
         
         # Build emission record matching manual upload structure
+        # Flaring records are stored with category "Flaring" (or the DB name)
+        # and category_code "flaring" to match the manual form's storage pattern.
+        stored_category_name = category_doc.get("name") if category_doc else category_key.replace("_", " ").title()
+        
         emission_record = {
             "id": record_id,
             "facility_id": facility.get("id"),
@@ -665,11 +755,13 @@ class Scope12RowProcessor:
             "reporting_period": row_data.get("reporting_period"),
             "frequency_type": row_data.get("frequency_type", "monthly"),
             "scope": "scope1",
-            "category": category_doc.get("name") if category_doc else category_key.replace("_", " ").title(),
+            "category": stored_category_name,
+            "category_code": category_code,
             "sub_category": fuel_data.get("fuel_name"),
             "fuel_type": fuel_data.get("fuel_name"),
             "fuel_database_id": fuel_data.get("id"),
             "formula_id": formula_id,
+            "process_type": process_type_key or None,
             "dynamic_field_values": dynamic_field_values,
             "outputs": outputs,
             "co2_emissions": outputs.get("co2", {}).get("value", 0) if outputs else 0,

@@ -12,6 +12,7 @@ from openpyxl.comments import Comment
 from openpyxl.worksheet.protection import SheetProtection
 
 from .models import CATEGORY_COLUMNS, ACTIVITY_TYPES, CalculationMethod
+from .ghg_config_resolver import ResolvedGhgCapabilities
 import re
 
 
@@ -47,7 +48,8 @@ class TemplateGenerator:
     """Generates Excel template for Scope 3 bulk upload"""
     
     def __init__(self, facilities: List[Dict], activities_by_category: Dict[str, List[Dict]], 
-                 units_by_category: Dict[str, List[str]], organization_name: str = ""):
+                 units_by_category: Dict[str, List[str]], organization_name: str = "",
+                 capabilities: Optional[ResolvedGhgCapabilities] = None):
         """
         Initialize template generator with dynamic data
         
@@ -56,11 +58,13 @@ class TemplateGenerator:
             activities_by_category: Dict mapping category code to list of activities
             units_by_category: Dict mapping category code to list of allowed units
             organization_name: Organization name for template header
+            capabilities: Resolved org GHG capabilities (controls which sheets/categories appear)
         """
         self.facilities = facilities
         self.activities_by_category = activities_by_category
         self.units_by_category = units_by_category
         self.organization_name = organization_name
+        self.capabilities = capabilities or ResolvedGhgCapabilities()
         self.workbook = Workbook()
         
     def generate(self) -> io.BytesIO:
@@ -72,13 +76,17 @@ class TemplateGenerator:
         # Create helper sheets first (hidden)
         self._create_helper_sheets()
         
-        # Create Scope 1 and Scope 2 sheets first
-        self._create_scope12_sheet("Scope1")
-        self._create_scope12_sheet("Scope2")
+        # Create Scope 1 and Scope 2 sheets only if the org has access
+        if self.capabilities.scope1_enabled:
+            self._create_scope12_sheet("Scope1")
+        if self.capabilities.scope2_enabled:
+            self._create_scope12_sheet("Scope2")
         
-        # Create category sheets (Scope 3)
-        for category_code in ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14", "C15"]:
-            self._create_category_sheet(category_code)
+        # Create category sheets (Scope 3) — only enabled categories
+        if self.capabilities.scope3_enabled:
+            for category_code in ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14", "C15"]:
+                if self.capabilities.is_scope3_sheet_enabled(category_code):
+                    self._create_category_sheet(category_code)
         
         # Create instructions sheet
         self._create_instructions_sheet()
@@ -279,7 +287,8 @@ class TemplateGenerator:
             "facility_name": f"{mandatory}Select from dropdown list of facilities",
             "reporting_month": f"{mandatory}Format: MMM-YYYY (e.g., Jan-2025). Fill either this OR Reporting Year, not both.",
             "reporting_year": "(Optional) Format: FY YYYY-YYYY or CY YYYY. Fill either this OR Reporting Month, not both.",
-            "category": f"{mandatory}Select from dropdown: {'Stationary Combustion, Mobile Combustion, Fugitive Emissions' if scope_code == 'Scope1' else 'Purchased Electricity, Purchased Heat/Steam'}",
+            "category": f"{mandatory}Select from dropdown",
+            "process_type": "(Optional) Required for Process Emissions. Select: Venting, N2O from Overall Combustion, CH4 from Overall Combustion",
             "fuel_gas": f"{mandatory}Select fuel/gas from dropdown. Must match exact fuel name from database.",
             "energy_used": f"{mandatory}Select energy type from dropdown. Must match exact name from database.",
             "qty": f"{mandatory}Numeric value for quantity consumed",
@@ -326,10 +335,15 @@ class TemplateGenerator:
                 ws.add_data_validation(dv)
                 dv.add(f"{col_letter}2:{col_letter}1001")
             
-            # Category dropdown
+            # Category dropdown — filtered by org capabilities
             elif key == "category":
                 if scope_code == "Scope1":
-                    categories = [c["name"] for c in SCOPE1_CATEGORIES]
+                    from .models import SCOPE1_CATEGORIES
+                    enabled_keys = self.capabilities.enabled_scope1_categories()
+                    categories = [
+                        c["name"] for c in SCOPE1_CATEGORIES
+                        if c["key"] in enabled_keys
+                    ]
                 else:
                     categories = [c["name"] for c in SCOPE2_CATEGORIES]
                 dv = DataValidation(
@@ -341,6 +355,29 @@ class TemplateGenerator:
                 dv.errorTitle = "Invalid Category"
                 ws.add_data_validation(dv)
                 dv.add(f"{col_letter}2:{col_letter}1001")
+            
+            # Process Type dropdown (Scope 1 only)
+            elif key == "process_type" and scope_code == "Scope1":
+                # Build list from standard process types, filtered by org config
+                all_types = [
+                    ("venting", "Venting"),
+                    ("n2o_overall_combustion", "N2O from Overall Combustion"),
+                    ("ch4_overall_combustion", "CH4 from Overall Combustion"),
+                ]
+                allowed = [
+                    label for key_val, label in all_types
+                    if self.capabilities.is_process_type_allowed(key_val)
+                ]
+                if allowed:
+                    dv = DataValidation(
+                        type="list",
+                        formula1='"' + ','.join(allowed) + '"',
+                        allow_blank=True,
+                    )
+                    dv.error = "Please select a valid process type"
+                    dv.errorTitle = "Invalid Process Type"
+                    ws.add_data_validation(dv)
+                    dv.add(f"{col_letter}2:{col_letter}1001")
             
             # Fuel/Energy dropdown - use activities from fuel_database
             elif key in ["fuel_gas", "energy_used"]:
@@ -763,17 +800,23 @@ class TemplateGenerator:
         ws.protection = SheetProtection(sheet=True, objects=True, scenarios=True)
 
 
-async def generate_scope3_template(db, organization_id: str) -> io.BytesIO:
+async def generate_scope3_template(db, organization_id: str,
+                                   capabilities: Optional[ResolvedGhgCapabilities] = None) -> io.BytesIO:
     """
     Generate Scope 3 bulk upload template with dynamic data from database
     
     Args:
         db: Database connection
         organization_id: Organization ID to fetch facilities for
+        capabilities: Pre-resolved org GHG capabilities (optional; resolved here if None)
         
     Returns:
         BytesIO containing the Excel workbook
     """
+    if capabilities is None:
+        from .ghg_config_resolver import resolve_ghg_capabilities as _resolve
+        capabilities = await _resolve(db, organization_id)
+    
     # Fetch facilities for the organization
     facilities = await db.facilities.find(
         {"organization_id": organization_id, "is_active": {"$ne": False}},
@@ -882,7 +925,8 @@ async def generate_scope3_template(db, organization_id: str) -> io.BytesIO:
         facilities=facilities,
         activities_by_category=activities_by_category,
         units_by_category=units_by_category,
-        organization_name=org_name
+        organization_name=org_name,
+        capabilities=capabilities,
     )
     
     return generator.generate()

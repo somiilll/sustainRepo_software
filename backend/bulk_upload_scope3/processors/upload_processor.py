@@ -4,6 +4,7 @@ Main orchestrator for processing uploaded Excel files
 """
 import io
 import uuid
+import logging
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timezone
 from openpyxl import load_workbook
@@ -12,8 +13,11 @@ from ..models import (
     ValidationError, ErrorSeverity, RowResult, UploadSummary, UploadStatus,
     BulkUploadJob, CATEGORY_COLUMNS
 )
+from ..ghg_config_resolver import ResolvedGhgCapabilities, resolve_ghg_capabilities
 from .row_processor import RowProcessor
 from .scope12_processor import Scope12RowProcessor
+
+logger = logging.getLogger(__name__)
 
 
 # Sheets to ignore (instruction sheets, reference sheets, etc.)
@@ -28,14 +32,19 @@ class UploadProcessor:
     """Main processor for bulk upload files"""
     
     def __init__(self, db, organization_id: str, user_id: str,
-                 user_email: str = "", user_name: str = ""):
+                 user_email: str = "", user_name: str = "",
+                 capabilities: Optional[ResolvedGhgCapabilities] = None):
         self.db = db
         self.organization_id = organization_id
         self.user_id = user_id
         self.user_email = user_email
         self.user_name = user_name
+        self.capabilities = capabilities
         self.row_processor = RowProcessor(db, organization_id, user_id, user_email, user_name)
-        self.scope12_processor = Scope12RowProcessor(db, organization_id, user_id, user_email, user_name)
+        self.scope12_processor = Scope12RowProcessor(
+            db, organization_id, user_id, user_email, user_name,
+            capabilities=capabilities,
+        )
     
     def _should_skip_sheet(self, sheet_name: str) -> bool:
         """Check if a sheet should be skipped (instruction/reference sheets)"""
@@ -101,6 +110,14 @@ class UploadProcessor:
         await self.db.bulk_upload_jobs.insert_one(job.dict())
         
         try:
+            # ── Resolve org GHG capabilities (single source of truth) ────
+            if self.capabilities is None:
+                self.capabilities = await resolve_ghg_capabilities(
+                    self.db, self.organization_id
+                )
+                # Propagate to child processors
+                self.scope12_processor.capabilities = self.capabilities
+
             # Load workbook
             workbook = load_workbook(io.BytesIO(file_content), read_only=True, data_only=True)
             
@@ -134,6 +151,37 @@ class UploadProcessor:
                     continue
                 
                 categories_processed.add(category_code)
+                
+                # ── Enforce org-level access ─────────────────────────────
+                caps = self.capabilities
+                sheet_blocked = False
+                
+                if category_code == "Scope1" and not caps.scope1_enabled:
+                    sheet_blocked = True
+                    block_msg = "Scope 1 is not enabled for your organization"
+                elif category_code == "Scope2" and not caps.scope2_enabled:
+                    sheet_blocked = True
+                    block_msg = "Scope 2 is not enabled for your organization"
+                elif category_code not in ("Scope1", "Scope2"):
+                    # Scope 3 sheet
+                    if not caps.is_scope3_sheet_enabled(category_code):
+                        sheet_blocked = True
+                        if not caps.scope3_enabled:
+                            block_msg = "Scope 3 is not enabled for your organization"
+                        else:
+                            block_msg = f"Category {category_code} is disabled for your organization"
+                
+                if sheet_blocked:
+                    all_errors.append(ValidationError(
+                        sheet=sheet_name,
+                        row=0,
+                        column=None,
+                        error_type="DISABLED_SCOPE_OR_CATEGORY",
+                        message=block_msg,
+                        suggestion="Contact your administrator to enable this scope/category, or remove this sheet from the workbook",
+                        severity=ErrorSeverity.ERROR,
+                    ))
+                    continue
                 
                 # Process sheet
                 sheet = workbook[sheet_name]

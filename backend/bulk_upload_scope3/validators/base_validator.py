@@ -275,18 +275,13 @@ class BaseValidator:
     
     # ─────────────────────────────────────────────────────────────────────
     # Universal mandatory fields (apply to every category, every method):
-    #   - Person Responsible Name        (responsible_person)
-    #   - Process Name                   (process_name)
-    #   - Process Description            (process_description)
+    #   (none — process_name, process_description, responsible_person are
+    #    now optional across all scopes to match the manual form)
     # Per-category extras enforced on top of `mandatory_fields` config:
     #   - C7  → Employee Name            (employee_name)
     #   - C8, C13, C14, C15 → Asset Name (asset_name)
     # ─────────────────────────────────────────────────────────────────────
-    UNIVERSAL_MANDATORY_FIELDS = [
-        "responsible_person",
-        "process_name",
-        "process_description",
-    ]
+    UNIVERSAL_MANDATORY_FIELDS: list = []
     CATEGORY_EXTRA_MANDATORY_FIELDS = {
         "C7":  ["employee_name"],
         "C8":  ["asset_name"],
