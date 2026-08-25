@@ -3391,7 +3391,7 @@ async def upload_scope3_file(
     
     file_content = await file.read()
     if len(file_content) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+        raise HTTPException(status_code=413, detail="File size exceeds 10 MB limit. Please split your data into multiple files.")
     
     organization_id = current_user.get("organization_id")
     if not organization_id:

@@ -19,6 +19,10 @@ from .scope12_processor import Scope12RowProcessor
 
 logger = logging.getLogger(__name__)
 
+# ── Upload limits ────────────────────────────────────────────────────────
+MAX_ROWS_PER_SHEET = 5000
+MAX_TOTAL_ROWS = 25000
+
 
 # Sheets to ignore (instruction sheets, reference sheets, etc.)
 IGNORED_SHEET_PATTERNS = [
@@ -161,6 +165,27 @@ class UploadProcessor:
 
             # Load workbook
             workbook = load_workbook(io.BytesIO(file_content), read_only=True, data_only=True)
+            
+            # ── Row count pre-check ──────────────────────────────────────
+            total_row_estimate = 0
+            for _sn in workbook.sheetnames:
+                if self._should_skip_sheet(_sn):
+                    continue
+                _ws = workbook[_sn]
+                sheet_rows = (_ws.max_row or 1) - 1  # minus header
+                if sheet_rows > MAX_ROWS_PER_SHEET:
+                    raise ValueError(
+                        f"Sheet '{_sn}' has ~{sheet_rows} data rows, "
+                        f"which exceeds the limit of {MAX_ROWS_PER_SHEET} rows per sheet. "
+                        f"Please split the data into smaller files."
+                    )
+                total_row_estimate += max(sheet_rows, 0)
+            if total_row_estimate > MAX_TOTAL_ROWS:
+                raise ValueError(
+                    f"Workbook contains ~{total_row_estimate} total data rows across all sheets, "
+                    f"which exceeds the limit of {MAX_TOTAL_ROWS}. "
+                    f"Please split the data into smaller files."
+                )
             
             all_results: List[RowResult] = []
             all_errors: List[ValidationError] = []
@@ -500,6 +525,8 @@ class UploadProcessor:
         if category_code == "C7":
             c7_rows = []
             for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+                if row_idx - 1 > MAX_ROWS_PER_SHEET:
+                    break
                 # Skip completely empty rows (e.g., blank spacing rows after header)
                 if not any(cell is not None and cell != '' for cell in row):
                     continue
@@ -516,6 +543,8 @@ class UploadProcessor:
         
         # Regular processing for other categories (including Scope 1 and Scope 2)
         for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            if row_idx - 1 > MAX_ROWS_PER_SHEET:
+                break
             # Skip completely empty rows (e.g., blank spacing rows after header)
             if not any(cell is not None and cell != '' for cell in row):
                 continue

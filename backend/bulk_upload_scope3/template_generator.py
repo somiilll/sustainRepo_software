@@ -838,6 +838,12 @@ class TemplateGenerator:
             scope_lines.append(f"  Allowed Process Types: {', '.join(self.capabilities.process_type_options)}")
         
         scope_lines.append("")
+        scope_lines.append("UPLOAD LIMITS:")
+        scope_lines.append("  Max file size: 10 MB")
+        scope_lines.append("  Max rows per sheet: 5,000")
+        scope_lines.append("  Max total rows across all sheets: 25,000")
+        
+        scope_lines.append("")
         scope_lines.append("NOTE: Only sheets for enabled scopes/categories are included in this template.")
         scope_lines.append("Server-side validation will also enforce these restrictions during upload.")
         
@@ -845,6 +851,8 @@ class TemplateGenerator:
             cell = ws.cell(row=next_row, column=1, value=line)
             if line.startswith("NOTE:"):
                 cell.font = Font(italic=True, size=10, color="666666")
+            elif line.startswith("UPLOAD LIMITS"):
+                cell.font = Font(bold=True, size=11, color="1F4E79")
             elif "DISABLED" in line:
                 cell.font = Font(size=10, color="CC0000")
             elif "ENABLED" in line:
