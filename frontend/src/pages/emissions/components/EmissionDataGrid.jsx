@@ -60,6 +60,7 @@ export default function EmissionDataGrid({
   filteredScope3Activities,
   getMethodLabel,
   isRegularUser,
+  hideHistoryActions = false,
   handleEdit,
   fetchHistory,
   openDeleteConfirm,
@@ -561,7 +562,7 @@ export default function EmissionDataGrid({
                 >
                   <Edit className="w-3.5 h-3.5 text-stone-600" />
                 </Button>
-                {!isRegularUser && (
+                {!isRegularUser && !hideHistoryActions && (
                   <Button
                     size="sm"
                     variant="ghost"
