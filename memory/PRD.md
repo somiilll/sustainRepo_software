@@ -58,8 +58,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier GHG create and edit activity must still be recorded internally in the canonical `emission_history` collection, using the same audit model as normal organization GHG records.
 - Parent/admin users retain internal history access where authorized, while supplier submission/reopen lineage remains separate and unchanged.
 - Supplier users must not access the main organization Dashboard, GHG Base Year, or GHG Analysis modules; the Supplier Assessment dashboard remains available.
-- Locked supplier navigation items must use muted text, a lock icon, prevent navigation, and display the established Premium Module tooltip copy.
-- Direct supplier access to `/dashboard`, `/ghg/base-year`, and `/ghg/analysis` must render the supplier locked-module experience.
+- Dashboard, Sinks, Base Year, and Analysis must use muted supplier navigation text while remaining clickable.
+- Clicking `/dashboard`, `/ghg/base-year`, or `/ghg/analysis` as a supplier must navigate to the route and render the established full-page Premium Module locked experience.
+- Do not add sidebar lock icons or blocked-link behavior to these items.
 - Require suppliers to acknowledge that submitted ESG and GHG data has been reviewed and verified for accuracy and completeness before final submission is enabled.
 - Enforce the acknowledgement in backend request contracts and store `data_verified`, `data_verified_at`, and `data_verified_by` with the submitted record for auditability.
 - Support versioned Documents responses and Training progress while retaining audit history.

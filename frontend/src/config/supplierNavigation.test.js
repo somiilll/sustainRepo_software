@@ -1,6 +1,6 @@
 import { describe, expect, test } from '@jest/globals';
 import {
-  isSupplierLockedMenuItem,
+  isSupplierMutedMenuItem,
   isSupplierLockedRoute,
   SUPPLIER_PREMIUM_TOOLTIP,
 } from './supplierNavigation';
@@ -8,10 +8,11 @@ import {
 describe('supplier navigation locks', () => {
   test.each([
     'dashboard',
+    'environment.ghg.sinks',
     'environment.ghg.base_year',
     'environment.ghg.analysis',
-  ])('locks %s in supplier navigation', (key) => {
-    expect(isSupplierLockedMenuItem(key)).toBe(true);
+  ])('uses muted supplier styling for %s', (key) => {
+    expect(isSupplierMutedMenuItem(key)).toBe(true);
   });
 
   test.each([

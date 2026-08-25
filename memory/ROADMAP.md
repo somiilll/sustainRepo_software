@@ -46,7 +46,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
-- Supplier-only locks for the organization Dashboard, GHG Base Year, and GHG Analysis with muted premium navigation states.
+- Muted, clickable supplier navigation for Dashboard, Sinks, Base Year, and Analysis with full-page premium overlays.
 - Hidden supplier-facing GHG history controls while preserving canonical internal history and submission revision lineage.
 - Supplier GHG reporting-period lock across Add, Edit, list, and backend create/update paths.
 - Required, auditable supplier data-verification acknowledgement for final ESG and GHG submissions.
