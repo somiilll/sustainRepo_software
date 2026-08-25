@@ -728,3 +728,36 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Verified: Sheet-level enforcement (DISABLED_SCOPE_OR_CATEGORY) via upload processor tests.
 - Verified: Template filtering (disabled scopes/categories excluded from generated workbook).
 - **AUTOMATED TESTING REMAINS PAUSED** at user request.
+
+## Change Log — 2026-02: Custom Fuel Support & Carbon Content for Bulk Upload (P2)
+
+### Custom Fuel Auto-Detection
+- **DONE:** When a fuel name is not found in the database, it is automatically treated as a custom fuel. No explicit `is_custom_fuel` column needed.
+- **DONE:** `custom_fuel_enabled` capability is enforced — if the org has custom fuel disabled, unrecognized fuels produce `CUSTOM_FUEL_DISABLED` error.
+- **DONE:** A `CUSTOM_FUEL_DETECTED` warning is surfaced so the user knows a fuel was treated as custom.
+
+### Calculation Methodology Auto-Derivation
+- **DONE:** No explicit methodology column. Methodology is derived from which fields are filled:
+  - `carbon_content` + `oxidation_factor` → `using_carbon_composition`
+  - `ef_quantity` + `cv` → `using_heat_basis_ncv`
+  - `ef_quantity` only → `using_qty_basis_ef`
+  - None of the above → `MISSING_CUSTOM_FUEL_INPUTS` error
+- **DONE:** The derived methodology is passed to `decision_inputs` for calc engine resolution and stored on the emission record as `calculation_methodology`.
+
+### New Columns (Scope 1)
+- **DONE:** `carbon_content` — Carbon content as percentage (0-100), validated range.
+- **DONE:** `oxidation_factor` — Oxidation factor (0-1), validated range.
+- **DONE:** Conditional mandatory: if `carbon_content` is provided, `oxidation_factor` is required (and vice versa via carbon composition detection).
+- **DONE:** Also applies to standard (non-custom) stationary combustion when the decision tree resolves to a carbon-composition formula path.
+
+### Calc Engine Input Parity
+- **DONE:** Custom fuel heat basis builds `ef_co2`, `cv`, `ef_ch4=0`, `ef_n2o=0` user overrides matching the manual form's `buildCustomFuelCalculationPayload`.
+- **DONE:** Custom fuel quantity basis builds `ef_quantity` + `emission_factor` user overrides.
+- **DONE:** Custom fuel carbon composition builds `carbon_content` + `oxidation_factor` inputs/overrides.
+- **DONE:** Density override applies to all custom fuel methods.
+- **DONE:** Emission record stores `is_custom_fuel` and `calculation_methodology` flags matching manual form storage pattern.
+
+### Testing
+- Verified: 7 custom fuel scenarios (auto-detect, disabled, carbon composition, heat basis, no inputs, invalid carbon, invalid oxidation) all produce correct errors/warnings.
+- Verified: Template download includes new columns at correct positions.
+- **AUTOMATED TESTING REMAINS PAUSED** at user request.
