@@ -719,6 +719,8 @@ CATEGORY_COLUMNS = {
             {"name": "Unit of Density", "key": "density_unit", "mandatory": False, "type": "text"},
             {"name": "Emission Factor", "key": "ef_quantity", "mandatory": False, "type": "number"},
             {"name": "Emission Factor Unit", "key": "ef_quantity_unit", "mandatory": False, "type": "text"},
+            {"name": "Carbon Content (%)", "key": "carbon_content", "mandatory": False, "type": "number"},
+            {"name": "Oxidation Factor", "key": "oxidation_factor", "mandatory": False, "type": "number"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
             {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
@@ -733,6 +735,8 @@ CATEGORY_COLUMNS = {
         "conditional_mandatory": {
             "cv": ["cv_unit"],  # If cv is provided, cv_unit is mandatory
             "density": ["density_unit"],  # If density is provided, density_unit is mandatory
+            "ef_quantity": ["ef_quantity_unit"],  # If ef is provided, ef_unit is mandatory
+            "carbon_content": ["oxidation_factor"],  # If carbon_content is provided, oxidation_factor is required
         }
     },
     "Scope2": {
