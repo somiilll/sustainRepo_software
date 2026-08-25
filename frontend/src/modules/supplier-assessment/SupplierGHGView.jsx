@@ -27,6 +27,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const displayValue = (value, digits = 2) => value === null || value === undefined ? '—' : Number(value).toFixed(digits);
+const supplierInitials = (name = '') => name.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '—';
+
+const EmissionValue = ({ value, testId, emphasized = false }) => (
+  <span className={`whitespace-nowrap text-sm ${emphasized ? 'font-semibold text-stone-950' : 'text-stone-700'}`} data-testid={testId}>
+    {displayValue(value)} <span className="text-[11px] font-normal text-stone-400">tCO₂e</span>
+  </span>
+);
 
 export default function SupplierGHGView() {
   const { getAuthHeader } = useAuth();
@@ -83,8 +90,6 @@ export default function SupplierGHGView() {
     const matchesScope = scopeFilter === 'all' || e.scope === scopeFilter;
     return matchesSearch && matchesScope;
   });
-  const hasIntensity = supplierTotals.some((supplier) => supplier.total_intensity !== null && supplier.total_intensity !== undefined);
-
   return (
     <div className="space-y-6" data-testid="supplier-ghg-view">
       {/* Header */}
@@ -96,7 +101,7 @@ export default function SupplierGHGView() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
@@ -147,33 +152,56 @@ export default function SupplierGHGView() {
 
       {/* Supplier Totals */}
       {supplierTotals.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Emissions by Supplier</CardTitle>
+        <Card className="overflow-hidden border-stone-200 shadow-none" data-testid="supplier-emissions-by-supplier-card">
+          <CardHeader className="border-b border-stone-100 pb-4">
+            <CardTitle className="text-lg text-stone-900">Emissions by Supplier</CardTitle>
+            <p className="text-sm text-stone-500">Reported emissions, revenue-attributed emissions, and total intensity for each supplier.</p>
           </CardHeader>
-          <CardContent>
-            <Table>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+            <Table className="min-w-[1180px]" data-testid="supplier-emissions-by-supplier-table">
               <TableHeader>
-                <TableRow>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead className="text-right">Scope 1 (attributed)</TableHead>
-                  <TableHead className="text-right">Scope 2 (attributed)</TableHead>
-                  <TableHead className="text-right">Total (attributed)</TableHead>
-                  {hasIntensity && <><TableHead className="text-right">Intensity S1</TableHead><TableHead className="text-right">Intensity S2</TableHead><TableHead className="text-right">Intensity S1 + S2</TableHead></>}<TableHead className="text-right">Actions</TableHead>
+                <TableRow className="border-stone-200 bg-stone-50 hover:bg-stone-50">
+                  <TableHead className="min-w-[220px] pl-6 text-[11px] font-semibold uppercase text-stone-500">Supplier</TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1</TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2</TableHead>
+                  <TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total</TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1 <span className="block normal-case text-stone-400">(attributed)</span></TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2 <span className="block normal-case text-stone-400">(attributed)</span></TableHead>
+                  <TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total <span className="block normal-case text-stone-400">(attributed)</span></TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Total intensity</TableHead>
+                  <TableHead className="pr-6 text-right text-[11px] font-semibold uppercase text-stone-500">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {supplierTotals.map((supplier, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
-                    <TableCell className="text-right">{displayValue(supplier.scope1)}</TableCell>
-                    <TableCell className="text-right">{displayValue(supplier.scope2)}</TableCell>
-                    <TableCell className="text-right font-semibold">{displayValue(supplier.total)}</TableCell>
-                    {hasIntensity && <><TableCell className="text-right">{supplier.scope1_intensity === null || supplier.scope1_intensity === undefined ? <span className="text-stone-400">Intensity not available</span> : displayValue(supplier.scope1_intensity, 6)}</TableCell><TableCell className="text-right">{supplier.scope2_intensity === null || supplier.scope2_intensity === undefined ? <span className="text-stone-400">Intensity not available</span> : displayValue(supplier.scope2_intensity, 6)}</TableCell><TableCell className="text-right">{supplier.total_intensity === null || supplier.total_intensity === undefined ? <span className="text-stone-400">Intensity not available</span> : displayValue(supplier.total_intensity, 6)}</TableCell></>}<TableCell className="text-right"><Button variant="outline" size="sm" onClick={() => setUnlockTarget(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="mr-1 h-4 w-4" />Unlock</Button></TableCell>
+                {supplierTotals.map((supplier) => (
+                  <TableRow key={supplier.supplier_relationship_id} className="border-stone-100 hover:bg-stone-50/70" data-testid={`supplier-emissions-row-${supplier.supplier_relationship_id}`}>
+                    <TableCell className="py-4 pl-6">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800" aria-hidden="true">{supplierInitials(supplier.supplier_name)}</span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-stone-900" data-testid={`supplier-emissions-name-${supplier.supplier_relationship_id}`}>{supplier.supplier_name}</p>
+                          <p className="mt-0.5 text-xs text-stone-400">Revenue share {supplier.revenue_percentage === null || supplier.revenue_percentage === undefined ? '—' : `${displayValue(supplier.revenue_percentage, 1)}%`}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.raw_scope1} testId={`supplier-raw-scope1-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.raw_scope2} testId={`supplier-raw-scope2-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="border-r border-stone-100 text-right"><EmissionValue value={supplier.raw_total} emphasized testId={`supplier-raw-total-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.scope1} testId={`supplier-attributed-scope1-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.scope2} testId={`supplier-attributed-scope2-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="border-r border-stone-100 text-right"><EmissionValue value={supplier.total} emphasized testId={`supplier-attributed-total-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right">
+                      {supplier.total_intensity === null || supplier.total_intensity === undefined
+                        ? <span className="whitespace-nowrap text-xs text-stone-400" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>Not available</span>
+                        : <span className="whitespace-nowrap text-sm font-semibold text-stone-900" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>{displayValue(supplier.total_intensity, 6)} <span className="block text-[10px] font-normal text-stone-400">tCO₂e / revenue unit</span></span>}
+                    </TableCell>
+                    <TableCell className="pr-6 text-right"><Button variant="outline" size="sm" onClick={() => setUnlockTarget(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="mr-1 h-4 w-4" />Unlock</Button></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       )}

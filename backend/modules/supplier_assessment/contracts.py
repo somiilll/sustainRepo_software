@@ -467,6 +467,37 @@ class SupplierEmissionResponse(BaseModel):
     updated_at: Optional[str] = None
 
 
+class SupplierEmissionTotalResponse(BaseModel):
+    """Raw and revenue-attributed GHG totals for one supplier."""
+    supplier_relationship_id: str
+    supplier_name: str
+    raw_scope1: float = 0.0
+    raw_scope2: float = 0.0
+    raw_total: float = 0.0
+    scope1: Optional[float] = None
+    scope2: Optional[float] = None
+    total: Optional[float] = None
+    total_intensity: Optional[float] = None
+    revenue_percentage: Optional[float] = None
+    annual_revenue_amount: Optional[float] = None
+    attribution_available: bool = False
+
+
+class SupplierEmissionAggregationResponse(BaseModel):
+    scope: Optional[str] = None
+    category: str
+    entry_count: int = 0
+    total_emissions: Optional[float] = None
+
+
+class ParentSupplierEmissionsResponse(BaseModel):
+    """Parent-facing submitted supplier GHG emissions view."""
+    emissions: List[Dict[str, Any]]
+    supplier_totals: List[SupplierEmissionTotalResponse]
+    grand_total: float = 0.0
+    aggregations: List[SupplierEmissionAggregationResponse]
+
+
 class SupplierEmissionRevisionResponse(BaseModel):
     """Supplier-facing immutable revision metadata for one emission entry."""
     id: str

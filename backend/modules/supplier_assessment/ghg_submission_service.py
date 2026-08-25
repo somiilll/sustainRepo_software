@@ -238,8 +238,25 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
         value = float(entry.get("total_emissions") or entry.get("co2e_emissions") or 0)
         attributed_value = value * factor if factor is not None else None
         emissions.append({**entry, "supplier_name": supplier_name, "submitted_at": entry["submitted_to_parent_org"], "attributed_emissions": attributed_value, "revenue_percentage": revenue_percentage})
-        total = supplier_totals.setdefault(supplier_id, {"supplier_relationship_id": supplier_id, "supplier_name": supplier_name, "scope1": 0.0, "scope2": 0.0, "total": 0.0, "revenue_percentage": revenue_percentage, "annual_revenue_amount": revenue.get("revenue_amount"), "attribution_available": factor is not None})
+        total = supplier_totals.setdefault(supplier_id, {
+            "supplier_relationship_id": supplier_id,
+            "supplier_name": supplier_name,
+            "raw_scope1": 0.0,
+            "raw_scope2": 0.0,
+            "raw_total": 0.0,
+            "scope1": 0.0,
+            "scope2": 0.0,
+            "total": 0.0,
+            "revenue_percentage": revenue_percentage,
+            "annual_revenue_amount": revenue.get("revenue_amount"),
+            "attribution_available": factor is not None,
+        })
         scope = entry.get("scope")
+        if scope == "scope1":
+            total["raw_scope1"] += value
+        if scope == "scope2":
+            total["raw_scope2"] += value
+        total["raw_total"] += value
         if attributed_value is not None:
             if scope == "scope1": total["scope1"] += attributed_value
             if scope == "scope2": total["scope2"] += attributed_value
