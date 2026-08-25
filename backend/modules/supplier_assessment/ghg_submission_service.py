@@ -5,10 +5,28 @@ import re
 from typing import Any, Dict, List, Optional
 
 from shared.database.mongo import db
+from modules.supplier_assessment.programs import resolve_program_context
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def resolve_supplier_ghg_scopes(relationship: Dict[str, Any]) -> List[str]:
+    """Return only the parent-assigned supplier scopes, preserving legacy defaults."""
+    configured_scopes = relationship.get("ghg_scopes_enabled")
+    if configured_scopes is None:
+        configured_scopes = ["scope1", "scope2"]
+    return [scope for scope in ("scope1", "scope2") if scope in configured_scopes]
+
+
+async def resolve_effective_supplier_ghg_scopes(relationship: Dict[str, Any]) -> List[str]:
+    """Resolve supplier scopes from the bound immutable assessment program."""
+    context = await resolve_program_context(relationship)
+    ghg_module = ((context.get("config") or {}).get("modules") or {}).get("ghg") or {}
+    if not ghg_module.get("enabled", False):
+        return []
+    return resolve_supplier_ghg_scopes({"ghg_scopes_enabled": ghg_module.get("scopes")})
 
 
 def reporting_period_values(parent_period: str | None) -> list[str]:
@@ -164,8 +182,14 @@ def _revision_response(entry: Dict[str, Any], lineage_id: str) -> Dict[str, Any]
 
 
 async def get_supplier_ghg_revision_history(relationship: Dict[str, Any], emission_id: str) -> Dict[str, Any] | None:
+    allowed_scopes = await resolve_effective_supplier_ghg_scopes(relationship)
     entry = await db.emission_records.find_one(
-        {"id": emission_id, "source": "supplier", "supplier_relationship_id": relationship["id"]},
+        {
+            "id": emission_id,
+            "source": "supplier",
+            "supplier_relationship_id": relationship["id"],
+            "scope": {"$in": allowed_scopes},
+        },
         {"_id": 0},
     )
     if not entry:
@@ -193,7 +217,12 @@ async def get_supplier_ghg_revision_history(relationship: Dict[str, Any], emissi
 
 
 async def get_supplier_ghg_state(relationship: Dict[str, Any]) -> Dict[str, Any]:
-    query = {"source": "supplier", "supplier_relationship_id": relationship["id"]}
+    allowed_scopes = await resolve_effective_supplier_ghg_scopes(relationship)
+    query = {
+        "source": "supplier",
+        "supplier_relationship_id": relationship["id"],
+        "scope": {"$in": allowed_scopes},
+    }
     if relationship.get("reporting_period"):
         query["reporting_period"] = {"$in": reporting_period_values(relationship["reporting_period"])}
     entries = await db.emission_records.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
@@ -221,8 +250,9 @@ async def submit_supplier_ghg(
     if not data_verified:
         raise ValueError("Confirm that the submitted data has been reviewed and verified")
     period_filter = {"reporting_period": {"$in": reporting_period_values(relationship["reporting_period"])}} if relationship.get("reporting_period") else {}
-    existing = await db.emission_records.find_one({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}, **period_filter}, {"_id": 0, "id": 1})
-    entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": relationship["id"], "$or": [{"submitted_to_parent_org": {"$exists": False}}, {"submitted_to_parent_org": None}], **period_filter}, {"_id": 0}).to_list(5000)
+    scope_filter = {"scope": {"$in": await resolve_effective_supplier_ghg_scopes(relationship)}}
+    existing = await db.emission_records.find_one({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}, **scope_filter, **period_filter}, {"_id": 0, "id": 1})
+    entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": relationship["id"], "$or": [{"submitted_to_parent_org": {"$exists": False}}, {"submitted_to_parent_org": None}], **scope_filter, **period_filter}, {"_id": 0}).to_list(5000)
     is_reopened = any(entry.get("resubmission_of") for entry in entries)
     if existing and not is_reopened:
         raise ValueError("This supplier GHG submission is locked")

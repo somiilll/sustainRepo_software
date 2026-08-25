@@ -51,6 +51,7 @@ import {
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
+import { filterSupplierVisibleScopes } from '../modules/supplier-assessment/utils/supplierScopeAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -112,6 +113,16 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const navigate = useNavigate();
   const pathScope = (location.pathname.match(/\/ghg\/(scope[123]|biogenic)/) || [])[1] || null;
   const [activeScope, setActiveScope] = useState(pathScope || 'scope1');
+  const supplierEnabledScopes = useMemo(() => {
+    if (!isSupplierUser) return null;
+    const configured = supplierReportingConfig?.enabled_scopes || [];
+    return ['scope1', 'scope2'].filter((scope) => configured.includes(scope));
+  }, [isSupplierUser, supplierReportingConfig]);
+  const visibleScopes = useMemo(() => (
+    isSupplierUser
+      ? filterSupplierVisibleScopes(dynamicScopes, supplierEnabledScopes)
+      : dynamicScopes
+  ), [dynamicScopes, isSupplierUser, supplierEnabledScopes]);
   
   // Handle OCR prefill from location state (when navigating from OCR Invoice page)
   useEffect(() => {
@@ -126,6 +137,14 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   useEffect(() => {
     if (pathScope && pathScope !== activeScope) setActiveScope(pathScope);
   }, [pathScope]);
+  useEffect(() => {
+    if (!isSupplierUser || !supplierReportingConfig || !supplierEnabledScopes.length) return;
+    if (!supplierEnabledScopes.includes(activeScope)) {
+      const fallbackScope = supplierEnabledScopes[0];
+      setActiveScope(fallbackScope);
+      navigate(`/ghg/${fallbackScope}`, { replace: true });
+    }
+  }, [activeScope, isSupplierUser, navigate, supplierEnabledScopes, supplierReportingConfig]);
   const [filterFacility, setFilterFacility] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterFrequency, setFilterFrequency] = useState(''); // 'monthly', 'yearly', or '' for all
@@ -2764,8 +2783,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // Check if organization has scope 3 access - needed for filtering biogenic scope3 records
   const hasScope3Access = useMemo(() => {
     const enabledAccess = organization?.enabled_access;
+    if (isSupplierUser) return false;
     return enabledAccess?.includes('scope1_2_3') || false;
-  }, [organization]);
+  }, [isSupplierUser, organization]);
 
   // KPI Assignment-based scope access check (combines org-level and assignment-level)
   const canAccessScopeWithKPI = useCallback((scope) => {
@@ -3087,7 +3107,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   emissionConfigurations={emissionConfigurations}
                   gwpConfig={gwpConfig}
                   processTemplates={processTemplates}
-                  dynamicScopes={dynamicScopes}
+                  dynamicScopes={visibleScopes}
                   dynamicCategories={dynamicCategories}
                   hasScope3Access={hasScope3Access}
                   getAuthHeader={getAuthHeader}
@@ -3140,7 +3160,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   setActivitySearchTerm={setActivitySearchTerm}
                   // ---------- core data ----------
                   facilities={facilities}
-                  dynamicScopes={dynamicScopes}
+                  dynamicScopes={visibleScopes}
                   hasScope3Access={hasScope3Access}
                   centralizedUnits={centralizedUnits}
                   fuelDatabase={fuelDatabase}
@@ -3249,8 +3269,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           setBiogenicScopeSelection('');
         }
       }} className="w-full">
-        <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(dynamicScopes.length, 1)}, minmax(0, 1fr))` }}>
-          {dynamicScopes.map(s => {
+        <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(visibleScopes.length, 1)}, minmax(0, 1fr))` }}>
+          {visibleScopes.map(s => {
             const isScope3 = s.code === 'scope3';
             // Check both organization-level and KPI assignment-level access
             const orgDisabled = isScope3 && !hasScope3Access;

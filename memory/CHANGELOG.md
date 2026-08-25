@@ -1,5 +1,14 @@
 # ESG Platform Changelog
 
+## August 25, 2026 — Exact Supplier GHG Scope Enforcement
+- Fixed the shared supplier GHG screen reading the supplier organization's dynamic GHG scopes, which exposed Scope 3 and Biogenic despite the parent assignment.
+- Scope access now resolves canonically from the bound immutable supplier assessment-program revision.
+- Parent Scope 1-only assignments expose only Scope 1; Scope 2-only exposes only Scope 2; combined assignments expose both.
+- Scope 3 and Biogenic are stripped from supplier tabs, Add/Edit forms, summaries, list/state/history queries, and submission batches.
+- Generic and supplier-specific create/edit APIs reject any scope not assigned by the parent.
+- Direct Scope 3/Biogenic URLs fall back to the first assigned Scope 1/2 route.
+- Verified with 23 focused backend tests, 4 frontend unit tests, 7 live read-only supplier checks, and an authenticated UI check.
+
 ## August 25, 2026 — Supplier Dashboard/Base Year/Analysis Locks
 - Locked the main organization Dashboard, GHG Base Year, and GHG Analysis for supplier accounts while preserving the Supplier Assessment dashboard.
 - Dashboard, Sinks, Base Year, and Analysis now use muted supplier navigation text without sidebar lock icons.

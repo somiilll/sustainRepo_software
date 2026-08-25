@@ -1,0 +1,45 @@
+{
+  "summary": "Executed targeted supplier-scope regression across backend + frontend. Scope filtering/enforcement works across supplier config/submission/list/history, generic and supplier-specific create/edit rejections, and supplier UI tabs/routes/summary cards. One auth CORS regression found.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login (OPTIONS preflight)",
+        "issue": "Trusted-origin preflight returns Access-Control-Allow-Origin='*' instead of explicit frontend origin; violates credentialed CORS requirement and auth playbook.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_supplier_scope_assignment.py",
+    "/app/backend/tests/test_supplier_scope_enforcement_live_iter20.py",
+    "/app/frontend/src/modules/supplier-assessment/utils/supplierScopeAccess.test.js",
+    "/app/test_reports/pytest/pytest_results_iter20.xml"
+  ],
+  "action_items": [
+    "Fix auth CORS to return explicit allowed origin (not '*') for trusted frontend origin while allowing credentials.",
+    "Re-run pytest test_login_cors_allows_known_origin_with_credentials_header after CORS fix."
+  ],
+  "critical_code_review_comments": [
+    "Supplier scope hardening is correctly centralized: resolve_effective_supplier_ghg_scopes resolves from immutable program context and strips to canonical scope1/scope2.",
+    "emissions router supplier query guard enforces scope + reporting_period filtering server-side, preventing supplier visibility of Scope 3/Biogenic even via direct API query params."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_supplier_scope_enforcement_live_iter20.py",
+    "/app/test_reports/iteration_20.json"
+  ],
+  "success_rate": {
+    "backend": "95%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None (read-only checks; rejected create/edit attempts only)",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend: 19 tests run (18 pass, 1 fail) in pytest_results_iter20.xml; only failing case is auth CORS explicit-origin behavior. Frontend: supplier login verified; /ghg shows only scope1/scope2 tabs, direct /ghg/scope3 and /ghg/biogenic fallback to /ghg/scope1, supplier submission page renders only scope1/scope2 cards and table.",
+  "rca of the issue": "Repro: OPTIONS /api/auth/login with Origin=https://esg-ai-routing.preview.emergentagent.com returns Access-Control-Allow-Origin='*'. Expected explicit trusted origin per playbook (with credentials). Likely backend CORS middleware configured with wildcard origin path for login route or global fallback overriding explicit origin behavior. Mitigation: use explicit allow_origins list + allow_credentials true, avoid wildcard with credentialed auth flows."
+}
