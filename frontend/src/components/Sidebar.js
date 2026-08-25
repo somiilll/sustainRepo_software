@@ -8,11 +8,7 @@ import { Button } from './ui/button';
 import { ChevronDown, ChevronRight, LogOut, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
-import {
-  isSupplierLockedMenuItem,
-  SUPPLIER_PREMIUM_TOOLTIP,
-} from '../config/supplierNavigation';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { isSupplierMutedMenuItem } from '../config/supplierNavigation';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -81,9 +77,8 @@ function MenuItem(props) {
   if (!hasAccess(item.key)) return null;
 
   var isSupplier = userType === 'supplier' || orgType === 'supplier';
-  var supplierLocked = isSupplier && isSupplierLockedMenuItem(item.key);
   var supplierAccessibleItem = item.supplierOnly || ['dashboard', 'facilities', 'profile', 'supplier_assessment'].includes(item.key) || item.key === 'environment' || item.key?.startsWith('environment.ghg');
-  var mutedForSupplier = inheritedMuted || supplierLocked || (isSupplier && !supplierAccessibleItem);
+  var mutedForSupplier = inheritedMuted || (isSupplier && (isSupplierMutedMenuItem(item.key) || !supplierAccessibleItem));
 
   var hasChildren = item.children && item.children.length > 0;
   var active = item.path ? isActive(item.path, location) : false;
@@ -115,36 +110,6 @@ function MenuItem(props) {
           });
         })
       ) : null
-    );
-  }
-
-  if (supplierLocked) {
-    return React.createElement(TooltipProvider, { delayDuration: 150 },
-      React.createElement(Tooltip, null,
-        React.createElement(TooltipTrigger, { asChild: true },
-          React.createElement('button', {
-            type: 'button',
-            onClick: function(event) { event.preventDefault(); },
-            'aria-disabled': 'true',
-            className: 'flex w-full cursor-not-allowed items-center justify-between gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-stone-400 opacity-55 ' + padClass,
-            'data-testid': 'sidebar-' + item.key,
-          },
-            React.createElement('span', { className: 'flex min-w-0 items-center gap-2.5' },
-              Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
-              React.createElement('span', { className: 'truncate' }, item.label)
-            ),
-            React.createElement(LucideIcons.Lock, { className: 'h-3.5 w-3.5 shrink-0', 'aria-hidden': 'true' })
-          )
-        ),
-        React.createElement(TooltipContent, {
-          side: 'right',
-          className: 'max-w-xs px-3 py-2',
-          'data-testid': 'sidebar-' + item.key + '-premium-tooltip',
-        },
-          React.createElement('p', { className: 'font-semibold', 'data-testid': 'sidebar-' + item.key + '-premium-tooltip-title' }, SUPPLIER_PREMIUM_TOOLTIP.title),
-          React.createElement('p', { className: 'mt-1 leading-relaxed opacity-90', 'data-testid': 'sidebar-' + item.key + '-premium-tooltip-description' }, SUPPLIER_PREMIUM_TOOLTIP.description)
-        )
-      )
     );
   }
 

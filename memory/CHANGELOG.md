@@ -2,11 +2,11 @@
 
 ## August 25, 2026 — Supplier Dashboard/Base Year/Analysis Locks
 - Locked the main organization Dashboard, GHG Base Year, and GHG Analysis for supplier accounts while preserving the Supplier Assessment dashboard.
-- Added muted navigation text, lock icons, disabled navigation behavior, and the established Premium Module tooltip to all three items.
-- Added explicit direct-route locking so `/dashboard`, `/ghg/base-year`, and `/ghg/analysis` cannot bypass the sidebar restriction.
+- Dashboard, Sinks, Base Year, and Analysis now use muted supplier navigation text without sidebar lock icons.
+- All four remain clickable; restricted routes display the established full-page Premium Module overlay, matching the Sinks interaction.
+- Added explicit direct-route locking so `/dashboard`, `/ghg/base-year`, and `/ghg/analysis` cannot bypass the premium overlay.
 - Changed the sidebar logo destination for suppliers to the Supplier Assessment workspace rather than the locked organization Dashboard.
-- Centralized supplier menu keys, routes, and premium tooltip copy in one navigation policy.
-- Verified with 11 focused tests, lint checks, backend health, and an authenticated supplier UI check.
+- Centralized supplier muted menu keys, route locks, and premium copy in one navigation policy.
 
 ## August 25, 2026 — Supplier GHG History Visibility and Audit Parity
 - Removed supplier-facing Version History actions and dialogs from the GHG emissions grid.
