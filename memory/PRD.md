@@ -693,3 +693,38 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - **P1:** Add AI-credit consumption/deduction enforcement and a credit ledger; complete the canonical target catalog unification.
 - **P1:** Fix BRSR Section A year-switch state and continue Document Replacement / Version Publishing UI.
 - **P2:** Create the Super Admin Effective Settings read-only summary.
+
+
+## Change Log — 2026-02: Bulk Upload Org-Level GHG Configuration Parity (P0 + P1)
+
+### P0: Org-level GHG Configuration Enforcement
+- **NEW FILE:** `/app/backend/bulk_upload_scope3/ghg_config_resolver.py` — Backend equivalent of the frontend's `resolveGhgCategoryOptions` pipeline. Single `ResolvedGhgCapabilities` dataclass consumed by both template generation and upload validation.
+- **DONE:** `upload_processor.py` resolves org capabilities at upload start. Sheets for disabled scopes/categories are rejected at the sheet level before row processing begins.
+- **DONE:** `scope12_processor.py` accepts resolved capabilities. Individual Scope 1 rows are rejected if their category is disabled for the org (e.g., Flaring disabled → row rejected with `DISABLED_CATEGORY` error).
+- **DONE:** `template_generator.py` generates org-aware templates. Only enabled scopes produce sheets; only enabled Scope 3 categories produce sheets; only enabled Scope 1 categories appear in the Category dropdown.
+- **DONE:** `router.py` resolves capabilities before template generation and passes them through.
+
+### P1: Flaring, Process Emissions, Process Type
+- **DONE:** `models.py` — Added "Flaring" and "Process Emissions" to `SCOPE1_CATEGORIES` and the Scope1 category dropdown `allowed_values`. Added "Process Type" column to Scope1 (`process_type`, optional dropdown: Venting / N2O from Overall Combustion / CH4 from Overall Combustion).
+- **DONE:** `scope12_processor.py` — `_normalize_category` now recognizes flaring and process_emissions. Validation enforces process_type is required for Process Emissions category. Process type is passed to decision_inputs for calc engine resolution. Emission records include `process_type` and `category_code` fields.
+- **DONE:** `template_generator.py` — Process Type dropdown in Scope 1 sheet, filtered by org `processTypeOptions`. Column comment updated.
+- **DONE:** Process type org restrictions enforced: if org allows only `['venting']`, rows with other process types are rejected with `DISABLED_PROCESS_TYPE`.
+
+### Bugfix: UNIVERSAL_MANDATORY_FIELDS
+- **DONE:** `base_validator.py` — Removed `process_name`, `process_description`, `responsible_person` from `UNIVERSAL_MANDATORY_FIELDS` (was `[]`). These fields were made optional in models.py previously but the Scope 3 validator still enforced them.
+
+### P3: Logger fix
+- **DONE:** `upload_processor.py` — Added missing `import logging` and `logger = logging.getLogger(__name__)`.
+
+### Architecture Notes
+- The canonical mapping between `disabledCategories` codes and bulk upload identifiers lives exclusively in `DISABLED_CATEGORY_MAP` in `ghg_config_resolver.py`.
+- The resolver reads from `organization_config.ghg_overrides` (disabledCategories, processTypeOptions, capabilityOverrides) and `organization_config.entitlements.environment.ghg` (enabled, coverage).
+- Both template generation (UX) and upload validation (authorization) consume the same `ResolvedGhgCapabilities` object.
+
+### Testing
+- Verified: All imports clean, Python lint passed on all 6 changed files.
+- Verified: Template download endpoint returns 200 with correct content type.
+- Verified: Category enforcement (DISABLED_CATEGORY, MISSING_PROCESS_TYPE, DISABLED_PROCESS_TYPE) via unit tests.
+- Verified: Sheet-level enforcement (DISABLED_SCOPE_OR_CATEGORY) via upload processor tests.
+- Verified: Template filtering (disabled scopes/categories excluded from generated workbook).
+- **AUTOMATED TESTING REMAINS PAUSED** at user request.

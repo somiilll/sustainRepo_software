@@ -707,7 +707,8 @@ CATEGORY_COLUMNS = {
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
             {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
-            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions"]},
+            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions", "Flaring", "Process Emissions"]},
+            {"name": "Process Type", "key": "process_type", "mandatory": False, "type": "dropdown", "allowed_values": ["Venting", "N2O from Overall Combustion", "CH4 from Overall Combustion"]},
             {"name": "Fuel/Gas Used", "key": "fuel_gas", "mandatory": True, "type": "dropdown"},
             {"name": "Quantity Used", "key": "qty", "mandatory": True, "type": "number"},
             {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
@@ -787,11 +788,13 @@ ACTIVITY_TYPES = {
     ]
 }
 
-# Scope 1 categories
+# Scope 1 categories (canonical list — template generator filters by org config)
 SCOPE1_CATEGORIES = [
     {"key": "stationary_combustion", "name": "Stationary Combustion"},
     {"key": "mobile_combustion", "name": "Mobile Combustion"},
     {"key": "fugitive_emissions", "name": "Fugitive Emissions"},
+    {"key": "flaring", "name": "Flaring"},
+    {"key": "process_emissions", "name": "Process Emissions"},
 ]
 
 # Scope 2 categories

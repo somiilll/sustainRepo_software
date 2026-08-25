@@ -13,6 +13,7 @@ from .template_generator import generate_scope3_template
 from .processors import UploadProcessor
 from .report_generator import ReportGenerator
 from .models import UploadSummary, UploadStatus
+from .ghg_config_resolver import resolve_ghg_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,8 @@ async def download_template(
         if not organization_id:
             raise HTTPException(status_code=400, detail="User must belong to an organization")
         
-        template_bytes = await generate_scope3_template(db, organization_id)
+        capabilities = await resolve_ghg_capabilities(db, organization_id)
+        template_bytes = await generate_scope3_template(db, organization_id, capabilities=capabilities)
         
         return StreamingResponse(
             template_bytes,
