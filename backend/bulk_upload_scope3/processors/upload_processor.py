@@ -307,7 +307,19 @@ class UploadProcessor:
                     await self.db.emission_history.insert_many(history_entries)
                     logger.info(f"[BULK_UPLOAD] Created {len(history_entries)} history entries")
             
-            # Update job record
+            # Update job record (include serialized warnings for later download)
+            warning_docs = [
+                {
+                    "sheet": w.sheet,
+                    "row": w.row,
+                    "column": w.column,
+                    "error_type": w.error_type,
+                    "message": w.message,
+                    "suggestion": w.suggestion,
+                    "severity": w.severity.value,
+                }
+                for w in all_warnings
+            ]
             await self.db.bulk_upload_jobs.update_one(
                 {"id": job_id},
                 {"$set": {
@@ -322,6 +334,7 @@ class UploadProcessor:
                     "validate_only": validate_only,
                     "skipped_sheets": skipped_sheets,
                     "preview": preview,
+                    "warnings": warning_docs,
                 }}
             )
             

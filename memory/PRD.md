@@ -781,3 +781,39 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Verified: TTL index created successfully on `bulk_upload_pending_records`.
 - Verified: Template download and backend startup clean.
 - **AUTOMATED TESTING REMAINS PAUSED** at user request.
+
+
+## Change Log — 2026-02: Bulk Upload Remaining Gaps (#1, #2, #4, #5, #8, #10)
+
+### #1: Scope 2 Org-Category Enforcement
+- **DONE:** `scope12_processor.py` `process_scope2_row` now checks `capabilities.scope2_enabled` and rejects rows with `DISABLED_CATEGORY` when Scope 2 is disabled for the org.
+
+### #2: Scope 2 Custom Fuel Auto-Detection
+- **DONE:** Energy sources not found in the database are auto-detected as custom fuel (same pattern as Scope 1).
+- **DONE:** `custom_fuel_enabled` capability enforced — rejects with `CUSTOM_FUEL_DISABLED` if org has it disabled.
+- **DONE:** Custom energy source requires emission factor (`ef_quantity_electricity_co2`); missing EF produces `MISSING_CUSTOM_FUEL_EF`.
+- **DONE:** `CUSTOM_FUEL_DETECTED` warning surfaced; `is_custom_fuel` stored on emission record.
+
+### #4: Rollback for Partial Saves
+- **DONE:** `server.py` save route wraps `insert_many` in try/except with compensating delete (`delete_many` by record IDs).
+- **DONE:** Job status updated to `failed` with error message on rollback.
+- **DONE:** History/audit creation wrapped in non-fatal try/except (failure doesn't break the save).
+
+### #5: Frontend Preview Display
+- **DONE:** `ValidationResultsCard.jsx` renders "Upload Preview" panel (`data-testid='upload-preview-panel'`) when preview data exists.
+- **DONE:** Shows: Valid Records, Standard Fuel, Custom Fuel, Total CO2e, plus scope and methodology badges.
+- **DONE:** `responseTransformer.js` passes `preview` field through.
+
+### #8: Template Org-Disabled Categories Summary
+- **DONE:** `template_generator.py` Instructions sheet includes "YOUR ORGANIZATION'S ENABLED CAPABILITIES" section.
+- **DONE:** Lists Scope 1 (with specific enabled categories), Scope 2, Scope 3 (with disabled category codes), Custom Fuel status, and allowed Process Types.
+- **DONE:** Color-coded: green for ENABLED, red for DISABLED, italic note about server-side enforcement.
+
+### #10: Warnings in Error Report
+- **DONE:** `report_generator.py` `generate_error_report` now combines errors AND warnings, sorted by severity, with Severity column and color-coded rows (red for errors, amber for warnings).
+- **DONE:** `upload_processor.py` serializes warnings to job record for later retrieval.
+- **DONE:** `server.py` error download route fetches `job.warnings` and includes them in the report.
+
+### Testing
+- Automated testing agent: 11/11 backend tests passed, frontend verified.
+- Test report: `/app/test_reports/iteration_18.json`

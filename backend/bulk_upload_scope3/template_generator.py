@@ -799,6 +799,58 @@ class TemplateGenerator:
                 cell.font = Font(size=10)
             ws.column_dimensions['A'].width = 80
         
+        # ── Organization Capabilities Summary ──
+        next_row = len(instructions) + 4
+        
+        ws.cell(row=next_row, column=1, value="YOUR ORGANIZATION'S ENABLED CAPABILITIES:").font = Font(bold=True, size=12, color="1F4E79")
+        next_row += 1
+        
+        # Scope access
+        scope_lines = []
+        if self.capabilities.scope1_enabled:
+            cats = self.capabilities.enabled_scope1_categories()
+            cat_names = {
+                "stationary_combustion": "Stationary Combustion",
+                "mobile_combustion": "Mobile Combustion",
+                "fugitive_emissions": "Fugitive Emissions",
+                "flaring": "Flaring",
+                "process_emissions": "Process Emissions",
+            }
+            cat_list = ", ".join(cat_names.get(c, c) for c in cats)
+            scope_lines.append(f"  Scope 1: ENABLED ({cat_list})")
+        else:
+            scope_lines.append("  Scope 1: DISABLED")
+        
+        scope_lines.append(f"  Scope 2: {'ENABLED' if self.capabilities.scope2_enabled else 'DISABLED'}")
+        
+        if self.capabilities.scope3_enabled:
+            disabled = self.capabilities.disabled_scope3_sheets
+            if disabled:
+                scope_lines.append(f"  Scope 3: ENABLED (disabled categories: {', '.join(sorted(disabled))})")
+            else:
+                scope_lines.append("  Scope 3: ENABLED (all categories)")
+        else:
+            scope_lines.append("  Scope 3: DISABLED")
+        
+        scope_lines.append(f"  Custom Fuel: {'ENABLED' if self.capabilities.custom_fuel_enabled else 'DISABLED'}")
+        
+        if self.capabilities.process_type_options is not None:
+            scope_lines.append(f"  Allowed Process Types: {', '.join(self.capabilities.process_type_options)}")
+        
+        scope_lines.append("")
+        scope_lines.append("NOTE: Only sheets for enabled scopes/categories are included in this template.")
+        scope_lines.append("Server-side validation will also enforce these restrictions during upload.")
+        
+        for line in scope_lines:
+            cell = ws.cell(row=next_row, column=1, value=line)
+            if line.startswith("NOTE:"):
+                cell.font = Font(italic=True, size=10, color="666666")
+            elif "DISABLED" in line:
+                cell.font = Font(size=10, color="CC0000")
+            elif "ENABLED" in line:
+                cell.font = Font(size=10, color="006600")
+            next_row += 1
+        
         # Protect instructions sheet
         ws.protection = SheetProtection(sheet=True, objects=True, scenarios=True)
 
