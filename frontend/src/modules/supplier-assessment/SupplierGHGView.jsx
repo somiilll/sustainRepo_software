@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { Search, Cloud, Factory, Filter, LockOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Cloud, Factory, Filter, LockOpen } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -45,6 +45,7 @@ export default function SupplierGHGView() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
+  const [emissionPage, setEmissionPage] = useState(1);
   const [unlockTarget, setUnlockTarget] = useState(null);
   const [unlocking, setUnlocking] = useState(false);
 
@@ -90,6 +91,15 @@ export default function SupplierGHGView() {
     const matchesScope = scopeFilter === 'all' || e.scope === scopeFilter;
     return matchesSearch && matchesScope;
   });
+  const emissionPageSize = 5;
+  const emissionPageCount = Math.max(1, Math.ceil(filteredEmissions.length / emissionPageSize));
+  const visibleEmissions = filteredEmissions.slice((emissionPage - 1) * emissionPageSize, emissionPage * emissionPageSize);
+  const emissionStart = filteredEmissions.length ? (emissionPage - 1) * emissionPageSize + 1 : 0;
+  const emissionEnd = Math.min(emissionPage * emissionPageSize, filteredEmissions.length);
+
+  useEffect(() => {
+    setEmissionPage(1);
+  }, [search, scopeFilter, reportingPeriod]);
   return (
     <div className="space-y-6" data-testid="supplier-ghg-view">
       {/* Header */}
@@ -262,7 +272,7 @@ export default function SupplierGHGView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEmissions.map((emission) => (
+                {visibleEmissions.map((emission) => (
                   <TableRow key={emission.id}>
                     <TableCell className="font-medium">{emission.supplier_name}</TableCell>
                     <TableCell>{emission.reporting_period}</TableCell>
@@ -282,6 +292,7 @@ export default function SupplierGHGView() {
             </Table>
           )}
         </CardContent>
+        {filteredEmissions.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-100 px-6 py-4" data-testid="supplier-emissions-pagination"><p className="text-xs text-stone-500" data-testid="supplier-emissions-pagination-count">Showing {emissionStart} to {emissionEnd} of {filteredEmissions.length} records</p><div className="flex items-center gap-1"><Button variant="outline" size="icon" className="h-8 w-8" disabled={emissionPage === 1} onClick={() => setEmissionPage((page) => Math.max(1, page - 1))} data-testid="supplier-emissions-previous-page"><ChevronLeft className="h-4 w-4" /></Button><span className="flex h-8 min-w-8 items-center justify-center text-xs font-semibold text-stone-700" data-testid="supplier-emissions-current-page">{emissionPage}</span><Button variant="outline" size="icon" className="h-8 w-8" disabled={emissionPage === emissionPageCount} onClick={() => setEmissionPage((page) => Math.min(emissionPageCount, page + 1))} data-testid="supplier-emissions-next-page"><ChevronRight className="h-4 w-4" /></Button></div></div>}
       </Card>
     </div>
   );
