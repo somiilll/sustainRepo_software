@@ -1,5 +1,13 @@
 # ESG Platform Changelog
 
+## August 25, 2026 — Supplier GHG History Visibility and Audit Parity
+- Removed supplier-facing Version History actions and dialogs from the GHG emissions grid.
+- Non-supplier internal users now use the canonical emission-history view for supplier-sourced records rather than the supplier revision dialog.
+- Added canonical `emission_history` creation events to the supplier-specific GHG create endpoint, matching normal organization record creation.
+- Existing supplier draft edits continue writing field-level updates to `emission_history` through the shared GHG update route.
+- Supplier submission/reopen revision lineage and immutable submitted revisions remain unchanged.
+- Verified with lint checks and 16 focused supplier tests.
+
 ## August 25, 2026 — Supplier GHG Reporting-Period Lock
 - Fixed supplier GHG forms inheriting the supplier organization's calendar-year default instead of the parent-assigned reporting period.
 - Supplier Add now displays the assigned period, such as `FY 2026-27`, and prevents changing the reporting year.

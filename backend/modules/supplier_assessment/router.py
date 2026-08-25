@@ -1291,6 +1291,31 @@ async def create_my_emission(
     
     emission_record["submitted_to_parent_org"] = None
     await db.emission_records.insert_one(emission_record)
+
+    history_new_values = {
+        key: value
+        for key, value in emission_record.items()
+        if key != "_id"
+    }
+    await db.emission_history.insert_one({
+        "id": str(uuid.uuid4()),
+        "emission_id": emission_id,
+        "facility_id": facility_id,
+        "organization_id": current_user["organization_id"],
+        "scope": data.scope,
+        "category": data.category,
+        "changed_by": current_user["id"],
+        "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""),
+        "changed_at": now,
+        "version": 1,
+        "changes_summary": "Supplier emission record created",
+        "changes": {
+            "action": "created",
+            "old_values": None,
+            "new_values": history_new_values,
+        },
+    })
     
     # Update completion status
     await supplier_service._update_completion_status(relationship["id"])

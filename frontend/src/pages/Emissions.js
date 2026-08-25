@@ -50,7 +50,6 @@ import {
   resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
-import SupplierEmissionRevisionDialog from './emissions/components/SupplierEmissionRevisionDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -105,8 +104,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedEmissionHistory, setSelectedEmissionHistory] = useState([]);
-  const [supplierRevisionHistory, setSupplierRevisionHistory] = useState(null);
-  const [supplierRevisionHistoryDialogOpen, setSupplierRevisionHistoryDialogOpen] = useState(false);
   // OCR Prefill Data - from AI Invoice Extractor workflow
   const [ocrPrefillData, setOcrPrefillData] = useState(null);
   // Drive the active scope from the route so /ghg/scope1, /ghg/scope2, etc.
@@ -938,15 +935,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   });
 
   const fetchHistory = async (emission) => {
+    if (isSupplierUser) return;
     try {
-      if (emission.source === 'supplier') {
-        const response = await axios.get(`${API}/supplier-assessment/my-assessment/emissions/${emission.id}/revisions`, {
-          headers: getAuthHeader()
-        });
-        setSupplierRevisionHistory(response.data);
-        setSupplierRevisionHistoryDialogOpen(true);
-        return;
-      }
       const response = await axios.get(`${API}/emissions/${emission.id}/history`, {
         headers: getAuthHeader()
       });
@@ -3295,6 +3285,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             filteredScope3Activities={filteredScope3Activities}
             getMethodLabel={getMethodLabel}
             isRegularUser={isRegularUser}
+            hideHistoryActions={isSupplierUser}
             handleEdit={handleEdit}
             fetchHistory={fetchHistory}
             openDeleteConfirm={openDeleteConfirm}
@@ -3371,11 +3362,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           history={selectedEmissionHistory}
         />
       )}
-      <SupplierEmissionRevisionDialog
-        open={supplierRevisionHistoryDialogOpen}
-        onOpenChange={setSupplierRevisionHistoryDialogOpen}
-        history={supplierRevisionHistory}
-      />
       
       {/* Unsaved Changes Confirmation Dialog (#19) */}
       <AlertDialog open={showUnsavedChangesDialog} onOpenChange={setShowUnsavedChangesDialog}>

@@ -27,6 +27,7 @@ const EmissionTable = ({
   filterFrequency,
   filterDateRange,
   isRegularUser,
+  hideHistoryActions = false,
 }) => {
   // Get activity/sub-category display helper
   const getActivityDisplay = (emission) => {
@@ -283,7 +284,7 @@ const EmissionTable = ({
           >
             <Edit className="w-3.5 h-3.5 text-stone-600" />
           </Button>
-          {!isRegularUser && (
+          {!isRegularUser && !hideHistoryActions && (
             <Button
               size="sm"
               variant="ghost"

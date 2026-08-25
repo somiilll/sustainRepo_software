@@ -54,6 +54,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - For an assigned financial year such as `FY 2025-26`, monthly supplier entries may use only April 2025 through March 2026 and yearly entries must use `FY 2025-26`.
 - Supplier Add forms must display and lock the assigned reporting year; Edit forms must keep the existing in-assignment reporting period read-only.
 - Supplier GHG APIs must reject create or update payloads outside the active assignment and supplier record lists must exclude unrelated periods and relationships.
+- Supplier users must not see GHG Version History icons or history dialogs.
+- Supplier GHG create and edit activity must still be recorded internally in the canonical `emission_history` collection, using the same audit model as normal organization GHG records.
+- Parent/admin users retain internal history access where authorized, while supplier submission/reopen lineage remains separate and unchanged.
 - Require suppliers to acknowledge that submitted ESG and GHG data has been reviewed and verified for accuracy and completeness before final submission is enabled.
 - Enforce the acknowledgement in backend request contracts and store `data_verified`, `data_verified_at`, and `data_verified_by` with the submitted record for auditability.
 - Support versioned Documents responses and Training progress while retaining audit history.
