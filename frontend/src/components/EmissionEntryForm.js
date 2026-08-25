@@ -107,6 +107,7 @@ export default function EmissionEntryForm({
   hasFullKPIAccess = true,
   // Supplier context for supplier portal emissions
   supplierContext = null,
+  assignedReportingPeriod = null,
   // OCR Prefill Data - from AI Invoice Extractor workflow
   ocrPrefillData = null,
   // Future organization-specific GHG configuration. `null` today, which makes
@@ -138,7 +139,7 @@ export default function EmissionEntryForm({
   // custom-activity auto-enable, editingEmission frequency_type/yearlyData load).
   // Those inline useEffects below this block were removed during F2 integration.
   // ============================================================================
-  const _formState = useEmissionFormState({ organization, editingEmission });
+  const _formState = useEmissionFormState({ organization, editingEmission, assignedReportingPeriod });
   const {
     // Step 1: Basic Selection
     facilityId, setFacilityId,
@@ -280,7 +281,10 @@ export default function EmissionEntryForm({
       }
       
       // Hydrate reporting period
-      if (editingEmission.reporting_period) {
+      if (assignedReportingPeriod?.reporting_year) {
+        setReportingYear(assignedReportingPeriod.reporting_year);
+        setReportingYearType(assignedReportingPeriod.reporting_year_type);
+      } else if (editingEmission.reporting_period) {
         const rp = editingEmission.reporting_period;
         // Extract year from reporting period (e.g., "2024-01" or "FY2024")
         const yearMatch = rp.match(/(\d{4})/);
@@ -2830,6 +2834,7 @@ export default function EmissionEntryForm({
     editingEmission,
     // Supplier context (optional)
     supplierContext,
+    assignedReportingPeriod,
     // OCR context (for finalize-import after save)
     ocrPrefillData,
   });
@@ -2967,6 +2972,7 @@ export default function EmissionEntryForm({
           setMonthlyData={setMonthlyData}
           setYearlyData={setYearlyData}
           setExpandedMonths={setExpandedMonths}
+          assignedReportingPeriod={assignedReportingPeriod}
         />
       </EmissionFormSection>
 

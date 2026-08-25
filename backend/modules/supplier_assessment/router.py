@@ -1075,7 +1075,12 @@ async def get_my_emissions_config(current_user: dict = Depends(get_supplier_user
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
     enabled_scopes = relationship.get("ghg_scopes_enabled") or ["scope1", "scope2"]
-    return {"reporting_period": relationship.get("reporting_period"), "enabled_scopes": enabled_scopes, "categories": await _parent_ghg_categories(relationship)}
+    reporting_assignment = ghg_submission_service.describe_reporting_period(relationship.get("reporting_period")) or {}
+    return {
+        **reporting_assignment,
+        "enabled_scopes": enabled_scopes,
+        "categories": await _parent_ghg_categories(relationship),
+    }
 
 
 @router.get(
@@ -1126,8 +1131,18 @@ async def create_my_emission(
     
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
-    if not ghg_submission_service.period_belongs_to_parent(data.reporting_period, relationship.get("reporting_period")):
-        raise HTTPException(status_code=400, detail="Use a month within the reporting period assigned by your customer")
+    if not ghg_submission_service.supplier_emission_period_allowed(
+        data.reporting_period,
+        data.frequency_type,
+        relationship.get("reporting_period"),
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=ghg_submission_service.supplier_period_error(
+                relationship.get("reporting_period"),
+                data.frequency_type,
+            ),
+        )
     
     # Validate scope (only scope1 and scope2 allowed for suppliers)
     allowed_scopes = relationship.get("ghg_scopes_enabled", ["scope1", "scope2"])

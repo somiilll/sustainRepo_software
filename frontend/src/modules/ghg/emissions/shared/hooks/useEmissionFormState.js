@@ -14,7 +14,7 @@ import { useState, useEffect } from 'react';
  * @param {Object} options.editingEmission - Emission being edited (if any)
  * @returns {Object} All state values and setters
  */
-export function useEmissionFormState({ organization = null, editingEmission = null } = {}) {
+export function useEmissionFormState({ organization = null, editingEmission = null, assignedReportingPeriod = null } = {}) {
   // ============================================================================
   // STEP STATE - Form navigation
   // ============================================================================
@@ -108,10 +108,13 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   // Determine organization's reporting year type preference
   const orgReportingYearType = organization?.reporting_year_type;
   const hasOrgYearTypePreference = orgReportingYearType === 'financial_year' || orgReportingYearType === 'calendar_year';
-  const defaultYearType = orgReportingYearType === 'financial_year' ? 'financial' : 'calendar';
+  const defaultYearType = assignedReportingPeriod?.reporting_year_type
+    || (orgReportingYearType === 'financial_year' ? 'financial' : 'calendar');
+  const defaultReportingYear = assignedReportingPeriod?.reporting_year
+    || new Date().getFullYear().toString();
 
   const [reportingYearType, setReportingYearType] = useState(defaultYearType);
-  const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
+  const [reportingYear, setReportingYear] = useState(defaultReportingYear);
   const [frequencyType, setFrequencyType] = useState('monthly');
   const [monthlyData, setMonthlyData] = useState({});
   const [yearlyData, setYearlyData] = useState({});
@@ -145,10 +148,13 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   // EFFECTS: Sync state with organization preferences
   // ============================================================================
   useEffect(() => {
-    if (hasOrgYearTypePreference) {
+    if (assignedReportingPeriod?.reporting_year_type && assignedReportingPeriod?.reporting_year) {
+      setReportingYearType(assignedReportingPeriod.reporting_year_type);
+      setReportingYear(assignedReportingPeriod.reporting_year);
+    } else if (hasOrgYearTypePreference) {
       setReportingYearType(defaultYearType);
     }
-  }, [hasOrgYearTypePreference, defaultYearType]);
+  }, [assignedReportingPeriod, hasOrgYearTypePreference, defaultYearType]);
 
   // Sync decision field values with scope3Method, scope3ActivityType,
   // scope3Subcategory and typeOfProduct (the keys must match decision-tree

@@ -2,7 +2,7 @@ import React from 'react';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Label } from '../../../components/ui/label';
 
-export const DATA_VERIFICATION_STATEMENT = 'I confirm that the information provided has been reviewed and verified for accuracy and completeness.';
+export const DATA_VERIFICATION_STATEMENT = 'I confirm that the information provided is accurate and complete.';
 
 export const SupplierDataVerificationAcknowledgement = ({
   checked,

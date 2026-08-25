@@ -27,7 +27,12 @@ from modules.approvals.emission_flow_v2 import (
 )
 from modules.auth.dependencies import get_current_user
 from modules.entitlements.dependencies import assert_ghg_scope_access, assert_period_row_limit
-from modules.supplier_assessment.ghg_submission_service import exclude_reopened_supplier_submission_revisions
+from modules.supplier_assessment.ghg_submission_service import (
+    exclude_reopened_supplier_submission_revisions,
+    reporting_period_values,
+    supplier_emission_period_allowed,
+    supplier_period_error,
+)
 from modules.emissions.contracts import (
     EmissionBatchRollbackRequest,
     EmissionHistoryResponse,
@@ -936,7 +941,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                 status_code=403,
                 detail=f"You don't have access to create {record_data.scope} emissions for this facility. Check your KPI assignments."
             )
-    
+
     # Validate frequency_type
     frequency_type = record_data.frequency_type or "monthly"
     if frequency_type not in ["monthly", "yearly"]:
@@ -961,6 +966,27 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             raise HTTPException(
                 status_code=400,
                 detail="For monthly frequency, reporting_period must be in format 'YYYY-MM' (e.g., '2025-03')"
+            )
+
+    supplier_relationship = None
+    if current_user.get("user_type") == "supplier":
+        supplier_relationship = await db.supplier_relationships.find_one(
+            {"supplier_org_id": current_user.get("organization_id"), "is_active": True},
+            {"_id": 0, "id": 1, "customer_org_id": 1, "reporting_period": 1},
+        )
+        if not supplier_relationship:
+            raise HTTPException(status_code=403, detail="No active supplier assignment found")
+        if not supplier_emission_period_allowed(
+            reporting_period,
+            frequency_type,
+            supplier_relationship.get("reporting_period"),
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=supplier_period_error(
+                    supplier_relationship.get("reporting_period"),
+                    frequency_type,
+                ),
             )
     
     await assert_period_row_limit(
@@ -1011,12 +1037,9 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     if current_user.get("user_type") == "supplier":
         record_dict["source"] = "supplier"
         # Find the supplier relationship linking this supplier org to a customer
-        supplier_rel = await db.supplier_relationships.find_one(
-            {"supplier_org_id": current_user.get("organization_id"), "is_active": True},
-            {"_id": 0, "id": 1}
-        )
-        if supplier_rel:
-            record_dict["supplier_relationship_id"] = supplier_rel["id"]
+        if supplier_relationship:
+            record_dict["supplier_relationship_id"] = supplier_relationship["id"]
+            record_dict["customer_org_id"] = supplier_relationship.get("customer_org_id")
     
     created_at = datetime.now(timezone.utc).isoformat()
     record_dict["created_at"] = created_at
@@ -1304,6 +1327,30 @@ async def update_emission_record(
     if existing.get("source") == "supplier" and existing.get("submitted_to_parent_org"):
         raise HTTPException(status_code=409, detail="Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.")
 
+    if current_user.get("user_type") == "supplier":
+        supplier_relationship = await db.supplier_relationships.find_one(
+            {"supplier_org_id": current_user.get("organization_id"), "is_active": True},
+            {"_id": 0, "id": 1, "reporting_period": 1},
+        )
+        if (
+            not supplier_relationship
+            or existing.get("source") != "supplier"
+            or existing.get("supplier_relationship_id") != supplier_relationship.get("id")
+        ):
+            raise HTTPException(status_code=403, detail="This GHG record is not part of your active supplier assignment")
+        if not supplier_emission_period_allowed(
+            record_data.reporting_period,
+            record_data.frequency_type,
+            supplier_relationship.get("reporting_period"),
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=supplier_period_error(
+                    supplier_relationship.get("reporting_period"),
+                    record_data.frequency_type,
+                ),
+            )
+
     await _validate_density_requirement(record_data)
     
     org_id = existing.get("organization_id")
@@ -1536,6 +1583,19 @@ async def get_emission_records(
         query["reporting_period"] = reporting_period
     if scope:
         query["scope"] = scope
+
+    if current_user.get("user_type") == "supplier":
+        supplier_relationship = await db.supplier_relationships.find_one(
+            {"supplier_org_id": org_id, "is_active": True},
+            {"_id": 0, "id": 1, "reporting_period": 1},
+        )
+        if not supplier_relationship:
+            return []
+        query.update({
+            "source": "supplier",
+            "supplier_relationship_id": supplier_relationship["id"],
+            "reporting_period": {"$in": reporting_period_values(supplier_relationship.get("reporting_period"))},
+        })
 
     # Use the new fetch_emissions_for_user which combines approved + pending
     records = await fetch_emissions_for_user(current_user, query)

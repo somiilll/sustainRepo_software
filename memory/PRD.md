@@ -50,6 +50,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 ### Supplier Assessment
 - Preserve the module registry and immutable program revision model.
 - Support ESG and GHG immutable submissions with parent-controlled reopen/resubmission.
+- Treat the active supplier relationship's `reporting_period` as the only allowed GHG reporting assignment.
+- For an assigned financial year such as `FY 2025-26`, monthly supplier entries may use only April 2025 through March 2026 and yearly entries must use `FY 2025-26`.
+- Supplier Add forms must display and lock the assigned reporting year; Edit forms must keep the existing in-assignment reporting period read-only.
+- Supplier GHG APIs must reject create or update payloads outside the active assignment and supplier record lists must exclude unrelated periods and relationships.
 - Require suppliers to acknowledge that submitted ESG and GHG data has been reviewed and verified for accuracy and completeness before final submission is enabled.
 - Enforce the acknowledgement in backend request contracts and store `data_verified`, `data_verified_at`, and `data_verified_by` with the submitted record for auditability.
 - Support versioned Documents responses and Training progress while retaining audit history.
