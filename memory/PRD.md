@@ -817,3 +817,23 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 ### Testing
 - Automated testing agent: 11/11 backend tests passed, frontend verified.
 - Test report: `/app/test_reports/iteration_18.json`
+
+
+## Change Log — 2026-02: Upload File Size & Row Count Limits
+
+### Limits Enforced
+- **File size**: 10 MB max — enforced at the router level in `server.py` with HTTP 413 response before any processing begins.
+- **Rows per sheet**: 5,000 max — enforced in `upload_processor.py` via `max_row` pre-check after `load_workbook` and safety-net cap during row iteration.
+- **Total rows**: 25,000 max across all sheets — enforced in `upload_processor.py` pre-check.
+- **Template Instructions**: Limits documented in the Instructions sheet under "UPLOAD LIMITS" section.
+
+### Constants
+- `MAX_ROWS_PER_SHEET = 5000` and `MAX_TOTAL_ROWS = 25000` in `upload_processor.py`.
+- File size limit (10 MB) in `server.py` upload route.
+
+### Testing
+- Verified: 5,001-row sheet → rejected with per-sheet limit error.
+- Verified: 27,000 total rows across 6 sheets → rejected with total limit error.
+- Verified: 10-row file passes limit checks.
+- Verified: 11 MB file → HTTP 413 with clear error message.
+- Verified: Template Instructions shows limits.
