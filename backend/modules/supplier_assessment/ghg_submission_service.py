@@ -148,7 +148,13 @@ async def get_supplier_ghg_state(relationship: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
-async def submit_supplier_ghg(relationship: Dict[str, Any], submitted_by: str) -> Dict[str, Any]:
+async def submit_supplier_ghg(
+    relationship: Dict[str, Any],
+    submitted_by: str,
+    data_verified: bool = False,
+) -> Dict[str, Any]:
+    if not data_verified:
+        raise ValueError("Confirm that the submitted data has been reviewed and verified")
     period_filter = {"reporting_period": {"$in": reporting_period_values(relationship["reporting_period"])}} if relationship.get("reporting_period") else {}
     existing = await db.emission_records.find_one({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}, **period_filter}, {"_id": 0, "id": 1})
     entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": relationship["id"], "$or": [{"submitted_to_parent_org": {"$exists": False}}, {"submitted_to_parent_org": None}], **period_filter}, {"_id": 0}).to_list(5000)
@@ -169,10 +175,10 @@ async def submit_supplier_ghg(relationship: Dict[str, Any], submitted_by: str) -
                 "is_current_revision": True,
             }},
         )
-    submission = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "status": "submitted", "submitted_by": submitted_by, "submitted_at": now, "entry_count": len(entries), "aggregation": aggregate_entries(entries)}
+    submission = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "status": "submitted", "submitted_by": submitted_by, "submitted_at": now, "entry_count": len(entries), "aggregation": aggregate_entries(entries), "data_verified": True, "data_verified_at": now, "data_verified_by": submitted_by}
     if existing:
         await db.emission_records.update_many({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}, {"$set": {"parent_visible": False, "replaced_at": now, "replaced_by_submission_id": submission["id"]}})
-    await db.emission_records.update_many({"id": {"$in": [entry["id"] for entry in entries]}}, {"$set": {"submitted_to_parent_org": now, "submission_id": submission["id"], "submitted_by": submitted_by, "parent_visible": True, "status": "submitted", "approval_status": "submitted"}})
+    await db.emission_records.update_many({"id": {"$in": [entry["id"] for entry in entries]}}, {"$set": {"submitted_to_parent_org": now, "submission_id": submission["id"], "submitted_by": submitted_by, "parent_visible": True, "status": "submitted", "approval_status": "submitted", "data_verified": True, "data_verified_at": now, "data_verified_by": submitted_by}})
     from modules.supplier_assessment.service import supplier_service
     submission["canonical_score"] = await supplier_service.refresh_supplier_canonical_score(relationship["id"])
     return submission

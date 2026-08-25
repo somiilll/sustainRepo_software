@@ -50,6 +50,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 ### Supplier Assessment
 - Preserve the module registry and immutable program revision model.
 - Support ESG and GHG immutable submissions with parent-controlled reopen/resubmission.
+- Require suppliers to acknowledge that submitted ESG and GHG data has been reviewed and verified for accuracy and completeness before final submission is enabled.
+- Enforce the acknowledgement in backend request contracts and store `data_verified`, `data_verified_at`, and `data_verified_by` with the submitted record for auditability.
 - Support versioned Documents responses and Training progress while retaining audit history.
 - Soft-deleted/deactivated suppliers must not retain platform access.
 

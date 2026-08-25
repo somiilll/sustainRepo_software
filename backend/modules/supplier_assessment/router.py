@@ -23,6 +23,7 @@ from modules.supplier_assessment.contracts import (
     QuestionUpdate,
     QuestionResponse,
     SupplierResponsesSubmit,
+    SupplierDataVerificationSubmit,
     SupplierQuestionnaireStatusResponse,
     SupplierRankingResponse,
     ReminderSend,
@@ -1027,6 +1028,8 @@ async def submit_my_answers(
         supplier_org_id=current_user["organization_id"],
         answers=[a.model_dump() for a in data.answers],
         is_draft=data.is_draft,
+        data_verified=data.data_verified,
+        verified_by=current_user["id"],
     )
     
     return result
@@ -1089,12 +1092,16 @@ async def get_my_ghg_emission_revisions(emission_id: str, current_user: dict = D
     return SupplierEmissionRevisionHistoryResponse(**history)
 
 @router.post("/my-assessment/emissions/submit")
-async def submit_my_ghg(current_user: dict = Depends(get_supplier_user)):
+async def submit_my_ghg(data: SupplierDataVerificationSubmit, current_user: dict = Depends(get_supplier_user)):
     relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
     try:
-        submission = await ghg_submission_service.submit_supplier_ghg(relationship, current_user["id"])
+        submission = await ghg_submission_service.submit_supplier_ghg(
+            relationship,
+            current_user["id"],
+            data_verified=data.data_verified,
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     await supplier_service._update_completion_status(relationship["id"])

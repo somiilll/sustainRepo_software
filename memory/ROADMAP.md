@@ -46,6 +46,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Required, auditable supplier data-verification acknowledgement for final ESG and GHG submissions.
 - Organization-aware Bulk Upload templates and validation.
 - Scope 1/2/3 capability parity, Flaring, Process Emissions, and custom-fuel auto-detection.
 - Upload preview summary, 24-hour pending-record TTL, save rollback, and file/row stability limits.
