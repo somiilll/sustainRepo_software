@@ -1,5 +1,13 @@
 # ESG Platform Changelog
 
+## August 25, 2026 — Supplier Dashboard/Base Year/Analysis Locks
+- Locked the main organization Dashboard, GHG Base Year, and GHG Analysis for supplier accounts while preserving the Supplier Assessment dashboard.
+- Added muted navigation text, lock icons, disabled navigation behavior, and the established Premium Module tooltip to all three items.
+- Added explicit direct-route locking so `/dashboard`, `/ghg/base-year`, and `/ghg/analysis` cannot bypass the sidebar restriction.
+- Changed the sidebar logo destination for suppliers to the Supplier Assessment workspace rather than the locked organization Dashboard.
+- Centralized supplier menu keys, routes, and premium tooltip copy in one navigation policy.
+- Verified with 11 focused tests, lint checks, backend health, and an authenticated supplier UI check.
+
 ## August 25, 2026 — Supplier GHG History Visibility and Audit Parity
 - Removed supplier-facing Version History actions and dialogs from the GHG emissions grid.
 - Non-supplier internal users now use the canonical emission-history view for supplier-sourced records rather than the supplier revision dialog.

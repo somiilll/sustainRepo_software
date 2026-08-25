@@ -8,6 +8,11 @@ import { Button } from './ui/button';
 import { ChevronDown, ChevronRight, LogOut, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
+import {
+  isSupplierLockedMenuItem,
+  SUPPLIER_PREMIUM_TOOLTIP,
+} from '../config/supplierNavigation';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -76,8 +81,9 @@ function MenuItem(props) {
   if (!hasAccess(item.key)) return null;
 
   var isSupplier = userType === 'supplier' || orgType === 'supplier';
+  var supplierLocked = isSupplier && isSupplierLockedMenuItem(item.key);
   var supplierAccessibleItem = item.supplierOnly || ['dashboard', 'facilities', 'profile', 'supplier_assessment'].includes(item.key) || item.key === 'environment' || item.key?.startsWith('environment.ghg');
-  var mutedForSupplier = inheritedMuted || (isSupplier && !supplierAccessibleItem);
+  var mutedForSupplier = inheritedMuted || supplierLocked || (isSupplier && !supplierAccessibleItem);
 
   var hasChildren = item.children && item.children.length > 0;
   var active = item.path ? isActive(item.path, location) : false;
@@ -112,6 +118,36 @@ function MenuItem(props) {
     );
   }
 
+  if (supplierLocked) {
+    return React.createElement(TooltipProvider, { delayDuration: 150 },
+      React.createElement(Tooltip, null,
+        React.createElement(TooltipTrigger, { asChild: true },
+          React.createElement('button', {
+            type: 'button',
+            onClick: function(event) { event.preventDefault(); },
+            'aria-disabled': 'true',
+            className: 'flex w-full cursor-not-allowed items-center justify-between gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-stone-400 opacity-55 ' + padClass,
+            'data-testid': 'sidebar-' + item.key,
+          },
+            React.createElement('span', { className: 'flex min-w-0 items-center gap-2.5' },
+              Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
+              React.createElement('span', { className: 'truncate' }, item.label)
+            ),
+            React.createElement(LucideIcons.Lock, { className: 'h-3.5 w-3.5 shrink-0', 'aria-hidden': 'true' })
+          )
+        ),
+        React.createElement(TooltipContent, {
+          side: 'right',
+          className: 'max-w-xs px-3 py-2',
+          'data-testid': 'sidebar-' + item.key + '-premium-tooltip',
+        },
+          React.createElement('p', { className: 'font-semibold', 'data-testid': 'sidebar-' + item.key + '-premium-tooltip-title' }, SUPPLIER_PREMIUM_TOOLTIP.title),
+          React.createElement('p', { className: 'mt-1 leading-relaxed opacity-90', 'data-testid': 'sidebar-' + item.key + '-premium-tooltip-description' }, SUPPLIER_PREMIUM_TOOLTIP.description)
+        )
+      )
+    );
+  }
+
   return React.createElement(Link, {
     to: item.path,
     className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
@@ -131,6 +167,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   const [resolvedConfig, setResolvedConfig] = useState(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
+  const isSupplier = user?.user_type === 'supplier' || user?.org_type === 'supplier';
 
   // Fetch resolved org config for dynamic environment sidebar
   useEffect(() => {
@@ -275,7 +312,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   return (
     <aside className={`fixed inset-y-0 left-0 z-40 flex h-screen w-64 shrink-0 flex-col border-r border-stone-200 bg-white transition-transform duration-200 lg:static lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`} data-testid="main-sidebar">
       <div className="flex h-16 items-center justify-between border-b border-stone-200 px-4">
-        <Link to={isSuperAdmin ? '/super-admin' : '/dashboard'} className="flex items-center gap-2.5">
+        <Link to={isSuperAdmin ? '/super-admin' : isSupplier ? '/supplier-assessment/supplier' : '/dashboard'} className="flex items-center gap-2.5" data-testid="sidebar-logo-link">
           <img src={logoUrl} alt="Logo" className="h-9 w-auto" onError={(e) => { e.target.src = LOGO_FALLBACK; }} />
           <span className="text-lg font-bold text-stone-800 tracking-tight">SustainRepo</span>
         </Link>
