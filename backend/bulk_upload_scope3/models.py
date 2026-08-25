@@ -75,6 +75,7 @@ class UploadSummary(BaseModel):
     warnings: List[ValidationError] = []
     results: List[RowResult] = []
     created_emission_ids: List[str] = []
+    preview: Optional[Dict[str, Any]] = None
 
 
 class BulkUploadJob(BaseModel):

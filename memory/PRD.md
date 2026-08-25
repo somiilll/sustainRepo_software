@@ -761,3 +761,23 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Verified: 7 custom fuel scenarios (auto-detect, disabled, carbon composition, heat basis, no inputs, invalid carbon, invalid oxidation) all produce correct errors/warnings.
 - Verified: Template download includes new columns at correct positions.
 - **AUTOMATED TESTING REMAINS PAUSED** at user request.
+
+
+## Change Log — 2026-02: Upload Preview Summary & Pending Record Cleanup
+
+### Upload Preview Summary
+- **DONE:** `UploadSummary` model now includes an optional `preview` field containing a dry-run breakdown.
+- **DONE:** `UploadProcessor._build_preview()` computes: `total_valid_records`, `standard_fuel_records`, `custom_fuel_records`, `by_scope`, `by_category`, `by_methodology`, `total_co2e_tco2e`.
+- **DONE:** Preview is computed from valid records after validation and included in both the API response and the stored job record (retrievable via `GET /jobs/{job_id}`).
+- **DONE:** `server.py` template download now passes `resolve_ghg_capabilities` to `generate_scope3_template` for org-aware template generation.
+
+### Pending Record Cleanup (P3)
+- **DONE:** Pending records now have an `expires_at` timestamp set 24 hours from upload.
+- **DONE:** MongoDB TTL index (`ttl_expires_at`) on `bulk_upload_pending_records.expires_at` automatically removes stale records.
+- **DONE:** `ensure_bulk_upload_indexes()` called at app startup to guarantee the TTL index exists.
+
+### Testing
+- Verified: Preview builder produces correct counts across scopes, categories, fuel types, and methodologies.
+- Verified: TTL index created successfully on `bulk_upload_pending_records`.
+- Verified: Template download and backend startup clean.
+- **AUTOMATED TESTING REMAINS PAUSED** at user request.

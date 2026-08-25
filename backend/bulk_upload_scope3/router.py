@@ -20,6 +20,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
 
 
+async def ensure_bulk_upload_indexes(db):
+    """Create TTL index on pending records for automatic cleanup (24h)."""
+    try:
+        await db.bulk_upload_pending_records.create_index(
+            "expires_at", expireAfterSeconds=0, name="ttl_expires_at"
+        )
+    except Exception:
+        pass  # Index may already exist
+
+
 def get_db():
     """Dependency to get database connection - will be overridden in main app"""
     raise NotImplementedError("Database dependency must be provided")
