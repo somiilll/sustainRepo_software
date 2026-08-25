@@ -4,6 +4,7 @@ import axios from 'axios';
 import Sidebar from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { AlertTriangle, Menu, X, Lock } from 'lucide-react';
+import { isSupplierLockedRoute, SUPPLIER_PREMIUM_TOOLTIP } from '../config/supplierNavigation';
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -43,10 +44,10 @@ const SupplierLockedOverlay = ({ children }) => (
           <Lock className="w-10 h-10 text-emerald-600" />
         </div>
         <h3 className="text-xl font-semibold text-stone-800 mb-3">
-          Premium Module
+          {SUPPLIER_PREMIUM_TOOLTIP.title}
         </h3>
         <p className="text-stone-500 text-sm mb-6 leading-relaxed">
-          Subscribe to unlock this module and access advanced ESG management features for your organization.
+          {SUPPLIER_PREMIUM_TOOLTIP.description}
         </p>
         <button className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
           Contact Sales
@@ -70,6 +71,7 @@ export default function Layout() {
   const isAllowedRoute = SUPPLIER_ALLOWED_ROUTES.some(route => 
     location.pathname === route || location.pathname.startsWith(route + '/')
   );
+  const isExplicitlyLockedSupplierRoute = isSupplierLockedRoute(location.pathname);
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -164,7 +166,7 @@ export default function Layout() {
               }
             >
             {/* Show locked overlay for suppliers on restricted routes */}
-            {isSupplier && !isAllowedRoute ? (
+            {isSupplier && (isExplicitlyLockedSupplierRoute || !isAllowedRoute) ? (
               <SupplierLockedOverlay>
                 <Outlet />
               </SupplierLockedOverlay>
