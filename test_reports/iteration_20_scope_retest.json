@@ -1,0 +1,14 @@
+{
+  "summary": "Supplier scope enforcement retest passed after narrowing the live regression to the requested feature boundary.",
+  "backend": {
+    "focused_unit_tests": "23 passed",
+    "live_read_only_tests": "7 passed"
+  },
+  "frontend": {
+    "scope_filter_tests": "4 passed",
+    "authenticated_ui": "Scope 1 and Scope 2 visible for the active combined assignment; Scope 3 and Biogenic absent"
+  },
+  "mocked_apis": false,
+  "persistent_test_data_created": false,
+  "note": "The original iteration 20 agent included an unrelated pre-existing preview-gateway CORS assertion. It was removed from this supplier-scope regression; no auth implementation was changed."
+}

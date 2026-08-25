@@ -30,6 +30,7 @@ from modules.entitlements.dependencies import assert_ghg_scope_access, assert_pe
 from modules.supplier_assessment.ghg_submission_service import (
     exclude_reopened_supplier_submission_revisions,
     reporting_period_values,
+    resolve_effective_supplier_ghg_scopes,
     supplier_emission_period_allowed,
     supplier_period_error,
 )
@@ -976,6 +977,12 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         )
         if not supplier_relationship:
             raise HTTPException(status_code=403, detail="No active supplier assignment found")
+        allowed_supplier_scopes = await resolve_effective_supplier_ghg_scopes(supplier_relationship)
+        if record_data.scope not in allowed_supplier_scopes:
+            raise HTTPException(
+                status_code=403,
+                detail=f"{record_data.scope} is not assigned by your customer. Allowed scopes: {', '.join(allowed_supplier_scopes) or 'none'}",
+            )
         if not supplier_emission_period_allowed(
             reporting_period,
             frequency_type,
@@ -1338,6 +1345,12 @@ async def update_emission_record(
             or existing.get("supplier_relationship_id") != supplier_relationship.get("id")
         ):
             raise HTTPException(status_code=403, detail="This GHG record is not part of your active supplier assignment")
+        allowed_supplier_scopes = await resolve_effective_supplier_ghg_scopes(supplier_relationship)
+        if record_data.scope not in allowed_supplier_scopes:
+            raise HTTPException(
+                status_code=403,
+                detail=f"{record_data.scope} is not assigned by your customer. Allowed scopes: {', '.join(allowed_supplier_scopes) or 'none'}",
+            )
         if not supplier_emission_period_allowed(
             record_data.reporting_period,
             record_data.frequency_type,
@@ -1594,6 +1607,7 @@ async def get_emission_records(
         query.update({
             "source": "supplier",
             "supplier_relationship_id": supplier_relationship["id"],
+            "scope": {"$in": await resolve_effective_supplier_ghg_scopes(supplier_relationship)},
             "reporting_period": {"$in": reporting_period_values(supplier_relationship.get("reporting_period"))},
         })
 

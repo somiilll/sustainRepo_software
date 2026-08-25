@@ -81,7 +81,7 @@ async def get_customer_admin(current_user: dict = Depends(get_admin_user)):
 
 async def _parent_ghg_categories(relationship: dict) -> dict:
     """Return the parent organization's configured Scope 1/2 categories for one supplier program."""
-    enabled_scopes = relationship.get("ghg_scopes_enabled") or ["scope1", "scope2"]
+    enabled_scopes = await ghg_submission_service.resolve_effective_supplier_ghg_scopes(relationship)
     records = await db.emission_records.find(
         {
             "organization_id": relationship["customer_org_id"],
@@ -1065,7 +1065,11 @@ async def get_my_ghg_submission(current_user: dict = Depends(get_supplier_user))
         {"_id": 0, "name": 1},
     ) or {}
     state = await ghg_submission_service.get_supplier_ghg_state(relationship)
-    return {**state, "customer_name": customer_org.get("name") or "your customer"}
+    return {
+        **state,
+        "customer_name": customer_org.get("name") or "your customer",
+        "enabled_scopes": await ghg_submission_service.resolve_effective_supplier_ghg_scopes(relationship),
+    }
 
 
 @router.get("/my-assessment/emissions/config")
@@ -1074,7 +1078,7 @@ async def get_my_emissions_config(current_user: dict = Depends(get_supplier_user
     relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
-    enabled_scopes = relationship.get("ghg_scopes_enabled") or ["scope1", "scope2"]
+    enabled_scopes = await ghg_submission_service.resolve_effective_supplier_ghg_scopes(relationship)
     reporting_assignment = ghg_submission_service.describe_reporting_period(relationship.get("reporting_period")) or {}
     return {
         **reporting_assignment,
@@ -1145,7 +1149,7 @@ async def create_my_emission(
         )
     
     # Validate scope (only scope1 and scope2 allowed for suppliers)
-    allowed_scopes = relationship.get("ghg_scopes_enabled", ["scope1", "scope2"])
+    allowed_scopes = await ghg_submission_service.resolve_effective_supplier_ghg_scopes(relationship)
     if data.scope not in allowed_scopes:
         raise HTTPException(
             status_code=400, 
