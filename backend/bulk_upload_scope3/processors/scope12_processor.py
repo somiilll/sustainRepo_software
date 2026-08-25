@@ -438,7 +438,7 @@ class Scope12RowProcessor:
         # 3. Validate reporting period
         errors.extend(self._validate_reporting_period(row_data, row_num, sheet_name))
         
-        # 4. Validate category
+        # 4. Validate category (with org-level enforcement)
         category = row_data.get("category", "").strip()
         category_key = self._normalize_category(category)
         if not category:
@@ -457,10 +457,19 @@ class Scope12RowProcessor:
                 suggestion="Use: Purchased Electricity or Purchased Steam/Heat",
                 severity=ErrorSeverity.ERROR
             ))
+        elif not self.capabilities.scope2_enabled:
+            errors.append(ValidationError(
+                sheet=sheet_name, row=row_num, column="Category",
+                error_type="DISABLED_CATEGORY",
+                message="Scope 2 is disabled for your organization",
+                suggestion="Contact your administrator to enable Scope 2",
+                severity=ErrorSeverity.ERROR
+            ))
         
-        # 5. Validate energy used
+        # 5. Validate energy used (with custom fuel auto-detection)
         energy_name = row_data.get("energy_used", "").strip()
         fuel_data = None
+        is_custom_fuel = False
         facility_sector = facility.get("sector") if facility else None
         
         if not energy_name:
@@ -473,13 +482,38 @@ class Scope12RowProcessor:
         else:
             fuel_data = await self.get_fuel_by_name(energy_name, category=category, sector=facility_sector)
             if not fuel_data:
-                errors.append(ValidationError(
-                    sheet=sheet_name, row=row_num, column="Energy Used",
-                    error_type="INVALID_ENERGY",
-                    message=f"Energy '{energy_name}' not found in database",
-                    suggestion="Check energy name spelling or use exact name from database",
-                    severity=ErrorSeverity.ERROR
-                ))
+                is_custom_fuel = True
+                if not self.capabilities.custom_fuel_enabled:
+                    errors.append(ValidationError(
+                        sheet=sheet_name, row=row_num, column="Energy Used",
+                        error_type="CUSTOM_FUEL_DISABLED",
+                        message=f"Energy '{energy_name}' not found in database and custom fuel is disabled for your organization",
+                        suggestion="Use an energy source from the database, or contact your administrator to enable custom fuel",
+                        severity=ErrorSeverity.ERROR
+                    ))
+                else:
+                    ef_value = row_data.get("ef_quantity_electricity_co2")
+                    if not ef_value:
+                        errors.append(ValidationError(
+                            sheet=sheet_name, row=row_num, column="Emission Factor",
+                            error_type="MISSING_CUSTOM_FUEL_EF",
+                            message=f"Emission factor is required when using custom energy source '{energy_name}'",
+                            suggestion="Provide an emission factor value in the Emission Factor column",
+                            severity=ErrorSeverity.ERROR
+                        ))
+                    else:
+                        fuel_data = {
+                            "id": None,
+                            "fuel_name": energy_name,
+                            "fuel_code": None,
+                            "is_custom": True,
+                        }
+                        warnings.append(ValidationError(
+                            sheet=sheet_name, row=row_num, column="Energy Used",
+                            error_type="CUSTOM_FUEL_DETECTED",
+                            message=f"Energy '{energy_name}' not found in database — will be treated as custom energy source",
+                            severity=ErrorSeverity.WARNING
+                        ))
         
         # 6. Validate mandatory fields
         mandatory_errors = self._validate_mandatory_fields(row_data, row_num, sheet_name, config)
@@ -1101,6 +1135,7 @@ class Scope12RowProcessor:
             "fuel_type": fuel_data.get("fuel_name"),
             "fuel_database_id": fuel_data.get("id"),
             "formula_id": formula_id,
+            "is_custom_fuel": fuel_data.get("is_custom", False),
             "dynamic_field_values": dynamic_field_values,
             "outputs": outputs,
             "co2_emissions": outputs.get("co2", {}).get("value", 0) if outputs else 0,

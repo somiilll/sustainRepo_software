@@ -3469,42 +3469,63 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
     
     # Insert records into emission_records collection (same as manual entry)
     if records_to_save:
-        await db.emission_records.insert_many(records_to_save)
-        created_ids = [r["id"] for r in records_to_save]
-        logger.info(f"[BULK_SAVE] Job {job_id}: Inserted {len(created_ids)} emission records")
+        created_ids = []
+        try:
+            await db.emission_records.insert_many(records_to_save)
+            created_ids = [r["id"] for r in records_to_save]
+            logger.info(f"[BULK_SAVE] Job {job_id}: Inserted {len(created_ids)} emission records")
+        except Exception as insert_err:
+            # Compensating rollback: remove any partially inserted records
+            partial_ids = [r["id"] for r in records_to_save]
+            rollback_result = await db.emission_records.delete_many({"id": {"$in": partial_ids}})
+            logger.error(
+                f"[BULK_SAVE] Job {job_id}: insert_many failed ({insert_err}). "
+                f"Rolled back {rollback_result.deleted_count}/{len(partial_ids)} partial records."
+            )
+            await db.bulk_upload_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "failed", "error_message": f"Save failed and rolled back: {str(insert_err)}"}}
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to save records. All partial inserts have been rolled back. Error: {str(insert_err)}"
+            )
         
         # Create emission_history entries for version tracking
-        now = datetime.now(timezone.utc)
-        history_entries = []
-        for record in records_to_save:
-            history_entries.append({
-                "id": str(uuid.uuid4()),
-                "emission_id": record["id"],
-                "scope": record.get("scope", "scope3"),
-                "category": record.get("category", ""),
-                "reporting_month": record.get("reporting_period"),
-                "changed_by": current_user["id"],
-                "changed_by_email": current_user.get("email", ""),
-                "changed_by_name": current_user.get("full_name", ""),
-                "changed_at": now.isoformat(),
-                "version": 1,
-                "field_changes": [],
-                "changes_summary": "Initial creation via bulk upload",
-                "changes": {
-                    "action": "created",
-                    "old_values": None,
-                    "new_values": {
-                        "facility_id": record.get("facility_id"),
-                        "reporting_period": record.get("reporting_period"),
-                        "category": record.get("category"),
-                        "co2e_emissions": record.get("co2e_emissions"),
-                        "total_emissions": record.get("total_emissions"),
+        try:
+            now = datetime.now(timezone.utc)
+            history_entries = []
+            for record in records_to_save:
+                history_entries.append({
+                    "id": str(uuid.uuid4()),
+                    "emission_id": record["id"],
+                    "scope": record.get("scope", "scope3"),
+                    "category": record.get("category", ""),
+                    "reporting_month": record.get("reporting_period"),
+                    "changed_by": current_user["id"],
+                    "changed_by_email": current_user.get("email", ""),
+                    "changed_by_name": current_user.get("full_name", ""),
+                    "changed_at": now.isoformat(),
+                    "version": 1,
+                    "field_changes": [],
+                    "changes_summary": "Initial creation via bulk upload",
+                    "changes": {
+                        "action": "created",
+                        "old_values": None,
+                        "new_values": {
+                            "facility_id": record.get("facility_id"),
+                            "reporting_period": record.get("reporting_period"),
+                            "category": record.get("category"),
+                            "co2e_emissions": record.get("co2e_emissions"),
+                            "total_emissions": record.get("total_emissions"),
+                        }
                     }
-                }
-            })
-        if history_entries:
-            await db.emission_history.insert_many(history_entries)
-            logger.info(f"[BULK_SAVE] Job {job_id}: Created {len(history_entries)} history entries")
+                })
+            if history_entries:
+                await db.emission_history.insert_many(history_entries)
+                logger.info(f"[BULK_SAVE] Job {job_id}: Created {len(history_entries)} history entries")
+        except Exception as hist_err:
+            logger.warning(f"[BULK_SAVE] Job {job_id}: History creation failed (non-fatal): {hist_err}")
         
         # Create audit log entry for bulk upload
         scope_counts = {}
@@ -3582,6 +3603,20 @@ async def download_scope3_error_report(job_id: str, current_user: dict = Depends
         for e in errors
     ]
     
+    # Also fetch warnings stored on the job record
+    warning_objects = []
+    job_warnings = job.get("warnings", [])
+    for w in job_warnings:
+        warning_objects.append(ValidationError(
+            sheet=w.get("sheet", ""),
+            row=w.get("row", 0),
+            column=w.get("column"),
+            error_type=w.get("error_type", ""),
+            message=w.get("message", ""),
+            suggestion=w.get("suggestion"),
+            severity=ErrorSeverity.WARNING,
+        ))
+    
     summary = UploadSummary(
         job_id=job_id,
         status=UploadStatus(job.get("status", "completed")),
@@ -3591,7 +3626,8 @@ async def download_scope3_error_report(job_id: str, current_user: dict = Depends
         warning_count=job.get("warning_count", 0),
         categories_processed=job.get("categories_processed", []),
         total_emissions_tco2e=job.get("total_emissions_tco2e", 0),
-        errors=error_objects
+        errors=error_objects,
+        warnings=warning_objects,
     )
     
     report_bytes = ReportGenerator.generate_error_report(summary)
