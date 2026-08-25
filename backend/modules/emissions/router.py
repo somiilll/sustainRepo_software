@@ -26,7 +26,7 @@ from modules.approvals.emission_flow_v2 import (
     PENDING_STATUSES,
 )
 from modules.auth.dependencies import get_current_user
-from modules.entitlements.dependencies import assert_ghg_scope_access, assert_monthly_row_limit
+from modules.entitlements.dependencies import assert_ghg_scope_access, assert_period_row_limit
 from modules.supplier_assessment.ghg_submission_service import exclude_reopened_supplier_submission_revisions
 from modules.emissions.contracts import (
     EmissionBatchRollbackRequest,
@@ -963,13 +963,13 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                 detail="For monthly frequency, reporting_period must be in format 'YYYY-MM' (e.g., '2025-03')"
             )
     
-    if frequency_type == "monthly":
-        await assert_monthly_row_limit(
-            org_id,
-            "ghg",
-            "emission_records",
-            {"organization_id": org_id, "frequency_type": "monthly"},
-        )
+    await assert_period_row_limit(
+        org_id,
+        "ghg",
+        "emission_records",
+        frequency_type,
+        reporting_period,
+    )
     
     record_dict = record_data.model_dump()
     record_id = str(uuid.uuid4())
