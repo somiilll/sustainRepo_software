@@ -32,6 +32,7 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - BRSR Internal AI repair.
 
 ### Session 2 (Current)
+- **Supplier Assessment Ranking Overview reference alignment — DONE (2026-08-25):** Added icon-led, green-underlined ranking tabs; distinct Excellent, Good, and Needs Attention cards; and visible ESG scores in Attention Required rows. The shared sidebar now has a narrow-screen menu control for accessing the ranking view. **TESTING PAUSED at user request.**
 - **C6 create-form calculation method containment** — DONE (2026-08-19)
   - Replaced the Scope 3 calculation-method native dropdown with a collision-aware select menu and contained the create dialog horizontally without changing form data or calculation behavior.
   - Restored the desktop dialog to its standard 1152px maximum width while ensuring the form root can shrink on narrow screens; facility/scope selection now stacks responsively before controls can be clipped.
@@ -211,6 +212,7 @@ Maintain the frozen core GHG engine while extending Supplier Assessment through 
 - Immutable submission and parent-controlled unlock workflow — **DONE (2026-08-23)**. Follow-up: add disposable deterministic fixtures for complete unlock/resubmit mutation coverage without altering shared preview data.
 
 ### P1 — Upcoming
+- RBAC consolidation: centralized policy resolver, Super Admin “Admins & Users”, Plant Head/Normal User profiles, and write-only read-leakage protection — **DEFERRED for later by user**.
 - Custom Dashboard (consume `kpi_cards`)
 - Target Settings UI (`target_direction` config)
 - SHA-256 Evidence Integrity on upload

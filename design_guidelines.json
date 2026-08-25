@@ -1,74 +1,136 @@
 {
-  "persona_and_vision": "E1: Top 1% Creative Designer. Organic & Earthy archetype tailored for ESG (Environmental, Social, Governance) compliance. Rejects typical 'SaaS Blue' in favor of grounded, trust-building aesthetics.",
   "typography": {
-    "headings": "Cabinet Grotesk",
-    "body": "IBM Plex Sans",
-    "rules": {
-      "h1": "text-4xl sm:text-5xl tracking-tight leading-none text-forest-900",
-      "h2": "text-2xl sm:text-3xl tracking-tight text-forest-800",
-      "body_text": "text-base leading-relaxed text-charcoal-700",
-      "labels": "text-xs uppercase tracking-[0.2em] font-medium text-stone-500",
-      "anti_patterns": "DO NOT use Inter, Roboto, or Open Sans for headings. NEVER use text-7xl+ for dashboards."
-    }
+    "font_family": {
+      "heading": "Cabinet Grotesk",
+      "body": "Inter",
+      "mono": "JetBrains Mono"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 dark:text-white",
+      "h2": "text-2xl sm:text-3xl font-semibold tracking-tight text-slate-800 dark:text-slate-100",
+      "h3": "text-xl sm:text-2xl font-medium tracking-tight text-slate-800 dark:text-slate-100",
+      "h4": "text-lg font-medium text-slate-700 dark:text-slate-200",
+      "body": "text-base leading-relaxed text-slate-600 dark:text-slate-300",
+      "small": "text-sm text-slate-500 dark:text-slate-400",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-slate-500"
+    },
+    "rules": [
+      "No generic sans fonts for headings. Use Cabinet Grotesk.",
+      "Headings must use tight tracking.",
+      "Never center-align paragraphs; maintain left alignment for readability."
+    ]
   },
   "colors": {
-    "archetype": "Organic & Earthy (Trust, Growth, Calm)",
+    "archetype": "ORGANIC & EARTHY",
+    "theme": "Light preferred, Dark mode supported",
     "palette": {
-      "background": "#F9F8F6 (Warm Sand/Bone White)",
-      "surface": "#FFFFFF (Pure White) with 1px border-stone-200",
-      "primary": "#1A3626 (Deep Forest Green)",
-      "accent": "#4A6B53 (Moss)",
-      "text_primary": "#1C1C1C (Deep Charcoal)",
-      "text_secondary": "#57534E (Stone 600)",
-      "disabled": "#D6D3D1 (Stone 300)"
+      "primary": "#2D5A27",
+      "primary_hover": "#224A1D",
+      "secondary": "#E8F0E6",
+      "background": "#FAFAFA",
+      "surface": "#FFFFFF",
+      "text_primary": "#1A1C19",
+      "text_secondary": "#4A4D49",
+      "border": "#E5E7E5",
+      "success": "#16A34A",
+      "warning": "#D97706",
+      "critical": "#DC2626",
+      "accent_sage": "#86A789",
+      "accent_terracotta": "#C97A7E"
     },
-    "rules": "No pure black or pure white without purpose. No full-screen gradients. Use solid colors with crisp 1px borders for UI surfaces."
+    "rules": [
+      "Use tinted greys instead of pure #000000 or #808080.",
+      "Ensure all text meets APCA/WCAG AA contrast standards.",
+      "Hover states must be explicitly defined and have higher contrast.",
+      "Reserve red strictly for critical risks/needs attention to prevent alert fatigue."
+    ]
   },
-  "layout_and_spacing": {
-    "strategy": "The Bento Grid Protocol (Dashboard Density)",
-    "onboarding_launchpad": "Use grid-cols-1 md:grid-cols-12 gap-6. Active step (Facility Info) takes col-span-12 or col-span-8 with prominent CTA. Future steps (Assessments, Tasks) take col-span-4 or stack elegantly.",
-    "spacing_scale": "Generous Spacing. Use p-6, p-8, p-12. Avoid cramped p-2/p-4 unless deep inside a component.",
-    "alignment": "Left-align dense text and forms. Left-align CTAs relative to container."
+  "visual_enhancers": {
+    "surfaces": [
+      "Flat solid backgrounds with subtle 1px border (`border-border`) and no shadow by default for Dashboard Cards.",
+      "Hover on interactive cards: Slight lift (`-translate-y-1`) and subtle shadow (`shadow-lg`).",
+      "Use Crystal Glass for sticky headers (`backdrop-blur-xl bg-white/70` with `border-b border-white/20`)."
+    ],
+    "components": [
+      "Shadcn UI strictly for interactive logic (Tabs, Dropdowns, Dialogs, Select).",
+      "Bento Grid for layout structures.",
+      "For KPI Cards, use `rounded-xl`, tight padding, and clear hierarchical typography.",
+      "Do NOT use completely transparent backgrounds for overlapping elements like Dropdowns."
+    ]
   },
-  "components_and_features": {
-    "onboarding_checklist": {
-      "style": "Not a rigid wizard. A launchpad. Cards with crisp 1px borders.",
-      "active_step": "Surface: White. Border: 2px solid #1A3626. Features the primary 'Continue Setup' CTA.",
-      "completed_step": "Surface: Stone-50 (dimmed). Shows a green checkmark or 'Completed' badge.",
-      "future_step": "Surface: White. Border: 1px solid Stone-200. No primary CTA until prerequisites are met."
-    },
-    "unavailable_modules": {
-      "style": "De-emphasize visually to avoid distracting from core tasks.",
-      "classes": "opacity-40 grayscale cursor-not-allowed hover:none transition-none",
-      "context": "Applies to Social, Environment, Energy, Water modules if the supplier shouldn't access them yet."
-    },
-    "headers_and_nav": {
-      "style": "Crystal Glassmorphism if floating (backdrop-blur-xl bg-white/80 border-b border-stone-200), OR Solid White with crisp bottom border.",
-      "anti_pattern": "NEVER use a fully transparent header over content."
-    },
-    "buttons": {
-      "primary": "bg-[#1A3626] text-white hover:bg-[#132A1C] transition-colors rounded-md px-6 py-3 font-medium shadow-sm",
-      "secondary": "bg-transparent border border-[#1A3626] text-[#1A3626] hover:bg-stone-100 transition-colors rounded-md px-6 py-3 font-medium"
+  "component_name": "SupplierAssessmentRankingOverview",
+  "grids": {
+    "strategy": "High Density Grid (For Dashboards/Analytics)",
+    "kpi_row": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 or gap-6",
+    "main_content": "grid grid-cols-1 lg:grid-cols-12 gap-6",
+    "rules": [
+      "Mobile-first: default to grid-cols-1.",
+      "Grid children must be direct children.",
+      "Ensure `h-full` is used so side-by-side cards match heights."
+    ]
+  },
+  "layouts": {
+    "page_structure": "Flex column, min-h-screen",
+    "header": "Sticky header with Title, Breadcrumbs, and active User Role indicator.",
+    "kpi_section": "4-column grid displaying Suppliers Assessed, Avg ESG Score, Top Performer, Needs Attention.",
+    "tabs_section": "Shadcn Tabs: Overview, ESG Analysis, Emissions, Detailed Rankings. Active: Overview.",
+    "summary_bar": "Flex row showing summary counts: Excellent (0), Good (0), Needs attention (1).",
+    "body_section": "12-column grid. Left (col-span-4): Overall Score Distribution. Right (col-span-8): Assessment Module Coverage.",
+    "tables_section": "Grid of 2 (col-span-6 each) for 'Top Performing Suppliers' and 'Attention Required' with 'View all' action links."
+  },
+  "motion": {
+    "rules": [
+      "Staggered entrance animations for KPI cards and list items.",
+      "Hover effects on table rows (subtle background change).",
+      "Click/Press states on all buttons and tabs.",
+      "Respect `prefers-reduced-motion`.",
+      "Exclude transforms from universal `transition: all`."
+    ]
+  },
+  "accessibility": {
+    "rules": [
+      "All interactive elements MUST have `data-testid` (e.g., `data-testid=\"supplier-kpi-needs-attention\"`).",
+      "Focus states must have high contrast rings.",
+      "Use `aria-hidden=\"true\"` for decorative SVGs.",
+      "Ensure sufficient color contrast for the Overall Score Distribution categories (Excellent, Good, Needs Improvement, Critical)."
+    ]
+  },
+  "media": {
+    "image_urls": [],
+    "icons": {
+      "library": "lucide-react",
+      "usage": "Use icons for KPI cards (e.g., Users, TrendingUp, Award, AlertTriangle) and list item avatars."
     }
   },
-  "motion_and_interaction": {
-    "hover_states": "All interactive elements MUST have hover states (e.g., hover:-translate-y-0.5, hover:shadow-md).",
-    "transitions": "transition-all duration-200 ease-in-out. DO NOT use generic 'transition: all' in CSS files if it breaks transforms.",
-    "entrance": "Staggered fade-in-up for checklist items."
-  },
-  "accessibility_and_testing": {
-    "contrast": "Ensure minimum 4.5:1 for standard text against backgrounds.",
-    "testing_attributes": "CRITICAL: All interactive elements MUST have `data-testid` (e.g., `data-testid=\"onboarding-facility-setup-btn\"`).",
-    "focus_states": "focus:ring-2 focus:ring-[#4A6B53] focus:outline-none focus-visible:ring-offset-2"
-  },
-  "universal_guidelines_for_main_agent": [
-    "Use .js files (JSX), NOT .tsx files. Do not write TypeScript.",
-    "DO NOT create generic centered layouts (e.g., .App { text-align: center; }).",
-    "Use 2-3x more spacing than feels comfortable.",
-    "Never use placeholder AI emojis.",
-    "Reuse existing components from src/components/ui.",
-    "For toasts, use 'sonner' if applicable.",
-    "Ensure unavailable modules (Energy, Water, etc.) are visually muted (opacity-50, grayscale) to establish hierarchy.",
-    "Do not redesign existing facility or task modules; focus purely on the launchpad/entry-point experience."
+  "3d_libraries": null,
+  "instructions_to_main_agent": [
+    "Phase 1: Create the SupplierAssessmentRankingOverview component based on the extracted PDF layout.",
+    "Phase 2: Implement the KPI Row containing: Assessed, Avg ESG Score, Top Performer, Needs Attention.",
+    "Phase 3: Implement Shadcn Tabs for navigating the Assessment views.",
+    "Phase 4: Implement 'Overall Score Distribution' widget using clean Progress Bars or a Recharts Donut.",
+    "Phase 5: Implement 'Assessment Module Coverage' widget showing ESG, GHG, Documents, and Training percentages.",
+    "Phase 6: Implement dual tables for 'Top Performing Suppliers' and 'Attention Required'.",
+    "Phase 7 (RBAC Integration): Implement conditional rendering based on the new Role-Based Access Control logic.",
+    "RBAC Rule 1: 'Admins & Users' module replaces previous configs. Super Admins can manage both.",
+    "RBAC Rule 2: Normal Users with 'write-only' access should see a restricted view or a 'Data Submitted' screen instead of the full ranking overview.",
+    "RBAC Rule 3: 'Plant Head' role should only see aggregated data for their assigned plants.",
+    "Always apply 'data-testid' to critical DOM elements.",
+    "Create `.js` or `.jsx` files inside `/app/frontend/src/pages/` or `/app/frontend/src/modules/supplier-assessment/` as appropriate."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. Make creative, distinctive frontends.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: `transition: all`. Always add transitions for specific interactive elements.",
+    "You MUST NOT center align the app container. Do not add `.App { text-align: center; }`.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations.",
+    "NEVER use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, entrance animations.",
+    "Use generous spacing (2-3x more than usual).",
+    "Prioritize using pre-existing components from src/components/ui.",
+    "Use sonner for toasts, located in /app/src/components/ui/sonner.jsx.",
+    "All interactive elements MUST include a data-testid attribute in kebab-case."
   ]
 }

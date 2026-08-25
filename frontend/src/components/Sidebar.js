@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import sidebarConfig from '../config/sidebarConfig';
 import { Button } from './ui/button';
-import { ChevronDown, ChevronRight, LogOut } from 'lucide-react';
+import { ChevronDown, ChevronRight, LogOut, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
 
@@ -122,7 +122,7 @@ function MenuItem(props) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen, onMobileClose }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
@@ -273,12 +273,13 @@ export default function Sidebar() {
   if (!user) return null;
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-stone-200 bg-white" data-testid="main-sidebar">
-      <div className="flex h-16 items-center border-b border-stone-200 px-4">
+    <aside className={`fixed inset-y-0 left-0 z-40 flex h-screen w-64 shrink-0 flex-col border-r border-stone-200 bg-white transition-transform duration-200 lg:static lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`} data-testid="main-sidebar">
+      <div className="flex h-16 items-center justify-between border-b border-stone-200 px-4">
         <Link to={isSuperAdmin ? '/super-admin' : '/dashboard'} className="flex items-center gap-2.5">
           <img src={logoUrl} alt="Logo" className="h-9 w-auto" onError={(e) => { e.target.src = LOGO_FALLBACK; }} />
           <span className="text-lg font-bold text-stone-800 tracking-tight">SustainRepo</span>
         </Link>
+        <Button type="button" variant="ghost" size="icon" className="lg:hidden" onClick={onMobileClose} aria-label="Close navigation menu" data-testid="mobile-sidebar-close-button"><X className="h-5 w-5" /></Button>
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3" data-testid="sidebar-nav">
