@@ -80,6 +80,47 @@ class UploadProcessor:
         
         return False
     
+    @staticmethod
+    def _build_preview(valid_records: list) -> dict:
+        """Build a dry-run preview summary from validated records.
+
+        Returns a dict with counts by scope, category, fuel type (standard vs
+        custom), and methodology — giving users a clear picture of what will be
+        saved before they confirm.
+        """
+        by_scope: Dict[str, int] = {}
+        by_category: Dict[str, int] = {}
+        standard_fuel_count = 0
+        custom_fuel_count = 0
+        by_methodology: Dict[str, int] = {}
+        total_co2e = 0.0
+
+        for rec in valid_records:
+            scope = rec.get("scope", "unknown")
+            by_scope[scope] = by_scope.get(scope, 0) + 1
+
+            cat = rec.get("category", "Unknown")
+            by_category[cat] = by_category.get(cat, 0) + 1
+
+            if rec.get("is_custom_fuel"):
+                custom_fuel_count += 1
+                meth = rec.get("calculation_methodology", "unknown")
+                by_methodology[meth] = by_methodology.get(meth, 0) + 1
+            else:
+                standard_fuel_count += 1
+
+            total_co2e += rec.get("co2e_emissions", 0) or 0
+
+        return {
+            "total_valid_records": len(valid_records),
+            "standard_fuel_records": standard_fuel_count,
+            "custom_fuel_records": custom_fuel_count,
+            "by_scope": by_scope,
+            "by_category": by_category,
+            "by_methodology": by_methodology if by_methodology else None,
+            "total_co2e_tco2e": round(total_co2e, 6),
+        }
+    
     async def process_upload(self, file_content: bytes, filename: str,
                               validate_only: bool = True) -> UploadSummary:
         """
@@ -214,11 +255,19 @@ class UploadProcessor:
             # Handle saving based on validate_only flag
             created_ids = []
             valid_records = [r for r in all_emission_records if r is not None]
+            preview = self._build_preview(valid_records) if valid_records else None
             
             if validate_only and valid_records:
-                # Store pending records for later save
+                # Store pending records for later save (with 24h expiry)
+                expires_at = datetime.now(timezone.utc).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
+                expires_at = expires_at.replace(day=expires_at.day + 1) if expires_at.day < 28 else expires_at
+                from datetime import timedelta
+                expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
                 for record in valid_records:
-                    record["job_id"] = job_id  # Add job_id for retrieval
+                    record["job_id"] = job_id
+                    record["expires_at"] = expires_at
                 await self.db.bulk_upload_pending_records.insert_many(valid_records)
             elif not validate_only and status in [UploadStatus.COMPLETED, UploadStatus.PARTIAL_SUCCESS] and valid_records:
                 # Save immediately to emission_records collection
@@ -271,7 +320,8 @@ class UploadProcessor:
                     "total_emissions_tco2e": total_co2e,
                     "created_emission_ids": created_ids,
                     "validate_only": validate_only,
-                    "skipped_sheets": skipped_sheets
+                    "skipped_sheets": skipped_sheets,
+                    "preview": preview,
                 }}
             )
             
@@ -304,7 +354,8 @@ class UploadProcessor:
                 errors=all_errors[:100],  # Limit errors in response
                 warnings=all_warnings[:50],
                 results=all_results[:200],
-                created_emission_ids=created_ids
+                created_emission_ids=created_ids,
+                preview=preview,
             )
             
         except Exception as e:

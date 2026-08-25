@@ -3349,6 +3349,7 @@ from bulk_upload_scope3.template_generator import generate_scope3_template
 from bulk_upload_scope3.processors import UploadProcessor
 from bulk_upload_scope3.report_generator import ReportGenerator
 from bulk_upload_scope3.models import ValidationError, ErrorSeverity, UploadSummary, UploadStatus
+from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 
 scope3_bulk_router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
 
@@ -3359,7 +3360,8 @@ async def download_scope3_template(current_user: dict = Depends(get_current_user
     if not organization_id:
         raise HTTPException(status_code=400, detail="User must belong to an organization")
     
-    template_bytes = await generate_scope3_template(db, organization_id)
+    capabilities = await resolve_ghg_capabilities(db, organization_id)
+    template_bytes = await generate_scope3_template(db, organization_id, capabilities=capabilities)
     
     return StreamingResponse(
         template_bytes,
@@ -3746,6 +3748,8 @@ async def startup_event():
     await ensure_supplier_document_indexes()
     from modules.supplier_assessment.training_service import ensure_indexes as ensure_supplier_training_indexes
     await ensure_supplier_training_indexes()
+    from bulk_upload_scope3.router import ensure_bulk_upload_indexes
+    await ensure_bulk_upload_indexes(db)
     # Seed airport reference data from CSV
     from modules.airports.service import seed_airports_from_csv
     import os
