@@ -14,6 +14,7 @@ from .processors import UploadProcessor
 from .report_generator import ReportGenerator
 from .models import UploadSummary, UploadStatus
 from .ghg_config_resolver import resolve_ghg_capabilities
+from modules.entitlements.dependencies import assert_period_row_batch_limit
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +206,13 @@ async def save_valid_rows(
     
     # Insert records into emission_records collection
     if records_to_save:
+        await assert_period_row_batch_limit(
+            organization_id,
+            "ghg",
+            "emission_records",
+            records_to_save,
+            database=db,
+        )
         await db.emission_records.insert_many(records_to_save)
         created_ids = [r["id"] for r in records_to_save]
         logger.info(f"[BULK_UPLOAD_SAVE] Inserted {len(created_ids)} emission records for job {job_id}")

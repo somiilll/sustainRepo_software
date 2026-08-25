@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
 from modules.auth.dependencies import get_admin_user, get_current_user
+from modules.entitlements.dependencies import assert_period_row_limit
 from modules.emissions.c7_contracts import (
     C7MonthlyEntryCreate,
     C7MonthlyEntryResponse,
@@ -226,6 +227,13 @@ async def create_or_update_c7_monthly_entry(
         result = await db.emission_records.find_one({"id": existing["id"]}, {"_id": 0})
     else:
         # Create new entry
+        await assert_period_row_limit(
+            org_id,
+            "ghg",
+            "emission_records",
+            "monthly",
+            reporting_period,
+        )
         entry_id = str(uuid.uuid4())
         
         new_entry = {
@@ -237,6 +245,7 @@ async def create_or_update_c7_monthly_entry(
             "reporting_year": entry_data.reporting_year,
             "reporting_month": entry_data.reporting_month.lower(),
             "reporting_period": reporting_period,
+            "frequency_type": "monthly",
             "c7_data_model_version": 2,  # Mark as new model
             "calculation_method_scope3": entry_data.calculation_method,
             "scope3_activity_type": entry_data.activity_type,
@@ -251,6 +260,7 @@ async def create_or_update_c7_monthly_entry(
             "total_emissions": total_co2e,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
+            "submission_batch_id": entry_data.submission_batch_id,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
@@ -612,6 +622,13 @@ async def create_or_update_c7_yearly_entry(
     
     else:
         # Create new yearly entry
+        await assert_period_row_limit(
+            org_id,
+            "ghg",
+            "emission_records",
+            "yearly",
+            reporting_year,
+        )
         record_id = str(uuid.uuid4())
         
         new_record = {

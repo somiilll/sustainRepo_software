@@ -3350,6 +3350,7 @@ from bulk_upload_scope3.processors import UploadProcessor
 from bulk_upload_scope3.report_generator import ReportGenerator
 from bulk_upload_scope3.models import ValidationError, ErrorSeverity, UploadSummary, UploadStatus
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
+from modules.entitlements.dependencies import assert_period_row_batch_limit
 
 scope3_bulk_router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
 
@@ -3469,6 +3470,13 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
     
     # Insert records into emission_records collection (same as manual entry)
     if records_to_save:
+        await assert_period_row_batch_limit(
+            organization_id,
+            "ghg",
+            "emission_records",
+            records_to_save,
+            database=db,
+        )
         created_ids = []
         try:
             await db.emission_records.insert_many(records_to_save)

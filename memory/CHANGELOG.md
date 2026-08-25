@@ -1,5 +1,21 @@
 # ESG Platform Changelog
 
+## August 25, 2026 — GHG Period Row Allowance Parity
+- Reinterpreted `environment.ghg.monthly_rows_allowed` as a per-reporting-month organization limit instead of one lifetime total across all monthly records.
+- Added yearly-frequency allowance at `monthly_rows_allowed × 12` per reporting year.
+- Applied the shared canonical guard to standard manual GHG creation and C7 monthly/yearly creation.
+- Bulk Upload now rejects only excess period rows during validation with `PERIOD_ROW_LIMIT_EXCEEDED`; in-limit rows remain available for preview and save.
+- Added full-batch rechecks immediately before direct bulk persistence and confirmation-save persistence.
+- Added `frequency_type: monthly` and `submission_batch_id` to new C7 monthly records so legacy-aware counting and batch rollback stay consistent.
+- Verified with 7 focused backend tests and an authenticated Bulk Upload frontend smoke test. Independent iteration 19 reported no scoped defects and no mocked APIs.
+
+## August 25, 2026 — Bulk Upload Stability and Architectural Parity
+- Enforced canonical organization GHG scope/category/process/custom-fuel capabilities in Bulk Upload.
+- Added Flaring and Process Emissions handling, custom-fuel auto-detection, dry-run preview summaries, and partial-insert rollback.
+- Added a 24-hour TTL for pending records.
+- Enforced 10 MB files, 5,000 rows per sheet, and 25,000 rows per workbook.
+- Iteration 18 passed 11 backend checks with frontend preview verification.
+
 ## June 19, 2026 (Latest)
 
 ### ESG Records Module - Phase 1 Implementation

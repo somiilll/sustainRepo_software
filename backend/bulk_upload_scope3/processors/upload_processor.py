@@ -16,6 +16,10 @@ from ..models import (
 from ..ghg_config_resolver import ResolvedGhgCapabilities, resolve_ghg_capabilities
 from .row_processor import RowProcessor
 from .scope12_processor import Scope12RowProcessor
+from modules.entitlements.dependencies import (
+    assert_period_row_batch_limit,
+    partition_records_by_period_row_limit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +128,69 @@ class UploadProcessor:
             "by_methodology": by_methodology if by_methodology else None,
             "total_co2e_tco2e": round(total_co2e, 6),
         }
+
+    async def _apply_period_row_limits(
+        self,
+        results: List[RowResult],
+        records: List[Dict],
+    ) -> Tuple[List[Dict], List[ValidationError]]:
+        """Apply the canonical organization period allowance to validated rows."""
+        accepted, rejected = await partition_records_by_period_row_limit(
+            self.organization_id,
+            "ghg",
+            "emission_records",
+            records,
+            database=self.db,
+        )
+        quota_errors: List[ValidationError] = []
+        result_by_emission_id = {
+            result.emission_id: result
+            for result in results
+            if result.emission_id
+        }
+        used_fallback_results = set()
+
+        for violation in rejected:
+            record = violation["record"]
+            result = result_by_emission_id.get(record.get("id"))
+            if result is None:
+                for candidate in results:
+                    candidate_period = (candidate.row_data or {}).get("reporting_period")
+                    candidate_key = (candidate.sheet, candidate.row)
+                    if (
+                        candidate.success
+                        and candidate_key not in used_fallback_results
+                        and candidate_period == violation["reporting_period"]
+                    ):
+                        result = candidate
+                        used_fallback_results.add(candidate_key)
+                        break
+
+            error = ValidationError(
+                sheet=result.sheet if result else str(record.get("scope") or "GHG"),
+                row=result.row if result else 0,
+                column="Reporting Month/Year",
+                error_type="PERIOD_ROW_LIMIT_EXCEEDED",
+                message=violation["message"],
+                suggestion="Remove excess rows or ask your administrator to increase the GHG monthly row allowance.",
+                severity=ErrorSeverity.ERROR,
+            )
+            quota_errors.append(error)
+            if result is not None:
+                result.success = False
+                result.co2e = None
+                result.errors.append(error)
+            else:
+                results.append(RowResult(
+                    sheet=error.sheet,
+                    row=error.row,
+                    success=False,
+                    emission_id=record.get("id"),
+                    errors=[error],
+                    row_data={"reporting_period": violation["reporting_period"]},
+                ))
+
+        return accepted, quota_errors
     
     async def process_upload(self, file_content: bytes, filename: str,
                               validate_only: bool = True) -> UploadSummary:
@@ -266,9 +333,17 @@ class UploadProcessor:
             
             workbook.close()
             
-            # Determine final status
-            success_count = sum(1 for r in all_results if r.success)
+            valid_records = [r for r in all_emission_records if r is not None]
+            valid_records, quota_errors = await self._apply_period_row_limits(
+                all_results,
+                valid_records,
+            )
+            all_errors.extend(quota_errors)
+
+            # Counts reflect emission records that can actually be saved.
+            success_count = len(valid_records)
             error_count = sum(1 for r in all_results if not r.success)
+            total_co2e = sum((record.get("co2e_emissions", 0) or 0) for record in valid_records)
             
             if error_count == 0 and success_count > 0:
                 status = UploadStatus.COMPLETED
@@ -279,7 +354,6 @@ class UploadProcessor:
             
             # Handle saving based on validate_only flag
             created_ids = []
-            valid_records = [r for r in all_emission_records if r is not None]
             preview = self._build_preview(valid_records) if valid_records else None
             
             if validate_only and valid_records:
@@ -296,6 +370,13 @@ class UploadProcessor:
                 await self.db.bulk_upload_pending_records.insert_many(valid_records)
             elif not validate_only and status in [UploadStatus.COMPLETED, UploadStatus.PARTIAL_SUCCESS] and valid_records:
                 # Save immediately to emission_records collection
+                await assert_period_row_batch_limit(
+                    self.organization_id,
+                    "ghg",
+                    "emission_records",
+                    valid_records,
+                    database=self.db,
+                )
                 await self.db.emission_records.insert_many(valid_records)
                 created_ids = [r["id"] for r in valid_records]
                 
