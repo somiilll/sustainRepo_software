@@ -29,6 +29,7 @@ from modules.supplier_assessment.contracts import (
     ManualScoreUpdate,
     SupplierEmissionCreate,
     SupplierEmissionResponse,
+    ParentSupplierEmissionsResponse,
     SupplierEmissionRevisionHistoryResponse,
     SupplierDocumentResponse,
     SupplierDocumentStatusSubmit,
@@ -1313,7 +1314,7 @@ async def get_supplier_emissions(
     }
 
 
-@router.get("/emissions/all")
+@router.get("/emissions/all", response_model=ParentSupplierEmissionsResponse)
 async def get_all_supplier_emissions(
     reporting_period: Optional[str] = None,
     current_user: dict = Depends(get_customer_admin),
