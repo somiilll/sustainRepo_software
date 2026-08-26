@@ -94,7 +94,7 @@ export default function SupplierGHGView() {
     const matchesCategory = categoryFilter === 'all' || e.category === categoryFilter;
     return matchesSearch && matchesScope && matchesSupplier && matchesCategory;
   });
-  const emissionPageSize = 5;
+  const emissionPageSize = 20;
   const emissionPageCount = Math.max(1, Math.ceil(filteredEmissions.length / emissionPageSize));
   const visibleEmissions = filteredEmissions.slice((emissionPage - 1) * emissionPageSize, emissionPage * emissionPageSize);
   const emissionStart = filteredEmissions.length ? (emissionPage - 1) * emissionPageSize + 1 : 0;
@@ -173,17 +173,8 @@ export default function SupplierGHGView() {
             <div className="overflow-x-auto">
             <Table className="min-w-[1180px]" data-testid="supplier-emissions-by-supplier-table">
               <TableHeader>
-                <TableRow className="border-stone-200 bg-stone-50 hover:bg-stone-50">
-                  <TableHead className="min-w-[220px] pl-6 text-[11px] font-semibold uppercase text-stone-500">Supplier</TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1</TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2</TableHead>
-                  <TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total</TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1 <span className="block normal-case text-stone-400">(attributed)</span></TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2 <span className="block normal-case text-stone-400">(attributed)</span></TableHead>
-                  <TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total <span className="block normal-case text-stone-400">(attributed)</span></TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Total intensity</TableHead>
-                  <TableHead className="pr-6 text-right text-[11px] font-semibold uppercase text-stone-500">Actions</TableHead>
-                </TableRow>
+                <TableRow className="border-stone-200 bg-stone-50 hover:bg-stone-50"><TableHead rowSpan={2} className="min-w-[220px] pl-6 text-[11px] font-semibold uppercase text-stone-500">Supplier</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase text-stone-500">Total emissions</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase text-stone-500">Attributed emissions</TableHead><TableHead rowSpan={2} className="text-right text-[11px] font-semibold uppercase text-stone-500">Intensity</TableHead><TableHead rowSpan={2} className="pr-6 text-right text-[11px] font-semibold uppercase text-stone-500">Actions</TableHead></TableRow>
+                <TableRow className="border-stone-200 bg-stone-50 hover:bg-stone-50"><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1</TableHead><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total</TableHead><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1</TableHead><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total</TableHead></TableRow>
               </TableHeader>
               <TableBody>
                 {supplierTotals.map((supplier) => (
