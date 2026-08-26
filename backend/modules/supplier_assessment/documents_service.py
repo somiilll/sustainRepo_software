@@ -1,8 +1,12 @@
 """Focused organization-agreement document flow for Supplier Assessment."""
+import asyncio
 import uuid
 import re
+import subprocess
+import tempfile
 from copy import deepcopy
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
@@ -279,6 +283,43 @@ async def get_supplier_document(relationship: Dict[str, Any], requirement_id: st
     return {"requirement": requirement, "version": version} if version else None
 
 
+def _convert_word_document_to_pdf(content: bytes, filename: str) -> bytes:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        source = Path(temp_dir) / f"source{Path(filename).suffix.lower()}"
+        source.write_bytes(content)
+        result = subprocess.run(
+            ["soffice", "--headless", "--convert-to", "pdf", "--outdir", temp_dir, str(source)],
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        pdf_files = list(Path(temp_dir).glob("*.pdf"))
+        if result.returncode != 0 or not pdf_files:
+            raise ValueError("Could not prepare this document for preview")
+        return pdf_files[0].read_bytes()
+
+
+async def get_customer_document_preview(customer_org_id: str, requirement_id: str) -> Optional[Dict[str, Any]]:
+    requirement = await db.supplier_document_requirements.find_one(
+        {"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True},
+        {"_id": 0, "document_version_id": 1},
+    )
+    if not requirement:
+        return None
+    version = await db.supplier_document_versions.find_one(
+        {"id": requirement["document_version_id"], "customer_org_id": customer_org_id, "is_deleted": {"$ne": True}},
+        {"_id": 0},
+    )
+    if not version:
+        return None
+    content, _ = await get_r2_storage().get_file(version["bucket_type"], version["r2_key"])
+    if version["content_type"] == "application/pdf":
+        preview_content = content
+    else:
+        preview_content = await asyncio.to_thread(_convert_word_document_to_pdf, content, version["original_filename"])
+    return {"content": preview_content, "content_type": "application/pdf", "filename": "document-preview.pdf"}
+
+
 async def accept_supplier_document(relationship: Dict[str, Any], requirement_id: str, supplier_user_id: str) -> Optional[Dict[str, Any]]:
     document = await get_supplier_document(relationship, requirement_id)
     if not document:
@@ -359,6 +400,7 @@ async def list_customer_documents(customer_org_id: str, reporting_period: Option
             supplier["company_name"] for supplier in suppliers
             if _is_requirement_available_to_relationship(requirement, supplier)
         ]
+        requirement["assigned_supplier_count"] = len(requirement["assigned_supplier_names"])
     return requirements
 
 
@@ -366,13 +408,15 @@ async def list_document_supplier_responses(customer_org_id: str, requirement_id:
     requirement = await db.supplier_document_requirements.find_one({"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0})
     if not requirement:
         return None
-    related_requirements = await db.supplier_document_requirements.find({"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True}, {"_id": 0}).to_list(1000)
-    requirement_by_program = {(item["assessment_program_id"], item["assessment_program_version"]): item for item in related_requirements}
-    suppliers = await db.supplier_relationships.find({"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1, "company_name": 1, "assessment_program_id": 1, "assessment_program_version": 1}).to_list(1000)
+    related_query = {"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True}
+    if requirement.get("reporting_period"):
+        related_query["reporting_period"] = requirement["reporting_period"]
+    related_requirements = await db.supplier_document_requirements.find(related_query, {"_id": 0}).to_list(1000)
+    suppliers = await db.supplier_relationships.find({"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1}).to_list(1000)
     rows = []
     for supplier in suppliers:
-        assigned_requirement = requirement_by_program.get((supplier.get("assessment_program_id"), supplier.get("assessment_program_version")))
-        if not assigned_requirement or (assigned_requirement.get("supplier_relationship_ids") and supplier["id"] not in assigned_requirement["supplier_relationship_ids"]):
+        assigned_requirement = next((item for item in related_requirements if _is_requirement_available_to_relationship(item, supplier)), None)
+        if not assigned_requirement:
             continue
         current_submission = await _current_document_submission(supplier["id"], assigned_requirement["id"], assigned_requirement["document_version_id"])
         visible_submission = await db.supplier_document_submissions.find_one(
@@ -381,10 +425,10 @@ async def list_document_supplier_responses(customer_org_id: str, requirement_id:
         )
         if assigned_requirement.get("response_mode", "ACCEPTANCE") == "STATUS":
             response = visible_submission or await db.supplier_document_responses.find_one({"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "document_version_id": assigned_requirement["document_version_id"]}, {"_id": 0})
-            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else "submitted"})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if response else "pending")})
         else:
             acceptance = visible_submission or await db.supplier_document_acceptances.find_one({"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "document_version_id": assigned_requirement["document_version_id"]}, {"_id": 0})
-            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": (acceptance.get("accepted_at") or acceptance.get("submitted_at")) if acceptance else None, "can_unlock": bool(acceptance), "submission_status": current_submission.get("status", "submitted") if current_submission else "submitted"})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": (acceptance.get("accepted_at") or acceptance.get("submitted_at")) if acceptance else None, "can_unlock": bool(acceptance), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if acceptance else "pending")})
     return {"document_version_id": requirement["document_version_id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "response_options": requirement.get("response_options", []), "responses": rows}
 
 
