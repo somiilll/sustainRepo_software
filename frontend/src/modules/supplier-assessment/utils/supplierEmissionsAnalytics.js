@@ -27,6 +27,22 @@ const monthLabel = (period) => {
 
 export const buildSupplierEmissionsAnalytics = (payload = {}, reportingPeriod = '') => {
   const records = payload.emissions || [];
+  const supplierTotals = (payload.supplier_totals || [])
+    .filter((supplier) => hasNumber(supplier.total))
+    .map((supplier) => ({
+      supplier_id: supplier.supplier_relationship_id,
+      company_name: supplier.supplier_name,
+      scope1_emissions: Number(supplier.scope1 || 0),
+      scope2_emissions: Number(supplier.scope2 || 0),
+      total_emissions: Number(supplier.total || 0),
+      revenue_percentage: supplier.revenue_percentage,
+    }))
+    .sort((a, b) => b.total_emissions - a.total_emissions);
+  const scopeTotals = supplierTotals.reduce((totals, supplier) => ({
+    scope1: totals.scope1 + supplier.scope1_emissions,
+    scope2: totals.scope2 + supplier.scope2_emissions,
+    total: totals.total + supplier.total_emissions,
+  }), { scope1: 0, scope2: 0, total: 0 });
   const intensityData = (payload.supplier_totals || [])
     .filter((supplier) => hasNumber(supplier.total_intensity))
     .map((supplier) => ({
@@ -68,5 +84,5 @@ export const buildSupplierEmissionsAnalytics = (payload = {}, reportingPeriod = 
     total_attributed_emissions: monthlyTotals.has(period) ? monthlyTotals.get(period) : null,
   }));
 
-  return { intensityData, scope1CategoryData, categories, monthlyTrend };
+  return { supplierTotals, scopeTotals, intensityData, scope1CategoryData, categories, monthlyTrend };
 };

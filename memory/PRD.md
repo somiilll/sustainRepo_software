@@ -263,6 +263,14 @@ Provide a dependable ESG and GHG management platform where organization configur
 - The Add Emission final step no longer displays the redundant `Review Summary`; it now contains only the optional Additional Notes input, with submission behavior unchanged.
 - Focused JavaScript lint and an authenticated live rendering check completed before the user's latest `dont test` instruction; no further testing was run.
 
+## Latest Changes — 2026-08-26 (Parent Supplier Analytics and Secure Previews)
+- Ranking → Emissions now includes supplier intensity comparison, grouped Scope 1 category comparison, and month-on-month combined attributed-emissions trends for the selected reporting period.
+- Fixed the Ranking emissions data-source divergence: every emissions metric card, scope chart, supplier comparison, and summary row now uses the submitted-attributed `/supplier-assessment/emissions/all` pipeline instead of stale `canonical_score_snapshot` emission fields. For FY 2026-27, the verified UI values are 77.46 tCO₂e total, 66.36 Scope 1, and 11.10 Scope 2.
+- Ranking → ESG no longer shows Assessment module coverage. It now compares each supplier's Environment, Social, and Governance scores with grouped bars.
+- Parent Documents now provide authenticated in-app PDF previews, including server-side DOC/DOCX-to-PDF conversion. Supplier-name badge crowds were replaced by compact assigned counts and a scalable supplier dialog showing each supplier as Pending or Submitted.
+- Parent Trainings now provide a secure read-only in-app preview for PDF/PPT pages and audio/video content without updating supplier progress.
+- Static checks, authenticated endpoint checks, and focused live smoke checks completed before the user's latest `dont test` instruction; no further testing was run. All preview and emissions APIs are real, not mocked.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
