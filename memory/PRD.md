@@ -168,6 +168,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Annual period matching now uses exact normalized FY/CY ranges. A `FY 2026-2027` emission matches a `FY 2026-2027` Base Year at 100%; proration is used only for genuinely partial annual overlaps. Delete and edit both use this shared rule.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
 
+## Latest Changes — 2026-08-26 (Canonical GHG Reporting Period Storage)
+- New yearly GHG records now persist Calendar Years exclusively as `CYyyyy` (for example, `CY2026`). Inputs using the legacy spaced format, such as `CY 2026`, are normalized before storage. Financial Years are normalized to the full `FY yyyy-yyyy` form.
+- The normalization is enforced at the main GHG API contract, supplier GHG contract, C7 yearly contract, and both Scope 3 bulk-upload save paths. Historical records were intentionally not migrated.
+- Fixed the GHG Logs period filter to parse both legacy `CY 2022` and canonical `CY2022`, preventing out-of-range legacy CY records from bypassing a selected date window.
+- Verification passed: 10 focused pytest checks for contract and bulk-save normalization, authenticated GHG Logs browser smoke test, and frontend/backend lint checks. No mocked APIs or test data were used.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

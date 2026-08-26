@@ -2884,7 +2884,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         }
         // Handle CY format (e.g., "CY2025" = January to December 2025)
         else if (period.startsWith('CY')) {
-          const cyMatch = period.match(/CY(\d{4})/);
+          const cyMatch = period.match(/^CY\s*(\d{4})$/);
           if (cyMatch) {
             const cyYear = parseInt(cyMatch[1]);
             // CY runs from January to December of that year
