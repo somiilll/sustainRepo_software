@@ -228,6 +228,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Removed green/yellow tinting from Yes/No and dropdown score configuration panels in the question ledger; score panels are now neutral white.
 - **NOT TESTED** after this update, respecting the user instruction.
 
+## Latest Changes — 2026-08-26 (Supplier GHG Tabs & Card Shadows)
+- Strengthened Create Supplier Documents and Training card shadows with explicit teal and amber edge depth.
+- Split Supplier GHG Emissions into **Emissions by Supplier** (summary cards and supplier table) and **Logs** (filters and All Emission Records) tabs.
+- **NOT TESTED** after this update, respecting the user instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
