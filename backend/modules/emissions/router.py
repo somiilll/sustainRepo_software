@@ -26,6 +26,10 @@ from modules.approvals.emission_flow_v2 import (
     PENDING_STATUSES,
 )
 from modules.auth.dependencies import get_current_user
+from modules.base_year.sync_service import (
+    sync_changed_emission_base_years,
+    sync_deleted_emission_base_years,
+)
 from modules.entitlements.dependencies import assert_ghg_scope_access, assert_period_row_limit
 from modules.supplier_assessment.ghg_submission_service import (
     exclude_reopened_supplier_submission_revisions,
@@ -1539,6 +1543,13 @@ async def update_emission_record(
     await db[APPROVED_COLLECTION].update_one({"id": record_id}, {"$set": update_dict})
     updated = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
 
+    try:
+        sync_results = await sync_changed_emission_base_years(existing, updated, current_user)
+        if any(result.get("synced") for result in sync_results):
+            logger.info("[BASE_YEAR_SYNC] Refreshed base year after updating emission %s", record_id)
+    except Exception:
+        logger.exception("[BASE_YEAR_SYNC] Failed after updating emission %s", record_id)
+
     # Phase B11: emit emission.updated (best-effort).
     if True:
         try:
@@ -1909,6 +1920,14 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     result = await db[target_collection].delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Emission record not found")
+
+    if target_collection == APPROVED_COLLECTION:
+        try:
+            sync_results = await sync_deleted_emission_base_years(existing, current_user)
+            if any(result.get("synced") for result in sync_results):
+                logger.info("[BASE_YEAR_SYNC] Refreshed base year after deleting emission %s", record_id)
+        except Exception:
+            logger.exception("[BASE_YEAR_SYNC] Failed after deleting emission %s", record_id)
 
     # Phase B11: emit emission.deleted (best-effort).
     # Only emit when an approved record actually leaves the dashboard view.
