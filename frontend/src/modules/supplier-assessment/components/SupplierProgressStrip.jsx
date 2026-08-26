@@ -22,8 +22,8 @@ export const SupplierProgressStrip = ({ items }) => {
           style={{ gridTemplateColumns: `repeat(${Math.max(items.length, 1)}, minmax(165px, 1fr))` }}
           data-testid="supplier-module-progress-row"
         >
-          {items.map(({ id, label, progress, Icon, iconClassName }) => (
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_3px_12px_rgba(15,23,42,0.04)]" key={id} data-testid={`supplier-progress-${id}`}>
+          {items.map(({ id, label, progress, Icon, iconClassName, shadowClassName }) => (
+            <div className={`flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 ${shadowClassName || 'shadow-[0_3px_12px_rgba(15,23,42,0.04)]'}`} key={id} data-testid={`supplier-progress-${id}`}>
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconClassName}`}>
                 <Icon className="h-4 w-4" aria-hidden="true" />
               </span>
