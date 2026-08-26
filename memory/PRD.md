@@ -257,11 +257,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - PDF and PowerPoint training progress now persists an explicit one-based `highest_page_index` in `supplier_training_progress`. Supplier training lists expose page progress, and reopening the viewer resumes at the highest page or slide reached.
 - Documents, Trainings, ESG overview/questionnaire, and Revenue content now use consistent supplier-facing heading scale and section spacing through the shared `SupplierPageHeader` pattern and aligned eight-unit content gaps.
 - Supplier ESG overview and questionnaire pages now use the same `max-w-7xl` content width as the Supplier Assessment module page, removing the excessive empty side margins on wide screens.
-- **NOT TESTED** after implementation, per the user's explicit `dont test` instruction. A code-only integration review was completed.
+- Supplier Documents and Trainings pages now show responsive Total, Completed, Draft, Pending, and Overdue status infographics. Counts are mutually exclusive, overdue-aware, and update from the current document response or training progress state.
+- Focused JavaScript lint and an authenticated live rendering check completed before the user's latest `dont test` instruction; no further testing was run.
 
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
-- **P1:** Supplier Document/Training status infographics; BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
+- **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
 - **P2/P3:** Bulk Upload database duplicate detection, effective-settings summary, MIS previews/bookmarks, bulk upload progress/history. AI credit enforcement remains deferred per user request.
 
 ## Third-Party Integrations

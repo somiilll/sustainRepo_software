@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { TrainingViewer } from './TrainingViewer';
 import { SupplierPageHeader } from './components/SupplierPageHeader';
+import { SupplierStatusInfographics } from './components/SupplierStatusInfographics';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -43,9 +44,20 @@ export default function SupplierTraining() {
 
   const updateProgress = (assignmentId, progress) => setItems((current) => current.map((item) => item.assignment_id === assignmentId ? { ...item, ...progress } : item));
   const closeViewer = (open) => { if (!open) { setActiveTraining(null); setViewer(null); load(); } };
+  const statusCounts = items.reduce((counts, item) => {
+    counts.total += 1;
+    const dueDate = item.due_date ? new Date(item.due_date) : null;
+    if (dueDate) dueDate.setHours(23, 59, 59, 999);
+    if (item.status === 'completed') counts.completed += 1;
+    else if (dueDate && dueDate < new Date()) counts.overdue += 1;
+    else if (item.status === 'in_progress') counts.draft += 1;
+    else counts.pending += 1;
+    return counts;
+  }, { total: 0, completed: 0, draft: 0, pending: 0, overdue: 0 });
 
   return <div className="space-y-8" data-testid="supplier-training-page">
     <SupplierPageHeader title="Trainings" description="Complete trainings assigned by your customer." testId="supplier-training" />
+    <SupplierStatusInfographics title="Training status" counts={statusCounts} testId="supplier-training" />
     {items.length === 0 ? <Card data-testid="supplier-training-empty"><CardContent className="py-10 text-center text-sm text-stone-500">No trainings are assigned.</CardContent></Card> : items.map((item) => { const status = trainingStatus(item.status); return <Card key={item.assignment_id} data-testid={`supplier-training-${item.assignment_id}`}><CardHeader><div className="flex justify-between gap-4"><div><CardTitle className="flex gap-2"><BookOpen className="h-5 w-5 text-emerald-700" />{item.title}</CardTitle><CardDescription>{item.description} · Version {item.version_number}</CardDescription>{item.page_count ? <p className="mt-2 text-xs text-stone-500" data-testid={`supplier-training-page-progress-${item.assignment_id}`}>Page {item.highest_page_index || 0} of {item.page_count} reached · {Math.round(item.progress_percent || 0)}% complete</p> : <p className="mt-2 text-xs text-stone-500" data-testid={`supplier-training-media-progress-${item.assignment_id}`}>{Math.round(item.progress_percent || 0)}% complete</p>}</div><Badge className={status.className} data-testid={`supplier-training-status-${item.assignment_id}`}>{status.label}</Badge></div></CardHeader><CardContent><Button variant="outline" onClick={() => openViewer(item)} disabled={isOpening} data-testid={`open-training-viewer-${item.assignment_id}`}>{isOpening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}{item.highest_page_index ? 'Continue training' : 'Open training'}</Button></CardContent></Card>; })}
     <Dialog open={Boolean(activeTraining && viewer)} onOpenChange={closeViewer}><DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto" data-testid="training-viewer-dialog"><DialogHeader><DialogTitle data-testid="training-viewer-title">{activeTraining?.title}</DialogTitle></DialogHeader>{viewer && activeTraining && <TrainingViewer assignmentId={activeTraining.assignment_id} viewer={viewer} getAuthHeader={getAuthHeader} onProgress={(progress) => updateProgress(activeTraining.assignment_id, progress)} />}</DialogContent></Dialog>
   </div>;
