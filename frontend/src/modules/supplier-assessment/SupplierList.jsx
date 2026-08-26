@@ -620,7 +620,7 @@ export default function SupplierList() {
               <Label className="text-base font-medium">Assessment Modules *</Label>
               <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-3">
+                <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-3 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
                   <div className="flex items-center gap-2">
                   <Checkbox
                     id="module-esg"
@@ -652,7 +652,7 @@ export default function SupplierList() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-3">
+                <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-3 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="module-ghg"
@@ -699,7 +699,7 @@ export default function SupplierList() {
               </div>
             </div>
             {(documents.length > 0 || trainings.length > 0) && (
-              <div className="grid gap-4 border-t pt-4 md:grid-cols-2" data-testid="supplier-existing-assignment-options">
+              <div className="grid gap-4 border-t pt-4 md:grid-cols-2 [&>div:first-child]:border-teal-200 [&>div:first-child]:shadow-[0_2px_10px_rgba(20,184,166,0.08)] [&>div:last-child]:border-amber-200 [&>div:last-child]:shadow-[0_2px_10px_rgba(245,158,11,0.08)]" data-testid="supplier-existing-assignment-options">
                 {documents.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Documents</span><p className="text-xs text-stone-500">Selected by default. Uncheck any document this supplier should not receive.</p>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
                 {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span><p className="text-xs text-stone-500">Selected by default. Uncheck any training this supplier should not receive.</p>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.document_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
               </div>
@@ -793,8 +793,9 @@ export default function SupplierList() {
                 </div>
               </div>
             </div>
+            <div className="grid gap-4 md:grid-cols-2" data-testid="edit-supplier-module-cards">
             {formData.modules_enabled?.includes('esg') && questionnaires.length > 0 && (
-              <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4" data-testid="edit-supplier-questionnaire-assignments">
+              <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-4 shadow-[0_2px_10px_rgba(168,85,247,0.08)]" data-testid="edit-supplier-questionnaire-assignments">
                 <Label className="text-sm font-medium">Assigned ESG questionnaires</Label>
                 <p className="text-xs text-stone-500">Submitted questionnaires remain assigned to preserve the supplier’s assessment history.</p>
                 <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
@@ -819,7 +820,7 @@ export default function SupplierList() {
             
             {/* GHG Scope Selection */}
             {formData.modules_enabled?.includes('ghg') && (
-              <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+              <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-4 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
                 <Label className="text-sm font-medium">GHG Scopes</Label>
                 
                 <div className="flex gap-6">
@@ -847,10 +848,11 @@ export default function SupplierList() {
                 </div>
               </div>
             )}
+            </div>
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="grid gap-4 border-t border-stone-200 pt-4 md:grid-cols-2" data-testid="edit-supplier-assignment-summary">
-                {documents.length > 0 && <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3" data-testid="edit-supplier-documents-summary"><p className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sky-800" />Documents</p><p className="mt-1 text-xs text-stone-500">Document assignments are managed from Documents.</p><div className="mt-2 space-y-1 text-sm">{documents.map((document) => <p key={document.id} data-testid={`edit-supplier-document-${document.id}`}>{document.title}</p>)}</div></div>}
-                {trainings.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3" data-testid="edit-supplier-trainings-summary"><p className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-amber-800" />Training</p><p className="mt-1 text-xs text-stone-500">Training assignments are managed from Trainings.</p><div className="mt-2 space-y-1 text-sm">{trainings.map((training) => <p key={training.id} data-testid={`edit-supplier-training-${training.id}`}>{training.title}</p>)}</div></div>}
+                {documents.length > 0 && <div className="rounded-lg border border-teal-200 bg-white p-3 shadow-[0_2px_10px_rgba(20,184,166,0.08)]" data-testid="edit-supplier-documents-summary"><p className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-teal-700" />Documents</p><p className="mt-1 text-xs text-stone-500">Document assignments are managed from Documents.</p><div className="mt-2 space-y-1 text-sm">{documents.map((document) => <p key={document.id} data-testid={`edit-supplier-document-${document.id}`}>{document.title}</p>)}</div></div>}
+                {trainings.length > 0 && <div className="rounded-lg border border-amber-200 bg-white p-3 shadow-[0_2px_10px_rgba(245,158,11,0.08)]" data-testid="edit-supplier-trainings-summary"><p className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-amber-700" />Training</p><p className="mt-1 text-xs text-stone-500">Training assignments are managed from Trainings.</p><div className="mt-2 space-y-1 text-sm">{trainings.map((training) => <p key={training.id} data-testid={`edit-supplier-training-${training.id}`}>{training.title}</p>)}</div></div>}
               </div>
             )}
           </div>
