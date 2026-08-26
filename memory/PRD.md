@@ -271,6 +271,13 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Parent Trainings now provide a secure read-only in-app preview for PDF/PPT pages and audio/video content without updating supplier progress.
 - Static checks, authenticated endpoint checks, and focused live smoke checks completed before the user's latest `dont test` instruction; no further testing was run. All preview and emissions APIs are real, not mocked.
 
+## Latest Changes — 2026-08-26 (Supplier Assignment Revocation)
+- Document requirements now persist an explicit `assignment_mode`. Selected assignments no longer fall back to program-wide visibility when their supplier list becomes empty, while legacy program-wide assignments continue supporting explicit exclusions.
+- Supplier edits now preserve the document assignment mode and always write explicit exclusions when a document is removed from a supplier.
+- Training removal now deactivates every matching assignment row, reactivates only one canonical assignment when reassigned, and includes the correct requirement version. Startup cleanup deactivates duplicate active rows and enforces a unique active assignment index per supplier, training, and reporting period.
+- Supplier Documents and Trainings pages refresh assignment visibility on focus and every 30 seconds; an open training viewer closes automatically if its assignment is revoked.
+- JavaScript and Python static checks passed. Functional flow testing was not run, following the user's `dont test` instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

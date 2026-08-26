@@ -31,7 +31,19 @@ export default function SupplierTraining() {
     catch { toast.error('Could not load training'); }
   }, [getAuthHeader]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const refreshAssignments = () => load();
+    window.addEventListener('focus', refreshAssignments);
+    const intervalId = window.setInterval(refreshAssignments, 30000);
+    return () => { window.removeEventListener('focus', refreshAssignments); window.clearInterval(intervalId); };
+  }, [load]);
+  useEffect(() => {
+    if (activeTraining && !items.some((item) => item.assignment_id === activeTraining.assignment_id)) {
+      setActiveTraining(null);
+      setViewer(null);
+    }
+  }, [activeTraining, items]);
 
   const openViewer = async (training) => {
     setIsOpening(true);

@@ -48,7 +48,8 @@ def _is_requirement_available_to_relationship(requirement: Dict[str, Any], relat
         requirement.get("assessment_program_id") == relationship.get("assessment_program_id")
         and requirement.get("assessment_program_version") == relationship.get("assessment_program_version")
     )
-    return explicitly_assigned or (not requirement.get("supplier_relationship_ids") and same_program)
+    assignment_mode = requirement.get("assignment_mode") or ("selected" if requirement.get("supplier_relationship_ids") else "all")
+    return explicitly_assigned or (assignment_mode == "all" and same_program)
 
 
 async def _current_document_submission(relationship_id: str, requirement_id: str, version_id: str) -> Optional[Dict[str, Any]]:
@@ -180,6 +181,7 @@ async def publish_agreement(
             "response_mode": response_mode,
             "response_options": response_options,
             "supplier_relationship_ids": revision_relationships.get((revision["program_id"], revision["version"], None), []),
+            "assignment_mode": "selected",
             "is_active": True,
             "created_by": created_by,
             "created_at": now,
@@ -223,7 +225,7 @@ async def assign_existing_documents_to_supplier(customer_org_id: str, relationsh
             "document_key": source.get("document_key"), "title": source["title"], "document_version_id": source["document_version_id"],
             "response_mode": source.get("response_mode", "ACCEPTANCE"), "response_options": source.get("response_options", []),
             "due_date": source.get("due_date"), "reporting_period": relationship.get("reporting_period"),
-            "supplier_relationship_ids": [relationship["id"]], "is_active": True, "created_by": created_by, "created_at": now,
+            "supplier_relationship_ids": [relationship["id"]], "assignment_mode": "selected", "is_active": True, "created_by": created_by, "created_at": now,
         }
         await db.supplier_document_requirements.insert_one(requirement)
         created_ids.append(requirement["id"])
