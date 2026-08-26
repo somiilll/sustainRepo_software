@@ -149,6 +149,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Edit drafts now hydrate, display, calculate with, and persist the selected currency conversion method. Edit shows the same method selector as Create, and refreshes the displayed overrides when it changes.
 - Per user instruction, frontend/backend testing was intentionally skipped for this change.
 
+## Latest Changes — 2026-08-26 (Scope 3 Standard Currency Edit Repair)
+- Fixed the Scope 3 spend-basis edit payload: the selected `spendCurrencyConversionMethod` is now passed from `Emissions.js` and consumed by `Scope3FlatEdit`, preventing the client-side ReferenceError that blocked updates before the API request.
+- Corrected the live `exchange_rate` input-field mapping to `unit_source: "none"` with no default or allowed unit. The generic renderer now hides its unit selector through configuration rather than a Standard Currency-specific UI rule. The seed and an idempotent migration preserve this configuration.
+- Stabilized shared edit-field headers so long labels and override controls reserve the same vertical space; Amount Spent and Standard Currency Exchange Rate inputs align in the edit dialog.
+- Focused lint and non-saving browser checks were completed before the later `dont test` instruction. No additional automated tests or regression-test file were added after that instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

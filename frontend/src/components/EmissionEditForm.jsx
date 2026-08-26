@@ -1017,8 +1017,8 @@ export default function EmissionEditForm(props) {
 
                         return (
                           <div key={field.id || field.variable} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label className="font-medium flex items-center gap-1.5">
+                            <div className="flex min-h-10 items-start justify-between gap-2">
+                              <Label className="flex min-h-10 items-start gap-1.5 pt-0.5 font-medium leading-5">
                                 {field.label}
                                 {(field.required || isFugitiveGwpField) && <span className="text-red-500 ml-1">*</span>}
                                 {!hideStandardQuantityUnit && !showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
