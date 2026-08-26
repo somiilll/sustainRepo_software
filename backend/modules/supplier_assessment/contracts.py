@@ -72,6 +72,8 @@ class SupplierResponse(BaseModel):
     modules_enabled: List[str] = ["esg", "ghg"]
     ghg_scopes_enabled: List[str] = ["scope1", "scope2"]
     questionnaire_ids: List[str] = []
+    document_requirement_ids: List[str] = []
+    training_requirement_ids: List[str] = []
     questionnaire_assignment_is_implicit: bool = False
     
     # Progress tracking

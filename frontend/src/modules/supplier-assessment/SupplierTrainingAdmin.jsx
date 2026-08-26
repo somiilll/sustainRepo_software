@@ -106,7 +106,7 @@ export default function SupplierTrainingAdmin() {
 
 
   return <div className={`space-y-6 ${showTrainingForm ? '' : '[&_[data-testid=create-training-card]]:hidden'}`} data-testid="training-admin-page">
-    <div className="flex flex-wrap items-end justify-between gap-4 sm:pr-52">
+    <div className="flex flex-wrap items-end justify-start gap-4 sm:pr-52">
       <div><h1 className="text-2xl font-semibold" data-testid="training-admin-heading">Supplier {trainingLabel}</h1>
       <p className="mt-2 text-sm text-stone-600">Publish private content and assign it to suppliers.</p>
       </div><Button onClick={() => setShowTrainingForm(true)} data-testid="open-add-training-button"><Upload className="mr-2 h-4 w-4" />Add {trainingLabel}</Button></div>

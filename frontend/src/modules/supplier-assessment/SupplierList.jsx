@@ -157,8 +157,13 @@ export default function SupplierList() {
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/submission-status`, { headers: getAuthHeader() }),
     ]).then(([documentResponse, trainingResponse, questionnaireResponse, statusResponse]) => {
-      setDocuments(groupAvailableDocuments(documentResponse.data));
-      setTrainings(trainingResponse.data || []);
+      const availableDocuments = groupAvailableDocuments(documentResponse.data);
+      const availableTrainings = trainingResponse.data || [];
+      setDocuments(availableDocuments);
+      setTrainings(availableTrainings);
+      const selectedDocumentIds = availableDocuments.filter((document) => selectedSupplier.document_requirement_ids?.includes(document.id) || document.supplier_relationship_ids?.includes(selectedSupplier.id)).map((document) => document.id);
+      const selectedTrainingIds = availableTrainings.filter((training) => selectedSupplier.training_requirement_ids?.includes(training.id) || training.supplier_relationship_ids?.includes(selectedSupplier.id)).map((training) => training.id);
+      setFormData((current) => ({ ...current, document_requirement_ids: selectedDocumentIds, training_requirement_ids: selectedTrainingIds }));
       const availableQuestionnaires = questionnaireResponse.data || [];
       setQuestionnaires(availableQuestionnaires);
       setSubmissionStatus(statusResponse.data);
