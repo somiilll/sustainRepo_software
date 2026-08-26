@@ -114,7 +114,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier GHG submission refinement: Scope 1 and Scope 2 draft totals now use distinct Factory/Zap icons with blue/purple edge shadows, and scope/category rows use matching colored scope boxes.
 - Supplier dashboard color treatment: each Overall Progress tile and matching requirement card now uses a subtle shadow in its icon accent color (blue, indigo, emerald, cyan, or amber).
 - Supplier dashboard spacing refinement: requirement panels use wider vertical spacing, while Overall Progress tiles use larger gaps and tighter accent shadows to prevent neighboring color shadows from blending.
-- Supplier detail-page consistency: ESG questionnaire cards use indigo shadows, Document cards use cyan shadows, and Training cards use amber shadows matching their supplier dashboard modules.
+- Supplier detail-page consistency: ESG questionnaire cards use indigo shadows. Document and Training detail cards intentionally retain their original neutral card treatment.
 - Verification was intentionally skipped at the user's request (`dont test`).
 
 ## Third-Party Integrations
