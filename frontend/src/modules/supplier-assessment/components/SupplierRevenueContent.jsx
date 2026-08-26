@@ -4,7 +4,6 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
-import RevenueTaskChecklist from './RevenueTaskChecklist';
 
 const CURRENCIES = [
   { code: 'USD', symbol: '$' }, { code: 'EUR', symbol: '€' },
@@ -32,7 +31,6 @@ export const SupplierRevenueContent = ({
 
   return (
     <div className="space-y-6">
-      <RevenueTaskChecklist relationship={relationship} amountRequired={revenueRequired} />
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="supplier-revenue-percentage" className="text-sm font-medium text-slate-800">
