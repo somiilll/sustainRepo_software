@@ -210,6 +210,24 @@ async def training_viewer_for_supplier(relationship: Dict[str, Any], assignment_
         return {"viewer_type": "pages", "page_count": manifest["page_count"], "highest_page_index": progress.get("highest_page_index", 0), "page_urls": [storage.generate_presigned_url(version["bucket_type"], page["r2_key"], expiration=900) for page in manifest["pages"]]}
     return {"viewer_type": manifest["viewer_type"], "duration_seconds": manifest["duration_seconds"], "asset_url": storage.generate_presigned_url(version["bucket_type"], version["r2_key"], expiration=900, response_content_disposition="inline")}
 
+
+async def training_viewer_for_admin(org_id: str, requirement_id: str) -> Optional[Dict[str, Any]]:
+    requirement = await db.supplier_training_requirements.find_one(
+        {"id": requirement_id, "organization_id": org_id, "is_deleted": {"$ne": True}},
+        {"_id": 0, "training_version_id": 1},
+    )
+    if not requirement:
+        return None
+    version = await db.supplier_training_versions.find_one({"id": requirement["training_version_id"]}, {"_id": 0})
+    if not version:
+        return None
+    version = await _ensure_viewer_manifest(version)
+    manifest = version["viewer_manifest"]
+    storage = get_r2_storage()
+    if manifest["viewer_type"] == "pages":
+        return {"viewer_type": "pages", "page_count": manifest["page_count"], "page_urls": [storage.generate_presigned_url(version["bucket_type"], page["r2_key"], expiration=900) for page in manifest["pages"]]}
+    return {"viewer_type": manifest["viewer_type"], "duration_seconds": manifest["duration_seconds"], "asset_url": storage.generate_presigned_url(version["bucket_type"], version["r2_key"], expiration=900, response_content_disposition="inline")}
+
 async def record_consumption_event(relationship: Dict[str, Any], assignment_id: str, event: Dict[str, Any], user_id: str) -> Optional[Dict[str, Any]]:
     assignment = await db.supplier_training_assignments.find_one({"id": assignment_id, "supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0})
     if not assignment:

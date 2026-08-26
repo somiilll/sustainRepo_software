@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Archive, CalendarDays, Loader2, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { Archive, CalendarDays, Eye, Loader2, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { Button } from '../../components/ui/button';
@@ -9,7 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { SupplierAssignmentPicker } from './components/SupplierAssignmentPicker';
+import { ReadOnlyTrainingViewer } from './components/ReadOnlyTrainingViewer';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -28,6 +30,9 @@ export default function SupplierTrainingAdmin() {
   const [isUpdating, setIsUpdating] = useState('');
   const [dueDates, setDueDates] = useState({});
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [previewTraining, setPreviewTraining] = useState(null);
+  const [previewViewer, setPreviewViewer] = useState(null);
+  const [openingPreviewId, setOpeningPreviewId] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -104,6 +109,13 @@ export default function SupplierTrainingAdmin() {
     }
   };
 
+  const openPreview = async (training) => {
+    setPreviewTraining(training); setPreviewViewer(null); setOpeningPreviewId(training.id);
+    try { const { data } = await axios.get(`${API}/supplier-assessment/trainings/${training.id}/viewer`, { headers: getAuthHeader() }); setPreviewViewer(data); }
+    catch (error) { toast.error(error.response?.data?.detail || 'Could not preview training'); setPreviewTraining(null); }
+    finally { setOpeningPreviewId(''); }
+  };
+
 
   return <div className={`space-y-6 ${showTrainingForm ? '' : '[&_[data-testid=create-training-card]]:hidden'}`} data-testid="training-admin-page">
     <div className="flex flex-wrap items-end justify-start gap-4 sm:pr-52">
@@ -126,12 +138,13 @@ export default function SupplierTrainingAdmin() {
         <CardContent className="flex flex-col gap-4 py-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1"><b data-testid={`training-title-${training.id}`}>{training.title}</b><div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-stone-500"><span data-testid={`training-threshold-${training.id}`}>{training.completion_threshold}% completion required</span><span data-testid={`training-completion-count-${training.id}`}>{(training.status || []).filter((item) => item.status === 'completed').length} of {(training.status || []).length} suppliers complete</span>{!training.is_active && <span className="font-medium text-amber-700" data-testid={`training-disabled-status-${training.id}`}>Disabled</span>}</div></div>
-          <div className="flex flex-wrap items-end gap-2"><div className="space-y-1"><Label htmlFor={`training-due-date-${training.id}`} className="text-xs">Due date</Label><Input id={`training-due-date-${training.id}`} type="date" value={dueDates[training.id] ?? training.due_date?.slice(0, 10) ?? ''} onChange={(event) => setDueDates((current) => ({ ...current, [training.id]: event.target.value }))} data-testid={`training-due-date-${training.id}`} /></div><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => updateTraining(training.id, { due_date: dueDates[training.id] ?? training.due_date?.slice(0, 10) ?? null }, 'Due date saved')} data-testid={`save-training-due-date-${training.id}`}><CalendarDays className="mr-1 h-4 w-4" />Save</Button><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => updateTraining(training.id, { is_active: !training.is_active }, training.is_active ? 'Training disabled' : 'Training enabled')} data-testid={`toggle-training-${training.id}`}>{training.is_active ? <Archive className="mr-1 h-4 w-4" /> : <RotateCcw className="mr-1 h-4 w-4" />}{training.is_active ? 'Disable' : 'Enable'}</Button><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => setPendingDelete(training)} data-testid={`delete-training-${training.id}`}><Trash2 className="mr-1 h-4 w-4" />Delete</Button></div>
+          <div className="flex flex-wrap items-end gap-2"><div className="space-y-1"><Label htmlFor={`training-due-date-${training.id}`} className="text-xs">Due date</Label><Input id={`training-due-date-${training.id}`} type="date" value={dueDates[training.id] ?? training.due_date?.slice(0, 10) ?? ''} onChange={(event) => setDueDates((current) => ({ ...current, [training.id]: event.target.value }))} data-testid={`training-due-date-${training.id}`} /></div><Button variant="outline" size="sm" disabled={openingPreviewId === training.id} onClick={() => openPreview(training)} data-testid={`preview-training-${training.id}`}>{openingPreviewId === training.id ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Eye className="mr-1 h-4 w-4" />}Preview</Button><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => updateTraining(training.id, { due_date: dueDates[training.id] ?? training.due_date?.slice(0, 10) ?? null }, 'Due date saved')} data-testid={`save-training-due-date-${training.id}`}><CalendarDays className="mr-1 h-4 w-4" />Save</Button><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => updateTraining(training.id, { is_active: !training.is_active }, training.is_active ? 'Training disabled' : 'Training enabled')} data-testid={`toggle-training-${training.id}`}>{training.is_active ? <Archive className="mr-1 h-4 w-4" /> : <RotateCcw className="mr-1 h-4 w-4" />}{training.is_active ? 'Disable' : 'Enable'}</Button><Button variant="outline" size="sm" disabled={isUpdating === training.id} onClick={() => setPendingDelete(training)} data-testid={`delete-training-${training.id}`}><Trash2 className="mr-1 h-4 w-4" />Delete</Button></div>
           </div>
           <div className="border-t border-stone-100 pt-3" data-testid={`training-supplier-progress-${training.id}`}><p className="mb-2 text-xs font-medium uppercase text-stone-500">Supplier progress</p>{(training.status || []).length === 0 ? <p className="text-sm text-stone-500" data-testid={`training-supplier-progress-empty-${training.id}`}>No suppliers are currently assigned.</p> : <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{training.status.map((item) => <div key={item.supplier_relationship_id} className="flex items-center justify-between gap-3 border border-stone-200 px-3 py-2" data-testid={`training-supplier-progress-${training.id}-${item.supplier_relationship_id}`}><span className="truncate text-sm font-medium text-stone-800">{item.supplier_name}</span><span className="shrink-0 text-sm text-stone-600">{item.progress_percent}% · {item.status.replace('_', ' ')}</span></div>)}</div>}</div>
         </CardContent>
       </Card>)}
     </div>
+    <Dialog open={Boolean(previewTraining)} onOpenChange={(open) => { if (!open) { setPreviewTraining(null); setPreviewViewer(null); } }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-6xl overflow-y-auto" data-testid="admin-training-preview-dialog"><DialogHeader><DialogTitle data-testid="admin-training-preview-dialog-title">Training preview — {previewTraining?.title}</DialogTitle></DialogHeader>{!previewViewer ? <p className="py-16 text-center text-sm text-stone-500" data-testid="admin-training-preview-loading">Preparing preview…</p> : <ReadOnlyTrainingViewer viewer={previewViewer} />}</DialogContent></Dialog>
     <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
       <AlertDialogContent data-testid="delete-training-dialog"><AlertDialogHeader><AlertDialogTitle>Delete {pendingDelete?.title}?</AlertDialogTitle><AlertDialogDescription>This removes it from supplier access and assignment lists. Historical completion records are retained for audit purposes.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-delete-training-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteTraining} data-testid="confirm-delete-training-button">Delete training</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
     </AlertDialog>

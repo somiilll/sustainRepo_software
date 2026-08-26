@@ -1,81 +1,61 @@
 {
-  "design_system": {
-    "theme": "light",
-    "context": "Dashboard & Admin Panel",
-    "typography": {
-      "headings": "font-sans font-semibold tracking-tight",
-      "body": "font-sans text-sm",
-      "instructions": "Avoid generic sans for headings (e.g. use Manrope or Work Sans). Maintain readable text hierarchy."
-    },
-    "colors": {
-      "background": "#F8FAFC",
-      "surface": "#FFFFFF",
-      "primary": "indigo-600",
-      "text_primary": "slate-900",
-      "text_secondary": "slate-500",
-      "borders": "slate-200"
-    },
-    "surfaces_and_shapes": {
-      "cards": "bg-white border border-slate-200 shadow-sm rounded-xl",
-      "modals": "bg-white shadow-xl rounded-xl border border-slate-100",
-      "shadows": "Light edge shadows on all containers (shadow-sm)",
-      "borders": "rounded-xl for main containers, rounded-md for inputs/buttons"
-    },
-    "layout": {
-      "spacing": "Dense spacing for dashboards (p-4 to p-6). Form elements use gap-4 instead of gap-8 to stay compact.",
-      "grids": "Use grid-cols-2 or flex-row to utilize horizontal space and reduce vertical scrolling."
+  "theme_and_context": {
+    "app_type": "Dashboard",
+    "theme": "Light mode preference (Data-heavy)",
+    "archetype": "ARCHETYPE 4: SWISS & HIGH-CONTRAST variant tailored for enterprise dashboard",
+    "description": "Functional beauty, dense compact spacing, high-contrast readability, clear interaction states. The design preserves the existing clean Stone, Emerald, Violet, and Sky palettes already established in the dashboard."
+  },
+  "typography": {
+    "headings": "System default clean sans-serif (Inter/Geist) to match existing design. Preserve classes like text-stone-900, font-semibold.",
+    "body": "text-sm text-stone-500, text-stone-600, or text-stone-800 for maximum data density and legibility.",
+    "hierarchy": "Strict text sizes: max text-4xl for page titles (like 'Supplier rankings'), text-base/text-sm for card titles and data."
+  },
+  "colors": {
+    "background": "bg-white or bg-stone-50/100",
+    "text": "text-stone-900 (primary), text-stone-500 (secondary)",
+    "primary_brand": "Emerald (emerald-600/700) for ESG/Emissions, Sky/Teal for Documents, Violet for GHG, Amber for Training",
+    "status": {
+      "excellent": "emerald-600",
+      "good": "blue-600",
+      "average": "amber-500",
+      "critical": "rose-600"
     }
   },
-  "task_specific_instructions": {
-    "1_supplier_create_form": [
-      "Remove excess vertical spacing between scope 1 and scope 2.",
-      "Compact the form using optimal grid layouts and reduced gap spaces.",
-      "Remove the custom colored background from the 'Documents' section."
+  "visual_enhancers": {
+    "borders": "border-stone-200 for standard structural cards, border-stone-100 for internal dividers",
+    "shadows": "shadow-sm for interactive overlays/dialogs, shadow-none for flat dashboard cards",
+    "corner_radius": "rounded-lg for main containers, rounded-md for nested inner elements",
+    "glassmorphism": "Avoid in data-heavy medical/finance/assessment areas to prevent visual refraction of data; use solid off-white/stone backgrounds for dialogs."
+  },
+  "layouts_and_grids": {
+    "dashboard_grid": "Tight gap (gap-4 or gap-5), grid-cols-1 md:grid-cols-2 lg:grid-cols-2 for chart comparisons, 1fr for full-width tabular data.",
+    "card_structure": "Flat background, 1px subtle border, no heavy drop shadows."
+  },
+  "instructions_to_main_agent": {
+    "SupplierRanking.jsx": [
+      "In the ESG Tab (`TabsContent value='esg'`), LOCATE the `Card` with `data-testid='esg-module-coverage-card'` ('Assessment module coverage (avg completion)') and REMOVE it.",
+      "In its place (or alongside the ESG score distribution), ADD a new `Card` with `data-testid='esg-supplier-comparison-card'` displaying a grouped bar chart of each supplier's E, S, and G scores.",
+      "Use Recharts `BarChart` for the grouped chart. Map over the `esg` array (which contains suppliers with esg scores).",
+      "Configure `<XAxis dataKey='company_name' />` and three `<Bar>` components: `environment_score` (color: #059669 / emerald-600), `social_score` (color: #3b82f6 / blue-500), and `governance_score` (color: #7c3aed / violet-600).",
+      "Use `ResponsiveContainer` (height ~244), `CartesianGrid`, `ChartTooltip`, and `Legend` for clarity."
     ],
-    "2_supplier_view": [
-      "Conditionally render 'Locked ESG submissions' only when data exists (i.e. not empty).",
-      "Fix GHG intensity display: show exactly 'Pending' when revenue is missing (instead of 'Pending tCO2e / revenue million').",
-      "Add overflow-y-auto to the form container to ensure it is scrollable vertically."
+    "SupplierDocumentsAdmin.jsx": [
+      "In the list of published agreements (`published-supplier-agreements-list`), REPLACE the inline wrapping list of individual supplier badges (`agreement-assigned-suppliers-...`) with a scalable summary text (e.g., '25 suppliers assigned').",
+      "ADD a 'View suppliers' link or button next to the summary that triggers a dialog (or modify the existing 'Responses' dialog) containing a table/list of all assigned suppliers with their 'Pending' or 'Submitted' statuses.",
+      "ADD a 'Preview Document' button to each document in the main list. Clicking it must trigger a secure in-app preview (e.g., a modal with an iframe or secure object tag for PDF/DOC viewing)."
     ],
-    "3_supplier_edit_form": [
-      "Ensure 'documents/trainings' sections are properly visible.",
-      "Set background to white (bg-white) and introduce subtle brand colors for headers/active states."
-    ],
-    "4_reminders": [
-      "Inspect application logs and the existing email flow in the code to fix the failed reminder delivery."
-    ],
-    "5_reporting_period": [
-      "Move the 'Reporting period' dropdown to sit adjacent to the 'Suppliers' heading using flexbox (e.g. flex justify-between items-center) to optimize vertical space."
-    ],
-    "6_supplier_ledger": [
-      "Rename the 'status' column header to 'login status'."
-    ],
-    "7_esg": [
-      "Fix action buttons overflowing outside the questionnaire's question box (use flex-wrap or adjust boundaries).",
-      "Investigate and fix the drag and drop mechanism for questions.",
-      "Rename 'all eligible suppliers' to 'all suppliers'.",
-      "Beautify 'Create Questionnaire' with subtle colors and active state highlights.",
-      "Improve the error text when questionnaire weight does not sum to 100% to be highly descriptive.",
-      "Wrap action icons in Tooltips indicating their function (e.g., 'Duplicate questionnaire' for the copy icon).",
-      "Fix 'Active' tag logic to dynamically check if the deadline has passed, showing appropriately.",
-      "Hide the questionnaire description from the UI while preserving the data handling.",
-      "Redesign 'add question' into a ledger-like tabular format for bulk addition to simplify complexity.",
-      "Add a distinct 'Preview' button/modal to preview the questionnaire for suppliers.",
-      "Remove 'Advanced configuration' from the form.",
-      "Enhance dropdown question creation with a validation check ensuring at least 2 options exist."
-    ],
-    "8_ghg": [
-      "Remove/hide 'Attributed emissions by scope and category'.",
-      "Style cards with white backgrounds, light edge shadows, and rounded borders.",
-      "Implement filters for 'All emission records'."
+    "SupplierTrainingAdmin.jsx": [
+      "In the training list (`training-admin-list`), ADD a 'Preview Training' button to each training item so the parent organization can securely preview the uploaded training content in read-only mode.",
+      "The preview should open an in-app dialog overlay containing a secure viewer (video, audio, or document viewer depending on file type).",
+      "Ensure the preview action strictly maintains read-only access."
     ]
   },
   "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "You have .js files, NOT .tsx files. Write standard React JS syntax.",
-    "All interactive and key informational elements MUST include a data-testid attribute for robust testing.",
-    "Do not use complete transparent background in headers, overlays, or any surface over content (e.g. Dropdown backgrounds).",
-    "Use Shadcn UI components where applicable, customizing them to fit the Light Dashboard theme.",
-    "Apply micro-interactions on hover (e.g., hover:bg-slate-50) using specific transition properties (e.g., transition-colors), NEVER transition-all.",
-    "Ensure high contrast text (APCA standard) and accessible focus states."
+    "Preserve existing styles, spacing (Tailwind classes), and Shadcn UI component usage.",
+    "Do not break Recharts responsive containers; ensure all Recharts elements have correct imports from 'recharts'.",
+    "Do not use transparent backgrounds under text or critical UI. All dropdowns, dialogs, and tooltips must have solid backgrounds.",
+    "All interactive elements MUST have a data-testid attribute in kebab-case to facilitate robust automated testing.",
+    "Ensure accessible contrast for all text over chart colors.",
+    "Use optical alignment for buttons with icons, adding slightly more padding to the side without the icon."
   ]
 }

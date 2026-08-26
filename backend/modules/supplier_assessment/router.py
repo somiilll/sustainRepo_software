@@ -5,6 +5,7 @@ from typing import Optional, List
 import json
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi.responses import Response
 
 from modules.auth.dependencies import get_current_user, get_admin_user
 from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_supplier_limit
@@ -327,6 +328,20 @@ async def get_document_supplier_responses(requirement_id: str, current_user: dic
         raise HTTPException(status_code=404, detail="Agreement not found")
     return response_data
 
+@router.get("/documents/{requirement_id}/preview")
+async def preview_document(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
+    try:
+        preview = await documents_service.get_customer_document_preview(current_user["organization_id"], requirement_id)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error))
+    if not preview:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    return Response(
+        content=preview["content"],
+        media_type=preview["content_type"],
+        headers={"Content-Disposition": f'inline; filename="{preview["filename"]}"', "Cache-Control": "private, max-age=300"},
+    )
+
 @router.delete("/documents/{requirement_id}")
 async def delete_document(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
     """Remove an agreement from active supplier access while retaining immutable records."""
@@ -373,6 +388,16 @@ async def get_training_status(training_id: str, reporting_period: Optional[str] 
     status_rows = await training_service.training_status(current_user["organization_id"], training_id, reporting_period)
     if status_rows is None: raise HTTPException(status_code=404, detail="Training not found")
     return status_rows
+
+@router.get("/trainings/{training_id}/viewer")
+async def preview_training(training_id: str, current_user: dict = Depends(get_customer_admin)):
+    try:
+        viewer = await training_service.training_viewer_for_admin(current_user["organization_id"], training_id)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error))
+    if not viewer:
+        raise HTTPException(status_code=404, detail="Training not found")
+    return viewer
 
 
 # ============================================================================
