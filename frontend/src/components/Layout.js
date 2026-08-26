@@ -72,7 +72,8 @@ export default function Layout() {
     location.pathname === route || location.pathname.startsWith(route + '/')
   );
   const isExplicitlyLockedSupplierRoute = isSupplierLockedRoute(location.pathname);
-  const isSupplierAssessmentWorkspace = isSupplier && location.pathname.startsWith('/supplier-assessment');
+  const isSupplierAssessmentRoute = location.pathname.startsWith('/supplier-assessment');
+  const isSupplierAssessmentWorkspace = isSupplier && isSupplierAssessmentRoute;
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -163,7 +164,9 @@ export default function Layout() {
               className={
                 isDashboardPage
                   ? 'w-full px-4 pt-14 pb-4 lg:px-5 lg:pt-0'
-                  : 'w-full px-4 pb-4 pt-14 lg:px-5 lg:py-4'
+                  : isSupplierAssessmentRoute
+                    ? 'w-full px-4 pb-4 pt-14 lg:px-5 lg:pt-0'
+                    : 'w-full px-4 pb-4 pt-14 lg:px-5 lg:py-4'
               }
             >
             {/* Show locked overlay for suppliers on restricted routes */}
