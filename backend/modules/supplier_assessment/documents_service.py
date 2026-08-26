@@ -37,6 +37,8 @@ def _is_requirement_available_to_relationship(requirement: Dict[str, Any], relat
     requirement_period = requirement.get("reporting_period")
     if requirement_period and requirement_period != relationship.get("reporting_period"):
         return False
+    if relationship["id"] in (requirement.get("excluded_supplier_relationship_ids") or []):
+        return False
     explicitly_assigned = relationship["id"] in (requirement.get("supplier_relationship_ids") or [])
     same_program = (
         requirement.get("assessment_program_id") == relationship.get("assessment_program_id")

@@ -169,10 +169,6 @@ export default function SupplierGHGView() {
       {/* Supplier Totals */}
       {supplierTotals.length > 0 && (
         <Card className="overflow-hidden rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-emissions-by-supplier-card">
-          <CardHeader className="border-b border-stone-100 pb-4">
-            <CardTitle className="text-lg text-stone-900">Emissions by Supplier</CardTitle>
-            <p className="text-sm text-stone-500">Reported emissions, revenue-attributed emissions, and total intensity for each supplier.</p>
-          </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
             <Table className="min-w-[1180px]" data-testid="supplier-emissions-by-supplier-table">
@@ -254,9 +250,6 @@ export default function SupplierGHGView() {
 
       {/* Emissions Table */}
       <Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="all-supplier-emission-records-card">
-        <CardHeader>
-          <CardTitle>All Emission Records</CardTitle>
-        </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-stone-500">Loading emissions...</div>

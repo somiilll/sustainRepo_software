@@ -413,6 +413,49 @@ class SupplierAssessmentService:
                 raise ValueError("A supplier with this organization name already exists")
             updates["company_name"] = company_name
 
+        if "document_requirement_ids" in updates:
+            selected_document_ids = set(updates.pop("document_requirement_ids") or [])
+            requirements = await db.supplier_document_requirements.find(
+                {"customer_org_id": relationship["customer_org_id"], "is_active": True},
+                {"_id": 0, "id": 1, "supplier_relationship_ids": 1, "excluded_supplier_relationship_ids": 1},
+            ).to_list(1000)
+            valid_document_ids = {requirement["id"] for requirement in requirements}
+            if selected_document_ids - valid_document_ids:
+                raise ValueError("Selected document is unavailable")
+            for requirement in requirements:
+                assigned = set(requirement.get("supplier_relationship_ids") or [])
+                excluded = set(requirement.get("excluded_supplier_relationship_ids") or [])
+                if requirement["id"] in selected_document_ids:
+                    assigned.add(relationship_id); excluded.discard(relationship_id)
+                else:
+                    assigned.discard(relationship_id); excluded.add(relationship_id)
+                await db.supplier_document_requirements.update_one({"id": requirement["id"]}, {"$set": {"supplier_relationship_ids": list(assigned), "excluded_supplier_relationship_ids": list(excluded)}})
+
+        if "training_requirement_ids" in updates:
+            selected_training_ids = set(updates.pop("training_requirement_ids") or [])
+            requirements = await db.supplier_training_requirements.find(
+                {"organization_id": relationship["customer_org_id"], "is_active": True, "is_deleted": {"$ne": True}},
+                {"_id": 0, "id": 1},
+            ).to_list(1000)
+            valid_training_ids = {requirement["id"] for requirement in requirements}
+            if selected_training_ids - valid_training_ids:
+                raise ValueError("Selected training is unavailable")
+            existing_assignments = await db.supplier_training_assignments.find(
+                {"supplier_relationship_id": relationship_id, "training_requirement_id": {"$in": list(valid_training_ids)}},
+                {"_id": 0, "id": 1, "training_requirement_id": 1},
+            ).to_list(1000)
+            assignment_by_requirement = {assignment["training_requirement_id"]: assignment for assignment in existing_assignments}
+            now = datetime.now(timezone.utc).isoformat()
+            for requirement_id in valid_training_ids:
+                assignment = assignment_by_requirement.get(requirement_id)
+                if requirement_id in selected_training_ids:
+                    if assignment:
+                        await db.supplier_training_assignments.update_one({"id": assignment["id"]}, {"$set": {"is_active": True, "updated_at": now}})
+                    else:
+                        await db.supplier_training_assignments.insert_one({"id": str(uuid.uuid4()), "supplier_relationship_id": relationship_id, "organization_id": relationship["customer_org_id"], "training_requirement_id": requirement_id, "reporting_period": relationship.get("reporting_period"), "assigned_at": now, "is_active": True})
+                elif assignment:
+                    await db.supplier_training_assignments.update_one({"id": assignment["id"]}, {"$set": {"is_active": False, "updated_at": now}})
+
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         await db.supplier_relationships.update_one(
