@@ -88,11 +88,11 @@ export default function SupplierDashboard() {
   const completedTrainings = trainings.filter((training) => training.status === 'completed');
 
   const progressItems = [
-    { id: 'revenue', label: 'Revenue', progress: revenueProgress, Icon: DollarSign, iconClassName: 'bg-blue-50 text-blue-700', shadowClassName: 'shadow-[0_6px_18px_rgba(59,130,246,0.16)]' },
-    ...(modules.has('esg') ? [{ id: 'esg', label: 'ESG Questionnaire', progress: modules.get('esg').completion_percent, Icon: ClipboardList, iconClassName: 'bg-indigo-50 text-indigo-700', shadowClassName: 'shadow-[0_6px_18px_rgba(99,102,241,0.16)]' }] : []),
-    ...(modules.has('ghg') ? [{ id: 'ghg', label: 'GHG Emissions', progress: modules.get('ghg').completion_percent, Icon: Cloud, iconClassName: 'bg-emerald-50 text-emerald-700', shadowClassName: 'shadow-[0_6px_18px_rgba(16,185,129,0.16)]' }] : []),
-    ...(modules.has('documents') ? [{ id: 'documents', label: 'Documents', progress: modules.get('documents').completion_percent, Icon: FileText, iconClassName: 'bg-cyan-50 text-cyan-700', shadowClassName: 'shadow-[0_6px_18px_rgba(6,182,212,0.16)]' }] : []),
-    ...(modules.has('training') ? [{ id: 'training', label: 'Training', progress: modules.get('training').completion_percent, Icon: GraduationCap, iconClassName: 'bg-amber-50 text-amber-700', shadowClassName: 'shadow-[0_6px_18px_rgba(245,158,11,0.16)]' }] : []),
+    { id: 'revenue', label: 'Revenue', progress: revenueProgress, Icon: DollarSign, iconClassName: 'bg-blue-50 text-blue-700', shadowClassName: 'shadow-[0_3px_10px_rgba(59,130,246,0.14)]' },
+    ...(modules.has('esg') ? [{ id: 'esg', label: 'ESG Questionnaire', progress: modules.get('esg').completion_percent, Icon: ClipboardList, iconClassName: 'bg-indigo-50 text-indigo-700', shadowClassName: 'shadow-[0_3px_10px_rgba(99,102,241,0.14)]' }] : []),
+    ...(modules.has('ghg') ? [{ id: 'ghg', label: 'GHG Emissions', progress: modules.get('ghg').completion_percent, Icon: Cloud, iconClassName: 'bg-emerald-50 text-emerald-700', shadowClassName: 'shadow-[0_3px_10px_rgba(16,185,129,0.14)]' }] : []),
+    ...(modules.has('documents') ? [{ id: 'documents', label: 'Documents', progress: modules.get('documents').completion_percent, Icon: FileText, iconClassName: 'bg-cyan-50 text-cyan-700', shadowClassName: 'shadow-[0_3px_10px_rgba(6,182,212,0.14)]' }] : []),
+    ...(modules.has('training') ? [{ id: 'training', label: 'Training', progress: modules.get('training').completion_percent, Icon: GraduationCap, iconClassName: 'bg-amber-50 text-amber-700', shadowClassName: 'shadow-[0_3px_10px_rgba(245,158,11,0.14)]' }] : []),
   ];
 
   const validateRevenue = () => {
@@ -130,7 +130,7 @@ export default function SupplierDashboard() {
 
     <section className="space-y-3" data-testid="supplier-assessment-modules">
       <div><p className="text-xs font-semibold uppercase text-slate-500">Assigned modules</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Complete each requirement</h2></div>
-      <div className="space-y-6" data-testid="supplier-module-panels">
+      <div className="space-y-8" data-testid="supplier-module-panels">
         <SupplierModulePanel title="Revenue Information" description={`Share your revenue relationship with ${customerName}.`} progress={revenueProgress} status={statusBadge(revenueSubmitted ? 'submitted' : revenueProgress ? 'in_progress' : 'pending', 'revenue-overview-status-badge')} icon={DollarSign} iconClassName="bg-blue-50 text-blue-700" shadowClassName="shadow-[0_10px_28px_rgba(59,130,246,0.18)] hover:shadow-[0_14px_34px_rgba(59,130,246,0.24)]" testId="supplier-revenue-module-panel" collapsible>
           <SupplierRevenueContent relationship={relationship} customerName={customerName} revenueRequired={revenueRequired} revenuePercentage={revenuePercentage} setRevenuePercentage={setRevenuePercentage} revenueAmount={revenueAmount} setRevenueAmount={setRevenueAmount} revenueCurrency={revenueCurrency} setRevenueCurrency={setRevenueCurrency} saving={saving} submitting={submittingRevenue} onSave={saveRevenue} onSubmit={() => { if (validateRevenue()) setShowRevenueSubmitConfirm(true); }} />
         </SupplierModulePanel>

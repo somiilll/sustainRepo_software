@@ -113,6 +113,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier dashboard refinement: Revenue Information is the only collapsible panel; ESG, GHG, Documents, and Training now keep their progress percentage and primary action in one compact row, with no duplicate questionnaire progress bar and wider spacing between panels.
 - Supplier GHG submission refinement: Scope 1 and Scope 2 draft totals now use distinct Factory/Zap icons with blue/purple edge shadows, and scope/category rows use matching colored scope boxes.
 - Supplier dashboard color treatment: each Overall Progress tile and matching requirement card now uses a subtle shadow in its icon accent color (blue, indigo, emerald, cyan, or amber).
+- Supplier dashboard spacing refinement: requirement panels use wider vertical spacing, while Overall Progress tiles use larger gaps and tighter accent shadows to prevent neighboring color shadows from blending.
 - Verification was intentionally skipped at the user's request (`dont test`).
 
 ## Third-Party Integrations

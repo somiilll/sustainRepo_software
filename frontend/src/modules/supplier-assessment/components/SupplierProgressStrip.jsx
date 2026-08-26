@@ -18,7 +18,7 @@ export const SupplierProgressStrip = ({ items }) => {
       <Progress value={overall} className="mt-4 h-2" data-testid="supplier-overall-progress-bar" />
       <div className="mt-5 overflow-x-auto pb-1">
         <div
-          className="grid min-w-max gap-3 md:min-w-0"
+          className="grid min-w-max gap-5 md:min-w-0"
           style={{ gridTemplateColumns: `repeat(${Math.max(items.length, 1)}, minmax(165px, 1fr))` }}
           data-testid="supplier-module-progress-row"
         >
