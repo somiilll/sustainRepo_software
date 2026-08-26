@@ -142,10 +142,12 @@ async def supplier_trainings(relationship: Dict[str, Any]):
         requirement=await db.supplier_training_requirements.find_one({"id":assignment["training_requirement_id"],"organization_id":relationship["customer_org_id"],"is_active":True},{"_id":0})
         version=await db.supplier_training_versions.find_one({"id":assignment["requirement_version_id"]},{"_id":0})
         progress=await db.supplier_training_progress.find_one({"supplier_relationship_id":relationship["id"],"training_assignment_id":assignment["id"]},{"_id":0})
-        if requirement and version: result.append({"assignment_id":assignment["id"],"title":requirement["title"],"description":requirement["description"],"completion_threshold":requirement["completion_threshold"],"due_date":requirement.get("due_date"),"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"version_number":version["version_number"],"content_type":version["content_type"],"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started")})
+        if requirement and version:
+            manifest = version.get("viewer_manifest") or {}
+            result.append({"assignment_id":assignment["id"],"title":requirement["title"],"description":requirement["description"],"completion_threshold":requirement["completion_threshold"],"due_date":requirement.get("due_date"),"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"version_number":version["version_number"],"content_type":version["content_type"],"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started"),"highest_page_index":(progress or {}).get("highest_page_index",0),"page_count":manifest.get("page_count") if manifest.get("viewer_type") == "pages" else None})
     return result
 
-async def update_progress(relationship: Dict[str, Any], assignment_id: str, percent: float, user_id: str):
+async def update_progress(relationship: Dict[str, Any], assignment_id: str, percent: float, user_id: str, highest_page_index: Optional[int] = None):
     if not 0 <= percent <= 100:
         raise ValueError("Progress must be between 0 and 100")
     assignment=await db.supplier_training_assignments.find_one({"id":assignment_id,"supplier_relationship_id":relationship["id"],"is_active":True},{"_id":0})
@@ -154,6 +156,9 @@ async def update_progress(relationship: Dict[str, Any], assignment_id: str, perc
     status="completed" if percent >= requirement["completion_threshold"] else ("in_progress" if percent else "not_started")
     existing=await db.supplier_training_progress.find_one({"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"]},{"_id":0})
     now=_now(); progress={"id":(existing or {}).get("id",str(uuid.uuid4())),"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"],"training_version_id":assignment["requirement_version_id"],"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"progress_percent":percent,"status":status,"completed_at":now if status=="completed" else None,"updated_by":user_id,"updated_at":now}
+    persisted_highest_page = max(int((existing or {}).get("highest_page_index") or 0), int(highest_page_index or 0))
+    if persisted_highest_page:
+        progress["highest_page_index"] = persisted_highest_page
     await db.supplier_training_progress.update_one({"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"]},{"$set":progress},upsert=True); progress.pop("_id",None); return progress
 
 async def training_file_for_supplier(relationship: Dict[str, Any], assignment_id: str) -> Optional[Dict[str, Any]]:
@@ -198,7 +203,11 @@ async def training_viewer_for_supplier(relationship: Dict[str, Any], assignment_
     manifest = version["viewer_manifest"]
     storage = get_r2_storage()
     if manifest["viewer_type"] == "pages":
-        return {"viewer_type": "pages", "page_count": manifest["page_count"], "page_urls": [storage.generate_presigned_url(version["bucket_type"], page["r2_key"], expiration=900) for page in manifest["pages"]]}
+        progress = await db.supplier_training_progress.find_one(
+            {"training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"]},
+            {"_id": 0, "highest_page_index": 1},
+        ) or {}
+        return {"viewer_type": "pages", "page_count": manifest["page_count"], "highest_page_index": progress.get("highest_page_index", 0), "page_urls": [storage.generate_presigned_url(version["bucket_type"], page["r2_key"], expiration=900) for page in manifest["pages"]]}
     return {"viewer_type": manifest["viewer_type"], "duration_seconds": manifest["duration_seconds"], "asset_url": storage.generate_presigned_url(version["bucket_type"], version["r2_key"], expiration=900, response_content_disposition="inline")}
 
 async def record_consumption_event(relationship: Dict[str, Any], assignment_id: str, event: Dict[str, Any], user_id: str) -> Optional[Dict[str, Any]]:
@@ -211,10 +220,12 @@ async def record_consumption_event(relationship: Dict[str, Any], assignment_id: 
         raise ValueError("This legacy training must be republished for in-app viewing")
     existing = await db.supplier_training_progress.find_one({"training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"]}, {"_id": 0})
     current_percent = float((existing or {}).get("progress_percent", 0))
+    highest_page_index = None
     if event["event_type"] == "page_view":
         if manifest["viewer_type"] != "pages" or event.get("unit_index") is None or not 1 <= event["unit_index"] <= manifest["page_count"]:
             raise ValueError("Invalid training page event")
-        percent = max(current_percent, round(event["unit_index"] / manifest["page_count"] * 100, 2))
+        highest_page_index = max(int((existing or {}).get("highest_page_index") or 0), int(event["unit_index"]))
+        percent = max(current_percent, round(highest_page_index / manifest["page_count"] * 100, 2))
     else:
         if manifest["viewer_type"] not in {"audio", "video"} or event.get("position_seconds") is None:
             raise ValueError("Invalid training media event")
@@ -222,7 +233,7 @@ async def record_consumption_event(relationship: Dict[str, Any], assignment_id: 
         percent = max(current_percent, round(min(max(event["position_seconds"], 0), duration) / duration * 100, 2))
     now = _now()
     await db.supplier_training_consumption_events.insert_one({"id": str(uuid.uuid4()), "training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"], "training_version_id": assignment["requirement_version_id"], "event_type": event["event_type"], "unit_index": event.get("unit_index"), "position_seconds": event.get("position_seconds"), "progress_percent": percent, "recorded_at": now, "recorded_by": user_id})
-    return await update_progress(relationship, assignment_id, percent, user_id)
+    return await update_progress(relationship, assignment_id, percent, user_id, highest_page_index)
 
 async def training_status(org_id: str, requirement_id: str, reporting_period: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
     requirement = await db.supplier_training_requirements.find_one({"id": requirement_id, "organization_id": org_id, "is_deleted": {"$ne": True}}, {"_id": 0})
@@ -235,7 +246,7 @@ async def training_status(org_id: str, requirement_id: str, reporting_period: Op
     for assignment in assignments:
         relationship=await db.supplier_relationships.find_one({"id":assignment["supplier_relationship_id"],"customer_org_id":org_id},{"_id":0,"company_name":1})
         progress=await db.supplier_training_progress.find_one({"training_assignment_id":assignment["id"]},{"_id":0})
-        if relationship: result.append({"supplier_relationship_id":assignment["supplier_relationship_id"],"supplier_name":relationship.get("company_name"),"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started")})
+        if relationship: result.append({"supplier_relationship_id":assignment["supplier_relationship_id"],"supplier_name":relationship.get("company_name"),"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started"),"highest_page_index":(progress or {}).get("highest_page_index",0)})
     return result
 
 

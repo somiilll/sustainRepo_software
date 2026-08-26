@@ -30,7 +30,7 @@ export const SupplierRevenueContent = ({
   const submitted = relationship.revenue_submission_status === 'submitted';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8" data-testid="supplier-revenue-content">
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="supplier-revenue-percentage" className="text-sm font-medium text-slate-800">
