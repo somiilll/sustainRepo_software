@@ -217,6 +217,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Removed the Overall Component Weight accordion from the Create Questionnaire form while preserving the default and historical stored values.
 - **NOT TESTED** after this adjustment, respecting the user instruction.
 
+## Latest Changes — 2026-08-26 (ESG-Only Supplier Scoring)
+- Supplier Detail now exposes only ESG Score and the Environment/Social/Governance ESG breakdown. GHG Score, Overall score, and GHG intensity were removed from the score view.
+- Canonical supplier scoring now uses submitted ESG results only; GHG, revenue, documents, and training continue as progress/data modules and no longer affect supplier score completion or ranking.
+- **NOT TESTED** after this change, respecting the user instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
