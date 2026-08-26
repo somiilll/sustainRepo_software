@@ -209,7 +209,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - **NOT TESTED** after this adjustment, respecting the user instruction.
 
 ## Latest Changes — 2026-08-26 (Supplier Detail Zero Progress)
-- Supplier detail Completion Progress now hides an ESG Questionnaire row and empty progress bar when its stored completion is `0%`, removing the confusing zero display.
+- Restored the ESG Questionnaire `0%` row and empty progress bar in Supplier Detail, per user direction.
+- Fixed the unrelated stray standalone `0` below Completion Progress: the score-card conditional previously evaluated to numeric zero and React rendered it. It now checks for present values explicitly and preserves valid score values of `0`.
 - **NOT TESTED** after this adjustment, respecting the user instruction.
 
 ## Latest Changes — 2026-08-26 (Questionnaire Creation Simplification)

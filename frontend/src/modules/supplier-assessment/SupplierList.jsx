@@ -922,15 +922,13 @@ export default function SupplierList() {
               <div className="border-t pt-4">
                 <Label className="text-stone-500">Completion Progress</Label>
                 <div className="space-y-2 mt-2">
-                  {(selectedSupplier.esg_completion_percent || 0) > 0 && <>
-                    <div className="flex items-center justify-between text-sm">
-                      <span>ESG Questionnaire</span>
-                      <span>{Math.round(selectedSupplier.esg_completion_percent)}%</span>
-                    </div>
-                    <div className="w-full bg-stone-200 rounded-full h-2">
-                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${selectedSupplier.esg_completion_percent}%` }} />
-                    </div>
-                  </>}
+                  <div className="flex items-center justify-between text-sm">
+                    <span>ESG Questionnaire</span>
+                    <span>{Math.round(selectedSupplier.esg_completion_percent || 0)}%</span>
+                  </div>
+                  <div className="w-full bg-stone-200 rounded-full h-2">
+                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${selectedSupplier.esg_completion_percent || 0}%` }} />
+                  </div>
                   
                   <div className="flex items-center justify-between text-sm mt-3">
                     <span>GHG Emissions</span>
@@ -950,25 +948,25 @@ export default function SupplierList() {
               </div>
               }
               
-              {(selectedSupplier.esg_score || selectedSupplier.ghg_score) && (
+              {[selectedSupplier.esg_score, selectedSupplier.ghg_score].some((score) => score !== null && score !== undefined) && (
                 <div className="border-t pt-4">
                   <Label className="text-stone-500">Scores</Label>
                   <div className="grid grid-cols-3 gap-4 mt-2">
                     <div className="text-center p-3 bg-stone-50 rounded-lg">
                       <div className="text-2xl font-bold text-blue-600">
-                        {selectedSupplier.esg_score || '-'}
+                        {selectedSupplier.esg_score ?? '-'}
                       </div>
                       <div className="text-xs text-stone-500">ESG Score</div>
                     </div>
                     <div className="text-center p-3 bg-stone-50 rounded-lg">
                       <div className="text-2xl font-bold text-emerald-600">
-                        {selectedSupplier.ghg_score || '-'}
+                        {selectedSupplier.ghg_score ?? '-'}
                       </div>
                       <div className="text-xs text-stone-500">GHG Score</div>
                     </div>
                     <div className="text-center p-3 bg-stone-50 rounded-lg">
                       <div className="text-2xl font-bold text-purple-600">
-                        {selectedSupplier.overall_score || '-'}
+                        {selectedSupplier.overall_score ?? '-'}
                       </div>
                       <div className="text-xs text-stone-500">Overall</div>
                     </div>
