@@ -72,6 +72,7 @@ export default function Layout() {
     location.pathname === route || location.pathname.startsWith(route + '/')
   );
   const isExplicitlyLockedSupplierRoute = isSupplierLockedRoute(location.pathname);
+  const isSupplierAssessmentWorkspace = isSupplier && location.pathname.startsWith('/supplier-assessment');
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -157,7 +158,7 @@ export default function Layout() {
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto">
+        <div className={`flex-1 overflow-y-auto ${isSupplierAssessmentWorkspace ? 'bg-white' : ''}`}>
             <div
               className={
                 isDashboardPage

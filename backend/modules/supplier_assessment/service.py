@@ -276,6 +276,7 @@ class SupplierAssessmentService:
             temp_password=temp_password,  # Will be None if user already exists
             login_link=login_link,
             due_date=due_date,
+            assigned_modules=["revenue", *modules_enabled],
         )
         
         subject = f"Supplier Assessment Invitation from {customer_name}"
@@ -589,8 +590,10 @@ class SupplierAssessmentService:
         )
         if not relationship:
             raise ValueError("Supplier relationship not found")
-        if relationship.get("revenue_percentage") is None or relationship.get("revenue_amount") is None:
-            raise ValueError("Save both revenue percentage and amount before submitting")
+        if relationship.get("revenue_percentage") is None:
+            raise ValueError("Save the mandatory revenue percentage before submitting")
+        if relationship.get("revenue_required", False) and relationship.get("revenue_amount") is None:
+            raise ValueError("Save the mandatory annual revenue amount before submitting")
         period = relationship.get("reporting_period") or self._default_reporting_period()
         existing = await db.supplier_revenue_submissions.find_one(
             {"supplier_relationship_id": relationship_id, "reporting_period": period, "status": "submitted", "parent_visible": {"$ne": False}}, {"_id": 0, "id": 1}
@@ -602,7 +605,7 @@ class SupplierAssessmentService:
             "id": str(uuid.uuid4()), "supplier_relationship_id": relationship_id,
             "supplier_org_id": supplier_org_id, "customer_org_id": relationship["customer_org_id"],
             "reporting_period": period, "revenue_percentage": relationship["revenue_percentage"],
-            "revenue_amount": relationship["revenue_amount"], "revenue_currency": relationship.get("revenue_currency") or "USD",
+            "revenue_amount": relationship.get("revenue_amount"), "revenue_currency": relationship.get("revenue_currency") or "USD",
             "status": "submitted", "parent_visible": True, "revision": 1,
             "submitted_by": submitted_by, "submitted_at": now,
         }

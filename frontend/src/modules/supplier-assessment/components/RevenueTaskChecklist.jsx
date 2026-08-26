@@ -8,19 +8,18 @@ const statusPresentation = {
   pending: { label: 'Pending', icon: Circle, className: 'bg-amber-100 text-amber-800' },
 };
 
-export default function RevenueTaskChecklist({ relationship, required = true }) {
-  if (!required) return null;
+export default function RevenueTaskChecklist({ relationship, amountRequired = false }) {
   const percentageEntered = relationship.revenue_percentage !== null && relationship.revenue_percentage !== undefined;
   const amountEntered = relationship.revenue_amount !== null && relationship.revenue_amount !== undefined;
   const submitted = relationship.revenue_submission_status === 'submitted';
   const tasks = [
     { id: 'percentage', label: 'Enter revenue percentage', status: percentageEntered ? 'completed' : 'pending' },
-    { id: 'amount', label: 'Enter annual revenue amount', status: amountEntered ? 'completed' : 'pending' },
-    { id: 'submit', label: 'Submit revenue information', status: submitted ? 'completed' : percentageEntered && amountEntered ? 'ready' : 'pending' },
+    ...(amountRequired ? [{ id: 'amount', label: 'Enter annual revenue amount', status: amountEntered ? 'completed' : 'pending' }] : []),
+    { id: 'submit', label: 'Submit revenue information', status: submitted ? 'completed' : percentageEntered && (!amountRequired || amountEntered) ? 'ready' : 'pending' },
   ];
 
   return (
-    <section className="border-y border-stone-100 py-4" data-testid="revenue-task-checklist">
+    <section className="border-y border-slate-100 py-4" data-testid="revenue-task-checklist">
       <p className="mb-3 text-sm font-medium text-stone-800" data-testid="revenue-task-checklist-title">Revenue tasks</p>
       <ul className="space-y-2" data-testid="revenue-task-list">
         {tasks.map((task) => {

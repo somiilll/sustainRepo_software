@@ -17,8 +17,19 @@ def supplier_invitation_email(
     temp_password: Optional[str],
     login_link: str,
     due_date: Optional[str],
+    assigned_modules: Optional[List[str]] = None,
 ) -> str:
     """HTML body for supplier invitation email."""
+    module_labels = {
+        "revenue": "Revenue information for this customer",
+        "esg": "ESG questionnaire responses",
+        "ghg": "Assigned Scope 1 and Scope 2 emissions data",
+        "documents": "Documents and agreements requiring your response",
+        "training": "Assigned training",
+    }
+    requested_modules = assigned_modules or ["revenue", "esg", "ghg"]
+    required_items = [module_labels[code] for code in requested_modules if code in module_labels]
+    requirements_list = "".join(f"<li>{escape(item)}</li>" for item in required_items)
     credentials_section = ""
     if temp_password:
         displayed_password = escape(temp_password)
@@ -88,9 +99,7 @@ def supplier_invitation_email(
                                     <strong>What you'll need to provide:</strong>
                                 </p>
                                 <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 0 0 25px 0; padding-left: 20px;">
-                                    <li>Revenue percentage from this customer</li>
-                                    <li>ESG questionnaire responses</li>
-                                    <li>Scope 1 and Scope 2 emissions data</li>
+                                    {requirements_list}
                                 </ul>
                                 
                                 {credentials_section}

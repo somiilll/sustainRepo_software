@@ -106,6 +106,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Bulk Upload architectural parity suite iteration 18 passed with 11 backend checks and frontend code verification.
 - Two unrelated pre-existing checks remain outside this feature: preview-gateway CORS header rewriting and stale restricted-user entitlement fixture state.
 
+## Latest Changes — 2026-08-25
+- Supplier invitation emails are now assignment-aware: they list Revenue, ESG, GHG, Documents/Agreements, and Training according to the supplier's enabled assessment modules.
+- The supplier assessment dashboard now uses always-visible static module panels rather than collapsible accordions. Panels and progress cards use softer rounded corners and subtle elevated shadows.
+- Verification was intentionally skipped at the user's request (`dont test`).
+
 ## Third-Party Integrations
 - Cloudflare R2 for private document/training object storage — user credentials required.
 - Resend for email — user credentials required.
