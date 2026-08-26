@@ -8,7 +8,9 @@ import { Progress } from '../../components/ui/progress';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export const TrainingViewer = ({ assignmentId, viewer, getAuthHeader, onProgress }) => {
-  const [pageIndex, setPageIndex] = useState(0);
+  const initialPageIndex = viewer.viewer_type === 'pages' ? Math.min(Math.max((viewer.highest_page_index || 1) - 1, 0), viewer.page_count - 1) : 0;
+  const [pageIndex, setPageIndex] = useState(initialPageIndex);
+  const [highestPageReached, setHighestPageReached] = useState(viewer.highest_page_index || 0);
   const [isSaving, setIsSaving] = useState(false);
   const lastMediaSecond = useRef(0);
 
@@ -16,6 +18,7 @@ export const TrainingViewer = ({ assignmentId, viewer, getAuthHeader, onProgress
     setIsSaving(true);
     try {
       const response = await axios.post(`${API}/supplier-assessment/my-assessment/trainings/${assignmentId}/consumption-events`, event, { headers: getAuthHeader() });
+      if (response.data.highest_page_index) setHighestPageReached(response.data.highest_page_index);
       onProgress(response.data);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Could not save training progress');
@@ -38,7 +41,7 @@ export const TrainingViewer = ({ assignmentId, viewer, getAuthHeader, onProgress
 
   if (viewer.viewer_type === 'pages') return <div className="space-y-4" data-testid="training-page-viewer">
     <div className="relative overflow-hidden border bg-stone-100" data-testid="training-page-canvas"><img src={viewer.page_urls[pageIndex]} alt={`Training page ${pageIndex + 1}`} className="mx-auto max-h-[58vh] w-auto max-w-full object-contain" draggable="false" data-testid={`training-page-image-${pageIndex + 1}`} /></div>
-    <div className="flex items-center justify-between gap-3"><Button variant="outline" size="sm" disabled={pageIndex === 0} onClick={() => setPageIndex((current) => current - 1)} data-testid="training-page-previous-button"><ChevronLeft className="h-4 w-4" />Previous</Button><span className="text-sm font-medium text-stone-700" data-testid="training-page-indicator">Page {pageIndex + 1} of {viewer.page_count}</span><Button variant="outline" size="sm" disabled={pageIndex === viewer.page_count - 1} onClick={() => setPageIndex((current) => current + 1)} data-testid="training-page-next-button">Next<ChevronRight className="h-4 w-4" /></Button></div>
+    <div className="flex items-center justify-between gap-3"><Button variant="outline" size="sm" disabled={pageIndex === 0} onClick={() => setPageIndex((current) => current - 1)} data-testid="training-page-previous-button"><ChevronLeft className="h-4 w-4" />Previous</Button><div className="text-center"><span className="block text-sm font-medium text-stone-700" data-testid="training-page-indicator">Page {pageIndex + 1} of {viewer.page_count}</span><span className="block text-xs text-stone-500" data-testid="training-highest-page-indicator">Highest reached: {Math.max(highestPageReached, pageIndex + 1)}</span></div><Button variant="outline" size="sm" disabled={pageIndex === viewer.page_count - 1} onClick={() => setPageIndex((current) => current + 1)} data-testid="training-page-next-button">Next<ChevronRight className="h-4 w-4" /></Button></div>
     {isSaving && <p className="flex items-center gap-2 text-xs text-stone-500" data-testid="training-progress-saving"><Loader2 className="h-3 w-3 animate-spin" />Saving progress</p>}
   </div>;
 

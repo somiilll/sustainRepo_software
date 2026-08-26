@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Badge } from '../../components/ui/badge';
 import { Label } from '../../components/ui/label';
 import { SupplierDataVerificationAcknowledgement } from './components/SupplierDataVerificationAcknowledgement';
+import { SupplierPageHeader } from './components/SupplierPageHeader';
 import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
 import {
   AlertDialog,
@@ -236,20 +237,16 @@ export default function SupplierQuestionnaire() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6" data-testid="supplier-questionnaire">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} data-testid="supplier-questionnaire-back-button">
+    <div className="mx-auto max-w-3xl space-y-8" data-testid="supplier-questionnaire">
+      <SupplierPageHeader
+        title={questionnaire.name}
+        description={questionnaire.description}
+        testId="supplier-questionnaire"
+        leading={<Button variant="ghost" size="sm" onClick={() => navigate(-1)} data-testid="supplier-questionnaire-back-button">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
-          </Button>
-          <h1 className="text-xl font-semibold text-stone-900 mt-2">{questionnaire.name}</h1>
-          {questionnaire.description && (
-            <p className="text-sm text-stone-500 mt-1">{questionnaire.description}</p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+          </Button>}
+        aside={<>
         {questionnaire.due_date && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900" data-testid="supplier-questionnaire-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(questionnaire.due_date).toLocaleDateString()}</Badge>}
         {isReadOnly && (
           <Badge className="bg-green-100 text-green-800" data-testid="supplier-questionnaire-locked-badge">
@@ -260,8 +257,8 @@ export default function SupplierQuestionnaire() {
         {questionnaire.response_status === 'in_progress' && questionnaire.reopened_at && (
           <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-questionnaire-reopened-badge">Unlocked for resubmission</Badge>
         )}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Progress */}
       <Card>

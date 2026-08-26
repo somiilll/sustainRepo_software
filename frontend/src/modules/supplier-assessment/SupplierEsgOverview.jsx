@@ -8,6 +8,7 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
 import { SupplierModulePanel } from './components/SupplierModuleAccordion';
+import { SupplierPageHeader } from './components/SupplierPageHeader';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -43,8 +44,8 @@ export default function SupplierEsgOverview() {
   useEffect(() => { load(); }, [load]);
   if (loading) return <p className="py-16 text-center text-sm text-slate-500" data-testid="supplier-esg-overview-loading">Loading ESG questionnaires…</p>;
 
-  return <div className="mx-auto max-w-5xl space-y-7 pb-10" data-testid="supplier-esg-overview">
-    <header className="border-b border-slate-200 pb-6"><p className="text-xs font-semibold uppercase text-indigo-700">Assigned ESG</p><h1 className="mt-2 text-3xl font-semibold text-slate-900">ESG Questionnaires</h1><p className="mt-2 text-sm text-slate-600">Open each questionnaire to review its progress and continue your response.</p></header>
+  return <div className="mx-auto max-w-5xl space-y-8 pb-10" data-testid="supplier-esg-overview">
+    <SupplierPageHeader title="ESG Questionnaires" description="Open each questionnaire to review its progress and continue your response." testId="supplier-esg-overview" />
     {questionnaires.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500 shadow-[0_8px_28px_rgba(15,23,42,0.07)]" data-testid="supplier-esg-overview-empty">No ESG questionnaires are assigned.</div> : <div className="space-y-4" data-testid="supplier-esg-questionnaire-panels">
       {questionnaires.map((questionnaire) => <SupplierModulePanel key={questionnaire.questionnaire_id} title={questionnaire.questionnaire_name} description={questionnaire.due_date ? `Due ${new Date(questionnaire.due_date).toLocaleDateString()}` : 'Assigned ESG questionnaire'} progress={questionnaire.completion_percent} status={questionnaireStatus(questionnaire)} icon={ClipboardList} iconClassName="bg-indigo-50 text-indigo-700" shadowClassName="shadow-[0_10px_28px_rgba(99,102,241,0.18)] hover:shadow-[0_14px_34px_rgba(99,102,241,0.24)]" testId={`supplier-esg-questionnaire-${questionnaire.questionnaire_id}`}>
         <div className="space-y-5">

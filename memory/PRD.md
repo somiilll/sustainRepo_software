@@ -252,9 +252,15 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Parent-org agreement cards now display the names of active suppliers assigned to each agreement; the documents API enriches requirements with effective assigned supplier names, including program-wide assignments.
 - **NOT TESTED** after this update, respecting the user instruction.
 
+## Latest Changes — 2026-08-26 (Supplier Submission and Training Progress Refinements)
+- Document acceptance and status responses now open a confirmation dialog before submission, clearly warning suppliers that the response will be locked until the customer reopens it.
+- PDF and PowerPoint training progress now persists an explicit one-based `highest_page_index` in `supplier_training_progress`. Supplier training lists expose page progress, and reopening the viewer resumes at the highest page or slide reached.
+- Documents, Trainings, ESG overview/questionnaire, and Revenue content now use consistent supplier-facing heading scale and section spacing through the shared `SupplierPageHeader` pattern and aligned eight-unit content gaps.
+- **NOT TESTED** after implementation, per the user's explicit `dont test` instruction. A code-only integration review was completed.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
-- **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
+- **P1:** Supplier Document/Training status infographics; BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
 - **P2/P3:** Bulk Upload database duplicate detection, effective-settings summary, MIS previews/bookmarks, bulk upload progress/history. AI credit enforcement remains deferred per user request.
 
 ## Third-Party Integrations
