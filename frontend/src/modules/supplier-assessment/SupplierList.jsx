@@ -741,7 +741,6 @@ export default function SupplierList() {
             <div className="space-y-2">
               <Label>Email</Label>
               <Input value={selectedSupplier?.contact_email || formData.email || ''} disabled className="bg-stone-100 text-stone-500" data-testid="edit-supplier-email-locked" />
-              <p className="text-xs text-stone-500">Email changes are locked for now.</p>
             </div>
             <div className="space-y-2">
               <Label>Contact Number</Label>
