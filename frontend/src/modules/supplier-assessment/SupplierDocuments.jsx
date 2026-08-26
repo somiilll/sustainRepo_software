@@ -24,7 +24,13 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function SupplierDocuments() {
   const { getAuthHeader } = useAuth(); const [documents, setDocuments] = useState([]); const [loading, setLoading] = useState(true); const [submittingId, setSubmittingId] = useState(null); const [selectedStatus, setSelectedStatus] = useState({}); const [pendingSubmission, setPendingSubmission] = useState(null);
   const loadDocuments = useCallback(async () => { try { setDocuments((await axios.get(`${API}/supplier-assessment/my-assessment/documents`, { headers: getAuthHeader() })).data || []); } catch (error) { if (error.response?.status !== 404) toast.error('Could not load documents'); } finally { setLoading(false); } }, [getAuthHeader]);
-  useEffect(() => { loadDocuments(); }, [loadDocuments]);
+  useEffect(() => {
+    loadDocuments();
+    const refreshAssignments = () => loadDocuments();
+    window.addEventListener('focus', refreshAssignments);
+    const intervalId = window.setInterval(refreshAssignments, 30000);
+    return () => { window.removeEventListener('focus', refreshAssignments); window.clearInterval(intervalId); };
+  }, [loadDocuments]);
   const viewDocument = async (document) => { try { const response = await axios.get(`${API}/supplier-assessment/my-assessment/documents/${document.id}/view`, { headers: getAuthHeader() }); window.open(response.data.url, '_blank', 'noopener,noreferrer'); } catch (error) { toast.error(error.response?.data?.detail || 'Could not open document'); } };
   const acceptDocument = async (document) => { setSubmittingId(document.id); try { await axios.post(`${API}/supplier-assessment/my-assessment/documents/${document.id}/accept`, {}, { headers: getAuthHeader() }); toast.success('Document accepted'); await loadDocuments(); } catch (error) { toast.error(error.response?.data?.detail || 'Could not record acceptance'); } finally { setSubmittingId(null); } };
   const selectStatus = async (document, responseValue) => { setSubmittingId(document.id); try { await axios.post(`${API}/supplier-assessment/my-assessment/documents/${document.id}/respond`, { response_value: responseValue }, { headers: getAuthHeader() }); toast.success('Response submitted'); await loadDocuments(); } catch (error) { toast.error(error.response?.data?.detail || 'Could not submit response'); } finally { setSubmittingId(null); } };

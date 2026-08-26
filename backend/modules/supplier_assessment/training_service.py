@@ -278,9 +278,13 @@ async def assign_existing_trainings_to_supplier(org_id: str, relationship: Dict[
     created_ids = []
     for requirement in requirements:
         existing = await db.supplier_training_assignments.find_one(
-            {"supplier_relationship_id": relationship["id"], "training_requirement_id": requirement["id"], "is_active": True}, {"_id": 0, "id": 1}
+            {"supplier_relationship_id": relationship["id"], "training_requirement_id": requirement["id"]}, {"_id": 0, "id": 1}
         )
         if existing:
+            await db.supplier_training_assignments.update_one(
+                {"id": existing["id"]},
+                {"$set": {"is_active": True, "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "updated_at": _now()}},
+            )
             created_ids.append(existing["id"])
             continue
         assignment = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id, "training_requirement_id": requirement["id"], "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True}
@@ -327,5 +331,22 @@ async def ensure_indexes():
     await db.supplier_training_versions.create_index("id", unique=True)
     await db.supplier_training_requirements.create_index([("organization_id", 1), ("is_active", 1)])
     await db.supplier_training_assignments.create_index([("supplier_relationship_id", 1), ("is_active", 1)])
+    duplicate_groups = await db.supplier_training_assignments.aggregate([
+        {"$match": {"is_active": True}},
+        {"$sort": {"assigned_at": 1}},
+        {"$group": {"_id": {"supplier_relationship_id": "$supplier_relationship_id", "training_requirement_id": "$training_requirement_id", "reporting_period": "$reporting_period"}, "assignment_ids": {"$push": "$id"}, "count": {"$sum": 1}}},
+        {"$match": {"count": {"$gt": 1}}},
+    ]).to_list(1000)
+    for group in duplicate_groups:
+        await db.supplier_training_assignments.update_many(
+            {"id": {"$in": group["assignment_ids"][1:]}},
+            {"$set": {"is_active": False, "updated_at": _now()}},
+        )
+    await db.supplier_training_assignments.create_index(
+        [("supplier_relationship_id", 1), ("training_requirement_id", 1), ("reporting_period", 1)],
+        unique=True,
+        partialFilterExpression={"is_active": True},
+        name="unique_active_supplier_training_assignment",
+    )
     await db.supplier_training_progress.create_index([("training_assignment_id", 1), ("supplier_relationship_id", 1)], unique=True)
     await db.supplier_training_consumption_events.create_index([("training_assignment_id", 1), ("recorded_at", 1)])
