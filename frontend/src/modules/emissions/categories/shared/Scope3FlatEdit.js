@@ -195,6 +195,7 @@ export function buildEditPayload(ctx) {
     formData,
     editingEmission,
     scope3Method,
+    spendCurrencyConversionMethod = 'ppp_inflation',
     scope3ActivityId,
     scope3ActivityType,
     scope3Subcategory,

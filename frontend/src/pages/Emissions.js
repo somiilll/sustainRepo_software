@@ -2273,6 +2273,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         const payload = activeCategoryModule.buildEditPayload({
           // Scope 3 props
           scope3Method,
+          spendCurrencyConversionMethod,
           scope3ActivityId,
           scope3ActivityType,
           scope3Subcategory,
