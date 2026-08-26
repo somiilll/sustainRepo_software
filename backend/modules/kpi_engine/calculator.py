@@ -403,7 +403,11 @@ class KPICalculator:
         
         # Add period filter
         if period:
-            period_filter = build_period_filter(**period)
+            standard_period = dict(period)
+            # `reporting_year_type` describes the organization's fiscal/calendar
+            # boundary for GHG adapters; it is not an ESG record frequency.
+            standard_period.pop("reporting_year_type", None)
+            period_filter = build_period_filter(**standard_period)
             query.update(period_filter)
         
         # Add additional runtime filters
