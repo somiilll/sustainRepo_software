@@ -110,6 +110,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier invitation emails are now assignment-aware: they list Revenue, ESG, GHG, Documents/Agreements, and Training according to the supplier's enabled assessment modules.
 - The supplier assessment dashboard now uses always-visible static module panels rather than collapsible accordions. Panels and progress cards use softer rounded corners and subtle elevated shadows.
 - The standalone supplier ESG overview now uses the same static panel component, eliminating the stale accordion import that caused a frontend compilation error.
+- Supplier dashboard refinement: Revenue Information is the only collapsible panel; ESG, GHG, Documents, and Training now keep their progress percentage and primary action in one compact row, with no duplicate questionnaire progress bar and wider spacing between panels.
 - Verification was intentionally skipped at the user's request (`dont test`).
 
 ## Third-Party Integrations
