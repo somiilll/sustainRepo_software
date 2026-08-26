@@ -495,7 +495,7 @@ class SupplierAssessmentService:
         if "documents" in requested_modules:
             from modules.supplier_assessment.documents_service import _is_requirement_available_to_relationship
             requirements = await db.supplier_document_requirements.find(
-                {"customer_org_id": relationship["customer_org_id"], "is_active": True}, {"_id": 0, "title": 1, "due_date": 1, "supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1, "reporting_period": 1}
+                {"customer_org_id": relationship["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1, "title": 1, "due_date": 1, "supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1, "reporting_period": 1}
             ).to_list(1000)
             for requirement in requirements:
                 if not _is_requirement_available_to_relationship(requirement, relationship):

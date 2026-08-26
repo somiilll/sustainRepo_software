@@ -26,6 +26,7 @@ import {
 } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { 
   Plus, 
   Search, 
@@ -43,6 +44,7 @@ import {
   FileText,
   GraduationCap,
   ClipboardCheck,
+  CalendarDays,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -61,7 +63,7 @@ const groupAvailableDocuments = (requirements) => Object.values((requirements ||
 
 export default function SupplierList() {
   const { getAuthHeader } = useAuth();
-  const { reportingPeriod } = useSupplierAssessmentPeriod();
+  const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
   const location = useLocation();
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState([]);
@@ -150,9 +152,13 @@ export default function SupplierList() {
     if (!showEditDialog || !selectedSupplier) return;
     setQuestionnaireAssignmentsLoaded(false);
     Promise.all([
+      axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/submission-status`, { headers: getAuthHeader() }),
-    ]).then(([questionnaireResponse, statusResponse]) => {
+    ]).then(([documentResponse, trainingResponse, questionnaireResponse, statusResponse]) => {
+      setDocuments(groupAvailableDocuments(documentResponse.data));
+      setTrainings(trainingResponse.data || []);
       const availableQuestionnaires = questionnaireResponse.data || [];
       setQuestionnaires(availableQuestionnaires);
       setSubmissionStatus(statusResponse.data);
@@ -356,10 +362,19 @@ export default function SupplierList() {
   return (
     <div className="space-y-6" data-testid="supplier-list">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
           <h1 className="text-2xl font-semibold text-stone-900">Suppliers</h1>
           <p className="text-sm text-stone-500 mt-1">Manage your supplier assessments</p>
+          </div>
+          <div className="w-44" data-testid="supplier-list-period-control">
+            <Label htmlFor="supplier-list-reporting-period" className="mb-1 flex items-center gap-1 text-xs font-medium text-stone-600"><CalendarDays className="h-3.5 w-3.5 text-emerald-700" />Reporting period</Label>
+            <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
+              <SelectTrigger id="supplier-list-reporting-period" className="h-9 bg-white" data-testid="supplier-list-reporting-period-selector"><SelectValue /></SelectTrigger>
+              <SelectContent data-testid="supplier-list-reporting-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-list-period-option-${period}`}>{period}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
         </div>
         <Button onClick={() => setShowAddDialog(true)} data-testid="add-supplier-btn">
           <Plus className="h-4 w-4 mr-2" />
@@ -389,7 +404,7 @@ export default function SupplierList() {
               <TableHead>Company</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Due Date</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead data-testid="supplier-ledger-login-status-header">Login Status</TableHead>
               <TableHead>Progress</TableHead>
               <TableHead>Score</TableHead>
               <TableHead>Last Reminder</TableHead>
@@ -552,26 +567,16 @@ export default function SupplierList() {
           <DialogHeader className="shrink-0 border-b border-stone-200 bg-white px-7 py-5">
             <DialogTitle className="text-xl">Add Supplier</DialogTitle>
           </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-7 py-5" data-testid="add-supplier-form-scroll-area">
-            <div className="space-y-2">
-              <Label>Company Name *</Label>
-              <Input
-                value={formData.company_name}
-                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                placeholder="Enter company name"
-                data-testid="supplier-company-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Contact Person *</Label>
-              <Input
-                value={formData.contact_person}
-                onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-                placeholder="Enter contact person name"
-                data-testid="supplier-contact-person"
-              />
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-7 py-5" data-testid="add-supplier-form-scroll-area">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Company Name *</Label>
+                <Input value={formData.company_name} onChange={(e) => setFormData({ ...formData, company_name: e.target.value })} placeholder="Enter company name" data-testid="supplier-company-name" />
+              </div>
+              <div className="space-y-2">
+                <Label>Contact Person *</Label>
+                <Input value={formData.contact_person} onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })} placeholder="Enter contact person name" data-testid="supplier-contact-person" />
+              </div>
               <div className="space-y-2">
                 <Label>Email *</Label>
                 <Input
@@ -591,17 +596,12 @@ export default function SupplierList() {
                   data-testid="supplier-phone"
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Due Date</Label>
+                <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} data-testid="supplier-due-date" />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Due Date</Label>
-              <Input
-                type="date"
-                value={formData.due_date}
-                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                data-testid="supplier-due-date"
-              />
-            </div>
-            <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-4">
+            <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3">
               <Label>Is Annual Revenue required?</Label>
               <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-5" data-testid="annual-revenue-required-control">
                 <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="annual-revenue-optional">
@@ -619,8 +619,8 @@ export default function SupplierList() {
             <div className="space-y-3 border-t pt-2">
               <Label className="text-base font-medium">Assessment Modules *</Label>
               <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-4 rounded-lg border border-stone-200 bg-white p-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-3">
                   <div className="flex items-center gap-2">
                   <Checkbox
                     id="module-esg"
@@ -652,7 +652,7 @@ export default function SupplierList() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-4 rounded-lg border border-stone-200 bg-white p-4">
+                <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-3">
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="module-ghg"
@@ -669,7 +669,7 @@ export default function SupplierList() {
                     <div className="space-y-3 border-t border-stone-100 pt-3" data-testid="supplier-ghg-scope-options">
                       <Label className="text-sm font-medium">GHG Scopes</Label>
                       <p className="text-xs text-stone-500">Select which scopes the supplier should report</p>
-                      <div className="flex flex-wrap gap-6">
+                      <div className="flex flex-wrap gap-x-5 gap-y-2">
                         <div className="flex items-center gap-2">
                     <Checkbox
                       id="scope-1"
@@ -699,9 +699,9 @@ export default function SupplierList() {
               </div>
             </div>
             {(documents.length > 0 || trainings.length > 0) && (
-              <div className="space-y-3 border-t pt-4" data-testid="supplier-existing-assignment-options">
-                {documents.length > 0 && <div className="space-y-2 border-l-2 border-sky-300 bg-sky-50/50 p-4"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sky-700" />Documents</span><p className="text-xs text-stone-500">Selected by default. Uncheck any document this supplier should not receive.</p>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
-                {trainings.length > 0 && <div className="space-y-2 border-l-2 border-stone-300 bg-white p-4"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span><p className="text-xs text-stone-500">Selected by default. Uncheck any training this supplier should not receive.</p>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
+              <div className="grid gap-4 border-t pt-4 md:grid-cols-2" data-testid="supplier-existing-assignment-options">
+                {documents.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Documents</span><p className="text-xs text-stone-500">Selected by default. Uncheck any document this supplier should not receive.</p>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
+                {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span><p className="text-xs text-stone-500">Selected by default. Uncheck any training this supplier should not receive.</p>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.document_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
               </div>
             )}
           </div>
@@ -718,11 +718,12 @@ export default function SupplierList() {
 
       {/* Edit Supplier Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md" data-testid="edit-supplier-dialog">
-          <DialogHeader className="shrink-0 border-b px-6 py-5">
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden bg-white p-0 sm:max-w-4xl" data-testid="edit-supplier-dialog">
+          <DialogHeader className="shrink-0 border-b border-stone-200 bg-white px-7 py-5">
             <DialogTitle>Edit Supplier</DialogTitle>
           </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4" data-testid="edit-supplier-form-scroll-area">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-white px-7 py-5" data-testid="edit-supplier-form-scroll-area">
+            <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Company Name</Label>
               <Input
@@ -751,6 +752,7 @@ export default function SupplierList() {
                 value={formData.due_date}
                 onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
               />
+            </div>
             </div>
             
             {/* Module Selection */}
@@ -837,6 +839,12 @@ export default function SupplierList() {
                 </div>
               </div>
             )}
+            {(documents.length > 0 || trainings.length > 0) && (
+              <div className="grid gap-4 border-t border-stone-200 pt-4 md:grid-cols-2" data-testid="edit-supplier-assignment-summary">
+                {documents.length > 0 && <div className="rounded-lg border border-stone-200 bg-white p-3" data-testid="edit-supplier-documents-summary"><p className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Available documents</p><p className="mt-1 text-xs text-stone-500">Document assignments are managed from Documents.</p><div className="mt-2 space-y-1 text-sm">{documents.map((document) => <p key={document.id} data-testid={`edit-supplier-document-${document.id}`}>{document.title}</p>)}</div></div>}
+                {trainings.length > 0 && <div className="rounded-lg border border-stone-200 bg-white p-3" data-testid="edit-supplier-trainings-summary"><p className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Available trainings</p><p className="mt-1 text-xs text-stone-500">Training assignments are managed from Trainings.</p><div className="mt-2 space-y-1 text-sm">{trainings.map((training) => <p key={training.id} data-testid={`edit-supplier-training-${training.id}`}>{training.title}</p>)}</div></div>}
+              </div>
+            )}
           </div>
           <DialogFooter className="shrink-0 border-t bg-white px-6 py-4">
             <Button variant="outline" onClick={() => setShowEditDialog(false)} data-testid="cancel-edit-supplier-button">
@@ -851,12 +859,12 @@ export default function SupplierList() {
 
       {/* View Supplier Dialog */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden bg-white p-0 sm:max-w-2xl" data-testid="view-supplier-dialog">
+          <DialogHeader className="shrink-0 border-b border-stone-200 px-7 py-5">
             <DialogTitle>{selectedSupplier?.company_name}</DialogTitle>
           </DialogHeader>
           {selectedSupplier && (
-            <div className="space-y-4 py-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-7 py-5" data-testid="view-supplier-scroll-area">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-stone-500">Contact Person</Label>
@@ -929,10 +937,11 @@ export default function SupplierList() {
                   </div>
                 </div>
               </div>
-              <div className="border-t pt-4" data-testid="supplier-esg-submission-controls">
+              {submissionStatus?.esg?.length > 0 && <div className="border-t pt-4" data-testid="supplier-esg-submission-controls">
                 <Label className="text-stone-500">Locked ESG submissions</Label>
-                {!submissionStatus ? <p className="mt-2 text-sm text-stone-500" data-testid="supplier-submission-status-loading">Loading submission status…</p> : (submissionStatus.esg || []).length === 0 ? <p className="mt-2 text-sm text-stone-500" data-testid="supplier-esg-submission-empty">No locked ESG questionnaires.</p> : <div className="mt-2 space-y-2">{submissionStatus.esg.map((submission) => <div key={submission.questionnaire_id} className="flex items-center justify-between gap-3 rounded-md border p-2" data-testid={`supplier-esg-submission-${submission.questionnaire_id}`}><span className="text-sm">Submitted {submission.submitted_at ? new Date(submission.submitted_at).toLocaleDateString() : ''}</span><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => openReview(submission.questionnaire_id)} data-testid={`review-supplier-questionnaire-${submission.questionnaire_id}`}><ClipboardCheck className="mr-1 h-4 w-4" />Review</Button><Button variant="outline" size="sm" disabled={unlockingQuestionnaireId === submission.questionnaire_id} onClick={() => unlockQuestionnaire(submission.questionnaire_id)} data-testid={`unlock-supplier-questionnaire-${submission.questionnaire_id}`}>{unlockingQuestionnaireId === submission.questionnaire_id ? 'Unlocking…' : 'Unlock'}</Button></div></div>)}</div>}
+                <div className="mt-2 space-y-2">{submissionStatus.esg.map((submission) => <div key={submission.questionnaire_id} className="flex items-center justify-between gap-3 rounded-md border p-2" data-testid={`supplier-esg-submission-${submission.questionnaire_id}`}><span className="text-sm">Submitted {submission.submitted_at ? new Date(submission.submitted_at).toLocaleDateString() : ''}</span><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => openReview(submission.questionnaire_id)} data-testid={`review-supplier-questionnaire-${submission.questionnaire_id}`}><ClipboardCheck className="mr-1 h-4 w-4" />Review</Button><Button variant="outline" size="sm" disabled={unlockingQuestionnaireId === submission.questionnaire_id} onClick={() => unlockQuestionnaire(submission.questionnaire_id)} data-testid={`unlock-supplier-questionnaire-${submission.questionnaire_id}`}>{unlockingQuestionnaireId === submission.questionnaire_id ? 'Unlocking…' : 'Unlock'}</Button></div></div>)}</div>
               </div>
+              }
               
               {(selectedSupplier.esg_score || selectedSupplier.ghg_score) && (
                 <div className="border-t pt-4">
@@ -966,14 +975,14 @@ export default function SupplierList() {
                     <div><span className="text-stone-500">Environment</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.environment_score ?? 'Pending'}</p></div>
                     <div><span className="text-stone-500">Social</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.social_score ?? 'Pending'}</p></div>
                     <div><span className="text-stone-500">Governance</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.governance_score ?? 'Pending'}</p></div>
-                    <div><span className="text-stone-500">GHG intensity</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.ghg_intensity_tco2e_per_million_revenue ?? 'Pending'} tCO₂e / revenue million</p></div>
+                    <div><span className="text-stone-500">GHG intensity</span><p className="font-medium" data-testid="supplier-ghg-intensity">{selectedSupplier.canonical_score_snapshot.ghg_intensity_tco2e_per_million_revenue == null ? 'Pending' : `${selectedSupplier.canonical_score_snapshot.ghg_intensity_tco2e_per_million_revenue} tCO₂e / revenue million`}</p></div>
                   </div>
                   {!selectedSupplier.canonical_score_snapshot.is_complete && <p className="mt-3 text-xs text-stone-500" data-testid="supplier-canonical-score-pending">Overall score will appear after all weighted components are submitted.</p>}
                 </div>
               )}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-stone-200 bg-white px-7 py-4">
             <Button variant="outline" onClick={() => setShowViewDialog(false)}>
               Close
             </Button>

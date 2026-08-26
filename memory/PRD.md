@@ -174,6 +174,13 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Fixed the GHG Logs period filter to parse both legacy `CY 2022` and canonical `CY2022`, preventing out-of-range legacy CY records from bypassing a selected date window.
 - Verification passed: 10 focused pytest checks for contract and bulk-save normalization, authenticated GHG Logs browser smoke test, and frontend/backend lint checks. No mocked APIs or test data were used.
 
+## Latest Changes — 2026-08-26 (Supplier Assessment P0–P2 Experience Pass)
+- **P0 Supplier workspace:** Compact create/edit layouts, remove the Documents tint, show Documents/Trainings in edit, make supplier detail scrollable, hide empty Locked ESG submissions, simplify pending GHG intensity, move reporting-period control beside Suppliers, and rename the ledger column to Login Status.
+- Fixed supplier document reminders failing with `KeyError: 'id'` by including the requirement `id` in the reminder query projection.
+- **P1 ESG questionnaires:** Added a multi-question ledger, supplier preview modal, native drag/drop reordering with persistence, deadline-aware status badge, tooltips for questionnaire/question actions, clearer weight validation, renamed All eligible suppliers to All suppliers, hid questionnaire descriptions, removed advanced question configuration, and require two dropdown choices.
+- **P2 Supplier GHG:** Removed the attributed scope/category aggregation section, restyled cards with white rounded/shadowed surfaces, and added supplier/category filters to All Emission Records.
+- **NOT TESTED** after this P0–P2 implementation pass, per the user’s explicit `dont test` instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
