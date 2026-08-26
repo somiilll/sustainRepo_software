@@ -237,6 +237,13 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Moved the Supplier GHG reporting-period selector to the right side of its heading row and suppressed the redundant global period bar on this route.
 - **NOT TESTED** after this update, respecting the user instruction.
 
+## Latest Changes — 2026-08-26 (Supplier Update, Entry Forms & Heading Cleanup)
+- Fixed Supplier Update failing when an existing assignment references an inactive questionnaire: existing IDs can be retained, while only newly selected inactive questionnaires are rejected. Validation errors now return clear HTTP 400 responses.
+- Added case-insensitive duplicate supplier organization-name validation for create and update flows within the same parent organization.
+- Agreements and Trainings now open on their published-list views; the respective create forms are hidden until the user clicks Add agreement / Add Training. Renamed Select visible to Select All.
+- Standardized key parent-admin headings to `text-2xl` across Suppliers, Supplier Agreements, Trainings, ESG Questionnaires, and Supplier GHG.
+- **NOT TESTED** after this update, respecting the user instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

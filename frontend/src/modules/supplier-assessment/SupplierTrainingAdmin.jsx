@@ -24,6 +24,7 @@ export default function SupplierTrainingAdmin() {
   const [selected, setSelected] = useState([]);
   const [trainingLabel, setTrainingLabel] = useState('Training');
   const [isCreating, setIsCreating] = useState(false);
+  const [showTrainingForm, setShowTrainingForm] = useState(false);
   const [isUpdating, setIsUpdating] = useState('');
   const [dueDates, setDueDates] = useState({});
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -66,7 +67,7 @@ export default function SupplierTrainingAdmin() {
       data.append('supplier_relationship_ids', JSON.stringify(selected));
       await axios.post(`${API}/supplier-assessment/trainings`, data, { headers: getAuthHeader() });
       toast.success(`${trainingLabel} assigned`);
-      setTitle(''); setDescription(''); setDueDate(''); setFile(null); setSelected([]);
+      setTitle(''); setDescription(''); setDueDate(''); setFile(null); setSelected([]); setShowTrainingForm(false);
       await load();
     } catch (error) {
       toast.error(error.response?.data?.detail || `Could not create ${trainingLabel.toLowerCase()}`);
@@ -104,12 +105,12 @@ export default function SupplierTrainingAdmin() {
   };
 
 
-  return <div className="space-y-6" data-testid="training-admin-page">
-    <div>
-      <h1 className="text-3xl font-semibold" data-testid="training-admin-heading">Supplier {trainingLabel}</h1>
+  return <div className={`space-y-6 ${showTrainingForm ? '' : '[&_[data-testid=create-training-card]]:hidden'}`} data-testid="training-admin-page">
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div><h1 className="text-2xl font-semibold" data-testid="training-admin-heading">Supplier {trainingLabel}</h1>
       <p className="mt-2 text-sm text-stone-600">Publish private content and assign it to suppliers.</p>
-    </div>
-    <Card>
+      </div><Button onClick={() => setShowTrainingForm(true)} data-testid="open-add-training-button"><Upload className="mr-2 h-4 w-4" />Add {trainingLabel}</Button></div>
+    <Card data-testid="create-training-card">
       <CardHeader><CardTitle className="flex gap-2" data-testid="create-training-heading"><Upload className="h-5 w-5 text-emerald-700" />Create {trainingLabel}</CardTitle></CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2"><Label htmlFor="training-title">Title</Label><Input id="training-title" value={title} onChange={(event) => setTitle(event.target.value)} data-testid="training-title-input" /></div>

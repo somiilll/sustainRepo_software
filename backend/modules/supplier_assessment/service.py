@@ -3,6 +3,7 @@ Supplier Assessment Service - Business logic layer.
 """
 import uuid
 import os
+import re
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
@@ -114,6 +115,13 @@ class SupplierAssessmentService:
         3. Generate temp password and send invitation email
         4. Create supplier_relationship record
         """
+        company_name = (company_name or "").strip()
+        duplicate_supplier = await db.supplier_relationships.find_one(
+            {"customer_org_id": customer_org_id, "is_active": True, "company_name": {"$regex": f"^{re.escape(company_name)}$", "$options": "i"}},
+            {"_id": 0, "id": 1},
+        )
+        if duplicate_supplier:
+            raise ValueError("A supplier with this organization name already exists")
         # Check if supplier org already exists with this email
         existing_user = await db.users.find_one(
             {"email": email, "is_deleted": {"$ne": True}},
@@ -376,11 +384,12 @@ class SupplierAssessmentService:
             ).to_list(100)
             active_ids = {questionnaire["id"] for questionnaire in active_questionnaires}
             updates["questionnaire_ids"] = list(dict.fromkeys(updates["questionnaire_ids"] or []))
-            if set(updates["questionnaire_ids"]) - active_ids:
-                raise ValueError("Selected ESG questionnaire is unavailable")
             current_questionnaire_ids = relationship.get("questionnaire_ids")
             if current_questionnaire_ids is None:
                 current_questionnaire_ids = list(active_ids)
+            newly_assigned_ids = set(updates["questionnaire_ids"]) - set(current_questionnaire_ids)
+            if newly_assigned_ids - active_ids:
+                raise ValueError("Selected ESG questionnaire is unavailable")
             removed_questionnaire_ids = set(current_questionnaire_ids) - set(updates["questionnaire_ids"])
             if removed_questionnaire_ids:
                 submitted_response = await db.supplier_questionnaire_responses.find_one(
@@ -393,6 +402,16 @@ class SupplierAssessmentService:
                 )
                 if submitted_response:
                     raise ValueError("A submitted questionnaire cannot be removed from this supplier")
+
+        if "company_name" in updates:
+            company_name = str(updates["company_name"] or "").strip()
+            duplicate_supplier = await db.supplier_relationships.find_one(
+                {"customer_org_id": relationship["customer_org_id"], "is_active": True, "id": {"$ne": relationship_id}, "company_name": {"$regex": f"^{re.escape(company_name)}$", "$options": "i"}},
+                {"_id": 0, "id": 1},
+            )
+            if duplicate_supplier:
+                raise ValueError("A supplier with this organization name already exists")
+            updates["company_name"] = company_name
 
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         
