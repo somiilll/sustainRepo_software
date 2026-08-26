@@ -72,6 +72,7 @@ const findByNameTerms = (formulas, terms) =>
 const resolveScope3Formula = (formConfig, context) => {
   const {
     scope3Method,
+    spendCurrencyConversionMethod,
     scope3ActivityType,
     scope3Subcategory,
     typeOfProduct,
@@ -82,6 +83,7 @@ const resolveScope3Formula = (formConfig, context) => {
   if (formConfig.decision_tree) {
     const formulaId = traverseDecisionTree(formConfig.decision_tree, {
       calculation_method_scope3: scope3Method,
+      spend_currency_conversion_method: spendCurrencyConversionMethod,
       activity_type: scope3ActivityType || undefined,
       subcategory_selection: scope3Subcategory || undefined,
       type_of_product: typeOfProduct || undefined,

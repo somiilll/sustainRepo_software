@@ -13,6 +13,7 @@
  * @property {string} selectedCategory
  * @property {string} biogenicScopeSelection
  * @property {string} scope3Method
+ * @property {'standard'|'ppp_inflation'} spendCurrencyConversionMethod
  * @property {string} scope3ActivityId
  * @property {string} scope3ActivityType
  * @property {string} scope3Subcategory
@@ -88,6 +89,7 @@ export const createEmptyEmissionDraft = (scope = 'scope1') => ({
   selectedCategory: '',
   biogenicScopeSelection: '',
   scope3Method: '',
+  spendCurrencyConversionMethod: 'ppp_inflation',
   scope3ActivityId: '',
   scope3ActivityType: '',
   scope3Subcategory: '',

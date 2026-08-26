@@ -64,16 +64,55 @@ async def seed() -> None:
     exchange_rate_variable = await db.ce_variables.find_one({"key": "exchange_rate"}, {"_id": 0, "id": 1})
     await db.ce_properties.update_one(
         {"key": "exchange_rate"},
-        {"$setOnInsert": {
-            "id": "7752c218-f944-4dc0-8ebc-f7adfc3ef7c9",
-            "key": "exchange_rate",
-            "label": "Standard Currency Exchange Rate",
-            "variable_id": exchange_rate_variable["id"],
-            "unit": "1",
-            "override_allowed": False,
-            "is_system": True,
-            "created_at": now,
-        }},
+        {
+            "$set": {"override_allowed": True},
+            "$setOnInsert": {
+                "id": "7752c218-f944-4dc0-8ebc-f7adfc3ef7c9",
+                "key": "exchange_rate",
+                "label": "Standard Currency Exchange Rate",
+                "variable_id": exchange_rate_variable["id"],
+                "unit": "1",
+                "is_system": True,
+                "created_at": now,
+            },
+        },
+        upsert=True,
+    )
+
+    scope3 = await db.scopes.find_one({"code": "scope3"}, {"_id": 0, "id": 1})
+    if not scope3:
+        raise RuntimeError("The Scope 3 emission scope was not found")
+    await db.ce_input_field_mappings.update_one(
+        {"field_key": "exchange_rate"},
+        {
+            "$set": {
+                "field_label": "Standard Currency Exchange Rate",
+                "field_type": "number",
+                "maps_to_variable": "exchange_rate",
+                "maps_to_context": "exchange_rate",
+                "maps_to_context_value_when_filled": "true",
+                "maps_to_context_value_when_empty": "false",
+                "default_unit": "1",
+                "allowed_units": [],
+                "is_required": False,
+                "is_override": True,
+                "options": [],
+                "display_order": 18,
+                "applies_to_categories": [],
+                "applies_to_scopes": [scope3["id"]],
+                "placeholder": "",
+                "help_text": "",
+                "unit_source": "static",
+                "validation_rules": {},
+                "is_active": True,
+                "updated_at": now,
+            },
+            "$setOnInsert": {
+                "id": "b340e113-9e5a-4e4a-b6cf-f2f0a0e09f91",
+                "field_key": "exchange_rate",
+                "created_at": now,
+            },
+        },
         upsert=True,
     )
 
