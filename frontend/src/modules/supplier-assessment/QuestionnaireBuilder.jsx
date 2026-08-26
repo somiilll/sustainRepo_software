@@ -359,9 +359,9 @@ export default function QuestionnaireBuilder() {
       for (const [index, question] of draftQuestions.entries()) {
         const values = question.response_type === 'dropdown' ? question.options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
         const options = values.map((value, optionIndex) => ({ value, label: value, score: values.length === 1 ? 100 : Math.round(100 - (optionIndex * 100 / (values.length - 1))) }));
-        const scoring = getDefaultScoringConfig(question.response_type);
+        const scoring = { ...getDefaultScoringConfig(question.response_type), rule: question.scoring_rule };
         if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
-        await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...question, description: '', importance: 'medium', exact_numerical_weight: null, options, scoring, order: questions.length + index }, { headers: getAuthHeader() });
+        await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...question, description: '', importance: question.importance, exact_numerical_weight: null, options, scoring, order: questions.length + index }, { headers: getAuthHeader() });
       }
       toast.success(`${draftQuestions.length} question${draftQuestions.length === 1 ? '' : 's'} added`);
       setShowQuestionDialog(false);
