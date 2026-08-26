@@ -648,7 +648,7 @@ export default function QuestionnaireBuilder() {
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Supplier assessment</p>
-          <h1 className="mt-1 text-3xl font-semibold text-stone-900">ESG Questionnaires</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-stone-900">ESG Questionnaires</h1>
           <p className="mt-1 text-sm text-stone-500">Build, organise, and review supplier assessments for {reportingPeriod}.</p>
         </div>
         <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={openSubmissions} disabled={!selectedQuestionnaire} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="mr-2 h-4 w-4" />Review responses</Button><Button onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn"><Plus className="mr-2 h-4 w-4" />New Questionnaire</Button></div>

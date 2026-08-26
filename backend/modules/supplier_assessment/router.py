@@ -214,7 +214,10 @@ async def update_supplier(
         raise HTTPException(status_code=403, detail="Access denied")
     
     updates = data.model_dump(exclude_unset=True)
-    result = await supplier_service.update_supplier(supplier_id, updates)
+    try:
+        result = await supplier_service.update_supplier(supplier_id, updates)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     return result
 
 
