@@ -125,6 +125,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - The Reduction Target Achieved card now maps the target API's `target_name`, displays the active target name, and shows named options in the target selector.
 - Focused backend checks passed before the latest UI request (14 checks). Per the user's subsequent `dont test` instruction, no further validation was run after the final UI-only adjustment.
 
+## Latest Changes — 2026-08-26 (Lifecycle and Target Alignment)
+- Applied `eligible_ghg_record_filter()` to previously unprotected GHG reads in the executive ESG analytics service, environment-detail dashboard, GHG-to-ESG integration, GHG target baseline lookup, MIS emissions summaries/deep-dive data, and Super Admin organization emissions statistics.
+- The main GHG dashboard no longer treats overlapping monthly and yearly records as duplicates; it retains both reported inputs, matching the Target module’s intended aggregation behavior.
+- The Reduction Target Achieved card now displays the backend Target module’s precomputed `progress_percentage` directly. The frontend no longer recalculates target progress from dashboard totals, so Scope 1 + 2 targets use their canonical target calculation.
+- Before the user stopped further testing, the live target endpoint returned 72.8% and 75.0%, and the dashboard card displayed 72.8%. No additional tests were run after the user's `dont test` instruction.
+
 ## Third-Party Integrations
 - Cloudflare R2 for private document/training object storage — user credentials required.
 - Resend for email — user credentials required.

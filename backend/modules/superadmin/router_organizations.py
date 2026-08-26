@@ -43,6 +43,7 @@ from shared.database.mongo import db
 from shared.helpers.email import send_email
 from shared.helpers.passwords import generate_random_password, get_password_hash
 from modules.sustainability_config.service import resolve_organization_settings, upsert_org_config
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -189,7 +190,7 @@ async def get_org_emissions_distribution(
         }
 
     emissions = await db.emission_records.find(
-        {"facility_id": {"$in": facility_ids}}, {"_id": 0}
+        {"facility_id": {"$in": facility_ids}, **eligible_ghg_record_filter()}, {"_id": 0}
     ).to_list(100000)
 
     # Equity share adjustment (matches dashboard logic at lines 4344-4366)
@@ -282,7 +283,7 @@ async def get_org_scope3_biogenic_stats(
 
     # Fetch Scope 3 emissions
     scope3_emissions = await db.emission_records.find(
-        {"facility_id": {"$in": facility_ids}, "scope": "scope3"}, {"_id": 0}
+        {"facility_id": {"$in": facility_ids}, "scope": "scope3", **eligible_ghg_record_filter()}, {"_id": 0}
     ).to_list(100000)
 
     # Fetch Biogenic emissions
@@ -291,7 +292,8 @@ async def get_org_scope3_biogenic_stats(
     biogenic_emissions = await db.emission_records.find(
         {
             "facility_id": {"$in": facility_ids}, 
-            "biogenic_scope_selection": {"$in": ["scope1", "scope3"]}
+            "biogenic_scope_selection": {"$in": ["scope1", "scope3"]},
+            **eligible_ghg_record_filter(),
         }, 
         {"_id": 0}
     ).to_list(100000)

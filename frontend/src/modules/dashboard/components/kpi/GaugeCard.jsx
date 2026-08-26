@@ -41,10 +41,7 @@ export default function GaugeCard({
   selectedTarget,
   selectedTargetId,
   setSelectedTargetId,
-  baseYearTotal = 0,
-  currentTotal = 0,
-  targetReduction = 0,
-  reductionAchievedPct = 0,
+  progressPercentage,
 }) {
   const navigate = useNavigate();
   const targetLabel = (target) => target?.name || target?.kpi_name || target?.subcategory || 'Untitled target';
@@ -72,10 +69,10 @@ export default function GaugeCard({
     );
   }
 
-  const canComputeProgress = baseYearTotal > 0;
+  const canComputeProgress = Number.isFinite(Number(progressPercentage));
   const clamped = Math.min(
     100,
-    Math.max(0, reductionAchievedPct || 0)
+    Math.max(0, Number(progressPercentage))
   );
 
   if (!canComputeProgress) {
@@ -100,7 +97,7 @@ export default function GaugeCard({
         </p>
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-2">
           <TargetIcon className="w-7 h-7 text-amber-500" />
-          <p className="text-xs text-stone-600 leading-snug">Configure a <span className="font-semibold">Base Year</span> to compute target progress.</p>
+          <p className="text-xs text-stone-600 leading-snug">Target progress is not available for this reporting period.</p>
           <Button
             size="sm"
             variant="outline"
@@ -108,7 +105,7 @@ export default function GaugeCard({
             onClick={() => navigate('/targets/voluntary/environment')}
             data-testid="kpi-set-base-year-btn"
           >
-            Set Base Year
+            View Target
           </Button>
         </div>
       </div>

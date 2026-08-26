@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 from modules.esg_records.services.dashboard.waste_utils import to_metric_tonnes
 from modules.esg_records.services.dashboard.date_utils import build_date_filter
 from modules.esg_records.services.dashboard.unit_utils import to_kilolitres
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 
 # Standard GHG Protocol category mapping
@@ -122,6 +123,7 @@ async def get_environment_detail(
             {"reporting_period": {"$regex": f"^({'|'.join(str(y) for y in range(min_year, max_year + 1))})-?Q[1-4]"}},
         ],
     }
+    emissions_query.update(eligible_ghg_record_filter())
     records = await db.emission_records.find(
         emissions_query,
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "total_emissions": 1, "co2e_emissions": 1},

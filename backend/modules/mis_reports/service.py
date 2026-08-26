@@ -24,6 +24,7 @@ from modules.dashboards.environment_detail_service import get_environment_detail
 from modules.esg_records.services.dashboard.unit_utils import to_kilolitres
 from modules.mis_reports.reporting_period_service import ReportingPeriodService
 from modules.supplier_assessment.service import SupplierAssessmentService
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 
 ALL_SCOPES = ["scope1", "scope2", "scope3", "biogenic"]
@@ -86,6 +87,7 @@ async def aggregate_emissions(filters: Dict[str, Any], current_user: dict) -> Di
         ]
     if categories:
         query["category"] = {"$in": categories}
+    query.update(eligible_ghg_record_filter())
     records = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
 
     facility_names = {
@@ -493,7 +495,7 @@ async def build_twelve_month_emissions_trend(filters: Dict[str, Any], current_us
     end = datetime.fromisoformat(context["reporting_period"]["start_date"]).date().replace(day=1)
     months = [(end - relativedelta(months=index)).strftime("%Y-%m") for index in range(11, -1, -1)]
     facility_ids = filters.get("facility_ids") or await organization_facility_ids(current_user)
-    records = await db.emission_records.find({"facility_id": {"$in": facility_ids}, "scope": {"$in": filters.get("scopes") or ALL_SCOPES}, "reporting_period": {"$in": months}}, {"_id": 0, "reporting_period": 1, "co2e_emissions": 1}).to_list(100000)
+    records = await db.emission_records.find({"facility_id": {"$in": facility_ids}, "scope": {"$in": filters.get("scopes") or ALL_SCOPES}, "reporting_period": {"$in": months}, **eligible_ghg_record_filter()}, {"_id": 0, "reporting_period": 1, "co2e_emissions": 1}).to_list(100000)
     totals, seen = {key: 0.0 for key in months}, set()
     for row in records:
         try: totals[row.get("reporting_period", "")] += float(row.get("co2e_emissions") or 0); seen.add(row.get("reporting_period", ""))
@@ -942,7 +944,7 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
     # 1. EMISSIONS BY SCOPE — single bulk query across 13 months
     # ════════════════════════════════════════════════════════════════════════════
     emission_recs = await db.emission_records.find(
-        {"facility_id": {"$in": fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months_13}},
+        {"facility_id": {"$in": fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months_13}, **eligible_ghg_record_filter()},
         {"_id": 0, "scope": 1, "reporting_period": 1, "co2e_emissions": 1},
     ).to_list(100000)
 
@@ -1319,7 +1321,7 @@ async def build_emissions_deep_data(report: Dict[str, Any], filters: Dict[str, A
 
     # ── 1. Monthly records (exact YYYY-MM match) ──
     pipeline = [
-        {"$match": {"facility_id": {"$in": fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months}}},
+        {"$match": {"facility_id": {"$in": fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months}, **eligible_ghg_record_filter()}},
         {"$addFields": {"_ev": {"$toDouble": {"$ifNull": ["$co2e_emissions", 0]}}}},
         {"$group": {"_id": {"p": "$reporting_period", "s": "$scope", "c": {"$ifNull": ["$category", "Uncategorized"]}}, "v": {"$sum": "$_ev"}}},
     ]
@@ -1345,7 +1347,8 @@ async def build_emissions_deep_data(report: Dict[str, Any], filters: Dict[str, A
     annual_recs = await db.emission_records.find(
         {"facility_id": {"$in": fac_ids}, "scope": {"$in": ALL_SCOPES},
          "$or": [{"reporting_period": {"$in": annual_candidates}},
-                 {"reporting_period": {"$regex": r"\d{4}-\d{2}\s*to\s*\d{4}-\d{2}"}}]},
+                 {"reporting_period": {"$regex": r"\d{4}-\d{2}\s*to\s*\d{4}-\d{2}"}}],
+         **eligible_ghg_record_filter()},
         {"_id": 0, "scope": 1, "category": 1, "co2e_emissions": 1, "reporting_period": 1},
     ).to_list(10000)
 
@@ -1601,7 +1604,7 @@ async def build_facility_deep_data(report: Dict[str, Any], filters: Dict[str, An
 
     # ── Single aggregation: (period, scope, category, facility) ──
     pipeline = [
-        {"$match": {"facility_id": {"$in": all_fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months}}},
+        {"$match": {"facility_id": {"$in": all_fac_ids}, "scope": {"$in": ALL_SCOPES}, "reporting_period": {"$in": months}, **eligible_ghg_record_filter()}},
         {"$addFields": {"_ev": {"$toDouble": {"$ifNull": ["$co2e_emissions", 0]}}}},
         {"$group": {"_id": {"p": "$reporting_period", "s": "$scope", "c": {"$ifNull": ["$category", "Uncategorized"]}, "f": "$facility_id"}, "v": {"$sum": "$_ev"}}},
     ]
@@ -1625,7 +1628,8 @@ async def build_facility_deep_data(report: Dict[str, Any], filters: Dict[str, An
     annual_recs = await db.emission_records.find(
         {"facility_id": {"$in": all_fac_ids}, "scope": {"$in": ALL_SCOPES},
          "$or": [{"reporting_period": {"$in": annual_candidates}},
-                 {"reporting_period": {"$regex": r"\d{4}-\d{2}\s*to\s*\d{4}-\d{2}"}}]},
+                 {"reporting_period": {"$regex": r"\d{4}-\d{2}\s*to\s*\d{4}-\d{2}"}}],
+         **eligible_ghg_record_filter()},
         {"_id": 0, "facility_id": 1, "scope": 1, "category": 1, "co2e_emissions": 1, "reporting_period": 1},
     ).to_list(50000)
     months_set = set(months)
