@@ -15,6 +15,7 @@ from .models import (
     ScoreBreakdown,
     SupplierScore,
 )
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 
 class ScoringEngine:
@@ -165,6 +166,7 @@ class ScoringEngine:
         if reporting_period:
             from modules.supplier_assessment.ghg_submission_service import reporting_period_values
             query["reporting_period"] = {"$in": reporting_period_values(reporting_period)}
+        query.update(eligible_ghg_record_filter())
         emissions = await self.db.emission_records.find(
             query,
             {"_id": 0, "total_emissions": 1, "scope": 1}

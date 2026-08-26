@@ -40,6 +40,7 @@ from app.config.env import ANTHROPIC_API_KEY
 from modules.auth.dependencies import get_current_user
 from shared.cache.downloads import pending_downloads
 from shared.database.mongo import db
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 import re
 
@@ -116,6 +117,7 @@ async def generate_facility_report(
     query = {"facility_id": facility_id}
     if start_period and end_period:
         query["reporting_period"] = {"$gte": start_period, "$lte": end_period}
+    query.update(eligible_ghg_record_filter())
     
     emissions = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
     
@@ -333,6 +335,7 @@ async def generate_combined_report(
             query = {"facility_id": fid}
             if start_period and end_period:
                 query["reporting_period"] = {"$gte": start_period, "$lte": end_period}
+            query.update(eligible_ghg_record_filter())
             
             emissions = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
             facilities_data.append({"facility": facility, "emissions": emissions})
@@ -621,7 +624,8 @@ async def generate_ghg_inventory_report(
             "reporting_period": {
                 "$gte": request.reporting_period_start,
                 "$lte": request.reporting_period_end
-            }
+            },
+            **eligible_ghg_record_filter(),
         }
         cursor = db.emission_records.find(monthly_query, {"_id": 0})
         monthly_emissions = await cursor.to_list(length=1000)
@@ -631,7 +635,8 @@ async def generate_ghg_inventory_report(
         # These will be filtered by _filter_emissions_by_period in the report generator
         yearly_query = {
             "facility_id": facility["id"],
-            "frequency_type": "yearly"
+            "frequency_type": "yearly",
+            **eligible_ghg_record_filter(),
         }
         cursor = db.emission_records.find(yearly_query, {"_id": 0})
         yearly_emissions = await cursor.to_list(length=1000)
@@ -645,7 +650,8 @@ async def generate_ghg_inventory_report(
             # This prevents double-counting emissions that are already in emissions_data
             query = {
                 "facility_id": facility["id"],
-                "reporting_period": {"$lt": request.reporting_period_start}
+                "reporting_period": {"$lt": request.reporting_period_start},
+                **eligible_ghg_record_filter(),
             }
             cursor = db.emission_records.find(query, {"_id": 0})
             prev_facility_emissions = await cursor.to_list(length=1000)
@@ -1062,7 +1068,8 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     
     # Query emission_records
     emissions = await db.emission_records.find({
-        "facility_id": {"$in": valid_facility_ids}
+        "facility_id": {"$in": valid_facility_ids},
+        **eligible_ghg_record_filter(),
     }, {"_id": 0}).to_list(10000)
 
     # --- DATE PARSING & PROPORTION LOGIC ---
