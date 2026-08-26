@@ -49,6 +49,7 @@ export const buildSupplierEmissionsAnalytics = (payload = {}, reportingPeriod = 
       supplier_id: supplier.supplier_relationship_id,
       company_name: supplier.supplier_name,
       intensity: Number(supplier.total_intensity),
+      revenue_currency: supplier.revenue_currency,
     }))
     .sort((a, b) => b.intensity - a.intensity);
 

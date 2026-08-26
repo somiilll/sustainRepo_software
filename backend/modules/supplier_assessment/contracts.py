@@ -507,6 +507,7 @@ class SupplierEmissionTotalResponse(BaseModel):
     total_intensity: Optional[float] = None
     revenue_percentage: Optional[float] = None
     annual_revenue_amount: Optional[float] = None
+    revenue_currency: Optional[str] = None
     attribution_available: bool = False
 
 
