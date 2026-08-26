@@ -283,6 +283,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Removed the previous multi-line rank/status card ledger from this tab. Unassigned module completion is shown as `—` rather than a misleading zero.
 - Added a dedicated Action column with a `View` button on every supplier row; supplier names are now plain row values rather than duplicate actions.
 - Functional testing was not run, following the user's `dont test` instruction.
+- Supplier intensity units now read `tCO₂e / supplier currency` across the parent GHG ledger and intensity comparison tooltip.
+- Detailed ranking ESG, Environment, Social, and Governance headings are sortable in ascending or descending order; rows with missing scores remain at the bottom.
+- Removed desktop top padding from the shared content wrapper for every `/supplier-assessment` route, aligning page headings directly with the workspace top edge while retaining mobile clearance for the navigation button.
 
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
