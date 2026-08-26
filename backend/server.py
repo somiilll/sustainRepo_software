@@ -72,6 +72,7 @@ from app.router.health import router as health_router
 from modules.facilities.router import router as facilities_router
 from modules.organizations.router import router as organizations_router
 from modules.sinks.router import router as sinks_router
+from modules.base_year.sync_service import sync_base_year_emissions_for_entity
 
 # Phase B4: emissions read/list router (POST/PUT remain in this file until Phase B5).
 from modules.emissions.router import router as emissions_router
@@ -1825,6 +1826,20 @@ async def sync_base_year_emissions(
     entity_id: str,
     scope_group: str,
     current_user: dict = Depends(get_current_user)
+):
+    return await sync_base_year_emissions_for_entity(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        scope_group=scope_group,
+        current_user=current_user,
+    )
+
+
+async def _legacy_sync_base_year_emissions(
+    entity_type: str,
+    entity_id: str,
+    scope_group: str,
+    current_user: dict,
 ):
     """
     Phase 2: Real-time auto-sync for base year emissions.

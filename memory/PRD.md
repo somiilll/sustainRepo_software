@@ -161,6 +161,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Totals intentionally include only Scope 1 and Scope 2 entries; sinks and biogenic entries remain outside this requested Scope 1 & 2 measure.
 - Verification passed: focused JavaScript lint, production frontend build (pre-existing warnings only), authenticated browser smoke test, and an unsaved live-value edit check (total changed from `1341.1631` to `1380.0671 tCO₂e`).
 
+## Latest Changes — 2026-08-26 (Base Year Emission Edit/Delete Synchronization)
+- Extracted the existing Base Year recalculation into `modules/base_year/sync_service.py` so it can be used by the sync API and the approved-emission lifecycle.
+- Approved emission deletes and direct edits now refresh the matching facility and organization Base Year snapshots when either the old or new emission belongs to that Base Year period. Scope changes are handled by refreshing both affected scope groups.
+- The synchronization preserves explicitly manually added Base Year categories and ignores emissions outside the Base Year reporting period.
+- **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
