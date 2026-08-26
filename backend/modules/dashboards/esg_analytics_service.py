@@ -2,6 +2,8 @@
 from datetime import date
 from typing import Dict, Iterable, List, Optional
 
+from shared.utils.emission_records import eligible_ghg_record_filter
+
 
 MONTH_NAMES = [
     "January", "February", "March", "April", "May", "June",
@@ -323,6 +325,7 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
     else:
         facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0, "id": 1}).to_list(1000)
         emissions_query["facility_id"] = {"$in": [facility["id"] for facility in facilities]}
+    emissions_query.update(eligible_ghg_record_filter())
     emissions = await db.emission_records.find(emissions_query, {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "total_emissions": 1, "co2e_emissions": 1, "reporting_period": 1, "dynamic_field_values": 1, "fuel_type": 1, "fuel_database_id": 1}).to_list(10000)
 
     emission_rows = blank_months(months + previous_months, ["scope1", "scope2", "scope3"])

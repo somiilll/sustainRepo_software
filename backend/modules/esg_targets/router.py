@@ -20,6 +20,7 @@ from shared.database.mongo import db as app_db
 from shared.utils.period_utils import (
     format_period, extract_year, detect_type, period_variants, normalize_period
 )
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 router = APIRouter()
 
@@ -1236,6 +1237,7 @@ async def get_ghg_baseline_from_records(
             {"reporting_period": {"$in": yearly_variants}}
         ]
     }
+    query.update(eligible_ghg_record_filter())
     
     if facility_id:
         query["facility_id"] = facility_id

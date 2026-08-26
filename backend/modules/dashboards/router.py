@@ -416,7 +416,9 @@ async def get_dashboard_stats(
     #             return False
     #     return True
     
-    deduplicated_emissions = deduplicate_monthly_against_yearly(all_emissions)
+    # Monthly and yearly records are both reported inputs. Do not infer that
+    # overlapping periods are duplicates: target calculations sum the same rows.
+    deduplicated_emissions = all_emissions
     
     # Helper function to get emission value with fallback to co2e_emissions
     def get_emission_value(emission):

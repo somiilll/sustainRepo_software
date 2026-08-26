@@ -21,6 +21,8 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import re
 
+from shared.utils.emission_records import eligible_ghg_record_filter
+
 
 def _cv_to_tj_per_kg(value: float, unit: str) -> float:
     """Convert a calorific value to TJ/kg regardless of source unit."""
@@ -217,7 +219,7 @@ class GHGIntegrationService:
         
         # Query emission_records by facility_id (emission_records don't have org_id)
         emissions = await self.db.emission_records.find(
-            {"facility_id": {"$in": org_facility_ids}},
+            {"facility_id": {"$in": org_facility_ids}, **eligible_ghg_record_filter()},
             {"_id": 0}
         ).to_list(100000)
         
@@ -521,7 +523,7 @@ class GHGIntegrationService:
         
         # Query emission_records by facility_id
         emissions = await self.db.emission_records.find(
-            {"facility_id": {"$in": org_facility_ids}},
+            {"facility_id": {"$in": org_facility_ids}, **eligible_ghg_record_filter()},
             {"_id": 0}
         ).to_list(100000)
         
