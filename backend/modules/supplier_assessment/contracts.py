@@ -101,7 +101,7 @@ class SupplierListResponse(BaseModel):
 
 class RevenueInfoUpdate(BaseModel):
     """Supplier updates their revenue information."""
-    revenue_percentage: Optional[float] = Field(None, ge=0, le=100)
+    revenue_percentage: float = Field(ge=0, le=100)
     revenue_amount: Optional[float] = Field(None, ge=0)  # Amount in currency
     revenue_currency: Optional[str] = "USD"  # Currency code
 
