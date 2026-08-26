@@ -165,6 +165,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Extracted the existing Base Year recalculation into `modules/base_year/sync_service.py` so it can be used by the sync API and the approved-emission lifecycle.
 - Approved emission deletes and direct edits now refresh the matching facility and organization Base Year snapshots when either the old or new emission belongs to that Base Year period. Scope changes are handled by refreshing both affected scope groups.
 - The synchronization preserves explicitly manually added Base Year categories and ignores emissions outside the Base Year reporting period.
+- Annual period matching now uses exact normalized FY/CY ranges. A `FY 2026-2027` emission matches a `FY 2026-2027` Base Year at 100%; proration is used only for genuinely partial annual overlaps. Delete and edit both use this shared rule.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
 
 ## Prioritized Backlog
