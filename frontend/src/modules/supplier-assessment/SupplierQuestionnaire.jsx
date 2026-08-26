@@ -237,7 +237,7 @@ export default function SupplierQuestionnaire() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8" data-testid="supplier-questionnaire">
+    <div className="mx-auto max-w-7xl space-y-8" data-testid="supplier-questionnaire">
       <SupplierPageHeader
         title={questionnaire.name}
         description={questionnaire.description}
