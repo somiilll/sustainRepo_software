@@ -897,68 +897,6 @@ export default function QuestionnaireBuilder() {
                 </AccordionContent>
               </AccordionItem>
               
-              <AccordionItem value="overall-weights">
-                <AccordionTrigger className="text-sm font-medium">
-                  <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    Overall Component Weight
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-2 space-y-3">
-                    <p className="text-xs text-stone-500">
-                      Set how ESG, GHG intensity, and revenue contribute to the final supplier score (total 100%).
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <Label className="text-xs">ESG Score</Label>
-                        <Input
-                          type="number"
-                          value={questionnaireForm.overall_supplier_weights?.esg ?? 40}
-                          data-testid="overall-component-esg-weight-input"
-                          onChange={(e) => setQuestionnaireForm({
-                            ...questionnaireForm,
-                            overall_supplier_weights: {
-                              ...questionnaireForm.overall_supplier_weights,
-                              esg: parseFloat(e.target.value) || 0,
-                            },
-                          })}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">GHG Intensity</Label>
-                        <Input
-                          type="number"
-                          value={questionnaireForm.overall_supplier_weights?.ghg ?? 40}
-                          data-testid="overall-component-ghg-weight-input"
-                          onChange={(e) => setQuestionnaireForm({
-                            ...questionnaireForm,
-                            overall_supplier_weights: {
-                              ...questionnaireForm.overall_supplier_weights,
-                              ghg: parseFloat(e.target.value) || 0,
-                            },
-                          })}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Revenue</Label>
-                        <Input
-                          type="number"
-                          value={questionnaireForm.overall_supplier_weights?.revenue ?? 20}
-                          data-testid="overall-component-revenue-weight-input"
-                          onChange={(e) => setQuestionnaireForm({
-                            ...questionnaireForm,
-                            overall_supplier_weights: {
-                              ...questionnaireForm.overall_supplier_weights,
-                              revenue: parseFloat(e.target.value) || 0,
-                            },
-                          })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
             </Accordion>
           </div>
           <DialogFooter>

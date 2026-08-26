@@ -212,6 +212,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier detail Completion Progress now hides an ESG Questionnaire row and empty progress bar when its stored completion is `0%`, removing the confusing zero display.
 - **NOT TESTED** after this adjustment, respecting the user instruction.
 
+## Latest Changes — 2026-08-26 (Questionnaire Creation Simplification)
+- Removed the Overall Component Weight accordion from the Create Questionnaire form while preserving the default and historical stored values.
+- **NOT TESTED** after this adjustment, respecting the user instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
