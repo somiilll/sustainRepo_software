@@ -254,6 +254,7 @@ export function buildCreatePayload(monthData, ctx) {
     category,
     biogenicScopeSelection,
     scope3Method,
+    spendCurrencyConversionMethod = 'ppp_inflation',
     scope3ActivityId,
     scope3ActivityType,
     scope3Subcategory,
