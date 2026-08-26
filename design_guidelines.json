@@ -1,104 +1,81 @@
 {
-  "theme": "light",
-  "typography": {
-    "heading_font": "Outfit",
-    "body_font": "Manrope",
-    "font_strategy": "Outfit for crisp, modern headings, Manrope for high-legibility body text. Avoid default system sans-serifs to ensure a premium look.",
-    "hierarchy": {
-      "h1": "text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900",
-      "h2": "text-2xl sm:text-3xl font-medium tracking-tight text-slate-900",
-      "h3": "text-xl font-medium text-slate-800",
-      "body": "text-sm sm:text-base text-slate-600 leading-relaxed",
-      "labels": "text-xs font-semibold uppercase tracking-[0.05em] text-slate-500"
+  "design_system": {
+    "theme": "light",
+    "context": "Dashboard & Admin Panel",
+    "typography": {
+      "headings": "font-sans font-semibold tracking-tight",
+      "body": "font-sans text-sm",
+      "instructions": "Avoid generic sans for headings (e.g. use Manrope or Work Sans). Maintain readable text hierarchy."
+    },
+    "colors": {
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "primary": "indigo-600",
+      "text_primary": "slate-900",
+      "text_secondary": "slate-500",
+      "borders": "slate-200"
+    },
+    "surfaces_and_shapes": {
+      "cards": "bg-white border border-slate-200 shadow-sm rounded-xl",
+      "modals": "bg-white shadow-xl rounded-xl border border-slate-100",
+      "shadows": "Light edge shadows on all containers (shadow-sm)",
+      "borders": "rounded-xl for main containers, rounded-md for inputs/buttons"
+    },
+    "layout": {
+      "spacing": "Dense spacing for dashboards (p-4 to p-6). Form elements use gap-4 instead of gap-8 to stay compact.",
+      "grids": "Use grid-cols-2 or flex-row to utilize horizontal space and reduce vertical scrolling."
     }
   },
-  "colors": {
-    "primary_brand": "#10B981",
-    "primary_brand_hover": "#059669",
-    "primary_brand_light": "#D1FAE5",
-    "background": {
-      "app": "#FAFAFA",
-      "module_surface": "#FFFFFF"
-    },
-    "text": {
-      "primary": "#0F172A",
-      "secondary": "#475569",
-      "tertiary": "#94A3B8"
-    },
-    "borders": {
-      "subtle": "#E2E8F0",
-      "focus": "#10B981"
-    },
-    "status": {
-      "success": "#10B981",
-      "warning": "#F59E0B",
-      "error": "#EF4444",
-      "info": "#3B82F6"
-    }
+  "task_specific_instructions": {
+    "1_supplier_create_form": [
+      "Remove excess vertical spacing between scope 1 and scope 2.",
+      "Compact the form using optimal grid layouts and reduced gap spaces.",
+      "Remove the custom colored background from the 'Documents' section."
+    ],
+    "2_supplier_view": [
+      "Conditionally render 'Locked ESG submissions' only when data exists (i.e. not empty).",
+      "Fix GHG intensity display: show exactly 'Pending' when revenue is missing (instead of 'Pending tCO2e / revenue million').",
+      "Add overflow-y-auto to the form container to ensure it is scrollable vertically."
+    ],
+    "3_supplier_edit_form": [
+      "Ensure 'documents/trainings' sections are properly visible.",
+      "Set background to white (bg-white) and introduce subtle brand colors for headers/active states."
+    ],
+    "4_reminders": [
+      "Inspect application logs and the existing email flow in the code to fix the failed reminder delivery."
+    ],
+    "5_reporting_period": [
+      "Move the 'Reporting period' dropdown to sit adjacent to the 'Suppliers' heading using flexbox (e.g. flex justify-between items-center) to optimize vertical space."
+    ],
+    "6_supplier_ledger": [
+      "Rename the 'status' column header to 'login status'."
+    ],
+    "7_esg": [
+      "Fix action buttons overflowing outside the questionnaire's question box (use flex-wrap or adjust boundaries).",
+      "Investigate and fix the drag and drop mechanism for questions.",
+      "Rename 'all eligible suppliers' to 'all suppliers'.",
+      "Beautify 'Create Questionnaire' with subtle colors and active state highlights.",
+      "Improve the error text when questionnaire weight does not sum to 100% to be highly descriptive.",
+      "Wrap action icons in Tooltips indicating their function (e.g., 'Duplicate questionnaire' for the copy icon).",
+      "Fix 'Active' tag logic to dynamically check if the deadline has passed, showing appropriately.",
+      "Hide the questionnaire description from the UI while preserving the data handling.",
+      "Redesign 'add question' into a ledger-like tabular format for bulk addition to simplify complexity.",
+      "Add a distinct 'Preview' button/modal to preview the questionnaire for suppliers.",
+      "Remove 'Advanced configuration' from the form.",
+      "Enhance dropdown question creation with a validation check ensuring at least 2 options exist."
+    ],
+    "8_ghg": [
+      "Remove/hide 'Attributed emissions by scope and category'.",
+      "Style cards with white backgrounds, light edge shadows, and rounded borders.",
+      "Implement filters for 'All emission records'."
+    ]
   },
-  "visual_enhancers": {
-    "shadows": {
-      "card_idle": "shadow-[0_2px_10px_rgba(0,0,0,0.04)]",
-      "card_hover": "shadow-[0_8px_30px_rgba(0,0,0,0.08)]",
-      "dropdown": "shadow-[0_10px_40px_rgba(0,0,0,0.1)]"
-    },
-    "borders": "1px solid border-slate-200. Radius: rounded-xl for modules to give a soft, premium feel.",
-    "interactions": "Hover states on cards should have a subtle upward transform (-translate-y-[2px]) and increased shadow. Collapsible modules should animate height smoothly."
-  },
-  "grids_and_layouts": {
-    "overall_progress_strip": {
-      "layout": "flex flex-nowrap w-full gap-3 pb-2 md:pb-0 md:grid",
-      "columns_rule": "Use inline styles or dynamic classes to set grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) based on module count to ensure equal widths.",
-      "card_design": "Flex row within each card: icon, text, and percentage at the end. White background, rounded-lg, subtle border, minimal padding (p-3)."
-    },
-    "main_container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6"
-  },
-  "components": {
-    "module_collapsible": {
-      "behavior": "All modules collapsed by default. Use an Accordion or custom Collapsible pattern adapted to distinct card modules.",
-      "design": "White background, rounded-xl, 1px border. Header acts as trigger with a chevron on the right. Content area has generous padding (p-6).",
-      "multiple_esg": "Do NOT nest questionnaires. Each ESG questionnaire is a separate top-level collapsible module (e.g., 'ESG Questionnaire: Environment', 'ESG Questionnaire: Social')."
-    },
-    "revenue_information": {
-      "header": "Change from 'Revenue InformationOptional...' to simply 'Revenue Information'.",
-      "fields": {
-        "revenue_percentage": "Always mandatory. Add a red * next to the label.",
-        "annual_revenue": "Optional unless parent config says otherwise. Add * conditionally based on config."
-      },
-      "layout": "Grid with 2 columns on desktop for fields (gap-6)."
-    },
-    "progress_card": {
-      "design": "White background, brand green used sparingly (e.g., for the progress bar fill or icon tint). High contrast text."
-    }
-  },
-  "motion": {
-    "accordion": "Use CSS transitions on max-height or use Framer Motion / Radix UI collapse animations (duration 200ms ease-out).",
-    "hover": "Transition transform and box-shadow on 200ms ease."
-  },
-  "accessibility": {
-    "aria_expanded": "Ensure collapsible headers have aria-expanded attribute.",
-    "contrast": "Ensure green text/buttons meet WCAG AA contrast ratio against white/light backgrounds.",
-    "focus": "Use focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 for keyboard navigation."
-  },
-  "instructions_to_main_agent": [
-    "You are building a premium SaaS Supplier Assessment dashboard. It must look crisp, clean, and uncluttered.",
-    "Use .js/.jsx extensions instead of .tsx since the workspace is JS-based.",
-    "Strip out all off-white/yellow/grey background tones from existing module surfaces. Use pure white (#FFFFFF) for module cards and an extremely light grey (#FAFAFA) for the app background.",
-    "The 'Overall Progress' section must be a single responsive row. If there are 4 modules assigned, the strip divides into 4 equal width segments. Display: Icon, Module Name, and Percentage%.",
-    "Revenue Information Text rewrite: Just 'Revenue Information'.",
-    "Revenue Percentage is ALWAYS mandatory (mark with *). Annual Revenue is conditionally mandatory based on config (mark with * if mandatory, else leave normal).",
-    "All modules must be COLLAPSIBLE (like Accordions) and COLLAPSED BY DEFAULT.",
-    "For ESG Questionnaires: If there are multiple, each one must be its own independent collapsible module, not nested inside one parent ESG accordion.",
-    "Use 'lucide-react' for icons. (e.g. Activity, Leaf, FileText, BookOpen, DollarSign).",
-    "Preserve existing green accents but use them intentionally (e.g., progress bars, active states, key CTA). Do not flood the screen with green.",
-    "IMPORTANT: All interactive elements must have a data-testid attribute in kebab-case."
-  ],
   "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "Use generative UI spacing. Tailwind classes like p-6, p-8.",
-    "Never center align the main layout content. Keep forms and lists left-aligned.",
-    "Ensure input fields use proper styled appearances (rounded-lg, subtle border, focus ring).",
-    "Always apply hover, focus, and active states to interactive elements.",
-    "Avoid using generic system fonts. Use Outfit for headings and Manrope for body text.",
-    "Do NOT use complete transparent background in header, overlays, or any surface that has content under it."
+    "You have .js files, NOT .tsx files. Write standard React JS syntax.",
+    "All interactive and key informational elements MUST include a data-testid attribute for robust testing.",
+    "Do not use complete transparent background in headers, overlays, or any surface over content (e.g. Dropdown backgrounds).",
+    "Use Shadcn UI components where applicable, customizing them to fit the Light Dashboard theme.",
+    "Apply micro-interactions on hover (e.g., hover:bg-slate-50) using specific transition properties (e.g., transition-colors), NEVER transition-all.",
+    "Ensure high contrast text (APCA standard) and accessible focus states."
   ]
 }

@@ -40,11 +40,12 @@ export default function SupplierGHGView() {
   const { reportingPeriod } = useSupplierAssessmentPeriod();
   const [emissions, setEmissions] = useState([]);
   const [supplierTotals, setSupplierTotals] = useState([]);
-  const [aggregations, setAggregations] = useState([]);
   const [grandTotal, setGrandTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
+  const [supplierFilter, setSupplierFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [emissionPage, setEmissionPage] = useState(1);
   const [unlockTarget, setUnlockTarget] = useState(null);
   const [unlocking, setUnlocking] = useState(false);
@@ -56,7 +57,6 @@ export default function SupplierGHGView() {
       });
       setEmissions(res.data.emissions || []);
       setSupplierTotals(res.data.supplier_totals || []);
-      setAggregations(res.data.aggregations || []);
       setGrandTotal(res.data.grand_total || 0);
     } catch (err) {
       toast.error('Failed to load emissions');
@@ -89,7 +89,9 @@ export default function SupplierGHGView() {
       e.supplier_name?.toLowerCase().includes(search.toLowerCase()) ||
       e.category?.toLowerCase().includes(search.toLowerCase());
     const matchesScope = scopeFilter === 'all' || e.scope === scopeFilter;
-    return matchesSearch && matchesScope;
+    const matchesSupplier = supplierFilter === 'all' || e.supplier_name === supplierFilter;
+    const matchesCategory = categoryFilter === 'all' || e.category === categoryFilter;
+    return matchesSearch && matchesScope && matchesSupplier && matchesCategory;
   });
   const emissionPageSize = 5;
   const emissionPageCount = Math.max(1, Math.ceil(filteredEmissions.length / emissionPageSize));
@@ -99,7 +101,9 @@ export default function SupplierGHGView() {
 
   useEffect(() => {
     setEmissionPage(1);
-  }, [search, scopeFilter, reportingPeriod]);
+  }, [search, scopeFilter, supplierFilter, categoryFilter, reportingPeriod]);
+  const supplierOptions = [...new Set(emissions.map((emission) => emission.supplier_name).filter(Boolean))].sort();
+  const categoryOptions = [...new Set(emissions.map((emission) => emission.category).filter(Boolean))].sort();
   return (
     <div className="space-y-6" data-testid="supplier-ghg-view">
       {/* Header */}
@@ -112,18 +116,18 @@ export default function SupplierGHGView() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
               <Cloud className="h-4 w-4" />
-              <span className="text-sm">Attributed Emissions</span>
+              <span className="text-sm">Total Emissions</span>
             </div>
             <div className="text-2xl font-bold text-stone-900">
               {displayValue(grandTotal)} <span className="text-sm font-normal text-stone-500">tCO2e</span>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
               <Factory className="h-4 w-4" />
@@ -135,7 +139,7 @@ export default function SupplierGHGView() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
               <Factory className="h-4 w-4" />
@@ -147,7 +151,7 @@ export default function SupplierGHGView() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
               <Factory className="h-4 w-4" />
@@ -162,7 +166,7 @@ export default function SupplierGHGView() {
 
       {/* Supplier Totals */}
       {supplierTotals.length > 0 && (
-        <Card className="overflow-hidden border-stone-200 shadow-none" data-testid="supplier-emissions-by-supplier-card">
+        <Card className="overflow-hidden rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-emissions-by-supplier-card">
           <CardHeader className="border-b border-stone-100 pb-4">
             <CardTitle className="text-lg text-stone-900">Emissions by Supplier</CardTitle>
             <p className="text-sm text-stone-500">Reported emissions, revenue-attributed emissions, and total intensity for each supplier.</p>
@@ -216,11 +220,6 @@ export default function SupplierGHGView() {
         </Card>
       )}
 
-      {/* Filters */}
-      <Card data-testid="submitted-ghg-aggregation-card">
-        <CardHeader><CardTitle>Attributed emissions by scope and category</CardTitle></CardHeader>
-        <CardContent>{aggregations.length === 0 ? <p className="text-sm text-stone-500" data-testid="submitted-ghg-aggregation-empty">No supplier GHG submission has been received.</p> : <Table data-testid="submitted-ghg-aggregation-table"><TableHeader><TableRow><TableHead>Scope</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Entries</TableHead><TableHead className="text-right">Attributed emissions (tCO₂e)</TableHead></TableRow></TableHeader><TableBody>{aggregations.map((row) => <TableRow key={`${row.scope}-${row.category}`} data-testid={`submitted-ghg-aggregation-${row.scope}-${row.category}`}><TableCell><Badge variant="outline" className={row.scope === 'scope1' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-purple-200 bg-purple-50 text-purple-700'} data-testid={`submitted-ghg-aggregation-scope-${row.scope}-${row.category}`}>{row.scope === 'scope1' ? 'Scope 1' : 'Scope 2'}</Badge></TableCell><TableCell>{row.category}</TableCell><TableCell className="text-right">{row.entry_count}</TableCell><TableCell className="text-right font-mono">{displayValue(row.total_emissions, 4)}</TableCell></TableRow>)}</TableBody></Table>}</CardContent>
-      </Card>
       <AlertDialog open={Boolean(unlockTarget)} onOpenChange={(open) => !open && setUnlockTarget(null)}><AlertDialogContent data-testid="unlock-supplier-ghg-dialog"><AlertDialogHeader><AlertDialogTitle>Unlock GHG data for resubmission?</AlertDialogTitle><AlertDialogDescription>The supplier receives a private draft copy. Their current submitted data remains visible here until they resubmit.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-unlock-supplier-ghg-button">Cancel</AlertDialogCancel><AlertDialogAction disabled={unlocking} onClick={unlockSupplierGhg} data-testid="confirm-unlock-supplier-ghg-button">{unlocking ? 'Unlocking…' : 'Unlock for resubmission'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
       <div className="flex items-center gap-4">
@@ -245,10 +244,12 @@ export default function SupplierGHGView() {
             <SelectItem value="scope2">Scope 2</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={supplierFilter} onValueChange={setSupplierFilter}><SelectTrigger className="w-44" data-testid="supplier-ghg-supplier-filter"><SelectValue placeholder="Filter supplier" /></SelectTrigger><SelectContent><SelectItem value="all">All Suppliers</SelectItem>{supplierOptions.map((supplier) => <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>)}</SelectContent></Select>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="w-44" data-testid="supplier-ghg-category-filter"><SelectValue placeholder="Filter category" /></SelectTrigger><SelectContent><SelectItem value="all">All Categories</SelectItem>{categoryOptions.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectContent></Select>
       </div>
 
       {/* Emissions Table */}
-      <Card>
+      <Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="all-supplier-emission-records-card">
         <CardHeader>
           <CardTitle>All Emission Records</CardTitle>
         </CardHeader>

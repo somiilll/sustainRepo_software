@@ -49,6 +49,9 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
+import { QuestionLedgerDialog } from './components/QuestionLedgerDialog';
+import { SupplierQuestionnairePreviewDialog } from './components/SupplierQuestionnairePreviewDialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -150,6 +153,7 @@ const hydrateDropdownOptionScores = (options, scoring) => (options || []).map((o
 
 const questionTypeLabel = (value) => responseTypes.find((type) => type.value === value)?.label || value;
 const scoringLabel = (value) => scoringRules.find((rule) => rule.value === value)?.label || 'Not configured';
+const questionnaireDeadlinePassed = (questionnaire) => Boolean(questionnaire?.due_date) && new Date(`${questionnaire.due_date}T23:59:59`).getTime() < Date.now();
 const importanceClasses = {
   low: 'border-sky-200 bg-sky-50 text-sky-700',
   medium: 'border-amber-200 bg-amber-50 text-amber-700',
@@ -175,6 +179,8 @@ export default function QuestionnaireBuilder() {
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [reviewResponse, setReviewResponse] = useState(null);
   const [reviewSupplier, setReviewSupplier] = useState(null);
+  const [showQuestionPreview, setShowQuestionPreview] = useState(false);
+  const [draggedQuestionId, setDraggedQuestionId] = useState(null);
   
   // Form states
   const [questionnaireForm, setQuestionnaireForm] = useState({
@@ -342,25 +348,23 @@ export default function QuestionnaireBuilder() {
     }
   };
 
-  const handleAddQuestion = async () => {
-    if (!questionForm.question_text || !selectedQuestionnaire) {
-      toast.error('Please enter question text');
-      return;
-    }
-    if (!validateQuestionScoring()) return;
-    
+  const handleAddLedgerQuestions = async (draftQuestions) => {
+    if (!selectedQuestionnaire) return;
+    const missingQuestion = draftQuestions.find((question) => !question.question_text.trim());
+    if (missingQuestion) { toast.error('Each ledger row needs question text before it can be added.'); return; }
+    const invalidDropdown = draftQuestions.find((question) => question.response_type === 'dropdown' && question.options_text.split(',').map((value) => value.trim()).filter(Boolean).length < 2);
+    if (invalidDropdown) { toast.error('Dropdown questions need at least two comma-separated options.'); return; }
     setSubmitting(true);
     try {
-      const payload = buildQuestionPayload(questions.length);
-      
-      await axios.post(
-        `${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`,
-        payload,
-        { headers: getAuthHeader() }
-      );
-      toast.success('Question added');
+      for (const [index, question] of draftQuestions.entries()) {
+        const values = question.response_type === 'dropdown' ? question.options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
+        const options = values.map((value, optionIndex) => ({ value, label: value, score: values.length === 1 ? 100 : Math.round(100 - (optionIndex * 100 / (values.length - 1))) }));
+        const scoring = getDefaultScoringConfig(question.response_type);
+        if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
+        await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...question, description: '', importance: 'medium', exact_numerical_weight: null, options, scoring, order: questions.length + index }, { headers: getAuthHeader() });
+      }
+      toast.success(`${draftQuestions.length} question${draftQuestions.length === 1 ? '' : 's'} added`);
       setShowQuestionDialog(false);
-      resetQuestionForm();
       fetchQuestions(selectedQuestionnaire.id);
     } catch (err) {
       toast.error('Failed to add question');
@@ -452,7 +456,7 @@ export default function QuestionnaireBuilder() {
     const esgTotal = Object.values(questionnaireForm.esg_section_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
     const overallTotal = Object.values(questionnaireForm.overall_supplier_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
     if (Math.abs(esgTotal - 100) > 0.01 || Math.abs(overallTotal - 100) > 0.01) {
-      toast.error('ESG category and overall component weights must each total 100%.');
+      toast.error(`Weights need to total 100% in both sections. ESG categories: ${esgTotal.toFixed(2)}%. Overall components: ${overallTotal.toFixed(2)}%.`);
       return false;
     }
     return true;
@@ -577,8 +581,8 @@ export default function QuestionnaireBuilder() {
         toast.error('Choice Mapping is only available for dropdown questions.');
         return false;
       }
-      if (!questionForm.options.length) {
-        toast.error('Add at least one dropdown option.');
+      if (questionForm.options.length < 2) {
+        toast.error('Dropdown questions need at least two options so suppliers can make a meaningful selection.');
         return false;
       }
       const values = questionForm.options.map((option) => option.value.trim());
@@ -614,8 +618,26 @@ export default function QuestionnaireBuilder() {
     });
   };
 
+  const handleQuestionDrop = async (targetQuestionId) => {
+    if (!draggedQuestionId || draggedQuestionId === targetQuestionId || !selectedQuestionnaire) return;
+    const currentIndex = questions.findIndex((question) => question.id === draggedQuestionId);
+    const targetIndex = questions.findIndex((question) => question.id === targetQuestionId);
+    if (currentIndex < 0 || targetIndex < 0) return;
+    const reordered = [...questions];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    setQuestions(reordered);
+    setDraggedQuestionId(null);
+    try {
+      await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/reorder`, reordered.map((question, index) => ({ id: question.id, order: index })), { headers: getAuthHeader() });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not reorder questions');
+      fetchQuestions(selectedQuestionnaire.id);
+    }
+  };
+
   return (
-    <div className="space-y-7" data-testid="questionnaire-builder">
+    <TooltipProvider><div className="space-y-7" data-testid="questionnaire-builder">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
@@ -654,7 +676,7 @@ export default function QuestionnaireBuilder() {
                           <p className="mt-1 text-xs text-stone-500">{q.question_count} questions</p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Button
+                          <Tooltip><TooltipTrigger asChild><Button
                             variant="ghost"
                             size="sm"
                             aria-label={`Edit ${q.name}`}
@@ -666,8 +688,8 @@ export default function QuestionnaireBuilder() {
                             data-testid={`edit-questionnaire-${q.id}`}
                           >
                             <Edit2 className="h-3 w-3" />
-                          </Button>
-                          <Button
+                          </Button></TooltipTrigger><TooltipContent>Edit questionnaire</TooltipContent></Tooltip>
+                          <Tooltip><TooltipTrigger asChild><Button
                             variant="ghost"
                             size="sm"
                             onClick={(e) => {
@@ -677,8 +699,8 @@ export default function QuestionnaireBuilder() {
                             data-testid={`duplicate-questionnaire-${q.id}`}
                           >
                             <Copy className="h-3 w-3" />
-                          </Button>
-                          <Button
+                          </Button></TooltipTrigger><TooltipContent>Duplicate questionnaire</TooltipContent></Tooltip>
+                          <Tooltip><TooltipTrigger asChild><Button
                             variant="ghost"
                             size="sm"
                             className="text-red-600"
@@ -689,7 +711,7 @@ export default function QuestionnaireBuilder() {
                             data-testid={`delete-questionnaire-${q.id}`}
                           >
                             <Trash2 className="h-3 w-3" />
-                          </Button>
+                          </Button></TooltipTrigger><TooltipContent>Delete questionnaire</TooltipContent></Tooltip>
                         </div>
                       </div>
                     </div>
@@ -704,19 +726,19 @@ export default function QuestionnaireBuilder() {
           {selectedQuestionnaire ? (
             <section className="border border-stone-200 bg-white" data-testid="selected-questionnaire-panel">
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 px-5 py-4">
-                <div><div className="flex items-center gap-2"><CardTitle className="text-xl">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700" data-testid="selected-questionnaire-active-status">Active</Badge></div><p className="mt-1 text-sm text-stone-500">{selectedQuestionnaire.description || 'No description'}</p></div>
-                <Button onClick={() => {
+                <div><div className="flex items-center gap-2"><CardTitle className="text-xl">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-amber-200 bg-amber-50 text-xs font-medium text-amber-800' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-1 text-sm text-stone-500">{selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
+                <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview for supplier</Button><Button onClick={() => {
                   resetQuestionForm();
                   setEditingQuestion(null);
                   setShowQuestionDialog(true);
-                }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Question</Button>
+                }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
               <div className="px-5 py-3" data-testid="question-table">
                 <div className="hidden grid-cols-[2.5rem_minmax(13rem,1fr)_7rem_7rem_9rem_7rem_7.5rem] items-center gap-3 border-b border-stone-200 pb-2 text-[11px] font-medium uppercase tracking-wide text-stone-500 lg:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
                 {questions.length === 0 ? (
                   <div className="py-14 text-center text-stone-500" data-testid="question-list-empty"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">No questions yet. Add your first question.</p></div>
                 ) : (
-                  <div>{questions.map((q, index) => <div key={q.id} className="grid gap-2 border-b border-stone-100 py-3 last:border-0 lg:grid-cols-[2.5rem_minmax(13rem,1fr)_7rem_7rem_9rem_7rem_7.5rem] lg:items-center lg:gap-3" data-testid={`question-${q.id}`}><div className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-xs font-semibold text-stone-600" data-testid={`question-order-${q.id}`}>{index + 1}</div><div className="min-w-0"><p className="text-sm font-medium text-stone-900">{q.question_text}{q.required && <span className="ml-1 text-rose-500">*</span>}</p>{q.description && <p className="mt-0.5 truncate text-xs text-stone-500">{q.description}</p>}</div><div><span className="text-xs text-stone-500 lg:hidden">Category: </span><Badge variant="outline" className="text-xs">{categories.find((category) => category.value === q.category)?.label || q.category}</Badge></div><div className="text-xs text-stone-600"><span className="text-stone-500 lg:hidden">Type: </span>{questionTypeLabel(q.response_type)}</div><div className="text-xs text-stone-600"><span className="text-stone-500 lg:hidden">Field type: </span>{scoringLabel(q.scoring?.rule)}</div><div><span className="text-xs text-stone-500 lg:hidden">Importance: </span><Badge variant="outline" className={`text-xs ${importanceClasses[q.importance] || importanceClasses.medium}`} data-testid={`question-weight-status-${q.id}`}>{q.importance || 'medium'}</Badge></div><div className="flex items-center gap-1 lg:justify-end"><Button variant="ghost" size="sm" aria-label={`Edit question ${index + 1}`} onClick={() => openEditQuestion(q)} data-testid={`edit-question-${q.id}`}><Edit2 className="h-4 w-4" /></Button><Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700" aria-label={`Delete question ${index + 1}`} onClick={() => handleDeleteQuestion(q.id)} data-testid={`delete-question-${q.id}`}><Trash2 className="h-4 w-4" /></Button><GripVertical className="ml-1 h-4 w-4 text-stone-300" data-testid={`question-reorder-handle-${q.id}`} /></div></div>)}</div>
+                  <div>{questions.map((q, index) => <div key={q.id} draggable onDragStart={() => setDraggedQuestionId(q.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => handleQuestionDrop(q.id)} className="grid gap-2 border-b border-stone-100 py-3 last:border-0 lg:grid-cols-[2.5rem_minmax(13rem,1fr)_7rem_7rem_9rem_7rem_7.5rem] lg:items-center lg:gap-3" data-testid={`question-${q.id}`}><div className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-xs font-semibold text-stone-600" data-testid={`question-order-${q.id}`}>{index + 1}</div><div className="min-w-0"><p className="text-sm font-medium text-stone-900">{q.question_text}{q.required && <span className="ml-1 text-rose-500">*</span>}</p>{q.description && <p className="mt-0.5 truncate text-xs text-stone-500">{q.description}</p>}</div><div><span className="text-xs text-stone-500 lg:hidden">Category: </span><Badge variant="outline" className="text-xs">{categories.find((category) => category.value === q.category)?.label || q.category}</Badge></div><div className="text-xs text-stone-600"><span className="text-stone-500 lg:hidden">Type: </span>{questionTypeLabel(q.response_type)}</div><div className="text-xs text-stone-600"><span className="text-stone-500 lg:hidden">Field type: </span>{scoringLabel(q.scoring?.rule)}</div><div><span className="text-xs text-stone-500 lg:hidden">Importance: </span><Badge variant="outline" className={`text-xs ${importanceClasses[q.importance] || importanceClasses.medium}`} data-testid={`question-weight-status-${q.id}`}>{q.importance || 'medium'}</Badge></div><div className="flex min-w-0 flex-wrap items-center gap-1 lg:justify-end"><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" aria-label={`Edit question ${index + 1}`} onClick={() => openEditQuestion(q)} data-testid={`edit-question-${q.id}`}><Edit2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Edit question</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700" aria-label={`Delete question ${index + 1}`} onClick={() => handleDeleteQuestion(q.id)} data-testid={`delete-question-${q.id}`}><Trash2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Delete question</TooltipContent></Tooltip><GripVertical className="ml-1 h-4 w-4 cursor-grab text-stone-400" data-testid={`question-reorder-handle-${q.id}`} /></div></div>)}</div>
                 )}
                 {questions.length > 1 && <p className="pt-3 text-xs text-stone-400" data-testid="question-reorder-hint">Drag and drop to reorder questions</p>}
               </div>
@@ -752,15 +774,6 @@ export default function QuestionnaireBuilder() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea
-                value={questionnaireForm.description}
-                onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, description: e.target.value })}
-                placeholder="Enter description"
-                rows={2}
-              />
-            </div>
-            <div className="space-y-2">
               <Label>Due Date</Label>
               <Input
                 type="date"
@@ -781,7 +794,7 @@ export default function QuestionnaireBuilder() {
               >
                 <SelectTrigger data-testid="questionnaire-assignment-mode-select"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All eligible suppliers</SelectItem>
+                  <SelectItem value="all">All suppliers</SelectItem>
                   <SelectItem value="selected">Selected suppliers</SelectItem>
                 </SelectContent>
               </Select>
@@ -792,7 +805,7 @@ export default function QuestionnaireBuilder() {
               ) : (
                 <div className="space-y-2" data-testid="questionnaire-assignment-supplier-list">
                   {assignmentSuppliers.length === 0 ? (
-                    <p className="text-xs text-stone-500" data-testid="questionnaire-assignment-empty-state">No eligible suppliers exist for {reportingPeriod}.</p>
+                    <p className="text-xs text-stone-500" data-testid="questionnaire-assignment-empty-state">No suppliers are available for {reportingPeriod}.</p>
                   ) : (
                     <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
                       {assignmentSuppliers.map((supplier) => (
@@ -968,14 +981,6 @@ export default function QuestionnaireBuilder() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea
-                value={questionnaireForm.description}
-                onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, description: e.target.value })}
-                rows={2}
-              />
-            </div>
-            <div className="space-y-2">
               <Label>Due Date</Label>
               <Input
                 type="date"
@@ -1105,7 +1110,7 @@ export default function QuestionnaireBuilder() {
       </Dialog>
 
       {/* Question Dialog */}
-      <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
+      <Dialog open={showQuestionDialog && Boolean(editingQuestion)} onOpenChange={setShowQuestionDialog}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
@@ -1203,35 +1208,6 @@ export default function QuestionnaireBuilder() {
               </div>
             </div>
 
-            <Accordion type="single" collapsible className="w-full border-y">
-              <AccordionItem value="advanced-question-weight" className="border-0">
-                <AccordionTrigger className="py-3 text-sm font-medium" data-testid="advanced-question-weight-toggle">
-                  Advanced Configuration
-                </AccordionTrigger>
-                <AccordionContent className="pb-4">
-                  <div className="space-y-2 max-w-sm">
-                    <Label>Override with exact weight</Label>
-                    <Input
-                      type="number"
-                      min="0.01"
-                      step="0.1"
-                      value={questionForm.exact_numerical_weight ?? ''}
-                      onChange={(event) => setQuestionForm({
-                        ...questionForm,
-                        exact_numerical_weight: event.target.value === '' ? null : Number(event.target.value),
-                      })}
-                      placeholder="Optional"
-                      data-testid="question-exact-weight-input"
-                    />
-                    <p className="text-xs text-stone-500" data-testid="question-effective-weight-status">
-                      {questionForm.exact_numerical_weight !== null && questionForm.exact_numerical_weight !== ''
-                        ? `Using exact weight: ${questionForm.exact_numerical_weight}`
-                        : `Using ${questionForm.importance} importance`}
-                    </p>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
             
             {/* Dropdown Options */}
             {questionForm.response_type === 'dropdown' && (
@@ -1504,15 +1480,17 @@ export default function QuestionnaireBuilder() {
               Cancel
             </Button>
             <Button
-              onClick={editingQuestion ? handleUpdateQuestion : handleAddQuestion}
+              onClick={handleUpdateQuestion}
               disabled={submitting}
               data-testid="save-question-btn"
             >
-              {submitting ? 'Saving...' : (editingQuestion ? 'Update' : 'Add Question')}
+              {submitting ? 'Saving...' : 'Update'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      <QuestionLedgerDialog open={showQuestionDialog && !editingQuestion} onOpenChange={(open) => { setShowQuestionDialog(open); if (!open) resetQuestionForm(); }} onSave={handleAddLedgerQuestions} saving={submitting} />
+      <SupplierQuestionnairePreviewDialog open={showQuestionPreview} onOpenChange={setShowQuestionPreview} questionnaire={selectedQuestionnaire} questions={questions} />
+    </div></TooltipProvider>
   );
 }
