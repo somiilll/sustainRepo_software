@@ -192,6 +192,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Replaced state-only row dragging with a dedicated native drag handle that sets `dataTransfer` and sends the dragged/target IDs to the existing reorder endpoint.
 - **NOT TESTED** after this correction, respecting the user instruction.
 
+## Latest Changes — 2026-08-26 (Question Ledger Score Controls)
+- Added explicit Yes and No score fields to every Yes/No ledger row and a per-option score field for every dropdown choice.
+- The ledger validates every configured score is 0–100 and persists those values into the Boolean or Choice Mapping scoring configuration.
+- Reworked ledger rows into responsive stacked configuration panels, preventing the previous narrow multi-column field overflow.
+- **NOT TESTED** after this update, respecting the user instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

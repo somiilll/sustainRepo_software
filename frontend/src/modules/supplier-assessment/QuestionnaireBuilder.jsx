@@ -354,13 +354,20 @@ export default function QuestionnaireBuilder() {
     if (missingQuestion) { toast.error('Each ledger row needs question text before it can be added.'); return; }
     const invalidDropdown = draftQuestions.find((question) => question.response_type === 'dropdown' && question.options_text.split(',').map((value) => value.trim()).filter(Boolean).length < 2);
     if (invalidDropdown) { toast.error('Dropdown questions need at least two comma-separated options.'); return; }
+    const invalidScore = draftQuestions.find((question) => {
+      if (question.response_type === 'yes_no') return !isScore(question.yes_score) || !isScore(question.no_score);
+      if (question.response_type === 'dropdown') return question.options_text.split(',').map((value) => value.trim()).filter(Boolean).some((value) => !isScore(question.option_scores?.[value]));
+      return false;
+    });
+    if (invalidScore) { toast.error('Enter a score from 0 to 100 for every Yes/No or dropdown option.'); return; }
     setSubmitting(true);
     try {
       for (const [index, question] of draftQuestions.entries()) {
         const values = question.response_type === 'dropdown' ? question.options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
-        const options = values.map((value, optionIndex) => ({ value, label: value, score: values.length === 1 ? 100 : Math.round(100 - (optionIndex * 100 / (values.length - 1))) }));
+        const options = values.map((value) => ({ value, label: value, score: Number(question.option_scores?.[value]) }));
         const scoring = { ...getDefaultScoringConfig(question.response_type), rule: question.scoring_rule };
         if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
+        if (question.response_type === 'yes_no') { scoring.true_score = Number(question.yes_score); scoring.false_score = Number(question.no_score); }
         await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...question, description: '', importance: question.importance, exact_numerical_weight: null, options, scoring, order: questions.length + index }, { headers: getAuthHeader() });
       }
       toast.success(`${draftQuestions.length} question${draftQuestions.length === 1 ? '' : 's'} added`);
