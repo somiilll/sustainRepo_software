@@ -286,6 +286,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier intensity units now read `tCO₂e / supplier currency` across the parent GHG ledger and intensity comparison tooltip.
 - Detailed ranking ESG, Environment, Social, and Governance headings are sortable in ascending or descending order; rows with missing scores remain at the bottom.
 - Removed desktop top padding from the shared content wrapper for every `/supplier-assessment` route, aligning page headings directly with the workspace top edge while retaining mobile clearance for the navigation button.
+- Parent Training cards no longer expand every supplier progress row inline. Each card now has a scalable `View suppliers` dialog showing one supplier per row with Progress and Status.
+- Supplier emission totals now expose each supplier's stored `revenue_currency`; intensity labels and chart tooltips render the actual currency code (for example, `tCO₂e / INR`) instead of a generic denominator label.
 
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.

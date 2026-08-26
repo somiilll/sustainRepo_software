@@ -319,7 +319,7 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
     relationship_query = {"customer_org_id": customer_org_id, "is_active": True}
     if reporting_period:
         relationship_query["reporting_period"] = reporting_period
-    relationships = await db.supplier_relationships.find(relationship_query, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "revenue_percentage": 1, "revenue_amount": 1}).to_list(1000)
+    relationships = await db.supplier_relationships.find(relationship_query, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "revenue_percentage": 1, "revenue_amount": 1, "revenue_currency": 1}).to_list(1000)
     relationship_names = {relationship["id"]: relationship.get("company_name", "Unknown") for relationship in relationships}
     relationship_periods = {relationship["id"]: relationship.get("reporting_period") for relationship in relationships}
     relationship_revenue = {relationship["id"]: relationship for relationship in relationships}
@@ -350,6 +350,7 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
             "total": 0.0,
             "revenue_percentage": revenue_percentage,
             "annual_revenue_amount": revenue.get("revenue_amount"),
+            "revenue_currency": revenue.get("revenue_currency"),
             "attribution_available": factor is not None,
         })
         scope = entry.get("scope")

@@ -197,7 +197,7 @@ export default function SupplierGHGView() {
                     <TableCell className="text-right">
                       {supplier.total_intensity === null || supplier.total_intensity === undefined
                         ? <span className="whitespace-nowrap text-xs text-stone-400" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>Not available</span>
-                        : <span className="whitespace-nowrap text-sm font-semibold text-stone-900" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>{displayValue(supplier.total_intensity, 6)} <span className="block text-[10px] font-normal text-stone-400">tCO₂e / supplier currency</span></span>}
+                        : <span className="whitespace-nowrap text-sm font-semibold text-stone-900" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>{displayValue(supplier.total_intensity, 6)} <span className="block text-[10px] font-normal text-stone-400">tCO₂e / {supplier.revenue_currency || 'currency not set'}</span></span>}
                     </TableCell>
                     <TableCell className="pr-6 text-right"><Button variant="outline" size="sm" onClick={() => setUnlockTarget(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="mr-1 h-4 w-4" />Unlock</Button></TableCell>
                   </TableRow>
