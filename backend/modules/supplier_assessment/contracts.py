@@ -41,6 +41,9 @@ class SupplierUpdate(BaseModel):
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
     questionnaire_ids: Optional[List[str]] = None
+    document_requirement_ids: Optional[List[str]] = None
+    training_requirement_ids: Optional[List[str]] = None
+    revenue_required: Optional[bool] = None
 
 
 class SupplierResponse(BaseModel):
