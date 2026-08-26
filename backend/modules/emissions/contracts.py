@@ -39,6 +39,7 @@ class EmissionRecordCreate(BaseModel):
 
     # Scope 3
     calculation_method_scope3: Optional[str] = None
+    spend_currency_conversion_method: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
     scope3_activity_type: Optional[str] = None
@@ -129,6 +130,7 @@ class EmissionRecordResponse(BaseModel):
     process_type: Optional[str] = None
 
     calculation_method_scope3: Optional[str] = None
+    spend_currency_conversion_method: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
     scope3_activity_type: Optional[str] = None

@@ -773,6 +773,25 @@ CATEGORY_COLUMNS = {
     },
 }
 
+# Spend-basis rows use a legacy-safe PPP default when this optional selector is
+# absent. The normalized columns are injected for every category that supports
+# spend basis so generated templates and uploaded records share one contract.
+for _category_config in CATEGORY_COLUMNS.values():
+    if CalculationMethod.SPEND_BASIS not in _category_config.get("supported_methods", []):
+        continue
+    _columns = _category_config.get("columns", [])
+    _spent_index = next((index for index, column in enumerate(_columns) if column["key"] == "spent_amount"), None)
+    if _spent_index is None:
+        continue
+    _columns[_spent_index]["name"] = "Spent Amount"
+    _new_columns = [
+        {"name": "Spent Currency", "key": "spent_currency", "mandatory": False, "type": "dropdown"},
+        {"name": "Currency Conversion Method", "key": "spend_currency_conversion_method", "mandatory": False, "type": "dropdown"},
+        {"name": "Exchange Rate (Override)", "key": "exchange_rate", "mandatory": False, "type": "number"},
+    ]
+    if not any(column["key"] == "spend_currency_conversion_method" for column in _columns):
+        _columns[_spent_index + 1:_spent_index + 1] = _new_columns
+
 
 # Activity type mappings for C6 and C7
 ACTIVITY_TYPES = {

@@ -62,6 +62,7 @@ export default function CurrencyConversion() {
   const [configToDelete, setConfigToDelete] = useState(null);
   const [filterCurrency, setFilterCurrency] = useState('');
   const [filterYear, setFilterYear] = useState('');
+  const [filterMethod, setFilterMethod] = useState('');
   const { getAuthHeader } = useAuth();
 
   const currentYear = new Date().getFullYear();
@@ -71,6 +72,8 @@ export default function CurrencyConversion() {
     source_currency: 'INR',
     target_currency: 'USD',
     year_applicable: currentYear,
+    month_applicable: '',
+    conversion_method: 'ppp_inflation',
     purchase_parity: '',
     inflation_factor: '',
     exchange_rate: '',
@@ -101,10 +104,11 @@ export default function CurrencyConversion() {
     
     const payload = {
       ...formData,
-      purchase_parity: parseFloat(formData.purchase_parity),
+      purchase_parity: formData.purchase_parity ? parseFloat(formData.purchase_parity) : null,
       inflation_factor: formData.inflation_factor ? parseFloat(formData.inflation_factor) : null,
       exchange_rate: formData.exchange_rate ? parseFloat(formData.exchange_rate) : null,
-      year_applicable: parseInt(formData.year_applicable)
+      year_applicable: parseInt(formData.year_applicable),
+      month_applicable: formData.month_applicable ? parseInt(formData.month_applicable) : null,
     };
 
     try {
@@ -140,6 +144,8 @@ export default function CurrencyConversion() {
       source_currency: config.source_currency,
       target_currency: config.target_currency,
       year_applicable: config.year_applicable,
+      month_applicable: config.month_applicable?.toString() || '',
+      conversion_method: config.conversion_method || 'ppp_inflation',
       purchase_parity: config.purchase_parity?.toString() || '',
       inflation_factor: config.inflation_factor?.toString() || '',
       exchange_rate: config.exchange_rate?.toString() || '',
@@ -173,6 +179,8 @@ export default function CurrencyConversion() {
       source_currency: 'INR',
       target_currency: 'USD',
       year_applicable: currentYear,
+      month_applicable: '',
+      conversion_method: 'ppp_inflation',
       purchase_parity: '',
       inflation_factor: '',
       exchange_rate: '',
@@ -192,6 +200,7 @@ export default function CurrencyConversion() {
   const filteredConfigs = configs.filter(config => {
     if (filterCurrency && config.source_currency !== filterCurrency) return false;
     if (filterYear && config.year_applicable !== parseInt(filterYear)) return false;
+    if (filterMethod && (config.conversion_method || 'ppp_inflation') !== filterMethod) return false;
     return true;
   });
 
@@ -218,7 +227,7 @@ export default function CurrencyConversion() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Currency Conversion</h1>
           <p className="text-slate-500 mt-1">
-            Manage purchasing power parity (PPP) and inflation factors for spend-based calculations
+            Manage monthly or annual market rates, PPP, and inflation for spend-based calculations
           </p>
         </div>
         <Button onClick={openCreateDialog} className="bg-emerald-600 hover:bg-emerald-700" data-testid="add-currency-btn">
@@ -236,8 +245,8 @@ export default function CurrencyConversion() {
             <ul className="list-disc list-inside space-y-1 text-blue-700">
               <li><strong>Purchase Parity (PPP):</strong> Converts local currency to USD equivalent based on purchasing power</li>
               <li><strong>Inflation Factor:</strong> Adjusts for inflation between the base year and calculation year</li>
-              <li><strong>Exchange Rate:</strong> Optional market exchange rate for reference</li>
-              <li>These factors are used in spend-based emission calculations (kgCO2e/2022_USD)</li>
+              <li><strong>Standard Conversion:</strong> Uses the market rate effective for the reporting month.</li>
+              <li><strong>PPP &amp; Inflation:</strong> Uses annual PPP and inflation adjustment, including legacy records.</li>
             </ul>
           </div>
         </div>
@@ -274,6 +283,17 @@ export default function CurrencyConversion() {
               </SelectContent>
             </Select>
           </div>
+          <div className="w-48">
+            <Label className="text-sm text-slate-600 mb-1">Filter by Method</Label>
+            <Select value={filterMethod || "all"} onValueChange={(v) => setFilterMethod(v === "all" ? "" : v)}>
+              <SelectTrigger data-testid="currency-method-filter"><SelectValue placeholder="All Methods" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Methods</SelectItem>
+                <SelectItem value="standard">Standard Currency Conversion</SelectItem>
+                <SelectItem value="ppp_inflation">PPP and Inflation Rate</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="text-sm text-slate-500">
             Showing {filteredConfigs.length} of {configs.length} configurations
           </div>
@@ -288,6 +308,8 @@ export default function CurrencyConversion() {
               <TableHead className="font-semibold">Source Currency</TableHead>
               <TableHead className="font-semibold">Target Currency</TableHead>
               <TableHead className="font-semibold">Year</TableHead>
+              <TableHead className="font-semibold">Effective Period</TableHead>
+              <TableHead className="font-semibold">Method</TableHead>
               <TableHead className="font-semibold">Purchase Parity (PPP)</TableHead>
               <TableHead className="font-semibold">Inflation Factor</TableHead>
               <TableHead className="font-semibold">Exchange Rate</TableHead>
@@ -299,8 +321,8 @@ export default function CurrencyConversion() {
           <TableBody>
             {filteredConfigs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-slate-500">
-                  No currency conversion configurations found. Click "Add Currency Conversion" to create one.
+                <TableCell colSpan={11} className="text-center py-8 text-slate-500">
+                  No currency conversion configurations found. Click &quot;Add Currency Conversion&quot; to create one.
                 </TableCell>
               </TableRow>
             ) : (
@@ -318,6 +340,12 @@ export default function CurrencyConversion() {
                       <Calendar className="h-4 w-4 text-slate-400" />
                       {config.year_applicable}
                     </div>
+                  </TableCell>
+                  <TableCell data-testid={`currency-effective-period-${config.id}`}>
+                    {config.effective_from || (config.month_applicable ? `${config.year_applicable}-${String(config.month_applicable).padStart(2, '0')}` : config.year_applicable)}
+                  </TableCell>
+                  <TableCell data-testid={`currency-method-${config.id}`}>
+                    {(config.conversion_method || 'ppp_inflation') === 'standard' ? 'Standard' : 'PPP & Inflation'}
                   </TableCell>
                   <TableCell className="font-mono">{config.purchase_parity?.toFixed(4)}</TableCell>
                   <TableCell className="font-mono">
@@ -379,6 +407,16 @@ export default function CurrencyConversion() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
+                <Label className="text-sm font-medium">Conversion Method *</Label>
+                <Select value={formData.conversion_method} onValueChange={(value) => setFormData({ ...formData, conversion_method: value })}>
+                  <SelectTrigger data-testid="currency-conversion-method-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Standard Currency Conversion</SelectItem>
+                    <SelectItem value="ppp_inflation">PPP and Inflation Rate</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label className="text-sm font-medium">Source Currency *</Label>
                 <Select 
                   value={formData.source_currency} 
@@ -392,6 +430,18 @@ export default function CurrencyConversion() {
                       <SelectItem key={c.code} value={c.code}>
                         {c.code} - {c.name}
                       </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Month Applicable</Label>
+                <Select value={formData.month_applicable || 'annual'} onValueChange={(value) => setFormData({ ...formData, month_applicable: value === 'annual' ? '' : value })}>
+                  <SelectTrigger data-testid="currency-month-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="annual">Annual rate</SelectItem>
+                    {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                      <SelectItem key={month} value={String(month)}>{new Date(2000, month - 1, 1).toLocaleString('en', { month: 'long' })}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -446,6 +496,7 @@ export default function CurrencyConversion() {
             </div>
 
             <div className="grid grid-cols-3 gap-4">
+              {formData.conversion_method === 'ppp_inflation' && <>
               <div>
                 <Label className="text-sm font-medium">Purchase Parity (PPP) *</Label>
                 <Input
@@ -454,7 +505,7 @@ export default function CurrencyConversion() {
                   value={formData.purchase_parity}
                   onChange={(e) => setFormData({...formData, purchase_parity: e.target.value})}
                   placeholder="e.g., 22.5"
-                  required
+                  required={formData.conversion_method === 'ppp_inflation'}
                   data-testid="ppp-input"
                 />
                 <p className="text-xs text-slate-500 mt-1">PPP conversion factor</p>
@@ -471,17 +522,19 @@ export default function CurrencyConversion() {
                 />
                 <p className="text-xs text-slate-500 mt-1">Inflation adjustment</p>
               </div>
+              </>}
               <div>
-                <Label className="text-sm font-medium">Exchange Rate</Label>
+                <Label className="text-sm font-medium">Exchange Rate {formData.conversion_method === 'standard' ? '*' : ''}</Label>
                 <Input
                   type="number"
                   step="0.0001"
                   value={formData.exchange_rate}
                   onChange={(e) => setFormData({...formData, exchange_rate: e.target.value})}
                   placeholder="e.g., 83.5"
+                  required={formData.conversion_method === 'standard'}
                   data-testid="exchange-rate-input"
                 />
-                <p className="text-xs text-slate-500 mt-1">Market rate (optional)</p>
+                <p className="text-xs text-slate-500 mt-1">Source-currency units per target-currency unit</p>
               </div>
             </div>
 

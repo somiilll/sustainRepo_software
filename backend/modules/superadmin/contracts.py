@@ -395,7 +395,10 @@ class CurrencyConversionCreate(BaseModel):
     source_currency: str  # e.g., "USD", "EUR", "INR"
     target_currency: str = "USD"  # Default target is USD
     year_applicable: int  # Year for which this conversion is applicable
-    purchase_parity: float  # PPP (Purchasing Power Parity) factor
+    month_applicable: Optional[int] = None  # Optional 1-12; blank means annual rate
+    effective_from: Optional[str] = None  # YYYY for annual / YYYY-MM for monthly rate
+    conversion_method: str = "ppp_inflation"  # ppp_inflation | standard
+    purchase_parity: Optional[float] = None  # PPP (Purchasing Power Parity) factor
     inflation_factor: Optional[float] = None  # Inflation adjustment factor
     exchange_rate: Optional[float] = None  # Optional: market exchange rate
     source: str  # e.g., "World Bank", "IMF", "OECD"
@@ -406,6 +409,9 @@ class CurrencyConversionUpdate(BaseModel):
     source_currency: Optional[str] = None
     target_currency: Optional[str] = None
     year_applicable: Optional[int] = None
+    month_applicable: Optional[int] = None
+    effective_from: Optional[str] = None
+    conversion_method: Optional[str] = None
     purchase_parity: Optional[float] = None
     inflation_factor: Optional[float] = None
     exchange_rate: Optional[float] = None
