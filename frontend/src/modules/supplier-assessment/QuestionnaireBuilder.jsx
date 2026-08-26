@@ -740,7 +740,7 @@ export default function QuestionnaireBuilder() {
                 }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
               <div className="px-5 py-3" data-testid="question-table">
-                <div className="hidden grid-cols-[2.5rem_minmax(12rem,1fr)_7rem_7rem_9rem_7rem_10rem] items-center gap-3 border-b border-stone-200 pb-2 text-[11px] font-medium uppercase tracking-wide text-stone-500 lg:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
+                <div className="hidden grid-cols-[2.5rem_minmax(12rem,1fr)_7rem_7rem_9rem_7rem_10rem] items-center gap-3 border-b border-stone-200 pb-2 text-[11px] font-medium uppercase tracking-wide text-stone-500 2xl:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
                 {questions.length === 0 ? (
                   <div className="py-14 text-center text-stone-500" data-testid="question-list-empty"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">No questions yet. Add your first question.</p></div>
                 ) : (
