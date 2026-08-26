@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from shared.database.mongo import db
-from shared.utils.emission_records import eligible_ghg_record_filter
+from shared.utils.emission_records import eligible_ghg_record_filter, normalize_reporting_period
 
 
 def _base_year_range(base_year: str) -> Optional[tuple[bool, int, int]]:
@@ -38,6 +38,35 @@ def _parse_period(period: str) -> tuple[Optional[int], Optional[int]]:
     return None, int(year_match.group()) if year_match else None
 
 
+def _annual_period_month_range(period: str, allow_plain_year: bool = False) -> Optional[tuple[int, int]]:
+    raw_period = str(period or "").strip()
+    if allow_plain_year and re.fullmatch(r"\d{4}", raw_period):
+        year = int(raw_period)
+        return year * 12 + 1, year * 12 + 12
+
+    canonical_period = normalize_reporting_period(raw_period)
+    if not canonical_period:
+        return None
+    if canonical_period.startswith("CY "):
+        year = int(canonical_period[3:])
+        return year * 12 + 1, year * 12 + 12
+    if canonical_period.startswith("FY "):
+        start_year = int(canonical_period[3:7])
+        return start_year * 12 + 4, (start_year + 1) * 12 + 3
+    return None
+
+
+def _yearly_overlap_factor(record_period: str, base_year: str) -> float:
+    record_range = _annual_period_month_range(record_period)
+    base_range = _annual_period_month_range(base_year, allow_plain_year=True)
+    if not record_range or not base_range:
+        return 0.0
+
+    overlap_start = max(record_range[0], base_range[0])
+    overlap_end = min(record_range[1], base_range[1])
+    return max(0, overlap_end - overlap_start + 1) / 12
+
+
 def _is_record_in_base_year(record: Dict[str, Any], base_year: str) -> bool:
     base_range = _base_year_range(base_year)
     if not base_range:
@@ -50,7 +79,7 @@ def _is_record_in_base_year(record: Dict[str, Any], base_year: str) -> bool:
     if not year:
         return False
     if frequency == "yearly":
-        return year in ({start_year, end_year} if is_financial_year else {start_year})
+        return _yearly_overlap_factor(record.get("reporting_period", ""), base_year) > 0
     if not month:
         return False
     if is_financial_year:
@@ -76,11 +105,8 @@ async def sync_base_year_emissions_for_entity(
         return {"message": "No base year record found for this entity", "synced": False}
 
     base_year = base_year_record.get("base_year", "")
-    base_range = _base_year_range(base_year)
-    if not base_range:
+    if not _base_year_range(base_year):
         return {"message": "Invalid base year format", "synced": False}
-
-    is_base_fy, base_start_year, base_end_year = base_range
     if entity_type == "facility":
         emissions_query: Dict[str, Any] = {"facility_id": entity_id}
     else:
@@ -139,13 +165,7 @@ async def sync_base_year_emissions_for_entity(
                 continue
 
             if frequency == "yearly":
-                overlap_months = (
-                    9 if is_base_fy and year == base_start_year
-                    else 3 if is_base_fy and year == base_end_year
-                    else 12 if not is_base_fy and year == base_start_year
-                    else 0
-                )
-                total_tco2e += tco2e * (overlap_months / 12)
+                total_tco2e += tco2e * _yearly_overlap_factor(record.get("reporting_period", ""), base_year)
             elif _is_record_in_base_year(record, base_year):
                 total_tco2e += tco2e
 
