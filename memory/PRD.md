@@ -248,6 +248,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Edit Supplier now explicitly maps the loaded supplier’s effective document/training IDs onto the checkbox lists after the requirements load, so existing assignments appear selected before any changes are made.
 - **NOT TESTED** after this update, respecting the user instruction.
 
+## Latest Changes — 2026-08-26 (Agreement Assignment Visibility)
+- Parent-org agreement cards now display the names of active suppliers assigned to each agreement; the documents API enriches requirements with effective assigned supplier names, including program-wide assignments.
+- **NOT TESTED** after this update, respecting the user instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

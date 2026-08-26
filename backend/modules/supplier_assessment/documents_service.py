@@ -350,6 +350,15 @@ async def list_customer_documents(customer_org_id: str, reporting_period: Option
     requirements = await db.supplier_document_requirements.find(
         query, {"_id": 0}
     ).sort("created_at", -1).to_list(100)
+    suppliers = await db.supplier_relationships.find(
+        {"customer_org_id": customer_org_id, "is_active": True},
+        {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1},
+    ).to_list(1000)
+    for requirement in requirements:
+        requirement["assigned_supplier_names"] = [
+            supplier["company_name"] for supplier in suppliers
+            if _is_requirement_available_to_relationship(requirement, supplier)
+        ]
     return requirements
 
 
