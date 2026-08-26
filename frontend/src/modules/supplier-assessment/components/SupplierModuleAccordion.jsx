@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../components/ui/collapsible';
 
-const panelClassName = 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_28px_rgba(15,23,42,0.07)] transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_14px_34px_rgba(16,185,129,0.11)]';
+const panelClassName = 'overflow-hidden rounded-2xl border border-slate-200 bg-white transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-slate-300';
 
 const PanelHeader = ({ title, description, progress, status, Icon, iconClassName, testId, action, collapsible = false }) => (
   <div className="flex min-w-0 items-start gap-4 px-5 py-5 text-left sm:px-6">
@@ -36,11 +36,13 @@ export const SupplierModulePanel = ({
   testId,
   action,
   collapsible = false,
+  shadowClassName = 'shadow-[0_8px_28px_rgba(15,23,42,0.07)] hover:shadow-[0_14px_34px_rgba(15,23,42,0.10)]',
 }) => {
   const headerProps = { title, description, progress, status, Icon, iconClassName, testId, action, collapsible };
+  const className = `${panelClassName} ${shadowClassName}`;
 
   if (collapsible) {
-    return <Collapsible className={panelClassName} data-testid={testId}>
+    return <Collapsible className={className} data-testid={testId}>
       <CollapsibleTrigger asChild data-testid={`${testId}-trigger`}>
         <button type="button" className="block w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-inset">
           <PanelHeader {...headerProps} />
@@ -52,7 +54,7 @@ export const SupplierModulePanel = ({
     </Collapsible>;
   }
 
-  return <section className={panelClassName} data-testid={testId}>
+  return <section className={className} data-testid={testId}>
     <PanelHeader {...headerProps} />
     {children && <div className="border-t border-slate-100 px-5 py-5 sm:px-6" data-testid={`${testId}-content`}>{children}</div>}
   </section>;
