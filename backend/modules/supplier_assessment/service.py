@@ -334,8 +334,21 @@ class SupplierAssessmentService:
             query,
             {"_id": 0}
         ).sort("created_at", -1).skip(skip).limit(page_size).to_list(page_size)
+        from modules.supplier_assessment.documents_service import _is_requirement_available_to_relationship
+        document_requirements = await db.supplier_document_requirements.find(
+            {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1, "reporting_period": 1, "supplier_relationship_ids": 1, "excluded_supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1},
+        ).to_list(1000)
+        relationship_ids = [supplier["id"] for supplier in suppliers]
+        training_assignments = await db.supplier_training_assignments.find(
+            {"supplier_relationship_id": {"$in": relationship_ids}, "is_active": True}, {"_id": 0, "supplier_relationship_id": 1, "training_requirement_id": 1},
+        ).to_list(1000)
+        training_ids_by_supplier: Dict[str, List[str]] = {}
+        for assignment in training_assignments:
+            training_ids_by_supplier.setdefault(assignment["supplier_relationship_id"], []).append(assignment["training_requirement_id"])
         for supplier in suppliers:
             supplier["questionnaire_assignment_is_implicit"] = "questionnaire_ids" not in supplier
+            supplier["document_requirement_ids"] = [requirement["id"] for requirement in document_requirements if _is_requirement_available_to_relationship(requirement, supplier)]
+            supplier["training_requirement_ids"] = training_ids_by_supplier.get(supplier["id"], [])
         
         return {
             "suppliers": suppliers,
