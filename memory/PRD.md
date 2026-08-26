@@ -157,7 +157,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 
 ## Latest Changes — 2026-08-26 (Base Year Scope 1 & 2 Totals)
 - Added live Scope 1, Scope 2, and Total Emissions rollups to both the Scope 1 & 2 base-year setup and edit dialogs. Values update immediately when an emission row is changed.
-- Scope 1 & 2 summary cards for organizations and facilities now show a calculated **Total Base Year** value. The read-only base-year dialog also presents the same three-value breakdown.
+- The detailed/expanded Scope 1 & 2 panels and read-only base-year dialog show calculated **Total Base Year** values. Per user direction, the always-visible organization/facility row cards show only the base-year label and period.
 - Totals intentionally include only Scope 1 and Scope 2 entries; sinks and biogenic entries remain outside this requested Scope 1 & 2 measure.
 - Verification passed: focused JavaScript lint, production frontend build (pre-existing warnings only), authenticated browser smoke test, and an unsaved live-value edit check (total changed from `1341.1631` to `1380.0671 tCO₂e`).
 

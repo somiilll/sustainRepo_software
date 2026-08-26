@@ -1781,13 +1781,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   <p className="text-sm font-semibold text-text-primary">
                     {getEntityRecord('organization', organization.id, 'scope12')?.base_year || '—'}
                   </p>
-                  {getEntityRecord('organization', organization.id, 'scope12') && (
-                    <Scope12EmissionsSummary
-                      emissions={getEntityRecord('organization', organization.id, 'scope12').emissions_data}
-                      compact
-                      testId="organization-scope12-base-year-total"
-                    />
-                  )}
                 </div>
 
                  <div className="w-20" />
@@ -2000,13 +1993,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       <p className="text-sm font-semibold text-text-primary">
                         {scope12Record?.base_year || '—'}
                       </p>
-                      {scope12Record && (
-                        <Scope12EmissionsSummary
-                          emissions={scope12Record.emissions_data}
-                          compact
-                          testId={`facility-${facility.id}-scope12-base-year-total`}
-                        />
-                      )}
                     </div>
 
                     <div className="w-20" />
