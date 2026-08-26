@@ -155,6 +155,7 @@ export default function EmissionEntryForm({
     fuelSearchTerm, setFuelSearchTerm,
     // Scope 3
     scope3Method, setScope3Method,
+    spendCurrencyConversionMethod, setSpendCurrencyConversionMethod,
     scope3EFData, setScope3EFData,
     scope3ActivityId, setScope3ActivityId,
     scope3ActivityType, setScope3ActivityType,
@@ -318,6 +319,7 @@ export default function EmissionEntryForm({
       if (editingEmission.scope === 'scope3' || 
           (editingEmission.scope === 'biogenic' && hydrated.biogenicScopeSelection === 'scope3')) {
         setScope3Method(hydrated.scope3Method);
+        setSpendCurrencyConversionMethod(hydrated.spendCurrencyConversionMethod || 'ppp_inflation');
         setScope3ActivityType(hydrated.scope3ActivityType);
         setScope3Subcategory(hydrated.scope3Subcategory);
         setTypeOfProduct(hydrated.typeOfProduct);
@@ -1125,7 +1127,7 @@ export default function EmissionEntryForm({
         onFormChange();
       }
     }
-  }, [facilityId, category, fuelId, notes, scope3Method, scope3ActivityType, employees.length, onFormChange]);
+  }, [facilityId, category, fuelId, notes, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, employees.length, onFormChange]);
   
   // Scope 3 specific optional fields — moved to useEmissionFormState (F2 integration).
 
@@ -2810,7 +2812,7 @@ export default function EmissionEntryForm({
   const { submit: handleSubmit } = useEmissionSubmit({
     // State
     facilityId, scope, category, fuelId, useCustomFuel, customFuelName,
-    customEmissionFactor, customSource, isSaving, scope3Method, scope3ActivityId,
+    customEmissionFactor, customSource, isSaving, scope3Method, spendCurrencyConversionMethod, scope3ActivityId,
     scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
     biogenicScopeSelection, employees, frequencyType, reportingYearType, reportingYear,
     monthlyData: submissionMonthlyData, yearlyData: submissionYearlyData, processNames, responsiblePerson,
@@ -2905,6 +2907,8 @@ export default function EmissionEntryForm({
           setCategory={setCategory}
           setFuelId={setFuelId}
           setScope3Method={setScope3Method}
+          spendCurrencyConversionMethod={spendCurrencyConversionMethod}
+          setSpendCurrencyConversionMethod={setSpendCurrencyConversionMethod}
           setScope3ActivityType={setScope3ActivityType}
           setScope3ActivityId={setScope3ActivityId}
           setUseCustomFuel={setUseCustomFuel}

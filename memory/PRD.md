@@ -136,6 +136,18 @@ Provide a dependable ESG and GHG management platform where organization configur
 - These paths now consistently exclude deleted, draft, pending, rejected, superseded, and non-current supplier-revision GHG records before calculating or presenting totals.
 - No tests or lints were run for this rollout, following the user's explicit `dont test` instruction.
 
+## Latest Changes — 2026-08-26 (Scope 3 Spend Currency Conversion P0)
+- Added a Scope 3 spend-basis selector for `Standard Currency Conversion` or `PPP and Inflation Rate`. Legacy/manual records without a selection are explicitly routed to `ppp_inflation`, preserving historic calculations.
+- Added effective-dated currency configuration: rates now support `conversion_method`, optional `month_applicable`, and `effective_from`. The calculator selects an exact monthly rate before a matching annual rate.
+- Added an isolated standard-currency formula and decision-tree branch across all 15 Scope 3 category trees. PPP uses the original formula; standard conversion uses the active market exchange rate snapshot.
+- Updated Bulk Upload templates and record payloads with spent currency, currency conversion method, and optional standard-rate override fields. Month labels such as `May-2025` normalize before effective-rate lookup.
+- Verification passed: backend/frontend testing agent iteration 21 (100% backend and frontend), including formula fallback, monthly-rate precedence, Super Admin controls, manual selector, and template columns. Temporary test rates were deleted.
+
+## Prioritized Backlog
+- **P0:** Verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
+- **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
+- **P2/P3:** Bulk Upload database duplicate detection, effective-settings summary, MIS previews/bookmarks, bulk upload progress/history. AI credit enforcement remains deferred per user request.
+
 ## Third-Party Integrations
 - Cloudflare R2 for private document/training object storage — user credentials required.
 - Resend for email — user credentials required.
@@ -148,3 +160,4 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `/app/memory/test_credentials.md` — testing accounts.
 - `/app/test_reports/iteration_18.json` — Bulk Upload parity verification.
 - `/app/test_reports/iteration_19.json` — GHG period row-limit verification.
+- `/app/test_reports/iteration_21.json` — Scope 3 spend-basis currency conversion verification.

@@ -157,6 +157,7 @@ export function buildDecisionContext(data, ctx) {
     selectedFuel,
     biogenicScopeSelection,
     scope3Method,
+    spendCurrencyConversionMethod = 'ppp_inflation',
     scope3ActivityId,
     scope3CustomActivity,
     useCustomActivity,
@@ -192,6 +193,9 @@ export function buildDecisionContext(data, ctx) {
     reporting_period: reportingPeriod,
     ...(isScope3Like && {
       calculation_method_scope3: scope3Method,
+      ...(scope3Method === 'spend_basis' && {
+        spend_currency_conversion_method: spendCurrencyConversionMethod,
+      }),
       scope3_ef_id: scope3ActivityId,
       activity:
         scope3Method === 'supplier_basis' && useCustomActivity
@@ -329,6 +333,9 @@ export function buildCreatePayload(monthData, ctx) {
       ...dynamicFieldValues,
       ...(isScope3Like && {
         calculation_method_scope3: { value: scope3Method, unit: '' },
+        ...(scope3Method === 'spend_basis' && {
+          spend_currency_conversion_method: { value: spendCurrencyConversionMethod, unit: '' },
+        }),
         scope3_ef_id: {
           value: scope3Method === 'supplier_basis' && useCustomActivity ? '' : scope3ActivityId,
           unit: '',

@@ -87,6 +87,8 @@ export const Step1BasicSelection = ({
   
   // Scope 3 Method props
   scope3Method,
+  spendCurrencyConversionMethod = 'ppp_inflation',
+  setSpendCurrencyConversionMethod,
   availableScope3Methods,
   getMethodLabel,
   
@@ -580,6 +582,24 @@ export const Step1BasicSelection = ({
               <p className="text-xs text-amber-600">No methods available for this category in Scope 3 EF table</p>
             )}
           </div>
+
+          {scope3Method === 'spend_basis' && (
+            <div className="min-w-0 space-y-2" data-testid="scope3-currency-conversion-method-section">
+              <Label>Currency Conversion Method <span className="text-red-500">*</span></Label>
+              <Select
+                value={spendCurrencyConversionMethod}
+                onValueChange={setSpendCurrencyConversionMethod}
+              >
+                <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-stone-50 text-left" data-testid="scope3-currency-conversion-method-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent data-testid="scope3-currency-conversion-method-options">
+                  <SelectItem value="standard" data-testid="scope3-currency-conversion-method-option-standard">Standard Currency Conversion</SelectItem>
+                  <SelectItem value="ppp_inflation" data-testid="scope3-currency-conversion-method-option-ppp-inflation">PPP and Inflation Rate</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Activity Type Filter (only for C6/C7) */}
           {scope3Method && availableScope3ActivityTypes.length > 0 && (

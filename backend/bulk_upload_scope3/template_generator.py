@@ -536,6 +536,9 @@ class TemplateGenerator:
             "quantity_used": "Enter the quantity value.\nRequired for Activity Based method.",
             "unit_quantity": "Select the unit of measurement.\nMust be compatible with selected activity.",
             "spent_amount": "Enter amount spent in INR.\nRequired for Spend Based method.",
+            "spent_currency": "Optional source currency for the spent amount. Defaults to INR when omitted.",
+            "spend_currency_conversion_method": "Optional for legacy compatibility. Select standard for the market rate effective in the reporting period, or ppp_inflation for PPP and inflation adjustment.",
+            "exchange_rate": "Optional standard-rate override. Leave blank to use the configured effective rate.",
             "distance_travelled": "Enter distance in kilometers.\nRequired for transportation activities.",
             "quantity_goods": "Enter quantity of goods transported.\nRequired for freight activities.",
             "unit_goods": "Select unit for goods quantity (t, kg, g).",
@@ -603,6 +606,18 @@ class TemplateGenerator:
             col_letter = get_column_letter(col_indices["calculation_method"])
             dv_method.add(f"{col_letter}2:{col_letter}1001")
             ws.add_data_validation(dv_method)
+
+        if "spent_currency" in col_indices:
+            currency_letter = get_column_letter(col_indices["spent_currency"])
+            currency_validation = DataValidation(type="list", formula1='"INR,USD,EUR,GBP,JPY,CNY,AUD,CAD"', allow_blank=True)
+            currency_validation.add(f"{currency_letter}2:{currency_letter}1001")
+            ws.add_data_validation(currency_validation)
+
+        if "spend_currency_conversion_method" in col_indices:
+            conversion_letter = get_column_letter(col_indices["spend_currency_conversion_method"])
+            conversion_validation = DataValidation(type="list", formula1='"standard,ppp_inflation"', allow_blank=True)
+            conversion_validation.add(f"{conversion_letter}2:{conversion_letter}1001")
+            ws.add_data_validation(conversion_validation)
         
         # Activity type dropdown for C6 and C7 with DISPLAY LABELS
         if config.get("has_activity_type") and "activity_type" in col_indices:
@@ -711,7 +726,7 @@ class TemplateGenerator:
         # Numeric validations
         numeric_columns = ["quantity_used", "spent_amount", "distance_travelled", "quantity_goods",
                           "supplier_quantity", "supplier_ef", "passengers", "rooms", "nights",
-                          "working_days", "working_hours", "inflation_rate", "purchase_power_value"]
+                          "working_days", "working_hours", "inflation_rate", "purchase_power_value", "exchange_rate"]
         
         for num_col in numeric_columns:
             if num_col in col_indices:

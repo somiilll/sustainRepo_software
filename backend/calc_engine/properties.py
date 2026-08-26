@@ -42,6 +42,7 @@ SYSTEM_PROPERTIES: List[dict] = [
     {"key": "ef_co2e", "label": "CO₂e Emission Factor (per qty)", "unit": "kgCO2e/kg", "override_allowed": True},
     {"key": "gwp_ch4", "label": "GWP CH₄", "unit": "1", "override_allowed": False},
     {"key": "gwp_n2o", "label": "GWP N₂O", "unit": "1", "override_allowed": False},
+    {"key": "exchange_rate", "label": "Standard Currency Exchange Rate", "unit": "1", "override_allowed": False},
 ]
 
 
