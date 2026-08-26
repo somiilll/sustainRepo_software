@@ -1,13 +1,10 @@
-"""Phase B7: Dashboards router.
+"""Dashboard endpoints and strict GHG aggregation helpers.
 
 Two endpoints:
   - GET /dashboard/stats           -> /api/dashboard/stats
   - GET /dashboard/supplier-hotspots -> /api/dashboard/supplier-hotspots
 
-Lifted verbatim from legacy server.py. Behaviour byte-identical:
-proration logic, scope-aware queries, supplier-hotspots aggregation,
-all helpers (extract_year_from_period, calculate_proration_factor,
-should_include_emission, etc.) preserved as nested functions.
+GHG totals use the shared eligible-record and canonical period utilities.
 """
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -23,6 +20,13 @@ from modules.dashboards.esg_analytics_service import get_esg_analytics
 from modules.dashboards.environment_detail_service import get_environment_detail
 from modules.dashboards.social_detail_service import get_social_detail
 from modules.dashboards.governance_detail_service import get_governance_detail
+from shared.utils.emission_records import (
+    canonicalize_emission_record,
+    deduplicate_monthly_against_yearly,
+    eligible_ghg_record_filter,
+    emission_proration,
+    reporting_period_query_values,
+)
 router = APIRouter()
 
 
@@ -171,37 +175,27 @@ async def get_dashboard_stats(
             sinks_by_facility=[]
         )
     
-    # Apply date range filter if provided
-    # We need to handle both monthly (YYYY-MM) and yearly (FY YYYY-YY, CY YYYY) formats
-    # For MongoDB query, we'll fetch all records first and then filter in Python
-    # to properly handle yearly records that fall within the date range
-    date_filter_start = start_period  # e.g., "2025-04"
-    date_filter_end = end_period      # e.g., "2026-03"
-    
-    # For MongoDB query, only apply filter for monthly format records
-    # Yearly records will be filtered after fetching
-    if start_period or end_period:
-        # Create an OR condition to include:
-        # 1. Monthly records in the date range
-        # 2. All yearly records (we'll filter them in Python)
-        monthly_filter = {}
-        if start_period:
-            monthly_filter["$gte"] = start_period
-        if end_period:
-            monthly_filter["$lte"] = end_period
-        
-        # Query: (monthly records in range) OR (yearly records - filtered later)
-        emissions_query["$or"] = [
-            {"reporting_period": monthly_filter},
-            {"reporting_period": {"$regex": "^(FY |CY)"}},  # Include all yearly records
-        ]
+    date_filter_start = start_period
+    date_filter_end = end_period
+    try:
+        reporting_period_values = reporting_period_query_values(start_period, end_period)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if reporting_period_values is not None:
+        emissions_query["reporting_period"] = {"$in": reporting_period_values}
+    emissions_query.update(eligible_ghg_record_filter())
     
     # Apply facility filter if provided (supports multiple facility IDs)
     if facility_id and len(facility_id) > 0:
         emissions_query["facility_id"] = {"$in": facility_id}
         # Also filter the facilities list for the response
         facilities = [f for f in facilities if f["id"] in facility_id]
-    all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
+    raw_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
+    all_emissions = [
+        normalized
+        for record in raw_emissions
+        if (normalized := canonicalize_emission_record(record)) is not None
+    ]
 
     # ===========================================
     # Platform Access is the only source for whether Scope 3 is aggregated.
@@ -279,7 +273,7 @@ async def get_dashboard_stats(
             filter_range_end = (filter_end_year, filter_end_month)
             return cy_start <= filter_range_end and cy_end >= filter_range_start
         
-        return True  # Unknown format, include by default
+        return False
     
     def calculate_proration_factor(period: str, start: str, end: str) -> float:
         """
@@ -372,7 +366,7 @@ async def get_dashboard_stats(
             except ValueError:
                 pass
         
-        return 1.0  # Unknown format, include 100%
+        return 0.0
     
     # Filter yearly records that fall outside the date range and calculate proration factors
     proration_factors = {}  # emission_id -> proration factor
@@ -383,7 +377,7 @@ async def get_dashboard_stats(
             emission_id = e.get("id", id(e))  # Use object id as fallback
             
             # Calculate proration factor for this emission
-            proration = calculate_proration_factor(period, date_filter_start, date_filter_end)
+            proration = emission_proration(period, date_filter_start, date_filter_end)
             
             if proration > 0:
                 proration_factors[emission_id] = proration
@@ -422,9 +416,7 @@ async def get_dashboard_stats(
     #             return False
     #     return True
     
-    # Apply deduplication filter
-    # deduplicated_emissions = [e for e in all_emissions if should_include_emission(e)]
-    deduplicated_emissions = all_emissions
+    deduplicated_emissions = deduplicate_monthly_against_yearly(all_emissions)
     
     # Helper function to get emission value with fallback to co2e_emissions
     def get_emission_value(emission):
@@ -1008,23 +1000,29 @@ async def get_supplier_hotspots(
     # Build emissions query for Scope 3 only
     emissions_query = {
         "facility_id": {"$in": facility_ids},
-        "scope": "scope3"
+        "scope": "scope3",
+        **eligible_ghg_record_filter(),
     }
     
-    # Apply date range filter
-    if start_period:
-        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
-        emissions_query["reporting_period"]["$gte"] = start_period
-    if end_period:
-        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
-        emissions_query["reporting_period"]["$lte"] = end_period
+    try:
+        reporting_period_values = reporting_period_query_values(start_period, end_period)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if reporting_period_values is not None:
+        emissions_query["reporting_period"] = {"$in": reporting_period_values}
     
     # Apply facility filter
     if facility_id and len(facility_id) > 0:
         emissions_query["facility_id"] = {"$in": facility_id}
     
     # Get all Scope 3 emissions
-    emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
+    raw_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
+    emissions = [
+        normalized
+        for record in raw_emissions
+        if (normalized := canonicalize_emission_record(record)) is not None
+    ]
+    emissions = deduplicate_monthly_against_yearly(emissions)
     
     # Aggregate by category and supplier
     category_data = {}
@@ -1171,7 +1169,11 @@ async def get_esg_summary(
     fac_ids = [f["id"] async for f in db.facilities.find({"organization_id": org_id}, {"id": 1})]
 
     async def sum_emissions(yr, scope=None):
-        q = {"facility_id": {"$in": fac_ids}, "reporting_period": {"$regex": f"^{yr}-"}}
+        q = {
+            "facility_id": {"$in": fac_ids},
+            "reporting_period": {"$in": [f"{yr}-{month:02d}" for month in range(1, 13)]},
+            **eligible_ghg_record_filter(),
+        }
         if scope:
             q["scope"] = scope
         total = 0.0
@@ -1182,7 +1184,11 @@ async def get_esg_summary(
     async def monthly_emissions(yr, scope=None):
         months = {}
         for m in range(1, 13):
-            q = {"facility_id": {"$in": fac_ids}, "reporting_period": f"{yr}-{m:02d}"}
+            q = {
+                "facility_id": {"$in": fac_ids},
+                "reporting_period": f"{yr}-{m:02d}",
+                **eligible_ghg_record_filter(),
+            }
             if scope:
                 q["scope"] = scope
             total = 0.0

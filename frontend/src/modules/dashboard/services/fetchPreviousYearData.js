@@ -31,8 +31,8 @@ export default function usePreviousYearData({
           end_period: format(prevTo, 'yyyy-MM'),
         };
 
-        if (selectedFacilities.length > 0) {
-          params.facilities = selectedFacilities.join(',');
+        if (selectedFacilities?.length > 0) {
+          params.facility_id = selectedFacilities;
         }
 
         const res = await axios.get(`${API}/dashboard/stats`, {

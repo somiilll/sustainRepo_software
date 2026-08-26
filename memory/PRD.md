@@ -118,6 +118,13 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier detail-page consistency: ESG questionnaire cards use indigo shadows. Document and Training detail cards intentionally retain their original neutral card treatment.
 - Verification was intentionally skipped at the user's request (`dont test`).
 
+## Latest Changes — 2026-08-26
+- Dashboard GHG aggregation now uses one eligible-record lifecycle filter: deleted, draft, pending, rejected, superseded, and non-current supplier revisions are excluded before totals are calculated.
+- Dashboard reporting ranges use exact enumerated monthly/FY/CY values (including explicit legacy variants), reject incomplete or malformed date ranges, normalize valid legacy scope/period values once, and prefer yearly records over overlapping monthly records to prevent double counting.
+- Previous-year dashboard requests now send repeated `facility_id` query values as the API expects; target KPI mapping no longer falls back to substring matches.
+- The Reduction Target Achieved card now maps the target API's `target_name`, displays the active target name, and shows named options in the target selector.
+- Focused backend checks passed before the latest UI request (14 checks). Per the user's subsequent `dont test` instruction, no further validation was run after the final UI-only adjustment.
+
 ## Third-Party Integrations
 - Cloudflare R2 for private document/training object storage — user credentials required.
 - Resend for email — user credentials required.
