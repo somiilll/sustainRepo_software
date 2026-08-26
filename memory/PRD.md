@@ -256,6 +256,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Document acceptance and status responses now open a confirmation dialog before submission, clearly warning suppliers that the response will be locked until the customer reopens it.
 - PDF and PowerPoint training progress now persists an explicit one-based `highest_page_index` in `supplier_training_progress`. Supplier training lists expose page progress, and reopening the viewer resumes at the highest page or slide reached.
 - Documents, Trainings, ESG overview/questionnaire, and Revenue content now use consistent supplier-facing heading scale and section spacing through the shared `SupplierPageHeader` pattern and aligned eight-unit content gaps.
+- Supplier ESG overview and questionnaire pages now use the same `max-w-7xl` content width as the Supplier Assessment module page, removing the excessive empty side margins on wide screens.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction. A code-only integration review was completed.
 
 ## Prioritized Backlog
