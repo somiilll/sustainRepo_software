@@ -131,6 +131,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - The Reduction Target Achieved card now displays the backend Target module’s precomputed `progress_percentage` directly. The frontend no longer recalculates target progress from dashboard totals, so Scope 1 + 2 targets use their canonical target calculation.
 - Before the user stopped further testing, the live target endpoint returned 72.8% and 75.0%, and the dashboard card displayed 72.8%. No additional tests were run after the user's `dont test` instruction.
 
+## Latest Changes — 2026-08-26 (Complete Lifecycle Filter Rollout)
+- Completed the remaining canonical `eligible_ghg_record_filter()` rollout for facility, consolidated, inventory, and AI-generated reports; legacy base-year discovery, synchronization, and change-year calculations; Internal Data AI emission search; and supplier GHG scoring.
+- These paths now consistently exclude deleted, draft, pending, rejected, superseded, and non-current supplier-revision GHG records before calculating or presenting totals.
+- No tests or lints were run for this rollout, following the user's explicit `dont test` instruction.
+
 ## Third-Party Integrations
 - Cloudflare R2 for private document/training object storage — user credentials required.
 - Resend for email — user credentials required.

@@ -56,6 +56,7 @@ from shared.helpers.tokens import (
     create_access_token as _shared_create_access_token,
 )
 from shared.helpers.email import send_email
+from shared.utils.emission_records import eligible_ghg_record_filter
 from app.bootstrap.contract_verifier import verify_module_contracts
 
 # Phase B2: extracted auth deps + per-domain routers.
@@ -1284,6 +1285,7 @@ async def get_oldest_reporting_year(
             ]
     
     # Find oldest emission record - check emission_records collection
+    query.update(eligible_ghg_record_filter())
     emissions = await db.emission_records.find(query, {"_id": 0, "reporting_period": 1}).to_list(10000)
     
     if not emissions:
@@ -1435,6 +1437,7 @@ async def get_emission_combinations(
         year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
     
     # Use emission_records collection - get more fields for aggregation
+    query.update(eligible_ghg_record_filter())
     emissions = await db.emission_records.find(
         query, 
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, 
@@ -1684,6 +1687,7 @@ async def get_proportional_emissions(
             ]
     
     # Fetch all emissions
+    query.update(eligible_ghg_record_filter())
     emissions = await db.emission_records.find(
         query,
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1,
@@ -1887,6 +1891,7 @@ async def sync_base_year_emissions(
         ]
     
     # Fetch emissions
+    em_query.update(eligible_ghg_record_filter())
     emissions = await db.emission_records.find(
         em_query,
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1,
@@ -2557,6 +2562,7 @@ async def change_base_year(
         query["facility_id"] = {"$in": facility_ids}
     
     # Fetch all emissions for the entity
+    query.update(eligible_ghg_record_filter())
     all_emissions = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
     
     # Helper function to parse reporting period and check if it's in the target year
