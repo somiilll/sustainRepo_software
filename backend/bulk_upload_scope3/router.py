@@ -15,6 +15,7 @@ from .report_generator import ReportGenerator
 from .models import UploadSummary, UploadStatus
 from .ghg_config_resolver import resolve_ghg_capabilities
 from modules.entitlements.dependencies import assert_period_row_batch_limit
+from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +203,10 @@ async def save_valid_rows(
         # Remove the job_id field used for tracking
         record.pop("job_id", None)
         record.pop("_temp_id", None)
+        normalized_period = normalize_reporting_period_for_storage(record.get("reporting_period"))
+        if not normalized_period:
+            raise HTTPException(status_code=422, detail=f"Invalid reporting period for bulk-upload record {record.get('id')}")
+        record["reporting_period"] = normalized_period
         records_to_save.append(record)
     
     # Insert records into emission_records collection

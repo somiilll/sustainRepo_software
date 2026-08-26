@@ -20,6 +20,7 @@ from modules.entitlements.dependencies import (
     assert_period_row_batch_limit,
     partition_records_by_period_row_limit,
 )
+from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 logger = logging.getLogger(__name__)
 
@@ -354,6 +355,11 @@ class UploadProcessor:
             
             # Handle saving based on validate_only flag
             created_ids = []
+            for record in valid_records:
+                normalized_period = normalize_reporting_period_for_storage(record.get("reporting_period"))
+                if not normalized_period:
+                    raise ValueError(f"Invalid reporting period for bulk-upload record {record.get('id')}")
+                record["reporting_period"] = normalized_period
             preview = self._build_preview(valid_records) if valid_records else None
             
             if validate_only and valid_records:

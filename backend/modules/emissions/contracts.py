@@ -7,7 +7,9 @@ collection. Phase B4 extracts them; complex POST/PUT route handlers
 """
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 
 class DynamicFieldValue(BaseModel):
@@ -103,6 +105,14 @@ class EmissionRecordCreate(BaseModel):
     # Process info
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
+
+    @field_validator("reporting_period")
+    @classmethod
+    def normalize_reporting_period(cls, value: str) -> str:
+        normalized = normalize_reporting_period_for_storage(value)
+        if not normalized:
+            raise ValueError("reporting_period must be a valid YYYY-MM, CYyyyy, or FY yyyy-yyyy value")
+        return normalized
 
 
 class EmissionBatchRollbackRequest(BaseModel):

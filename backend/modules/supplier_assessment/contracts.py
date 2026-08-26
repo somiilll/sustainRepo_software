@@ -3,7 +3,9 @@ Supplier Assessment Pydantic contracts/schemas.
 """
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, ConfigDict, Field, model_validator
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator, model_validator
+
+from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 
 # ============================================================================
@@ -448,6 +450,14 @@ class SupplierEmissionCreate(BaseModel):
     
     # Notes
     notes: Optional[str] = None
+
+    @field_validator("reporting_period")
+    @classmethod
+    def normalize_reporting_period(cls, value: str) -> str:
+        normalized = normalize_reporting_period_for_storage(value)
+        if not normalized:
+            raise ValueError("reporting_period must be a valid YYYY-MM, CYyyyy, or FY yyyy-yyyy value")
+        return normalized
 
 
 class SupplierEmissionResponse(BaseModel):

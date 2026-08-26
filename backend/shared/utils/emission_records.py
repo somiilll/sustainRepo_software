@@ -64,6 +64,14 @@ def normalize_reporting_period(period: Any) -> Optional[str]:
     return f"FY {start_year}-{end_year}"
 
 
+def normalize_reporting_period_for_storage(period: Any) -> Optional[str]:
+    """Return the single persisted GHG period representation for valid inputs."""
+    canonical_period = normalize_reporting_period(period)
+    if canonical_period and canonical_period.startswith("CY "):
+        return f"CY{canonical_period[3:]}"
+    return canonical_period
+
+
 def reporting_period_variants(canonical_period: str) -> list[str]:
     """Return explicit exact legacy values that normalize to one canonical period."""
     if _MONTHLY_PERIOD_RE.fullmatch(canonical_period):
