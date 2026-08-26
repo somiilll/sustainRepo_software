@@ -155,8 +155,14 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Stabilized shared edit-field headers so long labels and override controls reserve the same vertical space; Amount Spent and Standard Currency Exchange Rate inputs align in the edit dialog.
 - Focused lint and non-saving browser checks were completed before the later `dont test` instruction. No additional automated tests or regression-test file were added after that instruction.
 
+## Latest Changes — 2026-08-26 (Base Year Scope 1 & 2 Totals)
+- Added live Scope 1, Scope 2, and Total Emissions rollups to both the Scope 1 & 2 base-year setup and edit dialogs. Values update immediately when an emission row is changed.
+- Scope 1 & 2 summary cards for organizations and facilities now show a calculated **Total Base Year** value. The read-only base-year dialog also presents the same three-value breakdown.
+- Totals intentionally include only Scope 1 and Scope 2 entries; sinks and biogenic entries remain outside this requested Scope 1 & 2 measure.
+- Verification passed: focused JavaScript lint, production frontend build (pre-existing warnings only), authenticated browser smoke test, and an unsaved live-value edit check (total changed from `1341.1631` to `1380.0671 tCO₂e`).
+
 ## Prioritized Backlog
-- **P0:** Verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
+- **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
 - **P2/P3:** Bulk Upload database duplicate detection, effective-settings summary, MIS previews/bookmarks, bulk upload progress/history. AI credit enforcement remains deferred per user request.
 
