@@ -19,7 +19,7 @@ const PanelHeader = ({ title, description, progress, status, Icon, iconClassName
     {action && <span className="shrink-0" data-testid={`${testId}-action`}>{action}</span>}
     <span className="shrink-0 text-right" data-testid={`${testId}-progress`}>
       <span className="block text-lg font-semibold text-slate-900">{Math.round(progress || 0)}%</span>
-      <span className="block text-[11px] font-medium uppercase text-slate-400">Complete</span>
+      <span className="block text-[11px] font-medium uppercase text-slate-400">Filled</span>
     </span>
     {collapsible && <ChevronDown className="mt-2 h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 [[data-state=open]_&]:rotate-180" aria-hidden="true" />}
   </div>
