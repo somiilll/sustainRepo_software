@@ -75,7 +75,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             
             return {
               id: t.id,
-              name: t.name,
+              name: t.target_name || t.name || t.kpi_name || t.subcategory || 'Untitled target',
               target_mode: 'total', // Simplify to total mode
               target_configuration: {
                 base_year: t.baseline?.period,
