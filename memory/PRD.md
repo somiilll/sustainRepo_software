@@ -258,6 +258,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Documents, Trainings, ESG overview/questionnaire, and Revenue content now use consistent supplier-facing heading scale and section spacing through the shared `SupplierPageHeader` pattern and aligned eight-unit content gaps.
 - Supplier ESG overview and questionnaire pages now use the same `max-w-7xl` content width as the Supplier Assessment module page, removing the excessive empty side margins on wide screens.
 - Supplier Documents and Trainings pages now show responsive Total, Completed, Draft, Pending, and Overdue status infographics. Counts are mutually exclusive, overdue-aware, and update from the current document response or training progress state.
+- Supplier module ledger percentages now use the label `Filled` instead of `Complete` (for example, `100% Filled`) without changing completion calculations or status logic.
 - Focused JavaScript lint and an authenticated live rendering check completed before the user's latest `dont test` instruction; no further testing was run.
 
 ## Prioritized Backlog
