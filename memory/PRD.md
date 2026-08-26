@@ -208,6 +208,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Questions now use a compact single-row grid from tablet width upward, with reduced column widths, truncation for long labels, and a contained fixed Actions area.
 - **NOT TESTED** after this adjustment, respecting the user instruction.
 
+## Latest Changes — 2026-08-26 (Supplier Detail Zero Progress)
+- Supplier detail Completion Progress now hides an ESG Questionnaire row and empty progress bar when its stored completion is `0%`, removing the confusing zero display.
+- **NOT TESTED** after this adjustment, respecting the user instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

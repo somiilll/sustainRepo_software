@@ -922,16 +922,15 @@ export default function SupplierList() {
               <div className="border-t pt-4">
                 <Label className="text-stone-500">Completion Progress</Label>
                 <div className="space-y-2 mt-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>ESG Questionnaire</span>
-                    <span>{Math.round(selectedSupplier.esg_completion_percent || 0)}%</span>
-                  </div>
-                  <div className="w-full bg-stone-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full"
-                      style={{ width: `${selectedSupplier.esg_completion_percent || 0}%` }}
-                    />
-                  </div>
+                  {(selectedSupplier.esg_completion_percent || 0) > 0 && <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>ESG Questionnaire</span>
+                      <span>{Math.round(selectedSupplier.esg_completion_percent)}%</span>
+                    </div>
+                    <div className="w-full bg-stone-200 rounded-full h-2">
+                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${selectedSupplier.esg_completion_percent}%` }} />
+                    </div>
+                  </>}
                   
                   <div className="flex items-center justify-between text-sm mt-3">
                     <span>GHG Emissions</span>
