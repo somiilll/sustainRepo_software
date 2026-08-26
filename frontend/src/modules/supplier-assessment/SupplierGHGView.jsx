@@ -38,7 +38,7 @@ const EmissionValue = ({ value, testId, emphasized = false }) => (
 
 export default function SupplierGHGView() {
   const { getAuthHeader } = useAuth();
-  const { reportingPeriod } = useSupplierAssessmentPeriod();
+  const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
   const [emissions, setEmissions] = useState([]);
   const [supplierTotals, setSupplierTotals] = useState([]);
   const [grandTotal, setGrandTotal] = useState(0);
@@ -108,11 +108,9 @@ export default function SupplierGHGView() {
   return (
     <div className="space-y-6" data-testid="supplier-ghg-view">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-stone-900">Supplier GHG Emissions</h1>
-        <p className="text-sm text-stone-500 mt-1">
-          View attributed supplier emissions using each supplier’s revenue share.
-        </p>
+      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div><h1 className="text-2xl font-semibold text-stone-900">Supplier GHG Emissions</h1><p className="mt-1 text-sm text-stone-500">View attributed supplier emissions using each supplier’s revenue share.</p></div>
+        <div className="w-44" data-testid="supplier-ghg-period-control"><label htmlFor="supplier-ghg-reporting-period" className="mb-1 block text-xs font-medium text-stone-600">Reporting period</label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ghg-reporting-period" className="h-9 bg-white" data-testid="supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ghg-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ghg-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
       </div>
 
       <Tabs defaultValue="supplier-summary" data-testid="supplier-ghg-tabs">

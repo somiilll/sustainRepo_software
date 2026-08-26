@@ -233,6 +233,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Split Supplier GHG Emissions into **Emissions by Supplier** (summary cards and supplier table) and **Logs** (filters and All Emission Records) tabs.
 - **NOT TESTED** after this update, respecting the user instruction.
 
+## Latest Changes — 2026-08-26 (Supplier GHG Inline Reporting Period)
+- Moved the Supplier GHG reporting-period selector to the right side of its heading row and suppressed the redundant global period bar on this route.
+- **NOT TESTED** after this update, respecting the user instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
