@@ -1358,8 +1358,6 @@ class SupplierAssessmentService:
             if response.get("manual_score") is not None or response.get("calculated_score") is not None
         ]
         latest_breakdown = next((response.get("score_breakdown") for response in scored_responses if response.get("score_breakdown")), None)
-        weights = (latest_breakdown or {}).get("overall_weights") or {"esg": 40.0, "ghg": 40.0, "revenue": 20.0}
-        weights = self._validated_weight_config(weights, {"esg": 40.0, "ghg": 40.0, "revenue": 20.0}, "Overall component weights")
 
         esg_values = [
             float(response["manual_score"] if response.get("manual_score") is not None else response["calculated_score"])
@@ -1378,21 +1376,11 @@ class SupplierAssessmentService:
         }
         esg_score = round(sum(esg_values) / len(esg_values), 2) if esg_values else None
 
-        from modules.supplier_assessment.scoring import ScoringEngine
-        engine = ScoringEngine(db)
-        revenue_component = await engine.get_revenue_component(supplier_relationship_id, reporting_period)
-        ghg_component = await engine.get_ghg_component(
-            supplier_relationship_id, reporting_period, revenue_component.get("revenue_amount")
-        )
-        revenue_percentage = revenue_component.get("revenue_percentage")
-        revenue_score = min(100.0, float(revenue_percentage)) if revenue_percentage is not None else None
-        components = {"esg": esg_score, "ghg": ghg_component.get("score"), "revenue": revenue_score}
-        required_components = [name for name, weight in weights.items() if weight > 0]
-        if not relationship.get("revenue_required", False):
-            required_components = [name for name in required_components if name != "revenue"]
-        is_complete = all(components.get(name) is not None for name in required_components)
-        active_weight_total = sum(weights[name] for name in required_components)
-        overall_score = round(sum(float(components[name]) * weights[name] / active_weight_total for name in required_components), 2) if is_complete and active_weight_total else None
+        # Supplier assessment scoring is ESG-only. GHG, revenue, documents, and training
+        # remain tracked as assessment/completion data, not score components.
+        weights = {"esg": 100.0}
+        is_complete = esg_score is not None
+        overall_score = esg_score if is_complete else None
         now = datetime.now(timezone.utc).isoformat()
         snapshot = {
             "version": "supplier-assessment-canonical-v1",
@@ -1402,13 +1390,8 @@ class SupplierAssessmentService:
             "environment_score": section_scores["environment"],
             "social_score": section_scores["social"],
             "governance_score": section_scores["governance"],
-            "ghg_score": ghg_component.get("score"),
-            "ghg_intensity_tco2e_per_million_revenue": ghg_component.get("intensity"),
-            "scope1_emissions": ghg_component.get("scope1_emissions", 0.0),
-            "scope2_emissions": ghg_component.get("scope2_emissions", 0.0),
-            "total_emissions": ghg_component.get("total_emissions", 0.0),
-            "revenue_score": revenue_score,
-            "revenue_amount": revenue_component.get("revenue_amount"),
+            "ghg_score": None,
+            "revenue_score": None,
             "component_weights": weights,
             "overall_score": overall_score,
             "is_complete": is_complete,
@@ -1419,7 +1402,7 @@ class SupplierAssessmentService:
             {"$set": {
                 "canonical_score_snapshot": snapshot,
                 "esg_score": esg_score,
-                "ghg_score": ghg_component.get("score"),
+                "ghg_score": None,
                 "overall_score": overall_score,
                 "last_scored_at": now,
                 "updated_at": now,
@@ -1560,7 +1543,6 @@ class SupplierAssessmentService:
             env_score = snapshot.get("environment_score")
             social_score = snapshot.get("social_score")
             gov_score = snapshot.get("governance_score")
-            ghg_score = snapshot.get("ghg_score")
             attribution_factor = float(s["revenue_percentage"]) / 100 if s.get("revenue_percentage") is not None else None
             raw_scope1 = snapshot.get("scope1_emissions", 0.0)
             raw_scope2 = snapshot.get("scope2_emissions", 0.0)
@@ -1568,7 +1550,7 @@ class SupplierAssessmentService:
             scope1 = float(raw_scope1) * attribution_factor if attribution_factor is not None else None
             scope2 = float(raw_scope2) * attribution_factor if attribution_factor is not None else None
             total_ghg = float(raw_total) * attribution_factor if attribution_factor is not None else None
-            overall_score = snapshot.get("overall_score")
+            overall_score = esg_score
             
             assigned_questionnaire_ids = set(s.get("questionnaire_ids") or all_questionnaire_ids)
             assigned_questionnaire_ids &= all_questionnaire_ids
@@ -1603,8 +1585,6 @@ class SupplierAssessmentService:
             for label, value in (("Environment", env_score), ("Social", social_score), ("Governance", gov_score)):
                 if value is None and esg_score is not None:
                     attention_reasons.append(f"{label} assessment missing")
-            if ghg_score is None and "ghg" in (s.get("modules_enabled") or []):
-                attention_reasons.append("GHG assessment not completed")
             if completion_status == "overdue":
                 attention_reasons.append("Assessment is overdue")
             module_progress: Dict[str, float] = {}

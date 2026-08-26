@@ -948,41 +948,28 @@ export default function SupplierList() {
               </div>
               }
               
-              {[selectedSupplier.esg_score, selectedSupplier.ghg_score].some((score) => score !== null && score !== undefined) && (
+              {selectedSupplier.esg_score !== null && selectedSupplier.esg_score !== undefined && (
                 <div className="border-t pt-4">
-                  <Label className="text-stone-500">Scores</Label>
-                  <div className="grid grid-cols-3 gap-4 mt-2">
+                  <Label className="text-stone-500">ESG Score</Label>
+                  <div className="mt-2 max-w-40">
                     <div className="text-center p-3 bg-stone-50 rounded-lg">
                       <div className="text-2xl font-bold text-blue-600">
                         {selectedSupplier.esg_score ?? '-'}
                       </div>
                       <div className="text-xs text-stone-500">ESG Score</div>
                     </div>
-                    <div className="text-center p-3 bg-stone-50 rounded-lg">
-                      <div className="text-2xl font-bold text-emerald-600">
-                        {selectedSupplier.ghg_score ?? '-'}
-                      </div>
-                      <div className="text-xs text-stone-500">GHG Score</div>
-                    </div>
-                    <div className="text-center p-3 bg-stone-50 rounded-lg">
-                      <div className="text-2xl font-bold text-purple-600">
-                        {selectedSupplier.overall_score ?? '-'}
-                      </div>
-                      <div className="text-xs text-stone-500">Overall</div>
-                    </div>
                   </div>
                 </div>
               )}
               {selectedSupplier.canonical_score_snapshot && (
                 <div className="border-t pt-4" data-testid="supplier-canonical-score-breakdown">
-                  <Label className="text-stone-500">Submitted score breakdown</Label>
+                  <Label className="text-stone-500">Submitted ESG score breakdown</Label>
                   <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
                     <div><span className="text-stone-500">Environment</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.environment_score ?? 'Pending'}</p></div>
                     <div><span className="text-stone-500">Social</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.social_score ?? 'Pending'}</p></div>
                     <div><span className="text-stone-500">Governance</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.governance_score ?? 'Pending'}</p></div>
-                    <div><span className="text-stone-500">GHG intensity</span><p className="font-medium" data-testid="supplier-ghg-intensity">{selectedSupplier.canonical_score_snapshot.ghg_intensity_tco2e_per_million_revenue == null ? 'Pending' : `${selectedSupplier.canonical_score_snapshot.ghg_intensity_tco2e_per_million_revenue} tCO₂e / revenue million`}</p></div>
                   </div>
-                  {!selectedSupplier.canonical_score_snapshot.is_complete && <p className="mt-3 text-xs text-stone-500" data-testid="supplier-canonical-score-pending">Overall score will appear after all weighted components are submitted.</p>}
+                  {!selectedSupplier.canonical_score_snapshot.is_complete && <p className="mt-3 text-xs text-stone-500" data-testid="supplier-canonical-score-pending">ESG score will appear after an ESG questionnaire response is submitted.</p>}
                 </div>
               )}
             </div>
