@@ -51,6 +51,7 @@ import {
 import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
 import { QuestionLedgerDialog } from './components/QuestionLedgerDialog';
 import { SupplierQuestionnairePreviewDialog } from './components/SupplierQuestionnairePreviewDialog';
+import { QuestionnaireQuestionRow } from './components/QuestionnaireQuestionRow';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -180,7 +181,6 @@ export default function QuestionnaireBuilder() {
   const [reviewResponse, setReviewResponse] = useState(null);
   const [reviewSupplier, setReviewSupplier] = useState(null);
   const [showQuestionPreview, setShowQuestionPreview] = useState(false);
-  const [draggedQuestionId, setDraggedQuestionId] = useState(null);
   
   // Form states
   const [questionnaireForm, setQuestionnaireForm] = useState({
@@ -618,7 +618,7 @@ export default function QuestionnaireBuilder() {
     });
   };
 
-  const handleQuestionDrop = async (targetQuestionId) => {
+  const handleQuestionDrop = async (draggedQuestionId, targetQuestionId) => {
     if (!draggedQuestionId || draggedQuestionId === targetQuestionId || !selectedQuestionnaire) return;
     const currentIndex = questions.findIndex((question) => question.id === draggedQuestionId);
     const targetIndex = questions.findIndex((question) => question.id === targetQuestionId);
@@ -627,7 +627,6 @@ export default function QuestionnaireBuilder() {
     const [moved] = reordered.splice(currentIndex, 1);
     reordered.splice(targetIndex, 0, moved);
     setQuestions(reordered);
-    setDraggedQuestionId(null);
     try {
       await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/reorder`, reordered.map((question, index) => ({ id: question.id, order: index })), { headers: getAuthHeader() });
     } catch (error) {
@@ -734,11 +733,11 @@ export default function QuestionnaireBuilder() {
                 }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
               <div className="px-5 py-3" data-testid="question-table">
-                <div className="hidden grid-cols-[2.5rem_minmax(13rem,1fr)_7rem_7rem_9rem_7rem_7.5rem] items-center gap-3 border-b border-stone-200 pb-2 text-[11px] font-medium uppercase tracking-wide text-stone-500 lg:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
+                <div className="hidden grid-cols-[2.5rem_minmax(12rem,1fr)_7rem_7rem_9rem_7rem_10rem] items-center gap-3 border-b border-stone-200 pb-2 text-[11px] font-medium uppercase tracking-wide text-stone-500 lg:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
                 {questions.length === 0 ? (
                   <div className="py-14 text-center text-stone-500" data-testid="question-list-empty"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">No questions yet. Add your first question.</p></div>
                 ) : (
-                  <div>{questions.map((q, index) => <div key={q.id} draggable onDragStart={() => setDraggedQuestionId(q.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => handleQuestionDrop(q.id)} className="grid gap-2 border-b border-stone-100 py-3 last:border-0 lg:grid-cols-[2.5rem_minmax(13rem,1fr)_7rem_7rem_9rem_7rem_7.5rem] lg:items-center lg:gap-3" data-testid={`question-${q.id}`}><div className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-xs font-semibold text-stone-600" data-testid={`question-order-${q.id}`}>{index + 1}</div><div className="min-w-0"><p className="text-sm font-medium text-stone-900">{q.question_text}{q.required && <span className="ml-1 text-rose-500">*</span>}</p>{q.description && <p className="mt-0.5 truncate text-xs text-stone-500">{q.description}</p>}</div><div><span className="text-xs text-stone-500 lg:hidden">Category: </span><Badge variant="outline" className="text-xs">{categories.find((category) => category.value === q.category)?.label || q.category}</Badge></div><div className="text-xs text-stone-600"><span className="text-stone-500 lg:hidden">Type: </span>{questionTypeLabel(q.response_type)}</div><div className="text-xs text-stone-600"><span className="text-stone-500 lg:hidden">Field type: </span>{scoringLabel(q.scoring?.rule)}</div><div><span className="text-xs text-stone-500 lg:hidden">Importance: </span><Badge variant="outline" className={`text-xs ${importanceClasses[q.importance] || importanceClasses.medium}`} data-testid={`question-weight-status-${q.id}`}>{q.importance || 'medium'}</Badge></div><div className="flex min-w-0 flex-wrap items-center gap-1 lg:justify-end"><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" aria-label={`Edit question ${index + 1}`} onClick={() => openEditQuestion(q)} data-testid={`edit-question-${q.id}`}><Edit2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Edit question</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700" aria-label={`Delete question ${index + 1}`} onClick={() => handleDeleteQuestion(q.id)} data-testid={`delete-question-${q.id}`}><Trash2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Delete question</TooltipContent></Tooltip><GripVertical className="ml-1 h-4 w-4 cursor-grab text-stone-400" data-testid={`question-reorder-handle-${q.id}`} /></div></div>)}</div>
+                  <div>{questions.map((question, index) => <QuestionnaireQuestionRow key={question.id} question={question} index={index} categoryLabel={categories.find((category) => category.value === question.category)?.label || question.category} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} />)}</div>
                 )}
                 {questions.length > 1 && <p className="pt-3 text-xs text-stone-400" data-testid="question-reorder-hint">Drag and drop to reorder questions</p>}
               </div>
