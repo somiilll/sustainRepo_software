@@ -12,7 +12,7 @@ import React, { useEffect, useMemo } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
-import { Info, Check, Upload, X, FileText } from 'lucide-react';
+import { Info, Upload, X, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Import CustomFuelMonthFields for per-month custom fuel inputs
@@ -1006,11 +1006,7 @@ export const Step3YearMonthlyData = ({
                           <p className={`text-sm font-medium ${isDisabled ? 'text-stone-400' : 'text-stone-800'}`}>
                             {month.name} {displayYear}
                           </p>
-                          {isDisabled ? (
-                            <span className="text-xs text-stone-400">Future</span>
-                          ) : status === 'filled' ? (
-                            <span className="flex items-center gap-1 text-xs text-green-700"><Check className="h-3 w-3" />Done</span>
-                          ) : null}
+                          {isDisabled && <span className="text-xs text-stone-400">Future</span>}
                         </div>
                       </div>
                     </td>
