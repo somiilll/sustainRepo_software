@@ -268,7 +268,7 @@ export default function SupplierQuestionnaire() {
         <CardContent className="py-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-stone-500">
-              Question {currentIndex + 1} of {questions.length}
+              {questions.length} questions
             </span>
             <span className="text-sm text-stone-500">
               {answeredCount} answered
@@ -280,68 +280,39 @@ export default function SupplierQuestionnaire() {
               style={{ width: `${progress}%` }}
             />
           </div>
-          {/* Question dots */}
-          <div className="flex flex-wrap gap-1 mt-3">
-            {questions.map((q, i) => (
-              <button
-                key={q.id}
-                onClick={() => setCurrentIndex(i)}
-                data-testid={`supplier-questionnaire-step-${i + 1}`}
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs transition-colors ${
-                  i === currentIndex
-                    ? 'bg-emerald-500 text-white'
-                    : answers[q.id] !== undefined
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-stone-100 text-stone-400'
-                }`}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
         </CardContent>
       </Card>
 
-      {/* Question Card */}
-      <Card>
+      <div className="space-y-4" data-testid="supplier-questionnaire-all-questions">
+      {questions.map((question, index) => <Card key={question.id} data-testid={`supplier-questionnaire-question-card-${question.id}`}>
         <CardHeader>
           <div className="flex items-start gap-2">
-            {answers[currentQuestion.id] !== undefined ? (
+            {answers[question.id] !== undefined ? (
               <CheckCircle className="h-5 w-5 text-emerald-500 mt-0.5" />
             ) : (
               <Circle className="h-5 w-5 text-stone-300 mt-0.5" />
             )}
             <div>
               <CardTitle className="text-lg">
-                {currentQuestion.question_text}
-                {currentQuestion.required && <span className="text-red-500 ml-1">*</span>}
+                {index + 1}. {question.question_text}
+                {question.required && <span className="text-red-500 ml-1">*</span>}
               </CardTitle>
-              {currentQuestion.description && (
-                <CardDescription className="mt-2">{currentQuestion.description}</CardDescription>
+              {question.description && (
+                <CardDescription className="mt-2">{question.description}</CardDescription>
               )}
             </div>
           </div>
           <Badge variant="outline" className="w-fit mt-2">
-            {currentQuestion.category}
+            {question.category}
           </Badge>
         </CardHeader>
         <CardContent>
-          {renderQuestionInput(currentQuestion)}
+          {renderQuestionInput(question)}
         </CardContent>
-      </Card>
+      </Card>)}</div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-          disabled={currentIndex === 0}
-          data-testid="supplier-questionnaire-previous-button"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Previous
-        </Button>
-        
+      <div className="flex justify-end border-t border-stone-200 pt-5">
         <div className="flex items-center gap-3" data-testid="supplier-questionnaire-actions">
           {!isReadOnly && (
             <>
@@ -356,16 +327,6 @@ export default function SupplierQuestionnaire() {
             </>
           )}
         </div>
-        
-        <Button
-          variant="outline"
-          onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
-          disabled={currentIndex === questions.length - 1}
-          data-testid="supplier-questionnaire-next-button"
-        >
-          Next
-          <ArrowRight className="h-4 w-4 ml-1" />
-        </Button>
       </div>
       <AlertDialog open={showSubmitConfirm} onOpenChange={(open) => { setShowSubmitConfirm(open); if (!open) setVerificationAccepted(false); }}>
         <AlertDialogContent data-testid="supplier-questionnaire-submit-confirmation-dialog">
