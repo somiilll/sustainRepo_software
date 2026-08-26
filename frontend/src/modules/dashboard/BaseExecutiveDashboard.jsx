@@ -63,12 +63,17 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           const ghgTargets = (res.data || []).map(t => {
             const baseValue = parseFloat(t.baseline?.value) || 0;
             const targetValue = parseFloat(t.target_value) || 0;
-            const currentValue = t.progress?.actual_value;
+            const currentValue = t.actual_value ?? null;
+            const percentageAmount = Number.isFinite(parseFloat(t.percentage_amount))
+              ? parseFloat(t.percentage_amount)
+              : null;
             
             // Calculate target reduction amount based on target type
             let reductionTarget = 0;
             if (t.target_type === 'percentage') {
-              reductionTarget = (baseValue * targetValue) / 100;
+              reductionTarget = t.percentage_direction === 'increase' || percentageAmount == null
+                ? 0
+                : (baseValue * percentageAmount) / 100;
             } else if (t.target_type === 'absolute') {
               reductionTarget = baseValue - targetValue;
             }
@@ -84,7 +89,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
                 target_value: targetValue,
                 current_value: currentValue,
                 reduction_target: reductionTarget,
-                progress_percentage: t.progress?.progress_percentage,
+                progress_percentage: t.progress_percentage,
                 target_type: t.target_type,
                 value: t.target_type === 'percentage' ? targetValue : reductionTarget,
               },
@@ -95,7 +100,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               _baseValue: baseValue,
               _currentValue: currentValue,
               _reductionTarget: reductionTarget,
-              _progressPct: t.progress?.progress_percentage,
+              _progressPct: t.progress_percentage,
             };
           });
           setTargets(ghgTargets);
@@ -174,30 +179,18 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   // Prefer target's base value, fallback to org's base year
   const baseYearTotal = hasTargetBaseYear ? targetBaseValue : (hasOrgBaseYear ? baseYearComparison.baseTotal : null);
   
-  // Use current value from target progress if available
-  const currentYearTotal = selectedTarget?._currentValue ?? 
-    baseYearComparison?.currentTotal ??
-    totals.total ??
-    0;
+  // The target API is the only valid source for a target's actual value.
+  // Dashboard-level totals may cover a different scope, facility set, or period.
+  const currentYearTotal = selectedTarget?._currentValue;
+  const hasCurrentTargetValue = Number.isFinite(Number(currentYearTotal));
 
-  const achievedReduction = hasBaseYear
+  const achievedReduction = hasBaseYear && hasCurrentTargetValue
     ? Math.max(baseYearTotal - currentYearTotal, 0)
     : 0;
 
-  // Use pre-computed reduction target from ESG targets
-  let targetReduction = hasBaseYear ? (selectedTarget?._reductionTarget || 0) : null;
+  const targetReduction = hasBaseYear ? (selectedTarget?._reductionTarget || 0) : null;
 
-  // Fallback to manual calculation for legacy targets
-  if (!targetReduction && selectedTarget?.target_configuration) {
-    const config = selectedTarget.target_configuration;
-    if (config.target_type === 'percentage' || config.target_type === '%') {
-      targetReduction = ((config.value || 0) * baseYearTotal) / 100;
-    } else {
-      targetReduction = config.value || 0;
-    }
-  }
-
-    const reductionAchievedPct = hasBaseYear && targetReduction > 0
+  const reductionAchievedPct = hasBaseYear && hasCurrentTargetValue && targetReduction > 0
     ? (achievedReduction / targetReduction) * 100
     : null;
 

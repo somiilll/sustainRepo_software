@@ -12,6 +12,11 @@ questionnaire records (environment_records).
 from typing import Any, Dict, List, Optional
 from shared.database.mongo import db
 from modules.esg_targets.baseline_config import get_metric_mapping
+from shared.utils.emission_records import (
+    canonicalize_emission_record,
+    eligible_ghg_record_filter,
+    reporting_period_variants,
+)
 from .utils import format_result
 
 
@@ -30,14 +35,12 @@ async def _get_org_facility_ids(org_id: str) -> List[str]:
 
 
 def _build_emission_query(
-    mapping: Dict[str, Any],
     facility_ids: List[str],
-    scope_filter: Optional[str] = None,
     use_org_id: bool = False,
     org_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build a MongoDB query targeting emission_records."""
-    query: Dict[str, Any] = {}
+    """Build the canonical lifecycle and organizational query for GHG records."""
+    query: Dict[str, Any] = eligible_ghg_record_filter()
     
     # Query by facility_ids or organization_id
     if use_org_id and org_id:
@@ -45,52 +48,46 @@ def _build_emission_query(
     elif facility_ids:
         query["facility_id"] = {"$in": facility_ids}
     
-    # Scope filter - handle both string and list of scopes
-    target_scope = scope_filter or mapping.get("scope")
-    if target_scope:
-        if isinstance(target_scope, list):
-            # Multiple scopes (for aggregate targets like scope1_2_total)
-            query["scope"] = {"$in": target_scope}
-        else:
-            query["scope"] = target_scope
-
-    # Category filter (exact prefix match to avoid C1 matching C10)
-    target_category = mapping.get("category")
-    if target_category:
-        query["category"] = {"$regex": f"^{target_category}(\\s|$|-|:)"}
-
     return query
 
 
-def _build_period_regex(period: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """
-    Build a reporting_period filter for emission_records.
-
-    emission_records.reporting_period formats:
-      - Monthly: "YYYY-MM"  (e.g., "2026-01")
-      - Yearly:  "FY YYYY-YY" or "CY YYYY"
-    """
+def _reporting_period_values(period: Dict[str, Any]) -> Optional[List[str]]:
+    """Return exact monthly and annual period values for a target calculation."""
     year = period.get("year")
     month = period.get("month")
 
     if not year:
         return None
 
-    conditions = []
-
     if month:
-        # Exact month match: "YYYY-MM"
-        month_str = f"{year}-{month:02d}"
-        conditions.append({"reporting_period": month_str})
-    else:
-        # All months in the year: "YYYY-01" through "YYYY-12"
-        conditions.append({"reporting_period": {"$regex": f"^{year}-"}})
-        # Also include FY/CY yearly records containing this year
-        conditions.append({"reporting_period": {"$regex": f"(FY|CY).*{year}"}})
+        return [f"{year}-{month:02d}"]
 
-    if len(conditions) == 1:
-        return conditions[0]
-    return {"$or": conditions}
+    reporting_year_type = period.get("reporting_year_type", "CY")
+    if reporting_year_type == "FY":
+        monthly_periods = [f"{year}-{month:02d}" for month in range(4, 13)]
+        monthly_periods += [f"{year + 1}-{month:02d}" for month in range(1, 4)]
+        annual_period = f"FY {year}-{year + 1}"
+    else:
+        monthly_periods = [f"{year}-{month:02d}" for month in range(1, 13)]
+        annual_period = f"CY {year}"
+
+    return monthly_periods + reporting_period_variants(annual_period)
+
+
+def _matches_mapping(record: Dict[str, Any], mapping: Dict[str, Any]) -> bool:
+    """Match canonical scope plus an exact category code boundary in memory."""
+    target_scope = mapping.get("scope")
+    allowed_scopes = set(target_scope if isinstance(target_scope, list) else [target_scope])
+    if target_scope and record.get("scope") not in allowed_scopes:
+        return False
+
+    target_category = mapping.get("category")
+    if not target_category:
+        return True
+    category = record.get("category")
+    if not isinstance(category, str):
+        return False
+    return category == target_category or category.startswith(f"{target_category} ") or category.startswith(f"{target_category}-") or category.startswith(f"{target_category}:")
 
 
 async def calculate_ghg_kpi(
@@ -139,30 +136,33 @@ async def calculate_ghg_kpi(
             # Fallback: query by organization_id instead of facility_id
             use_org_id_query = True
 
-    # Build query
-    query = _build_emission_query(mapping, resolved_facility_ids or [], use_org_id=use_org_id_query, org_id=org_id)
+    # Query with the same lifecycle rules as the GHG dashboard. Scope and
+    # category are matched after canonical normalization so legacy labels are
+    # treated consistently instead of being lost through exact raw matching.
+    query = _build_emission_query(resolved_facility_ids or [], use_org_id=use_org_id_query, org_id=org_id)
 
     # Add period filter
     if period:
-        period_filter = _build_period_regex(period)
-        if period_filter:
-            if "$or" in period_filter and "$or" not in query:
-                query.update(period_filter)
-            elif "$or" in period_filter:
-                # Merge $or arrays
-                query.setdefault("$and", [])
-                query["$and"].append(period_filter)
-            else:
-                query.update(period_filter)
+        period_values = _reporting_period_values(period)
+        if period_values:
+            query["reporting_period"] = {"$in": period_values}
 
     # Execute query
-    records = await db.emission_records.find(query, {"_id": 0}).to_list(100000)
+    raw_records = await db.emission_records.find(query, {"_id": 0}).to_list(100000)
+    records = [
+        normalized
+        for raw_record in raw_records
+        if (normalized := canonicalize_emission_record(raw_record)) is not None
+        and _matches_mapping(normalized, mapping)
+    ]
 
     # Sum total_emissions (or co2e_emissions as fallback)
     total = 0.0
     valid_count = 0
     for rec in records:
-        val = rec.get("total_emissions") or rec.get("co2e_emissions") or 0
+        val = rec.get("total_emissions")
+        if val is None:
+            val = rec.get("co2e_emissions") or 0
         try:
             total += float(val)
             valid_count += 1
