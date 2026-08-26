@@ -260,6 +260,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier Documents and Trainings pages now show responsive Total, Completed, Draft, Pending, and Overdue status infographics. Counts are mutually exclusive, overdue-aware, and update from the current document response or training progress state.
 - Supplier module ledger percentages now use the label `Filled` instead of `Complete` (for example, `100% Filled`) without changing completion calculations or status logic.
 - Monthly GHG record ledgers no longer repeat a `Done` label below filled months; the existing green status dot remains the completion indicator, while future months still show `Future`.
+- The Add Emission final step no longer displays the redundant `Review Summary`; it now contains only the optional Additional Notes input, with submission behavior unchanged.
 - Focused JavaScript lint and an authenticated live rendering check completed before the user's latest `dont test` instruction; no further testing was run.
 
 ## Prioritized Backlog
