@@ -600,7 +600,6 @@ export default function SupplierList() {
                 <Label>Due Date</Label>
                 <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} data-testid="supplier-due-date" />
               </div>
-            </div>
             <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3">
               <Label>Is Annual Revenue required?</Label>
               <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-5" data-testid="annual-revenue-required-control">
@@ -613,6 +612,7 @@ export default function SupplierList() {
                   Required
                 </label>
               </RadioGroup>
+            </div>
             </div>
             
             {/* Module Selection */}
@@ -739,6 +739,11 @@ export default function SupplierList() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Email</Label>
+              <Input value={selectedSupplier?.contact_email || formData.email || ''} disabled className="bg-stone-100 text-stone-500" data-testid="edit-supplier-email-locked" />
+              <p className="text-xs text-stone-500">Email changes are locked for now.</p>
+            </div>
+            <div className="space-y-2">
               <Label>Contact Number</Label>
               <Input
                 value={formData.contact_number}
@@ -752,6 +757,10 @@ export default function SupplierList() {
                 value={formData.due_date}
                 onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
               />
+            </div>
+            <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3">
+              <Label>Is Annual Revenue required?</Label>
+              <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-4" data-testid="edit-annual-revenue-required-control"><label className="flex items-center gap-2 text-sm"><RadioGroupItem value="optional" data-testid="edit-annual-revenue-optional-radio" />Optional</label><label className="flex items-center gap-2 text-sm"><RadioGroupItem value="required" data-testid="edit-annual-revenue-required-radio" />Required</label></RadioGroup>
             </div>
             </div>
             
@@ -786,7 +795,7 @@ export default function SupplierList() {
               </div>
             </div>
             {formData.modules_enabled?.includes('esg') && questionnaires.length > 0 && (
-              <div className="space-y-3 border-t pt-4" data-testid="edit-supplier-questionnaire-assignments">
+              <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-4" data-testid="edit-supplier-questionnaire-assignments">
                 <Label className="text-sm font-medium">Assigned ESG questionnaires</Label>
                 <p className="text-xs text-stone-500">Submitted questionnaires remain assigned to preserve the supplier’s assessment history.</p>
                 <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
@@ -811,7 +820,7 @@ export default function SupplierList() {
             
             {/* GHG Scope Selection */}
             {formData.modules_enabled?.includes('ghg') && (
-              <div className="space-y-3 pl-4 border-l-2 border-blue-200 ml-2">
+              <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
                 <Label className="text-sm font-medium">GHG Scopes</Label>
                 
                 <div className="flex gap-6">
@@ -841,8 +850,8 @@ export default function SupplierList() {
             )}
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="grid gap-4 border-t border-stone-200 pt-4 md:grid-cols-2" data-testid="edit-supplier-assignment-summary">
-                {documents.length > 0 && <div className="rounded-lg border border-stone-200 bg-white p-3" data-testid="edit-supplier-documents-summary"><p className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Available documents</p><p className="mt-1 text-xs text-stone-500">Document assignments are managed from Documents.</p><div className="mt-2 space-y-1 text-sm">{documents.map((document) => <p key={document.id} data-testid={`edit-supplier-document-${document.id}`}>{document.title}</p>)}</div></div>}
-                {trainings.length > 0 && <div className="rounded-lg border border-stone-200 bg-white p-3" data-testid="edit-supplier-trainings-summary"><p className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Available trainings</p><p className="mt-1 text-xs text-stone-500">Training assignments are managed from Trainings.</p><div className="mt-2 space-y-1 text-sm">{trainings.map((training) => <p key={training.id} data-testid={`edit-supplier-training-${training.id}`}>{training.title}</p>)}</div></div>}
+                {documents.length > 0 && <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3" data-testid="edit-supplier-documents-summary"><p className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sky-800" />Documents</p><p className="mt-1 text-xs text-stone-500">Document assignments are managed from Documents.</p><div className="mt-2 space-y-1 text-sm">{documents.map((document) => <p key={document.id} data-testid={`edit-supplier-document-${document.id}`}>{document.title}</p>)}</div></div>}
+                {trainings.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3" data-testid="edit-supplier-trainings-summary"><p className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-amber-800" />Training</p><p className="mt-1 text-xs text-stone-500">Training assignments are managed from Trainings.</p><div className="mt-2 space-y-1 text-sm">{trainings.map((training) => <p key={training.id} data-testid={`edit-supplier-training-${training.id}`}>{training.title}</p>)}</div></div>}
               </div>
             )}
           </div>

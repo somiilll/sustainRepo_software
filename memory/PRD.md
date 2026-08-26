@@ -181,6 +181,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - **P2 Supplier GHG:** Removed the attributed scope/category aggregation section, restyled cards with white rounded/shadowed surfaces, and added supplier/category filters to All Emission Records.
 - **NOT TESTED** after this P0–P2 implementation pass, per the user’s explicit `dont test` instruction.
 
+## Latest Changes — 2026-08-26 (Supplier Form & Question Ledger Refinements)
+- Put Due Date and Annual Revenue requirement in the same create-supplier grid row. Edit Supplier now shows a locked email field, includes Annual Revenue requirement, and uses distinct ESG, GHG, Documents, and Training cards.
+- Restored Question Importance and Scoring Method to each multi-question ledger row; selected values are now included in the save payload.
+- Completion Progress displays the persisted module completion values. ESG stays at `0%` until the supplier submits the assigned questionnaire response, while GHG can independently be `100%` after submission.
+- **NOT TESTED** after this follow-up, respecting the existing user instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
