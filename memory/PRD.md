@@ -143,6 +143,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Updated Bulk Upload templates and record payloads with spent currency, currency conversion method, and optional standard-rate override fields. Month labels such as `May-2025` normalize before effective-rate lookup.
 - Verification passed: backend/frontend testing agent iteration 21 (100% backend and frontend), including formula fallback, monthly-rate precedence, Super Admin controls, manual selector, and template columns. Temporary test rates were deleted.
 
+## Latest Changes — 2026-08-26 (Scope 3 Spend Override and Edit Parity)
+- The shared GHG form context now passes `spend_currency_conversion_method` into decision-tree traversal, so Spend Basis selects the correct PPP/Inflation or Standard Currency formula before fields are derived.
+- Added the Scope 3 `exchange_rate` override mapping and made the Exchange Rate property overridable. The idempotent migration updated the live configuration and all 15 Scope 3 decision trees; PPP and Inflation continue to use their existing dynamic rate resolver, with no property-source mapping added.
+- Edit drafts now hydrate, display, calculate with, and persist the selected currency conversion method. Edit shows the same method selector as Create, and refreshes the displayed overrides when it changes.
+- Per user instruction, frontend/backend testing was intentionally skipped for this change.
+
 ## Prioritized Backlog
 - **P0:** Verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

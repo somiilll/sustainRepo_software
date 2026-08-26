@@ -188,6 +188,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [scope3EFData, setScope3EFData] = useState([]);
   const scope3Method = editDraft.scope3Method;
   const setScope3Method = useCallback((value) => setDraftField('scope3Method', value), [setDraftField]);
+  const spendCurrencyConversionMethod = editDraft.spendCurrencyConversionMethod;
   const scope3ActivityId = editDraft.scope3ActivityId;
   const setScope3ActivityId = useCallback((value) => setDraftField('scope3ActivityId', value), [setDraftField]);
   const scope3ActivityType = editDraft.scope3ActivityType;
@@ -429,6 +430,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         categories: dynamicCategories,
         scopes: dynamicScopes,
         scope3Method,
+        spendCurrencyConversionMethod,
         scope3ActivityType,
         scope3Subcategory,
         typeOfProduct,
@@ -446,6 +448,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       dynamicCategories,
       dynamicScopes,
       scope3Method,
+      spendCurrencyConversionMethod,
       scope3ActivityType,
       scope3Subcategory,
       typeOfProduct,
@@ -541,6 +544,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     // For Scope 3 (or biogenic scope3), add calculation_method_scope3 from the selected method
     if (isScope3Like && scope3Method) {
       decisionInputs['calculation_method_scope3'] = scope3Method;
+      if (scope3Method === 'spend_basis') {
+        decisionInputs['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'ppp_inflation';
+      }
     }
     
     // For Scope 3 with activity_type (C6/C7), add activity_type to decision inputs
@@ -623,7 +629,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -1965,6 +1971,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       
       const scope3ContextPreview = isScope3Like ? {
         calculation_method_scope3: scope3Method,
+        ...(scope3Method === 'spend_basis' && {
+          spend_currency_conversion_method: spendCurrencyConversionMethod || 'ppp_inflation',
+        }),
         scope3_ef_id: scope3ActivityId,
         // For supplier_basis with custom activity, use the custom activity name
         activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
@@ -2064,7 +2073,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     formData.density, formData.emission_factor_heat, overrideCalorificValue,
     overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
-    scope3Method, scope3ActivityId, filteredScope3Activities,
+    scope3Method, spendCurrencyConversionMethod, scope3ActivityId, filteredScope3Activities,
     useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection,
     editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel
   ]);
@@ -2136,6 +2145,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       filteredScope3Activities,
       scope3ActivityId,
       scope3Method,
+      spendCurrencyConversionMethod,
       scope3Subcategory,
       useCustomActivity,
       scope3CustomActivity,
@@ -2174,6 +2184,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         editingEmission,
         editEmployees,
         scope3Method,
+        spendCurrencyConversionMethod,
         scope3ActivityId,
         scope3ActivityType,
         scope3CustomActivity,
@@ -2230,6 +2241,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       const validation = activeCategoryModule.validateEditSubmission({
         // Scope 3 props
         scope3Method,
+        spendCurrencyConversionMethod,
         scope3ActivityId,
         scope3CustomActivity,
         useCustomActivity,

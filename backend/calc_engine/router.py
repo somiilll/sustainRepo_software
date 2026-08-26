@@ -934,7 +934,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         # This mirrors how the Sandbox works - loads all applicable mappings for the scope+category
         
         # Get scope ID for filtering
-        scope_doc = await db.emission_scopes.find_one({"code": scope}, {"_id": 0}) if scope else None
+        scope_doc = await db.scopes.find_one({"code": scope}, {"_id": 0}) if scope else None
         scope_id = scope_doc.get("id") if scope_doc else None
         
         # Build query to get:

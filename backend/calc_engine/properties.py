@@ -42,7 +42,7 @@ SYSTEM_PROPERTIES: List[dict] = [
     {"key": "ef_co2e", "label": "CO₂e Emission Factor (per qty)", "unit": "kgCO2e/kg", "override_allowed": True},
     {"key": "gwp_ch4", "label": "GWP CH₄", "unit": "1", "override_allowed": False},
     {"key": "gwp_n2o", "label": "GWP N₂O", "unit": "1", "override_allowed": False},
-    {"key": "exchange_rate", "label": "Standard Currency Exchange Rate", "unit": "1", "override_allowed": False},
+    {"key": "exchange_rate", "label": "Standard Currency Exchange Rate", "unit": "1", "override_allowed": True},
 ]
 
 
@@ -53,6 +53,11 @@ async def seed_properties(db) -> int:
     for p in SYSTEM_PROPERTIES:
         existing = await db.ce_properties.find_one({"key": p["key"]}, {"_id": 0})
         if existing:
+            if existing.get("override_allowed") != p.get("override_allowed", True):
+                await db.ce_properties.update_one(
+                    {"key": p["key"]},
+                    {"$set": {"override_allowed": p.get("override_allowed", True)}},
+                )
             continue
         # Look up variable id for linkage (variables must be seeded first)
         var = await db.ce_variables.find_one({"key": p["key"]}, {"_id": 0})
@@ -67,6 +72,42 @@ async def seed_properties(db) -> int:
             "created_at": now,
         })
         inserted += 1
+
+    scope = await db.scopes.find_one({"code": "scope3"}, {"_id": 0, "id": 1})
+    if scope:
+        await db.ce_input_field_mappings.update_one(
+            {"field_key": "exchange_rate"},
+            {
+                "$set": {
+                    "field_label": "Standard Currency Exchange Rate",
+                    "field_type": "number",
+                    "maps_to_variable": "exchange_rate",
+                    "maps_to_context": "exchange_rate",
+                    "maps_to_context_value_when_filled": "true",
+                    "maps_to_context_value_when_empty": "false",
+                    "default_unit": "1",
+                    "allowed_units": [],
+                    "is_required": False,
+                    "is_override": True,
+                    "options": [],
+                    "display_order": 18,
+                    "applies_to_categories": [],
+                    "applies_to_scopes": [scope["id"]],
+                    "placeholder": "",
+                    "help_text": "",
+                    "unit_source": "static",
+                    "validation_rules": {},
+                    "is_active": True,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {
+                    "id": str(uuid.uuid4()),
+                    "field_key": "exchange_rate",
+                    "created_at": now,
+                },
+            },
+            upsert=True,
+        )
     return inserted
 
 

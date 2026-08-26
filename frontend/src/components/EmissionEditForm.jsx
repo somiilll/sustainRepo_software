@@ -207,6 +207,7 @@ export default function EmissionEditForm(props) {
   const biogenicScopeSelection = draft.biogenicScopeSelection;
   const selectedCategory = draft.selectedCategory;
   const scope3Method = draft.scope3Method;
+  const spendCurrencyConversionMethod = draft.spendCurrencyConversionMethod || 'ppp_inflation';
   const scope3ActivityType = draft.scope3ActivityType;
   const scope3Subcategory = draft.scope3Subcategory;
   const scope3ActivityId = draft.scope3ActivityId;
@@ -228,6 +229,7 @@ export default function EmissionEditForm(props) {
   const overrideJustification = draft.overrideJustification;
   const setBiogenicScopeSelection = (value) => setDraftField('biogenicScopeSelection', value);
   const setScope3Method = (value) => setDraftField('scope3Method', value);
+  const setSpendCurrencyConversionMethod = (value) => setDraftField('spendCurrencyConversionMethod', value);
   const setScope3ActivityType = (value) => setDraftField('scope3ActivityType', value);
   const setScope3ActivityId = (value) => setDraftField('scope3ActivityId', value);
   const setScope3Subcategory = (value) => setDraftField('scope3Subcategory', value);
@@ -459,6 +461,25 @@ export default function EmissionEditForm(props) {
                                 <p className="text-xs text-amber-600">No methods available for this category</p>
                               )}
                             </div>
+                            {scope3Method === 'spend_basis' && (
+                              <div className="space-y-1.5" data-testid="edit-scope3-currency-conversion-method-section">
+                                <Label htmlFor="edit-scope3-currency-conversion-method-select">Currency Conversion Method *</Label>
+                                <select
+                                  id="edit-scope3-currency-conversion-method-select"
+                                  value={spendCurrencyConversionMethod}
+                                  onChange={(event) => {
+                                    setSpendCurrencyConversionMethod(event.target.value);
+                                    setDynamicFieldValues({});
+                                    markFormDirty();
+                                  }}
+                                  className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3"
+                                  data-testid="edit-scope3-currency-conversion-method-select"
+                                >
+                                  <option value="standard">Standard Currency Conversion</option>
+                                  <option value="ppp_inflation">PPP and Inflation Rate</option>
+                                </select>
+                              </div>
+                            )}
                             {availableScope3ActivityTypes.length > 0 && (
                               <div className="space-y-1.5" data-testid="scope3-activity-type-section">
                                 <Label htmlFor="scope3_activity_type_filter">Activity Type *</Label>
