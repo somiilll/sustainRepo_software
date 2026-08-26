@@ -278,6 +278,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier Documents and Trainings pages refresh assignment visibility on focus and every 30 seconds; an open training viewer closes automatically if its assignment is revoked.
 - JavaScript and Python static checks passed. Functional flow testing was not run, following the user's `dont test` instruction.
 
+## Latest Changes — 2026-08-26 (Detailed Supplier Rankings Table)
+- Detailed rankings now renders exactly one row per supplier with explicit columns for Supplier name, ESG score, Environment score, Social score, Governance score, GHG completion %, Training %, and Documents %.
+- Removed the previous multi-line rank/status card ledger from this tab. Supplier names remain clickable to open the existing detail dialog, and unassigned module completion is shown as `—` rather than a misleading zero.
+- Functional testing was not run, following the user's `dont test` instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
