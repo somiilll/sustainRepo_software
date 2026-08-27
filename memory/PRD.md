@@ -293,10 +293,15 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Added an environment-driven, credential-free migration runner at `backend/scripts/migrate_local_to_staging.py` with dry-run, conflict blocking, timestamped `mongodump` backup, transactions, idempotent upserts, index recreation, and reference validation.
 - Created all 14 previously missing collections in `sustainrepo_staging` and copied only local records whose organization/user/supplier dependencies already existed in staging: 18 assessment program revisions, 5 document versions, 19 document requirements, 3 training contents, 3 training requirements, and 3 training versions.
 - Migrated the current calculation catalog without importing conflicting local history UUIDs: 8 new formulas, 5 new versions for changed formulas, 20 new decision-tree versions, 4 supporting catalog inserts, 4 targeted catalog updates, 2 currency inserts, and 1 currency-method update.
-- Preserved the staging UUID for the existing `exchange_rate` variable while converting its legacy unit `1` to the canonical unitless form.
+- Preserved existing environment-specific UUID references while converting every `exchange_rate` catalog layer to the canonical unitless form: variable `default_unit=""`, property `unit=""`, mapping `unit_source="none"`, and no mapping `default_unit` or `allowed_units`.
 - Backup created at `/app/.emergent/backups/staging-migration-20260827T044052Z` before the first staging write.
 - Post-migration dry-run is a complete no-op with zero conflicts. Validation confirmed all collections/indexes exist, local and staging current formula definitions and decision trees match, currency identities are complete, formula/version references resolve, exactly one active version exists per formula, and all 8 migrated R2 file objects are accessible.
 - As requested, local records with nonmatching staging relationships were skipped: 4 document submissions, 4 revenue submissions, 11 training assignments, 12 training consumption events, and 4 training progress records. Ten local login-attempt telemetry records were intentionally not migrated to avoid carrying lockout state into staging.
+
+## Latest Changes — 2026-08-27 (Exchange Rate Unitless Catalog Completion)
+- Extended `backend/scripts/migrate_exchange_rate_unitless.py` to update and validate the Exchange Rate variable, property, and input-field mapping without replacing their UUIDs or breaking references.
+- Applied the idempotent migration to both local and `sustainrepo_staging` databases. Verified neither environment retains the legacy unit `1` in any Exchange Rate catalog layer.
+- Re-ran the full local-to-staging migration dry run: zero pending inserts, zero catalog actions, and zero conflicts.
 
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
