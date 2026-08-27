@@ -423,6 +423,9 @@ async def get_parent_submitted_emission_detail(customer_org_id: str, emission_id
     )
     if not relationship or not period_belongs_to_parent(entry.get("reporting_period"), relationship.get("reporting_period")):
         return None
+    facility = await db.facilities.find_one(
+        {"id": entry.get("facility_id")}, {"_id": 0, "name": 1}
+    ) if entry.get("facility_id") else None
     evidence_ids = _evidence_file_ids(entry.get("evidence_url"))
     evidence_records = await db.uploaded_files.find(
         {"id": {"$in": evidence_ids}}, {"_id": 0, "id": 1, "original_filename": 1, "content_type": 1, "file_size": 1}
@@ -431,6 +434,7 @@ async def get_parent_submitted_emission_detail(customer_org_id: str, emission_id
     visible_entry = {key: value for key, value in entry.items() if key not in {"evidence_url", "evidence_file_name"}}
     return {
         **visible_entry,
+        "facility_name": entry.get("facility_name") or (facility or {}).get("name") or "Supplier facility",
         "supplier_name": relationship.get("company_name", "Unknown"),
         "submitted_at": entry["submitted_to_parent_org"],
         "evidence_files": [evidence_by_id[file_id] for file_id in evidence_ids if file_id in evidence_by_id],

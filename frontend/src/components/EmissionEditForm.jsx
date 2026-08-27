@@ -183,6 +183,7 @@ export default function EmissionEditForm(props) {
     // Optional props for approval mode
     hideSubmitButton = false,
     assignedReportingPeriod = null,
+    showAssignedReportingPeriodMessage = true,
     readOnly = false,
     readOnlyEvidenceContent = null,
   } = props;
@@ -354,7 +355,7 @@ export default function EmissionEditForm(props) {
                             <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
                             {editingEmission.reporting_period || 'N/A'}
                           </div>
-                          {assignedReportingPeriod && <p className="text-xs text-emerald-700" data-testid="supplier-edit-assigned-reporting-period-message">Assigned by your customer: {assignedReportingPeriod.reporting_period}</p>}
+                          {assignedReportingPeriod && showAssignedReportingPeriodMessage && <p className="text-xs text-emerald-700" data-testid="supplier-edit-assigned-reporting-period-message">Assigned by your customer: {assignedReportingPeriod.reporting_period}</p>}
                         </>
                       ) : (
                         <>
@@ -1490,6 +1491,7 @@ export default function EmissionEditForm(props) {
                   capabilities={capabilities}
                   selectedCategory={selectedCategory}
                   isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
+                  forceOpen={readOnly}
                 />
 
                 </fieldset>
