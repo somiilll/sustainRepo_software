@@ -50,9 +50,9 @@ import {
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const statusColors = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  accepted: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
+  pending: 'border-amber-200 bg-amber-50 text-amber-800',
+  accepted: 'border-blue-200 bg-blue-50 text-blue-700',
+  completed: 'border-emerald-200 bg-emerald-50 text-emerald-800',
 };
 
 const groupAvailableDocuments = (requirements) => Object.values((requirements || []).reduce((groups, requirement) => {
@@ -365,127 +365,135 @@ export default function SupplierList() {
   };
 
   return (
-    <div className="space-y-6" data-testid="supplier-list">
+    <div className="space-y-7" data-testid="supplier-list">
       {/* Header */}
-      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
-          <h1 className="text-2xl font-semibold text-stone-900">Suppliers</h1>
-          <p className="text-sm text-stone-500 mt-1">Manage your supplier assessments</p>
+      <div className="border-b border-stone-200 pb-5" data-testid="supplier-list-header">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm" data-testid="supplier-list-heading-icon">
+            <Building2 className="h-5 w-5" aria-hidden="true" />
           </div>
-          <div className="w-44" data-testid="supplier-list-period-control">
-            <Label htmlFor="supplier-list-reporting-period" className="mb-1 flex items-center gap-1 text-xs font-medium text-stone-600"><CalendarDays className="h-3.5 w-3.5 text-emerald-700" />Reporting period</Label>
-            <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
-              <SelectTrigger id="supplier-list-reporting-period" className="h-9 bg-white" data-testid="supplier-list-reporting-period-selector"><SelectValue /></SelectTrigger>
-              <SelectContent data-testid="supplier-list-reporting-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-list-period-option-${period}`}>{period}</SelectItem>)}</SelectContent>
-            </Select>
+          <div>
+            <h1 className="text-2xl font-bold text-emerald-950" data-testid="supplier-list-heading">Suppliers</h1>
+            <p className="mt-0.5 text-xs text-stone-500 sm:text-sm" data-testid="supplier-list-subtitle">Manage your supplier assessments</p>
           </div>
         </div>
-        <Button onClick={() => setShowAddDialog(true)} data-testid="add-supplier-btn">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Supplier
-        </Button>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+      {/* Supplier controls */}
+      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] md:flex-row md:flex-wrap md:items-center lg:flex-nowrap" data-testid="supplier-list-controls">
+        <div className="relative w-full md:w-[min(430px,100%)] md:flex-none">
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" />
           <Input
             placeholder="Search suppliers..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+            className="h-10 border-stone-200 bg-white pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100"
+            aria-label="Search suppliers"
             data-testid="supplier-search"
           />
+        </div>
+        <Button className="h-10 shrink-0 bg-emerald-800 px-4 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowAddDialog(true)} data-testid="add-supplier-btn">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add Supplier
+        </Button>
+        <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row md:items-center md:gap-3" data-testid="supplier-list-period-control">
+          <Label htmlFor="supplier-list-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-list-reporting-period-label">
+            <CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />
+            Reporting period
+          </Label>
+          <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
+            <SelectTrigger id="supplier-list-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 md:w-44" data-testid="supplier-list-reporting-period-selector"><SelectValue /></SelectTrigger>
+            <SelectContent data-testid="supplier-list-reporting-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-list-period-option-${period}`}>{period}</SelectItem>)}</SelectContent>
+          </Select>
         </div>
       </div>
 
       {/* Table */}
-      <div className="border rounded-lg bg-white">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Company</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Due Date</TableHead>
-              <TableHead data-testid="supplier-ledger-login-status-header">Login Status</TableHead>
-              <TableHead>Progress</TableHead>
-              <TableHead>Score</TableHead>
-              <TableHead>Last Reminder</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+      <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-[0_5px_22px_rgba(28,55,43,0.06)]" data-testid="supplier-table-card">
+        <Table data-testid="supplier-table">
+          <TableHeader className="bg-emerald-50/60">
+            <TableRow className="border-emerald-100 hover:bg-emerald-50/60">
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-company-header">Company</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-contact-header">Contact</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-due-date-header">Due Date</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-ledger-login-status-header">Login Status</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-progress-header">Progress</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-score-header">Score</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-last-reminder-header">Last Reminder</TableHead>
+              <TableHead className="h-12 px-4 text-right font-semibold text-stone-700" data-testid="supplier-actions-header">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-stone-500">
+                <TableCell colSpan={8} className="py-10 text-center text-stone-500" data-testid="supplier-table-loading">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : suppliers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-stone-500">
+                <TableCell colSpan={8} className="py-10 text-center text-stone-500" data-testid="supplier-table-empty-state">
                   No suppliers found. Add your first supplier to get started.
                 </TableCell>
               </TableRow>
             ) : (
               suppliers.map((supplier) => (
-                <TableRow key={supplier.id} data-testid={`supplier-row-${supplier.id}`}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-stone-400" />
-                      <span className="font-medium">{supplier.company_name}</span>
+                <TableRow key={supplier.id} className="border-stone-100 hover:bg-emerald-50/30" data-testid={`supplier-row-${supplier.id}`}>
+                  <TableCell className="px-4 py-4">
+                    <div className="flex items-center gap-2.5">
+                      <Building2 className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+                      <span className="font-semibold text-stone-900" data-testid={`supplier-company-${supplier.id}`}>{supplier.company_name}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4 py-4">
                     <div className="text-sm">
-                      <div className="flex items-center gap-1">
-                        <User className="h-3 w-3 text-stone-400" />
-                        {supplier.contact_person}
+                      <div className="flex items-center gap-1.5 font-medium text-stone-700" data-testid={`supplier-contact-person-${supplier.id}`}>
+                        <User className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
+                        <span>{supplier.contact_person}</span>
                       </div>
-                      <div className="text-stone-500">{supplier.contact_email}</div>
+                      <div className="mt-0.5 text-xs text-stone-500" data-testid={`supplier-contact-email-${supplier.id}`}>{supplier.contact_email}</div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4 py-4" data-testid={`supplier-due-date-${supplier.id}`}>
                     {supplier.due_date ? (
-                      <div className="flex items-center gap-1 text-sm">
-                        <Calendar className="h-3 w-3 text-stone-400" />
+                      <div className="flex items-center gap-1.5 text-sm text-stone-600">
+                        <Calendar className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
                         {new Date(supplier.due_date).toLocaleDateString()}
                       </div>
                     ) : (
                       <span className="text-stone-400">-</span>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Badge className={statusColors[supplier.invitation_status] || 'bg-stone-100'}>
+                  <TableCell className="px-4 py-4">
+                    <Badge variant="outline" className={`rounded-full px-2.5 py-1 text-xs font-medium shadow-none ${statusColors[supplier.invitation_status] || 'border-stone-200 bg-stone-50 text-stone-700'}`} data-testid={`supplier-login-status-${supplier.id}`}>
                       {supplier.invitation_status}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-stone-200 rounded-full h-2">
+                  <TableCell className="px-4 py-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-2 w-24 overflow-hidden rounded-full bg-stone-200" data-testid={`supplier-progress-track-${supplier.id}`}>
                         <div
-                          className="bg-emerald-500 h-2 rounded-full"
+                          className="h-2 rounded-full bg-emerald-600 transition-[width] duration-500"
                           style={{ width: `${supplier.overall_completion_percent || 0}%` }}
+                          data-testid={`supplier-progress-bar-${supplier.id}`}
                         />
                       </div>
-                      <span className="text-sm text-stone-600">
+                      <span className="min-w-9 text-sm font-semibold text-stone-700" data-testid={`supplier-progress-percent-${supplier.id}`}>
                         {Math.round(supplier.overall_completion_percent || 0)}%
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4 py-4" data-testid={`supplier-score-${supplier.id}`}>
                     {supplier.overall_score !== null ? (
-                      <div className="flex items-center gap-1">
-                        <TrendingUp className="h-3 w-3 text-emerald-500" />
-                        <span className="font-medium">{supplier.overall_score}</span>
+                      <div className="flex items-center gap-1.5">
+                        <TrendingUp className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                        <span className="font-semibold text-stone-800">{supplier.overall_score}</span>
                       </div>
                     ) : (
                       <span className="text-stone-400">-</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4 py-4" data-testid={`supplier-last-reminder-${supplier.id}`}>
                     {supplier.last_reminder_sent ? (
                       <div className="text-sm text-stone-500">
                         {new Date(supplier.last_reminder_sent).toLocaleDateString()}
@@ -495,37 +503,48 @@ export default function SupplierList() {
                       <span className="text-stone-400">-</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
+                  <TableCell className="px-3 py-4 text-right">
+                    <div className="flex items-center justify-end gap-0.5">
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
+                        className="h-9 w-9 text-stone-600 transition-[background-color,color] hover:bg-emerald-50 hover:text-emerald-800"
                         onClick={() => openViewDialog(supplier)}
+                        aria-label={`View ${supplier.company_name}`}
+                        title="View supplier"
                         data-testid={`view-supplier-${supplier.id}`}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
+                        className="h-9 w-9 text-stone-600 transition-[background-color,color] hover:bg-stone-100 hover:text-stone-900"
                         onClick={() => openEditDialog(supplier)}
+                        aria-label={`Edit ${supplier.company_name}`}
+                        title="Edit supplier"
                         data-testid={`edit-supplier-${supplier.id}`}
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
+                        className="h-9 w-9 text-stone-600 transition-[background-color,color] hover:bg-blue-50 hover:text-blue-700"
                         onClick={() => { setReminderTarget(supplier); setReminderModules(['all']); }}
+                        aria-label={`Send reminder to ${supplier.company_name}`}
+                        title="Send Reminder"
                         data-testid={`remind-supplier-${supplier.id}`}
                       >
                         <Mail className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700"
+                        size="icon"
+                        className="h-9 w-9 text-red-600 transition-[background-color,color] hover:bg-red-50 hover:text-red-700"
                         onClick={() => handleDeactivate(supplier)}
+                        aria-label={`Delete ${supplier.company_name}`}
+                        title="Delete supplier"
                         data-testid={`delete-supplier-${supplier.id}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -540,8 +559,8 @@ export default function SupplierList() {
 
         {/* Pagination */}
         {total > pageSize && (
-          <div className="flex items-center justify-between px-4 py-3 border-t">
-            <div className="text-sm text-stone-500">
+          <div className="flex items-center justify-between border-t border-stone-100 px-4 py-3" data-testid="supplier-pagination">
+            <div className="text-sm text-stone-500" data-testid="supplier-pagination-summary">
               Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total}
             </div>
             <div className="flex gap-2">
@@ -550,6 +569,7 @@ export default function SupplierList() {
                 size="sm"
                 disabled={page === 1}
                 onClick={() => setPage(p => p - 1)}
+                data-testid="supplier-pagination-previous"
               >
                 Previous
               </Button>
@@ -558,6 +578,7 @@ export default function SupplierList() {
                 size="sm"
                 disabled={page * pageSize >= total}
                 onClick={() => setPage(p => p + 1)}
+                data-testid="supplier-pagination-next"
               >
                 Next
               </Button>

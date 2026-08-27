@@ -42,7 +42,7 @@
     "backend": "75%",
     "frontend": "100%"
   },
-  "seed_data_creation": "Transient scope3 emission was unintentionally created during failing guard test and immediately deleted (record_id=756c6cef-a7f3-4039-bc0e-d5d37c76c584).",
+  "seed_data_creation": "Transient scope3 emission was unintentionally created during failing guard test and immediately deleted (record_id=ghg-reporting-hub).",
   "retest_needed": true,
   "should_main_agent_self_test": false,
   "context_for_next_testing_agent": "Backend pytest file added for this scope: 8 tests total (6 passed, 2 failed). Frontend authenticated smoke passed (/dashboard and /ghg/scope3 rendered, no blank route regression).",

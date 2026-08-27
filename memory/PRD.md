@@ -308,6 +308,13 @@ Provide a dependable ESG and GHG management platform where organization configur
 - The one-off ingestion script now requires `TARGET_MONGO_URL` and `TARGET_DB_NAME` at runtime and fails clearly when either is absent.
 - Verification passed: Python compilation succeeded and a full workspace credential scan found no remaining instance of the removed URI.
 
+## Latest Changes — 2026-08-27 (Parent Supplier Ledger UI Refinement)
+- Refined the parent-org Suppliers heading with a restrained forest-green treatment, organization icon, stronger hierarchy, and softer supporting subtitle.
+- Consolidated supplier search, Add Supplier, and reporting-period controls into one responsive, lightly elevated control bar while preserving all existing behavior.
+- Polished the supplier ledger with a sage-tinted header, increased row spacing, softer separators, stronger company/progress/score hierarchy, modern accepted-status pills, and larger restrained action targets.
+- Renamed the reminder action hover label from `Email supplier` to `Send Reminder` without changing its reminder functionality.
+- Focused JavaScript lint and an authenticated desktop screenshot passed before the final tooltip-only wording change. Per user instruction, no testing was run after that final change.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
