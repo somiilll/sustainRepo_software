@@ -99,6 +99,7 @@ const CustomFuelMonthFields = ({
     centralizedUnits,
   });
   const customQuantity = data.qty ?? data.quantity ?? data.custom_qty;
+  const isYearlyEntry = monthKey === 'yearly';
   const hasDensitySourceValue = calculationMethodology === 'using_heat_basis_ncv'
     ? [customQuantity, data.custom_cv, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
     : calculationMethodology === 'using_qty_basis_ef'
@@ -157,7 +158,7 @@ const CustomFuelMonthFields = ({
             <span>Custom fuel factors · Heat Basis (NCV)</span>
           </div>
         )}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className={`grid grid-cols-1 gap-4 ${isYearlyEntry ? 'sm:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2'}`}>
           <MeasurementInput
             label="Emission Factor"
             value={data.custom_ef || ''}
@@ -180,8 +181,8 @@ const CustomFuelMonthFields = ({
             inputTestId={`month-${monthKey}-custom-cv`}
             unitTestId={`month-${monthKey}-custom-cv-unit`}
           />
+          {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
         </div>
-        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }
@@ -195,18 +196,20 @@ const CustomFuelMonthFields = ({
             <span>Custom fuel factors · Quantity Basis EF</span>
           </div>
         )}
-        <MeasurementInput
-          label="Emission Factor"
-          value={data.custom_ef || ''}
-          onChange={(event) => updateMonthData(monthKey, 'custom_ef', event.target.value)}
-          placeholder="e.g. 2.68"
-          unitValue={data.custom_ef_unit || 'kgCO2/kg'}
-          onUnitChange={(event) => updateMonthData(monthKey, 'custom_ef_unit', event.target.value)}
-          unitOptions={quantityEfUnits}
-          inputTestId={`month-${monthKey}-custom-ef`}
-          unitTestId={`month-${monthKey}-custom-ef-unit`}
-        />
-        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
+        <div className={`grid grid-cols-1 gap-4 ${isYearlyEntry ? 'sm:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2'}`}>
+          <MeasurementInput
+            label="Emission Factor"
+            value={data.custom_ef || ''}
+            onChange={(event) => updateMonthData(monthKey, 'custom_ef', event.target.value)}
+            placeholder="e.g. 2.68"
+            unitValue={data.custom_ef_unit || 'kgCO2/kg'}
+            onUnitChange={(event) => updateMonthData(monthKey, 'custom_ef_unit', event.target.value)}
+            unitOptions={quantityEfUnits}
+            inputTestId={`month-${monthKey}-custom-ef`}
+            unitTestId={`month-${monthKey}-custom-ef-unit`}
+          />
+          {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
+        </div>
       </div>
     );
   }
@@ -220,7 +223,7 @@ const CustomFuelMonthFields = ({
             <span>Custom fuel factors · Carbon Composition</span>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
+        <div className={`grid grid-cols-1 gap-3 ${isYearlyEntry ? 'sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-2'}`}>
           <div className="space-y-1">
             <Label className="text-xs">Carbon Content (%) <span className="text-red-500">*</span></Label>
             <Input
@@ -241,8 +244,8 @@ const CustomFuelMonthFields = ({
               data-testid={`month-${monthKey}-custom-oxidation-factor`}
             />
           </div>
+          {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
         </div>
-        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }
