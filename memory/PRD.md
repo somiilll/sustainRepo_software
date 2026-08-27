@@ -380,6 +380,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - The read-only mode disables the complete form fieldset, prevents form submission, and hides submission, recalculation, upload, evidence-removal, and delete controls. Secure evidence View/Download remains outside the locked form.
 - The parent-only record-detail API remains limited to submitted, parent-visible supplier records and returns no raw evidence URLs. **NOT TESTED**, per the user's explicit instruction.
 
+## Latest Changes — 2026-08-27 (Supplier Dashboard Submission-aware Progress)
+- Removed the redundant Supplier workspace label and customer instruction from the supplier-facing dashboard header. Passed due dates now render as explicit red Overdue warnings with day/month/year formatting.
+- Requirement cards distinguish data being filled from formal submission: Revenue, ESG, GHG, and Documents can show `100% Filled` while remaining `In progress` until submitted.
+- Overall Progress now counts formal Revenue, ESG, GHG, and Document submissions. GHG is binary in both views: its requirement card is either 0% or 100% filled, while its overall-progress value remains 0% until submission and becomes 100% only after submission.
+- **NOT TESTED**, per the user's explicit instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.
