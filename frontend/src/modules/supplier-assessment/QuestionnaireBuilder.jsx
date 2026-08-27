@@ -202,6 +202,7 @@ export default function QuestionnaireBuilder() {
     response_type: 'yes_no',
     options: [],
     required: true,
+    evidence_requirement: 'not_required',
     importance: 'medium',
     exact_numerical_weight: null,
     category: 'environment',
@@ -452,6 +453,7 @@ export default function QuestionnaireBuilder() {
       response_type: 'yes_no',
       options: [],
       required: true,
+      evidence_requirement: 'not_required',
         importance: 'medium',
         exact_numerical_weight: null,
       category: 'environment',
@@ -488,6 +490,7 @@ export default function QuestionnaireBuilder() {
       response_type: question.response_type,
       options: hydrateDropdownOptionScores(question.options, scoring),
       required: question.required,
+      evidence_requirement: question.evidence_requirement || 'not_required',
       importance: question.importance || 'medium',
       exact_numerical_weight: question.exact_numerical_weight ?? (question.importance ? null : question.weight ?? null),
       category: question.category,
@@ -1153,6 +1156,13 @@ export default function QuestionnaireBuilder() {
                     <SelectItem value="yes">Yes</SelectItem>
                     <SelectItem value="no">No</SelectItem>
                   </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Evidence</Label>
+                <Select value={questionForm.evidence_requirement} onValueChange={(evidence_requirement) => setQuestionForm({ ...questionForm, evidence_requirement })}>
+                  <SelectTrigger data-testid="question-evidence-requirement-select"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="not_required">Not required</SelectItem><SelectItem value="optional">Optional</SelectItem><SelectItem value="required">Required for submission</SelectItem></SelectContent>
                 </Select>
               </div>
             </div>

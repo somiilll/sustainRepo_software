@@ -1,0 +1,70 @@
+{
+  "summary": "Executed targeted backend+frontend validation for supplier evidence visibility and ESG evidence enforcement. Found one critical backend defect causing 500 on final questionnaire submit when required evidence is missing; other evidence auth/visibility contracts passed.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/supplier-assessment/my-assessment/questionnaires/{questionnaire_id}/answers",
+        "issue": "Final submit without required evidence returns 500 instead of validation error. service.py raises ValueError(\"Evidence is required for ...\") but router.submit_my_answers does not catch it and map to HTTP 400.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "SupplierGHGView Logs table",
+        "issue": "Evidence column header is not rendered when logs are empty because table header is conditionally hidden with empty-state block.",
+        "selector": "[data-testid='supplier-ghg-logs-evidence-header']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Admin Supplier GHG Logs evidence-column validation",
+        "issue": "Across tested reporting periods in UI, Logs showed 'No emission records found.'; could not validate Evidence column with live rows even though backend /emissions/all has records when no period filter is used.",
+        "affected_selectors": [
+          "[data-testid='supplier-ghg-logs-tab']",
+          "[data-testid='supplier-ghg-logs-evidence-header']"
+        ]
+      },
+      {
+        "flow": "Supplier questionnaire evidence controls validation in UI",
+        "issue": "Supplier had questionnaires, but opened questionnaire rendered 0 evidence control labels; live data did not include optional/required evidence questions in selected questionnaire.",
+        "affected_selectors": [
+          "[data-testid^='supplier-esg-open-']",
+          "[data-testid^='supplier-question-evidence-label-']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_supplier_assessment_evidence_visibility_iter24.py",
+    "/app/test_reports/pytest/pytest_results_iter24.xml"
+  ],
+  "action_items": [
+    "Handle ValueError from supplier_service.submit_supplier_answers in router.submit_my_answers and return HTTP 400 with detail text.",
+    "Re-test final-submit-missing-evidence API to confirm 400 contract behavior.",
+    "Confirm expected UI behavior for empty logs state: either always render table headers (including Evidence) or explicitly align acceptance criteria to empty-state rendering.",
+    "Provide/seed one supplier questionnaire with evidence_requirement optional/required for deterministic UI validation of evidence controls."
+  ],
+  "critical_code_review_comments": [
+    "Router boundary inconsistency: /my-assessment/questionnaires/{id}/answers lacks ValueError->HTTPException mapping unlike many other supplier_assessment routes, causing avoidable 500s.",
+    "Error handling should be normalized across supplier_assessment endpoints to prevent business-validation exceptions from escaping as server errors.",
+    "Frontend logs table currently hides header in empty states, which weakens testability/UX for verifying newly added columns."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_supplier_assessment_evidence_visibility_iter24.py",
+    "/app/test_reports/iteration_23.json"
+  ],
+  "success_rate": {
+    "backend": "80%",
+    "frontend": "70%"
+  },
+  "seed_data_creation": "Created disposable questionnaire TEST_Evidence_Iter24_* with required/optional evidence questions, uploaded a tiny PDF evidence file, submitted response once, and soft-deleted the questionnaire in fixture teardown.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend regression file already covers: parent GHG evidence auth/shape + unauth reject; QuestionCreate evidence_requirement valid/invalid; draft allowed vs final required evidence; supplier/parent evidence ID linkage checks; parent draft-only evidence access denied. One test currently fails due real backend bug (500 instead of 400).",
+  "rca of the issue": "Repro: supplier posts final submit (is_draft=false,data_verified=true) without required evidence. service.py line ~1307 raises ValueError('Evidence is required for...'). router.py submit_my_answers line ~1124 does not catch ValueError, so FastAPI returns 500. Mitigation: wrap submit_supplier_answers call in try/except ValueError and raise HTTPException(status_code=400, detail=str(error)); keep 409 lock guard unchanged."
+}

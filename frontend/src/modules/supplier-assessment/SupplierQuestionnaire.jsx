@@ -37,6 +37,9 @@ import {
   CheckCircle,
   Calendar,
   Circle,
+  Download,
+  Eye,
+  Paperclip,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -56,6 +59,8 @@ export default function SupplierQuestionnaire() {
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [verificationAccepted, setVerificationAccepted] = useState(false);
+  const [uploadingQuestionId, setUploadingQuestionId] = useState('');
+  const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
 
   const fetchQuestionnaire = useCallback(async () => {
     try {
@@ -89,6 +94,35 @@ export default function SupplierQuestionnaire() {
 
   const handleAnswer = (questionId, value) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
+  };
+
+  const uploadEvidence = async (question, file) => {
+    if (!file) return;
+    setUploadingQuestionId(question.id);
+    try {
+      const payload = new FormData();
+      payload.append('file', file);
+      const { data } = await axios.post(`${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/questions/${question.id}/evidence`, payload, { headers: getAuthHeader() });
+      setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, evidence_files: [...(item.evidence_files || []), data] } : item));
+      toast.success('Evidence attached');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not upload evidence');
+    } finally {
+      setUploadingQuestionId('');
+    }
+  };
+
+  const openEvidence = async (question, file, download = false) => {
+    const key = `${question.id}-${file.id}-${download ? 'download' : 'view'}`;
+    setOpeningEvidenceKey(key);
+    try {
+      const { data } = await axios.get(`${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/questions/${question.id}/evidence/${file.id}`, { params: { download }, headers: getAuthHeader() });
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not open evidence');
+    } finally {
+      setOpeningEvidenceKey('');
+    }
   };
 
   const handleSave = async (isFinal = false) => {
@@ -132,6 +166,13 @@ export default function SupplierQuestionnaire() {
       toast.error(`Please answer all required questions (${requiredUnanswered.length} remaining)`);
       // Navigate to first unanswered required question
       const firstIndex = questions.findIndex((q) => q.id === requiredUnanswered[0].id);
+      if (firstIndex >= 0) setCurrentIndex(firstIndex);
+      return;
+    }
+    const requiredEvidenceMissing = questions.filter((q) => q.evidence_requirement === 'required' && !(q.evidence_files || []).length);
+    if (requiredEvidenceMissing.length > 0) {
+      toast.error(`Please attach evidence for all required questions (${requiredEvidenceMissing.length} remaining)`);
+      const firstIndex = questions.findIndex((q) => q.id === requiredEvidenceMissing[0].id);
       if (firstIndex >= 0) setCurrentIndex(firstIndex);
       return;
     }
@@ -236,6 +277,18 @@ export default function SupplierQuestionnaire() {
     }
   };
 
+  const renderQuestionEvidence = (question) => {
+    const files = question.evidence_files || [];
+    const required = question.evidence_requirement === 'required';
+    const optional = question.evidence_requirement === 'optional';
+    if (!required && !optional && files.length === 0) return null;
+    return <div className="mt-5 border-t border-stone-100 pt-4" data-testid={`supplier-question-evidence-${question.id}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence {required ? <span className="text-rose-600">required</span> : <span className="text-stone-500">optional</span>}</p><p className="mt-1 text-xs text-stone-500">Attach supporting documents for this response.</p></div>{!isReadOnly && <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { uploadEvidence(question, event.target.files?.[0]); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
+      {uploadingQuestionId === question.id && <p className="mt-2 text-xs text-stone-500" data-testid={`supplier-question-evidence-uploading-${question.id}`}>Uploading evidence…</p>}
+      {files.length > 0 && <ul className="mt-3 space-y-2" data-testid={`supplier-question-evidence-list-${question.id}`}>{files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 border border-stone-200 bg-stone-50 px-3 py-2"><span className="flex min-w-0 items-center gap-2 text-sm text-stone-700" data-testid={`supplier-question-evidence-name-${question.id}-${file.id}`}><Paperclip className="h-4 w-4 shrink-0 text-stone-500" /> <span className="truncate">{file.original_filename}</span></span><span className="flex gap-1"><Button variant="ghost" size="icon" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(question, file)} data-testid={`view-supplier-question-evidence-${question.id}-${file.id}`}><Eye className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(question, file, true)} data-testid={`download-supplier-question-evidence-${question.id}-${file.id}`}><Download className="h-4 w-4" /></Button></span></li>)}</ul>}
+    </div>;
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-8" data-testid="supplier-questionnaire">
       <SupplierPageHeader
@@ -305,6 +358,7 @@ export default function SupplierQuestionnaire() {
         </CardHeader>
         <CardContent>
           {renderQuestionInput(question)}
+          {renderQuestionEvidence(question)}
         </CardContent>
       </Card>)}</div>
 

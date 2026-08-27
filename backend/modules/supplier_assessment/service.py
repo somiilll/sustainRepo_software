@@ -21,12 +21,21 @@ from modules.supplier_assessment.programs import (
     get_or_create_program_revision,
     resolve_program_context,
 )
+from r2_storage import get_r2_storage
 
 
 class SupplierAssessmentService:
     """Service for supplier assessment operations."""
 
     IMPORTANCE_WEIGHTS = {"low": 1.0, "medium": 2.0, "high": 3.0, "critical": 4.0}
+    QUESTION_EVIDENCE_BUCKET = "supplier_assessment"
+    QUESTION_EVIDENCE_FOLDER = "questionnaire-evidence"
+    MAX_QUESTION_EVIDENCE_SIZE = 5 * 1024 * 1024
+    QUESTION_EVIDENCE_CONTENT_TYPES = {
+        "application/pdf", "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp",
+        "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/csv", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
 
     @staticmethod
     def _validated_weight_config(weights: Optional[Dict[str, float]], defaults: Dict[str, float], label: str) -> Dict[str, float]:
@@ -70,6 +79,10 @@ class SupplierAssessmentService:
         if option_scores:
             normalized["choices"] = option_scores
         return normalized
+
+    @staticmethod
+    def _question_evidence_requirement(value: Optional[str]) -> str:
+        return value if value in {"not_required", "optional", "required"} else "not_required"
     
     # ========================================================================
     # Supplier Management
@@ -900,6 +913,7 @@ class SupplierAssessmentService:
                 response_type=q["response_type"],
                 options=q.get("options"),
                 required=q.get("required", True),
+                evidence_requirement=q.get("evidence_requirement", "not_required"),
                 weight=q.get("weight", 1.0),
                 importance=q.get("importance"),
                 exact_numerical_weight=q.get("exact_numerical_weight"),
@@ -922,6 +936,7 @@ class SupplierAssessmentService:
         response_type: str,
         options: Optional[List[Dict[str, Any]]],
         required: bool,
+        evidence_requirement: str,
         weight: Optional[float],
         importance: Optional[str],
         exact_numerical_weight: Optional[float],
@@ -943,6 +958,7 @@ class SupplierAssessmentService:
             "response_type": response_type,
             "options": options,
             "required": required,
+            "evidence_requirement": self._question_evidence_requirement(evidence_requirement),
             "weight": effective_weight,
             "importance": importance,
             "exact_numerical_weight": exact_numerical_weight,
@@ -987,6 +1003,8 @@ class SupplierAssessmentService:
                 updates.get("scoring", existing.get("scoring")),
                 updates.get("options", existing.get("options")),
             )
+        if "evidence_requirement" in updates:
+            updates["evidence_requirement"] = self._question_evidence_requirement(updates["evidence_requirement"])
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.supplier_questions.update_one(
             {"id": question_id},
@@ -1137,16 +1155,113 @@ class SupplierAssessmentService:
         response_doc = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id, (relationship or {}).get("reporting_period"))
         
         answers = response_doc.get("answers", {}) if response_doc else {}
+        evidence_by_question = response_doc.get("question_evidence", {}) if response_doc else {}
         
         # Merge answers into questions
         for q in questionnaire.get("questions", []):
             q["answer"] = answers.get(q["id"])
+            q["evidence_requirement"] = self._question_evidence_requirement(q.get("evidence_requirement"))
+            q["evidence_files"] = await self._question_evidence_metadata(
+                supplier_relationship_id, questionnaire_id, q["id"], evidence_by_question.get(q["id"], [])
+            )
         
         questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
         questionnaire["submitted_at"] = response_doc.get("submitted_at") if response_doc else None
         questionnaire["reopened_at"] = response_doc.get("reopened_at") if response_doc else None
         
         return questionnaire
+
+    async def _question_evidence_metadata(
+        self, supplier_relationship_id: str, questionnaire_id: str, question_id: str, evidence_ids: List[str]
+    ) -> List[Dict[str, Any]]:
+        if not evidence_ids:
+            return []
+        records = await db.supplier_question_evidence.find(
+            {"id": {"$in": evidence_ids}, "supplier_relationship_id": supplier_relationship_id,
+             "questionnaire_id": questionnaire_id, "question_id": question_id, "is_deleted": {"$ne": True}},
+            {"_id": 0, "id": 1, "original_filename": 1, "content_type": 1, "file_size": 1, "uploaded_at": 1},
+        ).to_list(100)
+        by_id = {record["id"]: record for record in records}
+        return [by_id[evidence_id] for evidence_id in evidence_ids if evidence_id in by_id]
+
+    async def upload_supplier_question_evidence(
+        self, relationship: Dict[str, Any], questionnaire_id: str, question_id: str,
+        filename: str, content_type: str, content: bytes, uploaded_by: str,
+    ) -> Dict[str, Any]:
+        questionnaire = await self.get_questionnaire(questionnaire_id)
+        if not questionnaire or questionnaire.get("organization_id") != relationship["customer_org_id"]:
+            raise ValueError("Questionnaire not found")
+        if "questionnaire_ids" in relationship and questionnaire_id not in relationship.get("questionnaire_ids", []):
+            raise ValueError("Questionnaire is not assigned to this supplier")
+        question = await db.supplier_questions.find_one(
+            {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True}, {"_id": 0, "id": 1}
+        )
+        if not question:
+            raise ValueError("Question not found")
+        if not content or len(content) > self.MAX_QUESTION_EVIDENCE_SIZE:
+            raise ValueError("Evidence files must be no larger than 5MB")
+        if content_type not in self.QUESTION_EVIDENCE_CONTENT_TYPES:
+            raise ValueError("Unsupported evidence file type")
+        reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+        response_doc = await self._current_questionnaire_response(questionnaire_id, relationship["id"], reporting_period)
+        if response_doc and response_doc.get("status") == "submitted":
+            raise ValueError("Questionnaire already submitted and locked")
+        organization = await db.organizations.find_one(
+            {"id": relationship["customer_org_id"]}, {"_id": 0, "name": 1, "organization_name": 1}
+        ) or {}
+        upload = await get_r2_storage().upload_file(
+            content, filename, self.QUESTION_EVIDENCE_BUCKET, content_type,
+            folder=self.QUESTION_EVIDENCE_FOLDER,
+            metadata={"uploaded_by": uploaded_by, "kind": "supplier_question_evidence", "question_id": question_id},
+            org_name=organization.get("organization_name") or organization.get("name"),
+        )
+        if upload.get("error"):
+            raise ValueError(upload["error"])
+        now = datetime.now(timezone.utc).isoformat()
+        evidence = {
+            "id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"],
+            "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": relationship["customer_org_id"],
+            "questionnaire_id": questionnaire_id, "question_id": question_id, "reporting_period": reporting_period,
+            "original_filename": filename, "content_type": content_type, "file_size": len(content),
+            "bucket_type": self.QUESTION_EVIDENCE_BUCKET, "r2_key": upload["key"], "uploaded_by": uploaded_by,
+            "uploaded_at": now, "is_deleted": False,
+        }
+        await db.supplier_question_evidence.insert_one(evidence)
+        if not response_doc:
+            response_doc = {
+                "id": str(uuid.uuid4()), "questionnaire_id": questionnaire_id, "supplier_relationship_id": relationship["id"],
+                "supplier_org_id": relationship["supplier_org_id"], "answers": {}, "question_evidence": {},
+                "status": "in_progress", "reporting_period": reporting_period, "revision": 1, "is_current": True,
+                "parent_visible": False, "data_verified": False, "created_at": now, "updated_at": now,
+            }
+            await db.supplier_questionnaire_responses.insert_one(response_doc)
+        question_evidence = dict(response_doc.get("question_evidence") or {})
+        question_evidence[question_id] = [*question_evidence.get(question_id, []), evidence["id"]]
+        await db.supplier_questionnaire_responses.update_one(
+            {"id": response_doc["id"]}, {"$set": {"question_evidence": question_evidence, "updated_at": now}}
+        )
+        return {key: value for key, value in evidence.items() if key in {"id", "original_filename", "content_type", "file_size", "uploaded_at"}}
+
+    async def get_question_evidence_file(
+        self, relationship: Dict[str, Any], questionnaire_id: str, question_id: str, evidence_id: str,
+        parent_visible_only: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        response = await self._current_questionnaire_response(
+            questionnaire_id, relationship["id"], relationship.get("reporting_period")
+        )
+        if parent_visible_only:
+            response = await db.supplier_questionnaire_responses.find_one(
+                {"questionnaire_id": questionnaire_id, "supplier_relationship_id": relationship["id"],
+                 "reporting_period": relationship.get("reporting_period"), "status": "submitted", "parent_visible": {"$ne": False}},
+                {"_id": 0}, sort=[("revision", -1)],
+            )
+        evidence_ids = ((response or {}).get("question_evidence") or {}).get(question_id, [])
+        if evidence_id not in evidence_ids:
+            return None
+        return await db.supplier_question_evidence.find_one(
+            {"id": evidence_id, "supplier_relationship_id": relationship["id"], "questionnaire_id": questionnaire_id,
+             "question_id": question_id, "is_deleted": {"$ne": True}}, {"_id": 0}
+        )
     
     async def submit_supplier_answers(
         self,
@@ -1170,8 +1285,10 @@ class SupplierAssessmentService:
         
         # Build answers dict
         answers_dict = {}
+        question_evidence = {}
         if response_doc:
             answers_dict = response_doc.get("answers", {})
+            question_evidence = response_doc.get("question_evidence", {})
         
         for answer in answers:
             answers_dict[answer["question_id"]] = answer["answer"]
@@ -1180,6 +1297,14 @@ class SupplierAssessmentService:
         submitted_at = None if is_draft else datetime.now(timezone.utc).isoformat()
         if not is_draft and not data_verified:
             raise ValueError("Confirm that the submitted data has been reviewed and verified")
+        if not is_draft:
+            required_questions = await db.supplier_questions.find(
+                {"questionnaire_id": questionnaire_id, "is_active": True, "evidence_requirement": "required"},
+                {"_id": 0, "id": 1, "question_text": 1},
+            ).to_list(500)
+            missing_evidence = [question.get("question_text", "Question") for question in required_questions if not question_evidence.get(question["id"])]
+            if missing_evidence:
+                raise ValueError(f"Evidence is required for: {', '.join(missing_evidence[:3])}")
         
         # Calculate score if submitting
         calculated_score = None
@@ -1194,6 +1319,7 @@ class SupplierAssessmentService:
             # Update existing
             update_data = {
                 "answers": answers_dict,
+                "question_evidence": question_evidence,
                 "status": status,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -1226,6 +1352,7 @@ class SupplierAssessmentService:
                 "supplier_relationship_id": supplier_relationship_id,
                 "supplier_org_id": supplier_org_id,
                 "answers": answers_dict,
+                "question_evidence": question_evidence,
                 "status": status,
                 "calculated_score": calculated_score,
                 "score_breakdown": score_breakdown,
@@ -1805,6 +1932,10 @@ class SupplierAssessmentService:
         manual_question_scores = response_doc.get("manual_question_scores", {})
         for q in questionnaire.get("questions", []):
             q["answer"] = answers.get(q["id"])
+            q["evidence_requirement"] = self._question_evidence_requirement(q.get("evidence_requirement"))
+            q["evidence_files"] = await self._question_evidence_metadata(
+                supplier_relationship_id, questionnaire_id, q["id"], (response_doc.get("question_evidence") or {}).get(q["id"], [])
+            )
             manual_entry = manual_question_scores.get(q["id"])
             q["manual_score"] = manual_entry.get("score") if isinstance(manual_entry, dict) else manual_entry
             q["manual_score_note"] = manual_entry.get("note") if isinstance(manual_entry, dict) else None
@@ -1964,7 +2095,7 @@ class SupplierAssessmentService:
             "id": str(uuid.uuid4()), "questionnaire_id": questionnaire_id,
             "supplier_relationship_id": supplier_relationship_id,
             "supplier_org_id": visible_response.get("supplier_org_id"),
-            "answers": visible_response.get("answers", {}), "status": "in_progress",
+            "answers": visible_response.get("answers", {}), "question_evidence": visible_response.get("question_evidence", {}), "status": "in_progress",
             "calculated_score": None, "submitted_at": None, "reporting_period": reporting_period, "revision": revision,
             "is_current": True, "parent_visible": False, "reopened_at": now,
             "reopened_by": reopened_by, "created_at": now, "updated_at": now,

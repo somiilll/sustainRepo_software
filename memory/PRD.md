@@ -356,9 +356,16 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Consolidated Save due date, Disable/Enable, and Delete into an accessible overflow menu; View suppliers and Preview remain compact neutral primary actions. Global controls were not duplicated or changed in the page-level card UI.
 - **NOT TESTED** per the user's explicit instruction.
 
+## Latest Changes — 2026-08-27 (Supplier Evidence Visibility and ESG Question Evidence)
+- Parent Supplier GHG Logs now show an Evidence column with secure View and Download actions for evidence attached to submitted supplier emission records. The parent API exposes file metadata only; it no longer returns raw evidence URLs.
+- Added question-level ESG evidence configuration: parent users can set each question to Not required, Optional, or Required for submission in the multi-question ledger and the question editor.
+- Suppliers can upload permitted evidence files (up to 5 MB) per question, view/download their attachments, and are blocked from final submission when required evidence is missing. Uploaded evidence is retained in the immutable questionnaire response revision history.
+- Parent response review now lists per-question evidence with secure View and Download actions. Dedicated endpoints verify supplier/customer ownership, response visibility, and evidence-to-question linkage before issuing 15-minute storage URLs.
+- Verification passed: focused backend evidence regression (**5/5 passed**), Python/JavaScript static checks, and an authenticated browser smoke check showing the Evidence column and working action controls on populated Supplier GHG Logs. No mocked APIs were used.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
-- **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
+- **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.
 - **P2/P3:** Bulk Upload database duplicate detection, effective-settings summary, MIS previews/bookmarks, bulk upload progress/history. AI credit enforcement remains deferred per user request.
 
 ## Third-Party Integrations

@@ -3,6 +3,7 @@ Supplier Assessment Router - API endpoints for supplier management.
 """
 from typing import Optional, List
 import json
+import re
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import Response
@@ -47,6 +48,14 @@ from r2_storage import get_r2_storage
 from shared.database.mongo import db
 
 router = APIRouter(prefix="/supplier-assessment", tags=["Supplier Assessment"])
+
+
+def _safe_filename(filename: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._ -]", "_", filename or "evidence")
+
+
+def _evidence_file_ids(value: object) -> List[str]:
+    return list(dict.fromkeys(re.findall(r"/api/files/([A-Za-z0-9-]+)", str(value or ""))))
 
 
 # ============================================================================
@@ -551,6 +560,7 @@ async def add_question(
         response_type=data.response_type,
         options=[o.model_dump() for o in data.options] if data.options else None,
         required=data.required,
+        evidence_requirement=data.evidence_requirement,
         weight=data.weight,
         importance=data.importance,
         exact_numerical_weight=data.exact_numerical_weight,
@@ -643,6 +653,26 @@ async def get_supplier_responses(
         raise HTTPException(status_code=404, detail="Questionnaire not found")
     
     return result
+
+
+@router.get("/suppliers/{supplier_id}/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/{evidence_id}")
+async def open_parent_question_evidence(
+    supplier_id: str, questionnaire_id: str, question_id: str, evidence_id: str,
+    download: bool = False, current_user: dict = Depends(get_customer_admin),
+):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    evidence = await supplier_service.get_question_evidence_file(
+        supplier, questionnaire_id, question_id, evidence_id, parent_visible_only=True
+    )
+    if not evidence:
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+    disposition = "attachment" if download else "inline"
+    return {"url": get_r2_storage().generate_presigned_url(
+        evidence["bucket_type"], evidence["r2_key"], expiration=900,
+        response_content_disposition=f'{disposition}; filename="{_safe_filename(evidence["original_filename"])}"',
+    ), "filename": evidence["original_filename"]}
 
 
 @router.post("/suppliers/{supplier_id}/questionnaires/{questionnaire_id}/reopen")
@@ -1029,6 +1059,47 @@ async def get_my_questionnaire(
     return result
 
 
+@router.post("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence")
+async def upload_my_question_evidence(
+    questionnaire_id: str, question_id: str, file: UploadFile = File(...),
+    current_user: dict = Depends(get_supplier_user),
+):
+    relationship = await supplier_service.get_supplier_relationship_for_user(
+        current_user["id"], current_user["organization_id"]
+    )
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    content = await file.read()
+    try:
+        await assert_evidence_storage_limit(relationship["customer_org_id"], len(content))
+        return await supplier_service.upload_supplier_question_evidence(
+            relationship, questionnaire_id, question_id, file.filename or "evidence", file.content_type or "", content,
+            current_user["id"],
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.get("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/{evidence_id}")
+async def open_my_question_evidence(
+    questionnaire_id: str, question_id: str, evidence_id: str, download: bool = False,
+    current_user: dict = Depends(get_supplier_user),
+):
+    relationship = await supplier_service.get_supplier_relationship_for_user(
+        current_user["id"], current_user["organization_id"]
+    )
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    evidence = await supplier_service.get_question_evidence_file(relationship, questionnaire_id, question_id, evidence_id)
+    if not evidence:
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+    disposition = "attachment" if download else "inline"
+    return {"url": get_r2_storage().generate_presigned_url(
+        evidence["bucket_type"], evidence["r2_key"], expiration=900,
+        response_content_disposition=f'{disposition}; filename="{_safe_filename(evidence["original_filename"])}"',
+    ), "filename": evidence["original_filename"]}
+
+
 @router.post("/my-assessment/questionnaires/{questionnaire_id}/answers")
 async def submit_my_answers(
     questionnaire_id: str,
@@ -1050,15 +1121,18 @@ async def submit_my_answers(
     if response_doc and response_doc.get("status") == "submitted":
         raise HTTPException(status_code=409, detail="Questionnaire already submitted and locked")
     
-    result = await supplier_service.submit_supplier_answers(
-        questionnaire_id=questionnaire_id,
-        supplier_relationship_id=relationship["id"],
-        supplier_org_id=current_user["organization_id"],
-        answers=[a.model_dump() for a in data.answers],
-        is_draft=data.is_draft,
-        data_verified=data.data_verified,
-        verified_by=current_user["id"],
-    )
+    try:
+        result = await supplier_service.submit_supplier_answers(
+            questionnaire_id=questionnaire_id,
+            supplier_relationship_id=relationship["id"],
+            supplier_org_id=current_user["organization_id"],
+            answers=[a.model_dump() for a in data.answers],
+            is_draft=data.is_draft,
+            data_verified=data.data_verified,
+            verified_by=current_user["id"],
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     
     return result
 
@@ -1400,3 +1474,25 @@ async def get_all_supplier_emissions(
 ):
     """Admin views only supplier GHG snapshots that were explicitly submitted."""
     return await ghg_submission_service.get_parent_submitted_ghg(current_user["organization_id"], reporting_period)
+
+
+@router.get("/emissions/{emission_id}/evidence/{file_id}")
+async def open_parent_supplier_emission_evidence(
+    emission_id: str, file_id: str, download: bool = False, current_user: dict = Depends(get_customer_admin),
+):
+    emission = await db.emission_records.find_one(
+        {"id": emission_id, "source": "supplier", "customer_org_id": current_user["organization_id"],
+         "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}},
+        {"_id": 0, "evidence_url": 1},
+    )
+    if not emission or file_id not in _evidence_file_ids(emission.get("evidence_url")):
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+    if not file_record or not file_record.get("bucket_type") or not file_record.get("r2_key"):
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+    disposition = "attachment" if download else "inline"
+    filename = _safe_filename(file_record.get("original_filename", "evidence"))
+    return {"url": get_r2_storage().generate_presigned_url(
+        file_record["bucket_type"], file_record["r2_key"], expiration=900,
+        response_content_disposition=f'{disposition}; filename="{filename}"',
+    ), "filename": file_record.get("original_filename", "evidence")}

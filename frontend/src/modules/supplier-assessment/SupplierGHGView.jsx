@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { ChevronLeft, ChevronRight, Search, Cloud, Factory, Filter, LockOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Cloud, Download, Eye, Factory, Filter, LockOpen } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 
@@ -50,6 +50,7 @@ export default function SupplierGHGView() {
   const [emissionPage, setEmissionPage] = useState(1);
   const [unlockTarget, setUnlockTarget] = useState(null);
   const [unlocking, setUnlocking] = useState(false);
+  const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
 
   const fetchEmissions = useCallback(async () => {
     try {
@@ -82,6 +83,21 @@ export default function SupplierGHGView() {
       toast.error(error.response?.data?.detail || 'Could not unlock GHG data');
     } finally {
       setUnlocking(false);
+    }
+  };
+
+  const openEmissionEvidence = async (emission, file, download = false) => {
+    const key = `${emission.id}-${file.id}-${download ? 'download' : 'view'}`;
+    setOpeningEvidenceKey(key);
+    try {
+      const { data } = await axios.get(`${API}/supplier-assessment/emissions/${emission.id}/evidence/${file.id}`, {
+        params: { download }, headers: getAuthHeader(),
+      });
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not open evidence');
+    } finally {
+      setOpeningEvidenceKey('');
     }
   };
 
@@ -242,14 +258,8 @@ export default function SupplierGHGView() {
       {/* Emissions Table */}
       <Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="all-supplier-emission-records-card">
         <CardContent>
-          {loading ? (
-            <div className="text-center py-8 text-stone-500">Loading emissions...</div>
-          ) : filteredEmissions.length === 0 ? (
-            <div className="text-center py-8 text-stone-500">
-              No emission records found.
-            </div>
-          ) : (
-            <Table>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[1080px]" data-testid="supplier-ghg-logs-table">
               <TableHeader>
                 <TableRow className="border-stone-100 bg-emerald-50/50 hover:bg-emerald-50/50" data-testid="supplier-ghg-logs-table-header">
                   <TableHead className="pl-6 text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-supplier-header">Supplier Org</TableHead>
@@ -257,11 +267,12 @@ export default function SupplierGHGView() {
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-scope-header">Scope</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-category-header">Category</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-subcategory-header">Subcategory</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-evidence-header">Evidence</TableHead>
                   <TableHead className="pr-6 text-right text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-attributed-header">Attributed emissions (tCO₂e)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleEmissions.map((emission) => (
+                {loading ? <TableRow><TableCell colSpan={7} className="py-8 text-center text-stone-500" data-testid="supplier-ghg-logs-loading">Loading emissions...</TableCell></TableRow> : filteredEmissions.length === 0 ? <TableRow><TableCell colSpan={7} className="py-8 text-center text-stone-500" data-testid="supplier-ghg-logs-empty">No emission records found.</TableCell></TableRow> : visibleEmissions.map((emission) => (
                   <TableRow key={emission.id} className="border-stone-100 hover:bg-emerald-50/50" data-testid={`supplier-ghg-log-row-${emission.id}`}>
                     <TableCell className="pl-6 font-medium text-stone-900" data-testid={`supplier-ghg-log-supplier-${emission.id}`}>{emission.supplier_name}</TableCell>
                     <TableCell>{emission.reporting_period}</TableCell>
@@ -272,6 +283,7 @@ export default function SupplierGHGView() {
                     </TableCell>
                     <TableCell>{emission.category || '-'}</TableCell>
                     <TableCell>{emission.fuel_type || emission.sub_category || '-'}</TableCell>
+                    <TableCell><div className="flex flex-wrap gap-1" data-testid={`supplier-emission-evidence-${emission.id}`}>{(emission.evidence_files || []).length === 0 ? <span className="text-xs text-stone-400" data-testid={`supplier-emission-evidence-empty-${emission.id}`}>—</span> : emission.evidence_files.map((file) => <span key={file.id} className="flex items-center gap-1"><Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${emission.id}-${file.id}-view`} onClick={() => openEmissionEvidence(emission, file)} data-testid={`view-supplier-emission-evidence-${emission.id}-${file.id}`}><Eye className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${emission.id}-${file.id}-download`} onClick={() => openEmissionEvidence(emission, file, true)} data-testid={`download-supplier-emission-evidence-${emission.id}-${file.id}`}><Download className="h-3.5 w-3.5" /></Button></span>)}</div></TableCell>
                     <TableCell className="pr-6 text-right font-mono">
                       {displayValue(emission.attributed_emissions, 4)}
                     </TableCell>
@@ -279,7 +291,7 @@ export default function SupplierGHGView() {
                 ))}
               </TableBody>
             </Table>
-          )}
+          </div>
         </CardContent>
         {filteredEmissions.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-100 px-6 py-4" data-testid="supplier-emissions-pagination"><p className="text-xs text-stone-500" data-testid="supplier-emissions-pagination-count">Showing {emissionStart} to {emissionEnd} of {filteredEmissions.length} records</p><div className="flex items-center gap-1"><Button variant="outline" size="icon" className="h-8 w-8" disabled={emissionPage === 1} onClick={() => setEmissionPage((page) => Math.max(1, page - 1))} data-testid="supplier-emissions-previous-page"><ChevronLeft className="h-4 w-4" /></Button><span className="flex h-8 min-w-8 items-center justify-center text-xs font-semibold text-stone-700" data-testid="supplier-emissions-current-page">{emissionPage}</span><Button variant="outline" size="icon" className="h-8 w-8" disabled={emissionPage === emissionPageCount} onClick={() => setEmissionPage((page) => Math.min(emissionPageCount, page + 1))} data-testid="supplier-emissions-next-page"><ChevronRight className="h-4 w-4" /></Button></div></div>}
       </Card>

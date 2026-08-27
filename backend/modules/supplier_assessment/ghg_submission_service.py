@@ -12,6 +12,10 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _evidence_file_ids(value: object) -> List[str]:
+    return list(dict.fromkeys(re.findall(r"/api/files/([A-Za-z0-9-]+)", str(value or ""))))
+
+
 def resolve_supplier_ghg_scopes(relationship: Dict[str, Any]) -> List[str]:
     """Return only the parent-assigned supplier scopes, preserving legacy defaults."""
     configured_scopes = relationship.get("ghg_scopes_enabled")
@@ -325,6 +329,11 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
     relationship_revenue = {relationship["id"]: relationship for relationship in relationships}
     entry_query = {"source": "supplier", "supplier_relationship_id": {"$in": list(relationship_names)}, "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}
     entries = await db.emission_records.find(entry_query, {"_id": 0}).to_list(10000)
+    evidence_ids = list({file_id for entry in entries for file_id in _evidence_file_ids(entry.get("evidence_url"))})
+    evidence_records = await db.uploaded_files.find(
+        {"id": {"$in": evidence_ids}}, {"_id": 0, "id": 1, "original_filename": 1, "content_type": 1, "file_size": 1}
+    ).to_list(len(evidence_ids) or 1)
+    evidence_by_id = {record["id"]: record for record in evidence_records}
     emissions = []
     supplier_totals: Dict[str, Dict[str, Any]] = {}
     aggregation_rows: Dict[tuple, Dict[str, Any]] = {}
@@ -338,7 +347,9 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
         factor = float(revenue_percentage) / 100 if revenue_percentage is not None else None
         value = float(entry.get("total_emissions") or entry.get("co2e_emissions") or 0)
         attributed_value = value * factor if factor is not None else None
-        emissions.append({**entry, "supplier_name": supplier_name, "submitted_at": entry["submitted_to_parent_org"], "attributed_emissions": attributed_value, "revenue_percentage": revenue_percentage})
+        evidence_files = [evidence_by_id[file_id] for file_id in _evidence_file_ids(entry.get("evidence_url")) if file_id in evidence_by_id]
+        visible_entry = {key: value for key, value in entry.items() if key not in {"evidence_url", "evidence_file_name"}}
+        emissions.append({**visible_entry, "supplier_name": supplier_name, "submitted_at": entry["submitted_to_parent_org"], "attributed_emissions": attributed_value, "revenue_percentage": revenue_percentage, "evidence_files": evidence_files})
         total = supplier_totals.setdefault(supplier_id, {
             "supplier_relationship_id": supplier_id,
             "supplier_name": supplier_name,

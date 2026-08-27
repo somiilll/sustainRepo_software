@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { CheckCircle2, PencilLine } from 'lucide-react';
+import { CheckCircle2, Download, Eye, Paperclip, PencilLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../../components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
@@ -56,6 +56,7 @@ const QuestionScore = ({ value, testId }) => {
 export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, supplierId, getAuthHeader, onScoreSaved }) => {
   const [scores, setScores] = useState({});
   const [savingQuestionId, setSavingQuestionId] = useState('');
+  const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
   const calculatedScores = useMemo(() => Object.fromEntries((response?.score_breakdown?.question_scores || []).map((item) => [item.question_id, item.raw_score])), [response]);
   const esgScore = response?.score_breakdown?.esg_score || {};
   const overallScore = response?.calculated_score ?? esgScore.overall_score;
@@ -96,6 +97,19 @@ export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, sup
     }
   };
 
+  const openEvidence = async (question, file, download = false) => {
+    const key = `${question.id}-${file.id}-${download ? 'download' : 'view'}`;
+    setOpeningEvidenceKey(key);
+    try {
+      const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${supplierId}/questionnaires/${response.id}/questions/${question.id}/evidence/${file.id}`, { params: { download }, headers: getAuthHeader() });
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not open evidence');
+    } finally {
+      setOpeningEvidenceKey('');
+    }
+  };
+
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto" data-testid="supplier-response-review-dialog">
       <DialogHeader><DialogTitle data-testid="supplier-response-review-title">Submitted ESG response</DialogTitle></DialogHeader>
@@ -113,7 +127,7 @@ export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, sup
           const calculatedScore = calculatedScores[question.id];
           return <section key={question.id} className="grid gap-2 border-b border-stone-200 py-3 first:pt-1 last:border-0 last:pb-0 sm:grid-cols-[1.75rem_minmax(0,1fr)_auto] sm:items-center" data-testid={`supplier-response-answer-${question.id}`}>
             <div className="flex h-7 w-7 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-700" data-testid={`supplier-response-number-${question.id}`}>{index + 1}</div>
-            <div className="min-w-0"><p className="text-sm font-semibold leading-5 text-stone-900">{question.question_text}</p><div className="mt-1 border-l-2 border-stone-200 px-2" data-testid={`supplier-response-value-${question.id}`}><p className="whitespace-pre-wrap text-sm text-stone-700">{String(question.answer ?? 'No response')}</p></div></div>
+            <div className="min-w-0"><p className="text-sm font-semibold leading-5 text-stone-900">{question.question_text}</p><div className="mt-1 border-l-2 border-stone-200 px-2" data-testid={`supplier-response-value-${question.id}`}><p className="whitespace-pre-wrap text-sm text-stone-700">{String(question.answer ?? 'No response')}</p></div>{(question.evidence_files || []).length > 0 && <div className="mt-2 flex flex-wrap gap-2" data-testid={`supplier-response-evidence-${question.id}`}>{question.evidence_files.map((file) => <div key={file.id} className="flex items-center gap-1 border border-stone-200 bg-stone-50 px-2 py-1 text-xs text-stone-700" data-testid={`supplier-response-evidence-file-${question.id}-${file.id}`}><Paperclip className="h-3.5 w-3.5" /><span className="max-w-40 truncate">{file.original_filename}</span><Button variant="ghost" size="icon" className="h-6 w-6" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(question, file)} data-testid={`view-parent-question-evidence-${question.id}-${file.id}`}><Eye className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-6 w-6" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(question, file, true)} data-testid={`download-parent-question-evidence-${question.id}-${file.id}`}><Download className="h-3.5 w-3.5" /></Button></div>)}</div>}</div>
             {isManual ? <div className="flex flex-wrap items-end justify-end gap-2 sm:min-w-64" data-testid={`manual-question-score-controls-${question.id}`}>
               <div className="w-28 space-y-1"><Label htmlFor={`manual-question-score-${question.id}`} className="text-xs">Parent score</Label><Input id={`manual-question-score-${question.id}`} type="number" min="0" max="100" value={scores[question.id] ?? ''} onChange={(event) => setScores((current) => ({ ...current, [question.id]: event.target.value }))} data-testid={`manual-question-score-input-${question.id}`} /></div>
               <Button size="sm" onClick={() => saveQuestionScore(question)} disabled={savingQuestionId === question.id} data-testid={`save-manual-question-score-${question.id}`}><PencilLine className="mr-1 h-4 w-4" />{savingQuestionId === question.id ? 'Saving…' : 'Save'}</Button>
