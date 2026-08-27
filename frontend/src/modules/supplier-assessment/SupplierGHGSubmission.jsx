@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { ArrowRight, Factory, Lock, Send, Zap } from 'lucide-react';
+import { ArrowRight, Cloud, Factory, Lock, Send, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { SupplierDataVerificationAcknowledgement } from './components/SupplierDataVerificationAcknowledgement';
+import { SupplierPageHeader } from './components/SupplierPageHeader';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -23,7 +24,7 @@ export default function SupplierGHGSubmission() {
   const locked = state?.submission?.status === 'submitted';
   const reopened = state?.submission?.status === 'reopened';
   const enabledScopes = state?.enabled_scopes || [];
-  return <div className="space-y-6" data-testid="supplier-ghg-submission-page"><div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-semibold">Supplier Assessment GHG</h1><p className="mt-2 text-sm text-stone-600">Review your logged GHG data before submitting it to your customer.</p></div>{locked ? <Badge className="bg-stone-200 text-stone-700" data-testid="supplier-ghg-submission-locked"><Lock className="mr-1 h-3 w-3" />Submitted and locked</Badge> : reopened ? <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-ghg-submission-reopened">Unlocked for resubmission</Badge> : null}{!locked && <Button disabled={!state?.can_submit || submitting} onClick={() => setConfirmOpen(true)} data-testid="submit-supplier-ghg-button"><Send className="mr-2 h-4 w-4" />{reopened ? 'Resubmit GHG data' : 'Submit GHG data'}</Button>}</div>
+  return <div className="space-y-6" data-testid="supplier-ghg-submission-page"><SupplierPageHeader title="Supplier Assessment GHG" description="Review your logged GHG data before submitting it to your customer." icon={Cloud} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="supplier-ghg-submission" aside={<>{locked ? <Badge className="bg-stone-200 text-stone-700" data-testid="supplier-ghg-submission-locked"><Lock className="mr-1 h-3 w-3" />Submitted and locked</Badge> : reopened ? <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-ghg-submission-reopened">Unlocked for resubmission</Badge> : null}{!locked && <Button disabled={!state?.can_submit || submitting} onClick={() => setConfirmOpen(true)} data-testid="submit-supplier-ghg-button"><Send className="mr-2 h-4 w-4" />{reopened ? 'Resubmit GHG data' : 'Submit GHG data'}</Button>}</>} />
     <div className="grid gap-5 md:grid-cols-2">
       {enabledScopes.includes('scope1') && <Card className="border-blue-200 bg-white shadow-[0_5px_16px_rgba(59,130,246,0.10)]" data-testid="supplier-ghg-scope1-total"><CardContent className="pt-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700" data-testid="supplier-ghg-scope1-draft-icon"><Factory className="h-5 w-5" aria-hidden="true" /></span><p className="text-sm font-medium text-blue-800">Scope 1 draft total</p></div><p className="mt-4 text-2xl font-semibold text-slate-900">{(totals.scope1 || 0).toFixed(2)} tCO₂e</p><p className="mt-1 text-xs text-stone-500" data-testid="supplier-ghg-last-submitted-scope1">Last submitted: {lastSubmittedTotals.scope1 != null ? `${lastSubmittedTotals.scope1.toFixed(2)} tCO₂e` : '—'}</p></CardContent></Card>}
       {enabledScopes.includes('scope2') && <Card className="border-purple-200 bg-white shadow-[0_5px_16px_rgba(147,51,234,0.10)]" data-testid="supplier-ghg-scope2-total"><CardContent className="pt-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-700" data-testid="supplier-ghg-scope2-draft-icon"><Zap className="h-5 w-5" aria-hidden="true" /></span><p className="text-sm font-medium text-purple-800">Scope 2 draft total</p></div><p className="mt-4 text-2xl font-semibold text-slate-900">{(totals.scope2 || 0).toFixed(2)} tCO₂e</p><p className="mt-1 text-xs text-stone-500" data-testid="supplier-ghg-last-submitted-scope2">Last submitted: {lastSubmittedTotals.scope2 != null ? `${lastSubmittedTotals.scope2.toFixed(2)} tCO₂e` : '—'}</p></CardContent></Card>}

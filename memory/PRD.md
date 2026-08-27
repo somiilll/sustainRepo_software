@@ -386,6 +386,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Overall Progress now counts formal Revenue, ESG, GHG, and Document submissions. GHG is binary in both views: its requirement card is either 0% or 100% filled, while its overall-progress value remains 0% until submission and becomes 100% only after submission.
 - **NOT TESTED**, per the user's explicit instruction.
 
+## Latest Changes — 2026-08-27 (Supplier-facing Header Consistency)
+- Standardized the live supplier-facing Supplier Assessment pages on the parent workspace heading treatment: bold emerald page titles, a bottom divider, and a 48px bordered icon tile.
+- Added page-specific icon colors across the dashboard/onboarding, facility, ESG overview/questionnaire, GHG submission, Documents, and Training pages.
+- Removed the `100% Filled` display from the GHG requirement ledger card while preserving its Submitted/In progress/Not started status and its submission-based value in Overall Progress.
+- Focused JavaScript lint passed before the user's `dont test` instruction. No browser or functional testing was run.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.

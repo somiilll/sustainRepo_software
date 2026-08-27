@@ -35,6 +35,7 @@ import {
   Save,
   Send,
   CheckCircle,
+  ClipboardCheck,
   Calendar,
   Circle,
   Download,
@@ -300,6 +301,8 @@ export default function SupplierQuestionnaire() {
       <SupplierPageHeader
         title={questionnaire.name}
         description={questionnaire.description}
+        icon={ClipboardCheck}
+        iconClassName="border-violet-200 bg-violet-50 text-violet-700"
         testId="supplier-questionnaire"
         leading={<Button variant="ghost" size="sm" onClick={() => navigate(-1)} data-testid="supplier-questionnaire-back-button">
             <ArrowLeft className="h-4 w-4 mr-1" />

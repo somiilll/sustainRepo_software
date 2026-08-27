@@ -45,7 +45,7 @@ export default function SupplierEsgOverview() {
   if (loading) return <p className="py-16 text-center text-sm text-slate-500" data-testid="supplier-esg-overview-loading">Loading ESG questionnaires…</p>;
 
   return <div className="mx-auto max-w-7xl space-y-8 pb-10" data-testid="supplier-esg-overview">
-    <SupplierPageHeader title="ESG Questionnaires" description="Open each questionnaire to review its progress and continue your response." testId="supplier-esg-overview" />
+    <SupplierPageHeader title="ESG Questionnaires" description="Open each questionnaire to review its progress and continue your response." icon={ClipboardList} iconClassName="border-indigo-200 bg-indigo-50 text-indigo-700" testId="supplier-esg-overview" />
     {questionnaires.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500 shadow-[0_8px_28px_rgba(15,23,42,0.07)]" data-testid="supplier-esg-overview-empty">No ESG questionnaires are assigned.</div> : <div className="space-y-4" data-testid="supplier-esg-questionnaire-panels">
       {questionnaires.map((questionnaire) => <SupplierModulePanel key={questionnaire.questionnaire_id} title={questionnaire.questionnaire_name} description={questionnaire.due_date ? `Due ${new Date(questionnaire.due_date).toLocaleDateString()}` : 'Assigned ESG questionnaire'} progress={questionnaire.completion_percent} status={questionnaireStatus(questionnaire)} icon={ClipboardList} iconClassName="bg-indigo-50 text-indigo-700" shadowClassName="shadow-[0_10px_28px_rgba(99,102,241,0.18)] hover:shadow-[0_14px_34px_rgba(99,102,241,0.24)]" testId={`supplier-esg-questionnaire-${questionnaire.questionnaire_id}`}>
         <div className="space-y-5">
