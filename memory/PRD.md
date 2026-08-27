@@ -350,6 +350,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Aligned Supplier Trainings with the same workspace header pattern: an amber training icon, divider, and shared right-side Reporting period/Add Training group. Removed its explanatory header copy and added Published, Supplier assignments, and Completed summary cards.
 - **NOT TESTED** per the user's explicit instruction.
 
+## Latest Changes — 2026-08-27 (Supplier Training Card Progress Refinement)
+- Rebuilt training cards into a clear three-part layout: title and completion requirement, visible progress and due date, then frequent supplier/preview actions on the right.
+- Added per-training completion meters with `completed / assigned` counts and calculated percentages. Due dates are now a readable, neutral content block rather than a persistent edit field.
+- Consolidated Save due date, Disable/Enable, and Delete into an accessible overflow menu; View suppliers and Preview remain compact neutral primary actions. Global controls were not duplicated or changed in the page-level card UI.
+- **NOT TESTED** per the user's explicit instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
