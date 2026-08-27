@@ -1203,6 +1203,7 @@ export const Step3YearMonthlyData = ({
           scope3Method={scope3Method}
           scope3ActivityType={scope3ActivityType}
           category={category}
+          selectedFuel={selectedFuel}
           capabilities={capabilities}
           fieldOptions={fieldOptions}
           getFieldUnitsForYearly={getFieldUnitsForYearly}
@@ -1239,6 +1240,7 @@ const YearlyDataEntry = ({
   scope3Method,
   scope3ActivityType,
   category,
+  selectedFuel,
   capabilities = {},
   fieldOptions = {},
   getFieldUnitsForYearly,
@@ -1335,10 +1337,10 @@ const YearlyDataEntry = ({
           </div>
         ) : formConfig && dynamicInputFields.length > 0 ? (
           /* Dynamic Fields from ce_input_field_mappings for yearly */
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3" data-testid="yearly-data-fields-grid">
             {/* Supplier Method Disclaimer */}
             {scope3Method === 'supplier_basis' && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="col-span-full rounded-lg border border-amber-200 bg-amber-50 p-3">
                 <p className="text-sm text-amber-800">
                 <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the &quot;Quantity Used&quot; field.
                 </p>
@@ -1348,7 +1350,7 @@ const YearlyDataEntry = ({
             {/* Required Inputs Section */}
             {dynamicInputFields.filter(f => (f.required && !f.isOverride)
               || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).length > 0 && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="yearly-required-fields-grid">
+              <div className="contents" data-testid="yearly-required-fields-grid">
                 {dynamicInputFields.filter(f => (f.required && !f.isOverride)
                   || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
@@ -1358,6 +1360,17 @@ const YearlyDataEntry = ({
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
                   const isUnitlessCountField = isNoUnitField;
+                  const defaultValue = getFieldDefaultValue(field, selectedFuel);
+                  const displayedValue = hasFieldValue(yearlyData[field.variable])
+                    ? yearlyData[field.variable]
+                    : defaultValue;
+                  const displayedUnit = resolveEffectiveFieldUnit({
+                    field,
+                    data: yearlyData,
+                    selectedFuel,
+                    fieldUnits,
+                    isProcessEmissions,
+                  });
                   const showUnitSelector = showCustomFuelQuantityUnit
                     || (!hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis);
                   const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
@@ -1381,7 +1394,7 @@ const YearlyDataEntry = ({
                       </Label>
                       {field.fieldType === 'select' && field.options ? (
                         <select
-                          value={yearlyData[field.variable] || ''}
+                          value={displayedValue}
                           onChange={(e) => setYearlyData(prev => ({ ...prev, [field.variable]: e.target.value }))}
                           className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
                           data-testid={`yearly-${field.fieldKey || field.variable}-select`}
@@ -1400,7 +1413,7 @@ const YearlyDataEntry = ({
                             step={isUnitlessCountField ? "1" : "any"}
                             min="0"
                             placeholder={field.placeholder || `Enter annual ${field.label.toLowerCase()}`}
-                            value={yearlyData[field.variable] || ''}
+                            value={displayedValue}
                             onChange={(e) => {
                               const val = e.target.value;
                               if (val === '' || parseFloat(val) >= 0) {
@@ -1421,7 +1434,7 @@ const YearlyDataEntry = ({
                             <select
                               value={showCustomFuelQuantityUnit
                                 ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '')
-                                : (yearlyData[`${field.variable}_unit`] || fieldUnits[0] || '')}
+                                : (fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0] || '')}
                               onChange={(e) => setYearlyData(prev => ({
                                 ...prev,
                                 ...(showCustomFuelQuantityUnit ? { custom_qty_unit: e.target.value } : {}),
@@ -1436,7 +1449,7 @@ const YearlyDataEntry = ({
                             <Input
                               type="text"
                               placeholder="Unit"
-                              value={yearlyData[`${field.variable}_unit`] || ''}
+                              value={displayedUnit}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                               className="h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0"
                               data-testid={`yearly-${field.fieldKey || field.variable}-unit-text`}
@@ -1451,7 +1464,7 @@ const YearlyDataEntry = ({
             )}
 
             {showYearlyProcessDensity && (
-              <div className="grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="yearly-process-density-field">
+              <div className="col-span-full grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="yearly-process-density-field">
                 <div className="space-y-1">
                   <Label htmlFor="yearly-process-density-input" className="text-sm font-medium">
                     Density <span className="text-red-500">*</span>
@@ -1485,7 +1498,7 @@ const YearlyDataEntry = ({
 
             {/* Optional Inputs Section with Override Toggle */}
             {dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0 && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="yearly-optional-fields-grid">
+              <div className="contents" data-testid="yearly-optional-fields-grid">
                 {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
                   const hideStandardQuantityUnit = useCustomFuel && isQuantityField(field);
@@ -1493,14 +1506,25 @@ const YearlyDataEntry = ({
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
                   const isUnitlessCountField = isNoUnitField;
+                  const defaultValue = getFieldDefaultValue(field, selectedFuel);
+                  const displayedValue = hasFieldValue(yearlyData[field.variable])
+                    ? yearlyData[field.variable]
+                    : defaultValue;
+                  const displayedUnit = resolveEffectiveFieldUnit({
+                    field,
+                    data: yearlyData,
+                    selectedFuel,
+                    fieldUnits,
+                    isProcessEmissions,
+                  });
                   const showUnitSelector = !hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
                   const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   const overrideKey = `override_${field.variable}`;
                   const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                   
                   return (
-                    <div key={field.variable} className="min-w-0 space-y-3">
-                      <div className="flex min-h-6 flex-wrap items-center justify-center gap-2 text-center">
+                    <div key={field.variable} className="min-w-0">
+                      <div className="mb-2 flex min-h-6 flex-wrap items-center justify-center gap-2 text-center">
                         <Label className="flex items-center gap-2 text-center leading-snug">
                           {field.label}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
@@ -1545,7 +1569,7 @@ const YearlyDataEntry = ({
                           step={isUnitlessCountField ? "1" : "any"}
                           min="0"
                           placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                          value={yearlyData[field.variable] || ''}
+                          value={displayedValue}
                           onChange={(e) => {
                             const val = e.target.value;
                             if (val === '' || parseFloat(val) >= 0) {
@@ -1565,10 +1589,11 @@ const YearlyDataEntry = ({
                         />
                         {showUnitSelector && (
                           <select
-                            value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
+                            value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0] || ''}
                             onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                             disabled={!isOverrideEnabled}
                             className={`h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                            data-testid={`yearly-${field.fieldKey || field.variable}-optional-unit`}
                             dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
                           />
                         )}
@@ -1576,7 +1601,7 @@ const YearlyDataEntry = ({
                           <Input
                             type="text"
                             placeholder="Unit"
-                            value={yearlyData[`${field.variable}_unit`] || ''}
+                            value={displayedUnit}
                             onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                             disabled={!isOverrideEnabled}
                             className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? "opacity-50" : ""}`}
@@ -1592,31 +1617,44 @@ const YearlyDataEntry = ({
 
             {/* Per-year custom fuel fields (EF, CV, carbon content etc.) */}
             {useCustomFuel && (
-              <CustomFuelMonthFields
-                monthKey="yearly"
-                data={yearlyData}
-                updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
-                calculationMethodology={calculationMethodology}
-                fieldOptions={fieldOptions}
-                centralizedUnits={centralizedUnits}
-                isFugitiveCustomFuel={isFugitiveCustomFuel}
-              />
+              <div className="col-span-full">
+                <CustomFuelMonthFields
+                  monthKey="yearly"
+                  data={yearlyData}
+                  updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
+                  calculationMethodology={calculationMethodology}
+                  fieldOptions={fieldOptions}
+                  centralizedUnits={centralizedUnits}
+                  isFugitiveCustomFuel={isFugitiveCustomFuel}
+                />
+              </div>
             )}
             
             {/* Override Properties Section for Yearly */}
             {dynamicInputFields.filter(f => f.isOverride
               && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).length > 0 && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="yearly-override-fields-grid">
+              <div className="contents" data-testid="yearly-override-fields-grid">
                 {dynamicInputFields.filter(f => f.isOverride
                   && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).map(field => {
                   const overrideKey = `override_${field.variable}`;
                   const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                   const fieldUnits = getFieldUnitsForYearly(field);
+                  const defaultValue = getFieldDefaultValue(field, selectedFuel);
+                  const displayedValue = hasFieldValue(yearlyData[field.variable])
+                    ? yearlyData[field.variable]
+                    : defaultValue;
+                  const displayedUnit = resolveEffectiveFieldUnit({
+                    field,
+                    data: yearlyData,
+                    selectedFuel,
+                    fieldUnits,
+                    isProcessEmissions,
+                  });
                   const showStandardExpectedUnit = field.expectedUnit && !(useCustomFuel && isQuantityField(field));
                   
                   return (
-                    <div key={field.variable} className="min-w-0 space-y-3">
-                      <div className="flex min-h-6 flex-wrap items-center justify-center gap-2 text-center">
+                    <div key={field.variable} className="min-w-0">
+                      <div className="mb-2 flex min-h-6 flex-wrap items-center justify-center gap-2 text-center">
                         <Label className="flex items-center gap-2 text-center leading-snug">
                           {field.label}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
@@ -1661,7 +1699,7 @@ const YearlyDataEntry = ({
                           step="any"
                           min="0"
                           placeholder={`Enter ${field.label.toLowerCase()}`}
-                          value={yearlyData[field.variable] || ''}
+                          value={displayedValue}
                           disabled={!isOverrideEnabled}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -1675,10 +1713,11 @@ const YearlyDataEntry = ({
                         {showStandardExpectedUnit && (
                           fieldUnits.length > 1 ? (
                             <select
-                              value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
+                              value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0] || ''}
                               disabled={!isOverrideEnabled}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                               className={`h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                              data-testid={`yearly-${field.fieldKey || field.variable}-override-unit`}
                               dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
                             />
                           ) : (

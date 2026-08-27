@@ -403,6 +403,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Monthly ledger headings, including Month and Evidence, are centered within their columns.
 - Verification passed: JavaScript lint for both updated components and authenticated browser smoke checks for opening Create Emissions and changing it to yearly mode. No data was saved or changed.
 
+## Latest Changes — 2026-08-27 (GHG Annual Field Alignment and Defaults)
+- Yearly required, optional, and override fields now share one three-column layout. This keeps inputs such as Quantity Used, Calorific Value, and Density on the same row when configured for the selected fuel.
+- All yearly fields now reserve the same label height and label-to-input spacing, preventing Override Default controls from pushing Calorific Value or Density inputs below Quantity Used.
+- Yearly default-value and unit rendering now uses the same selected-fuel resolver as monthly data. Unchanged override inputs visibly show their fuel defaults and remain disabled until Override Default is enabled.
+- Verification passed: focused JavaScript lint and authenticated browser smoke check of the selected yearly Scope 1 form; no emissions data was saved or changed.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.
