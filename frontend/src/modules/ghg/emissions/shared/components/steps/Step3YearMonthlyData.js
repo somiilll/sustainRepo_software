@@ -1283,7 +1283,6 @@ const YearlyDataEntry = ({
     && hasNumericFieldValue(quantityField, yearlyData)
     && hasNumericFieldValue(carbonContentField, yearlyData)
     && yearlyDensityRequirement.required;
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1307,7 +1306,7 @@ const YearlyDataEntry = ({
 
         {/* For Process Emissions: Show template required input field with fixed unit */}
         {isProcessEmissions && selectedTemplate ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="yearly-process-fields-grid">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4" data-testid="yearly-process-fields-grid">
             {selectedTemplate.input_fields?.map((field) => (
               <div key={field.key} className="min-w-0 space-y-2">
                 <Label className="flex min-h-6 items-center justify-center text-center leading-snug">
@@ -1337,7 +1336,7 @@ const YearlyDataEntry = ({
           </div>
         ) : formConfig && dynamicInputFields.length > 0 ? (
           /* Dynamic Fields from ce_input_field_mappings for yearly */
-          <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3" data-testid="yearly-data-fields-grid">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-x-4 gap-y-6" data-testid="yearly-data-fields-grid">
             {/* Supplier Method Disclaimer */}
             {scope3Method === 'supplier_basis' && (
               <div className="col-span-full rounded-lg border border-amber-200 bg-amber-50 p-3">
@@ -1617,17 +1616,16 @@ const YearlyDataEntry = ({
 
             {/* Per-year custom fuel fields (EF, CV, carbon content etc.) */}
             {useCustomFuel && (
-              <div className="col-span-full">
-                <CustomFuelMonthFields
-                  monthKey="yearly"
-                  data={yearlyData}
-                  updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
-                  calculationMethodology={calculationMethodology}
-                  fieldOptions={fieldOptions}
-                  centralizedUnits={centralizedUnits}
-                  isFugitiveCustomFuel={isFugitiveCustomFuel}
-                />
-              </div>
+              <CustomFuelMonthFields
+                monthKey="yearly"
+                data={yearlyData}
+                updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
+                calculationMethodology={calculationMethodology}
+                fieldOptions={fieldOptions}
+                centralizedUnits={centralizedUnits}
+                showMethodIndicator={false}
+                isFugitiveCustomFuel={isFugitiveCustomFuel}
+              />
             )}
             
             {/* Override Properties Section for Yearly */}

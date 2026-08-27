@@ -409,6 +409,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Yearly default-value and unit rendering now uses the same selected-fuel resolver as monthly data. Unchanged override inputs visibly show their fuel defaults and remain disabled until Override Default is enabled.
 - Verification passed: focused JavaScript lint and authenticated browser smoke check of the selected yearly Scope 1 form; no emissions data was saved or changed.
 
+## Latest Changes — 2026-08-27 (GHG Annual Cross-Scope Alignment)
+- Carbon Composition fields now flatten into the same annual row as Quantity Used. Carbon Content (%), Oxidation Factor, and conditional Density use identical label height, label-to-input spacing, and control height.
+- Annual field grids now use responsive auto-fit columns: two visible inputs fill the row at 50% each, three use equal thirds, and up to four use equal quarters. This applies to the shared Scope 1, Scope 2, and Scope 3 annual renderer, process templates, and custom-fuel methods.
+- Verification passed: focused JavaScript lint plus authenticated Scope 1, Scope 2, and Scope 3 Create Emissions yearly-mode smoke checks. No data was saved or changed.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.
