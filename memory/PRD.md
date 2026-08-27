@@ -338,6 +338,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Search Emissions now matches supplier organization, category, subcategory, and the displayed fuel-type fallback.
 - **NOT TESTED** per the user's explicit instruction.
 
+## Latest Changes — 2026-08-27 (Supplier Documents Workspace Refinement)
+- Replaced legacy parent-admin `Agreement` terminology with `Document` across the Documents workspace, including title, create/publish actions, empty state, feedback, and deletion confirmation. Existing API contracts and test IDs remain unchanged.
+- Aligned Supplier Documents with the Supplier and ESG Questionnaire headers, added a neutral document icon, moved Reporting period and Add document into one rounded header control group, and added the matching heading divider.
+- Rebuilt published document cards into compact white `rounded-xl` surfaces with low-contrast borders and soft shadows: clear title, wrapped response metadata, compact supplier count, and a right-aligned neutral Preview/View suppliers/Delete action group.
+- **NOT TESTED** per the user's explicit instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
