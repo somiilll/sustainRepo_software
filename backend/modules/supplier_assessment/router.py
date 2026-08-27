@@ -1476,6 +1476,18 @@ async def get_all_supplier_emissions(
     return await ghg_submission_service.get_parent_submitted_ghg(current_user["organization_id"], reporting_period)
 
 
+@router.get("/emissions/{emission_id}")
+async def get_parent_supplier_emission_detail(
+    emission_id: str, current_user: dict = Depends(get_customer_admin),
+):
+    emission = await ghg_submission_service.get_parent_submitted_emission_detail(
+        current_user["organization_id"], emission_id
+    )
+    if not emission:
+        raise HTTPException(status_code=404, detail="Submitted supplier emission record not found")
+    return emission
+
+
 @router.get("/emissions/{emission_id}/evidence/{file_id}")
 async def open_parent_supplier_emission_evidence(
     emission_id: str, file_id: str, download: bool = False, current_user: dict = Depends(get_customer_admin),

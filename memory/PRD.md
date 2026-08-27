@@ -375,6 +375,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - The parent GHG ledger retains submitted raw emissions, while displaying `Revenue not submitted`, unavailable attributed totals, and unavailable intensity until the supplier locks their Revenue response.
 - Verification passed: Python/JavaScript static checks, authenticated parent API check, and authenticated browser check for Supplier5. Its `1.45996 tCO₂e` raw total remains visible while attributed total and intensity are both unavailable.
 
+## Latest Changes — 2026-08-27 (Exact Parent Supplier GHG Read-only Form)
+- Replaced the parent supplier-emission summary viewer with the shared GHG edit-form renderer in a dedicated read-only mode. Parent users now see the familiar Scope 1/2 form layout, including saved conditional calculation inputs, output summary, optional details, and reporting assignment.
+- The read-only mode disables the complete form fieldset, prevents form submission, and hides submission, recalculation, upload, evidence-removal, and delete controls. Secure evidence View/Download remains outside the locked form.
+- The parent-only record-detail API remains limited to submitted, parent-visible supplier records and returns no raw evidence URLs. **NOT TESTED**, per the user's explicit instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.

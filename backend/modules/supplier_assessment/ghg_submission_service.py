@@ -398,3 +398,40 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
             aggregate["total_emissions"] = None
     totals = list(supplier_totals.values())
     return {"emissions": emissions, "supplier_totals": totals, "grand_total": sum(row["total"] or 0 for row in totals), "aggregations": sorted(aggregation_rows.values(), key=lambda row: (row["scope"] or "", row["category"]))}
+
+
+async def get_parent_submitted_emission_detail(customer_org_id: str, emission_id: str) -> Optional[Dict[str, Any]]:
+    """Return one parent-visible supplier emission, without exposing a raw file URL."""
+    entry = await db.emission_records.find_one(
+        {
+            "id": emission_id,
+            "source": "supplier",
+            "submitted_to_parent_org": {"$exists": True, "$ne": None},
+            "parent_visible": {"$ne": False},
+        },
+        {"_id": 0},
+    )
+    if not entry:
+        return None
+    relationship = await db.supplier_relationships.find_one(
+        {
+            "id": entry.get("supplier_relationship_id"),
+            "customer_org_id": customer_org_id,
+            "is_active": True,
+        },
+        {"_id": 0, "company_name": 1, "reporting_period": 1},
+    )
+    if not relationship or not period_belongs_to_parent(entry.get("reporting_period"), relationship.get("reporting_period")):
+        return None
+    evidence_ids = _evidence_file_ids(entry.get("evidence_url"))
+    evidence_records = await db.uploaded_files.find(
+        {"id": {"$in": evidence_ids}}, {"_id": 0, "id": 1, "original_filename": 1, "content_type": 1, "file_size": 1}
+    ).to_list(len(evidence_ids) or 1)
+    evidence_by_id = {record["id"]: record for record in evidence_records}
+    visible_entry = {key: value for key, value in entry.items() if key not in {"evidence_url", "evidence_file_name"}}
+    return {
+        **visible_entry,
+        "supplier_name": relationship.get("company_name", "Unknown"),
+        "submitted_at": entry["submitted_to_parent_org"],
+        "evidence_files": [evidence_by_id[file_id] for file_id in evidence_ids if file_id in evidence_by_id],
+    }

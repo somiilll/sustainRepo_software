@@ -183,6 +183,8 @@ export default function EmissionEditForm(props) {
     // Optional props for approval mode
     hideSubmitButton = false,
     assignedReportingPeriod = null,
+    readOnly = false,
+    readOnlyEvidenceContent = null,
   } = props;
 
   const setDraftField = useCallback((field, valueOrUpdater) => {
@@ -329,7 +331,9 @@ export default function EmissionEditForm(props) {
   }
 
   return (
-                <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
+                <form onSubmit={readOnly ? (event) => event.preventDefault() : handleSubmit} className="space-y-5" data-testid="emission-form">
+                {readOnly && <p className="sr-only" data-testid="emission-form-read-only-status">This emission record is read-only.</p>}
+                <fieldset disabled={readOnly} className="min-w-0 space-y-5 disabled:opacity-100" data-testid={readOnly ? "emission-form-read-only-fields" : undefined}>
                 <section className="space-y-5 rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="edit-form-inputs-section">
                 {/* Facility and Scope Selection - Extracted Component */}
                 <FacilityScopeSection
@@ -1488,8 +1492,10 @@ export default function EmissionEditForm(props) {
                   isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
                 />
 
+                </fieldset>
+
                 {/* Evidence Management Section */}
-                <div className="space-y-3">
+                {readOnly ? readOnlyEvidenceContent : <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label>Evidence Documents</Label>
                     {existingEvidences.length > 0 && (
@@ -1573,7 +1579,7 @@ export default function EmissionEditForm(props) {
                     onRemove={handleRemoveEvidence}
                     multiple={true}
                   />
-                </div>
+                </div>}
 
                 {/* Submit Buttons - Extracted Component */}
                 {!hideSubmitButton && (
