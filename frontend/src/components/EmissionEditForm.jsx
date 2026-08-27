@@ -1500,7 +1500,7 @@ export default function EmissionEditForm(props) {
                 />
 
                 {/* Evidence Management Section */}
-                {readOnly ? readOnlyEvidenceContent : <div className="space-y-4 rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
+                {readOnly ? readOnlyEvidenceContent : <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
                   <div className="flex items-center justify-between">
                     <Label>Evidence Documents</Label>
                     {existingEvidences.length > 0 && (

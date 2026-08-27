@@ -838,7 +838,7 @@ export const Step1BasicSelection = ({
               )}
             </>
           ) : (
-            <div className="space-y-2 border-l-2 border-amber-300 pl-3" data-testid="custom-fuel-name-section">
+            <div className="mt-1.5" data-testid="custom-fuel-name-section">
               <div>
                 <Input
                   id="custom-fuel-name-input"

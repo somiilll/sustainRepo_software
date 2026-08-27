@@ -42,7 +42,7 @@ export const EditOptionalFields = ({
   };
 
   return (
-    <Collapsible className="border border-stone-200 bg-white" data-testid="edit-optional-fields-section">
+    <Collapsible className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="edit-optional-fields-section">
       <CollapsibleTrigger
         className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-stone-50"
         data-testid="edit-optional-fields-section-trigger"
