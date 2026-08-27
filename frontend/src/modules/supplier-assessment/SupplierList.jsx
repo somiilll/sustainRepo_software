@@ -63,6 +63,21 @@ const groupAvailableDocuments = (requirements) => Object.values((requirements ||
   return groups;
 }, {}));
 
+const createSupplierForm = (reportingPeriod) => ({
+  company_name: '',
+  contact_person: '',
+  email: '',
+  contact_number: '',
+  due_date: '',
+  reporting_period: reportingPeriod,
+  modules_enabled: ['esg', 'ghg'],
+  ghg_scopes_enabled: ['scope1', 'scope2'],
+  revenue_required: false,
+  questionnaire_ids: [],
+  document_requirement_ids: [],
+  training_requirement_ids: [],
+});
+
 const FieldInfo = ({ label, testId }) => (
   <TooltipProvider delayDuration={150}>
     <Tooltip>
@@ -93,20 +108,7 @@ export default function SupplierList() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
-  const [formData, setFormData] = useState({
-    company_name: '',
-    contact_person: '',
-    email: '',
-    contact_number: '',
-    due_date: '',
-    reporting_period: reportingPeriod,
-    modules_enabled: ['esg', 'ghg'],
-    ghg_scopes_enabled: ['scope1', 'scope2'],
-    revenue_required: false,
-    questionnaire_ids: [],
-    document_requirement_ids: [],
-    training_requirement_ids: [],
-  });
+  const [formData, setFormData] = useState(() => createSupplierForm(reportingPeriod));
   const [submitting, setSubmitting] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState(null);
   const [unlockingQuestionnaireId, setUnlockingQuestionnaireId] = useState('');
@@ -117,6 +119,7 @@ export default function SupplierList() {
   const [reminderTarget, setReminderTarget] = useState(null);
   const [reminderModules, setReminderModules] = useState(['all']);
   const [reviewResponse, setReviewResponse] = useState(null);
+  const resetAddSupplierForm = useCallback(() => setFormData(createSupplierForm(reportingPeriod)), [reportingPeriod]);
 
   const fetchSuppliers = useCallback(async () => {
     setLoading(true);
@@ -209,19 +212,7 @@ export default function SupplierList() {
       });
       toast.success('Supplier added and invitation sent');
       setShowAddDialog(false);
-      setFormData({ 
-        company_name: '', 
-        contact_person: '', 
-        email: '', 
-        contact_number: '', 
-        due_date: '',
-        reporting_period: reportingPeriod,
-        modules_enabled: ['esg', 'ghg'],
-        ghg_scopes_enabled: ['scope1', 'scope2'],
-        questionnaire_ids: [],
-        document_requirement_ids: [],
-        training_requirement_ids: [],
-      });
+      resetAddSupplierForm();
       fetchSuppliers();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to add supplier');
@@ -602,7 +593,7 @@ export default function SupplierList() {
       </div>
 
       {/* Add Supplier Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetAddSupplierForm(); }}>
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden bg-white p-0 sm:max-w-4xl" data-testid="add-supplier-dialog">
           <DialogHeader className="shrink-0 border-b border-stone-200 bg-white px-7 py-5">
             <DialogTitle className="text-xl">Add Supplier</DialogTitle>
@@ -752,7 +743,7 @@ export default function SupplierList() {
             )}
           </div>
           <DialogFooter className="shrink-0 border-t bg-white px-6 py-4">
-            <Button variant="outline" onClick={() => setShowAddDialog(false)} data-testid="cancel-add-supplier-button">
+            <Button variant="outline" onClick={() => { resetAddSupplierForm(); setShowAddDialog(false); }} data-testid="cancel-add-supplier-button">
               Cancel
             </Button>
             <Button onClick={handleAdd} disabled={submitting} data-testid="submit-supplier">

@@ -839,19 +839,12 @@ export const Step1BasicSelection = ({
             </>
           ) : (
             <div className="space-y-2 border-l-2 border-amber-300 pl-3" data-testid="custom-fuel-name-section">
-              <div className="flex items-center gap-2">
-                <Flame className="h-4 w-4 text-amber-600" aria-hidden="true" />
-                <Label htmlFor="custom-fuel-name-input">Fuel Name <span className="text-red-500">*</span></Label>
-                <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800" data-testid="custom-fuel-badge">
-                  Custom fuel
-                </span>
-              </div>
               <div>
                 <Input
                   id="custom-fuel-name-input"
                   value={customFuelName}
                   onChange={(e) => setCustomFuelName(e.target.value)}
-                  placeholder="Enter fuel name"
+                  placeholder="Enter custom fuel name"
                   className="bg-white"
                   data-testid="custom-fuel-name-input"
                 />

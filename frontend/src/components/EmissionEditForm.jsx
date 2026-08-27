@@ -929,6 +929,8 @@ export default function EmissionEditForm(props) {
                         const isOverrideEnabled = isFugitiveGwpField
                           || dynamicFieldValues[overrideKey] === true
                           || (
+                            !readOnly
+                            &&
                             field.variable === 'density'
                             && dynamicFieldValues[overrideKey] === undefined
                             && savedDensityValue !== undefined
@@ -1018,7 +1020,7 @@ export default function EmissionEditForm(props) {
                           (field.variable?.includes('supplier_based') || field.variable?.includes('supplier'));
                         
                         // Show checkbox for override fields OR optional fields (not required and not override)
-                        const showOverrideCheckbox = !isFugitiveGwpField
+                        const showOverrideCheckbox = !readOnly && !isFugitiveGwpField
                           && (field.isOverride || (!field.required && !field.isOverride));
 
                         return (
@@ -1485,6 +1487,8 @@ export default function EmissionEditForm(props) {
                   )
                 )}
 
+                </fieldset>
+
                 <EditOptionalFields
                   formData={formData}
                   setFormData={setFormData}
@@ -1492,13 +1496,11 @@ export default function EmissionEditForm(props) {
                   capabilities={capabilities}
                   selectedCategory={selectedCategory}
                   isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
-                  forceOpen={readOnly}
+                  readOnly={readOnly}
                 />
 
-                </fieldset>
-
                 {/* Evidence Management Section */}
-                {readOnly ? readOnlyEvidenceContent : <div className="space-y-3">
+                {readOnly ? readOnlyEvidenceContent : <div className="space-y-4 rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
                   <div className="flex items-center justify-between">
                     <Label>Evidence Documents</Label>
                     {existingEvidences.length > 0 && (
@@ -1516,7 +1518,7 @@ export default function EmissionEditForm(props) {
                   </div>
                   
                   {/* Existing Evidences List */}
-                  {existingEvidences.length > 0 && (
+                  {existingEvidences.length > 0 ? (
                     <div className="space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
                       <p className="text-xs text-stone-500 font-medium mb-2">
                         {existingEvidences.length} evidence file(s) attached
@@ -1573,7 +1575,7 @@ export default function EmissionEditForm(props) {
                         );
                       })}
                     </div>
-                  )}
+                  ) : <div className="flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-500" data-testid="emission-edit-no-evidence"><FileText className="h-4 w-4" />No Evidence</div>}
                   
                   {/* Upload New Evidence */}
                   <FileUpload

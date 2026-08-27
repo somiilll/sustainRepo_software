@@ -429,7 +429,8 @@ async def get_parent_submitted_emission_detail(customer_org_id: str, emission_id
     fuel = await db.fuel_database.find_one(
         {"id": entry.get("fuel_database_id")},
         {"_id": 0, "calorific_value": 1, "calorific_value_unit": 1, "density": 1, "density_unit": 1,
-         "emission_factor_co2": 1, "emission_factor_co2_unit": 1, "gwp_fugitives": 1, "source": 1,
+         "emission_factor_co2": 1, "emission_factor_co2_unit": 1, "emission_factor_basis_quantity": 1,
+         "emission_factor_basis_unit": 1, "gwp_fugitives": 1, "source": 1,
          "source_of_information": 1},
     ) if entry.get("fuel_database_id") else None
     evidence_ids = _evidence_file_ids(entry.get("evidence_url"))
