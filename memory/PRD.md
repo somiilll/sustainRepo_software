@@ -303,6 +303,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Applied the idempotent migration to both local and `sustainrepo_staging` databases. Verified neither environment retains the legacy unit `1` in any Exchange Rate catalog layer.
 - Re-ran the full local-to-staging migration dry run: zero pending inserts, zero catalog actions, and zero conflicts.
 
+## Latest Changes — 2026-08-27 (Staging Ingestion Credential Cleanup)
+- Removed the hardcoded staging MongoDB connection URI from `scripts/ingest_amns_to_staging.py`.
+- The one-off ingestion script now requires `TARGET_MONGO_URL` and `TARGET_DB_NAME` at runtime and fails clearly when either is absent.
+- Verification passed: Python compilation succeeded and a full workspace credential scan found no remaining instance of the removed URI.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

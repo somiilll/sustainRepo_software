@@ -24,8 +24,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 # ── Config ──────────────────────────────────────────────────────────────
-TARGET_MONGO_URL = "mongodb+srv://sustainrepo_tool_api:jw1i9nPZAeQ8aoRO@sustainrepo.32wcdfx.mongodb.net/?retryWrites=true&w=majority"
-TARGET_DB_NAME = "sustainrepo_staging"
+TARGET_MONGO_URL = os.environ.get("TARGET_MONGO_URL")
+TARGET_DB_NAME = os.environ.get("TARGET_DB_NAME")
 ORG_ID = "9067d872-8a3a-4ed9-8494-e3ef04952f7c"
 ORG_NAME = "ORG1"
 
@@ -377,6 +377,9 @@ def create_document_record(db, org_id, doc_id, num_pages, num_chunks, image_urls
 
 def main():
     t_start = time.time()
+
+    if not TARGET_MONGO_URL or not TARGET_DB_NAME:
+        raise RuntimeError("TARGET_MONGO_URL and TARGET_DB_NAME must be set before running this script")
 
     # Connect to target DB
     client = MongoClient(TARGET_MONGO_URL)
