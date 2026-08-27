@@ -333,6 +333,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier rows now have light-green hover feedback, refined neutral initials, clearer name/revenue hierarchy, bold totals only, a stronger two-line intensity treatment, and compact neutral Unlock actions.
 - Verification passed: JavaScript lint and authenticated browser smoke on the populated Supplier GHG table (3 supplier rows). No APIs were changed or mocked.
 
+## Latest Changes — 2026-08-27 (Supplier GHG Logs Refinement)
+- Supplier GHG Logs rows now have the same subtle light-green hover feedback as the summary ledger, with a pale green header row and softly emphasized column labels.
+- Search Emissions now matches supplier organization, category, subcategory, and the displayed fuel-type fallback.
+- **NOT TESTED** per the user's explicit instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

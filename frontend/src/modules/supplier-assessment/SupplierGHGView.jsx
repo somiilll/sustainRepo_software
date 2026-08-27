@@ -86,9 +86,9 @@ export default function SupplierGHGView() {
   };
 
   const filteredEmissions = emissions.filter((e) => {
-    const matchesSearch = !search || 
-      e.supplier_name?.toLowerCase().includes(search.toLowerCase()) ||
-      e.category?.toLowerCase().includes(search.toLowerCase());
+    const normalizedSearch = search.trim().toLowerCase();
+    const matchesSearch = !normalizedSearch || [e.supplier_name, e.category, e.sub_category, e.fuel_type]
+      .some((value) => value?.toLowerCase().includes(normalizedSearch));
     const matchesScope = scopeFilter === 'all' || e.scope === scopeFilter;
     const matchesSupplier = supplierFilter === 'all' || e.supplier_name === supplierFilter;
     const matchesCategory = categoryFilter === 'all' || e.category === categoryFilter;
@@ -251,19 +251,19 @@ export default function SupplierGHGView() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Supplier Org</TableHead>
-                  <TableHead>Reporting Period</TableHead>
-                  <TableHead>Scope</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Subcategory</TableHead>
-                  <TableHead className="text-right">Attributed emissions (tCO₂e)</TableHead>
+                <TableRow className="border-stone-100 bg-emerald-50/50 hover:bg-emerald-50/50" data-testid="supplier-ghg-logs-table-header">
+                  <TableHead className="pl-6 text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-supplier-header">Supplier Org</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-period-header">Reporting Period</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-scope-header">Scope</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-category-header">Category</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-subcategory-header">Subcategory</TableHead>
+                  <TableHead className="pr-6 text-right text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-attributed-header">Attributed emissions (tCO₂e)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visibleEmissions.map((emission) => (
-                  <TableRow key={emission.id}>
-                    <TableCell className="font-medium">{emission.supplier_name}</TableCell>
+                  <TableRow key={emission.id} className="border-stone-100 hover:bg-emerald-50/50" data-testid={`supplier-ghg-log-row-${emission.id}`}>
+                    <TableCell className="pl-6 font-medium text-stone-900" data-testid={`supplier-ghg-log-supplier-${emission.id}`}>{emission.supplier_name}</TableCell>
                     <TableCell>{emission.reporting_period}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={emission.scope === 'scope1' ? 'border-blue-200 bg-blue-50 text-blue-700' : emission.scope === 'scope2' ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-stone-200 bg-stone-50 text-stone-700'} data-testid={`supplier-emission-scope-${emission.id}`}>
@@ -272,7 +272,7 @@ export default function SupplierGHGView() {
                     </TableCell>
                     <TableCell>{emission.category || '-'}</TableCell>
                     <TableCell>{emission.fuel_type || emission.sub_category || '-'}</TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="pr-6 text-right font-mono">
                       {displayValue(emission.attributed_emissions, 4)}
                     </TableCell>
                   </TableRow>
