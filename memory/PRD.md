@@ -327,6 +327,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Refined the questionnaire navigator, selected questionnaire panel, question hierarchy, row spacing, low-weight separators, neutral supporting metadata, and understated importance badges. Preview remains neutral while Add Questions stays green.
 - Corrected the questionnaire header's vertical offset: its larger period control had bottom-aligned the title. The header now top-aligns, and a live authenticated browser check confirmed both the ESG Questionnaire and Suppliers icons render at `y=24`.
 
+## Latest Changes — 2026-08-27 (Supplier GHG Emissions Refinement)
+- Removed the explanatory header copy and aligned Supplier GHG Emissions with the Suppliers and ESG Questionnaire headers, using a neutral cloud icon and matching `text-3xl` heading hierarchy.
+- Refined Emissions by Supplier/Logs into a restrained segmented navigation. Total and Attributed Emissions table groups now display their shared `tCO₂e` unit in the headers, use darker group labels, muted subheaders, and clear but subtle vertical separation.
+- Supplier rows now have light-green hover feedback, refined neutral initials, clearer name/revenue hierarchy, bold totals only, a stronger two-line intensity treatment, and compact neutral Unlock actions.
+- Verification passed: JavaScript lint and authenticated browser smoke on the populated Supplier GHG table (3 supplier rows). No APIs were changed or mocked.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

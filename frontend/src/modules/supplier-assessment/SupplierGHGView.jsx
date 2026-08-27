@@ -32,7 +32,7 @@ const supplierInitials = (name = '') => name.split(/\s+/).filter(Boolean).map((p
 
 const EmissionValue = ({ value, testId, emphasized = false }) => (
   <span className={`whitespace-nowrap text-sm ${emphasized ? 'font-semibold text-stone-950' : 'text-stone-700'}`} data-testid={testId}>
-    {displayValue(value)} <span className="text-[11px] font-normal text-stone-400">tCO₂e</span>
+    {displayValue(value)}
   </span>
 );
 
@@ -108,13 +108,13 @@ export default function SupplierGHGView() {
   return (
     <div className="space-y-6" data-testid="supplier-ghg-view">
       {/* Header */}
-      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div><h1 className="text-2xl font-semibold text-stone-900">Supplier GHG Emissions</h1><p className="mt-1 text-sm text-stone-500">View attributed supplier emissions using each supplier’s revenue share.</p></div>
-        <div className="w-44" data-testid="supplier-ghg-period-control"><label htmlFor="supplier-ghg-reporting-period" className="mb-1 block text-xs font-medium text-stone-600">Reporting period</label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ghg-reporting-period" className="h-9 bg-white" data-testid="supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ghg-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ghg-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
+      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-start sm:justify-between" data-testid="supplier-ghg-header">
+        <div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-700 shadow-sm" data-testid="supplier-ghg-heading-icon"><Cloud className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-ghg-heading">Supplier GHG Emissions</h1></div>
+        <div className="w-44" data-testid="supplier-ghg-period-control"><label htmlFor="supplier-ghg-reporting-period" className="mb-1 block text-xs font-medium text-stone-600" data-testid="supplier-ghg-period-label">Reporting period</label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ghg-reporting-period" className="h-9 bg-white" data-testid="supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ghg-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ghg-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
       </div>
 
       <Tabs defaultValue="supplier-summary" data-testid="supplier-ghg-tabs">
-        <TabsList className="bg-stone-100" data-testid="supplier-ghg-tab-list"><TabsTrigger value="supplier-summary" data-testid="supplier-ghg-summary-tab">Emissions by Supplier</TabsTrigger><TabsTrigger value="logs" data-testid="supplier-ghg-logs-tab">Logs</TabsTrigger></TabsList>
+        <TabsList className="h-10 rounded-lg border border-stone-200 bg-stone-50 p-1" data-testid="supplier-ghg-tab-list"><TabsTrigger value="supplier-summary" className="h-8 border-b-2 border-transparent text-stone-500 shadow-none transition-[background-color,border-color,color] hover:bg-white hover:text-stone-800 data-[state=active]:border-emerald-600 data-[state=active]:bg-white data-[state=active]:text-stone-950 data-[state=active]:shadow-none" data-testid="supplier-ghg-summary-tab">Emissions by Supplier</TabsTrigger><TabsTrigger value="logs" className="h-8 border-b-2 border-transparent text-stone-500 shadow-none transition-[background-color,border-color,color] hover:bg-white hover:text-stone-800 data-[state=active]:border-emerald-600 data-[state=active]:bg-white data-[state=active]:text-stone-950 data-[state=active]:shadow-none" data-testid="supplier-ghg-logs-tab">Logs</TabsTrigger></TabsList>
         <TabsContent value="supplier-summary" className="mt-5 space-y-6" data-testid="supplier-ghg-summary-panel">
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -173,18 +173,18 @@ export default function SupplierGHGView() {
             <div className="overflow-x-auto">
             <Table className="min-w-[1180px]" data-testid="supplier-emissions-by-supplier-table">
               <TableHeader>
-                <TableRow className="border-stone-200 bg-stone-50 hover:bg-stone-50"><TableHead rowSpan={2} className="min-w-[220px] pl-6 text-[11px] font-semibold uppercase text-stone-500">Supplier</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase text-stone-500">Total emissions</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase text-stone-500">Attributed emissions</TableHead><TableHead rowSpan={2} className="text-right text-[11px] font-semibold uppercase text-stone-500">Intensity</TableHead><TableHead rowSpan={2} className="pr-6 text-right text-[11px] font-semibold uppercase text-stone-500">Actions</TableHead></TableRow>
-                <TableRow className="border-stone-200 bg-stone-50 hover:bg-stone-50"><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1</TableHead><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total</TableHead><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1</TableHead><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total</TableHead></TableRow>
+                <TableRow className="border-stone-100 bg-stone-50 hover:bg-stone-50"><TableHead rowSpan={2} className="min-w-[220px] pl-6 text-[11px] font-semibold uppercase text-stone-500">Supplier</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-700">Total emissions (tCO₂e)</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-700">Attributed emissions (tCO₂e)</TableHead><TableHead rowSpan={2} className="text-right text-[11px] font-semibold uppercase text-stone-500">Intensity</TableHead><TableHead rowSpan={2} className="pr-6 text-right text-[11px] font-semibold uppercase text-stone-500">Actions</TableHead></TableRow>
+                <TableRow className="border-stone-100 bg-stone-50 hover:bg-stone-50"><TableHead className="text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Scope 1</TableHead><TableHead className="text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Total</TableHead><TableHead className="text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Scope 1</TableHead><TableHead className="text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Total</TableHead></TableRow>
               </TableHeader>
               <TableBody>
                 {supplierTotals.map((supplier) => (
-                  <TableRow key={supplier.supplier_relationship_id} className="border-stone-100 hover:bg-stone-50/70" data-testid={`supplier-emissions-row-${supplier.supplier_relationship_id}`}>
+                  <TableRow key={supplier.supplier_relationship_id} className="border-stone-100 hover:bg-emerald-50/50" data-testid={`supplier-emissions-row-${supplier.supplier_relationship_id}`}>
                     <TableCell className="py-4 pl-6">
                       <div className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800" aria-hidden="true">{supplierInitials(supplier.supplier_name)}</span>
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-stone-50 text-[11px] font-semibold text-stone-700" aria-hidden="true">{supplierInitials(supplier.supplier_name)}</span>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-stone-900" data-testid={`supplier-emissions-name-${supplier.supplier_relationship_id}`}>{supplier.supplier_name}</p>
-                          <p className="mt-0.5 text-xs text-stone-400">Revenue share {supplier.revenue_percentage === null || supplier.revenue_percentage === undefined ? '—' : `${displayValue(supplier.revenue_percentage, 1)}%`}</p>
+                          <p className="truncate text-sm font-semibold text-stone-950" data-testid={`supplier-emissions-name-${supplier.supplier_relationship_id}`}>{supplier.supplier_name}</p>
+                          <p className="mt-1 text-xs text-stone-500" data-testid={`supplier-emissions-revenue-share-${supplier.supplier_relationship_id}`}>Revenue share {supplier.revenue_percentage === null || supplier.revenue_percentage === undefined ? '—' : `${displayValue(supplier.revenue_percentage, 1)}%`}</p>
                         </div>
                       </div>
                     </TableCell>
@@ -197,9 +197,9 @@ export default function SupplierGHGView() {
                     <TableCell className="text-right">
                       {supplier.total_intensity === null || supplier.total_intensity === undefined
                         ? <span className="whitespace-nowrap text-xs text-stone-400" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>Not available</span>
-                        : <span className="whitespace-nowrap text-sm font-semibold text-stone-900" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>{displayValue(supplier.total_intensity, 6)} <span className="block text-[10px] font-normal text-stone-400">tCO₂e / {supplier.revenue_currency || 'currency not set'}</span></span>}
+                        : <span className="whitespace-nowrap text-base font-bold text-stone-950" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>{displayValue(supplier.total_intensity, 6)} <span className="mt-0.5 block text-[10px] font-normal text-stone-400">tCO₂e / {supplier.revenue_currency || 'currency not set'}</span></span>}
                     </TableCell>
-                    <TableCell className="pr-6 text-right"><Button variant="outline" size="sm" onClick={() => setUnlockTarget(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="mr-1 h-4 w-4" />Unlock</Button></TableCell>
+                    <TableCell className="pr-6 text-right"><Button variant="outline" size="sm" className="h-8 border-stone-200 bg-white px-2.5 text-stone-600 shadow-none transition-[background-color,border-color,color] hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900" onClick={() => setUnlockTarget(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="h-3.5 w-3.5" />Unlock</Button></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
