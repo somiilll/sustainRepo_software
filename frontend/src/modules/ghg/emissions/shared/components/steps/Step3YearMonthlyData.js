@@ -126,6 +126,7 @@ const EvidenceIconCell = ({
   handleEvidenceUpload,
   removeEvidence,
   backendUrl,
+  showLabel = false,
 }) => {
   const count = evidences.length;
   return (
@@ -150,11 +151,12 @@ const EvidenceIconCell = ({
           <TooltipTrigger asChild>
             <label
               htmlFor={`evidence-${monthKey}`}
-              className="relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-100 hover:text-emerald-600"
+              className={`relative inline-flex cursor-pointer items-center justify-center rounded-md text-stone-500 transition-colors hover:bg-stone-100 hover:text-emerald-600 ${showLabel ? 'h-10 gap-2 border border-stone-200 bg-white px-3 text-sm font-medium' : 'h-8 w-8'}`}
               data-testid={`month-${monthKey}-evidence-upload-trigger`}
             >
               <Upload className="h-4 w-4" />
-              {count > 0 && (
+              {showLabel && <span>{count > 0 ? `${count} file${count > 1 ? 's' : ''} attached` : 'Upload evidence'}</span>}
+              {!showLabel && count > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[10px] font-bold text-white">
                   {count}
                 </span>
@@ -260,7 +262,7 @@ const deriveLedgerColumns = (
 const MonthlyLedger = ({ columns, rows }) => {
   const headerCells = columns.map((col) => React.createElement(
     'th',
-    { key: col.key, className: 'px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500' },
+    { key: col.key, className: 'px-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500' },
     col.label,
     col.required && React.createElement('span', { className: 'ml-0.5 text-red-500' }, '*'),
     col.unit && React.createElement('span', { className: 'ml-1 font-normal normal-case text-stone-400' }, `(${col.unit})`),
@@ -268,19 +270,18 @@ const MonthlyLedger = ({ columns, rows }) => {
   const headerRow = React.createElement(
     'tr',
     null,
-    React.createElement('th', { className: 'w-36 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500' }, 'Month'),
+    React.createElement('th', { className: 'w-28 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500' }, 'Month'),
     ...headerCells,
     React.createElement(
       'th',
-      { className: 'w-14 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-500' },
-      React.createElement('span', { className: 'sr-only' }, 'Evidence'),
-      React.createElement(FileText, { className: 'mx-auto h-3.5 w-3.5 text-stone-400' }),
+      { className: 'w-20 px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-500' },
+      'Evidence',
     ),
   );
 
   return React.createElement(
     'div',
-    { className: 'overflow-hidden rounded-lg border border-stone-200 bg-white', 'data-testid': 'monthly-emissions-ledger' },
+    { className: 'overflow-x-auto rounded-lg border border-stone-200 bg-white', 'data-testid': 'monthly-emissions-ledger' },
     React.createElement(
       'table',
       { className: 'w-full text-sm' },
@@ -997,7 +998,7 @@ export const Step3YearMonthlyData = ({
                   const hasScope2Override = !isDisabled && !formConfig && scope === 'scope2' && !useCustomFuel;
                   const hasExpandableContent = hasFlightDetails || hasDynamicDensity || hasLegacyOverrides || hasScope2Override;
                   const monthCell = (
-                    <td className="whitespace-nowrap px-5 py-3 align-middle" data-testid={`month-${monthKey}-ledger-month`}>
+                    <td className="whitespace-nowrap px-3 py-3 align-middle" data-testid={`month-${monthKey}-ledger-month`}>
                       <div className="flex items-center gap-2.5">
                         <span className={`h-2 w-2 shrink-0 rounded-full ${
                           isDisabled ? 'bg-stone-200' : status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
@@ -1017,11 +1018,11 @@ export const Step3YearMonthlyData = ({
                     </td>,
                   ] : [
                     ...ledgerColumns.map((col) => (
-                      <td key={col.key} className="px-3 py-3 align-middle" data-testid={`month-${monthKey}-field-${col.key}`}>
+                      <td key={col.key} className="px-2 py-3 align-middle" data-testid={`month-${monthKey}-field-${col.key}`}>
                         {renderCellInput(col, monthKey, data)}
                       </td>
                     )),
-                    <td key="evidence" className="px-3 py-3 align-middle">
+                    <td key="evidence" className="px-2 py-3 align-middle">
                       <EvidenceIconCell
                         monthKey={monthKey}
                         evidences={data.evidences}
@@ -1213,6 +1214,9 @@ export const Step3YearMonthlyData = ({
           customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={calculationMethodology}
           isFugitiveCustomFuel={isFugitiveCustomFuel}
+          handleEvidenceUpload={handleEvidenceUpload}
+          removeEvidence={removeEvidence}
+          backendUrl={BACKEND_URL}
         />
       )}
     </div>
@@ -1246,6 +1250,9 @@ const YearlyDataEntry = ({
   customFuelQtyUnit,
   calculationMethodology,
   isFugitiveCustomFuel,
+  handleEvidenceUpload,
+  removeEvidence,
+  backendUrl,
 }) => {
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
@@ -1285,7 +1292,7 @@ const YearlyDataEntry = ({
         </Label>
       </div>
 
-      <div className="p-4 border rounded-lg bg-stone-50 space-y-4">
+      <div className="space-y-5 rounded-lg border border-stone-200 bg-stone-50 p-4 sm:p-5">
         {/* Flight Details — C6 Business Travel + air_travel (yearly mode) */}
         {scope3ActivityType === 'air_travel' && capabilities.flightDetails && (
           <FlightDetailsSection
@@ -1298,7 +1305,7 @@ const YearlyDataEntry = ({
 
         {/* For Process Emissions: Show template required input field with fixed unit */}
         {isProcessEmissions && selectedTemplate ? (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {selectedTemplate.input_fields?.map((field) => (
               <div key={field.key} className="space-y-2">
                 <Label>{field.label} (Annual Total) {!field.is_optional && '*'}</Label>
@@ -1339,7 +1346,7 @@ const YearlyDataEntry = ({
             {/* Required Inputs Section */}
             {dynamicInputFields.filter(f => (f.required && !f.isOverride)
               || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).length > 0 && (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {dynamicInputFields.filter(f => (f.required && !f.isOverride)
                   || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
@@ -1471,7 +1478,7 @@ const YearlyDataEntry = ({
 
             {/* Optional Inputs Section with Override Toggle */}
             {dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0 && (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
                   const hideStandardQuantityUnit = useCustomFuel && isQuantityField(field);
@@ -1590,7 +1597,7 @@ const YearlyDataEntry = ({
             {/* Override Properties Section for Yearly */}
             {dynamicInputFields.filter(f => f.isOverride
               && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).length > 0 && (
-              <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {dynamicInputFields.filter(f => f.isOverride
                   && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).map(field => {
                   const overrideKey = `override_${field.variable}`;
@@ -1766,6 +1773,18 @@ const YearlyDataEntry = ({
             )}
           </div>
         )}
+
+        <div className="border-t border-stone-200 pt-5" data-testid="yearly-evidence-field">
+          <Label className="mb-2 block">Evidence <span className="text-xs font-normal text-stone-500">(Optional)</span></Label>
+          <EvidenceIconCell
+            monthKey="yearly"
+            evidences={yearlyData.evidences}
+            handleEvidenceUpload={handleEvidenceUpload}
+            removeEvidence={removeEvidence}
+            backendUrl={backendUrl}
+            showLabel
+          />
+        </div>
 
       </div>
     </div>

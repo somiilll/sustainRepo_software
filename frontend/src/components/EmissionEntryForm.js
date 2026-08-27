@@ -2327,8 +2327,8 @@ export default function EmissionEntryForm({
     }));
   };
 
-  // Handle evidence upload for a month
-  const handleEvidenceUpload = async (monthKey, file) => {
+  // Handle evidence upload for a monthly or yearly entry
+  const handleEvidenceUpload = async (periodKey, file) => {
     if (!file) return;
 
     const sizeErr = validateFileSize(file);
@@ -2350,21 +2350,32 @@ export default function EmissionEntryForm({
       
       if (response.data?.url) {
         // Use functional update to ensure we always read the latest state
-        setMonthlyData(prev => {
-          const currentEvidences = prev[monthKey]?.evidences || [];
-          return {
+        const uploadedFile = {
+          url: response.data.url,
+          filename: file.name,
+          uploaded_at: new Date().toISOString()
+        };
+        if (periodKey === 'yearly') {
+          setYearlyData(prev => ({
             ...prev,
-            [monthKey]: {
-              ...(prev[monthKey] || {}),
-              evidences: [...currentEvidences, {
-                url: response.data.url,
-                filename: file.name,
-                uploaded_at: new Date().toISOString()
-              }]
-            }
-          };
-        });
-        toast.success(`Evidence uploaded for ${MONTHS.find(m => m.key === monthKey)?.name}`);
+            evidences: [...(prev.evidences || []), uploadedFile]
+          }));
+        } else {
+          setMonthlyData(prev => {
+            const currentEvidences = prev[periodKey]?.evidences || [];
+            return {
+              ...prev,
+              [periodKey]: {
+                ...(prev[periodKey] || {}),
+                evidences: [...currentEvidences, uploadedFile]
+              }
+            };
+          });
+        }
+        const periodLabel = periodKey === 'yearly'
+          ? 'annual data'
+          : MONTHS.find((month) => month.key === periodKey)?.name;
+        toast.success(`Evidence uploaded for ${periodLabel}`);
       }
     } catch (error) {
       console.error('Evidence upload failed:', error);
@@ -2372,10 +2383,17 @@ export default function EmissionEntryForm({
     }
   };
 
-  const removeEvidence = (monthKey, evidenceIndex) => {
-    const currentEvidences = monthlyData[monthKey]?.evidences || [];
-    updateMonthData(monthKey, 'evidences', 
-      currentEvidences.filter((_, idx) => idx !== evidenceIndex)
+  const removeEvidence = (periodKey, evidenceIndex) => {
+    if (periodKey === 'yearly') {
+      setYearlyData(prev => ({
+        ...prev,
+        evidences: (prev.evidences || []).filter((_, index) => index !== evidenceIndex)
+      }));
+      return;
+    }
+    const currentEvidences = monthlyData[periodKey]?.evidences || [];
+    updateMonthData(periodKey, 'evidences',
+      currentEvidences.filter((_, index) => index !== evidenceIndex)
     );
   };
 

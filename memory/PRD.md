@@ -392,6 +392,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Removed the `100% Filled` display from the GHG requirement ledger card while preserving its Submitted/In progress/Not started status and its submission-based value in Overall Progress.
 - Focused JavaScript lint passed before the user's `dont test` instruction. No browser or functional testing was run.
 
+## Latest Changes — 2026-08-27 (GHG Create Form Layout and Annual Evidence)
+- Tightened the monthly data ledger’s Month and input-column spacing and replaced the icon-only final header with the visible `Evidence` column label.
+- Reworked yearly data fields into responsive two-column grids and added a labelled annual evidence upload control. Annual evidence is stored on `yearlyData.evidences` and follows the existing create-payload evidence mapping.
+- Reorganized process responsibility details so Person Responsible and Designation share one row, while Contact Details and Source of Information share the next row on desktop.
+- Focused JavaScript lint passed for the three changed files before the user's `dont test` instruction. No browser or functional testing was run.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.
