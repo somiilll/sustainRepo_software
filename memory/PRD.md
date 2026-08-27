@@ -370,6 +370,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Verification passed: JavaScript lint for all changed screens plus authenticated browser checks for the aligned Rankings header and hidden facility frequency badges.
 - Current GHG behavior documented: parent users can see submitted raw supplier emissions without revenue data. A saved revenue percentage determines attributed emissions; a revenue amount is used only to calculate intensity. The pipeline currently does not require the revenue record itself to be locked/submitted before using a saved percentage.
 
+## Latest Changes — 2026-08-27 (Revenue Submission Gate for Parent GHG Attribution)
+- Parent supplier GHG attribution and intensity now require `revenue_submission_status == "submitted"`. Saved draft revenue values are not used in calculations.
+- The parent GHG ledger retains submitted raw emissions, while displaying `Revenue not submitted`, unavailable attributed totals, and unavailable intensity until the supplier locks their Revenue response.
+- Verification passed: Python/JavaScript static checks, authenticated parent API check, and authenticated browser check for Supplier5. Its `1.45996 tCO₂e` raw total remains visible while attributed total and intensity are both unavailable.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.

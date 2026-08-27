@@ -200,7 +200,7 @@ export default function SupplierGHGView() {
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-stone-50 text-[11px] font-semibold text-stone-700" aria-hidden="true">{supplierInitials(supplier.supplier_name)}</span>
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-stone-950" data-testid={`supplier-emissions-name-${supplier.supplier_relationship_id}`}>{supplier.supplier_name}</p>
-                          <p className="mt-1 text-xs text-stone-500" data-testid={`supplier-emissions-revenue-share-${supplier.supplier_relationship_id}`}>Revenue share {supplier.revenue_percentage === null || supplier.revenue_percentage === undefined ? '—' : `${displayValue(supplier.revenue_percentage, 1)}%`}</p>
+                          <p className="mt-1 text-xs text-stone-500" data-testid={`supplier-emissions-revenue-share-${supplier.supplier_relationship_id}`}>{supplier.revenue_submitted ? `Revenue share ${displayValue(supplier.revenue_percentage, 1)}%` : 'Revenue not submitted'}</p>
                         </div>
                       </div>
                     </TableCell>

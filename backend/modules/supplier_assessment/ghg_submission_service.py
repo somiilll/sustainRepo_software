@@ -323,7 +323,7 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
     relationship_query = {"customer_org_id": customer_org_id, "is_active": True}
     if reporting_period:
         relationship_query["reporting_period"] = reporting_period
-    relationships = await db.supplier_relationships.find(relationship_query, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "revenue_percentage": 1, "revenue_amount": 1, "revenue_currency": 1}).to_list(1000)
+    relationships = await db.supplier_relationships.find(relationship_query, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "revenue_percentage": 1, "revenue_amount": 1, "revenue_currency": 1, "revenue_submission_status": 1}).to_list(1000)
     relationship_names = {relationship["id"]: relationship.get("company_name", "Unknown") for relationship in relationships}
     relationship_periods = {relationship["id"]: relationship.get("reporting_period") for relationship in relationships}
     relationship_revenue = {relationship["id"]: relationship for relationship in relationships}
@@ -344,12 +344,13 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
         supplier_name = relationship_names.get(supplier_id, "Unknown")
         revenue = relationship_revenue.get(supplier_id, {})
         revenue_percentage = revenue.get("revenue_percentage")
-        factor = float(revenue_percentage) / 100 if revenue_percentage is not None else None
+        revenue_submitted = revenue.get("revenue_submission_status") == "submitted"
+        factor = float(revenue_percentage) / 100 if revenue_submitted and revenue_percentage is not None else None
         value = float(entry.get("total_emissions") or entry.get("co2e_emissions") or 0)
         attributed_value = value * factor if factor is not None else None
         evidence_files = [evidence_by_id[file_id] for file_id in _evidence_file_ids(entry.get("evidence_url")) if file_id in evidence_by_id]
         visible_entry = {key: value for key, value in entry.items() if key not in {"evidence_url", "evidence_file_name"}}
-        emissions.append({**visible_entry, "supplier_name": supplier_name, "submitted_at": entry["submitted_to_parent_org"], "attributed_emissions": attributed_value, "revenue_percentage": revenue_percentage, "evidence_files": evidence_files})
+        emissions.append({**visible_entry, "supplier_name": supplier_name, "submitted_at": entry["submitted_to_parent_org"], "attributed_emissions": attributed_value, "revenue_percentage": revenue_percentage if revenue_submitted else None, "revenue_submitted": revenue_submitted, "evidence_files": evidence_files})
         total = supplier_totals.setdefault(supplier_id, {
             "supplier_relationship_id": supplier_id,
             "supplier_name": supplier_name,
@@ -359,9 +360,10 @@ async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optio
             "scope1": 0.0,
             "scope2": 0.0,
             "total": 0.0,
-            "revenue_percentage": revenue_percentage,
+            "revenue_percentage": revenue_percentage if revenue_submitted else None,
             "annual_revenue_amount": revenue.get("revenue_amount"),
             "revenue_currency": revenue.get("revenue_currency"),
+            "revenue_submitted": revenue_submitted,
             "attribution_available": factor is not None,
         })
         scope = entry.get("scope")
