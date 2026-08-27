@@ -646,7 +646,7 @@ export default function QuestionnaireBuilder() {
   return (
     <TooltipProvider><div className="space-y-7" data-testid="questionnaire-builder">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-5" data-testid="questionnaire-builder-header">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid="questionnaire-builder-header">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-700 shadow-sm" data-testid="questionnaire-builder-heading-icon">
             <ClipboardCheck className="h-6 w-6" aria-hidden="true" />

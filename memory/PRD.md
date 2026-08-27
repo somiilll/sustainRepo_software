@@ -325,7 +325,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Increased the Suppliers heading and organization icon, and removed its supporting `Manage your supplier assessments` copy for a cleaner workspace header.
 - Redesigned the ESG Questionnaires workspace with the same top-left heading alignment, a purple questionnaire icon, and a single rounded control group containing Reporting period, Review responses, and the green New Questionnaire action.
 - Refined the questionnaire navigator, selected questionnaire panel, question hierarchy, row spacing, low-weight separators, neutral supporting metadata, and understated importance badges. Preview remains neutral while Add Questions stays green.
-- **NOT TESTED** per the user's explicit instruction.
+- Corrected the questionnaire header's vertical offset: its larger period control had bottom-aligned the title. The header now top-aligns, and a live authenticated browser check confirmed both the ESG Questionnaire and Suppliers icons render at `y=24`.
 
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
