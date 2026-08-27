@@ -346,6 +346,7 @@ export default function EmissionEditForm(props) {
                   handleFuelSelect={handleFuelSelect}
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   markFormDirty={markFormDirty}
+                  readOnly={readOnly}
                   reportingPeriod={(
                     <div className="w-full min-w-[15rem] space-y-1.5" data-testid="edit-reporting-period-field">
                       {editFrequencyType === 'yearly' || assignedReportingPeriod ? (
@@ -411,7 +412,7 @@ export default function EmissionEditForm(props) {
                           <Label htmlFor="category_select">Select Category *</Label>
                           <div className="relative">
                             <CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-                            <select
+                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <select
                               id="category_select"
                               value={selectedCategory}
                               onChange={(e) => handleCategorySelect(e.target.value)}
@@ -423,7 +424,7 @@ export default function EmissionEditForm(props) {
                               {getCategoriesForScope.map(category => (
                                 <option key={category} value={category}>{category}</option>
                               ))}
-                            </select>
+                            </select>}
                           </div>
                         </div>
                         
@@ -544,7 +545,7 @@ export default function EmissionEditForm(props) {
                             {!editUseCustomFuel ? (
                               <div className="relative mt-1.5">
                                 <Droplet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-                                <select
+                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <select
                                   id="fuel_select"
                                   value={formData.fuel_id}
                                   onChange={(e) => handleFuelSelect(e.target.value)}
@@ -559,7 +560,7 @@ export default function EmissionEditForm(props) {
                                       {fuel.fuel_name}
                                     </option>
                                   ))}
-                                </select>
+                                </select>}
                               </div>
                             ) : (
                               <div className="space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
@@ -1162,7 +1163,7 @@ export default function EmissionEditForm(props) {
                                 
                                 {/* Non-supplier basis - use dropdown for units */}
                                 {!isSupplierBasisUnitField && showUnitSelector && (
-                                  <select
+                                  readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-24 shrink-0 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid={showCustomFuelQuantityUnit ? 'edit-custom-fuel-quantity-unit' : `edit-unit-${field.fieldKey}`}>{showCustomFuelQuantityUnit ? (dynamicFieldValues.custom_qty_unit || savedUnit || field.expectedUnit || '—') : (dynamicFieldValues[`${field.variable}_unit`] || savedUnit || (isQtyField ? formData.quantity_unit : '') || field.expectedUnit || '—')}</div> : <select
                                     value={showCustomFuelQuantityUnit
                                       ? (dynamicFieldValues.custom_qty_unit || savedUnit || unitSelectorOptions[0] || '')
                                       : (dynamicFieldValues[`${field.variable}_unit`] || savedUnit || unitSelectorOptions[0] || '')}

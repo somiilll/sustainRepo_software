@@ -28,13 +28,19 @@ export const FacilityScopeSection = ({
   setBiogenicScopeSelection,
   markFormDirty,
   reportingPeriod,
+  readOnly = false,
 }) => (
   <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(25rem,1.45fr)_minmax(15rem,1fr)]">
     <div className="space-y-1.5">
       <Label htmlFor="facility">Facility *</Label>
       <div className="relative">
         <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-        <select
+        {readOnly ? <div
+          role="textbox"
+          aria-readonly="true"
+          className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800"
+          data-testid="emission-facility-select"
+        >{facilities.find((facility) => facility.id === formData.facility_id)?.name || '—'}</div> : <select
           id="facility"
           value={formData.facility_id}
           onChange={(e) => { setFormData({ ...formData, facility_id: e.target.value }); markFormDirty(); }}
@@ -46,7 +52,7 @@ export const FacilityScopeSection = ({
           {facilities.filter(f => f.is_active !== false).map(f => (
             <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
           ))}
-        </select>
+        </select>}
       </div>
     </div>
     <div className="space-y-1.5">

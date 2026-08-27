@@ -426,16 +426,84 @@ async def get_parent_submitted_emission_detail(customer_org_id: str, emission_id
     facility = await db.facilities.find_one(
         {"id": entry.get("facility_id")}, {"_id": 0, "name": 1}
     ) if entry.get("facility_id") else None
+    fuel = await db.fuel_database.find_one(
+        {"id": entry.get("fuel_database_id")},
+        {"_id": 0, "calorific_value": 1, "calorific_value_unit": 1, "density": 1, "density_unit": 1,
+         "emission_factor_co2": 1, "emission_factor_co2_unit": 1, "gwp_fugitives": 1, "source": 1,
+         "source_of_information": 1},
+    ) if entry.get("fuel_database_id") else None
     evidence_ids = _evidence_file_ids(entry.get("evidence_url"))
     evidence_records = await db.uploaded_files.find(
         {"id": {"$in": evidence_ids}}, {"_id": 0, "id": 1, "original_filename": 1, "content_type": 1, "file_size": 1}
     ).to_list(len(evidence_ids) or 1)
     evidence_by_id = {record["id"]: record for record in evidence_records}
+    dynamic_field_keys = list((entry.get("dynamic_field_values") or {}).keys())
+    mappings = await db.ce_input_field_mappings.find(
+        {
+            "is_active": {"$ne": False},
+            "$or": [
+                {"maps_to_variable": {"$in": dynamic_field_keys}},
+                {"field_key": {"$in": dynamic_field_keys}},
+            ],
+        },
+        {"_id": 0, "field_key": 1, "maps_to_variable": 1, "field_label": 1, "label": 1, "field_type": 1,
+         "required": 1, "allowed_units": 1, "default_unit": 1, "unit_source": 1, "display_order": 1,
+         "applies_to_categories": 1, "formula_id": 1, "default_value": 1, "source_type": 1},
+    ).to_list(500)
+    category_id = entry.get("category_id")
+    formula_id = entry.get("formula_id")
+    mapping_by_variable: Dict[str, Dict[str, Any]] = {}
+    for mapping in mappings:
+        variable = mapping.get("maps_to_variable") or mapping.get("field_key")
+        if variable not in dynamic_field_keys:
+            continue
+        categories = mapping.get("applies_to_categories") or []
+        if isinstance(categories, str):
+            categories = [categories]
+        score = (4 if mapping.get("formula_id") == formula_id else 0) + (2 if category_id and category_id in categories else 0)
+        existing = mapping_by_variable.get(variable)
+        existing_score = existing.get("_match_score", -1) if existing else -1
+        if score >= existing_score:
+            mapping_by_variable[variable] = {**mapping, "_match_score": score}
+    input_field_mappings = []
+    for variable in dynamic_field_keys:
+        mapping = mapping_by_variable.get(variable)
+        if mapping:
+            input_field_mappings.append({key: value for key, value in mapping.items() if key != "_match_score"})
+    fuel_default_fields = {
+        "cv": ("calorific_value", "calorific_value_unit", "MJ/kg"),
+        "density": ("density", "density_unit", "kg/m3"),
+        "ef_quantity": ("emission_factor_co2", "emission_factor_co2_unit", "kgCO2/kg"),
+        "ef_quantity_electricity_co2": ("emission_factor_co2", "emission_factor_co2_unit", "kgCO2/kWh"),
+        "co2_gwp_fugitives": ("gwp_fugitives", None, "kgCO2e/kg"),
+    }
+    resolved_default_inputs = {}
+    fuel_source = (fuel or {}).get("source") or (fuel or {}).get("source_of_information") or "Fuel database"
+    for variable in dynamic_field_keys:
+        value = (entry.get("dynamic_field_values") or {}).get(variable)
+        mapping = mapping_by_variable.get(variable) or {}
+        is_unset = isinstance(value, dict) and value.get("value") is None and not value.get("is_override", False)
+        if not is_unset:
+            continue
+        if mapping.get("default_value") is not None:
+            resolved_default_inputs[variable] = {
+                "value": mapping["default_value"], "unit": value.get("unit") or mapping.get("default_unit") or "",
+                "source": "Configured default",
+            }
+            continue
+        fuel_field = fuel_default_fields.get(variable)
+        if fuel and fuel_field and fuel.get(fuel_field[0]) is not None:
+            resolved_default_inputs[variable] = {
+                "value": fuel[fuel_field[0]], "unit": value.get("unit") or fuel.get(fuel_field[1]) if fuel_field[1] else value.get("unit") or fuel_field[2],
+                "source": fuel_source,
+            }
     visible_entry = {key: value for key, value in entry.items() if key not in {"evidence_url", "evidence_file_name"}}
     return {
         **visible_entry,
         "facility_name": entry.get("facility_name") or (facility or {}).get("name") or "Supplier facility",
         "supplier_name": relationship.get("company_name", "Unknown"),
         "submitted_at": entry["submitted_to_parent_org"],
+        "input_field_mappings": input_field_mappings,
+        "resolved_default_inputs": resolved_default_inputs,
         "evidence_files": [evidence_by_id[file_id] for file_id in evidence_ids if file_id in evidence_by_id],
     }
