@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { Archive, CalendarDays, Eye, Loader2, RotateCcw, Trash2, Upload, Users } from 'lucide-react';
+import { Archive, CalendarDays, CircleCheck, Eye, GraduationCap, Loader2, RotateCcw, Trash2, Upload, Users } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { Button } from '../../components/ui/button';
@@ -13,12 +13,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../componen
 import { SupplierAssignmentPicker } from './components/SupplierAssignmentPicker';
 import { ReadOnlyTrainingViewer } from './components/ReadOnlyTrainingViewer';
 import { Badge } from '../../components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function SupplierTrainingAdmin() {
   const { getAuthHeader } = useAuth();
-  const { reportingPeriod } = useSupplierAssessmentPeriod();
+  const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
   const [trainings, setTrainings] = useState([]);
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState('');
@@ -118,12 +119,15 @@ export default function SupplierTrainingAdmin() {
     finally { setOpeningPreviewId(''); }
   };
 
+  const trainingSummary = {
+    total: trainings.length,
+    assigned: trainings.reduce((total, training) => total + (training.status || []).length, 0),
+    completed: trainings.reduce((total, training) => total + (training.status || []).filter((item) => item.status === 'completed').length, 0),
+  };
 
-  return <div className={`space-y-6 ${showTrainingForm ? '' : '[&_[data-testid=create-training-card]]:hidden'}`} data-testid="training-admin-page">
-    <div className="flex flex-wrap items-end justify-start gap-4 sm:pr-52">
-      <div><h1 className="text-2xl font-semibold" data-testid="training-admin-heading">Supplier {trainingLabel}</h1>
-      <p className="mt-2 text-sm text-stone-600">Publish private content and assign it to suppliers.</p>
-      </div><Button onClick={() => setShowTrainingForm(true)} data-testid="open-add-training-button"><Upload className="mr-2 h-4 w-4" />Add {trainingLabel}</Button></div>
+  return <div className={`space-y-7 ${showTrainingForm ? '' : '[&_[data-testid=create-training-card]]:hidden'}`} data-testid="training-admin-page">
+    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid="training-admin-header"><div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 shadow-sm" data-testid="training-admin-heading-icon"><GraduationCap className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="training-admin-heading">Supplier {trainingLabel}</h1></div><div className="flex flex-wrap items-end gap-2 rounded-xl border border-stone-200 bg-white p-2 shadow-[0_4px_18px_rgba(28,55,43,0.06)]" data-testid="training-admin-controls"><div className="min-w-40" data-testid="training-admin-period-control"><Label htmlFor="training-admin-reporting-period" className="mb-1 flex items-center gap-1.5 text-xs font-medium text-stone-600" data-testid="training-admin-period-label"><CalendarDays className="h-3.5 w-3.5 text-stone-500" aria-hidden="true" />Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="training-admin-reporting-period" className="h-9 bg-white" data-testid="training-admin-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="training-admin-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`training-admin-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div><Button className="h-9 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowTrainingForm(true)} data-testid="open-add-training-button"><Upload className="h-4 w-4" />Add {trainingLabel}</Button></div></div>
+    <div className="grid gap-4 sm:grid-cols-3" data-testid="training-admin-summary-cards"><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-total-card"><CardContent className="flex items-center gap-3 p-5"><GraduationCap className="h-5 w-5 text-amber-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">{trainingLabel} published</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-total-value">{trainingSummary.total}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-assigned-card"><CardContent className="flex items-center gap-3 p-5"><Users className="h-5 w-5 text-stone-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Supplier assignments</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-assigned-value">{trainingSummary.assigned}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-completed-card"><CardContent className="flex items-center gap-3 p-5"><CircleCheck className="h-5 w-5 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Completed</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-completed-value">{trainingSummary.completed}</p></div></CardContent></Card></div>
     <Card data-testid="create-training-card">
       <CardHeader><CardTitle className="flex gap-2" data-testid="create-training-heading"><Upload className="h-5 w-5 text-emerald-700" />Create {trainingLabel}</CardTitle></CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">

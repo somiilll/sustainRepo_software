@@ -344,6 +344,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Rebuilt published document cards into compact white `rounded-xl` surfaces with low-contrast borders and soft shadows: clear title, wrapped response metadata, compact supplier count, and a right-aligned neutral Preview/View suppliers/Delete action group.
 - **NOT TESTED** per the user's explicit instruction.
 
+## Latest Changes — 2026-08-27 (Documents & Training Summary Refinement)
+- Updated the Supplier Documents and Supplier GHG Emissions header icons with teal and sky-blue color treatments while retaining restrained surfaces.
+- Added three compact parent Documents summary cards: Documents published, Acceptance required, and Supplier assignments.
+- Aligned Supplier Trainings with the same workspace header pattern: an amber training icon, divider, and shared right-side Reporting period/Add Training group. Removed its explanatory header copy and added Published, Supplier assignments, and Completed summary cards.
+- **NOT TESTED** per the user's explicit instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
