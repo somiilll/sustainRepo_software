@@ -1,0 +1,26 @@
+{
+  "created_at": "2026-08-27T04:41:21.172094+00:00",
+  "database": "sustainrepo_staging",
+  "collections": [
+    "ce_decision_tree_versions",
+    "ce_decision_trees",
+    "ce_formula_versions",
+    "ce_formulas",
+    "ce_input_field_mappings",
+    "ce_properties",
+    "ce_variables",
+    "currency_conversion",
+    "supplier_assessment_programs",
+    "supplier_document_acceptances",
+    "supplier_document_requirements",
+    "supplier_document_responses",
+    "supplier_document_submissions",
+    "supplier_document_versions",
+    "supplier_training_assignments",
+    "supplier_training_consumption_events",
+    "supplier_training_contents",
+    "supplier_training_progress",
+    "supplier_training_requirements",
+    "supplier_training_versions"
+  ]
+}

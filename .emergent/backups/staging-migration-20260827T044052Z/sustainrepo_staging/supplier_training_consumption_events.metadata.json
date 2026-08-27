@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"training_assignment_id":{"$numberInt":"1"},"recorded_at":{"$numberInt":"1"}},"name":"training_assignment_id_1_recorded_at_1"}],"uuid":"8551b9d2568848039b2be4ba17cae454","collectionName":"supplier_training_consumption_events","type":"collection"}

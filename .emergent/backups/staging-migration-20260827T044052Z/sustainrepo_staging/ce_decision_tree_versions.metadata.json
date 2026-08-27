@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"f552d1eb83f240eb87b334c30adb672c","collectionName":"ce_decision_tree_versions","type":"collection"}

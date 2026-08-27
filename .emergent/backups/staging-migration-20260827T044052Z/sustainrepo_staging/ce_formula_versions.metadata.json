@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"6ee8f6a7ed5e439a98ebda91f0d8df9a","collectionName":"ce_formula_versions","type":"collection"}
