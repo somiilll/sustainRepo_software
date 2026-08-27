@@ -363,6 +363,13 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Parent response review now lists per-question evidence with secure View and Download actions. Dedicated endpoints verify supplier/customer ownership, response visibility, and evidence-to-question linkage before issuing 15-minute storage URLs.
 - Verification passed: focused backend evidence regression (**5/5 passed**), Python/JavaScript static checks, and an authenticated browser smoke check showing the Evidence column and working action controls on populated Supplier GHG Logs. No mocked APIs were used.
 
+## Latest Changes — 2026-08-27 (Supplier Workspace Copy and Navigation Refinement)
+- Removed the redundant Supplier Rankings subtitle and aligned its heading with the Suppliers and ESG Questionnaire workspaces. Rankings now has a colored amber trophy icon and the same heading hierarchy/alignment.
+- Removed the Monitor and Report frequency badges from facility cards; the saved facility-frequency values and related validation remain unchanged.
+- Supplier ESG final submission now smoothly scrolls to, focuses, and briefly highlights the first missing required response (or required evidence) instead of merely reporting a remaining-count error.
+- Verification passed: JavaScript lint for all changed screens plus authenticated browser checks for the aligned Rankings header and hidden facility frequency badges.
+- Current GHG behavior documented: parent users can see submitted raw supplier emissions without revenue data. A saved revenue percentage determines attributed emissions; a revenue amount is used only to calculate intensity. The pipeline currently does not require the revenue record itself to be locked/submitted before using a saved percentage.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.

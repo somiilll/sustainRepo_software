@@ -447,7 +447,7 @@ export default function Facilities() {
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Facilities</h1>
           <p className="text-text-secondary">
-            Manage your organization's facilities ({filteredFacilities.length} active
+            Manage your organization&apos;s facilities ({filteredFacilities.length} active
             {facilities.length !== filteredFacilities.length && `, ${facilities.length - filteredFacilities.length} inactive`})
           </p>
         </div>
@@ -1058,14 +1058,6 @@ export default function Facilities() {
                 Equity: {facility.equity_share_percentage}%
               </div>
             )}
-            <div className="flex flex-wrap gap-2 mt-3">
-              <span className="px-2 py-1 bg-stone-100 text-text-muted text-xs rounded">
-                Monitor: {facility.monitoring_frequency}
-              </span>
-              <span className="px-2 py-1 bg-stone-100 text-text-muted text-xs rounded">
-                Report: {facility.reporting_frequency}
-              </span>
-            </div>
             {facility.attachments?.length > 0 && (
               <div className="mt-3 pt-3 border-t border-stone-100">
                 <p className="text-xs text-text-muted mb-1">{facility.attachments.length} attachment(s)</p>
@@ -1092,9 +1084,9 @@ export default function Facilities() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {facilityToToggle?.is_active === false ? (
-                <>Are you sure you want to <strong>activate</strong> "{facilityToToggle?.name}"? This will restore visibility of all emissions from this facility.</>
+                <>Are you sure you want to <strong>activate</strong> &quot;{facilityToToggle?.name}&quot;? This will restore visibility of all emissions from this facility.</>
               ) : (
-                <>Are you sure you want to <strong>deactivate</strong> "{facilityToToggle?.name}"? This will hide all emissions from this facility and prevent user assignments.</>
+                <>Are you sure you want to <strong>deactivate</strong> &quot;{facilityToToggle?.name}&quot;? This will hide all emissions from this facility and prevent user assignments.</>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1118,7 +1110,7 @@ export default function Facilities() {
               Permanently Delete Facility
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <p>Are you sure you want to <strong className="text-red-600">permanently delete</strong> "{facilityToDelete?.name}"?</p>
+              <p>Are you sure you want to <strong className="text-red-600">permanently delete</strong> &quot;{facilityToDelete?.name}&quot;?</p>
               <p className="text-red-600 font-medium">This action cannot be undone and will delete:</p>
               <ul className="list-disc list-inside text-sm space-y-1 ml-2">
                 <li>All emission records for this facility</li>

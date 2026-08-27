@@ -55,12 +55,12 @@ export default function SupplierQuestionnaire() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [verificationAccepted, setVerificationAccepted] = useState(false);
   const [uploadingQuestionId, setUploadingQuestionId] = useState('');
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
+  const [highlightedQuestionId, setHighlightedQuestionId] = useState('');
 
   const fetchQuestionnaire = useCallback(async () => {
     try {
@@ -156,6 +156,16 @@ export default function SupplierQuestionnaire() {
     }
   };
 
+  const focusQuestion = (questionId) => {
+    setHighlightedQuestionId(questionId);
+    window.requestAnimationFrame(() => {
+      const question = document.getElementById(`supplier-question-${questionId}`);
+      question?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => question?.focus({ preventScroll: true }), 400);
+    });
+    window.setTimeout(() => setHighlightedQuestionId((current) => current === questionId ? '' : current), 2200);
+  };
+
   const handleSubmit = () => {
     // Check required questions
     const requiredUnanswered = questions.filter(
@@ -163,17 +173,14 @@ export default function SupplierQuestionnaire() {
     );
     
     if (requiredUnanswered.length > 0) {
-      toast.error(`Please answer all required questions (${requiredUnanswered.length} remaining)`);
-      // Navigate to first unanswered required question
-      const firstIndex = questions.findIndex((q) => q.id === requiredUnanswered[0].id);
-      if (firstIndex >= 0) setCurrentIndex(firstIndex);
+      toast.error(`Question ${questions.findIndex((q) => q.id === requiredUnanswered[0].id) + 1} needs a response`);
+      focusQuestion(requiredUnanswered[0].id);
       return;
     }
     const requiredEvidenceMissing = questions.filter((q) => q.evidence_requirement === 'required' && !(q.evidence_files || []).length);
     if (requiredEvidenceMissing.length > 0) {
       toast.error(`Please attach evidence for all required questions (${requiredEvidenceMissing.length} remaining)`);
-      const firstIndex = questions.findIndex((q) => q.id === requiredEvidenceMissing[0].id);
-      if (firstIndex >= 0) setCurrentIndex(firstIndex);
+      focusQuestion(requiredEvidenceMissing[0].id);
       return;
     }
     
@@ -201,7 +208,6 @@ export default function SupplierQuestionnaire() {
     );
   }
 
-  const currentQuestion = questions[currentIndex];
   const answeredCount = Object.keys(answers).length;
   const progress = (answeredCount / questions.length) * 100;
 
@@ -334,7 +340,7 @@ export default function SupplierQuestionnaire() {
       </Card>
 
       <div className="space-y-4" data-testid="supplier-questionnaire-all-questions">
-      {questions.map((question, index) => <Card key={question.id} data-testid={`supplier-questionnaire-question-card-${question.id}`}>
+      {questions.map((question, index) => <Card key={question.id} id={`supplier-question-${question.id}`} tabIndex={-1} className={`scroll-mt-24 transition-[box-shadow,border-color] ${highlightedQuestionId === question.id ? 'border-amber-400 ring-2 ring-amber-200' : ''}`} data-testid={`supplier-questionnaire-question-card-${question.id}`}>
         <CardHeader>
           <div className="flex items-start gap-2">
             {answers[question.id] !== undefined ? (
