@@ -315,6 +315,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Renamed the reminder action hover label from `Email supplier` to `Send Reminder` without changing its reminder functionality.
 - Focused JavaScript lint and an authenticated desktop screenshot passed before the final tooltip-only wording change. Per user instruction, no testing was run after that final change.
 
+## Latest Changes — 2026-08-27 (Add Supplier Form Guidance)
+- Removed the bordered container around the Annual Revenue requirement so it follows the same field rhythm as the rest of the supplier form.
+- Added accessible information tooltips explaining that annual revenue supports intensity calculations and that supplier assessment access locks after the due date.
+- Removed the redundant selected-by-default helper copy from the Documents and Training assignment sections.
+- **NOT TESTED** per the user's explicit instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.

@@ -27,6 +27,7 @@ import {
 import { Label } from '../../components/ui/label';
 import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { 
   Plus, 
   Search, 
@@ -45,6 +46,7 @@ import {
   GraduationCap,
   ClipboardCheck,
   CalendarDays,
+  Info,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -60,6 +62,19 @@ const groupAvailableDocuments = (requirements) => Object.values((requirements ||
   if (!groups[key]) groups[key] = requirement;
   return groups;
 }, {}));
+
+const FieldInfo = ({ label, testId }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button type="button" className="inline-flex h-5 w-5 items-center justify-center rounded-full text-stone-400 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600" aria-label={label} data-testid={testId}>
+          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64 bg-stone-900 text-center text-white" data-testid={`${testId}-content`}>{label}</TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 export default function SupplierList() {
   const { getAuthHeader } = useAuth();
@@ -623,11 +638,17 @@ export default function SupplierList() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Due Date</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label>Due Date</Label>
+                  <FieldInfo label="After this date, the supplier assessment will be locked for the supplier." testId="supplier-due-date-info" />
+                </div>
                 <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} data-testid="supplier-due-date" />
               </div>
-            <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3">
-              <Label>Is Annual Revenue required?</Label>
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label>Is Annual Revenue required?</Label>
+                <FieldInfo label="Annual revenue is required for intensity calculations." testId="annual-revenue-info" />
+              </div>
               <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-5" data-testid="annual-revenue-required-control">
                 <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="annual-revenue-optional">
                   <RadioGroupItem id="annual-revenue-optional" value="optional" data-testid="annual-revenue-optional-radio" />
@@ -726,8 +747,8 @@ export default function SupplierList() {
             </div>
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="grid gap-4 border-t pt-4 md:grid-cols-2 [&>div:first-child]:!border-teal-300 [&>div:first-child]:!shadow-[0_4px_16px_rgba(20,184,166,0.18)] [&>div:last-child]:!border-amber-300 [&>div:last-child]:!shadow-[0_4px_16px_rgba(245,158,11,0.18)]" data-testid="supplier-existing-assignment-options">
-                {documents.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Documents</span><p className="text-xs text-stone-500">Selected by default. Uncheck any document this supplier should not receive.</p>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
-                {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span><p className="text-xs text-stone-500">Selected by default. Uncheck any training this supplier should not receive.</p>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.document_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
+                {documents.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
+                {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.document_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
               </div>
             )}
           </div>
