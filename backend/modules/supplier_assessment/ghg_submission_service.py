@@ -473,8 +473,8 @@ async def get_parent_submitted_emission_detail(customer_org_id: str, emission_id
     fuel_default_fields = {
         "cv": ("calorific_value", "calorific_value_unit", "MJ/kg"),
         "density": ("density", "density_unit", "kg/m3"),
-        "ef_quantity": ("emission_factor_co2", "emission_factor_co2_unit", "kgCO2/kg"),
-        "ef_quantity_electricity_co2": ("emission_factor_co2", "emission_factor_co2_unit", "kgCO2/kWh"),
+        "ef_quantity": ("emission_factor_basis_quantity", "emission_factor_basis_unit", "kgCO2/kg"),
+        "ef_quantity_electricity_co2": ("emission_factor_basis_quantity", "emission_factor_basis_unit", "tCO2/MWh"),
         "co2_gwp_fugitives": ("gwp_fugitives", None, "kgCO2e/kg"),
     }
     resolved_default_inputs = {}
