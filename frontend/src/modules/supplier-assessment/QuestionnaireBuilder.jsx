@@ -47,6 +47,7 @@ import {
   Pencil,
   Info,
   ClipboardCheck,
+  CalendarDays,
 } from 'lucide-react';
 import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
 import { QuestionLedgerDialog } from './components/QuestionLedgerDialog';
@@ -156,15 +157,15 @@ const questionTypeLabel = (value) => responseTypes.find((type) => type.value ===
 const scoringLabel = (value) => scoringRules.find((rule) => rule.value === value)?.label || 'Not configured';
 const questionnaireDeadlinePassed = (questionnaire) => Boolean(questionnaire?.due_date) && new Date(`${questionnaire.due_date}T23:59:59`).getTime() < Date.now();
 const importanceClasses = {
-  low: 'border-sky-200 bg-sky-50 text-sky-700',
-  medium: 'border-amber-200 bg-amber-50 text-amber-700',
-  high: 'border-orange-200 bg-orange-50 text-orange-700',
-  critical: 'border-rose-200 bg-rose-50 text-rose-700',
+  low: 'border-stone-200 bg-stone-50 text-stone-600',
+  medium: 'border-stone-200 bg-stone-50 text-stone-600',
+  high: 'border-stone-200 bg-stone-50 text-stone-600',
+  critical: 'border-stone-200 bg-stone-50 text-stone-700',
 };
 
 export default function QuestionnaireBuilder() {
   const { getAuthHeader } = useAuth();
-  const { reportingPeriod } = useSupplierAssessmentPeriod();
+  const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
   const [questionnaires, setQuestionnaires] = useState([]);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -645,19 +646,23 @@ export default function QuestionnaireBuilder() {
   return (
     <TooltipProvider><div className="space-y-7" data-testid="questionnaire-builder">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-5">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Supplier assessment</p>
-          <h1 className="mt-1 text-2xl font-semibold text-stone-900">ESG Questionnaires</h1>
-          <p className="mt-1 text-sm text-stone-500">Build, organise, and review supplier assessments for {reportingPeriod}.</p>
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-5" data-testid="questionnaire-builder-header">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-700 shadow-sm" data-testid="questionnaire-builder-heading-icon">
+            <ClipboardCheck className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <h1 className="text-3xl font-bold text-emerald-950" data-testid="questionnaire-builder-heading">ESG Questionnaires</h1>
         </div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={openSubmissions} disabled={!selectedQuestionnaire} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="mr-2 h-4 w-4" />Review responses</Button><Button onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn"><Plus className="mr-2 h-4 w-4" />New Questionnaire</Button></div>
+        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-stone-200 bg-white p-2 shadow-[0_4px_18px_rgba(28,55,43,0.06)]" data-testid="questionnaire-builder-controls">
+          <div className="min-w-40" data-testid="questionnaire-builder-period-control"><Label htmlFor="questionnaire-builder-reporting-period" className="mb-1 flex items-center gap-1.5 text-xs font-medium text-stone-600" data-testid="questionnaire-builder-period-label"><CalendarDays className="h-3.5 w-3.5 text-stone-500" aria-hidden="true" />Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="questionnaire-builder-reporting-period" className="h-9 bg-white" data-testid="questionnaire-builder-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="questionnaire-builder-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`questionnaire-builder-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
+          <Button variant="outline" className="h-9 border-stone-200 bg-white text-stone-700 hover:bg-stone-50" onClick={openSubmissions} disabled={!selectedQuestionnaire} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="h-4 w-4 text-stone-600" />Review responses</Button><Button className="h-9 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn"><Plus className="h-4 w-4" />New Questionnaire</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         {/* Questionnaire List */}
         <aside className="xl:col-span-3" data-testid="questionnaire-navigation-panel">
-          <div className="border border-stone-200 bg-white">
+          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_4px_18px_rgba(28,55,43,0.05)]">
             <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3"><CardTitle className="text-base">Questionnaires</CardTitle><span className="text-xs text-stone-500" data-testid="questionnaire-count-label">{questionnaires.length}</span></div>
             <div className="p-2">
               {loading ? (
@@ -669,8 +674,8 @@ export default function QuestionnaireBuilder() {
                   {questionnaires.map((q) => (
                     <div
                       key={q.id}
-                      className={`group cursor-pointer border px-3 py-3 transition-colors ${
-                        selectedQuestionnaire?.id === q.id ? 'border-emerald-200 bg-emerald-50/70' : 'border-transparent hover:border-stone-200 hover:bg-stone-50'
+                      className={`group cursor-pointer rounded-md border px-3 py-3 transition-[background-color,border-color,box-shadow] ${
+                        selectedQuestionnaire?.id === q.id ? 'border-emerald-300 bg-emerald-50/50 shadow-sm' : 'border-transparent hover:border-stone-200 hover:bg-stone-50'
                       }`}
                       onClick={() => setSelectedQuestionnaire(q)}
                       data-testid={`questionnaire-${q.id}`}
@@ -730,17 +735,17 @@ export default function QuestionnaireBuilder() {
         {/* Question Builder */}
         <main className="xl:col-span-9">
           {selectedQuestionnaire ? (
-            <section className="border border-stone-200 bg-white" data-testid="selected-questionnaire-panel">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 px-5 py-4">
-                <div><div className="flex items-center gap-2"><CardTitle className="text-xl">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-amber-200 bg-amber-50 text-xs font-medium text-amber-800' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-1 text-sm text-stone-500">{selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
-                <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview for supplier</Button><Button onClick={() => {
+            <section className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_5px_20px_rgba(28,55,43,0.06)]" data-testid="selected-questionnaire-panel">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-100 px-5 py-5">
+                <div><div className="flex flex-wrap items-center gap-2"><CardTitle className="text-2xl font-bold text-stone-950">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-stone-200 bg-stone-50 text-xs font-medium text-stone-600' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-2 text-sm text-stone-500">{selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
+                <div className="flex flex-wrap gap-2"><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:bg-stone-50" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
                   resetQuestionForm();
                   setEditingQuestion(null);
                   setShowQuestionDialog(true);
                 }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
-              <div className="px-5 py-3" data-testid="question-table">
-                <div className="hidden grid-cols-[2rem_minmax(9rem,1fr)_5.5rem_5.5rem_7rem_6rem_5rem] items-center gap-2 border-b border-stone-200 pb-2 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
+              <div className="px-5 py-4" data-testid="question-table">
+                <div className="hidden grid-cols-[2rem_minmax(12rem,1fr)_6rem_6rem_7.5rem_6.5rem_5.5rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
                 {questions.length === 0 ? (
                   <div className="py-14 text-center text-stone-500" data-testid="question-list-empty"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">No questions yet. Add your first question.</p></div>
                 ) : (

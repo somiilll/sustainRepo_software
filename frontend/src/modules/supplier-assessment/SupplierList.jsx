@@ -384,12 +384,11 @@ export default function SupplierList() {
       {/* Header */}
       <div className="border-b border-stone-200 pb-5" data-testid="supplier-list-header">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm" data-testid="supplier-list-heading-icon">
-            <Building2 className="h-5 w-5" aria-hidden="true" />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm" data-testid="supplier-list-heading-icon">
+            <Building2 className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-emerald-950" data-testid="supplier-list-heading">Suppliers</h1>
-            <p className="mt-0.5 text-xs text-stone-500 sm:text-sm" data-testid="supplier-list-subtitle">Manage your supplier assessments</p>
+            <h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-list-heading">Suppliers</h1>
           </div>
         </div>
       </div>

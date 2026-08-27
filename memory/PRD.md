@@ -321,6 +321,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Removed the redundant selected-by-default helper copy from the Documents and Training assignment sections.
 - **NOT TESTED** per the user's explicit instruction.
 
+## Latest Changes — 2026-08-27 (Parent Supplier & ESG Questionnaire Hierarchy)
+- Increased the Suppliers heading and organization icon, and removed its supporting `Manage your supplier assessments` copy for a cleaner workspace header.
+- Redesigned the ESG Questionnaires workspace with the same top-left heading alignment, a purple questionnaire icon, and a single rounded control group containing Reporting period, Review responses, and the green New Questionnaire action.
+- Refined the questionnaire navigator, selected questionnaire panel, question hierarchy, row spacing, low-weight separators, neutral supporting metadata, and understated importance badges. Preview remains neutral while Add Questions stays green.
+- **NOT TESTED** per the user's explicit instruction.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
