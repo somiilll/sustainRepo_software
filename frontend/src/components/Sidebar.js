@@ -5,9 +5,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import sidebarConfig from '../config/sidebarConfig';
 import { Button } from './ui/button';
-import { ChevronDown, ChevronRight, LogOut } from 'lucide-react';
+import { ChevronDown, ChevronRight, LogOut, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
+import { isSupplierMutedMenuItem } from '../config/supplierNavigation';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -16,6 +17,12 @@ const LOGO_FALLBACK = '/sustainrepo-logo.png';
 const ENV_MODULE_ICONS = { power: 'Zap', water: 'Droplets', steam: 'Cloud', energy: 'Zap', waste: 'Trash2' };
 const SOCIAL_MODULE_ICONS = { workforce: 'Users2', health_safety: 'HeartPulse', community: 'Building2', human_rights: 'Scale' };
 const GOVERNANCE_MODULE_ICONS = { board: 'Shield', ethics: 'Scale', compliance: 'FileCheck', risk: 'AlertTriangle' };
+const SUPPLIER_ASSESSMENT_LABEL_KEYS = {
+  'supplier_assessment.esg': 'esg',
+  'supplier_assessment.ghg': 'ghg',
+  'supplier_assessment.documents': 'documents',
+  'supplier_assessment.trainings': 'training',
+};
 
 function _sectionIcons(section) {
   if (section === 'social') return SOCIAL_MODULE_ICONS;
@@ -25,6 +32,17 @@ function _sectionIcons(section) {
 
 function getIcon(name) {
   return LucideIcons[name] || null;
+}
+
+function withSupplierAssessmentLabels(items, resolvedConfig) {
+  const modules = resolvedConfig?.supplier_assessment?.modules || {};
+  return items.map((item) => ({
+    ...item,
+    label: SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key]
+      ? modules[SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key]]?.display_name || item.label
+      : item.label,
+    children: item.children ? withSupplierAssessmentLabels(item.children, resolvedConfig) : item.children,
+  }));
 }
 
 function isActive(path, loc) {
@@ -48,6 +66,7 @@ function MenuItem(props) {
   var userRole = props.userRole;
   var userType = props.userType;
   var orgType = props.orgType;
+  var inheritedMuted = props.inheritedMuted;
 
   // Check adminOnly
   if (item.adminOnly && userRole !== 'admin' && userRole !== 'super_admin') return null;
@@ -56,6 +75,10 @@ function MenuItem(props) {
   // Hide admin supplier items from supplier users
   if (!item.supplierOnly && item.key?.startsWith('supplier_assessment.') && (userType === 'supplier' || orgType === 'supplier')) return null;
   if (!hasAccess(item.key)) return null;
+
+  var isSupplier = userType === 'supplier' || orgType === 'supplier';
+  var supplierAccessibleItem = item.supplierOnly || ['dashboard', 'facilities', 'profile', 'supplier_assessment'].includes(item.key) || item.key === 'environment' || item.key?.startsWith('environment.ghg');
+  var mutedForSupplier = inheritedMuted || (isSupplier && (isSupplierMutedMenuItem(item.key) || !supplierAccessibleItem));
 
   var hasChildren = item.children && item.children.length > 0;
   var active = item.path ? isActive(item.path, location) : false;
@@ -69,7 +92,7 @@ function MenuItem(props) {
       React.createElement('button', {
         type: 'button',
         onClick: function() { onToggle(item.key); },
-        className: 'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (groupActive ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
+        className: 'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : groupActive ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
         'data-testid': 'sidebar-' + item.key,
       },
         React.createElement('span', { className: 'flex items-center gap-2.5' },
@@ -83,7 +106,7 @@ function MenuItem(props) {
           return React.createElement(MenuItem, {
             key: child.key, item: child, depth: depth + 1, expanded: expanded,
             onToggle: onToggle, location: location, hasAccess: hasAccess, userRole: userRole,
-            userType: userType, orgType: orgType
+            userType: userType, orgType: orgType, inheritedMuted: mutedForSupplier
           });
         })
       ) : null
@@ -92,7 +115,7 @@ function MenuItem(props) {
 
   return React.createElement(Link, {
     to: item.path,
-    className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
+    className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
     'data-testid': 'sidebar-' + item.key,
   },
     Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
@@ -100,7 +123,7 @@ function MenuItem(props) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen, onMobileClose }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
@@ -109,6 +132,7 @@ export default function Sidebar() {
   const [resolvedConfig, setResolvedConfig] = useState(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
+  const isSupplier = user?.user_type === 'supplier' || user?.org_type === 'supplier';
 
   // Fetch resolved org config for dynamic environment sidebar
   useEffect(() => {
@@ -123,10 +147,12 @@ export default function Sidebar() {
     if (isSuperAdmin) return superAdminSidebarConfig;
     if (!resolvedConfig?.has_org_config) return sidebarConfig;
 
+    const configuredSidebar = withSupplierAssessmentLabels(sidebarConfig, resolvedConfig);
+
     const mode = resolvedConfig.modules_mode; // "default" | "default_custom" | "custom"
 
     // Pure default → static sidebar as-is
-    if (mode === 'default' && !resolvedConfig.has_enabled_filter) return sidebarConfig;
+    if (mode === 'default' && !resolvedConfig.has_enabled_filter) return configuredSidebar;
 
     // Build environment children based on mode
     const buildEnvChildren = () => {
@@ -165,7 +191,7 @@ export default function Sidebar() {
       }
 
       // default_custom: static defaults (filtered) + custom modules before Others
-      const defaultItems = sidebarConfig.find(s => s.key === 'environment')?.children || [];
+      const defaultItems = configuredSidebar.find(s => s.key === 'environment')?.children || [];
 
       // Filter out disabled defaults; separate Others and Analysis (they go last)
       const filtered = [];
@@ -199,7 +225,7 @@ export default function Sidebar() {
     };
 
     // Social & Governance: never break into sub-modules, always use static config
-    return sidebarConfig.map(item => {
+    return configuredSidebar.map(item => {
       if (item.key === 'environment' && (mode === 'default_custom' || mode === 'custom')) {
         return { ...item, children: buildEnvChildren() };
       }
@@ -249,12 +275,13 @@ export default function Sidebar() {
   if (!user) return null;
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-stone-200 bg-white" data-testid="main-sidebar">
-      <div className="flex h-16 items-center border-b border-stone-200 px-4">
-        <Link to={isSuperAdmin ? '/super-admin' : '/dashboard'} className="flex items-center gap-2.5">
+    <aside className={`fixed inset-y-0 left-0 z-40 flex h-screen w-64 shrink-0 flex-col border-r border-stone-200 bg-white transition-transform duration-200 lg:static lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`} data-testid="main-sidebar">
+      <div className="flex h-16 items-center justify-between border-b border-stone-200 px-4">
+        <Link to={isSuperAdmin ? '/super-admin' : isSupplier ? '/supplier-assessment/supplier' : '/dashboard'} className="flex items-center gap-2.5" data-testid="sidebar-logo-link">
           <img src={logoUrl} alt="Logo" className="h-9 w-auto" onError={(e) => { e.target.src = LOGO_FALLBACK; }} />
           <span className="text-lg font-bold text-stone-800 tracking-tight">SustainRepo</span>
         </Link>
+        <Button type="button" variant="ghost" size="icon" className="lg:hidden" onClick={onMobileClose} aria-label="Close navigation menu" data-testid="mobile-sidebar-close-button"><X className="h-5 w-5" /></Button>
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3" data-testid="sidebar-nav">

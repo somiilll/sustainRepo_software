@@ -8,11 +8,11 @@
  * The parent (EmissionEntryForm) manages all state and callbacks.
  */
 
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
-import { Info, Check, Upload, X, FileText } from 'lucide-react';
+import { Info, Upload, X, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Import CustomFuelMonthFields for per-month custom fuel inputs
@@ -60,6 +60,60 @@ const getFieldDefaultValue = (field, selectedFuel) => {
 const getFieldDefaultUnit = (field, selectedFuel, fieldUnits) => {
   const fuelKey = FUEL_DEFAULT_UNIT_KEYS[field.variable];
   return selectedFuel?.[fuelKey] || field.expectedUnit || fieldUnits[0] || '';
+};
+
+const isCvField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(cv|calorific)(_|$)/i.test(identity)
+    || /calorific|\bcv\b/i.test(field.label || '');
+};
+
+const isEfField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(ef|emission_factor)(_|$)/i.test(identity)
+    || /emission factor|\bef\b/i.test(field.label || '');
+};
+
+const isCarbonContentField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /carbon.*content|composition.*carbon/i.test(identity)
+    || /carbon.*content|composition.*carbon/i.test(field.label || '');
+};
+
+const getMonthlyFieldValue = (field = {}, data = {}) => {
+  const valueKey = field.valueKey || field.variable || field.fieldKey;
+  return data[valueKey] ?? data[field.variable] ?? data[field.fieldKey];
+};
+
+const hasNumericFieldValue = (field, data) => {
+  const value = getMonthlyFieldValue(field, data);
+  return hasFieldValue(value) && Number.isFinite(Number(value));
+};
+
+const hasDensitySourceValues = ({ quantityField, referenceField, data }) => (
+  hasNumericFieldValue(quantityField, data) && hasNumericFieldValue(referenceField, data)
+);
+
+/** The unit shown in a row and the unit used for conversions must be identical. */
+const resolveEffectiveFieldUnit = ({
+  field,
+  data,
+  selectedFuel,
+  fieldUnits = [],
+  isProcessEmissions = false,
+}) => {
+  if (!field) return '';
+  const valueKey = field.valueKey || field.variable || field.fieldKey;
+  const unitKey = field.unitKey || `${valueKey}_unit`;
+  const storedValue = getMonthlyFieldValue(field, data) ?? '';
+  const defaultValue = getFieldDefaultValue(field, selectedFuel);
+  const storedUnit = data[unitKey]
+    || (!isProcessEmissions ? data.unit : '')
+    || '';
+  const defaultUnit = field.defaultUnit || getFieldDefaultUnit(field, selectedFuel, fieldUnits);
+  return !hasFieldValue(storedValue) && hasFieldValue(defaultValue)
+    ? defaultUnit
+    : (storedUnit || defaultUnit);
 };
 
 /**
@@ -146,7 +200,34 @@ const EvidenceIconCell = ({
  *   2. Process-emission template input_fields
  *   3. Legacy fallback → single "Quantity" column
  */
-const deriveLedgerColumns = (dynamicInputFields, formConfig, isProcessEmissions, selectedTemplate) => {
+const getCustomFuelLedgerColumns = (calculationMethodology, isFugitiveCustomFuel) => {
+  if (isFugitiveCustomFuel) return [];
+  const factorColumns = calculationMethodology === 'using_heat_basis_ncv'
+    ? [
+      { key: 'custom_ef', label: 'Emission Factor', customFuelField: 'emission-factor', required: true },
+      { key: 'custom_cv', label: 'Calorific Value', customFuelField: 'calorific-value', required: true },
+    ]
+    : calculationMethodology === 'using_qty_basis_ef'
+      ? [{ key: 'custom_ef', label: 'Emission Factor', customFuelField: 'emission-factor', required: true }]
+      : calculationMethodology === 'using_carbon_composition'
+        ? [
+          { key: 'custom_carbon_content', label: 'Carbon Content (%)', customFuelField: 'carbon-content', required: true },
+          { key: 'custom_oxidation_factor', label: 'Oxidation Factor', customFuelField: 'oxidation-factor', required: true },
+        ]
+        : [];
+
+  return [...factorColumns, { key: 'density', label: 'Density', customFuelField: 'density' }];
+};
+
+const deriveLedgerColumns = (
+  dynamicInputFields,
+  formConfig,
+  isProcessEmissions,
+  selectedTemplate,
+  useCustomFuel,
+  calculationMethodology,
+  isFugitiveCustomFuel,
+) => {
   if (isProcessEmissions && selectedTemplate?.input_fields?.length > 0) {
     return selectedTemplate.input_fields.map(f => ({
       key: f.key,
@@ -156,52 +237,75 @@ const deriveLedgerColumns = (dynamicInputFields, formConfig, isProcessEmissions,
     }));
   }
   if (formConfig && dynamicInputFields.length > 0) {
-    return dynamicInputFields.map(f => ({
+    const primaryColumns = dynamicInputFields.map(f => ({
       key: f.variable,
       label: f.label,
       unit: null,
-      required: f.required && !f.isOverride,
-      isOverride: !!f.isOverride,
+      required: (f.required && !f.isOverride)
+        || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives'),
+      isOverride: !!f.isOverride && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives'),
       isOptional: !f.required && !f.isOverride,
     }));
+    return useCustomFuel
+      ? [...primaryColumns, ...getCustomFuelLedgerColumns(calculationMethodology, isFugitiveCustomFuel)]
+      : primaryColumns;
   }
   // Legacy fallback
-  return [{ key: 'quantity', label: 'Quantity', unit: null, required: true }];
+  const primaryColumns = [{ key: 'quantity', label: 'Quantity', unit: null, required: true }];
+  return useCustomFuel
+    ? [...primaryColumns, ...getCustomFuelLedgerColumns(calculationMethodology, isFugitiveCustomFuel)]
+    : primaryColumns;
 };
 
-const MonthlyLedger = ({ columns, children }) => (
-  <div className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="monthly-emissions-ledger">
-    <table className="w-full text-sm">
-      <thead className="hidden border-b border-stone-200 bg-stone-50 lg:table-header-group">
-        <tr>
-          <th className="w-36 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Month</th>
-          {columns.map(col => (
-            <th key={col.key} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
-              {col.label}
-              {col.required && <span className="ml-0.5 text-red-500">*</span>}
-              {col.unit && <span className="ml-1 font-normal normal-case text-stone-400">({col.unit})</span>}
-            </th>
-          ))}
-          <th className="w-14 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-500">
-            <span className="sr-only">Evidence</span>
-            <FileText className="mx-auto h-3.5 w-3.5 text-stone-400" />
-          </th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-stone-200">{children}</tbody>
-    </table>
-  </div>
-);
+const MonthlyLedger = ({ columns, rows }) => {
+  const headerCells = columns.map((col) => React.createElement(
+    'th',
+    { key: col.key, className: 'px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500' },
+    col.label,
+    col.required && React.createElement('span', { className: 'ml-0.5 text-red-500' }, '*'),
+    col.unit && React.createElement('span', { className: 'ml-1 font-normal normal-case text-stone-400' }, `(${col.unit})`),
+  ));
+  const headerRow = React.createElement(
+    'tr',
+    null,
+    React.createElement('th', { className: 'w-36 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500' }, 'Month'),
+    ...headerCells,
+    React.createElement(
+      'th',
+      { className: 'w-14 px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-stone-500' },
+      React.createElement('span', { className: 'sr-only' }, 'Evidence'),
+      React.createElement(FileText, { className: 'mx-auto h-3.5 w-3.5 text-stone-400' }),
+    ),
+  );
+
+  return React.createElement(
+    'div',
+    { className: 'overflow-hidden rounded-lg border border-stone-200 bg-white', 'data-testid': 'monthly-emissions-ledger' },
+    React.createElement(
+      'table',
+      { className: 'w-full text-sm' },
+      React.createElement('thead', { className: 'hidden border-b border-stone-200 bg-stone-50 lg:table-header-group' }, headerRow),
+      React.createElement('tbody', { className: 'divide-y divide-stone-200' }, rows),
+    ),
+  );
+};
 
 // Import volume unit helper
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
-import { isQuantityField } from '../../utils/unitHelpers';
+import { getUnitDenominator, isQuantityField, resolveDensityRequirement } from '../../utils/unitHelpers';
+import { normalizeProcessTemplateMonthlyField } from '../../utils/processTemplateMonthlyFields';
 import { buildNativeOptionsHtml } from '../../utils/nativeSelectOptions';
 import { getFieldUnits } from '../DynamicFieldRenderer';
+import {
+  GHG_FIELD_OPTION_KEYS,
+  resolveStandardGhgFieldOptions,
+} from '../../../../config/standardGhgFormConfig';
 
 // Import FlightDetailsSection for C6 air travel per-month airport selection
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
 import { ReportingPeriodControls } from '../ReportingPeriodControls';
+
+const DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS = resolveStandardGhgFieldOptions();
 
 /**
  * Step 3 Year & Monthly Data Component
@@ -277,6 +381,7 @@ export const Step3YearMonthlyData = ({
   fieldOptions = {},
   biogenicScopeSelection,
   useCustomFuel,
+  customFugitiveQuantityUnits = [],
   selectedFuel,
   centralizedUnits,
   defaultUnit,
@@ -294,6 +399,117 @@ export const Step3YearMonthlyData = ({
   // Backend URL for file viewing
   BACKEND_URL,
 }) => {
+  const isFugitiveCustomFuel = useCustomFuel && String(category || '').toLowerCase().includes('fugitive');
+  const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
+    || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
+  const customQuantityUnitOptions = isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
+    ? customFugitiveQuantityUnits
+    : customFuelQuantityUnits;
+  const normalizedProcessTemplateFields = useMemo(() => (
+    isProcessEmissions && selectedTemplate?.input_fields?.length
+      ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
+      : []
+  ), [isProcessEmissions, selectedTemplate]);
+  const resolveFieldUnits = (field) => {
+    if (!field) return [];
+    if (field.source === 'process_template') return field.allowedUnits || [];
+    return getFieldUnits({
+      field,
+      scope,
+      scope3Method,
+      scope3ActivityId,
+      requiresSubcategory,
+      selectedFuel,
+      filteredScope3Activities,
+      centralizedUnits,
+      biogenicScopeSelection,
+      useCustomFuel,
+    });
+  };
+  const runtimeConversionFields = isProcessEmissions && normalizedProcessTemplateFields.length > 0
+    ? normalizedProcessTemplateFields
+    : dynamicInputFields;
+  const supportsRuntimeDensity = isProcessEmissions || useCustomFuel;
+
+  useEffect(() => {
+    if (!['using_heat_basis_ncv', 'using_qty_basis_ef', 'using_carbon_composition'].includes(calculationMethodology)) return;
+
+    const quantityField = runtimeConversionFields.find((field) => isQuantityField(field));
+    const referenceField = calculationMethodology === 'using_heat_basis_ncv'
+      ? runtimeConversionFields.find(isCvField)
+      : calculationMethodology === 'using_qty_basis_ef'
+        ? runtimeConversionFields.find(isEfField)
+        : runtimeConversionFields.find(isCarbonContentField);
+    if (!quantityField || !referenceField) return;
+
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+      activeMonths.forEach((monthKey) => {
+        const current = previousMonths[monthKey] || {};
+        // Unit-based runtime Density is exclusively a Process Emissions and
+        // Custom Fuel concern. Clear a stale requirement if a user switches
+        // back to a standard fuel/category.
+        if (!supportsRuntimeDensity) {
+          if (current.runtime_density_required) {
+            nextMonths[monthKey] = {
+              ...current,
+              runtime_density_required: false,
+            };
+            changed = true;
+          }
+          return;
+        }
+        const quantityUnit = resolveEffectiveFieldUnit({
+          field: quantityField,
+          data: current,
+          selectedFuel,
+          fieldUnits: resolveFieldUnits(quantityField),
+          isProcessEmissions,
+        });
+        const referenceUnit = resolveEffectiveFieldUnit({
+          field: referenceField,
+          data: current,
+          selectedFuel,
+          fieldUnits: resolveFieldUnits(referenceField),
+          isProcessEmissions,
+        });
+        const requirement = resolveDensityRequirement({
+          quantityUnit,
+          referenceUnit: calculationMethodology === 'using_carbon_composition'
+            ? 'kg'
+            : getUnitDenominator(referenceUnit),
+          centralizedUnits,
+        });
+        const hasDensityInputs = hasDensitySourceValues({
+          quantityField,
+          referenceField,
+          data: current,
+        });
+        if (!requirement.required || !hasDensityInputs) {
+          if (current.runtime_density_required && !current.density) {
+            nextMonths[monthKey] = {
+              ...current,
+              override_density: false,
+              runtime_density_required: false,
+            };
+            changed = true;
+          }
+          return;
+        }
+        if (current.override_density === true && current.density_unit === requirement.densityUnit) return;
+        nextMonths[monthKey] = {
+          ...current,
+          override_density: true,
+          runtime_density_required: true,
+          density_unit: requirement.densityUnit,
+        };
+        changed = true;
+      });
+      return changed ? nextMonths : previousMonths;
+    });
+  }, [activeMonths, calculationMethodology, centralizedUnits, monthlyData, runtimeConversionFields, setMonthlyData, supportsRuntimeDensity]);
+
   return (
     <div className="space-y-8">
       {showReportingControls && (
@@ -419,15 +635,31 @@ export const Step3YearMonthlyData = ({
           )}
 
           {(() => {
-            const ledgerColumns = deriveLedgerColumns(dynamicInputFields, formConfig, isProcessEmissions, selectedTemplate);
+            const ledgerColumns = deriveLedgerColumns(
+              dynamicInputFields,
+              formConfig,
+              isProcessEmissions,
+              selectedTemplate,
+              useCustomFuel,
+              calculationMethodology,
+              isFugitiveCustomFuel,
+            );
             const totalCols = ledgerColumns.length + 2; // Month + fields + Evidence
 
             // Compact cell input renderer — no labels, just input + unit
             const renderCellInput = (col, monthKey, data) => {
               // Process emissions path
               if (isProcessEmissions && selectedTemplate) {
-                const field = selectedTemplate.input_fields?.find(f => f.key === col.key);
+                const field = normalizedProcessTemplateFields.find((candidate) => candidate.valueKey === col.key);
                 if (!field) return null;
+                const fieldUnits = resolveFieldUnits(field);
+                const displayedUnit = resolveEffectiveFieldUnit({
+                  field,
+                  data,
+                  selectedFuel,
+                  fieldUnits,
+                  isProcessEmissions: true,
+                });
                 return (
                   <div className="flex items-center gap-1">
                     <Input
@@ -435,18 +667,107 @@ export const Step3YearMonthlyData = ({
                       step={field.data_type === 'number' ? 'any' : undefined}
                       min="0"
                       placeholder="—"
-                      value={data[field.key] || ''}
-                      onChange={(e) => updateMonthData(monthKey, field.key, e.target.value)}
+                      value={getMonthlyFieldValue(field, data) || ''}
+                      onChange={(e) => updateMonthData(monthKey, field.valueKey, e.target.value)}
                       className="h-8 w-full text-sm"
-                      data-testid={`month-${monthKey}-${field.key}`}
+                      data-testid={`month-${monthKey}-${field.valueKey}`}
                     />
-                    <select
-                      value={data[`${field.key}_unit`] || field.unit || 'kg'}
-                      onChange={(e) => updateMonthData(monthKey, `${field.key}_unit`, e.target.value)}
-                      className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
-                      data-testid={`month-${monthKey}-${field.key}-unit`}
-                      dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
+                    {fieldUnits.length > 0 && (
+                      <select
+                        value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0]}
+                        onChange={(e) => updateMonthData(monthKey, field.unitKey, e.target.value)}
+                        className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
+                        data-testid={`month-${monthKey}-${field.valueKey}-unit`}
+                        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                      />
+                    )}
+                  </div>
+                );
+              }
+
+              if (col.customFuelField) {
+                const quantityUnit = data.custom_qty_unit || customFuelQtyUnit || customFuelQuantityUnits[0] || 'kg';
+                const referenceUnit = calculationMethodology === 'using_heat_basis_ncv'
+                  ? (data.custom_cv_unit || 'TJ/kg').split('/')[1] || 'kg'
+                  : calculationMethodology === 'using_qty_basis_ef'
+                    ? (data.custom_ef_unit || 'kgCO2/kg').split('/')[1] || 'kg'
+                    : 'kg';
+                const densityRequirement = resolveDensityRequirement({
+                  quantityUnit,
+                  referenceUnit,
+                  centralizedUnits,
+                });
+                const sharedInputClass = 'h-8 min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm shadow-none focus-visible:ring-0';
+                const sharedSelectClass = 'h-8 min-w-[4.5rem] shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-1 text-xs outline-none';
+
+                if (col.customFuelField === 'density') {
+                  if (!densityRequirement.required) {
+                    return <span className="text-xs text-stone-400" data-testid={`month-${monthKey}-custom-density-not-required`}>—</span>;
+                  }
+                  return (
+                    <div className="flex overflow-hidden rounded border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="—"
+                        value={data.density || ''}
+                        onChange={(event) => {
+                          updateMonthData(monthKey, 'density', event.target.value);
+                          updateMonthData(monthKey, 'density_unit', densityRequirement.densityUnit);
+                        }}
+                        className={sharedInputClass}
+                        data-testid={`month-${monthKey}-custom-density`}
+                      />
+                      <span className="flex h-8 min-w-[4.5rem] items-center border-l border-l-stone-200 bg-stone-50 px-1 text-xs text-stone-600" data-testid={`month-${monthKey}-custom-density-unit`}>
+                        {densityRequirement.densityUnit}
+                      </span>
+                    </div>
+                  );
+                }
+
+                const fieldConfig = {
+                  'emission-factor': {
+                    value: data.custom_ef || '',
+                    valueKey: 'custom_ef',
+                    unit: data.custom_ef_unit || (calculationMethodology === 'using_heat_basis_ncv' ? 'tCO2/TJ' : 'kgCO2/kg'),
+                    unitKey: 'custom_ef_unit',
+                    units: calculationMethodology === 'using_heat_basis_ncv'
+                      ? fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT] || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT]
+                      : fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT] || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT],
+                  },
+                  'calorific-value': {
+                    value: data.custom_cv || '',
+                    valueKey: 'custom_cv',
+                    unit: data.custom_cv_unit || 'TJ/kg',
+                    unitKey: 'custom_cv_unit',
+                    units: fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT] || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT],
+                  },
+                  'carbon-content': { value: data.custom_carbon_content || '', valueKey: 'custom_carbon_content' },
+                  'oxidation-factor': { value: data.custom_oxidation_factor || '', valueKey: 'custom_oxidation_factor' },
+                }[col.customFuelField];
+
+                return (
+                  <div className={fieldConfig.units ? 'flex overflow-hidden rounded border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100' : ''}>
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="—"
+                      value={fieldConfig.value}
+                      onChange={(event) => updateMonthData(monthKey, fieldConfig.valueKey, event.target.value)}
+                      className={fieldConfig.units ? sharedInputClass : 'h-8 w-full text-sm'}
+                      data-testid={`month-${monthKey}-${fieldConfig.valueKey}`}
                     />
+                    {fieldConfig.units && (
+                      <select
+                        value={fieldConfig.unit}
+                        onChange={(event) => updateMonthData(monthKey, fieldConfig.unitKey, event.target.value)}
+                        className={sharedSelectClass}
+                        data-testid={`month-${monthKey}-${fieldConfig.unitKey}`}
+                        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldConfig.units) }}
+                      />
+                    )}
                   </div>
                 );
               }
@@ -456,7 +777,9 @@ export const Step3YearMonthlyData = ({
                 const field = dynamicInputFields.find(f => f.variable === col.key);
                 if (!field) return null;
 
-                const isOverrideOrOptional = field.isOverride || (!field.required && !field.isOverride);
+                const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
+                const isOverrideOrOptional = !isFugitiveGwpField
+                  && (field.isOverride || (!field.required && !field.isOverride));
                 const overrideKey = `override_${field.variable}`;
                 const isEnabled = !isOverrideOrOptional || data[overrideKey];
                 const defaultValue = getFieldDefaultValue(field, selectedFuel);
@@ -518,13 +841,18 @@ export const Step3YearMonthlyData = ({
                 const isSupplierBasis = scope3Method === 'supplier_basis';
                 const isQtyField = isQuantityField(field);
                 const hideUnit = useCustomFuel && isQtyField;
-                const showUnitDropdown = !hideUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
+                const showCustomFuelQuantityUnit = useCustomFuel && isQtyField;
+                const showUnitDropdown = showCustomFuelQuantityUnit
+                  || (!hideUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis);
                 const showTextUnit = !hideUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
-                const storedUnit = data[`${field.variable}_unit`] || data.unit || '';
                 const defaultUnitValue = getFieldDefaultUnit(field, selectedFuel, fieldUnits);
-                const displayedUnit = !hasFieldValue(storedValue) && hasFieldValue(defaultValue)
-                  ? defaultUnitValue
-                  : (storedUnit || defaultUnitValue);
+                const displayedUnit = resolveEffectiveFieldUnit({
+                  field,
+                  data,
+                  selectedFuel,
+                  fieldUnits,
+                  isProcessEmissions,
+                });
 
                 return (
                   <div className="flex h-8 items-center gap-1">
@@ -554,16 +882,22 @@ export const Step3YearMonthlyData = ({
                       {showUnitDropdown && (
                         <select
                           value={(() => {
+                            if (showCustomFuelQuantityUnit) {
+                              return data.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '';
+                            }
                             return fieldUnits.find(u => u.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0];
                           })()}
                           onChange={(e) => {
+                            if (showCustomFuelQuantityUnit) {
+                              updateMonthData(monthKey, 'custom_qty_unit', e.target.value);
+                            }
                             updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
-                            if (isQtyField) updateMonthData(monthKey, 'unit', e.target.value);
+                            if (isQtyField && !isProcessEmissions) updateMonthData(monthKey, 'unit', e.target.value);
                           }}
                           disabled={!isEnabled}
                           className={`h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none ${!isEnabled ? 'bg-stone-50 text-stone-600' : ''}`}
-                          data-testid={`unit-${field.fieldKey}-${monthKey}`}
-                          dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                          data-testid={showCustomFuelQuantityUnit ? `month-${monthKey}-custom-qty-unit` : `unit-${field.fieldKey}-${monthKey}`}
+                          dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customQuantityUnitOptions : fieldUnits) }}
                         />
                       )}
                       {showTextUnit && (
@@ -599,22 +933,21 @@ export const Step3YearMonthlyData = ({
                     className="h-8 w-full text-sm"
                     data-testid={`month-${monthKey}-quantity`}
                   />
-                  {!useCustomFuel && (
-                    <select
-                      value={data.unit || defaultUnit}
-                      onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
-                      className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
-                      data-testid={`month-${monthKey}-unit`}
-                      dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(allowedUnits) }}
-                    />
-                  )}
+                  <select
+                    value={useCustomFuel ? (data.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '') : (data.unit || defaultUnit)}
+                    onChange={(e) => {
+                      if (useCustomFuel) updateMonthData(monthKey, 'custom_qty_unit', e.target.value);
+                      updateMonthData(monthKey, 'unit', e.target.value);
+                    }}
+                    className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
+                    data-testid={useCustomFuel ? `month-${monthKey}-custom-qty-unit` : `month-${monthKey}-unit`}
+                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(useCustomFuel ? customQuantityUnitOptions : allowedUnits) }}
+                  />
                 </div>
               );
             };
 
-            return (
-              <MonthlyLedger columns={ledgerColumns}>
-                {activeMonths.map(month => {
+            const ledgerRows = activeMonths.map(month => {
                   const monthKey = month.key;
                   const status = getMonthStatus(monthKey);
                   const data = monthlyData[monthKey] || {};
@@ -623,63 +956,104 @@ export const Step3YearMonthlyData = ({
 
                   const hasFlightDetails = !isDisabled && scope3ActivityType === 'air_travel' && capabilities.flightDetails;
                   const hasCustomFuel = !isDisabled && useCustomFuel;
+                  const quantityField = runtimeConversionFields.find((field) => isQuantityField(field));
+                  const referenceField = calculationMethodology === 'using_heat_basis_ncv'
+                    ? runtimeConversionFields.find(isCvField)
+                    : calculationMethodology === 'using_qty_basis_ef'
+                      ? runtimeConversionFields.find(isEfField)
+                      : runtimeConversionFields.find(isCarbonContentField);
+                  const quantityUnit = resolveEffectiveFieldUnit({
+                    field: quantityField,
+                    data,
+                    selectedFuel,
+                    fieldUnits: resolveFieldUnits(quantityField),
+                    isProcessEmissions,
+                  });
+                  const referenceUnit = resolveEffectiveFieldUnit({
+                    field: referenceField,
+                    data,
+                    selectedFuel,
+                    fieldUnits: resolveFieldUnits(referenceField),
+                    isProcessEmissions,
+                  });
+                  const dynamicDensityRequirement = resolveDensityRequirement({
+                    quantityUnit,
+                    referenceUnit: calculationMethodology === 'using_carbon_composition'
+                      ? 'kg'
+                      : getUnitDenominator(referenceUnit),
+                    centralizedUnits,
+                  });
+                  const hasDensityInputs = hasDensitySourceValues({
+                    quantityField,
+                    referenceField,
+                    data,
+                  });
+                  const hasDynamicDensity = !isDisabled
+                    && isProcessEmissions
+                    && hasDensityInputs
+                    && dynamicDensityRequirement.required;
                   const hasLegacyOverrides = !isDisabled && !formConfig && (scope === 'scope1' || scope === 'biogenic') &&
                     !useCustomFuel && selectedFuel && capabilities.manualFactorOverrides;
                   const hasScope2Override = !isDisabled && !formConfig && scope === 'scope2' && !useCustomFuel;
-                  const hasExpandableContent = hasFlightDetails || hasCustomFuel || hasLegacyOverrides || hasScope2Override;
+                  const hasExpandableContent = hasFlightDetails || hasDynamicDensity || hasLegacyOverrides || hasScope2Override;
+                  const monthCell = (
+                    <td className="whitespace-nowrap px-5 py-3 align-middle" data-testid={`month-${monthKey}-ledger-month`}>
+                      <div className="flex items-center gap-2.5">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${
+                          isDisabled ? 'bg-stone-200' : status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
+                        }`} />
+                        <div>
+                          <p className={`text-sm font-medium ${isDisabled ? 'text-stone-400' : 'text-stone-800'}`}>
+                            {month.name} {displayYear}
+                          </p>
+                          {isDisabled && <span className="text-xs text-stone-400">Future</span>}
+                        </div>
+                      </div>
+                    </td>
+                  );
+                  const dataCells = isDisabled ? [
+                    <td key="future-notice" colSpan={ledgerColumns.length + 1} className="px-3 py-3 text-sm text-stone-400" data-testid={`month-${monthKey}-future-notice`}>
+                      This period is not available yet.
+                    </td>,
+                  ] : [
+                    ...ledgerColumns.map((col) => (
+                      <td key={col.key} className="px-3 py-3 align-middle" data-testid={`month-${monthKey}-field-${col.key}`}>
+                        {renderCellInput(col, monthKey, data)}
+                      </td>
+                    )),
+                    <td key="evidence" className="px-3 py-3 align-middle">
+                      <EvidenceIconCell
+                        monthKey={monthKey}
+                        evidences={data.evidences}
+                        handleEvidenceUpload={handleEvidenceUpload}
+                        removeEvidence={removeEvidence}
+                        backendUrl={BACKEND_URL}
+                      />
+                    </td>,
+                  ];
+                  const mainRow = React.createElement(
+                    'tr',
+                    { className: isDisabled ? 'bg-stone-50/70 opacity-60' : '', 'data-testid': `month-${monthKey}-ledger-row` },
+                    monthCell,
+                    ...dataCells,
+                  );
 
                   return (
                     <React.Fragment key={monthKey}>
-                      {/* ── Main data row ── */}
-                      <tr
-                        className={isDisabled ? 'bg-stone-50/70 opacity-60' : ''}
-                        data-testid={`month-${monthKey}-ledger-row`}
-                      >
-                        {/* Month cell */}
-                        <td className="whitespace-nowrap px-5 py-3 align-middle" data-testid={`month-${monthKey}-ledger-month`}>
-                          <div className="flex items-center gap-2.5">
-                            <span className={`h-2 w-2 shrink-0 rounded-full ${
-                              isDisabled ? 'bg-stone-200' : status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
-                            }`} />
-                            <div>
-                              <p className={`text-sm font-medium ${isDisabled ? 'text-stone-400' : 'text-stone-800'}`}>
-                                {month.name} {displayYear}
-                              </p>
-                              {isDisabled ? (
-                                <span className="text-xs text-stone-400">Future</span>
-                              ) : status === 'filled' ? (
-                                <span className="flex items-center gap-1 text-xs text-green-700"><Check className="h-3 w-3" />Done</span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </td>
+                      {mainRow}
 
-                        {!isDisabled ? (
-                          <>
-                            {/* One cell per required field */}
-                            {ledgerColumns.map(col => (
-                              <td key={col.key} className="px-3 py-3 align-middle" data-testid={`month-${monthKey}-field-${col.key}`}>
-                                {renderCellInput(col, monthKey, data)}
-                              </td>
-                            ))}
-
-                            {/* Evidence icon cell */}
-                            <td className="px-3 py-3 align-middle">
-                              <EvidenceIconCell
-                                monthKey={monthKey}
-                                evidences={data.evidences}
-                                handleEvidenceUpload={handleEvidenceUpload}
-                                removeEvidence={removeEvidence}
-                                backendUrl={BACKEND_URL}
-                              />
-                            </td>
-                          </>
-                        ) : (
-                          <td colSpan={ledgerColumns.length + 1} className="px-3 py-3 text-sm text-stone-400" data-testid={`month-${monthKey}-future-notice`}>
-                            This period is not available yet.
-                          </td>
-                        )}
-                      </tr>
+                      {hasCustomFuel && (
+                        <CustomFuelMonthFields
+                          monthKey={monthKey}
+                          data={data}
+                          updateMonthData={updateMonthData}
+                          calculationMethodology={calculationMethodology}
+                          fieldOptions={fieldOptions}
+                          centralizedUnits={centralizedUnits}
+                          renderFields={false}
+                          isFugitiveCustomFuel={isFugitiveCustomFuel}
+                        />
+                      )}
 
                       {/* ── Expandable content row (flight details, custom fuel, additional details, overrides) ── */}
                       {hasExpandableContent && (
@@ -696,15 +1070,33 @@ export const Step3YearMonthlyData = ({
                                 />
                               )}
 
-                              {/* Custom fuel fields (EF, CV, carbon content) */}
-                              {hasCustomFuel && (
-                                <CustomFuelMonthFields
-                                  monthKey={monthKey}
-                                  data={data}
-                                  updateMonthData={updateMonthData}
-                                  calculationMethodology={calculationMethodology}
-                                  fieldOptions={fieldOptions}
-                                />
+                              {hasDynamicDensity && (
+                                <div className="grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid={`month-${monthKey}-dynamic-density-field`}>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Density <span className="text-red-500">*</span></Label>
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      required
+                                      value={data.density || ''}
+                                      onChange={(event) => {
+                                        updateMonthData(monthKey, 'density', event.target.value);
+                                        updateMonthData(monthKey, 'density_unit', dynamicDensityRequirement.densityUnit);
+                                        updateMonthData(monthKey, 'override_density', true);
+                                        updateMonthData(monthKey, 'runtime_density_required', true);
+                                      }}
+                                      className="h-9 bg-white"
+                                      data-testid={`month-${monthKey}-dynamic-density-input`}
+                                    />
+                                  </div>
+                                  <span className="mb-2 text-sm text-stone-600" data-testid={`month-${monthKey}-dynamic-density-unit`}>
+                                    {dynamicDensityRequirement.densityUnit}
+                                  </span>
+                                  <p className="col-span-2 text-xs text-amber-700" data-testid={`month-${monthKey}-dynamic-density-conversion-hint`}>
+                                    Conversion required: {quantityUnit} → {calculationMethodology === 'using_carbon_composition' ? 'kg' : getUnitDenominator(referenceUnit)}
+                                  </p>
+                                </div>
                               )}
 
                               {/* Legacy Scope 1 / Biogenic overrides */}
@@ -789,9 +1181,9 @@ export const Step3YearMonthlyData = ({
                       )}
                     </React.Fragment>
                   );
-                })}
-              </MonthlyLedger>
-            );
+                });
+
+            return <MonthlyLedger columns={ledgerColumns} rows={ledgerRows} />;
           })()}
         </div>
       )}
@@ -817,7 +1209,10 @@ export const Step3YearMonthlyData = ({
           defaultUnit={defaultUnit}
           isVolumeUnit={isVolumeUnit}
           useCustomFuel={useCustomFuel}
+          customFugitiveQuantityUnits={customFugitiveQuantityUnits}
+          customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={calculationMethodology}
+          isFugitiveCustomFuel={isFugitiveCustomFuel}
         />
       )}
     </div>
@@ -847,8 +1242,39 @@ const YearlyDataEntry = ({
   defaultUnit,
   isVolumeUnit,
   useCustomFuel,
+  customFugitiveQuantityUnits,
+  customFuelQtyUnit,
   calculationMethodology,
+  isFugitiveCustomFuel,
 }) => {
+  const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
+    || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
+  const customQuantityUnitOptions = isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
+    ? customFugitiveQuantityUnits
+    : customFuelQuantityUnits;
+  // Process Emissions Carbon Composition formulas operate on mass. Custom Fuel
+  // renders its conditional Density field through CustomFuelMonthFields.
+  const isCarbonComposition = calculationMethodology === 'using_carbon_composition';
+  const quantityField = dynamicInputFields.find(isQuantityField);
+  const carbonContentField = dynamicInputFields.find(isCarbonContentField);
+  const quantityUnit = yearlyData[`${quantityField?.variable}_unit`]
+    || yearlyData[`${quantityField?.fieldKey}_unit`]
+    || quantityField?.defaultUnit
+    || quantityField?.default_unit
+    || quantityField?.expectedUnit
+    || quantityField?.allowedUnits?.[0]
+    || '';
+  const yearlyDensityRequirement = resolveDensityRequirement({
+    quantityUnit,
+    referenceUnit: isCarbonComposition ? 'kg' : '',
+    centralizedUnits,
+  });
+  const showYearlyProcessDensity = isProcessEmissions
+    && isCarbonComposition
+    && hasNumericFieldValue(quantityField, yearlyData)
+    && hasNumericFieldValue(carbonContentField, yearlyData)
+    && yearlyDensityRequirement.required;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -911,16 +1337,20 @@ const YearlyDataEntry = ({
             )}
             
             {/* Required Inputs Section */}
-            {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
+            {dynamicInputFields.filter(f => (f.required && !f.isOverride)
+              || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).length > 0 && (
               <div className="space-y-4">
-                {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => {
+                {dynamicInputFields.filter(f => (f.required && !f.isOverride)
+                  || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
                   const hideStandardQuantityUnit = useCustomFuel && isQuantityField(field);
+                  const showCustomFuelQuantityUnit = useCustomFuel && isQuantityField(field);
                   const isSupplierBasis = scope3Method === 'supplier_basis';
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
                   const isUnitlessCountField = isNoUnitField;
-                  const showUnitSelector = !hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
+                  const showUnitSelector = showCustomFuelQuantityUnit
+                    || (!hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis);
                   const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   
                   return (
@@ -976,10 +1406,17 @@ const YearlyDataEntry = ({
                           />
                           {showUnitSelector && (
                             <select
-                              value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
-                              onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                              value={showCustomFuelQuantityUnit
+                                ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '')
+                                : (yearlyData[`${field.variable}_unit`] || fieldUnits[0] || '')}
+                              onChange={(e) => setYearlyData(prev => ({
+                                ...prev,
+                                ...(showCustomFuelQuantityUnit ? { custom_qty_unit: e.target.value } : {}),
+                                [`${field.variable}_unit`]: e.target.value,
+                              }))}
                               className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
-                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
+                              data-testid={showCustomFuelQuantityUnit ? 'yearly-custom-qty-unit' : `yearly-${field.fieldKey}-unit`}
+                              dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customQuantityUnitOptions : fieldUnits) }}
                             />
                           )}
                           {showUnitTextInput && (
@@ -996,6 +1433,39 @@ const YearlyDataEntry = ({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {showYearlyProcessDensity && (
+              <div className="grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="yearly-process-density-field">
+                <div className="space-y-1">
+                  <Label htmlFor="yearly-process-density-input" className="text-sm font-medium">
+                    Density <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="yearly-process-density-input"
+                    type="number"
+                    step="any"
+                    min="0"
+                    required
+                    value={yearlyData.density || ''}
+                    onChange={(event) => setYearlyData((previous) => ({
+                      ...previous,
+                      density: event.target.value,
+                      density_unit: yearlyDensityRequirement.densityUnit,
+                      override_density: true,
+                      runtime_density_required: true,
+                    }))}
+                    className="h-10 bg-white"
+                    data-testid="yearly-process-density-input"
+                  />
+                </div>
+                <span className="mb-2 text-sm text-stone-600" data-testid="yearly-process-density-unit">
+                  {yearlyDensityRequirement.densityUnit}
+                </span>
+                <p className="col-span-2 text-xs text-amber-700" data-testid="yearly-process-density-conversion-hint">
+                  Conversion required: {quantityUnit} → kg
+                </p>
               </div>
             )}
 
@@ -1111,14 +1581,18 @@ const YearlyDataEntry = ({
                 data={yearlyData}
                 updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
                 calculationMethodology={calculationMethodology}
-              fieldOptions={fieldOptions}
+                fieldOptions={fieldOptions}
+                centralizedUnits={centralizedUnits}
+                isFugitiveCustomFuel={isFugitiveCustomFuel}
               />
             )}
             
             {/* Override Properties Section for Yearly */}
-            {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
+            {dynamicInputFields.filter(f => f.isOverride
+              && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).length > 0 && (
               <div className="space-y-6">
-                {dynamicInputFields.filter(f => f.isOverride).map(field => {
+                {dynamicInputFields.filter(f => f.isOverride
+                  && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).map(field => {
                   const overrideKey = `override_${field.variable}`;
                   const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                   const fieldUnits = getFieldUnitsForYearly(field);
@@ -1223,18 +1697,26 @@ const YearlyDataEntry = ({
                     className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
                     data-testid="yearly-quantity"
                   />
-                  {!useCustomFuel && <select
-                    value={yearlyData.unit || defaultUnit}
-                    onChange={(e) => setYearlyData(prev => ({ ...prev, unit: e.target.value }))}
+                  <select
+                    value={useCustomFuel
+                      ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '')
+                      : (yearlyData.unit || defaultUnit)}
+                    onChange={(e) => setYearlyData(prev => ({
+                      ...prev,
+                      ...(useCustomFuel ? { custom_qty_unit: e.target.value } : {}),
+                      unit: e.target.value,
+                    }))}
                     className="h-10 min-w-28 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
-                    data-testid="yearly-unit"
+                    data-testid={useCustomFuel ? 'yearly-custom-qty-unit' : 'yearly-unit'}
                     dangerouslySetInnerHTML={{
-                      __html: buildNativeOptionsHtml(centralizedUnits, {
-                        getValue: (unit) => unit.symbol,
-                        getLabel: (unit) => `${unit.symbol} (${unit.name})`,
-                      }),
+                      __html: useCustomFuel
+                        ? buildNativeOptionsHtml(customQuantityUnitOptions)
+                        : buildNativeOptionsHtml(centralizedUnits, {
+                          getValue: (unit) => unit.symbol,
+                          getLabel: (unit) => `${unit.symbol} (${unit.name})`,
+                        }),
                     }}
-                  />}
+                  />
                 </div>
               </div>
             </div>
@@ -1246,11 +1728,13 @@ const YearlyDataEntry = ({
                 updateMonthData={(_, field, value) => setYearlyData(prev => ({ ...prev, [field]: value }))}
                 calculationMethodology={calculationMethodology}
               fieldOptions={fieldOptions}
+              centralizedUnits={centralizedUnits}
+                isFugitiveCustomFuel={isFugitiveCustomFuel}
               />
             )}
 
             {/* Show density input if volume unit */}
-            {!useCustomFuel && isVolumeUnit(yearlyData.unit || defaultUnit, centralizedUnits) && (
+            {!useCustomFuel && isProcessEmissions && isVolumeUnit(yearlyData.unit || defaultUnit, centralizedUnits) && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Density (kg/L) <span className="text-red-500">*</span></Label>

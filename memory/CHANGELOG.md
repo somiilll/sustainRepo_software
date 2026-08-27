@@ -1,5 +1,62 @@
 # ESG Platform Changelog
 
+## August 25, 2026 — Exact Supplier GHG Scope Enforcement
+- Fixed the shared supplier GHG screen reading the supplier organization's dynamic GHG scopes, which exposed Scope 3 and Biogenic despite the parent assignment.
+- Scope access now resolves canonically from the bound immutable supplier assessment-program revision.
+- Parent Scope 1-only assignments expose only Scope 1; Scope 2-only exposes only Scope 2; combined assignments expose both.
+- Scope 3 and Biogenic are stripped from supplier tabs, Add/Edit forms, summaries, list/state/history queries, and submission batches.
+- Generic and supplier-specific create/edit APIs reject any scope not assigned by the parent.
+- Direct Scope 3/Biogenic URLs fall back to the first assigned Scope 1/2 route.
+- Verified with 23 focused backend tests, 4 frontend unit tests, 7 live read-only supplier checks, and an authenticated UI check.
+
+## August 25, 2026 — Supplier Dashboard/Base Year/Analysis Locks
+- Locked the main organization Dashboard, GHG Base Year, and GHG Analysis for supplier accounts while preserving the Supplier Assessment dashboard.
+- Dashboard, Sinks, Base Year, and Analysis now use muted supplier navigation text without sidebar lock icons.
+- All four remain clickable; restricted routes display the established full-page Premium Module overlay, matching the Sinks interaction.
+- Added explicit direct-route locking so `/dashboard`, `/ghg/base-year`, and `/ghg/analysis` cannot bypass the premium overlay.
+- Changed the sidebar logo destination for suppliers to the Supplier Assessment workspace rather than the locked organization Dashboard.
+- Centralized supplier muted menu keys, route locks, and premium copy in one navigation policy.
+
+## August 25, 2026 — Supplier GHG History Visibility and Audit Parity
+- Removed supplier-facing Version History actions and dialogs from the GHG emissions grid.
+- Non-supplier internal users now use the canonical emission-history view for supplier-sourced records rather than the supplier revision dialog.
+- Added canonical `emission_history` creation events to the supplier-specific GHG create endpoint, matching normal organization record creation.
+- Existing supplier draft edits continue writing field-level updates to `emission_history` through the shared GHG update route.
+- Supplier submission/reopen revision lineage and immutable submitted revisions remain unchanged.
+- Verified with lint checks and 16 focused supplier tests.
+
+## August 25, 2026 — Supplier GHG Reporting-Period Lock
+- Fixed supplier GHG forms inheriting the supplier organization's calendar-year default instead of the parent-assigned reporting period.
+- Supplier Add now displays the assigned period, such as `FY 2026-27`, and prevents changing the reporting year.
+- Financial-year monthly entry is constrained to April through March; yearly entry uses the exact assigned FY label.
+- Supplier Edit keeps its reporting period read-only and displays the active customer assignment.
+- Added backend create/update enforcement for both generic and supplier-specific GHG paths.
+- Supplier GHG lists now return only records belonging to the active relationship and assigned annual/monthly periods.
+- Added parsing support for both financial-year and calendar-year supplier assignments, including legacy calendar labels.
+
+## August 25, 2026 — Supplier ESG/GHG Verification Acknowledgement
+- Added a required supplier checkbox to both ESG questionnaire and GHG submission confirmation dialogs.
+- Final submission remains disabled until the supplier confirms the data was reviewed and verified for accuracy and completeness.
+- Added backend enforcement so direct API calls cannot bypass the acknowledgement.
+- Persisted `data_verified`, `data_verified_at`, and `data_verified_by` on final ESG responses and submitted GHG records.
+- Added unique test identifiers for the acknowledgement, statement, and checkbox controls.
+
+## August 25, 2026 — GHG Period Row Allowance Parity
+- Reinterpreted `environment.ghg.monthly_rows_allowed` as a per-reporting-month organization limit instead of one lifetime total across all monthly records.
+- Added yearly-frequency allowance at `monthly_rows_allowed × 12` per reporting year.
+- Applied the shared canonical guard to standard manual GHG creation and C7 monthly/yearly creation.
+- Bulk Upload now rejects only excess period rows during validation with `PERIOD_ROW_LIMIT_EXCEEDED`; in-limit rows remain available for preview and save.
+- Added full-batch rechecks immediately before direct bulk persistence and confirmation-save persistence.
+- Added `frequency_type: monthly` and `submission_batch_id` to new C7 monthly records so legacy-aware counting and batch rollback stay consistent.
+- Verified with 7 focused backend tests and an authenticated Bulk Upload frontend smoke test. Independent iteration 19 reported no scoped defects and no mocked APIs.
+
+## August 25, 2026 — Bulk Upload Stability and Architectural Parity
+- Enforced canonical organization GHG scope/category/process/custom-fuel capabilities in Bulk Upload.
+- Added Flaring and Process Emissions handling, custom-fuel auto-detection, dry-run preview summaries, and partial-insert rollback.
+- Added a 24-hour TTL for pending records.
+- Enforced 10 MB files, 5,000 rows per sheet, and 25,000 rows per workbook.
+- Iteration 18 passed 11 backend checks with frontend preview verification.
+
 ## June 19, 2026 (Latest)
 
 ### ESG Records Module - Phase 1 Implementation

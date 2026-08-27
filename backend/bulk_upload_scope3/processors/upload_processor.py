@@ -4,6 +4,7 @@ Main orchestrator for processing uploaded Excel files
 """
 import io
 import uuid
+import logging
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timezone
 from openpyxl import load_workbook
@@ -12,8 +13,20 @@ from ..models import (
     ValidationError, ErrorSeverity, RowResult, UploadSummary, UploadStatus,
     BulkUploadJob, CATEGORY_COLUMNS
 )
+from ..ghg_config_resolver import ResolvedGhgCapabilities, resolve_ghg_capabilities
 from .row_processor import RowProcessor
 from .scope12_processor import Scope12RowProcessor
+from modules.entitlements.dependencies import (
+    assert_period_row_batch_limit,
+    partition_records_by_period_row_limit,
+)
+from shared.utils.emission_records import normalize_reporting_period_for_storage
+
+logger = logging.getLogger(__name__)
+
+# ── Upload limits ────────────────────────────────────────────────────────
+MAX_ROWS_PER_SHEET = 5000
+MAX_TOTAL_ROWS = 25000
 
 
 # Sheets to ignore (instruction sheets, reference sheets, etc.)
@@ -28,14 +41,19 @@ class UploadProcessor:
     """Main processor for bulk upload files"""
     
     def __init__(self, db, organization_id: str, user_id: str,
-                 user_email: str = "", user_name: str = ""):
+                 user_email: str = "", user_name: str = "",
+                 capabilities: Optional[ResolvedGhgCapabilities] = None):
         self.db = db
         self.organization_id = organization_id
         self.user_id = user_id
         self.user_email = user_email
         self.user_name = user_name
+        self.capabilities = capabilities
         self.row_processor = RowProcessor(db, organization_id, user_id, user_email, user_name)
-        self.scope12_processor = Scope12RowProcessor(db, organization_id, user_id, user_email, user_name)
+        self.scope12_processor = Scope12RowProcessor(
+            db, organization_id, user_id, user_email, user_name,
+            capabilities=capabilities,
+        )
     
     def _should_skip_sheet(self, sheet_name: str) -> bool:
         """Check if a sheet should be skipped (instruction/reference sheets)"""
@@ -71,6 +89,110 @@ class UploadProcessor:
         
         return False
     
+    @staticmethod
+    def _build_preview(valid_records: list) -> dict:
+        """Build a dry-run preview summary from validated records.
+
+        Returns a dict with counts by scope, category, fuel type (standard vs
+        custom), and methodology — giving users a clear picture of what will be
+        saved before they confirm.
+        """
+        by_scope: Dict[str, int] = {}
+        by_category: Dict[str, int] = {}
+        standard_fuel_count = 0
+        custom_fuel_count = 0
+        by_methodology: Dict[str, int] = {}
+        total_co2e = 0.0
+
+        for rec in valid_records:
+            scope = rec.get("scope", "unknown")
+            by_scope[scope] = by_scope.get(scope, 0) + 1
+
+            cat = rec.get("category", "Unknown")
+            by_category[cat] = by_category.get(cat, 0) + 1
+
+            if rec.get("is_custom_fuel"):
+                custom_fuel_count += 1
+                meth = rec.get("calculation_methodology", "unknown")
+                by_methodology[meth] = by_methodology.get(meth, 0) + 1
+            else:
+                standard_fuel_count += 1
+
+            total_co2e += rec.get("co2e_emissions", 0) or 0
+
+        return {
+            "total_valid_records": len(valid_records),
+            "standard_fuel_records": standard_fuel_count,
+            "custom_fuel_records": custom_fuel_count,
+            "by_scope": by_scope,
+            "by_category": by_category,
+            "by_methodology": by_methodology if by_methodology else None,
+            "total_co2e_tco2e": round(total_co2e, 6),
+        }
+
+    async def _apply_period_row_limits(
+        self,
+        results: List[RowResult],
+        records: List[Dict],
+    ) -> Tuple[List[Dict], List[ValidationError]]:
+        """Apply the canonical organization period allowance to validated rows."""
+        accepted, rejected = await partition_records_by_period_row_limit(
+            self.organization_id,
+            "ghg",
+            "emission_records",
+            records,
+            database=self.db,
+        )
+        quota_errors: List[ValidationError] = []
+        result_by_emission_id = {
+            result.emission_id: result
+            for result in results
+            if result.emission_id
+        }
+        used_fallback_results = set()
+
+        for violation in rejected:
+            record = violation["record"]
+            result = result_by_emission_id.get(record.get("id"))
+            if result is None:
+                for candidate in results:
+                    candidate_period = (candidate.row_data or {}).get("reporting_period")
+                    candidate_key = (candidate.sheet, candidate.row)
+                    if (
+                        candidate.success
+                        and candidate_key not in used_fallback_results
+                        and candidate_period == violation["reporting_period"]
+                    ):
+                        result = candidate
+                        used_fallback_results.add(candidate_key)
+                        break
+
+            error = ValidationError(
+                sheet=result.sheet if result else str(record.get("scope") or "GHG"),
+                row=result.row if result else 0,
+                column="Reporting Month/Year",
+                error_type="PERIOD_ROW_LIMIT_EXCEEDED",
+                message=violation["message"],
+                suggestion="Remove excess rows or ask your administrator to increase the GHG monthly row allowance.",
+                severity=ErrorSeverity.ERROR,
+            )
+            quota_errors.append(error)
+            if result is not None:
+                result.success = False
+                result.co2e = None
+                result.errors.append(error)
+            else:
+                results.append(RowResult(
+                    sheet=error.sheet,
+                    row=error.row,
+                    success=False,
+                    emission_id=record.get("id"),
+                    errors=[error],
+                    row_data={"reporting_period": violation["reporting_period"]},
+                ))
+
+        return accepted, quota_errors
+    
     async def process_upload(self, file_content: bytes, filename: str,
                               validate_only: bool = True) -> UploadSummary:
         """
@@ -101,8 +223,37 @@ class UploadProcessor:
         await self.db.bulk_upload_jobs.insert_one(job.dict())
         
         try:
+            # ── Resolve org GHG capabilities (single source of truth) ────
+            if self.capabilities is None:
+                self.capabilities = await resolve_ghg_capabilities(
+                    self.db, self.organization_id
+                )
+                # Propagate to child processors
+                self.scope12_processor.capabilities = self.capabilities
+
             # Load workbook
             workbook = load_workbook(io.BytesIO(file_content), read_only=True, data_only=True)
+            
+            # ── Row count pre-check ──────────────────────────────────────
+            total_row_estimate = 0
+            for _sn in workbook.sheetnames:
+                if self._should_skip_sheet(_sn):
+                    continue
+                _ws = workbook[_sn]
+                sheet_rows = (_ws.max_row or 1) - 1  # minus header
+                if sheet_rows > MAX_ROWS_PER_SHEET:
+                    raise ValueError(
+                        f"Sheet '{_sn}' has ~{sheet_rows} data rows, "
+                        f"which exceeds the limit of {MAX_ROWS_PER_SHEET} rows per sheet. "
+                        f"Please split the data into smaller files."
+                    )
+                total_row_estimate += max(sheet_rows, 0)
+            if total_row_estimate > MAX_TOTAL_ROWS:
+                raise ValueError(
+                    f"Workbook contains ~{total_row_estimate} total data rows across all sheets, "
+                    f"which exceeds the limit of {MAX_TOTAL_ROWS}. "
+                    f"Please split the data into smaller files."
+                )
             
             all_results: List[RowResult] = []
             all_errors: List[ValidationError] = []
@@ -135,6 +286,37 @@ class UploadProcessor:
                 
                 categories_processed.add(category_code)
                 
+                # ── Enforce org-level access ─────────────────────────────
+                caps = self.capabilities
+                sheet_blocked = False
+                
+                if category_code == "Scope1" and not caps.scope1_enabled:
+                    sheet_blocked = True
+                    block_msg = "Scope 1 is not enabled for your organization"
+                elif category_code == "Scope2" and not caps.scope2_enabled:
+                    sheet_blocked = True
+                    block_msg = "Scope 2 is not enabled for your organization"
+                elif category_code not in ("Scope1", "Scope2"):
+                    # Scope 3 sheet
+                    if not caps.is_scope3_sheet_enabled(category_code):
+                        sheet_blocked = True
+                        if not caps.scope3_enabled:
+                            block_msg = "Scope 3 is not enabled for your organization"
+                        else:
+                            block_msg = f"Category {category_code} is disabled for your organization"
+                
+                if sheet_blocked:
+                    all_errors.append(ValidationError(
+                        sheet=sheet_name,
+                        row=0,
+                        column=None,
+                        error_type="DISABLED_SCOPE_OR_CATEGORY",
+                        message=block_msg,
+                        suggestion="Contact your administrator to enable this scope/category, or remove this sheet from the workbook",
+                        severity=ErrorSeverity.ERROR,
+                    ))
+                    continue
+                
                 # Process sheet
                 sheet = workbook[sheet_name]
                 sheet_results, sheet_records = await self._process_sheet(
@@ -152,9 +334,17 @@ class UploadProcessor:
             
             workbook.close()
             
-            # Determine final status
-            success_count = sum(1 for r in all_results if r.success)
+            valid_records = [r for r in all_emission_records if r is not None]
+            valid_records, quota_errors = await self._apply_period_row_limits(
+                all_results,
+                valid_records,
+            )
+            all_errors.extend(quota_errors)
+
+            # Counts reflect emission records that can actually be saved.
+            success_count = len(valid_records)
             error_count = sum(1 for r in all_results if not r.success)
+            total_co2e = sum((record.get("co2e_emissions", 0) or 0) for record in valid_records)
             
             if error_count == 0 and success_count > 0:
                 status = UploadStatus.COMPLETED
@@ -165,15 +355,34 @@ class UploadProcessor:
             
             # Handle saving based on validate_only flag
             created_ids = []
-            valid_records = [r for r in all_emission_records if r is not None]
+            for record in valid_records:
+                normalized_period = normalize_reporting_period_for_storage(record.get("reporting_period"))
+                if not normalized_period:
+                    raise ValueError(f"Invalid reporting period for bulk-upload record {record.get('id')}")
+                record["reporting_period"] = normalized_period
+            preview = self._build_preview(valid_records) if valid_records else None
             
             if validate_only and valid_records:
-                # Store pending records for later save
+                # Store pending records for later save (with 24h expiry)
+                expires_at = datetime.now(timezone.utc).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
+                expires_at = expires_at.replace(day=expires_at.day + 1) if expires_at.day < 28 else expires_at
+                from datetime import timedelta
+                expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
                 for record in valid_records:
-                    record["job_id"] = job_id  # Add job_id for retrieval
+                    record["job_id"] = job_id
+                    record["expires_at"] = expires_at
                 await self.db.bulk_upload_pending_records.insert_many(valid_records)
             elif not validate_only and status in [UploadStatus.COMPLETED, UploadStatus.PARTIAL_SUCCESS] and valid_records:
                 # Save immediately to emission_records collection
+                await assert_period_row_batch_limit(
+                    self.organization_id,
+                    "ghg",
+                    "emission_records",
+                    valid_records,
+                    database=self.db,
+                )
                 await self.db.emission_records.insert_many(valid_records)
                 created_ids = [r["id"] for r in valid_records]
                 
@@ -210,7 +419,19 @@ class UploadProcessor:
                     await self.db.emission_history.insert_many(history_entries)
                     logger.info(f"[BULK_UPLOAD] Created {len(history_entries)} history entries")
             
-            # Update job record
+            # Update job record (include serialized warnings for later download)
+            warning_docs = [
+                {
+                    "sheet": w.sheet,
+                    "row": w.row,
+                    "column": w.column,
+                    "error_type": w.error_type,
+                    "message": w.message,
+                    "suggestion": w.suggestion,
+                    "severity": w.severity.value,
+                }
+                for w in all_warnings
+            ]
             await self.db.bulk_upload_jobs.update_one(
                 {"id": job_id},
                 {"$set": {
@@ -223,7 +444,9 @@ class UploadProcessor:
                     "total_emissions_tco2e": total_co2e,
                     "created_emission_ids": created_ids,
                     "validate_only": validate_only,
-                    "skipped_sheets": skipped_sheets
+                    "skipped_sheets": skipped_sheets,
+                    "preview": preview,
+                    "warnings": warning_docs,
                 }}
             )
             
@@ -256,7 +479,8 @@ class UploadProcessor:
                 errors=all_errors[:100],  # Limit errors in response
                 warnings=all_warnings[:50],
                 results=all_results[:200],
-                created_emission_ids=created_ids
+                created_emission_ids=created_ids,
+                preview=preview,
             )
             
         except Exception as e:
@@ -388,6 +612,8 @@ class UploadProcessor:
         if category_code == "C7":
             c7_rows = []
             for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+                if row_idx - 1 > MAX_ROWS_PER_SHEET:
+                    break
                 # Skip completely empty rows (e.g., blank spacing rows after header)
                 if not any(cell is not None and cell != '' for cell in row):
                     continue
@@ -404,6 +630,8 @@ class UploadProcessor:
         
         # Regular processing for other categories (including Scope 1 and Scope 2)
         for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            if row_idx - 1 > MAX_ROWS_PER_SHEET:
+                break
             # Skip completely empty rows (e.g., blank spacing rows after header)
             if not any(cell is not None and cell != '' for cell in row):
                 continue

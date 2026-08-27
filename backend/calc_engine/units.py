@@ -209,8 +209,29 @@ async def convert(db, value: float, from_unit: str, to_unit: str, context: dict 
     chained_result = await _find_chained_conversion(db, from_unit, to_unit, value)
     if chained_result:
         return chained_result
+
+    # Priority 4: Apply property-based simple-unit conversions. These were
+    # previously available only while decomposing compound units, which made
+    # a valid kg → L density conversion fail before the formula could use it.
+    try:
+        factor, property_audit = await _convert_component(
+            db, from_unit, to_unit, context, user_overrides,
+        )
+        converted = value * factor
+        if not math.isfinite(converted):
+            raise ValueError(
+                f"Conversion produced non-finite value ({value} {from_unit} -> {to_unit})"
+            )
+        return converted, {
+            "step": "convert",
+            "input": {"value": value, "unit": from_unit},
+            "output": {"value": converted, "unit": to_unit},
+            **property_audit,
+        }
+    except ValueError:
+        pass
     
-    # Priority 4: Try compound unit conversion (e.g., MJ/kg → TJ/kg)
+    # Priority 5: Try compound unit conversion (e.g., MJ/kg → TJ/kg)
     compound_result = await _try_compound_conversion(db, from_unit, to_unit, value, context, user_overrides)
     if compound_result:
         return compound_result
@@ -324,14 +345,12 @@ async def _try_compound_conversion(
     if not from_compound or not to_compound:
         return None
     
-    # Check if same derived dimension (skip if either is empty - legacy units)
+    # Check whether compound dimensions differ. A mismatch is still valid when
+    # a corresponding component can be converted through a property such as
+    # density (for example kgCO2/L → kgCO2/kg). Component conversion below
+    # remains authoritative and rejects unsupported mismatches.
     from_dim = from_compound.get("derived_dimension_vector", {})
     to_dim = to_compound.get("derived_dimension_vector", {})
-    
-    # Only check dimensions if BOTH have non-empty vectors
-    # Empty vector = legacy unit without dimension info, allow conversion attempt
-    if from_dim and to_dim and not dims_equal(from_dim, to_dim):
-        return None
     
     from_components = from_compound.get("components", [])
     to_components = to_compound.get("components", [])
@@ -423,6 +442,25 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
     """
     context = context or {}
     user_overrides = user_overrides or {}
+
+    async def normalize_density_factor(value: float, unit: str, expected_unit: str) -> float:
+        """Normalize a density or its reciprocal to a requested conversion factor unit."""
+        if not unit or not expected_unit or unit.lower() == expected_unit.lower():
+            return value
+        try:
+            converted, _ = await convert(db, value, unit, expected_unit)
+            return converted
+        except ValueError:
+            inverse_expected = "/".join(reversed(expected_unit.split("/")))
+            if not inverse_expected or "/" not in inverse_expected:
+                return value
+            try:
+                inverse_value, _ = await convert(db, value, unit, inverse_expected)
+                if inverse_value:
+                    return 1.0 / inverse_value
+            except ValueError:
+                pass
+        return value
     
     # Priority 1: Direct DB conversion
     direct_conv = await db.ce_unit_conversions.find_one(
@@ -448,23 +486,10 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                     factor = float(override_val.get("value", 0))
                     override_unit = override_val.get("unit", "")
                     
-                    # For density-based conversions (L → kg), normalize the unit
-                    # Expected density format: to_unit/from_unit (e.g., kg/L for L → kg)
-                    # If user provides different units (t/L, kg/cm3, etc.), convert to expected
+                    # Normalize to the directional conversion factor (e.g. kg/L for L → kg).
                     if override_unit and "/" in override_unit and property_key == "density":
-                        # Expected unit for this conversion: to_unit/from_unit
                         expected_density_unit = f"{to_unit}/{from_unit}"
-                        
-                        # If override unit differs from expected, convert it
-                        if override_unit.lower() != expected_density_unit.lower():
-                            try:
-                                # Use full convert() to handle any unit combination
-                                # e.g., t/L → kg/L, kg/cm3 → kg/L, kg/kl → kg/L
-                                converted_density, _ = await convert(db, factor, override_unit, expected_density_unit)
-                                if converted_density is not None:
-                                    factor = converted_density
-                            except ValueError:
-                                pass  # If conversion fails, use raw factor
+                        factor = await normalize_density_factor(factor, override_unit, expected_density_unit)
                 else:
                     factor = float(override_val)
                 if factor and factor != 0:
@@ -511,27 +536,16 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                     base_factor = float(override_val.get("value", 0))
                     override_unit = override_val.get("unit", "")
                     
-                    # For density-based reverse conversions (kg → L), normalize the unit
-                    # The reverse conversion record has from_unit=L, to_unit=kg
-                    # Expected density: to_unit/from_unit of the record (e.g., kg/L)
+                    # The requested conversion is kg → L, so accept L/kg directly.
+                    # A conventional physical density (kg/L) is also accepted and inverted.
                     if override_unit and "/" in override_unit and property_key == "density":
-                        record_from = reverse_conv.get("from_unit", "L")
-                        record_to = reverse_conv.get("to_unit", "kg")
-                        expected_density_unit = f"{record_to}/{record_from}"
-                        
-                        if override_unit.lower() != expected_density_unit.lower():
-                            try:
-                                converted_density, _ = await convert(db, base_factor, override_unit, expected_density_unit)
-                                if converted_density is not None:
-                                    base_factor = converted_density
-                            except ValueError:
-                                pass
+                        expected_density_unit = f"{to_unit}/{from_unit}"
+                        base_factor = await normalize_density_factor(base_factor, override_unit, expected_density_unit)
                 else:
                     base_factor = float(override_val)
                 if base_factor and base_factor != 0:
-                    factor = 1.0 / base_factor
-                    return factor, {
-                        "factor": factor,
+                    return base_factor, {
+                        "factor": base_factor,
                         "method": "property_based_reverse_user_override",
                         "property_key": property_key,
                         "source": "user_overrides"

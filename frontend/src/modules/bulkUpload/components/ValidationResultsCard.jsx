@@ -15,7 +15,7 @@ export default function ValidationResultsCard({
   onSave, onDownloadErrors, onDiscard,
 }) {
   if (!validationResult) return null;
-  const { summary, total_emissions_tco2e, upload_id } = validationResult;
+  const { summary, total_emissions_tco2e, upload_id, preview } = validationResult;
   const hasErrors = summary.invalid_rows > 0;
 
   return (
@@ -38,6 +38,53 @@ export default function ValidationResultsCard({
           <div className="text-text-muted">Total: {summary.total_rows} rows</div>
         </div>
       </div>
+
+      {/* Preview Breakdown */}
+      {preview && preview.total_valid_records > 0 && (
+        <div className="mb-6 border border-stone-200 rounded-lg overflow-hidden" data-testid="upload-preview-panel">
+          <div className="bg-stone-100 px-4 py-2 border-b border-stone-200">
+            <h3 className="text-sm font-semibold text-stone-700">Upload Preview</h3>
+          </div>
+          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-stone-500">Valid Records</p>
+              <p className="font-semibold text-stone-800">{preview.total_valid_records}</p>
+            </div>
+            <div>
+              <p className="text-stone-500">Standard Fuel</p>
+              <p className="font-semibold text-stone-800">{preview.standard_fuel_records}</p>
+            </div>
+            <div>
+              <p className="text-stone-500">Custom Fuel</p>
+              <p className="font-semibold text-amber-700">{preview.custom_fuel_records}</p>
+            </div>
+            <div>
+              <p className="text-stone-500">Total CO2e</p>
+              <p className="font-semibold text-stone-800">{formatEmissions(preview.total_co2e_tco2e)} tCO2e</p>
+            </div>
+          </div>
+          {/* By scope breakdown */}
+          {preview.by_scope && Object.keys(preview.by_scope).length > 0 && (
+            <div className="px-4 pb-3 flex flex-wrap gap-2">
+              {Object.entries(preview.by_scope).map(([scope, count]) => (
+                <span key={scope} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {scope.replace('scope', 'Scope ')}: {count}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* Custom fuel methodology breakdown */}
+          {preview.by_methodology && Object.keys(preview.by_methodology).length > 0 && (
+            <div className="px-4 pb-3 flex flex-wrap gap-2">
+              {Object.entries(preview.by_methodology).map(([method, count]) => (
+                <span key={method} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                  {method.replace(/_/g, ' ')}: {count}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Action Panel */}
       <div className="mb-6 p-4 bg-stone-50 rounded-lg" data-testid="validation-action-panel">

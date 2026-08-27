@@ -89,6 +89,7 @@ def _base_process_payload(facility_id: str) -> dict:
 # Scope 1 Process Emissions: Venting + Using Composition of Carbon payload persistency
 def test_create_venting_with_carbon_composition_persists_fields(auth_headers, facility_id, cleanup_emission_ids):
     payload = _base_process_payload(facility_id)
+    payload["calculation_methodology"] = "using_carbon_composition"
     payload["dynamic_field_values"] = {
         "qty": {"value": 100.0, "unit": "kg"},
         "composition_of_carbon": {"value": 85.0, "unit": "%"},
@@ -112,6 +113,49 @@ def test_create_venting_with_carbon_composition_persists_fields(auth_headers, fa
     persisted_dfv = persisted.get("dynamic_field_values") or {}
     assert persisted_dfv.get("composition_of_carbon", {}).get("value") == 85.0
     assert persisted_dfv.get("oxidation_factor", {}).get("value") == 0.98
+
+
+def test_carbon_composition_volume_quantity_requires_density(auth_headers, facility_id):
+    payload = _base_process_payload(facility_id)
+    payload["calculation_methodology"] = "using_carbon_composition"
+    payload["dynamic_field_values"] = {
+        "qty": {"value": 100.0, "unit": "L"},
+        "composition_of_carbon": {"value": 85.0, "unit": "%"},
+        "oxidation_factor": {"value": 0.98, "unit": ""},
+    }
+
+    create = requests.post(f"{API}/emissions", headers=auth_headers, json=payload, timeout=45)
+    assert create.status_code == 422, f"Expected density guard, got: {create.status_code} {create.text}"
+    assert "density in kg/L" in create.json().get("detail", "")
+
+
+def test_carbon_composition_volume_quantity_density_is_required_on_update(
+    auth_headers,
+    facility_id,
+    cleanup_emission_ids,
+):
+    payload = _base_process_payload(facility_id)
+    payload["calculation_methodology"] = "using_carbon_composition"
+    payload["dynamic_field_values"] = {
+        "qty": {"value": 100.0, "unit": "L"},
+        "composition_of_carbon": {"value": 85.0, "unit": "%"},
+        "oxidation_factor": {"value": 0.98, "unit": ""},
+        "density": {"value": 0.82, "unit": "kg/L", "is_override": True},
+    }
+
+    create = requests.post(f"{API}/emissions", headers=auth_headers, json=payload, timeout=45)
+    assert create.status_code == 200, f"Create with density failed: {create.status_code} {create.text}"
+    cleanup_emission_ids.append(create.json()["id"])
+
+    payload["dynamic_field_values"].pop("density")
+    update = requests.put(
+        f"{API}/emissions/{create.json()['id']}",
+        headers=auth_headers,
+        json=payload,
+        timeout=45,
+    )
+    assert update.status_code == 422, f"Expected PUT density guard, got: {update.status_code} {update.text}"
+    assert "density in kg/L" in update.json().get("detail", "")
 
 
 # Scope 1 Process Emissions: Venting + Using NCV should not carry carbon-composition fields

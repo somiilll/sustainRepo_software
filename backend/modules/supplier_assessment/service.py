@@ -3,6 +3,7 @@ Supplier Assessment Service - Business logic layer.
 """
 import uuid
 import os
+import re
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
@@ -13,14 +14,81 @@ from modules.supplier_assessment.email_templates import (
     supplier_invitation_email,
     supplier_reminder_email,
 )
+from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
+from modules.supplier_assessment.programs import (
+    apply_legacy_request_overrides,
+    bind_current_program,
+    get_or_create_program_revision,
+    resolve_program_context,
+)
 
 
 class SupplierAssessmentService:
     """Service for supplier assessment operations."""
+
+    IMPORTANCE_WEIGHTS = {"low": 1.0, "medium": 2.0, "high": 3.0, "critical": 4.0}
+
+    @staticmethod
+    def _validated_weight_config(weights: Optional[Dict[str, float]], defaults: Dict[str, float], label: str) -> Dict[str, float]:
+        resolved = {**defaults, **(weights or {})}
+        if set(resolved) != set(defaults):
+            raise ValueError(f"{label} must include: {', '.join(defaults)}")
+        try:
+            normalized = {key: float(value) for key, value in resolved.items()}
+        except (TypeError, ValueError):
+            raise ValueError(f"{label} must contain numeric values")
+        if any(value < 0 for value in normalized.values()) or abs(sum(normalized.values()) - 100) > 0.01:
+            raise ValueError(f"{label} must total 100%")
+        return normalized
+
+    @classmethod
+    def _resolve_question_weight(cls, importance: Optional[str], exact_numerical_weight: Optional[float], legacy_weight: Optional[float]) -> tuple[str, Optional[float], float]:
+        normalized_importance = (importance or "medium").lower()
+        if normalized_importance not in cls.IMPORTANCE_WEIGHTS:
+            normalized_importance = "medium"
+        if exact_numerical_weight is not None:
+            return normalized_importance, float(exact_numerical_weight), float(exact_numerical_weight)
+        # Preserve historic API clients which only supplied `weight`.
+        if importance is None and legacy_weight not in (None, 1, 1.0):
+            return normalized_importance, float(legacy_weight), float(legacy_weight)
+        return normalized_importance, None, cls.IMPORTANCE_WEIGHTS[normalized_importance]
+
+    @staticmethod
+    def _synchronize_choice_mapping(
+        scoring: Optional[Dict[str, Any]],
+        options: Optional[List[Dict[str, Any]]],
+    ) -> Optional[Dict[str, Any]]:
+        """Keep dropdown option scores and canonical choice mappings aligned."""
+        normalized = dict(scoring or {})
+        if normalized.get("rule") != "choice_mapping":
+            return scoring
+        option_scores = {
+            str(option["value"]): float(option["score"])
+            for option in (options or [])
+            if option.get("value") not in (None, "") and option.get("score") is not None
+        }
+        if option_scores:
+            normalized["choices"] = option_scores
+        return normalized
     
     # ========================================================================
     # Supplier Management
     # ========================================================================
+
+    @staticmethod
+    def _default_reporting_period() -> str:
+        return f"CY{datetime.now(timezone.utc).year}"
+
+    async def _organization_default_reporting_period(self, customer_org_id: str) -> str:
+        organization = await db.organizations.find_one(
+            {"id": customer_org_id}, {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1}
+        ) or {}
+        now = datetime.now(timezone.utc)
+        if organization.get("reporting_year_type") == "calendar_year":
+            return f"CY {now.year}"
+        fiscal_start_month = int(organization.get("financial_year_start_month") or 4)
+        start_year = now.year if now.month >= fiscal_start_month else now.year - 1
+        return f"FY {start_year}-{str(start_year + 1)[-2:]}"
     
     async def create_supplier(
         self,
@@ -34,6 +102,11 @@ class SupplierAssessmentService:
         created_by_email: str,
         modules_enabled: Optional[List[str]] = None,
         ghg_scopes_enabled: Optional[List[str]] = None,
+        reporting_period: Optional[str] = None,
+        revenue_required: bool = False,
+        questionnaire_ids: Optional[List[str]] = None,
+        document_requirement_ids: Optional[List[str]] = None,
+        training_requirement_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Create a new supplier:
@@ -42,12 +115,13 @@ class SupplierAssessmentService:
         3. Generate temp password and send invitation email
         4. Create supplier_relationship record
         """
-        # Default module configuration
-        if modules_enabled is None:
-            modules_enabled = ["esg", "ghg"]
-        if ghg_scopes_enabled is None:
-            ghg_scopes_enabled = ["scope1", "scope2"]
-        
+        company_name = (company_name or "").strip()
+        duplicate_supplier = await db.supplier_relationships.find_one(
+            {"customer_org_id": customer_org_id, "is_active": True, "company_name": {"$regex": f"^{re.escape(company_name)}$", "$options": "i"}},
+            {"_id": 0, "id": 1},
+        )
+        if duplicate_supplier:
+            raise ValueError("A supplier with this organization name already exists")
         # Check if supplier org already exists with this email
         existing_user = await db.users.find_one(
             {"email": email, "is_deleted": {"$ne": True}},
@@ -112,6 +186,35 @@ class SupplierAssessmentService:
             }
             await db.users.insert_one(supplier_user)
         
+        # Bind the relationship to an immutable assessment program revision. The
+        # relationship keeps its established denormalized fields for existing APIs.
+        program_revision = await bind_current_program(
+            customer_org_id=customer_org_id,
+            created_by=created_by,
+            modules_enabled=modules_enabled,
+            ghg_scopes_enabled=ghg_scopes_enabled,
+        )
+        program_modules = program_revision["config"]["modules"]
+        modules_enabled = [
+            code for code in supplier_assessment_module_registry.registered_codes()
+            if (program_modules.get(code) or {}).get("enabled", False)
+        ]
+        ghg_scopes_enabled = (program_modules.get("ghg") or {}).get("scopes", ["scope1", "scope2"])
+
+        assigned_questionnaire_ids: List[str] = []
+        if "esg" in modules_enabled:
+            active_questionnaires = await db.supplier_questionnaires.find(
+                {"organization_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1}
+            ).to_list(100)
+            active_ids = {questionnaire["id"] for questionnaire in active_questionnaires}
+            if not questionnaire_ids:
+                assigned_questionnaire_ids = list(active_ids)
+            else:
+                assigned_questionnaire_ids = list(dict.fromkeys(questionnaire_ids))
+                invalid_ids = set(assigned_questionnaire_ids) - active_ids
+                if invalid_ids:
+                    raise ValueError("Selected ESG questionnaire is unavailable")
+
         # Create supplier relationship
         relationship_id = str(uuid.uuid4())
         relationship = {
@@ -123,14 +226,19 @@ class SupplierAssessmentService:
             "contact_email": email,
             "contact_number": contact_number,
             "revenue_percentage": None,
+            "revenue_required": revenue_required,
             "invitation_status": "pending",
             "due_date": due_date,
+            "reporting_period": reporting_period or await self._organization_default_reporting_period(customer_org_id),
             "last_reminder_sent": None,
             "reminder_count": 0,
             "is_active": True,
             # Module configuration
             "modules_enabled": modules_enabled,
             "ghg_scopes_enabled": ghg_scopes_enabled,
+            "questionnaire_ids": assigned_questionnaire_ids,
+            "assessment_program_id": program_revision["program_id"],
+            "assessment_program_version": program_revision["version"],
             # Progress tracking
             "esg_completion_percent": 0.0,
             "ghg_completion_percent": 0.0,
@@ -143,6 +251,18 @@ class SupplierAssessmentService:
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.supplier_relationships.insert_one(relationship)
+        relationship.pop("_id", None)
+
+        if document_requirement_ids:
+            from modules.supplier_assessment import documents_service
+            await documents_service.assign_existing_documents_to_supplier(
+                customer_org_id, relationship, document_requirement_ids, created_by
+            )
+        if training_requirement_ids:
+            from modules.supplier_assessment import training_service
+            await training_service.assign_existing_trainings_to_supplier(
+                customer_org_id, relationship, training_requirement_ids
+            )
         
         # Get customer org name for email
         customer_org = await db.organizations.find_one(
@@ -152,7 +272,9 @@ class SupplierAssessmentService:
         customer_name = customer_org.get("name", "Your Customer") if customer_org else "Your Customer"
         
         # Send invitation email
-        frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-ai-routing.preview.emergentagent.com')
+        frontend_url = os.environ.get('FRONTEND_URL')
+        if not frontend_url:
+            raise ValueError("FRONTEND_URL must be configured")
         login_link = f"{frontend_url}/login"
         
         email_body = supplier_invitation_email(
@@ -162,6 +284,7 @@ class SupplierAssessmentService:
             temp_password=temp_password,  # Will be None if user already exists
             login_link=login_link,
             due_date=due_date,
+            assigned_modules=["revenue", *modules_enabled],
         )
         
         subject = f"Supplier Assessment Invitation from {customer_name}"
@@ -184,6 +307,7 @@ class SupplierAssessmentService:
         page_size: int = 20,
         status_filter: Optional[str] = None,
         search: Optional[str] = None,
+        reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get paginated list of suppliers for a customer."""
         query = {
@@ -193,6 +317,8 @@ class SupplierAssessmentService:
         
         if status_filter:
             query["invitation_status"] = status_filter
+        if reporting_period:
+            query["reporting_period"] = reporting_period
         
         if search:
             query["$or"] = [
@@ -208,6 +334,21 @@ class SupplierAssessmentService:
             query,
             {"_id": 0}
         ).sort("created_at", -1).skip(skip).limit(page_size).to_list(page_size)
+        from modules.supplier_assessment.documents_service import _is_requirement_available_to_relationship
+        document_requirements = await db.supplier_document_requirements.find(
+            {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1, "reporting_period": 1, "assignment_mode": 1, "supplier_relationship_ids": 1, "excluded_supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1},
+        ).to_list(1000)
+        relationship_ids = [supplier["id"] for supplier in suppliers]
+        training_assignments = await db.supplier_training_assignments.find(
+            {"supplier_relationship_id": {"$in": relationship_ids}, "is_active": True}, {"_id": 0, "supplier_relationship_id": 1, "training_requirement_id": 1},
+        ).to_list(1000)
+        training_ids_by_supplier: Dict[str, List[str]] = {}
+        for assignment in training_assignments:
+            training_ids_by_supplier.setdefault(assignment["supplier_relationship_id"], []).append(assignment["training_requirement_id"])
+        for supplier in suppliers:
+            supplier["questionnaire_assignment_is_implicit"] = "questionnaire_ids" not in supplier
+            supplier["document_requirement_ids"] = [requirement["id"] for requirement in document_requirements if _is_requirement_available_to_relationship(requirement, supplier)]
+            supplier["training_requirement_ids"] = training_ids_by_supplier.get(supplier["id"], [])
         
         return {
             "suppliers": suppliers,
@@ -222,6 +363,10 @@ class SupplierAssessmentService:
             {"id": relationship_id, "is_active": True},
             {"_id": 0}
         )
+
+    async def get_program_context(self, relationship: Dict[str, Any]) -> Dict[str, Any]:
+        """Expose the immutable program resolver to transport boundaries."""
+        return await resolve_program_context(relationship)
     
     async def update_supplier(
         self,
@@ -229,12 +374,115 @@ class SupplierAssessmentService:
         updates: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         """Update supplier relationship."""
+        relationship = await self.get_supplier(relationship_id)
+        if not relationship:
+            return None
+
+        if "modules_enabled" in updates or "ghg_scopes_enabled" in updates:
+            context = await resolve_program_context(relationship)
+            effective_config = apply_legacy_request_overrides(
+                context["config"],
+                updates.get("modules_enabled"),
+                updates.get("ghg_scopes_enabled"),
+            )
+            revision = await get_or_create_program_revision(
+                relationship["customer_org_id"], effective_config, relationship["created_by"]
+            )
+            updates["assessment_program_id"] = revision["program_id"]
+            updates["assessment_program_version"] = revision["version"]
+
+        if "questionnaire_ids" in updates:
+            active_questionnaires = await db.supplier_questionnaires.find(
+                {"organization_id": relationship["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1}
+            ).to_list(100)
+            active_ids = {questionnaire["id"] for questionnaire in active_questionnaires}
+            updates["questionnaire_ids"] = list(dict.fromkeys(updates["questionnaire_ids"] or []))
+            current_questionnaire_ids = relationship.get("questionnaire_ids")
+            if current_questionnaire_ids is None:
+                current_questionnaire_ids = list(active_ids)
+            newly_assigned_ids = set(updates["questionnaire_ids"]) - set(current_questionnaire_ids)
+            if newly_assigned_ids - active_ids:
+                raise ValueError("Selected ESG questionnaire is unavailable")
+            removed_questionnaire_ids = set(current_questionnaire_ids) - set(updates["questionnaire_ids"])
+            if removed_questionnaire_ids:
+                submitted_response = await db.supplier_questionnaire_responses.find_one(
+                    {
+                        "supplier_relationship_id": relationship_id,
+                        "questionnaire_id": {"$in": list(removed_questionnaire_ids)},
+                        "status": "submitted",
+                    },
+                    {"_id": 0, "questionnaire_id": 1},
+                )
+                if submitted_response:
+                    raise ValueError("A submitted questionnaire cannot be removed from this supplier")
+
+        if "company_name" in updates:
+            company_name = str(updates["company_name"] or "").strip()
+            duplicate_supplier = await db.supplier_relationships.find_one(
+                {"customer_org_id": relationship["customer_org_id"], "is_active": True, "id": {"$ne": relationship_id}, "company_name": {"$regex": f"^{re.escape(company_name)}$", "$options": "i"}},
+                {"_id": 0, "id": 1},
+            )
+            if duplicate_supplier:
+                raise ValueError("A supplier with this organization name already exists")
+            updates["company_name"] = company_name
+
+        if "document_requirement_ids" in updates:
+            selected_document_ids = set(updates.pop("document_requirement_ids") or [])
+            requirements = await db.supplier_document_requirements.find(
+                {"customer_org_id": relationship["customer_org_id"], "is_active": True},
+                {"_id": 0, "id": 1, "assignment_mode": 1, "supplier_relationship_ids": 1, "excluded_supplier_relationship_ids": 1},
+            ).to_list(1000)
+            valid_document_ids = {requirement["id"] for requirement in requirements}
+            if selected_document_ids - valid_document_ids:
+                raise ValueError("Selected document is unavailable")
+            for requirement in requirements:
+                assigned = set(requirement.get("supplier_relationship_ids") or [])
+                excluded = set(requirement.get("excluded_supplier_relationship_ids") or [])
+                assignment_mode = requirement.get("assignment_mode") or ("selected" if assigned else "all")
+                if requirement["id"] in selected_document_ids:
+                    if assignment_mode == "selected":
+                        assigned.add(relationship_id)
+                    excluded.discard(relationship_id)
+                else:
+                    assigned.discard(relationship_id); excluded.add(relationship_id)
+                await db.supplier_document_requirements.update_one({"id": requirement["id"]}, {"$set": {"assignment_mode": assignment_mode, "supplier_relationship_ids": list(assigned), "excluded_supplier_relationship_ids": list(excluded)}})
+
+        if "training_requirement_ids" in updates:
+            selected_training_ids = set(updates.pop("training_requirement_ids") or [])
+            requirements = await db.supplier_training_requirements.find(
+                {"organization_id": relationship["customer_org_id"], "is_active": True, "is_deleted": {"$ne": True}},
+                {"_id": 0, "id": 1, "training_version_id": 1},
+            ).to_list(1000)
+            valid_training_ids = {requirement["id"] for requirement in requirements}
+            if selected_training_ids - valid_training_ids:
+                raise ValueError("Selected training is unavailable")
+            existing_assignments = await db.supplier_training_assignments.find(
+                {"supplier_relationship_id": relationship_id, "training_requirement_id": {"$in": list(valid_training_ids)}},
+                {"_id": 0, "id": 1, "training_requirement_id": 1, "assigned_at": 1},
+            ).sort("assigned_at", 1).to_list(1000)
+            assignment_by_requirement = {}
+            for assignment in existing_assignments:
+                assignment_by_requirement.setdefault(assignment["training_requirement_id"], assignment)
+            requirement_by_id = {requirement["id"]: requirement for requirement in requirements}
+            now = datetime.now(timezone.utc).isoformat()
+            for requirement_id in valid_training_ids:
+                assignment = assignment_by_requirement.get(requirement_id)
+                assignment_query = {"supplier_relationship_id": relationship_id, "training_requirement_id": requirement_id}
+                await db.supplier_training_assignments.update_many(assignment_query, {"$set": {"is_active": False, "updated_at": now}})
+                if requirement_id in selected_training_ids:
+                    if assignment:
+                        await db.supplier_training_assignments.update_one({"id": assignment["id"]}, {"$set": {"is_active": True, "requirement_version_id": requirement_by_id[requirement_id]["training_version_id"], "reporting_period": relationship.get("reporting_period"), "updated_at": now}})
+                    else:
+                        await db.supplier_training_assignments.insert_one({"id": str(uuid.uuid4()), "supplier_relationship_id": relationship_id, "organization_id": relationship["customer_org_id"], "training_requirement_id": requirement_id, "requirement_version_id": requirement_by_id[requirement_id]["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": now, "is_active": True})
+
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         await db.supplier_relationships.update_one(
             {"id": relationship_id},
             {"$set": updates}
         )
+        if "questionnaire_ids" in updates:
+            await self._update_completion_status(relationship_id)
         
         return await self.get_supplier(relationship_id)
     
@@ -253,6 +501,8 @@ class SupplierAssessmentService:
         self,
         relationship_id: str,
         custom_message: Optional[str] = None,
+        modules: Optional[List[str]] = None,
+        reporting_period: Optional[str] = None,
     ) -> bool:
         """Send reminder email to supplier."""
         relationship = await self.get_supplier(relationship_id)
@@ -266,17 +516,18 @@ class SupplierAssessmentService:
         )
         customer_name = customer_org.get("name", "Your Customer") if customer_org else "Your Customer"
         
-        frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-ai-routing.preview.emergentagent.com')
+        frontend_url = os.environ.get('FRONTEND_URL')
+        if not frontend_url:
+            raise ValueError("FRONTEND_URL must be configured")
         login_link = f"{frontend_url}/login"
         
-        # Determine pending modules
-        pending_modules = []
-        if relationship.get("esg_completion_percent", 0) < 100:
-            pending_modules.append("ESG Questionnaire")
-        if relationship.get("ghg_completion_percent", 0) < 100:
-            pending_modules.append("GHG Emissions")
-        if relationship.get("revenue_percentage") is None:
-            pending_modules.append("Revenue Information")
+        target_period = reporting_period or relationship.get("reporting_period") or self._default_reporting_period()
+        requested_modules = set(modules or ["all"])
+        if "all" in requested_modules:
+            requested_modules = {"esg", "ghg", "documents", "training", "revenue"}
+        pending_modules = await self._pending_reminder_modules(relationship, requested_modules, target_period)
+        if not pending_modules:
+            return True
         
         email_body = supplier_reminder_email(
             supplier_name=relationship["contact_person"],
@@ -287,11 +538,13 @@ class SupplierAssessmentService:
             custom_message=custom_message,
         )
         
-        await send_email(
+        delivered = await send_email(
             relationship["contact_email"],
             f"Reminder: Complete Your Supplier Assessment for {customer_name}",
             email_body,
         )
+        if not delivered:
+            return False
         
         # Update reminder tracking
         await db.supplier_relationships.update_one(
@@ -302,6 +555,54 @@ class SupplierAssessmentService:
         )
         
         return True
+
+    async def _pending_reminder_modules(self, relationship: Dict[str, Any], requested_modules: set[str], reporting_period: str) -> List[str]:
+        pending = []
+        labels = {
+            "esg": "ESG Questionnaire",
+            "ghg": "GHG Emissions",
+            "revenue": "Revenue Information",
+        }
+        for module_code, completion_field in (("esg", "esg_completion_percent"), ("ghg", "ghg_completion_percent")):
+            if module_code in requested_modules and relationship.get(completion_field, 0) < 100:
+                pending.append(labels[module_code])
+        if "revenue" in requested_modules:
+            revenue = await db.supplier_revenue_submissions.find_one(
+                {"supplier_relationship_id": relationship["id"], "reporting_period": reporting_period, "status": "submitted", "parent_visible": {"$ne": False}},
+                {"_id": 0, "id": 1},
+            )
+            if not revenue:
+                pending.append(labels["revenue"])
+        if "documents" in requested_modules:
+            from modules.supplier_assessment.documents_service import _is_requirement_available_to_relationship
+            requirements = await db.supplier_document_requirements.find(
+                {"customer_org_id": relationship["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1, "title": 1, "due_date": 1, "supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1, "reporting_period": 1}
+            ).to_list(1000)
+            for requirement in requirements:
+                if not _is_requirement_available_to_relationship(requirement, relationship):
+                    continue
+                submitted = await db.supplier_document_submissions.find_one(
+                    {"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "status": "submitted", "parent_visible": {"$ne": False}}, {"_id": 0, "id": 1}
+                )
+                if not submitted:
+                    suffix = f" (due {requirement['due_date']})" if requirement.get("due_date") else ""
+                    pending.append(f"Document: {requirement.get('title', 'Agreement')}{suffix}")
+        if "training" in requested_modules:
+            assignments = await db.supplier_training_assignments.find(
+                {"supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0, "id": 1, "training_requirement_id": 1, "reporting_period": 1}
+            ).to_list(1000)
+            for assignment in assignments:
+                if assignment.get("reporting_period") and assignment["reporting_period"] != reporting_period:
+                    continue
+                progress = await db.supplier_training_progress.find_one(
+                    {"supplier_relationship_id": relationship["id"], "training_assignment_id": assignment["id"], "status": "completed"}, {"_id": 0, "id": 1}
+                )
+                if progress:
+                    continue
+                requirement = await db.supplier_training_requirements.find_one({"id": assignment["training_requirement_id"]}, {"_id": 0, "title": 1, "due_date": 1})
+                suffix = f" (due {requirement['due_date']})" if requirement and requirement.get("due_date") else ""
+                pending.append(f"Training: {(requirement or {}).get('title', 'Training')}{suffix}")
+        return pending
     
     # ========================================================================
     # Supplier Self-Service
@@ -331,6 +632,18 @@ class SupplierAssessmentService:
         revenue_currency: Optional[str] = None,
     ) -> bool:
         """Supplier updates their revenue information (percentage and/or amount)."""
+        relationship = await db.supplier_relationships.find_one(
+            {"id": relationship_id, "supplier_org_id": supplier_org_id}, {"_id": 0, "reporting_period": 1}
+        )
+        if not relationship:
+            return False
+        reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+        submitted = await db.supplier_revenue_submissions.find_one(
+            {"supplier_relationship_id": relationship_id, "reporting_period": reporting_period, "status": "submitted", "parent_visible": {"$ne": False}},
+            {"_id": 0, "id": 1},
+        )
+        if submitted:
+            raise ValueError("Revenue information is already submitted and locked")
         update_fields = {
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -350,10 +663,38 @@ class SupplierAssessmentService:
             {"$set": update_fields}
         )
         
-        # Recalculate completion
-        await self._update_completion_status(relationship_id)
-        
         return result.modified_count > 0
+
+    async def submit_revenue_info(self, relationship_id: str, supplier_org_id: str, submitted_by: str) -> Dict[str, Any]:
+        relationship = await db.supplier_relationships.find_one(
+            {"id": relationship_id, "supplier_org_id": supplier_org_id}, {"_id": 0}
+        )
+        if not relationship:
+            raise ValueError("Supplier relationship not found")
+        if relationship.get("revenue_percentage") is None:
+            raise ValueError("Save the mandatory revenue percentage before submitting")
+        if relationship.get("revenue_required", False) and relationship.get("revenue_amount") is None:
+            raise ValueError("Save the mandatory annual revenue amount before submitting")
+        period = relationship.get("reporting_period") or self._default_reporting_period()
+        existing = await db.supplier_revenue_submissions.find_one(
+            {"supplier_relationship_id": relationship_id, "reporting_period": period, "status": "submitted", "parent_visible": {"$ne": False}}, {"_id": 0, "id": 1}
+        )
+        if existing:
+            raise ValueError("Revenue information is already submitted and locked")
+        now = datetime.now(timezone.utc).isoformat()
+        submission = {
+            "id": str(uuid.uuid4()), "supplier_relationship_id": relationship_id,
+            "supplier_org_id": supplier_org_id, "customer_org_id": relationship["customer_org_id"],
+            "reporting_period": period, "revenue_percentage": relationship["revenue_percentage"],
+            "revenue_amount": relationship.get("revenue_amount"), "revenue_currency": relationship.get("revenue_currency") or "USD",
+            "status": "submitted", "parent_visible": True, "revision": 1,
+            "submitted_by": submitted_by, "submitted_at": now,
+        }
+        await db.supplier_revenue_submissions.insert_one(submission)
+        submission.pop("_id", None)
+        await self.refresh_supplier_canonical_score(relationship_id)
+        await self._update_completion_status(relationship_id)
+        return submission
     
     # Keep old method for backwards compatibility
     async def update_revenue_percentage(
@@ -381,24 +722,84 @@ class SupplierAssessmentService:
         due_date: Optional[str],
         scoring_method: str,
         section_weights: Optional[Dict[str, float]],
+        esg_section_weights: Optional[Dict[str, float]],
+        overall_supplier_weights: Optional[Dict[str, float]],
         created_by: str,
+        assignment_mode: str = "all",
+        supplier_relationship_ids: Optional[List[str]] = None,
+        assignment_reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new questionnaire template."""
         questionnaire_id = str(uuid.uuid4())
+        esg_weights = self._validated_weight_config(
+            esg_section_weights or section_weights,
+            {"environment": 33.33, "social": 33.33, "governance": 33.34},
+            "ESG category weights",
+        )
+        supplier_weights = self._validated_weight_config(
+            overall_supplier_weights,
+            {"esg": 40.0, "ghg": 40.0, "revenue": 20.0},
+            "Overall component weights",
+        )
+        relationship_query = {"customer_org_id": organization_id, "is_active": True}
+        if assignment_reporting_period:
+            relationship_query["reporting_period"] = assignment_reporting_period
+        eligible_relationships = [
+            relationship for relationship in await db.supplier_relationships.find(
+                relationship_query, {"_id": 0, "id": 1, "modules_enabled": 1}
+            ).to_list(1000)
+            if "esg" in (relationship.get("modules_enabled") or ["esg", "ghg"])
+        ]
+        eligible_ids = {relationship["id"] for relationship in eligible_relationships}
+        requested_ids = list(dict.fromkeys(supplier_relationship_ids or []))
+        if assignment_mode == "selected":
+            if not requested_ids:
+                raise ValueError("Select at least one supplier for this questionnaire")
+            if set(requested_ids) - eligible_ids:
+                raise ValueError("Selected supplier is unavailable for this ESG questionnaire")
+            assigned_supplier_ids = requested_ids
+        else:
+            assigned_supplier_ids = [relationship["id"] for relationship in eligible_relationships]
+
+        existing_questionnaire_ids = [
+            item["id"] for item in await db.supplier_questionnaires.find(
+                {"organization_id": organization_id, "is_active": True}, {"_id": 0, "id": 1}
+            ).to_list(1000)
+        ]
         questionnaire = {
             "id": questionnaire_id,
             "organization_id": organization_id,
             "name": name,
             "description": description,
             "due_date": due_date,
-            "scoring_method": scoring_method,
-            "section_weights": section_weights or {"environment": 33.33, "social": 33.33, "governance": 33.34},
+            "scoring_method": scoring_method or "question",
+            "section_weights": esg_weights,
+            "esg_section_weights": esg_weights,
+            "overall_supplier_weights": supplier_weights,
+            "assignment_mode": assignment_mode,
+            "assigned_supplier_ids": assigned_supplier_ids,
+            "assignment_reporting_period": assignment_reporting_period,
             "is_active": True,
             "question_count": 0,
             "created_by": created_by,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.supplier_questionnaires.insert_one(questionnaire)
+        # Freeze historic implicit assignments before applying the new questionnaire's targeting.
+        legacy_relationships = await db.supplier_relationships.find(
+            {"customer_org_id": organization_id, "is_active": True, "questionnaire_ids": {"$exists": False}},
+            {"_id": 0, "id": 1},
+        ).to_list(1000)
+        if legacy_relationships:
+            await db.supplier_relationships.update_many(
+                {"id": {"$in": [relationship["id"] for relationship in legacy_relationships]}},
+                {"$set": {"questionnaire_ids": existing_questionnaire_ids, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+        if assigned_supplier_ids:
+            await db.supplier_relationships.update_many(
+                {"id": {"$in": assigned_supplier_ids}},
+                {"$addToSet": {"questionnaire_ids": questionnaire_id}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
         return questionnaire
     
     async def get_questionnaires(
@@ -410,6 +811,8 @@ class SupplierAssessmentService:
             {"organization_id": organization_id, "is_active": True},
             {"_id": 0}
         ).sort("created_at", -1).to_list(100)
+        for questionnaire in questionnaires:
+            questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
         return questionnaires
     
     async def get_questionnaire(self, questionnaire_id: str) -> Optional[Dict[str, Any]]:
@@ -419,6 +822,7 @@ class SupplierAssessmentService:
             {"_id": 0}
         )
         if questionnaire:
+            questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
             questions = await db.supplier_questions.find(
                 {"questionnaire_id": questionnaire_id, "is_active": True},
                 {"_id": 0}
@@ -432,6 +836,22 @@ class SupplierAssessmentService:
         updates: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         """Update questionnaire."""
+        existing = await self.get_questionnaire(questionnaire_id)
+        if not existing:
+            return None
+        if "esg_section_weights" in updates or "section_weights" in updates:
+            updates["esg_section_weights"] = self._validated_weight_config(
+                updates.get("esg_section_weights") or updates.get("section_weights"),
+                {"environment": 33.33, "social": 33.33, "governance": 33.34},
+                "ESG category weights",
+            )
+            updates["section_weights"] = updates["esg_section_weights"]
+        if "overall_supplier_weights" in updates:
+            updates["overall_supplier_weights"] = self._validated_weight_config(
+                updates["overall_supplier_weights"],
+                {"esg": 40.0, "ghg": 40.0, "revenue": 20.0},
+                "Overall component weights",
+            )
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.supplier_questionnaires.update_one(
             {"id": questionnaire_id},
@@ -466,6 +886,8 @@ class SupplierAssessmentService:
             due_date=original.get("due_date"),
             scoring_method=original.get("scoring_method", "question"),
             section_weights=original.get("section_weights"),
+            esg_section_weights=original.get("esg_section_weights"),
+            overall_supplier_weights=original.get("overall_supplier_weights"),
             created_by=created_by,
         )
         
@@ -479,8 +901,11 @@ class SupplierAssessmentService:
                 options=q.get("options"),
                 required=q.get("required", True),
                 weight=q.get("weight", 1.0),
+                importance=q.get("importance"),
+                exact_numerical_weight=q.get("exact_numerical_weight"),
                 category=q["category"],
                 order=q.get("order", 0),
+                scoring=q.get("scoring"),
             )
         
         return await self.get_questionnaire(new_questionnaire["id"])
@@ -497,13 +922,19 @@ class SupplierAssessmentService:
         response_type: str,
         options: Optional[List[Dict[str, Any]]],
         required: bool,
-        weight: float,
+        weight: Optional[float],
+        importance: Optional[str],
+        exact_numerical_weight: Optional[float],
         category: str,
         order: int,
         scoring: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Add a question to a questionnaire."""
         question_id = str(uuid.uuid4())
+        importance, exact_numerical_weight, effective_weight = self._resolve_question_weight(
+            importance, exact_numerical_weight, weight
+        )
+        scoring = self._synchronize_choice_mapping(scoring, options)
         question = {
             "id": question_id,
             "questionnaire_id": questionnaire_id,
@@ -512,7 +943,9 @@ class SupplierAssessmentService:
             "response_type": response_type,
             "options": options,
             "required": required,
-            "weight": weight,
+            "weight": effective_weight,
+            "importance": importance,
+            "exact_numerical_weight": exact_numerical_weight,
             "category": category,
             "order": order,
             "scoring": scoring,  # New: Scoring configuration
@@ -535,12 +968,35 @@ class SupplierAssessmentService:
         updates: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         """Update a question."""
+        existing = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
+        if not existing:
+            return None
+        if {"importance", "exact_numerical_weight", "weight"}.intersection(updates):
+            importance, exact_weight, effective_weight = self._resolve_question_weight(
+                updates.get("importance", existing.get("importance")),
+                updates.get("exact_numerical_weight", existing.get("exact_numerical_weight")),
+                updates.get("weight", existing.get("weight")),
+            )
+            updates.update({
+                "importance": importance,
+                "exact_numerical_weight": exact_weight,
+                "weight": effective_weight,
+            })
+        if "scoring" in updates or "options" in updates:
+            updates["scoring"] = self._synchronize_choice_mapping(
+                updates.get("scoring", existing.get("scoring")),
+                updates.get("options", existing.get("options")),
+            )
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.supplier_questions.update_one(
             {"id": question_id},
             {"$set": updates}
         )
-        return await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
+        updated_question = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
+        if updated_question and ("scoring" in updates or "options" in updates or {"importance", "exact_numerical_weight", "weight"}.intersection(updates)):
+            from modules.supplier_assessment.scoring import ScoringEngine
+            await ScoringEngine(db).recalculate_all_suppliers(updated_question["questionnaire_id"])
+        return updated_question
     
     async def delete_question(self, question_id: str) -> bool:
         """Soft delete a question."""
@@ -577,6 +1033,24 @@ class SupplierAssessmentService:
     # ========================================================================
     # Supplier Response Management
     # ========================================================================
+
+    async def _current_questionnaire_response(self, questionnaire_id: str, supplier_relationship_id: str, reporting_period: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        query = {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "is_current": True}
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        response = await db.supplier_questionnaire_responses.find_one(
+            query,
+            {"_id": 0}, sort=[("revision", -1)],
+        )
+        if response:
+            return response
+        legacy_query = {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "is_current": {"$exists": False}}
+        if reporting_period:
+            legacy_query["reporting_period"] = {"$exists": False}
+        return await db.supplier_questionnaire_responses.find_one(
+            legacy_query,
+            {"_id": 0}, sort=[("submitted_at", -1)],
+        )
     
     async def get_supplier_questionnaire_status(
         self,
@@ -596,22 +1070,19 @@ class SupplierAssessmentService:
         if not relationship:
             return []
         
-        # Get all questionnaires for this customer
+        # Relationships created before explicit assignment retain legacy access to all active questionnaires.
+        questionnaire_query = {"organization_id": customer_org_id, "is_active": True}
+        if "questionnaire_ids" in relationship:
+            questionnaire_query["id"] = {"$in": relationship.get("questionnaire_ids") or []}
         questionnaires = await db.supplier_questionnaires.find(
-            {"organization_id": customer_org_id, "is_active": True},
+            questionnaire_query,
             {"_id": 0}
         ).to_list(100)
         
         statuses = []
         for q in questionnaires:
             # Get response status
-            response_doc = await db.supplier_questionnaire_responses.find_one(
-                {
-                    "questionnaire_id": q["id"],
-                    "supplier_relationship_id": relationship["id"],
-                },
-                {"_id": 0}
-            )
+            response_doc = await self._current_questionnaire_response(q["id"], relationship["id"], relationship.get("reporting_period"))
             
             # Count questions
             total_questions = await db.supplier_questions.count_documents(
@@ -660,13 +1131,10 @@ class SupplierAssessmentService:
             return None
         
         # Get supplier's responses
-        response_doc = await db.supplier_questionnaire_responses.find_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-            },
-            {"_id": 0}
-        )
+        relationship = await self.get_supplier(supplier_relationship_id)
+        if not relationship or ("questionnaire_ids" in relationship and questionnaire_id not in relationship.get("questionnaire_ids", [])):
+            return None
+        response_doc = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id, (relationship or {}).get("reporting_period"))
         
         answers = response_doc.get("answers", {}) if response_doc else {}
         
@@ -676,6 +1144,7 @@ class SupplierAssessmentService:
         
         questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
         questionnaire["submitted_at"] = response_doc.get("submitted_at") if response_doc else None
+        questionnaire["reopened_at"] = response_doc.get("reopened_at") if response_doc else None
         
         return questionnaire
     
@@ -686,16 +1155,18 @@ class SupplierAssessmentService:
         supplier_org_id: str,
         answers: List[Dict[str, Any]],
         is_draft: bool,
+        data_verified: bool = False,
+        verified_by: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Submit or save draft answers."""
         # Check if response doc exists
-        response_doc = await db.supplier_questionnaire_responses.find_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-            },
-            {"_id": 0}
-        )
+        relationship = await self.get_supplier(supplier_relationship_id)
+        if not relationship or ("questionnaire_ids" in relationship and questionnaire_id not in relationship.get("questionnaire_ids", [])):
+            raise ValueError("Questionnaire is not assigned to this supplier")
+        reporting_period = (relationship or {}).get("reporting_period") or self._default_reporting_period()
+        response_doc = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id, reporting_period)
+        if response_doc and response_doc.get("status") == "submitted":
+            raise ValueError("Questionnaire already submitted and locked")
         
         # Build answers dict
         answers_dict = {}
@@ -707,13 +1178,17 @@ class SupplierAssessmentService:
         
         status = "in_progress" if is_draft else "submitted"
         submitted_at = None if is_draft else datetime.now(timezone.utc).isoformat()
+        if not is_draft and not data_verified:
+            raise ValueError("Confirm that the submitted data has been reviewed and verified")
         
         # Calculate score if submitting
         calculated_score = None
         if not is_draft:
-            calculated_score = await self._calculate_questionnaire_score(
+            calculated_score, score_breakdown = await self._calculate_questionnaire_score(
                 questionnaire_id, answers_dict, supplier_relationship_id
             )
+        else:
+            score_breakdown = None
         
         if response_doc:
             # Update existing
@@ -723,9 +1198,20 @@ class SupplierAssessmentService:
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
             if submitted_at:
-                update_data["submitted_at"] = submitted_at
+                update_data.update({
+                    "submitted_at": submitted_at,
+                    "parent_visible": True,
+                    "data_verified": True,
+                    "data_verified_at": submitted_at,
+                    "data_verified_by": verified_by,
+                })
+                await db.supplier_questionnaire_responses.update_many(
+                    {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "id": {"$ne": response_doc["id"]}, "parent_visible": True},
+                    {"$set": {"parent_visible": False, "replaced_at": submitted_at}},
+                )
             if calculated_score is not None:
                 update_data["calculated_score"] = calculated_score
+                update_data["score_breakdown"] = score_breakdown
             
             await db.supplier_questionnaire_responses.update_one(
                 {"id": response_doc["id"]},
@@ -742,17 +1228,29 @@ class SupplierAssessmentService:
                 "answers": answers_dict,
                 "status": status,
                 "calculated_score": calculated_score,
+                "score_breakdown": score_breakdown,
+                "reporting_period": reporting_period,
                 "submitted_at": submitted_at,
+                "revision": 1,
+                "is_current": True,
+                "parent_visible": not is_draft,
+                "data_verified": bool(data_verified) if not is_draft else False,
+                "data_verified_at": submitted_at,
+                "data_verified_by": verified_by if not is_draft else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             await db.supplier_questionnaire_responses.insert_one(new_doc)
         
         # Update completion status
+        canonical_score = None
+        if not is_draft:
+            canonical_score = await self.refresh_supplier_canonical_score(supplier_relationship_id)
         await self._update_completion_status(supplier_relationship_id)
         
         return {
             "status": status,
             "calculated_score": calculated_score,
+            "canonical_score": canonical_score,
             "message": "Answers saved" if is_draft else "Questionnaire submitted",
         }
     
@@ -761,7 +1259,7 @@ class SupplierAssessmentService:
         questionnaire_id: str,
         answers: Dict[str, Any],
         supplier_relationship_id: Optional[str] = None,
-    ) -> float:
+    ) -> tuple[float, Optional[Dict[str, Any]]]:
         """
         Calculate questionnaire score using the new unified scoring engine.
         
@@ -782,7 +1280,7 @@ class SupplierAssessmentService:
             {"_id": 0}
         )
         if not questionnaire:
-            return 0.0
+            return 0.0, None
         
         questions = await db.supplier_questions.find(
             {"questionnaire_id": questionnaire_id, "is_active": True},
@@ -812,15 +1310,18 @@ class SupplierAssessmentService:
                 breakdown = await engine.calculate_supplier_assessment(
                     supplier_relationship_id=supplier_relationship_id or "unknown",
                     questionnaire_id=questionnaire_id,
-                    save_to_db=False,  # Don't save here, save in submit_supplier_answers
+                    save_to_db=False,
+                    answers_override=answers,
+                    manual_scores_override={},
+                    reporting_period=(await self.get_supplier(supplier_relationship_id) if supplier_relationship_id else {}).get("reporting_period") if supplier_relationship_id else None,
                 )
-                return breakdown.esg_score.overall_score
+                return breakdown.esg_score.overall_score, breakdown.model_dump()
             except Exception as e:
                 # Log error and fall back to legacy
                 print(f"New scoring engine error: {e}, falling back to legacy")
         
         # Legacy scoring for backward compatibility
-        return await self._calculate_legacy_score(questionnaire, questions, answers)
+        return await self._calculate_legacy_score(questionnaire, questions, answers), None
     
     async def _calculate_legacy_score(
         self,
@@ -917,56 +1418,116 @@ class SupplierAssessmentService:
         else:  # text
             # Text answers get full score if answered
             return 100.0 if answer else 0.0
+
+    async def refresh_supplier_canonical_score(self, supplier_relationship_id: str) -> Optional[Dict[str, Any]]:
+        """Persist the only supplier-level score consumed by tables, rankings, and details."""
+        relationship = await self.get_supplier(supplier_relationship_id)
+        if not relationship:
+            return None
+        reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+        responses = await db.supplier_questionnaire_responses.find(
+            {
+                "supplier_relationship_id": supplier_relationship_id,
+                "reporting_period": reporting_period,
+                "status": "submitted",
+                "parent_visible": {"$ne": False},
+            },
+            {"_id": 0, "questionnaire_id": 1, "submitted_at": 1, "calculated_score": 1, "manual_score": 1, "score_breakdown": 1},
+        ).sort("submitted_at", -1).to_list(100)
+        scored_responses = [
+            response for response in responses
+            if response.get("manual_score") is not None or response.get("calculated_score") is not None
+        ]
+        latest_breakdown = next((response.get("score_breakdown") for response in scored_responses if response.get("score_breakdown")), None)
+
+        esg_values = [
+            float(response["manual_score"] if response.get("manual_score") is not None else response["calculated_score"])
+            for response in scored_responses
+        ]
+        section_values = {"environment": [], "social": [], "governance": []}
+        for response in scored_responses:
+            esg_score = (response.get("score_breakdown") or {}).get("esg_score") or {}
+            for section in section_values:
+                section_score = (esg_score.get(section) or {}).get("score")
+                if section_score is not None:
+                    section_values[section].append(float(section_score))
+        section_scores = {
+            section: round(sum(values) / len(values), 2) if values else None
+            for section, values in section_values.items()
+        }
+        esg_score = round(sum(esg_values) / len(esg_values), 2) if esg_values else None
+
+        # Supplier assessment scoring is ESG-only. GHG, revenue, documents, and training
+        # remain tracked as assessment/completion data, not score components.
+        weights = {"esg": 100.0}
+        is_complete = esg_score is not None
+        overall_score = esg_score if is_complete else None
+        now = datetime.now(timezone.utc).isoformat()
+        snapshot = {
+            "version": "supplier-assessment-canonical-v1",
+            "reporting_period": reporting_period,
+            "questionnaire_count": len(scored_responses),
+            "esg_score": esg_score,
+            "environment_score": section_scores["environment"],
+            "social_score": section_scores["social"],
+            "governance_score": section_scores["governance"],
+            "ghg_score": None,
+            "revenue_score": None,
+            "component_weights": weights,
+            "overall_score": overall_score,
+            "is_complete": is_complete,
+            "calculated_at": now,
+        }
+        await db.supplier_relationships.update_one(
+            {"id": supplier_relationship_id},
+            {"$set": {
+                "canonical_score_snapshot": snapshot,
+                "esg_score": esg_score,
+                "ghg_score": None,
+                "overall_score": overall_score,
+                "last_scored_at": now,
+                "updated_at": now,
+            }},
+        )
+        return snapshot
     
     async def _update_completion_status(self, relationship_id: str):
-        """Update completion percentages for a supplier relationship."""
+        """Compatibility facade delegating completion to registered assessment modules."""
         relationship = await db.supplier_relationships.find_one(
             {"id": relationship_id},
             {"_id": 0}
         )
         if not relationship:
             return
-        
-        # Calculate ESG completion
-        questionnaires = await db.supplier_questionnaires.find(
-            {"organization_id": relationship["customer_org_id"], "is_active": True},
-            {"_id": 0, "id": 1}
-        ).to_list(100)
-        
-        if questionnaires:
-            total_completion = 0.0
-            for q in questionnaires:
-                response = await db.supplier_questionnaire_responses.find_one(
-                    {
-                        "questionnaire_id": q["id"],
-                        "supplier_relationship_id": relationship_id,
-                    },
-                    {"_id": 0}
-                )
-                if response:
-                    total_questions = await db.supplier_questions.count_documents(
-                        {"questionnaire_id": q["id"], "is_active": True}
-                    )
-                    answered = len([a for a in response.get("answers", {}).values() if a is not None])
-                    if total_questions > 0:
-                        total_completion += (answered / total_questions) * 100
-            
-            esg_completion = total_completion / len(questionnaires) if questionnaires else 0.0
+        context = await resolve_program_context(relationship)
+        enabled_modules = supplier_assessment_module_registry.enabled_modules(context["config"])
+        completions = [
+            await module.get_completion(db, relationship)
+            for module in enabled_modules
+        ]
+        completion_by_code = {completion.module_code: completion for completion in completions}
+        applicable_modules = [
+            module for module in enabled_modules
+            if completion_by_code[module.module_code].is_applicable
+        ]
+        total_module_weight = sum(module.legacy_weight for module in applicable_modules)
+        module_completion = sum(
+            completion_by_code[module.module_code].completion_percent * module.legacy_weight
+            for module in applicable_modules
+        )
+        if context["is_legacy"]:
+            module_completion /= 100.0
+        elif total_module_weight:
+            module_completion = (module_completion / total_module_weight) * 0.8
         else:
-            esg_completion = 0.0
-        
-        # Calculate GHG completion (simplified: has any emissions = 50%, has for all scopes = 100%)
-        ghg_count = await db.emission_records.count_documents({
-            "source": "supplier",
-            "supplier_relationship_id": relationship_id,
-        })
-        ghg_completion = min(100.0, ghg_count * 25)  # Each record adds 25%
-        
-        # Revenue percentage counts as part of overall
-        revenue_done = 1 if relationship.get("revenue_percentage") is not None else 0
-        
-        # Overall = weighted average (ESG 40%, GHG 40%, Revenue 20%)
-        overall_completion = (esg_completion * 0.4) + (ghg_completion * 0.4) + (revenue_done * 100 * 0.2)
+            module_completion = 0.0
+
+        reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+        revenue_submission = await db.supplier_revenue_submissions.find_one(
+            {"supplier_relationship_id": relationship_id, "reporting_period": reporting_period, "status": "submitted", "parent_visible": {"$ne": False}}, {"_id": 0, "id": 1}
+        )
+        revenue_completion = 20.0 if revenue_submission else 0.0
+        overall_completion = module_completion + revenue_completion
         
         # Update status
         status = "pending"
@@ -975,15 +1536,19 @@ class SupplierAssessmentService:
         if overall_completion >= 100:
             status = "completed"
         
+        update_fields = {
+            completion.legacy_field: round(completion.completion_percent, 1)
+            for completion in completions
+        }
+        update_fields.update({
+            "overall_completion_percent": round(overall_completion, 1),
+            "invitation_status": status,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "revenue_submission_status": "submitted" if revenue_submission else "not_started",
+        })
         await db.supplier_relationships.update_one(
             {"id": relationship_id},
-            {"$set": {
-                "esg_completion_percent": round(esg_completion, 1),
-                "ghg_completion_percent": round(ghg_completion, 1),
-                "overall_completion_percent": round(overall_completion, 1),
-                "invitation_status": status,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }}
+            {"$set": update_fields}
         )
     
     # ========================================================================
@@ -993,140 +1558,164 @@ class SupplierAssessmentService:
     async def get_supplier_rankings(
         self,
         customer_org_id: str,
+        reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get supplier rankings for a customer with detailed breakdown."""
+        """Read rankings exclusively from the persisted canonical score snapshot."""
+        supplier_query = {"customer_org_id": customer_org_id, "is_active": True}
+        if reporting_period:
+            supplier_query["reporting_period"] = reporting_period
         suppliers = await db.supplier_relationships.find(
-            {"customer_org_id": customer_org_id, "is_active": True},
+            supplier_query,
             {"_id": 0}
         ).to_list(1000)
         
-        # Calculate scores for each supplier
+        active_questionnaires = await db.supplier_questionnaires.find(
+            {"organization_id": customer_org_id, "is_active": True},
+            {"_id": 0, "id": 1, "question_count": 1, "due_date": 1},
+        ).to_list(500)
+        questionnaire_by_id = {questionnaire["id"]: questionnaire for questionnaire in active_questionnaires}
+        all_questionnaire_ids = set(questionnaire_by_id)
+        supplier_ids = [supplier["id"] for supplier in suppliers]
+        response_docs = await db.supplier_questionnaire_responses.find(
+            {"supplier_relationship_id": {"$in": supplier_ids}},
+            {"_id": 0, "supplier_relationship_id": 1, "questionnaire_id": 1, "reporting_period": 1, "status": 1, "answers": 1, "revision": 1, "updated_at": 1},
+        ).sort([("revision", -1), ("updated_at", -1)]).to_list(10000)
+        supplier_by_id = {supplier["id"]: supplier for supplier in suppliers}
+        current_responses: Dict[tuple[str, str], Dict[str, Any]] = {}
+        for response in response_docs:
+            supplier = supplier_by_id.get(response["supplier_relationship_id"])
+            if not supplier:
+                continue
+            response_period = response.get("reporting_period")
+            if response_period and response_period != supplier.get("reporting_period"):
+                continue
+            key = (response["supplier_relationship_id"], response["questionnaire_id"])
+            if key not in current_responses:
+                current_responses[key] = response
+
+        document_requirements_exist = await db.supplier_document_requirements.count_documents({
+            "customer_org_id": customer_org_id,
+            "is_active": True,
+            "$or": [{"reporting_period": reporting_period}, {"reporting_period": {"$exists": False}}, {"reporting_period": None}],
+        }) > 0
+        training_assignments = await db.supplier_training_assignments.find(
+            {"supplier_relationship_id": {"$in": supplier_ids}, "is_active": True},
+            {"_id": 0, "supplier_relationship_id": 1, "reporting_period": 1},
+        ).to_list(10000)
+        training_supplier_ids = {
+            assignment["supplier_relationship_id"]
+            for assignment in training_assignments
+            if not assignment.get("reporting_period") or assignment.get("reporting_period") == reporting_period
+        }
+
+        def due_date_has_passed(value: Optional[str]) -> bool:
+            if not value:
+                return False
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).date() < datetime.now(timezone.utc).date()
+            except ValueError:
+                return False
+
         rankings = []
+        module_totals: Dict[str, Dict[str, float]] = {}
         for s in suppliers:
-            # Get ESG score from questionnaire responses with breakdown
-            esg_scores = []
-            env_scores = []
-            social_scores = []
-            gov_scores = []
+            snapshot = s.get("canonical_score_snapshot") or {}
+            esg_score = snapshot.get("esg_score")
+            env_score = snapshot.get("environment_score")
+            social_score = snapshot.get("social_score")
+            gov_score = snapshot.get("governance_score")
+            attribution_factor = float(s["revenue_percentage"]) / 100 if s.get("revenue_percentage") is not None else None
+            raw_scope1 = snapshot.get("scope1_emissions", 0.0)
+            raw_scope2 = snapshot.get("scope2_emissions", 0.0)
+            raw_total = snapshot.get("total_emissions", 0.0)
+            scope1 = float(raw_scope1) * attribution_factor if attribution_factor is not None else None
+            scope2 = float(raw_scope2) * attribution_factor if attribution_factor is not None else None
+            total_ghg = float(raw_total) * attribution_factor if attribution_factor is not None else None
+            overall_score = esg_score
             
-            responses = await db.supplier_questionnaire_responses.find(
-                {"supplier_relationship_id": s["id"], "status": "submitted"},
-                {"_id": 0, "calculated_score": 1, "score_breakdown": 1, "esg_score": 1, "questionnaire_id": 1, "answers": 1}
-            ).to_list(100)
-            
-            for r in responses:
-                if r.get("calculated_score") is not None:
-                    esg_scores.append(r["calculated_score"])
-                
-                # Try to extract section scores from breakdown first
-                breakdown = r.get("score_breakdown", {})
-                has_breakdown = False
-                if breakdown:
-                    esg_data = breakdown.get("esg_score", {})
-                    if esg_data:
-                        env = esg_data.get("environment", {})
-                        social = esg_data.get("social", {})
-                        gov = esg_data.get("governance", {})
-                        if env and env.get("score"):
-                            env_scores.append(env["score"])
-                            has_breakdown = True
-                        if social and social.get("score"):
-                            social_scores.append(social["score"])
-                            has_breakdown = True
-                        if gov and gov.get("score"):
-                            gov_scores.append(gov["score"])
-                            has_breakdown = True
-                
-                # Fallback: Calculate E/S/G from question answers if no breakdown
-                if not has_breakdown and r.get("questionnaire_id") and r.get("answers"):
-                    questions = await db.supplier_questions.find(
-                        {"questionnaire_id": r["questionnaire_id"], "is_active": True},
-                        {"_id": 0, "id": 1, "category": 1, "response_type": 1, "weight": 1}
-                    ).to_list(200)
-                    
-                    cat_scores = {"environment": [], "social": [], "governance": []}
-                    for q in questions:
-                        ans = r["answers"].get(q["id"])
-                        if ans is not None:
-                            # Simple scoring: yes_no -> 100/0, else use answer if numeric
-                            score = 0
-                            if q.get("response_type") == "yes_no":
-                                score = 100 if str(ans).lower() in ["yes", "true", "1"] else 0
-                            elif isinstance(ans, (int, float)):
-                                score = min(100, max(0, float(ans)))
-                            else:
-                                score = 100  # Text answers = full score if answered
-                            
-                            cat = q.get("category", "environment")
-                            if cat in cat_scores:
-                                cat_scores[cat].append(score * q.get("weight", 1))
-                    
-                    if cat_scores["environment"]:
-                        env_scores.append(sum(cat_scores["environment"]) / len(cat_scores["environment"]))
-                    if cat_scores["social"]:
-                        social_scores.append(sum(cat_scores["social"]) / len(cat_scores["social"]))
-                    if cat_scores["governance"]:
-                        gov_scores.append(sum(cat_scores["governance"]) / len(cat_scores["governance"]))
-            
-            esg_score = sum(esg_scores) / len(esg_scores) if esg_scores else None
-            env_score = min(100, sum(env_scores) / len(env_scores)) if env_scores else None
-            social_score = min(100, sum(social_scores) / len(social_scores)) if social_scores else None
-            gov_score = min(100, sum(gov_scores) / len(gov_scores)) if gov_scores else None
-            
-            # Get GHG emissions by scope (Scope 1 & 2 only for suppliers)
-            # First try supplier-specific emissions, then fall back to org-level emissions
-            ghg_emissions = await db.emission_records.find(
-                {
-                    "$or": [
-                        # Option 1: Emissions tagged with supplier relationship
-                        {"source": "supplier", "supplier_relationship_id": s["id"]},
-                        # Option 2: Emissions from supplier's organization
-                        {"organization_id": s.get("supplier_org_id")},
-                    ],
-                    "scope": {"$in": ["scope_1", "scope_2", "scope1", "scope2"]},  # Handle both formats
-                },
-                {"_id": 0, "total_emissions": 1, "scope": 1}
-            ).to_list(1000)
-            
-            scope1 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_1", "scope1"])
-            scope2 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_2", "scope2"])
-            total_ghg = scope1 + scope2
-            
-            ghg_score = None
-            if ghg_emissions:
-                # Normalize: assume 1000 tCO2e is "bad" (score 0), 0 is "good" (score 100)
-                ghg_score = max(0, 100 - (total_ghg / 10))  # Simple normalization
-            
-            # Calculate overall score
-            overall_score = None
-            if esg_score is not None or ghg_score is not None:
-                scores = [sc for sc in [esg_score, ghg_score] if sc is not None]
-                overall_score = sum(scores) / len(scores)
-            
-            # Determine completion status
-            completion_status = "not_started"
-            if s.get("overall_completion_percent", 0) > 0:
-                completion_status = "in_progress"
+            assigned_questionnaire_ids = set(s.get("questionnaire_ids") or all_questionnaire_ids)
+            assigned_questionnaire_ids &= all_questionnaire_ids
+            supplier_responses = [
+                current_responses[(s["id"], questionnaire_id)]
+                for questionnaire_id in assigned_questionnaire_ids
+                if (s["id"], questionnaire_id) in current_responses
+            ]
+            total_questions = sum(int(questionnaire_by_id[questionnaire_id].get("question_count") or 0) for questionnaire_id in assigned_questionnaire_ids)
+            answered_questions = sum(
+                len([answer for answer in (response.get("answers") or {}).values() if answer not in (None, "")])
+                for response in supplier_responses
+            )
+            submitted_count = len([response for response in supplier_responses if response.get("status") == "submitted"])
+            is_overdue = any(due_date_has_passed(value) for value in [s.get("due_date"), *[questionnaire_by_id[qid].get("due_date") for qid in assigned_questionnaire_ids]])
+            all_assigned_submitted = bool(assigned_questionnaire_ids) and submitted_count == len(assigned_questionnaire_ids)
             if s.get("overall_completion_percent", 0) >= 100:
-                completion_status = "completed"
+                completion_status, status_label = "completed", "Completed"
+            elif is_overdue and not all_assigned_submitted:
+                completion_status, status_label = "overdue", "Overdue"
+            elif all_assigned_submitted:
+                completion_status, status_label = "submitted", "Submitted"
+            elif answered_questions > 0 or any(float(s.get(field) or 0) > 0 for field in ("esg_completion_percent", "ghg_completion_percent", "documents_completion_percent", "training_completion_percent")):
+                completion_status, status_label = "in_progress", "In Progress"
+            elif s.get("invitation_status") == "pending":
+                completion_status, status_label = "invited", "Invited"
+            else:
+                completion_status, status_label = "not_started", "Not Started"
+            attention_reasons = []
+            if overall_score is not None and overall_score < 60:
+                attention_reasons.append("Overall score needs improvement")
+            for label, value in (("Environment", env_score), ("Social", social_score), ("Governance", gov_score)):
+                if value is None and esg_score is not None:
+                    attention_reasons.append(f"{label} assessment missing")
+            if completion_status == "overdue":
+                attention_reasons.append("Assessment is overdue")
+            module_progress: Dict[str, float] = {}
+            module_fields = {
+                "esg": "esg_completion_percent",
+                "ghg": "ghg_completion_percent",
+                "documents": "documents_completion_percent",
+                "training": "training_completion_percent",
+            }
+            enabled_modules = set(s.get("modules_enabled") or ["esg", "ghg"])
+            for module_code, completion_field in module_fields.items():
+                if module_code not in enabled_modules:
+                    continue
+                if module_code == "documents" and not document_requirements_exist:
+                    continue
+                if module_code == "training" and s["id"] not in training_supplier_ids:
+                    continue
+                completion = round(float(s.get(completion_field) or 0), 1)
+                module_progress[module_code] = completion
+                totals = module_totals.setdefault(module_code, {"configured_suppliers": 0.0, "completed_suppliers": 0.0, "completion_total": 0.0})
+                totals["configured_suppliers"] += 1
+                totals["completed_suppliers"] += int(completion >= 100)
+                totals["completion_total"] += completion
             
             rankings.append({
                 "supplier_id": s["id"],
                 "company_name": s["company_name"],
-                "esg_score": round(esg_score, 1) if esg_score else None,
-                "environment_score": round(env_score, 1) if env_score else None,
-                "social_score": round(social_score, 1) if social_score else None,
-                "governance_score": round(gov_score, 1) if gov_score else None,
-                "ghg_score": round(ghg_score, 1) if ghg_score else None,
-                "scope1_emissions": round(scope1, 2),
-                "scope2_emissions": round(scope2, 2),
-                "total_emissions": round(total_ghg, 2),
-                "overall_score": round(overall_score, 1) if overall_score else None,
+                "esg_score": round(esg_score, 1) if esg_score is not None else None,
+                "environment_score": round(env_score, 1) if env_score is not None else None,
+                "social_score": round(social_score, 1) if social_score is not None else None,
+                "governance_score": round(gov_score, 1) if gov_score is not None else None,
+                # Parent rankings intentionally do not expose a separate GHG score.
+                "ghg_score": None,
+                "scope1_emissions": round(scope1, 2) if scope1 is not None else None,
+                "scope2_emissions": round(scope2, 2) if scope2 is not None else None,
+                "total_emissions": round(total_ghg, 2) if total_ghg is not None else None,
+                # Rankings are ESG-led: GHG is tracked in its dedicated emissions view.
+                "overall_score": round(esg_score, 1) if esg_score is not None else None,
                 "completion_status": completion_status,
+                "status_label": status_label,
+                "question_progress": f"{answered_questions} / {total_questions} questions" if completion_status == "in_progress" and total_questions else None,
+                "attention_reasons": attention_reasons,
+                "module_progress": module_progress,
+                "due_date": s.get("due_date"),
                 "revenue_percentage": s.get("revenue_percentage"),
+                "revenue_amount": s.get("revenue_amount"),
+                "revenue_currency": s.get("revenue_currency"),
             })
         
-        # Sort by overall score (None at end)
+        # Sort and rank suppliers by ESG score. GHG has its own parent-emissions experience.
         rankings.sort(key=lambda x: (x["overall_score"] is None, -(x["overall_score"] or 0)))
         
         # Add ranks
@@ -1138,22 +1727,35 @@ class SupplierAssessmentService:
         
         # Score distribution buckets
         score_distribution = {
-            "excellent": len([r for r in ranked_suppliers if r["overall_score"] and r["overall_score"] >= 80]),
-            "good": len([r for r in ranked_suppliers if r["overall_score"] and 60 <= r["overall_score"] < 80]),
-            "average": len([r for r in ranked_suppliers if r["overall_score"] and 40 <= r["overall_score"] < 60]),
-            "poor": len([r for r in ranked_suppliers if r["overall_score"] and r["overall_score"] < 40]),
+            "excellent": len([r for r in ranked_suppliers if r["overall_score"] is not None and r["overall_score"] >= 80]),
+            "good": len([r for r in ranked_suppliers if r["overall_score"] is not None and 60 <= r["overall_score"] < 80]),
+            "average": len([r for r in ranked_suppliers if r["overall_score"] is not None and 40 <= r["overall_score"] < 60]),
+            "poor": len([r for r in ranked_suppliers if r["overall_score"] is not None and r["overall_score"] < 40]),
         }
         
-        # Average scores
-        avg_esg = sum(r["esg_score"] for r in ranked_suppliers if r["esg_score"]) / len([r for r in ranked_suppliers if r["esg_score"]]) if any(r["esg_score"] for r in ranked_suppliers) else 0
-        avg_env = sum(r["environment_score"] for r in ranked_suppliers if r["environment_score"]) / len([r for r in ranked_suppliers if r["environment_score"]]) if any(r["environment_score"] for r in ranked_suppliers) else 0
-        avg_social = sum(r["social_score"] for r in ranked_suppliers if r["social_score"]) / len([r for r in ranked_suppliers if r["social_score"]]) if any(r["social_score"] for r in ranked_suppliers) else 0
-        avg_gov = sum(r["governance_score"] for r in ranked_suppliers if r["governance_score"]) / len([r for r in ranked_suppliers if r["governance_score"]]) if any(r["governance_score"] for r in ranked_suppliers) else 0
-        avg_ghg = sum(r["ghg_score"] for r in ranked_suppliers if r["ghg_score"]) / len([r for r in ranked_suppliers if r["ghg_score"]]) if any(r["ghg_score"] for r in ranked_suppliers) else 0
+        # ESG data remains useful even when a supplier lacks another component
+        # required for an Overall Score (for example, GHG or revenue).
+        def average_score(field: str) -> Optional[float]:
+            values = [float(row[field]) for row in rankings if row.get(field) is not None]
+            return round(sum(values) / len(values), 1) if values else None
+
+        avg_esg = average_score("esg_score")
+        avg_env = average_score("environment_score")
+        avg_social = average_score("social_score")
+        avg_gov = average_score("governance_score")
+        avg_ghg = average_score("ghg_score")
         
         # Total emissions by scope (Scope 1 & 2 only)
-        total_scope1 = sum(r["scope1_emissions"] for r in rankings)
-        total_scope2 = sum(r["scope2_emissions"] for r in rankings)
+        total_scope1 = sum(r["scope1_emissions"] or 0 for r in rankings)
+        total_scope2 = sum(r["scope2_emissions"] or 0 for r in rankings)
+        module_summary = {
+            code: {
+                "configured_suppliers": int(totals["configured_suppliers"]),
+                "completed_suppliers": int(totals["completed_suppliers"]),
+                "average_completion": round(totals["completion_total"] / totals["configured_suppliers"], 1) if totals["configured_suppliers"] else 0.0,
+            }
+            for code, totals in module_totals.items()
+        }
         
         return {
             "rankings": rankings,
@@ -1161,17 +1763,18 @@ class SupplierAssessmentService:
             "ranked_suppliers": len(ranked_suppliers),
             "score_distribution": score_distribution,
             "averages": {
-                "esg": round(avg_esg, 1),
-                "environment": round(avg_env, 1),
-                "social": round(avg_social, 1),
-                "governance": round(avg_gov, 1),
-                "ghg": round(avg_ghg, 1),
+                "esg": avg_esg,
+                "environment": avg_env,
+                "social": avg_social,
+                "governance": avg_gov,
+                "ghg": avg_ghg,
             },
             "emissions_by_scope": {
                 "scope1": round(total_scope1, 2),
                 "scope2": round(total_scope2, 2),
                 "total": round(total_scope1 + total_scope2, 2),
             },
+            "module_summary": module_summary,
         }
     
     # ========================================================================
@@ -1188,47 +1791,242 @@ class SupplierAssessmentService:
         if not questionnaire:
             return None
         
+        relationship = await self.get_supplier(supplier_relationship_id)
         response_doc = await db.supplier_questionnaire_responses.find_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-            },
-            {"_id": 0}
+            {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "reporting_period": (relationship or {}).get("reporting_period"), "status": "submitted", "parent_visible": {"$ne": False}},
+            {"_id": 0}, sort=[("revision", -1)],
         )
+        if not response_doc:
+            return None
         
         answers = response_doc.get("answers", {}) if response_doc else {}
         
         # Merge answers into questions
+        manual_question_scores = response_doc.get("manual_question_scores", {})
         for q in questionnaire.get("questions", []):
             q["answer"] = answers.get(q["id"])
+            manual_entry = manual_question_scores.get(q["id"])
+            q["manual_score"] = manual_entry.get("score") if isinstance(manual_entry, dict) else manual_entry
+            q["manual_score_note"] = manual_entry.get("note") if isinstance(manual_entry, dict) else None
         
         questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
         questionnaire["calculated_score"] = response_doc.get("calculated_score") if response_doc else None
+        questionnaire["manual_score"] = response_doc.get("manual_score") if response_doc else None
+        questionnaire["manual_score_note"] = response_doc.get("manual_score_note") if response_doc else None
         questionnaire["submitted_at"] = response_doc.get("submitted_at") if response_doc else None
+        questionnaire["score_breakdown"] = response_doc.get("score_breakdown") if response_doc else None
+        questionnaire["canonical_score_snapshot"] = (relationship or {}).get("canonical_score_snapshot")
         
         return questionnaire
+
+    async def get_questionnaire_submissions_for_admin(
+        self,
+        customer_org_id: str,
+        questionnaire_id: str,
+        reporting_period: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        questionnaire = await db.supplier_questionnaires.find_one(
+            {"id": questionnaire_id, "organization_id": customer_org_id, "is_active": True},
+            {"_id": 0, "id": 1, "name": 1},
+        )
+        if not questionnaire:
+            return None
+        query: Dict[str, Any] = {
+            "questionnaire_id": questionnaire_id,
+            "status": "submitted",
+            "parent_visible": {"$ne": False},
+        }
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        responses = await db.supplier_questionnaire_responses.find(
+            query,
+            {"_id": 0, "supplier_relationship_id": 1, "submitted_at": 1, "calculated_score": 1, "manual_question_scores": 1},
+        ).sort("submitted_at", -1).to_list(1000)
+        supplier_ids = [response["supplier_relationship_id"] for response in responses]
+        suppliers = await db.supplier_relationships.find(
+            {"id": {"$in": supplier_ids}, "customer_org_id": customer_org_id, "is_active": True},
+            {"_id": 0, "id": 1, "company_name": 1},
+        ).to_list(1000)
+        supplier_names = {supplier["id"]: supplier.get("company_name") for supplier in suppliers}
+        submissions = [
+            {
+                "supplier_id": response["supplier_relationship_id"],
+                "supplier_name": supplier_names.get(response["supplier_relationship_id"], "Supplier"),
+                "submitted_at": response.get("submitted_at"),
+                "calculated_score": response.get("calculated_score"),
+                "manual_question_count": len(response.get("manual_question_scores") or {}),
+            }
+            for response in responses
+            if response["supplier_relationship_id"] in supplier_names
+        ]
+        return {"questionnaire_id": questionnaire["id"], "questionnaire_name": questionnaire["name"], "submissions": submissions}
+
+    async def set_manual_questionnaire_score(self, supplier_relationship_id: str, questionnaire_id: str, score: float, note: Optional[str], scored_by: str) -> Optional[Dict[str, Any]]:
+        relationship = await self.get_supplier(supplier_relationship_id)
+        response = await db.supplier_questionnaire_responses.find_one(
+            {"supplier_relationship_id": supplier_relationship_id, "questionnaire_id": questionnaire_id, "reporting_period": (relationship or {}).get("reporting_period"), "status": "submitted", "parent_visible": {"$ne": False}}, {"_id": 0}, sort=[("revision", -1)]
+        )
+        if not response:
+            return None
+        now = datetime.now(timezone.utc).isoformat()
+        await db.supplier_questionnaire_responses.update_one(
+            {"id": response["id"]}, {"$set": {"manual_score": score, "manual_score_note": note, "manual_scored_by": scored_by, "manual_scored_at": now}}
+        )
+        await self.refresh_supplier_canonical_score(supplier_relationship_id)
+        return {"questionnaire_id": questionnaire_id, "manual_score": score, "manual_score_note": note, "manual_scored_at": now}
+
+    async def set_manual_question_score(
+        self,
+        supplier_relationship_id: str,
+        questionnaire_id: str,
+        question_id: str,
+        score: float,
+        note: Optional[str],
+        scored_by: str,
+    ) -> Optional[Dict[str, Any]]:
+        relationship = await self.get_supplier(supplier_relationship_id)
+        if not relationship:
+            return None
+        question = await db.supplier_questions.find_one(
+            {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True},
+            {"_id": 0, "id": 1, "scoring": 1},
+        )
+        if not question:
+            raise ValueError("Question not found")
+        if (question.get("scoring") or {}).get("rule") != "manual":
+            raise ValueError("Only Manual Review questions can receive a parent score")
+        response = await db.supplier_questionnaire_responses.find_one(
+            {
+                "supplier_relationship_id": supplier_relationship_id,
+                "questionnaire_id": questionnaire_id,
+                "reporting_period": relationship.get("reporting_period"),
+                "status": "submitted",
+                "parent_visible": {"$ne": False},
+            },
+            {"_id": 0},
+            sort=[("revision", -1)],
+        )
+        if not response:
+            return None
+        answer = (response.get("answers") or {}).get(question_id)
+        if answer is None or answer == "":
+            raise ValueError("A supplier response is required before this question can be scored")
+        now = datetime.now(timezone.utc).isoformat()
+        manual_scores = dict(response.get("manual_question_scores") or {})
+        manual_scores[question_id] = {"score": float(score), "note": note, "scored_by": scored_by, "scored_at": now}
+        await db.supplier_questionnaire_responses.update_one(
+            {"id": response["id"]},
+            {
+                "$set": {"manual_question_scores": manual_scores, "updated_at": now},
+                "$unset": {"manual_score": "", "manual_score_note": "", "manual_scored_by": "", "manual_scored_at": ""},
+            },
+        )
+        from modules.supplier_assessment.scoring import ScoringEngine
+        breakdown = await ScoringEngine(db).calculate_supplier_assessment(
+            supplier_relationship_id=supplier_relationship_id,
+            questionnaire_id=questionnaire_id,
+            save_to_db=True,
+            reporting_period=relationship.get("reporting_period"),
+        )
+        return {
+            "questionnaire_id": questionnaire_id,
+            "question_id": question_id,
+            "manual_score": manual_scores[question_id],
+            "calculated_score": breakdown.esg_score.overall_score,
+            "score_breakdown": breakdown.model_dump(),
+        }
     
     async def reopen_questionnaire(
         self,
         supplier_relationship_id: str,
         questionnaire_id: str,
+        reopened_by: Optional[str] = None,
     ) -> bool:
-        """Admin reopens a questionnaire for a supplier to edit."""
-        result = await db.supplier_questionnaire_responses.update_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-            },
-            {"$set": {
-                "status": "in_progress",
-                "reopened_at": datetime.now(timezone.utc).isoformat(),
-            }}
+        """Create a private draft revision while preserving the parent-visible submission."""
+        relationship = await self.get_supplier(supplier_relationship_id)
+        reporting_period = (relationship or {}).get("reporting_period") or self._default_reporting_period()
+        visible_response = await db.supplier_questionnaire_responses.find_one(
+            {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "reporting_period": reporting_period, "status": "submitted", "parent_visible": {"$ne": False}},
+            {"_id": 0}, sort=[("revision", -1)],
         )
-        
-        if result.modified_count > 0:
-            await self._update_completion_status(supplier_relationship_id)
-        
-        return result.modified_count > 0
+        if not visible_response:
+            return False
+        current = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id, reporting_period)
+        if current and current.get("status") != "submitted":
+            return False
+        if current and current.get("id") != visible_response.get("id"):
+            return False
+        now = datetime.now(timezone.utc).isoformat()
+        if current:
+            await db.supplier_questionnaire_responses.update_one({"id": current["id"]}, {"$set": {"is_current": False}})
+        revision = int(visible_response.get("revision") or 1) + 1
+        draft = {
+            "id": str(uuid.uuid4()), "questionnaire_id": questionnaire_id,
+            "supplier_relationship_id": supplier_relationship_id,
+            "supplier_org_id": visible_response.get("supplier_org_id"),
+            "answers": visible_response.get("answers", {}), "status": "in_progress",
+            "calculated_score": None, "submitted_at": None, "reporting_period": reporting_period, "revision": revision,
+            "is_current": True, "parent_visible": False, "reopened_at": now,
+            "reopened_by": reopened_by, "created_at": now, "updated_at": now,
+        }
+        await db.supplier_questionnaire_responses.insert_one(draft)
+        return True
+
+    async def get_supplier_submission_status(self, supplier_relationship_id: str) -> Dict[str, Any]:
+        relationship = await self.get_supplier(supplier_relationship_id)
+        if not relationship:
+            return {"esg": [], "esg_items": [], "ghg": {"status": "pending"}, "documents": [], "training": []}
+        submitted_responses = await db.supplier_questionnaire_responses.find(
+            {"supplier_relationship_id": supplier_relationship_id, "reporting_period": (relationship or {}).get("reporting_period"), "status": "submitted", "parent_visible": {"$ne": False}},
+            {"_id": 0, "questionnaire_id": 1, "submitted_at": 1, "revision": 1},
+        ).to_list(100)
+        submitted_by_questionnaire = {item["questionnaire_id"]: item for item in submitted_responses}
+        questionnaire_ids = relationship.get("questionnaire_ids") or []
+        questionnaire_query: Dict[str, Any] = {"organization_id": relationship["customer_org_id"], "is_active": True}
+        if questionnaire_ids:
+            questionnaire_query["id"] = {"$in": questionnaire_ids}
+        questionnaires = await db.supplier_questionnaires.find(
+            questionnaire_query,
+            {"_id": 0, "id": 1, "name": 1},
+        ).to_list(500)
+        esg_items = []
+        for questionnaire in questionnaires:
+            submitted = submitted_by_questionnaire.get(questionnaire["id"])
+            esg_items.append({
+                "questionnaire_id": questionnaire["id"],
+                "name": questionnaire.get("name", "Questionnaire"),
+                "status": "locked" if submitted else "pending",
+                "locked_at": submitted.get("submitted_at") if submitted else None,
+                "submitted_at": submitted.get("submitted_at") if submitted else None,
+                "due_date": relationship.get("due_date"),
+            })
+        from modules.supplier_assessment.ghg_submission_service import reporting_period_values
+        ghg_entries = await db.emission_records.find(
+            {
+                "source": "supplier", "supplier_relationship_id": supplier_relationship_id,
+                "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False},
+                "reporting_period": {"$in": reporting_period_values(relationship.get("reporting_period"))},
+            },
+            {"_id": 0, "submitted_to_parent_org": 1},
+        ).to_list(1000)
+        locked_at = min((entry.get("submitted_to_parent_org") for entry in ghg_entries if entry.get("submitted_to_parent_org")), default=None)
+        from modules.supplier_assessment.documents_service import list_supplier_documents
+        from modules.supplier_assessment.training_service import supplier_trainings
+        documents = [
+            {"id": item["id"], "name": item.get("title", "Document"), "status": "locked" if item.get("submission_status") == "submitted" else "pending", "locked_at": item.get("responded_at"), "due_date": item.get("due_date") or relationship.get("due_date")}
+            for item in await list_supplier_documents(relationship)
+        ]
+        training = [
+            {"id": item["assignment_id"], "name": item.get("title", "Training"), "status": item.get("status", "pending"), "completed_at": item.get("completed_at"), "progress_percent": item.get("progress_percent", 0), "due_date": item.get("due_date") or relationship.get("due_date")}
+            for item in await supplier_trainings(relationship)
+        ]
+        return {
+            "esg": [item for item in esg_items if item["status"] == "locked"],
+            "esg_items": esg_items,
+            "ghg": {"status": "locked" if ghg_entries else "pending", "locked_at": locked_at, "entry_count": len(ghg_entries), "due_date": relationship.get("due_date")},
+            "documents": documents,
+            "training": training,
+        }
 
 
 # Singleton instance

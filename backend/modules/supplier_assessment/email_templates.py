@@ -1,6 +1,7 @@
 """
 Supplier Assessment Email Templates.
 """
+from html import escape
 from typing import Optional, List
 
 SUSTAINREPO_LOGO_URL = (
@@ -16,10 +17,22 @@ def supplier_invitation_email(
     temp_password: Optional[str],
     login_link: str,
     due_date: Optional[str],
+    assigned_modules: Optional[List[str]] = None,
 ) -> str:
     """HTML body for supplier invitation email."""
+    module_labels = {
+        "revenue": "Revenue information for this customer",
+        "esg": "ESG questionnaire responses",
+        "ghg": "Assigned Scope 1 and Scope 2 emissions data",
+        "documents": "Documents and agreements requiring your response",
+        "training": "Assigned training",
+    }
+    requested_modules = assigned_modules or ["revenue", "esg", "ghg"]
+    required_items = [module_labels[code] for code in requested_modules if code in module_labels]
+    requirements_list = "".join(f"<li>{escape(item)}</li>" for item in required_items)
     credentials_section = ""
     if temp_password:
+        displayed_password = escape(temp_password)
         credentials_section = f"""
         <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -33,7 +46,7 @@ def supplier_invitation_email(
                     <td style="padding: 10px 0;">
                         <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
                         <div style="background-color: #ffffff; padding: 14px 20px; border-radius: 8px; border: 2px solid #2eb67d; display: inline-block;">
-                            <code style="color: #000000; font-size: 20px; font-family: 'Courier New', Courier, monospace; letter-spacing: 3px; font-weight: bold;">{temp_password}</code>
+                            <code style="color: #000000; font-size: 20px; font-family: 'Courier New', Courier, monospace; letter-spacing: 3px; font-weight: bold;">{displayed_password}</code>
                         </div>
                     </td>
                 </tr>
@@ -86,9 +99,7 @@ def supplier_invitation_email(
                                     <strong>What you'll need to provide:</strong>
                                 </p>
                                 <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 0 0 25px 0; padding-left: 20px;">
-                                    <li>Revenue percentage from this customer</li>
-                                    <li>ESG questionnaire responses</li>
-                                    <li>Scope 1 and Scope 2 emissions data</li>
+                                    {requirements_list}
                                 </ul>
                                 
                                 {credentials_section}

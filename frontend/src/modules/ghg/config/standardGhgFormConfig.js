@@ -36,6 +36,11 @@ export const STANDARD_PROCESS_TYPE_OPTIONS = Object.freeze([
   { value: 'ch4_overall_combustion', label: 'CH4 from Overall Combustion' },
 ]);
 
+/** Central registry used to validate organization Process Type visibility. */
+export const isStandardProcessType = (value) => (
+  STANDARD_PROCESS_TYPE_OPTIONS.some((option) => option.value === value)
+);
+
 export const STANDARD_TYPE_OF_PRODUCT_OPTIONS = Object.freeze([
   { value: 'continuous_usage', label: 'Energy-consuming product over lifetime' },
   { value: 'one_time_use', label: 'One-time combustion' },

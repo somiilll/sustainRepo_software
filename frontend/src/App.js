@@ -54,6 +54,7 @@ import Reporting from './pages/Reporting';
 import BRSRModule from './components/BRSRModule';
 import GRIModule from './components/GRIModule';
 import Layout from './components/Layout';
+import EntitlementRoute from './components/EntitlementRoute';
 import PasswordChangeModal from './components/PasswordChangeModal';
 import ApproverQueue from './components/ApproverQueue';
 import MyAssignments from './pages/MyAssignments';
@@ -75,12 +76,21 @@ import SupplierAssessmentSuppliers from './pages/SupplierAssessmentSuppliers';
 import SupplierAssessmentESG from './pages/SupplierAssessmentESG';
 import SupplierAssessmentGHG from './pages/SupplierAssessmentGHG';
 import SupplierAssessmentRanking from './pages/SupplierAssessmentRanking';
+import SupplierDocumentsAdmin from './modules/supplier-assessment/SupplierDocumentsAdmin';
+import SupplierDocuments from './modules/supplier-assessment/SupplierDocuments';
+import SupplierTrainingAdmin from './modules/supplier-assessment/SupplierTrainingAdmin';
+import SupplierTraining from './modules/supplier-assessment/SupplierTraining';
+import SupplierGHGSubmission from './modules/supplier-assessment/SupplierGHGSubmission';
+import SupplierAssessmentAdminLayout from './modules/supplier-assessment/SupplierAssessmentAdminLayout';
 import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
+import SupplierPortalESG from './pages/SupplierPortalESG';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
+import SupplierFacilitySetup from './modules/supplier-assessment/SupplierFacilitySetup';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
 import OCRInvoice from './pages/OCRInvoice';
 import SustainabilityConfig from './pages/SustainabilityConfig';
 import { OCRProvider } from './contexts/OCRContext';
+import { SupplierAssessmentPeriodProvider } from './contexts/SupplierAssessmentPeriodContext';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -143,14 +153,19 @@ const AdminRoute = ({ children }) => {
 
 const AppRoutes = () => {
   const { user } = useAuth();
+  const defaultRoute = user?.role === 'super_admin'
+    ? '/super-admin'
+    : user?.user_type === 'supplier' || user?.org_type === 'supplier'
+      ? '/supplier-assessment/supplier'
+      : '/dashboard';
 
   return (
     <>
       <Routes>
-        <Route path="/login" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <Login />} />
+        <Route path="/login" element={user ? <Navigate to={defaultRoute} replace /> : <Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <Navigate to="/login" replace />} />
+        <Route path="/" element={user ? <Navigate to={defaultRoute} replace /> : <Navigate to="/login" replace />} />
         
         <Route path="/" element={
           <ProtectedRoute>
@@ -278,24 +293,24 @@ const AppRoutes = () => {
           <Route path="organization" element={<OrganizationDetails />} />
           <Route path="facilities" element={<Facilities />} />
           <Route path="emissions" element={<Navigate to="/ghg/scope1" replace />} />
-          <Route path="ghg" element={<Emissions />} />
-          <Route path="ghg/scope1" element={<Emissions />} />
-          <Route path="ghg/scope2" element={<Emissions />} />
-          <Route path="ghg/scope3" element={<Emissions />} />
-          <Route path="ghg/biogenic" element={<Emissions />} />
+          <Route path="ghg" element={<EntitlementRoute entitlement="environment.ghg"><Emissions /></EntitlementRoute>} />
+          <Route path="ghg/scope1" element={<EntitlementRoute entitlement="environment.ghg.scope_1_2"><Emissions /></EntitlementRoute>} />
+          <Route path="ghg/scope2" element={<EntitlementRoute entitlement="environment.ghg.scope_1_2"><Emissions /></EntitlementRoute>} />
+          <Route path="ghg/scope3" element={<EntitlementRoute entitlement="environment.ghg.scope_3"><Emissions /></EntitlementRoute>} />
+          <Route path="ghg/biogenic" element={<EntitlementRoute entitlement="environment.ghg"><Emissions /></EntitlementRoute>} />
           <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
           <Route path="bulk-upload" element={<BulkUpload />} />
-          <Route path="ghg/analysis" element={<GHGAnalysis />} />
-          <Route path="sinks" element={<Sinks />} />
+          <Route path="ghg/analysis" element={<EntitlementRoute entitlement="environment.ghg"><GHGAnalysis /></EntitlementRoute>} />
+          <Route path="sinks" element={<EntitlementRoute entitlement="environment.ghg"><Sinks /></EntitlementRoute>} />
           <Route path="base-year-emissions" element={<BaseYearAndTargets />} />
           <Route path="environment" element={<Environment />} />
-          <Route path="environment/energy" element={<Environment preFilterCategory="Energy" />} />
+          <Route path="environment/energy" element={<EntitlementRoute entitlement="environment.energy"><Environment preFilterCategory="Energy" /></EntitlementRoute>} />
           <Route path="environment/water" element={<Environment preFilterCategory="Water" />} />
           <Route path="environment/waste" element={<Environment preFilterCategory="Waste" />} />
           <Route path="environment/biodiversity" element={<Environment preFilterCategory="Biodiversity" />} />
           <Route path="environment/others" element={<Environment preFilterCategory="Others" />} />
           <Route path="environment/analysis" element={<EnvironmentAnalysis />} />
-          <Route path="environment/energy/analysis" element={<EnergyAnalysis />} />
+          <Route path="environment/energy/analysis" element={<EntitlementRoute entitlement="environment.energy"><EnergyAnalysis /></EntitlementRoute>} />
           <Route path="environment/water/analysis" element={<WaterAnalysis />} />
           <Route path="environment/waste/analysis" element={<WasteAnalysis />} />
           {/* Catch-all for org-specific environment modules (Power, Steam, etc.) */}
@@ -321,11 +336,11 @@ const AppRoutes = () => {
           <Route path="workflow/my-task" element={<WorkflowMyTask />} />
           <Route path="workflow/approver-queue" element={<WorkflowApproverQueue />} />
           <Route path="uploads/ghg-entry" element={<Emissions />} />
-          <Route path="ghg/base-year" element={<BaseYearEmissions />} />
-          <Route path="uploads/bulk" element={<BulkUpload />} />
+          <Route path="ghg/base-year" element={<EntitlementRoute entitlement="environment.ghg"><BaseYearEmissions /></EntitlementRoute>} />
+          <Route path="uploads/bulk" element={<EntitlementRoute entitlement="uploads"><BulkUpload /></EntitlementRoute>} />
           <Route path="uploads/ocr" element={<OCRInvoice />} />
           <Route path="uploads/kpi-metrics" element={<PlaceholderPage title="KPI Metrics" />} />
-          <Route path="targets/voluntary/environment" element={<ESGTargetsTab section="environment" />} />
+          <Route path="targets/voluntary/environment" element={<EntitlementRoute entitlement="targets"><ESGTargetsTab section="environment" /></EntitlementRoute>} />
           <Route path="targets/voluntary/social" element={<ESGTargetsTab section="social" />} />
           <Route path="targets/voluntary/governance" element={<ESGTargetsTab section="governance" />} />
           <Route path="targets/sbti" element={<SBTiTargets />} />
@@ -340,31 +355,23 @@ const AppRoutes = () => {
           <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
           
           {/* Supplier Assessment Routes (Customer Admin) */}
-          <Route path="supplier-assessment/suppliers" element={
-            <AdminRoute>
-              <SupplierAssessmentSuppliers />
-            </AdminRoute>
-          } />
-          <Route path="supplier-assessment/esg" element={
-            <AdminRoute>
-              <SupplierAssessmentESG />
-            </AdminRoute>
-          } />
-          <Route path="supplier-assessment/ghg" element={
-            <AdminRoute>
-              <SupplierAssessmentGHG />
-            </AdminRoute>
-          } />
-          <Route path="supplier-assessment/ranking" element={
-            <AdminRoute>
-              <SupplierAssessmentRanking />
-            </AdminRoute>
-          } />
+          <Route path="supplier-assessment" element={<AdminRoute><SupplierAssessmentPeriodProvider><SupplierAssessmentAdminLayout /></SupplierAssessmentPeriodProvider></AdminRoute>}>
+            <Route path="suppliers" element={<SupplierAssessmentSuppliers />} />
+            <Route path="esg" element={<SupplierAssessmentESG />} />
+            <Route path="ghg" element={<SupplierAssessmentGHG />} />
+            <Route path="ranking" element={<SupplierAssessmentRanking />} />
+            <Route path="documents" element={<SupplierDocumentsAdmin />} />
+            <Route path="trainings" element={<SupplierTrainingAdmin />} />
+          </Route>
           
           {/* Supplier Portal Routes (Supplier Users) */}
           <Route path="supplier-assessment/supplier" element={<SupplierPortalDashboard />} />
+          <Route path="supplier-assessment/supplier/facility" element={<SupplierFacilitySetup />} />
+          <Route path="supplier-assessment/supplier/esg" element={<SupplierPortalESG />} />
           <Route path="supplier-assessment/questionnaire/:questionnaireId" element={<SupplierPortalQuestionnaire />} />
-          {/* supplier-assessment/emissions route removed - suppliers use main GHG Emissions flow */}
+          <Route path="supplier-assessment/documents/review" element={<SupplierDocuments />} />
+          <Route path="supplier-assessment/training" element={<SupplierTraining />} />
+          <Route path="supplier-assessment/emissions" element={<SupplierGHGSubmission />} />
           
           <Route path="users" element={
             <AdminRoute>

@@ -201,6 +201,14 @@ export function legacyDeriveDynamicInputFields({
       if (handledByCustomFuel.includes(m.maps_to_variable)) return false;
     }
 
+    if (
+      m.maps_to_variable === 'density'
+      && ['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(decisionFieldValues.calculation_methodology)
+      && !selectedFuel?.density
+    ) {
+      return true;
+    }
+
     if (matchedFormula && requiredInputVars?.length) {
       if (m.is_override) {
         const formulaProperties = matchedFormula.properties || [];
@@ -216,12 +224,7 @@ export function legacyDeriveDynamicInputFields({
           if (calcMethod === 'using_qty_basis_ef') {
             const fuelHasDensity = selectedFuel?.density != null && selectedFuel.density > 0;
             if (fuelHasDensity) return false;
-            const efMapping = formConfig.input_field_mappings.find(
-              (fm) => fm.maps_to_variable === 'ef_quantity',
-            );
-            const efAllowedUnits = efMapping?.allowed_units || [];
-            const qtyUnits = selectedFuel?.allowed_units || [];
-            return efAllowedUnits.some((eu) => isDensityRequiredForQtyBasis(eu, qtyUnits));
+            return true;
           }
           return (matchedFormula.inputs || []).some((inp) => inp.allow_dimension_conversion);
         }
@@ -243,7 +246,12 @@ export function legacyDeriveDynamicInputFields({
   applicableMappings.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
 
   const isQtyBasis = decisionFieldValues.calculation_methodology === 'using_qty_basis_ef';
-  const fuelQtyUnits = selectedFuel?.allowed_units || [];
+  const quantityMapping = formConfig.input_field_mappings.find(
+    (mapping) => mapping.maps_to_variable === 'qty' || mapping.maps_to_variable === 'quantity',
+  );
+  const quantityUnits = selectedFuel?.allowed_units?.length
+    ? selectedFuel.allowed_units
+    : quantityMapping?.allowed_units || [quantityMapping?.default_unit].filter(Boolean);
   const fields = applicableMappings.map((m) => {
     const field = {
       id: m.id,
@@ -268,7 +276,7 @@ export function legacyDeriveDynamicInputFields({
     };
     if (isQtyBasis && m.maps_to_variable === 'density') {
       field.densityQtyBasisCheck = true;
-      field.fuelQtyUnits = fuelQtyUnits;
+      field.densityQuantityUnits = quantityUnits;
     }
     return field;
   });

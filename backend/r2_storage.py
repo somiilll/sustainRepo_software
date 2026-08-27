@@ -53,6 +53,7 @@ class R2Storage:
             'repo_pilot': os.environ.get('R2_BUCKET_REPO_PILOT', 'repo-pilot-dev'),
             'software_images': os.environ.get('R2_BUCKET_SOFTWARE_IMAGES', 'software-image-dev'),
             'ocr_temp': os.environ.get('R2_BUCKET_OCR_TEMP', 'ocr-temp-invoices')
+            , 'supplier_assessment': os.environ.get('R2_BUCKET_SUPPLIER_ASSESSMENT')
         }
     
     def _get_bucket(self, bucket_type: str) -> str:
@@ -113,11 +114,15 @@ class R2Storage:
             from shared.security import ALLOWED_EXTENSIONS, MAX_FILE_SIZE, ALLOWED_MIME_PREFIXES
             import os as _os
             ext = _os.path.splitext(filename)[1].lower()
-            if ext and ext not in ALLOWED_EXTENSIONS:
+            training_extensions = {'.mp3', '.mp4', '.wav', '.webm', '.m4a', '.aac', '.ogg', '.flac'}
+            is_training_upload = bucket_type == 'supplier_assessment'
+            if ext and ext not in ALLOWED_EXTENSIONS and not (is_training_upload and ext in training_extensions):
                 return {"error": f"File type '{ext}' not allowed"}
-            if len(file_content) > MAX_FILE_SIZE:
-                return {"error": f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB"}
-            if content_type and not any(content_type.startswith(p) for p in ALLOWED_MIME_PREFIXES):
+            max_file_size = 250 * 1024 * 1024 if is_training_upload else MAX_FILE_SIZE
+            if len(file_content) > max_file_size:
+                return {"error": f"File too large. Max {max_file_size // (1024*1024)}MB"}
+            is_training_media = content_type.startswith(('audio/', 'video/')) if content_type else False
+            if content_type and not any(content_type.startswith(p) for p in ALLOWED_MIME_PREFIXES) and not (is_training_upload and is_training_media):
                 return {"error": f"Content type '{content_type}' not allowed"}
 
             bucket = self._get_bucket(bucket_type)

@@ -38,12 +38,43 @@ from modules.auth.contracts import (
     UserResponse,
     TokenResponse,
 )
-from modules.auth.dependencies import get_current_user
+from modules.auth.dependencies import ensure_supplier_relationship_active, get_current_user
 from modules.auth.email_templates import password_reset_email
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+LOGIN_LOCKOUT_DURATION = timedelta(minutes=15)
+
+
+def _login_attempt_identifier(email: str) -> str:
+    return email.strip().lower()
+
+
+async def _ensure_login_not_locked(identifier: str) -> None:
+    attempt = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0})
+    locked_until = (attempt or {}).get("locked_until")
+    if not locked_until:
+        return
+    try:
+        if datetime.now(timezone.utc) < datetime.fromisoformat(str(locked_until).replace("Z", "+00:00")):
+            raise HTTPException(status_code=429, detail="Too many login attempts. Please try again later.")
+    except ValueError:
+        await db.login_attempts.delete_one({"identifier": identifier})
+
+
+async def _record_failed_login(identifier: str) -> None:
+    now = datetime.now(timezone.utc)
+    existing = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0, "failed_attempts": 1})
+    failed_attempts = int((existing or {}).get("failed_attempts", 0)) + 1
+    locked_until = (now + LOGIN_LOCKOUT_DURATION).isoformat() if failed_attempts >= MAX_FAILED_LOGIN_ATTEMPTS else None
+    await db.login_attempts.update_one(
+        {"identifier": identifier},
+        {"$set": {"failed_attempts": failed_attempts, "locked_until": locked_until, "updated_at": now.isoformat()}},
+        upsert=True,
+    )
 
 
 def _validate_password_strength(pwd: str) -> None:
@@ -101,9 +132,11 @@ async def signup(request: Request, user_data: UserCreate):
 @limiter.limit("10/minute")
 async def login(request: Request, credentials: UserLogin):
     logger.info(f"[AUTH_LOGIN] Attempt: email={credentials.email}")
-    
-    user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
+    identifier = _login_attempt_identifier(credentials.email)
+    await _ensure_login_not_locked(identifier)
+    user = await db.users.find_one({"email": credentials.email.strip().lower()}, {"_id": 0})
     if not user or not verify_password(credentials.password, user["password_hash"]):
+        await _record_failed_login(identifier)
         logger.warning(f"[AUTH_LOGIN] Failed: email={credentials.email}, reason=invalid_credentials")
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
@@ -115,14 +148,15 @@ async def login(request: Request, credentials: UserLogin):
         logger.warning(f"[AUTH_LOGIN] Failed: email={credentials.email}, reason=account_inactive")
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
 
+    organization = None
     if user.get("role") != "super_admin" and user.get("organization_id"):
-        org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
-        if org and (org.get("is_deleted") or not org.get("is_active", True)):
+        organization = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
+        if organization and (organization.get("is_deleted") or not organization.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
 
-        if org and org.get("subscription_expires_at"):
+        if organization and organization.get("subscription_expires_at"):
             try:
-                expires_str = org["subscription_expires_at"]
+                expires_str = organization["subscription_expires_at"]
                 now = datetime.now(timezone.utc)
                 if 'T' in str(expires_str):
                     expires_at = datetime.fromisoformat(expires_str.replace('Z', '+00:00'))
@@ -137,9 +171,12 @@ async def login(request: Request, credentials: UserLogin):
                 # Lenient — date parse failures don't block login (legacy behaviour).
                 print(f"Subscription date parse error: {e}")
 
+    await ensure_supplier_relationship_active(user, organization)
+
     access_token = create_access_token(data={"sub": user["id"]})
     refresh_token = create_refresh_token(data={"sub": user["id"]})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
+    await db.login_attempts.delete_one({"identifier": identifier})
 
     logger.info(f"[AUTH_LOGIN] Success: email={credentials.email}, user_id={user['id']}, role={user.get('role')}")
     return TokenResponse(access_token=access_token, refresh_token=refresh_token, token_type="bearer", user=user_response)
@@ -263,6 +300,7 @@ async def refresh_token(request: Request, data: RefreshRequest):
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    await ensure_supplier_relationship_active(user)
 
     new_access = create_access_token(data={"sub": user_id})
     new_refresh = create_refresh_token(data={"sub": user_id})

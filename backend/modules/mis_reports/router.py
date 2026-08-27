@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from modules.auth.dependencies import get_current_user
+from modules.entitlements.dependencies import assert_mis_schedule_limit
 from modules.mis_reports.contracts import (
     MISReportCatalogResponse,
     MISDeliveryResponse,
@@ -24,6 +25,7 @@ from modules.mis_reports.contracts import (
 )
 from shared.database.mongo import db
 from modules.mis_reports.service import ReportingPeriodService, aggregate_emissions, build_executive_excel, build_executive_mis_report, build_executive_pdf, next_run_at, now_iso, send_schedule
+from modules.entitlements.service import resolve_entitlements
 
 
 router = APIRouter()
@@ -55,8 +57,8 @@ async def get_mis_reporting_context(current_user: dict) -> tuple[Optional[dict],
     if not organization:
         return None, False
 
-    module_access = organization.get("module_access") or {}
-    mis_reports_enabled = module_access.get("mis_reports", module_access.get("reports", True))
+    entitlements = await resolve_entitlements(organization_id, migrate=True)
+    mis_reports_enabled = entitlements["mis_reports"]
     return organization, current_user.get("role") == "admin" and mis_reports_enabled
 
 
@@ -148,6 +150,8 @@ async def list_mis_schedules(current_user: dict = Depends(get_current_user)):
 @router.post("/mis-reports/schedules", response_model=MISScheduleResponse)
 async def create_mis_schedule(request: MISScheduleCreate, current_user: dict = Depends(get_current_user)):
     await require_mis_admin(current_user)
+    if current_user.get("role") != "super_admin":
+        await assert_mis_schedule_limit(current_user["organization_id"])
     recipients = [{"id": recipient.id or str(uuid.uuid4()), "name": recipient.name or str(recipient.email).split("@", 1)[0], "email": str(recipient.email)} for recipient in request.recipients] or [{"id": str(uuid.uuid4()), "name": str(email).split("@", 1)[0], "email": str(email)} for email in request.recipient_emails]
     schedule = {"id": str(uuid.uuid4()), "organization_id": current_user.get("organization_id"), "created_by_email": current_user.get("email"), "name": request.name, "frequency": request.frequency, "recipient_emails": [item["email"] for item in recipients], "recipients": recipients, "filters": request.filters.model_dump(), "content": request.content.model_dump(), "facility_mode": request.facility_mode, "run_time": request.run_time, "run_day": request.run_day, "timezone": request.timezone, "reporting_period_label": request.reporting_period_label, "is_enabled": request.is_enabled, "next_run_at": next_run_at(request.frequency, request.run_time, request.run_day) if request.is_enabled else None, "last_run_at": None, "created_at": now_iso()}
     await db.mis_report_schedules.insert_one(schedule.copy())

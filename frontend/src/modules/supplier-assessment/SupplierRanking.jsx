@@ -1,758 +1,153 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { useAuth } from '../../contexts/AuthContext';
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, BarChart3, Building2, CalendarDays, ChartLine, ChartPie, CheckCircle2, ChevronLeft, ChevronRight, CircleDot, CloudDownload, Factory, FileText, GraduationCap, Info, Leaf, RefreshCw, Search, Target, TriangleAlert, Trophy, Users } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../components/ui/table';
-import { 
-  Trophy, 
-  TrendingUp, 
-  Award, 
-  Medal,
-  Leaf,
-  Users,
-  Shield,
-  Factory,
-  BarChart3,
-  PieChart as PieChartIcon,
-  ArrowUpRight,
-  ArrowDownRight,
-} from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  Legend,
-  LineChart,
-  Line,
-} from 'recharts';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
+import { SupplierIntensityComparison } from './components/emissions/SupplierIntensityComparison';
+import { SupplierScope1CategoryComparison } from './components/emissions/SupplierScope1CategoryComparison';
+import { SupplierMonthlyEmissionsTrend } from './components/emissions/SupplierMonthlyEmissionsTrend';
+import { buildSupplierEmissionsAnalytics } from './utils/supplierEmissionsAnalytics';
+import { SupplierEsgScoreComparison } from './components/SupplierEsgScoreComparison';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const hasValue = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+const scoreText = (value) => hasValue(value) ? Number(value).toFixed(1).replace(/\.0$/, '') : '—';
+const moduleName = (key) => ({ esg: 'ESG', ghg: 'GHG', documents: 'Documents', training: 'Training' }[key] || key);
+const formatDate = (value) => value ? new Date(value).toLocaleDateString() : '—';
+const isPastDue = (dueDate) => dueDate && new Date(`${dueDate}T23:59:59`).getTime() < Date.now();
+const scoreMeta = (value) => {
+  if (!hasValue(value)) return { label: 'Awaiting ESG', color: '#d6d3d1', badge: 'border-stone-200 bg-stone-100 text-stone-600', bar: 'bg-stone-300' };
+  if (Number(value) >= 80) return { label: 'Excellent', color: '#10b981', badge: 'border-emerald-200 bg-emerald-50 text-emerald-800', bar: 'bg-emerald-500' };
+  if (Number(value) >= 60) return { label: 'Good', color: '#3b82f6', badge: 'border-blue-200 bg-blue-50 text-blue-800', bar: 'bg-blue-500' };
+  if (Number(value) >= 40) return { label: 'Needs improvement', color: '#f59e0b', badge: 'border-amber-200 bg-amber-50 text-amber-800', bar: 'bg-amber-500' };
+  return { label: 'Critical', color: '#ef4444', badge: 'border-rose-200 bg-rose-50 text-rose-800', bar: 'bg-rose-500' };
+};
+const statusStyle = (status) => status === 'locked' || status === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : status === 'in_progress' ? 'border-blue-200 bg-blue-50 text-blue-800' : status === 'overdue' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-800';
+const EMPTY_SUBMITTED_EMISSIONS = { emissions: [], supplier_totals: [] };
 
-const statusColors = {
-  not_started: 'bg-stone-100 text-stone-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
+const completionText = (value) => hasValue(value) ? `${scoreText(value)}%` : '—';
+const SortableHeading = ({ label, sortKey, sort, onSort, testId }) => {
+  const active = sort.key === sortKey;
+  const SortIcon = active ? (sort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return <button type="button" onClick={() => onSort(sortKey)} className="flex items-center gap-1 text-left transition-colors hover:text-stone-900" data-testid={testId} aria-label={`Sort by ${label}`}><span>{label}</span><SortIcon className="h-3.5 w-3.5" aria-hidden="true" /></button>;
+};
+const DetailItem = ({ item, Icon, accent }) => {
+  const overdue = item.status !== 'locked' && item.status !== 'completed' && isPastDue(item.due_date);
+  const status = overdue ? 'overdue' : item.status;
+  const context = item.status === 'locked' ? `Submitted ${formatDate(item.locked_at)}` : item.status === 'completed' ? `Completed ${item.completed_at ? formatDate(item.completed_at) : ''}` : overdue ? `Due ${formatDate(item.due_date)}` : item.status === 'in_progress' ? `${item.progress_percent || 0}% complete` : 'Awaiting supplier response';
+  return <div className={`flex items-center justify-between gap-3 border-l-2 ${overdue ? 'border-rose-400 bg-rose-50/50' : accent} px-3 py-2.5`}><div className="flex min-w-0 items-center gap-2"><Icon className="h-4 w-4 shrink-0" /><div className="min-w-0"><p className="truncate text-sm font-medium text-stone-800">{item.name}</p><p className="text-xs text-stone-500">{context}</p></div></div><Badge variant="outline" className={`shrink-0 text-xs ${statusStyle(status)}`}>{String(status).replace('_', ' ')}</Badge></div>;
 };
 
-const COLORS = {
-  environment: '#10b981',
-  social: '#3b82f6',
-  governance: '#8b5cf6',
-  scope1: '#ef4444',
-  scope2: '#f59e0b',
-  excellent: '#22c55e',
-  good: '#3b82f6',
-  average: '#f59e0b',
-  poor: '#ef4444',
+const DetailSection = ({ title, Icon, accent, items, empty }) => <section><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-stone-900"><span className={`flex h-7 w-7 items-center justify-center ${accent}`}><Icon className="h-4 w-4" /></span>{title}</h3><div className="space-y-2">{items?.length ? items : <p className="px-1 py-3 text-sm text-stone-500">{empty}</p>}</div></section>;
+
+const RankingMetric = ({ id, label, value, detail, Icon, tone = 'stone' }) => {
+  const tones = {
+    stone: 'bg-stone-100 text-stone-600',
+    emerald: 'bg-emerald-50 text-emerald-700',
+    amber: 'bg-amber-50 text-amber-700',
+    rose: 'bg-rose-50 text-rose-700',
+  };
+  return <Card className="overflow-hidden rounded-lg border-stone-200 bg-white shadow-none" data-testid={`supplier-ranking-${id}-metric`}><CardContent className="relative flex min-h-[132px] flex-col justify-between p-5"><span className={`absolute left-0 top-0 h-full w-1 ${tone === 'rose' ? 'bg-rose-500' : tone === 'emerald' ? 'bg-emerald-500' : tone === 'amber' ? 'bg-amber-400' : 'bg-slate-300'}`} /><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-wide text-stone-500">{label}</p><span className={`flex h-9 w-9 items-center justify-center rounded-full ${tones[tone]}`}><Icon className="h-4 w-4" aria-hidden="true" /></span></div><div><p className="text-3xl font-semibold text-stone-950" data-testid={`supplier-ranking-${id}-value`}>{value}</p><p className="mt-1 truncate text-sm text-stone-500" data-testid={`supplier-ranking-${id}-detail`}>{detail}</p></div></CardContent></Card>;
 };
 
-const PIE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444'];
+const EsgScoreBreakdown = ({ averages }) => {
+  const overall = averages?.esg;
+  const dimensions = [
+    { key: 'environment', label: 'Environment', Icon: Leaf, icon: 'bg-emerald-50 text-emerald-700', bar: 'bg-emerald-600' },
+    { key: 'social', label: 'Social', Icon: Users, icon: 'bg-blue-50 text-blue-700', bar: 'bg-blue-500' },
+    { key: 'governance', label: 'Governance', Icon: Building2, icon: 'bg-violet-50 text-violet-700', bar: 'bg-violet-600' },
+  ];
+  return <Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="esg-score-breakdown-card"><CardHeader className="border-b border-stone-100 pb-4"><CardTitle className="text-base text-stone-900">ESG score breakdown <span className="font-normal text-stone-500">(average)</span></CardTitle><div className="mt-4 flex items-end gap-1"><span className="text-4xl font-semibold text-stone-950" data-testid="esg-score-breakdown-overall-score">{scoreText(overall)}</span><span className="pb-1 text-sm text-stone-500">/100</span></div><p className="mt-1 text-xs text-stone-500">Across submitted assessments</p></CardHeader><CardContent className="space-y-5 pt-5">{dimensions.map(({ key, label, Icon, icon, bar }) => { const value = averages?.[key]; const width = hasValue(value) ? Math.min(100, Math.max(0, Number(value))) : 0; return <div key={key} data-testid={`esg-score-breakdown-${key}`}><div className="mb-2 flex items-center gap-3"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${icon}`}><Icon className="h-4 w-4" aria-hidden="true" /></span><span className="flex-1 text-sm font-medium text-stone-700">{label}</span><span className="text-sm font-semibold text-stone-950" data-testid={`esg-score-breakdown-${key}-value`}>{scoreText(value)}<span className="ml-0.5 text-xs font-normal text-stone-500">/100</span></span></div><div className="ml-11 h-2 overflow-hidden rounded-full bg-stone-100"><div className={`h-full rounded-full ${bar}`} style={{ width: `${width}%` }} /></div></div>; })}</CardContent></Card>;
+};
+
+const initials = (name = '') => name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '—';
 
 export default function SupplierRanking() {
   const { getAuthHeader } = useAuth();
+  const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
   const [rankings, setRankings] = useState([]);
-  const [stats, setStats] = useState({ 
-    total: 0, 
-    ranked: 0,
-    score_distribution: {},
-    averages: {},
-    emissions_by_scope: {},
-  });
+  const [stats, setStats] = useState({ total: 0, ranked: 0, averages: {}, score_distribution: {}, emissions_by_scope: {}, module_summary: {} });
+  const [submittedEmissions, setSubmittedEmissions] = useState(EMPTY_SUBMITTED_EMISSIONS);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState('overall');
-  const [activeTab, setActiveTab] = useState('overview');
+  const [tab, setTab] = useState('overview');
+  const [search, setSearch] = useState('');
+  const [rankingPage, setRankingPage] = useState(1);
+  const [rankingSort, setRankingSort] = useState({ key: 'esg_score', direction: 'desc' });
+  const [moduleFilter, setModuleFilter] = useState('all');
+  const [supplier, setSupplier] = useState(null);
+  const [detail, setDetail] = useState(null);
 
-  const fetchRankings = useCallback(async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await axios.get(`${API}/supplier-assessment/rankings`, {
-        headers: getAuthHeader(),
-      });
-      setRankings(res.data.rankings || []);
-      setStats({
-        total: res.data.total_suppliers || 0,
-        ranked: res.data.ranked_suppliers || 0,
-        score_distribution: res.data.score_distribution || {},
-        averages: res.data.averages || {},
-        emissions_by_scope: res.data.emissions_by_scope || {},
-      });
-    } catch (err) {
-      toast.error('Failed to load rankings');
-    } finally {
-      setLoading(false);
-    }
-  }, [getAuthHeader]);
-
-  useEffect(() => {
-    fetchRankings();
-  }, [fetchRankings]);
-
-  const getRankIcon = (rank) => {
-    if (rank === 1) return <Trophy className="h-5 w-5 text-yellow-500" />;
-    if (rank === 2) return <Medal className="h-5 w-5 text-stone-400" />;
-    if (rank === 3) return <Award className="h-5 w-5 text-amber-600" />;
-    return <span className="text-stone-400 font-medium">#{rank}</span>;
-  };
-
-  const getScoreColor = (score) => {
-    if (score === null || score === undefined) return 'text-stone-400';
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-blue-600';
-    if (score >= 40) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getScoreBgColor = (score) => {
-    if (score === null || score === undefined) return 'bg-stone-100';
-    if (score >= 80) return 'bg-green-100';
-    if (score >= 60) return 'bg-blue-100';
-    if (score >= 40) return 'bg-yellow-100';
-    return 'bg-red-100';
-  };
-
-  // Sort rankings based on selected criteria
-  const sortedRankings = [...rankings].sort((a, b) => {
-    const scoreKey = sortBy === 'overall' ? 'overall_score' : 
-                     sortBy === 'esg' ? 'esg_score' :
-                     sortBy === 'environment' ? 'environment_score' :
-                     sortBy === 'social' ? 'social_score' :
-                     sortBy === 'governance' ? 'governance_score' :
-                     sortBy === 'ghg' ? 'ghg_score' : 'overall_score';
-    
-    const aScore = a[scoreKey] ?? -1;
-    const bScore = b[scoreKey] ?? -1;
-    return bScore - aScore;
-  });
-
-  // Prepare chart data
-  const scoreDistributionData = [
-    { name: 'Excellent (80+)', value: stats.score_distribution.excellent || 0, color: COLORS.excellent },
-    { name: 'Good (60-79)', value: stats.score_distribution.good || 0, color: COLORS.good },
-    { name: 'Average (40-59)', value: stats.score_distribution.average || 0, color: COLORS.average },
-    { name: 'Poor (<40)', value: stats.score_distribution.poor || 0, color: COLORS.poor },
-  ].filter(d => d.value > 0);
-
-  const esgBreakdownData = [
-    { name: 'Environment', value: stats.averages.environment || 0, fullMark: 100 },
-    { name: 'Social', value: stats.averages.social || 0, fullMark: 100 },
-    { name: 'Governance', value: stats.averages.governance || 0, fullMark: 100 },
-  ];
-
-  const emissionsByScopeData = [
-    { name: 'Scope 1', value: stats.emissions_by_scope.scope1 || 0, color: COLORS.scope1 },
-    { name: 'Scope 2', value: stats.emissions_by_scope.scope2 || 0, color: COLORS.scope2 },
-  ];
-
-  // Top 10 suppliers for bar chart
-  const top10Suppliers = sortedRankings.slice(0, 10).map(s => ({
-    name: s.company_name.length > 15 ? s.company_name.substring(0, 15) + '...' : s.company_name,
-    fullName: s.company_name,
-    overall: s.overall_score || 0,
-    esg: s.esg_score || 0,
-    ghg: s.ghg_score || 0,
-    environment: s.environment_score || 0,
-    social: s.social_score || 0,
-    governance: s.governance_score || 0,
-  }));
-
-  // Supplier comparison data for radar chart
-  const radarData = sortedRankings.slice(0, 5).map(s => ({
-    supplier: s.company_name.length > 12 ? s.company_name.substring(0, 12) + '...' : s.company_name,
-    Environment: s.environment_score || 0,
-    Social: s.social_score || 0,
-    Governance: s.governance_score || 0,
-    GHG: s.ghg_score || 0,
-  }));
-
-  const radarChartData = [
-    { subject: 'Environment', fullMark: 100 },
-    { subject: 'Social', fullMark: 100 },
-    { subject: 'Governance', fullMark: 100 },
-    { subject: 'GHG', fullMark: 100 },
-  ].map(item => {
-    const entry = { ...item };
-    sortedRankings.slice(0, 5).forEach((s, idx) => {
-      entry[`supplier${idx}`] = item.subject === 'Environment' ? s.environment_score || 0 :
-                                item.subject === 'Social' ? s.social_score || 0 :
-                                item.subject === 'Governance' ? s.governance_score || 0 :
-                                s.ghg_score || 0;
+      const [rankingResult, emissionsResult] = await Promise.allSettled([
+        axios.get(`${API}/supplier-assessment/rankings?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
+        axios.get(`${API}/supplier-assessment/emissions/all?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
+      ]);
+      if (rankingResult.status === 'rejected') throw rankingResult.reason;
+      const data = rankingResult.value.data;
+      setRankings(data.rankings || []);
+      setStats({ total: data.total_suppliers || 0, ranked: data.ranked_suppliers || 0, averages: data.averages || {}, score_distribution: data.score_distribution || {}, emissions_by_scope: data.emissions_by_scope || {}, module_summary: data.module_summary || {} });
+      if (emissionsResult.status === 'fulfilled') setSubmittedEmissions(emissionsResult.value.data || EMPTY_SUBMITTED_EMISSIONS);
+      else { setSubmittedEmissions(EMPTY_SUBMITTED_EMISSIONS); toast.error('Failed to load emissions analytics'); }
+    } catch { toast.error('Failed to load rankings'); }
+    finally { setLoading(false); }
+  }, [getAuthHeader, reportingPeriod]);
+  useEffect(() => { load(); }, [load]);
+  const overall = useMemo(() => rankings.filter((row) => hasValue(row.overall_score)).sort((a, b) => b.overall_score - a.overall_score), [rankings]);
+  const esg = useMemo(() => rankings.filter((row) => hasValue(row.esg_score)).sort((a, b) => b.esg_score - a.esg_score), [rankings]);
+  const emissionsAnalytics = useMemo(() => buildSupplierEmissionsAnalytics(submittedEmissions, reportingPeriod), [submittedEmissions, reportingPeriod]);
+  const emissions = emissionsAnalytics.supplierTotals;
+  const attributedScopeTotals = emissionsAnalytics.scopeTotals;
+  const rows = useMemo(() => {
+    const filteredRows = rankings.filter((row) => row.company_name.toLowerCase().includes(search.trim().toLowerCase()));
+    return [...filteredRows].sort((first, second) => {
+      const firstValue = first[rankingSort.key];
+      const secondValue = second[rankingSort.key];
+      if (!hasValue(firstValue)) return hasValue(secondValue) ? 1 : 0;
+      if (!hasValue(secondValue)) return -1;
+      return (Number(firstValue) - Number(secondValue)) * (rankingSort.direction === 'asc' ? 1 : -1);
     });
-    return entry;
-  });
+  }, [rankings, rankingSort, search]);
+  const attention = useMemo(() => rankings.filter((row) => (hasValue(row.overall_score) && row.overall_score < 60) || (row.attention_reasons || []).length).slice(0, 5), [rankings]);
+  const distribution = [{ name: 'Excellent', value: stats.score_distribution.excellent || 0, color: '#10b981' }, { name: 'Good', value: stats.score_distribution.good || 0, color: '#3b82f6' }, { name: 'Needs improvement', value: stats.score_distribution.average || 0, color: '#f59e0b' }, { name: 'Critical', value: stats.score_distribution.poor || 0, color: '#ef4444' }];
+  const modules = Object.entries(stats.module_summary || {}).map(([code, item]) => ({ code, name: moduleName(code), completion: item.average_completion || 0 }));
+  const visibleModules = moduleFilter === 'all' ? modules : modules.filter((item) => item.code === moduleFilter);
+  const openDetail = async (row) => { setSupplier(row); setDetail(null); try { const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${row.supplier_id}/submission-status`, { headers: getAuthHeader() }); setDetail(data); } catch { toast.error('Could not load supplier assessment details'); } };
+  const top = overall[0];
+  const needCount = (stats.score_distribution.average || 0) + (stats.score_distribution.poor || 0);
+  const rankingPageSize = 8;
+  const rankingPageCount = Math.max(1, Math.ceil(rows.length / rankingPageSize));
+  const visibleRankingRows = rows.slice((rankingPage - 1) * rankingPageSize, rankingPage * rankingPageSize);
+  const rankingStart = rows.length ? (rankingPage - 1) * rankingPageSize + 1 : 0;
+  const rankingEnd = Math.min(rankingPage * rankingPageSize, rows.length);
+  const toggleRankingSort = (key) => {
+    setRankingSort((current) => ({ key, direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc' }));
+    setRankingPage(1);
+  };
 
-  const RADAR_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
-
-  return (
-    <div className="space-y-6" data-testid="supplier-ranking">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-stone-900">Supplier Rankings</h1>
-          <p className="text-sm text-stone-500 mt-1">
-            Compare supplier performance across ESG dimensions and emissions
-          </p>
-        </div>
-        <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="overall">Overall Score</SelectItem>
-            <SelectItem value="esg">ESG Score</SelectItem>
-            <SelectItem value="environment">Environment</SelectItem>
-            <SelectItem value="social">Social</SelectItem>
-            <SelectItem value="governance">Governance</SelectItem>
-            <SelectItem value="ghg">GHG Score</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-stone-100">
-                <Users className="h-5 w-5 text-stone-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-stone-900">{stats.total}</div>
-                <div className="text-xs text-stone-500">Total Suppliers</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-100">
-                <TrendingUp className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-emerald-600">{stats.ranked}</div>
-                <div className="text-xs text-stone-500">Ranked Suppliers</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <BarChart3 className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-blue-600">{stats.averages.esg || '-'}</div>
-                <div className="text-xs text-stone-500">Avg ESG Score</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-100">
-                <Factory className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-amber-600">
-                  {stats.emissions_by_scope.total ? `${stats.emissions_by_scope.total.toLocaleString()}` : '-'}
-                </div>
-                <div className="text-xs text-stone-500">Total tCO2e</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs for different views */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 max-w-lg">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="esg">ESG Analysis</TabsTrigger>
-          <TabsTrigger value="emissions">Emissions</TabsTrigger>
-          <TabsTrigger value="table">Detailed Table</TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Score Distribution Pie Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <PieChartIcon className="h-5 w-5 text-emerald-500" />
-                  Score Distribution
-                </CardTitle>
-                <CardDescription>Supplier performance breakdown</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {scoreDistributionData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie
-                        data={scoreDistributionData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={90}
-                        paddingAngle={2}
-                        dataKey="value"
-                        label={({ name, value }) => `${value}`}
-                      >
-                        {scoreDistributionData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[250px] flex items-center justify-center text-stone-400">
-                    No ranking data available
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Top 10 Suppliers Bar Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Trophy className="h-5 w-5 text-yellow-500" />
-                  Top Performing Suppliers
-                </CardTitle>
-                <CardDescription>Overall score comparison</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {top10Suppliers.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={top10Suppliers} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                      <XAxis type="number" domain={[0, 100]} />
-                      <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
-                      <Tooltip 
-                        formatter={(value) => [`${value}`, 'Score']}
-                        labelFormatter={(label) => top10Suppliers.find(s => s.name === label)?.fullName || label}
-                      />
-                      <Bar dataKey="overall" fill="#10b981" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[250px] flex items-center justify-center text-stone-400">
-                    No ranking data available
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Supplier Comparison Radar */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BarChart3 className="h-5 w-5 text-blue-500" />
-                Top 5 Supplier Comparison
-              </CardTitle>
-              <CardDescription>Multi-dimensional performance comparison</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {sortedRankings.length > 0 ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  <RadarChart data={radarChartData}>
-                    <PolarGrid />
-                    <PolarAngleAxis dataKey="subject" />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                    {sortedRankings.slice(0, 5).map((s, idx) => (
-                      <Radar
-                        key={s.supplier_id}
-                        name={s.company_name.length > 15 ? s.company_name.substring(0, 15) + '...' : s.company_name}
-                        dataKey={`supplier${idx}`}
-                        stroke={RADAR_COLORS[idx]}
-                        fill={RADAR_COLORS[idx]}
-                        fillOpacity={0.1}
-                      />
-                    ))}
-                    <Legend />
-                    <Tooltip />
-                  </RadarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[350px] flex items-center justify-center text-stone-400">
-                  No ranking data available
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ESG Analysis Tab */}
-        <TabsContent value="esg" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Average ESG Breakdown */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Average ESG Scores</CardTitle>
-                <CardDescription>Across all ranked suppliers</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Leaf className="h-4 w-4 text-emerald-500" />
-                      <span className="text-sm font-medium">Environment</span>
-                    </div>
-                    <span className={`font-bold ${getScoreColor(stats.averages.environment)}`}>
-                      {stats.averages.environment || '-'}
-                    </span>
-                  </div>
-                  <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-emerald-500 rounded-full transition-all"
-                      style={{ width: `${stats.averages.environment || 0}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-medium">Social</span>
-                    </div>
-                    <span className={`font-bold ${getScoreColor(stats.averages.social)}`}>
-                      {stats.averages.social || '-'}
-                    </span>
-                  </div>
-                  <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 rounded-full transition-all"
-                      style={{ width: `${stats.averages.social || 0}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-purple-500" />
-                      <span className="text-sm font-medium">Governance</span>
-                    </div>
-                    <span className={`font-bold ${getScoreColor(stats.averages.governance)}`}>
-                      {stats.averages.governance || '-'}
-                    </span>
-                  </div>
-                  <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-purple-500 rounded-full transition-all"
-                      style={{ width: `${stats.averages.governance || 0}%` }}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ESG Score Comparison */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-base">ESG Score by Supplier</CardTitle>
-                <CardDescription>Environment, Social, Governance breakdown</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {top10Suppliers.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={top10Suppliers}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis domain={[0, 100]} />
-                      <Tooltip 
-                        labelFormatter={(label) => top10Suppliers.find(s => s.name === label)?.fullName || label}
-                      />
-                      <Legend />
-                      <Bar dataKey="environment" name="Environment" fill={COLORS.environment} />
-                      <Bar dataKey="social" name="Social" fill={COLORS.social} />
-                      <Bar dataKey="governance" name="Governance" fill={COLORS.governance} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[300px] flex items-center justify-center text-stone-400">
-                    No ESG data available
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Emissions Tab */}
-        <TabsContent value="emissions" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Emissions by Scope Pie */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Factory className="h-5 w-5 text-amber-500" />
-                  Emissions by Scope
-                </CardTitle>
-                <CardDescription>Total supplier emissions breakdown</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {stats.emissions_by_scope.total > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie
-                        data={emissionsByScopeData}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                        dataKey="value"
-                        label={({ name, value }) => `${name}: ${value.toLocaleString()}`}
-                      >
-                        {emissionsByScopeData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [`${value.toLocaleString()} tCO2e`, 'Emissions']} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[280px] flex items-center justify-center text-stone-400">
-                    No emissions data available
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Scope Summary Cards */}
-            <div className="space-y-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-red-100">
-                        <Factory className="h-5 w-5 text-red-600" />
-                      </div>
-                      <div>
-                        <div className="text-sm text-stone-500">Scope 1 (Direct)</div>
-                        <div className="text-xl font-bold text-red-600">
-                          {(stats.emissions_by_scope.scope1 || 0).toLocaleString()} tCO2e
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-stone-400">
-                        {stats.emissions_by_scope.total > 0 
-                          ? `${((stats.emissions_by_scope.scope1 / stats.emissions_by_scope.total) * 100).toFixed(1)}%`
-                          : '-'}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-amber-100">
-                        <Factory className="h-5 w-5 text-amber-600" />
-                      </div>
-                      <div>
-                        <div className="text-sm text-stone-500">Scope 2 (Indirect - Energy)</div>
-                        <div className="text-xl font-bold text-amber-600">
-                          {(stats.emissions_by_scope.scope2 || 0).toLocaleString()} tCO2e
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-stone-400">
-                        {stats.emissions_by_scope.total > 0 
-                          ? `${((stats.emissions_by_scope.scope2 / stats.emissions_by_scope.total) * 100).toFixed(1)}%`
-                          : '-'}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          {/* Emissions by Supplier */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Emissions by Supplier</CardTitle>
-              <CardDescription>Scope-wise breakdown per supplier</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {sortedRankings.filter(s => s.total_emissions > 0).length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart 
-                    data={sortedRankings
-                      .filter(s => s.total_emissions > 0)
-                      .slice(0, 10)
-                      .map(s => ({
-                        name: s.company_name.length > 15 ? s.company_name.substring(0, 15) + '...' : s.company_name,
-                        fullName: s.company_name,
-                        scope1: s.scope1_emissions,
-                        scope2: s.scope2_emissions,
-                      }))}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value) => [`${value.toLocaleString()} tCO2e`]}
-                      labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
-                    />
-                    <Legend />
-                    <Bar dataKey="scope1" name="Scope 1" stackId="a" fill={COLORS.scope1} />
-                    <Bar dataKey="scope2" name="Scope 2" stackId="a" fill={COLORS.scope2} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[300px] flex items-center justify-center text-stone-400">
-                  No emissions data available
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Detailed Table Tab */}
-        <TabsContent value="table">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-emerald-500" />
-                Detailed Performance Rankings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="text-center py-8 text-stone-500">Loading rankings...</div>
-              ) : sortedRankings.length === 0 ? (
-                <div className="text-center py-8 text-stone-500">
-                  No suppliers have completed their assessments yet.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-16">Rank</TableHead>
-                        <TableHead>Supplier</TableHead>
-                        <TableHead className="text-center">Overall</TableHead>
-                        <TableHead className="text-center">ESG</TableHead>
-                        <TableHead className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Leaf className="h-3 w-3 text-emerald-500" />
-                            Env
-                          </div>
-                        </TableHead>
-                        <TableHead className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Users className="h-3 w-3 text-blue-500" />
-                            Social
-                          </div>
-                        </TableHead>
-                        <TableHead className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Shield className="h-3 w-3 text-purple-500" />
-                            Gov
-                          </div>
-                        </TableHead>
-                        <TableHead className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Factory className="h-3 w-3 text-amber-500" />
-                            GHG
-                          </div>
-                        </TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sortedRankings.map((supplier, idx) => (
-                        <TableRow key={supplier.supplier_id} data-testid={`ranking-${supplier.supplier_id}`}>
-                          <TableCell>
-                            <div className="flex items-center justify-center w-8 h-8">
-                              {supplier.rank ? getRankIcon(supplier.rank) : '-'}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-medium">{supplier.company_name}</span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className={`px-2 py-1 rounded-full text-sm font-bold ${getScoreBgColor(supplier.overall_score)} ${getScoreColor(supplier.overall_score)}`}>
-                              {supplier.overall_score !== null ? supplier.overall_score : '-'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className={`font-semibold ${getScoreColor(supplier.esg_score)}`}>
-                              {supplier.esg_score !== null ? supplier.esg_score : '-'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className={`font-semibold ${getScoreColor(supplier.environment_score)}`}>
-                              {supplier.environment_score !== null ? supplier.environment_score : '-'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className={`font-semibold ${getScoreColor(supplier.social_score)}`}>
-                              {supplier.social_score !== null ? supplier.social_score : '-'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className={`font-semibold ${getScoreColor(supplier.governance_score)}`}>
-                              {supplier.governance_score !== null ? supplier.governance_score : '-'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className={`font-semibold ${getScoreColor(supplier.ghg_score)}`}>
-                              {supplier.ghg_score !== null ? supplier.ghg_score : '-'}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={statusColors[supplier.completion_status]}>
-                              {supplier.completion_status.replace('_', ' ')}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
+  return <TooltipProvider><div className="space-y-7 [&>header>div>p:first-child]:hidden [&_h1]:text-2xl [&_h1]:sm:text-2xl" data-testid="supplier-ranking">
+    <header className="flex flex-col gap-5 border-b border-stone-200 pb-6 sm:flex-row sm:items-start sm:justify-between" data-testid="supplier-ranking-header"><div><p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Supplier assessment · {reportingPeriod}</p><h1 className="mt-2 text-4xl font-semibold text-stone-950 sm:text-5xl">Supplier rankings</h1><p className="mt-2 text-sm text-stone-500">Review performance, completion coverage, and supplier follow-ups in one place.</p></div><div className="w-full shrink-0 sm:w-48" data-testid="supplier-ranking-period-control"><label htmlFor="supplier-ranking-reporting-period" className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-600"><CalendarDays className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />Reporting period</label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ranking-reporting-period" className="w-full bg-white" data-testid="supplier-ranking-reporting-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ranking-reporting-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ranking-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div></header>
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Supplier ranking summary">{[{ id: 'assessed', label: 'Suppliers assessed', value: stats.ranked, detail: `${stats.total} assigned`, Icon: Users, tone: 'stone' }, { id: 'esg', label: 'Avg ESG score', value: scoreText(stats.averages.esg), detail: 'Across submitted ESG assessments', Icon: Target, tone: 'emerald' }, { id: 'top', label: 'Top performer', value: scoreText(top?.overall_score), detail: top?.company_name || 'No overall score yet', Icon: Trophy, tone: 'amber' }, { id: 'attention', label: 'Needs attention', value: needCount, detail: 'Overall score below 60', Icon: TriangleAlert, tone: 'rose' }].map((item) => <RankingMetric key={item.id} {...item} />)}</section>
+    <Tabs value={tab} onValueChange={setTab} className="space-y-6"><TabsList className="grid h-auto w-full grid-cols-2 rounded-none border-b border-stone-200 bg-transparent p-0 md:max-w-3xl md:grid-cols-4" data-testid="supplier-ranking-tabs"><TabsTrigger value="overview" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-overview-tab"><ChartPie className="h-4 w-4" aria-hidden="true" />Overview</TabsTrigger><TabsTrigger value="esg" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-esg-tab"><ChartLine className="h-4 w-4" aria-hidden="true" />ESG analysis</TabsTrigger><TabsTrigger value="emissions" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-emissions-tab"><CloudDownload className="h-4 w-4" aria-hidden="true" />Emissions</TabsTrigger><TabsTrigger value="table" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-details-tab"><BarChart3 className="h-4 w-4" aria-hidden="true" />Detailed rankings</TabsTrigger></TabsList>
+      <TabsContent value="overview" className="space-y-5"><section className="grid gap-3 md:grid-cols-3" data-testid="supplier-ranking-status-summary">{[{ id: 'excellent', label: 'Excellent', value: stats.score_distribution.excellent || 0, detail: 'Overall score 80–100', Icon: CheckCircle2, iconClass: 'bg-emerald-50 text-emerald-600' }, { id: 'good', label: 'Good', value: stats.score_distribution.good || 0, detail: 'Overall score 60–79', Icon: CircleDot, iconClass: 'bg-blue-50 text-blue-600' }, { id: 'needs-attention', label: 'Needs attention', value: needCount, detail: 'Overall score below 60', Icon: TriangleAlert, iconClass: 'bg-rose-50 text-rose-600' }].map(({ id, label, value, detail: text, Icon, iconClass }) => <div key={id} className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-5 py-4" data-testid={`supplier-ranking-${id}-summary`}><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${iconClass}`}><Icon className="h-4 w-4" aria-hidden="true" /></span><div><p className="text-sm font-semibold text-stone-900">{label}</p><p className="mt-0.5 text-xs text-stone-500" data-testid={`supplier-ranking-${id}-count`}>{value} supplier{value === 1 ? '' : 's'} · {text}</p></div></div>)}</section>
+      <section className="grid gap-5 lg:grid-cols-2"><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-score-distribution-card"><CardHeader className="flex-row items-center justify-between space-y-0 border-b border-stone-100 pb-4"><div><CardTitle className="text-base text-stone-900">Overall score distribution</CardTitle><p className="mt-1 text-xs text-stone-500">Suppliers by overall score band</p></div></CardHeader><CardContent className="pt-5">{overall.length ? <ResponsiveContainer width="100%" height={244}><BarChart data={distribution} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}><CartesianGrid vertical={false} stroke="#edece7" /><XAxis dataKey="name" tick={{ fontSize: 11, fill: '#78716c' }} interval={0} tickFormatter={(label) => label === 'Needs improvement' ? 'Improve' : label} /><YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#78716c' }} /><ChartTooltip cursor={{ fill: '#fafaf9' }} /><Bar dataKey="value" radius={[4, 4, 0, 0]}>{distribution.map((item) => <Cell key={item.name} fill={item.color} />)}</Bar></BarChart></ResponsiveContainer> : <p className="py-20 text-center text-sm text-stone-500" data-testid="supplier-score-distribution-empty">No overall scores yet.</p>}</CardContent></Card><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-module-coverage-card"><CardHeader className="flex-row items-center justify-between gap-3 space-y-0 border-b border-stone-100 pb-4"><div><CardTitle className="text-base text-stone-900">Assessment module coverage</CardTitle><p className="mt-1 text-xs text-stone-500">Completion across assigned suppliers</p></div><Select value={moduleFilter} onValueChange={setModuleFilter}><SelectTrigger className="h-8 w-32 text-xs" data-testid="supplier-module-coverage-filter"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-module-coverage-filter-menu"><SelectItem value="all" data-testid="supplier-module-coverage-option-all">All modules</SelectItem>{modules.map((item) => <SelectItem key={item.code} value={item.code} data-testid={`supplier-module-coverage-option-${item.code}`}>{item.name}</SelectItem>)}</SelectContent></Select></CardHeader><CardContent className="pt-5">{visibleModules.length ? <ResponsiveContainer width="100%" height={244}><BarChart data={visibleModules} layout="vertical" margin={{ top: 4, right: 8, left: 6, bottom: 0 }}><CartesianGrid horizontal={false} stroke="#edece7" /><XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: '#78716c' }} tickFormatter={(value) => `${value}%`} /><YAxis type="category" dataKey="name" width={82} tick={{ fontSize: 12, fill: '#44403c' }} /><ChartTooltip formatter={(value) => [`${value}%`, 'Completion']} cursor={{ fill: '#fafaf9' }} /><Bar dataKey="completion" radius={[0, 4, 4, 0]}>{visibleModules.map((item) => <Cell key={item.name} fill={scoreMeta(item.completion).color} />)}</Bar></BarChart></ResponsiveContainer> : <p className="py-20 text-center text-sm text-stone-500" data-testid="supplier-module-coverage-empty">No modules configured.</p>}</CardContent></Card></section>
+      <section className="grid gap-5 lg:grid-cols-2"><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-top-performers-card"><CardHeader className="flex-row items-center justify-between border-b border-stone-100 pb-4"><div><CardTitle className="text-base text-stone-900">Top performing suppliers</CardTitle><p className="mt-1 text-xs text-stone-500">Highest overall scores this period</p></div><Button variant="ghost" size="sm" className="h-8 px-2 text-emerald-800 hover:bg-emerald-50 hover:text-emerald-900" onClick={() => setTab('table')} data-testid="view-all-top-suppliers-button">View all <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></CardHeader><CardContent className="divide-y divide-stone-100 p-0">{overall.length ? overall.slice(0, 5).map((row, index) => <div key={row.supplier_id} className="flex items-center gap-3 px-5 py-3.5" data-testid={`top-performing-supplier-${row.supplier_id}`}><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800">{initials(row.company_name)}</span><span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">{row.company_name}</span><span className="mr-1 text-xs text-stone-400">#{index + 1}</span><span className="text-sm font-semibold text-stone-950" data-testid={`top-performing-supplier-score-${row.supplier_id}`}>{scoreText(row.overall_score)}</span></div>) : <p className="p-6 text-sm text-stone-500" data-testid="supplier-top-performers-empty">No overall scores yet.</p>}</CardContent></Card><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-attention-required-card"><CardHeader className="flex-row items-center justify-between border-b border-stone-100 pb-4"><div><CardTitle className="flex items-center gap-2 text-base text-stone-900"><TriangleAlert className="h-4 w-4 text-rose-600" aria-hidden="true" />Attention required</CardTitle><p className="mt-1 text-xs text-stone-500">Suppliers needing a follow-up</p></div><Button variant="ghost" size="sm" className="h-8 px-2 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => setTab('table')} data-testid="view-all-attention-suppliers-button">View all <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></CardHeader><CardContent className="divide-y divide-stone-100 p-0">{attention.length ? attention.map((row) => <div key={row.supplier_id} className="flex items-center gap-3 px-5 py-3.5" data-testid={`attention-supplier-${row.supplier_id}`}><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-700"><TriangleAlert className="h-4 w-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-stone-800">{row.company_name}</p><p className="mt-0.5 truncate text-xs text-stone-500">{(row.attention_reasons || ['Assessment needs review']).slice(0, 2).join(' · ')}</p></div><div className="shrink-0 text-right" data-testid={`attention-supplier-esg-score-${row.supplier_id}`}><p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">ESG score</p><p className="mt-0.5 text-sm font-semibold text-stone-950">{scoreText(row.esg_score)}</p></div><Button variant="outline" size="sm" className="h-8 shrink-0 border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => openDetail(row)} data-testid={`review-attention-supplier-${row.supplier_id}`}>Review <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></div>) : <p className="flex items-center gap-2 p-6 text-sm text-stone-500" data-testid="supplier-attention-required-empty"><CheckCircle2 className="h-4 w-4 text-emerald-600" />No suppliers need attention.</p>}</CardContent></Card></section></TabsContent>
+      <TabsContent value="esg" className="space-y-5"><EsgScoreBreakdown averages={stats.averages} /><section className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="esg-score-distribution-card"><CardHeader className="border-b border-stone-100 pb-4"><CardTitle className="text-base text-stone-900">ESG score distribution <span className="font-normal text-stone-500">(overall scores)</span></CardTitle><p className="mt-1 text-xs text-stone-500">Submitted supplier assessments by score band</p></CardHeader><CardContent className="pt-4">{overall.length ? <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto]"><ResponsiveContainer width="100%" height={206}><PieChart><Pie data={distribution} dataKey="value" nameKey="name" innerRadius={55} outerRadius={83} paddingAngle={3} stroke="none">{distribution.map((item) => <Cell key={item.name} fill={item.color} />)}</Pie><ChartTooltip formatter={(value) => [`${value} supplier${value === 1 ? '' : 's'}`, '']} /></PieChart></ResponsiveContainer><div className="space-y-2" data-testid="esg-score-distribution-legend">{distribution.map((item) => <div key={item.name} className="flex items-center justify-between gap-5 text-xs"><span className="flex items-center gap-2 text-stone-600"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />{item.name}</span><span className="font-semibold text-stone-900">{item.value}</span></div>)}</div></div> : <p className="py-16 text-center text-sm text-stone-500" data-testid="esg-score-distribution-empty">No submitted ESG assessments yet.</p>}</CardContent></Card><SupplierEsgScoreComparison suppliers={esg} /></section><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-esg-summary-card"><CardHeader className="flex-row items-center justify-between border-b border-stone-100 pb-4"><div><CardTitle className="text-base text-stone-900">Supplier ESG summary</CardTitle><p className="mt-1 text-xs text-stone-500">Overall and pillar scores for submitted assessments</p></div><Button variant="ghost" size="sm" className="h-8 px-2 text-emerald-800 hover:bg-emerald-50 hover:text-emerald-900" onClick={() => setTab('table')} data-testid="view-all-esg-summary-button">View rankings <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></CardHeader><CardContent className="p-0">{esg.length ? <div className="overflow-x-auto"><div className="min-w-[680px] divide-y divide-stone-100"><div className="grid grid-cols-[minmax(12rem,1.8fr)_repeat(4,minmax(5rem,1fr))_auto] gap-3 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-stone-500"><span>Supplier</span><span>ESG score</span><span>Environment</span><span>Social</span><span>Governance</span><span className="text-right"> </span></div>{esg.map((row) => <div key={row.supplier_id} className="grid grid-cols-[minmax(12rem,1.8fr)_repeat(4,minmax(5rem,1fr))_auto] items-center gap-3 px-5 py-3.5" data-testid={`esg-summary-supplier-${row.supplier_id}`}><span className="truncate text-sm font-semibold text-stone-800">{row.company_name}</span><span className="text-sm font-semibold text-stone-950" data-testid={`esg-summary-score-${row.supplier_id}`}>{scoreText(row.esg_score)}</span><span className="text-sm text-stone-600">{scoreText(row.environment_score)}</span><span className="text-sm text-stone-600">{scoreText(row.social_score)}</span><span className="text-sm text-stone-600">{scoreText(row.governance_score)}</span><Button variant="ghost" size="sm" className="h-8 justify-self-end px-2 text-emerald-800 hover:bg-emerald-50 hover:text-emerald-900" onClick={() => openDetail(row)} data-testid={`view-esg-summary-supplier-${row.supplier_id}`}>View <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></div>)}</div></div> : <p className="p-6 text-sm text-stone-500" data-testid="supplier-esg-summary-empty">No submitted ESG assessments yet.</p>}</CardContent></Card></TabsContent>
+      <TabsContent value="emissions" className="space-y-5"><section className="grid gap-3 sm:grid-cols-3" aria-label="Supplier emissions summary">{[{ id: 'total', label: 'Total attributed emissions', value: attributedScopeTotals.total, color: 'border-emerald-500' }, { id: 'scope1', label: 'Scope 1 attributed', value: attributedScopeTotals.scope1, color: 'border-emerald-400' }, { id: 'scope2', label: 'Scope 2 attributed', value: attributedScopeTotals.scope2, color: 'border-blue-500' }].map((item) => <Card key={item.id} className={`rounded-lg border-stone-200 border-l-4 bg-white shadow-none ${item.color}`} data-testid={`supplier-emissions-${item.id}-metric`}><CardContent className="p-5"><p className="text-xs font-semibold uppercase tracking-wide text-stone-500">{item.label}</p><p className="mt-2 text-3xl font-semibold text-stone-950" data-testid={`supplier-emissions-${item.id}-value`}>{Number(item.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p><p className="mt-1 text-xs text-stone-500">tCO₂e · {Number(attributedScopeTotals.total) ? `${((Number(item.value) / Number(attributedScopeTotals.total)) * 100).toFixed(1)}% of total` : 'No submitted attributed emissions'}</p></CardContent></Card>)}</section><section className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]"><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-emissions-scope-card"><CardHeader className="border-b border-stone-100 pb-4"><CardTitle className="text-base text-stone-900">Attributed emissions by scope</CardTitle><p className="mt-1 text-xs text-stone-500">Submitted Scope 1 and Scope 2 emissions attributed to your organization</p></CardHeader><CardContent className="pt-4">{Number(attributedScopeTotals.total) ? <ResponsiveContainer width="100%" height={238}><PieChart><Pie data={[{ name: 'Scope 1', value: attributedScopeTotals.scope1 }, { name: 'Scope 2', value: attributedScopeTotals.scope2 }]} dataKey="value" innerRadius={60} outerRadius={88} paddingAngle={3} stroke="none"><Cell fill="#059669" /><Cell fill="#3b82f6" /></Pie><ChartTooltip formatter={(value) => [`${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e`, '']} /><Legend verticalAlign="bottom" iconType="circle" /></PieChart></ResponsiveContainer> : <p className="py-16 text-center text-sm text-stone-500" data-testid="supplier-emissions-scope-empty">No submitted attributed emissions yet.</p>}</CardContent></Card><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-emissions-comparison-card"><CardHeader className="border-b border-stone-100 pb-4"><CardTitle className="text-base text-stone-900">Supplier attributed emissions comparison</CardTitle><p className="mt-1 text-xs text-stone-500">Submitted emissions attributed to your organization by supplier</p></CardHeader><CardContent className="pt-5">{emissions.length ? <ResponsiveContainer width="100%" height={238}><BarChart data={emissions} barCategoryGap="28%" margin={{ top: 4, right: 8, left: -15, bottom: 0 }}><CartesianGrid vertical={false} stroke="#edece7" /><XAxis dataKey="company_name" tick={{ fontSize: 10, fill: '#78716c' }} interval={0} /><YAxis tick={{ fontSize: 11, fill: '#78716c' }} /><ChartTooltip formatter={(value) => [`${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e`, '']} /><Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: 11 }} /><Bar dataKey="total_emissions" name="Attributed emissions" fill="#059669" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="py-16 text-center text-sm text-stone-500" data-testid="supplier-emissions-comparison-empty">No submitted attributed emissions yet.</p>}</CardContent></Card></section><section className="grid gap-5 lg:grid-cols-2" data-testid="supplier-emissions-analytics-grid"><SupplierIntensityComparison data={emissionsAnalytics.intensityData} /><SupplierScope1CategoryComparison data={emissionsAnalytics.scope1CategoryData} categories={emissionsAnalytics.categories} /><div className="lg:col-span-2"><SupplierMonthlyEmissionsTrend data={emissionsAnalytics.monthlyTrend} /></div></section><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-emissions-summary-card"><CardHeader className="flex-row items-center justify-between border-b border-stone-100 pb-4"><div><CardTitle className="text-base text-stone-900">Supplier attributed emissions summary</CardTitle><p className="mt-1 text-xs text-stone-500">Submitted attributed totals for every reporting supplier</p></div><span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600" data-testid="supplier-emissions-summary-period">{reportingPeriod}</span></CardHeader><CardContent className="p-0">{emissions.length ? <div className="overflow-x-auto"><div className="min-w-[700px] divide-y divide-stone-100"><div className="grid grid-cols-[minmax(12rem,1.8fr)_repeat(3,minmax(7rem,1fr))_minmax(7rem,.8fr)] gap-3 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-stone-500"><span>Supplier</span><span>Scope 1</span><span>Scope 2</span><span>Total attributed</span><span>Revenue share</span></div>{emissions.map((row) => { const revenueShare = hasValue(row.revenue_percentage) ? `${Number(row.revenue_percentage).toFixed(1).replace(/\.0$/, '')}%` : '—'; return <div key={row.supplier_id} className="grid grid-cols-[minmax(12rem,1.8fr)_repeat(3,minmax(7rem,1fr))_minmax(7rem,.8fr)] items-center gap-3 px-5 py-3.5" data-testid={`supplier-emissions-summary-${row.supplier_id}`}><span className="truncate text-sm font-semibold text-stone-800">{row.company_name}</span><span className="text-sm text-stone-600">{Number(row.scope1_emissions || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span><span className="text-sm text-stone-600">{Number(row.scope2_emissions || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span><span className="text-sm font-semibold text-stone-950" data-testid={`supplier-emissions-total-${row.supplier_id}`}>{Number(row.total_emissions || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</span><span className="text-sm text-stone-600" data-testid={`supplier-revenue-share-${row.supplier_id}`}>{revenueShare}</span></div>; })}</div></div> : <p className="p-6 text-sm text-stone-500" data-testid="supplier-emissions-summary-empty">No submitted attributed emissions yet.</p>}</CardContent></Card></TabsContent>
+      <TabsContent value="table"><Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="detailed-rankings-card"><CardHeader className="gap-4 border-b border-stone-100 pb-5 md:flex-row md:items-center md:justify-between"><div><CardTitle className="text-lg text-stone-900">Detailed performance rankings</CardTitle><p className="mt-1 text-sm text-stone-500">ESG scores and assigned-module completion.</p></div><div className="flex items-center gap-3"><Button variant="outline" size="icon" className="h-9 w-9" onClick={load} data-testid="refresh-detailed-rankings-button"><RefreshCw className="h-4 w-4" /></Button><Tooltip><TooltipTrigger asChild><button type="button" aria-label="About ESG score" className="text-stone-500 transition-colors hover:text-stone-900" data-testid="overall-score-info-tooltip"><Info className="h-4 w-4" /></button></TooltipTrigger><TooltipContent>ESG score reflects the supplier’s submitted ESG assessment.</TooltipContent></Tooltip><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setRankingPage(1); }} placeholder="Search suppliers..." className="h-9 w-56 pl-9" data-testid="ranking-supplier-search-input" /></div></div></CardHeader><CardContent className="p-0">{loading ? <p className="p-6 text-sm text-stone-500" data-testid="detailed-rankings-loading">Loading rankings…</p> : rows.length ? <><div className="overflow-x-auto"><div className="min-w-[1200px]" data-testid="detailed-rankings-table"><div className="grid grid-cols-[minmax(14rem,2fr)_repeat(4,minmax(8rem,1fr))_repeat(3,minmax(8rem,1fr))_auto] gap-3 border-b border-stone-200 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase text-stone-500" data-testid="detailed-rankings-table-heading"><span>Supplier name</span><SortableHeading label="ESG score" sortKey="esg_score" sort={rankingSort} onSort={toggleRankingSort} testId="sort-detailed-rankings-esg-button" /><SortableHeading label="Environment score" sortKey="environment_score" sort={rankingSort} onSort={toggleRankingSort} testId="sort-detailed-rankings-environment-button" /><SortableHeading label="Social score" sortKey="social_score" sort={rankingSort} onSort={toggleRankingSort} testId="sort-detailed-rankings-social-button" /><SortableHeading label="Governance score" sortKey="governance_score" sort={rankingSort} onSort={toggleRankingSort} testId="sort-detailed-rankings-governance-button" /><span>GHG completion %</span><span>Training %</span><span>Documents %</span><span className="text-right">Action</span></div><div className="divide-y divide-stone-100">{visibleRankingRows.map((row) => <div key={row.supplier_id} className="grid grid-cols-[minmax(14rem,2fr)_repeat(4,minmax(8rem,1fr))_repeat(3,minmax(8rem,1fr))_auto] items-center gap-3 px-5 py-4 text-sm" data-testid={`detailed-ranking-row-${row.supplier_id}`}><span className="truncate font-semibold text-stone-900">{row.company_name}</span><span className="font-semibold text-stone-900" data-testid={`supplier-esg-score-${row.supplier_id}`}>{scoreText(row.esg_score)}</span><span className="text-stone-700" data-testid={`supplier-environment-score-${row.supplier_id}`}>{scoreText(row.environment_score)}</span><span className="text-stone-700" data-testid={`supplier-social-score-${row.supplier_id}`}>{scoreText(row.social_score)}</span><span className="text-stone-700" data-testid={`supplier-governance-score-${row.supplier_id}`}>{scoreText(row.governance_score)}</span><span className="text-stone-700" data-testid={`supplier-ghg-completion-${row.supplier_id}`}>{completionText(row.module_progress?.ghg)}</span><span className="text-stone-700" data-testid={`supplier-training-completion-${row.supplier_id}`}>{completionText(row.module_progress?.training)}</span><span className="text-stone-700" data-testid={`supplier-documents-completion-${row.supplier_id}`}>{completionText(row.module_progress?.documents)}</span><Button variant="ghost" size="sm" className="h-8 justify-self-end px-2 text-emerald-800 hover:bg-emerald-50 hover:text-emerald-900" onClick={() => openDetail(row)} data-testid={`view-detailed-ranking-supplier-${row.supplier_id}`}>View <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></div>)}</div></div></div><footer className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-100 px-5 py-4" data-testid="detailed-rankings-pagination"><p className="text-xs text-stone-500" data-testid="detailed-rankings-count">Showing {rankingStart} to {rankingEnd} of {rows.length} suppliers</p><div className="flex items-center gap-1"><Button variant="outline" size="icon" className="h-8 w-8" disabled={rankingPage === 1} onClick={() => setRankingPage((page) => Math.max(1, page - 1))} data-testid="detailed-rankings-previous-page"><ChevronLeft className="h-4 w-4" /></Button><span className="flex h-8 min-w-8 items-center justify-center text-xs font-semibold text-stone-700" data-testid="detailed-rankings-current-page">{rankingPage}</span><Button variant="outline" size="icon" className="h-8 w-8" disabled={rankingPage === rankingPageCount} onClick={() => setRankingPage((page) => Math.min(rankingPageCount, page + 1))} data-testid="detailed-rankings-next-page"><ChevronRight className="h-4 w-4" /></Button></div></footer></> : <p className="p-6 text-sm text-stone-500" data-testid="detailed-rankings-empty">No suppliers match your search.</p>}</CardContent></Card></TabsContent>
+    </Tabs>
+    <style>{`[data-testid="ranking-supplier-detail-dialog"] .border-l-4:nth-child(1), [data-testid="ranking-supplier-detail-dialog"] .border-l-4:nth-child(3) { display: none; } [data-testid="ranking-supplier-detail-dialog"] section.grid:first-of-type { grid-template-columns: repeat(2, minmax(0, 1fr)); }`}</style>
+    <Dialog open={Boolean(supplier)} onOpenChange={(open) => !open && setSupplier(null)}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-5xl overflow-y-auto" data-testid="ranking-supplier-detail-dialog"><DialogHeader><DialogTitle>{supplier?.company_name} — Assessment Detail</DialogTitle><p className="text-sm text-stone-500">Track ESG, GHG, documents and training progress for this supplier.</p></DialogHeader>{!detail ? <p className="py-16 text-center text-sm text-stone-500">Loading assessment detail…</p> : <><section className="grid gap-3 border-y border-stone-100 py-4 sm:grid-cols-2 lg:grid-cols-4"><div className="border-l-4 border-violet-400 bg-violet-50/50 p-3"><p className="text-xs text-stone-500">Overall score</p><p className="mt-1 text-2xl font-semibold text-stone-900">{scoreText(supplier?.overall_score)}</p></div><div className="border-l-4 border-emerald-400 bg-emerald-50/50 p-3"><p className="text-xs text-stone-500">ESG score</p><p className="mt-1 text-2xl font-semibold text-stone-900">{scoreText(supplier?.esg_score)}</p></div><div className="border-l-4 border-sky-400 bg-sky-50/50 p-3"><p className="text-xs text-stone-500">GHG score</p><p className="mt-1 text-2xl font-semibold text-stone-900">{scoreText(supplier?.ghg_score)}</p></div><div className="border-l-4 border-amber-400 bg-amber-50/50 p-3"><p className="text-xs text-stone-500">Revenue contribution</p><p className="mt-1 text-2xl font-semibold text-stone-900">{hasValue(supplier?.revenue_percentage) ? `${supplier.revenue_percentage}%` : '—'}</p></div></section><section className="grid gap-6 py-3 md:grid-cols-2"><DetailSection title="ESG" Icon={Leaf} accent="bg-emerald-100 text-emerald-700" empty="No ESG questionnaires assigned." items={(detail.esg_items || []).map((item) => <DetailItem key={item.questionnaire_id} item={item} Icon={Leaf} accent="border-emerald-300" />)} /><DetailSection title="GHG" Icon={Factory} accent="bg-violet-100 text-violet-700" empty="" items={[<DetailItem key="ghg" item={{ ...detail.ghg, name: 'GHG emissions submission' }} Icon={Factory} accent="border-violet-300" />]} /><DetailSection title="Documents" Icon={FileText} accent="bg-sky-100 text-sky-700" empty="No documents assigned." items={(detail.documents || []).map((item) => <DetailItem key={item.id} item={item} Icon={FileText} accent="border-sky-300" />)} /><DetailSection title="Training" Icon={GraduationCap} accent="bg-amber-100 text-amber-700" empty="No training assigned." items={(detail.training || []).map((item) => <DetailItem key={item.id} item={item} Icon={GraduationCap} accent="border-amber-300" />)} /></section></>}<DialogFooter><Button variant="outline" onClick={() => setSupplier(null)} data-testid="close-ranking-supplier-detail-button">Close</Button></DialogFooter></DialogContent></Dialog>
+  </div></TooltipProvider>;
 }

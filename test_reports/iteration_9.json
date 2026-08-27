@@ -1,5 +1,5 @@
 {
-  "summary": "Completed testing of P0 Admin bug fixes: PDF file viewing, version history for emissions, and country-specific emission factor lookup. All backend tests pass (8/8). Frontend verification confirms features are working.",
+  "summary": "Executed live backend+frontend verification for immutable Supplier Assessment ESG/GHG/Documents submission and parent-controlled unlock workflows using admin and supplier credentials.",
   "backend_issues": {
     "critical": [],
     "minor": []
@@ -7,110 +7,34 @@
   "frontend_issues": {
     "ui_bugs": [],
     "integration_issues": [],
-    "design_issues": [
-      {
-        "screen": "Facilities and Emissions forms",
-        "issues": ["React hydration warning about <span> inside <select> - cosmetic, not affecting functionality"]
-      }
-    ]
-  },
-  "verified_features": {
-    "feature_1_pdf_file_viewing": {
-      "status": "PASSED",
-      "details": "The /api/files/{file_id}/view endpoint now allows PDFs (not just images). Backend code at lines 1695-1726 checks content_type against 'application/pdf' and sets Content-Disposition: inline for browser display.",
-      "backend_tests_passed": 2,
-      "ui_verified": "Code in Facilities.js (lines 439-459) shows View/Download buttons for uploaded files",
-      "endpoints_tested": [
-        "POST /api/upload/evidence - PDF upload successful",
-        "GET /api/files/{id}/view - Returns PDF with proper content-type and inline disposition"
-      ]
-    },
-    "feature_2_version_history": {
-      "status": "PASSED",
-      "details": "Version history now shows 'Created' entry when emission is created (action='created') and 'Updated' entries for subsequent edits (action='updated'). Backend code at lines 1033-1045 creates initial history entry on POST /api/emissions, and lines 1095-1107 create update history entry on PUT.",
-      "backend_tests_passed": 2,
-      "ui_verified": "UI shows 'Created by: admin@ghg.com' and 'Updated by:' info on emission cards. Version History dialog shows Created/Updated entries with timestamps and user emails.",
-      "endpoints_tested": [
-        "POST /api/emissions - Creates emission + history entry with action='created'",
-        "PUT /api/emissions/{id} - Updates emission + adds history entry with action='updated'",
-        "GET /api/emissions/{id}/history - Returns history sorted by changed_at ascending"
-      ]
-    },
-    "feature_3_country_specific_factors": {
-      "status": "PASSED",
-      "details": "Emissions.js handleCategoryChange (lines 101-164) now prioritizes country-specific emission factors. Logic: 1) Find factor matching facility country, 2) Fall back to Global factor if no country match, 3) Use any matching factor as last resort.",
-      "backend_tests_passed": 2,
-      "ui_verified": "Facility dropdown shows country in parentheses. EmissionFactorResponse model includes 'region' field for country-specific matching.",
-      "endpoints_tested": [
-        "POST /api/super-admin/emission-factors - Create factors with region field",
-        "GET /api/emission-factors - Returns factors with region info"
-      ]
-    },
-    "feature_4_filters_overlap": {
-      "status": "PASSED",
-      "details": "Emissions page filters use proper grid layout (grid-cols-1 sm:grid-cols-2) at lines 750-826 in Emissions.js. Filter section has proper spacing and responsiveness.",
-      "backend_tests_passed": 2,
-      "ui_verified": "Filters displayed correctly without overlap - Facility, Category, Date Range, Clear Filters all properly spaced"
-    }
+    "design_issues": []
   },
   "test_report_links": [
-    "/app/backend/tests/test_p0_admin_issues.py",
-    "/app/test_reports/pytest/pytest_p0_admin_issues.xml"
+    "/app/backend/tests/test_supplier_assessment_immutable_unlock_iter9.py",
+    "/app/test_reports/pytest/pytest_results.xml"
   ],
-  "action_items": [],
+  "action_items": [
+    "Seed one submitted STATUS document response for supplier test account so immutable status-change rejection is always validated without skips.",
+    "Seed one in-progress ESG questionnaire for supplier test account to deterministically validate admin unlock no-op on non-submitted records.",
+    "Add stable supplier questionnaire entry link data-testid on supplier dashboard for direct UI route automation coverage."
+  ],
   "critical_code_review_comments": [
-    "Note: Older emissions created before the fix don't have version history entries - only new/updated emissions will have history"
+    "backend/modules/supplier_assessment/router.py is very large (>1000 lines), increasing regression risk for lock/unlock changes.",
+    "frontend/src/modules/supplier-assessment/SupplierGHGView.jsx search/filter interactive controls still lack data-testid attributes (testability gap).",
+    "frontend/src/modules/supplier-assessment/SupplierQuestionnaire.jsx response inputs (radio/select/numeric/textarea) do not expose data-testid attributes, reducing automation reliability for immutable-edit UI checks."
   ],
   "updated_files": [
-    "/app/backend/tests/test_p0_admin_issues.py"
+    "/app/backend/tests/test_supplier_assessment_immutable_unlock_iter9.py",
+    "/app/test_reports/iteration_9.json",
+    "/app/test_reports/pytest/pytest_results.xml"
   ],
   "success_rate": {
-    "backend": "100% (8/8 tests passed)",
-    "frontend": "100% (all features verified)"
+    "backend": "100% pass on executed tests (5/5), 2 skipped due missing live data states",
+    "frontend": "100% pass for executed smoke/navigation and unlock-control presence checks"
   },
-  "test_credentials": {
-    "admin": {
-      "email": "admin@ghg.com",
-      "password": "admin123"
-    },
-    "super_admin": {
-      "email": "superadmin@ecotrack.com",
-      "password": "SuperAdmin123!"
-    }
-  },
-  "seed_data_creation": "Created test emissions with version history entries during pytest",
-  "retest_needed": false,
-  "should_main_agent_self_test": false,
-  "context_for_next_testing_agent": "P0 Admin fixes verified: 1) PDF viewing works via /api/files/{id}/view with inline disposition, 2) Version history tracks Created/Updated with action field and user emails, 3) Country-specific emission factors prioritized in Emissions.js handleCategoryChange. Old emissions won't have history entries - only new/updated ones.",
-  "testing_method": "pytest for backend API tests + Playwright browser automation for UI verification",
-  "features_tested": [
-    {
-      "feature_id": "Bug-1",
-      "title": "PDF File Viewing",
-      "files": ["/app/backend/server.py lines 1695-1726"],
-      "tests": ["Upload PDF", "View PDF via /api/files/{id}/view"],
-      "result": "PASSED"
-    },
-    {
-      "feature_id": "Bug-2",
-      "title": "Version History for Emissions",
-      "files": ["/app/backend/server.py lines 1033-1045, 1095-1107", "/app/frontend/src/pages/Emissions.js lines 917-1020"],
-      "tests": ["Create emission creates history", "Update emission adds history entry"],
-      "result": "PASSED"
-    },
-    {
-      "feature_id": "Bug-3",
-      "title": "Country-Specific Emission Factors",
-      "files": ["/app/frontend/src/pages/Emissions.js lines 101-164"],
-      "tests": ["Create global and country-specific factors", "Verify region field in API"],
-      "result": "PASSED"
-    },
-    {
-      "feature_id": "UI-1",
-      "title": "Emissions Page Filters",
-      "files": ["/app/frontend/src/pages/Emissions.js lines 750-826"],
-      "tests": ["Filter by facility", "Filter by scope"],
-      "result": "PASSED"
-    }
-  ]
+  "seed_data_creation": "None. No live supplier submission/unlock mutations were intentionally executed.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Admin+supplier login succeeded. Verified supplier and parent GHG contracts, supplier ESG lock rejection on submitted questionnaire, supplier-forbidden admin unlock endpoints (ESG/GHG/Documents), and presence of unlock controls in Supplier List, Supplier GHG admin, and Supplier Documents admin screens (all showed at least one unlock control in this dataset). Questionnaire route from supplier dashboard had no discoverable questionnaire link in this run.",
+  "rca of the issue": "No functional regression failures were reproduced in executed flows. Coverage gaps came from environment data-state dependency: missing/limited specific records (submitted STATUS document + in-progress ESG questionnaire linkage in UI path) caused targeted checks to skip rather than fail."
 }

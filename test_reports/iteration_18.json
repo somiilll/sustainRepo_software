@@ -1,5 +1,5 @@
 {
-  "summary": "Fuel Database integration with Emissions tested successfully. All 12 backend API tests passed. Frontend UI verification confirms: fuel dropdown grouped by category, auto-population of parameters (calorific value, emission factors, source), real-time emission calculation, Show Breakdown with formula details, Override Calorific Value and Override Density checkboxes. Emission creation with fuel database integration works correctly.",
+  "summary": "Completed testing of bulk upload gaps: Template download with org capabilities, upload validation preview field, error report with warnings, and frontend preview panel. All 11 backend tests passed. Frontend bulk upload page loads correctly with proper data-testid attributes.",
   "backend_issues": {
     "critical": [],
     "minor": []
@@ -7,149 +7,56 @@
   "frontend_issues": {
     "ui_bugs": [],
     "integration_issues": [],
-    "design_issues": [
-      {"screen": "Add Emission Dialog", "issues": ["Console warnings about HTML hydration errors (<span> in <option>/<select>/<optgroup>) - non-blocking but should be fixed for clean console"]}
-    ]
-  },
-  "verified_features": {
-    "admin_login": {
-      "status": "PASSED",
-      "details": "Admin login with admin@ghg.com/admin123 works correctly, returns token and user info"
-    },
-    "fuel_database_endpoint": {
-      "status": "PASSED",
-      "tests": [
-        "/api/fuel-database returns list of fuels",
-        "Each fuel contains required parameters: id, fuel_name, category, industry_sector, scope, calorific_value, calorific_value_unit, emission_factor_co2",
-        "Fuels grouped by category",
-        "Optional CH4/N2O emission factors present"
-      ]
-    },
-    "emission_form_fuel_dropdown": {
-      "status": "PASSED",
-      "details": "Dropdown shows fuels grouped by category (Mobile Combustion, Stationary Combustion)"
-    },
-    "auto_populate_parameters": {
-      "status": "PASSED",
-      "details": "Selecting fuel auto-populates: category, calorific_value (43 MJ/kg), CO2 EF (74100 kg/TJ), source (IPCC 2006)"
-    },
-    "real_time_calculation": {
-      "status": "PASSED",
-      "details": "Quantity input updates calculated emissions in real-time. Example: 1000 units → 2750.1207 kg CO2e"
-    },
-    "show_breakdown_button": {
-      "status": "PASSED",
-      "details": "Shows detailed calculation: Energy Content = Qty × CV × Density × CF, Energy TJ, CO2/CH4/N2O emissions with GWP"
-    },
-    "override_calorific_value": {
-      "status": "PASSED",
-      "details": "Checkbox enables custom calorific value input, updates calculation accordingly"
-    },
-    "override_density": {
-      "status": "PASSED",
-      "details": "Checkbox enables custom density input, updates calculation accordingly"
-    },
-    "create_emission_with_fuel_db": {
-      "status": "PASSED",
-      "details": "Created emission with fuel database integration - toast confirms 'Emission record created successfully'"
-    },
-    "calculation_formula": {
-      "status": "PASSED",
-      "details": "Formula: qty × calorific × density × conversion × EF × GWP implemented correctly. Backend calculate_total_emissions function verified."
-    },
-    "gwp_values": {
-      "status": "PASSED",
-      "details": "GWP values correct: CO2=1, CH4=28, N2O=265 (IPCC AR5)"
-    },
-    "super_admin_fuel_database": {
-      "status": "PASSED",
-      "details": "Super Admin can access Fuel Database page with full CRUD. Shows 4 fuels with all parameters."
-    }
+    "design_issues": []
   },
   "test_report_links": [
-    "/app/backend/tests/test_fuel_database_integration.py",
-    "/app/test_reports/pytest/pytest_fuel_database.xml"
+    "/app/backend/tests/test_bulk_upload_scope3_iter18.py",
+    "/app/test_reports/pytest/pytest_results_iter18.xml"
   ],
   "action_items": [],
   "critical_code_review_comments": [
-    "Console warning: HTML hydration errors with <span> inside <option>/<select>/<optgroup> in Emissions.js - should use React fragment or proper element structure"
+    "ValidationResultsCard.jsx correctly implements data-testid='upload-preview-panel' (line 44) and data-testid='validation-action-panel' (line 90)",
+    "responseTransformer.js correctly passes preview field through (line 42)",
+    "template_generator.py _create_instructions_sheet (line 731+) includes 'YOUR ORGANIZATION'S ENABLED CAPABILITIES' section with scope/category ENABLED/DISABLED status",
+    "upload_processor.py _build_preview (line 84+) computes preview with total_valid_records, standard_fuel_records, custom_fuel_records, by_scope, by_category, by_methodology, total_co2e_tco2e",
+    "report_generator.py generate_error_report includes both Errors and Warnings sheets with severity-based color coding",
+    "server.py save route (line 3471+) has try/except with compensating rollback for partial insert failures"
   ],
   "updated_files": [
-    "/app/backend/tests/test_fuel_database_integration.py"
+    "/app/backend/tests/test_bulk_upload_scope3_iter18.py"
   ],
   "success_rate": {
-    "backend": "100% (12/12 tests passed)",
-    "frontend": "100% (all features verified)"
+    "backend": "100%",
+    "frontend": "100%"
   },
-  "test_credentials": {
-    "admin": {"email": "admin@ghg.com", "password": "admin123"},
-    "super_admin": {"email": "superadmin@ecotrack.com", "password": "SuperAdmin123!"}
-  },
-  "seed_data_creation": "Used existing fuels in database: Diesel, Natural Gas, Bituminous Coal, LPG. Created test emission record (cleaned up after test).",
+  "seed_data_creation": "",
   "retest_needed": false,
   "should_main_agent_self_test": false,
-  "context_for_next_testing_agent": "Fuel Database integration fully working. Backend tests cover: admin login, fuel database endpoint, emission creation with fuel params, override CV/density, CH4/N2O with GWP, custom fuel types, GWP values. Test file: test_fuel_database_integration.py. Super Admin Fuel Database page accessible at /fuel-database.",
-  "testing_method": "pytest for backend API tests + Playwright browser automation for UI verification",
-  "features_tested": [
-    {
-      "feature": "Admin login",
+  "context_for_next_testing_agent": "Bulk upload scope 3 features tested: (1) Template download returns HTTP 200 with Instructions sheet containing 'YOUR ORGANIZATION'S ENABLED CAPABILITIES' section showing scope/category ENABLED/DISABLED status - VERIFIED. (2) Upload validation response includes 'preview' field with keys: total_valid_records, standard_fuel_records, custom_fuel_records, by_scope, by_category, by_methodology, total_co2e_tco2e - VERIFIED. (3) Error report download returns Excel with Errors and Warnings sheets - VERIFIED. (4) Frontend ValidationResultsCard has data-testid='upload-preview-panel' that renders when preview data exists - VERIFIED in code. All 11 pytest tests passed.",
+  "features_verified": {
+    "template_download_with_capabilities": {
       "status": "PASSED",
-      "tests_run": 2
+      "details": "Template download returns HTTP 200 with correct content type. Instructions sheet contains 'YOUR ORGANIZATION'S ENABLED CAPABILITIES' section listing scope and category statuses (ENABLED/DISABLED)"
     },
-    {
-      "feature": "Fuel Database endpoint",
-      "status": "PASSED", 
-      "tests_run": 4
-    },
-    {
-      "feature": "Emission calculation with fuel database",
+    "upload_validation_preview_field": {
       "status": "PASSED",
-      "tests_run": 4
+      "details": "Upload validation response (POST /api/bulk-upload/scope3/upload with validate_only=true) includes 'preview' field with keys: total_valid_records, standard_fuel_records, custom_fuel_records, by_scope, by_category, by_methodology, total_co2e_tco2e"
     },
-    {
-      "feature": "Custom fuel type",
+    "error_report_with_warnings": {
       "status": "PASSED",
-      "tests_run": 1
+      "details": "Error report download (GET /api/bulk-upload/scope3/jobs/{job_id}/errors/download) returns Excel file with Summary, Errors, and Warnings sheets"
     },
-    {
-      "feature": "GWP values",
-      "status": "PASSED",
-      "tests_run": 1
+    "frontend_preview_panel": {
+      "status": "VERIFIED_IN_CODE",
+      "details": "ValidationResultsCard.jsx renders 'Upload Preview' panel (data-testid='upload-preview-panel') when preview data is present, showing Valid Records, Standard Fuel, Custom Fuel, and Total CO2e counts plus scope and methodology badges"
     },
-    {
-      "feature": "UI - Fuel selection dropdown",
+    "scope2_org_category_enforcement": {
       "status": "PASSED",
-      "ui_verified": true
+      "details": "Scope 2 validation with custom energy source works correctly. Custom fuel auto-detection triggers warnings when energy source not in database"
     },
-    {
-      "feature": "UI - Auto-populate parameters",
-      "status": "PASSED",
-      "ui_verified": true
-    },
-    {
-      "feature": "UI - Real-time calculation",
-      "status": "PASSED",
-      "ui_verified": true
-    },
-    {
-      "feature": "UI - Show Breakdown",
-      "status": "PASSED",
-      "ui_verified": true
-    },
-    {
-      "feature": "UI - Override checkboxes",
-      "status": "PASSED",
-      "ui_verified": true
-    },
-    {
-      "feature": "UI - Create emission (end-to-end)",
-      "status": "PASSED",
-      "ui_verified": true
-    },
-    {
-      "feature": "Super Admin Fuel Database page",
-      "status": "PASSED",
-      "ui_verified": true
+    "rollback_for_partial_saves": {
+      "status": "VERIFIED_IN_CODE",
+      "details": "server.py save route (line 3471+) has try/except with compensating rollback that deletes partial records on insert_many failure"
     }
-  ]
+  }
 }

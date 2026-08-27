@@ -1,102 +1,61 @@
 {
-  "theme": "Light",
-  "design_archetype": "ORGANIC & EARTHY",
+  "theme_and_context": {
+    "app_type": "Dashboard",
+    "theme": "Light mode preference (Data-heavy)",
+    "archetype": "ARCHETYPE 4: SWISS & HIGH-CONTRAST variant tailored for enterprise dashboard",
+    "description": "Functional beauty, dense compact spacing, high-contrast readability, clear interaction states. The design preserves the existing clean Stone, Emerald, Violet, and Sky palettes already established in the dashboard."
+  },
   "typography": {
-    "heading_font": "Manrope",
-    "body_font": "IBM Plex Sans",
-    "hierarchy": {
-      "h1": "text-2xl font-bold tracking-tight text-gray-900",
-      "h2": "text-lg font-semibold tracking-tight text-gray-800",
-      "h3": "text-base font-medium text-gray-800",
-      "body": "text-sm leading-relaxed text-gray-600",
-      "badge": "text-xs font-medium uppercase tracking-wider"
-    },
-    "notes": "Do not use Inter for headings. Keep typographic scales moderate for dashboard legibility."
+    "headings": "System default clean sans-serif (Inter/Geist) to match existing design. Preserve classes like text-stone-900, font-semibold.",
+    "body": "text-sm text-stone-500, text-stone-600, or text-stone-800 for maximum data density and legibility.",
+    "hierarchy": "Strict text sizes: max text-4xl for page titles (like 'Supplier rankings'), text-base/text-sm for card titles and data."
   },
   "colors": {
-    "primary_accent": "#10B981",
-    "surface": "#FFFFFF",
-    "border": "#E5E7EB",
-    "emission_tints": {
-      "CO2": {
-        "bg": "bg-red-50",
-        "border": "border-red-100",
-        "text": "text-red-700",
-        "icon": "text-red-500"
-      },
-      "CH4": {
-        "bg": "bg-orange-50",
-        "border": "border-orange-100",
-        "text": "text-orange-700",
-        "icon": "text-orange-500"
-      },
-      "N2O": {
-        "bg": "bg-yellow-50",
-        "border": "border-yellow-200",
-        "text": "text-yellow-700",
-        "icon": "text-yellow-600"
-      },
-      "CO2e": {
-        "bg": "bg-green-50",
-        "border": "border-green-200",
-        "text": "text-green-800",
-        "icon": "text-green-600"
-      }
-    },
-    "calculation_rows": {
-      "input": "text-blue-500",
-      "density": "text-orange-500",
-      "calorific": "text-yellow-500",
-      "emission_factor": "text-purple-500",
-      "final": "text-green-600"
+    "background": "bg-white or bg-stone-50/100",
+    "text": "text-stone-900 (primary), text-stone-500 (secondary)",
+    "primary_brand": "Emerald (emerald-600/700) for ESG/Emissions, Sky/Teal for Documents, Violet for GHG, Amber for Training",
+    "status": {
+      "excellent": "emerald-600",
+      "good": "blue-600",
+      "average": "amber-500",
+      "critical": "rose-600"
     }
   },
-  "layout_and_spacing": {
-    "containers": "bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-6",
-    "edit_box_grid": "Grid layout MUST be properly proportioned. Wrap in a grid-cols-12 gap-6. Set 'Biogenic' fields to col-span-3 or col-span-4, and 'Reporting Month' to col-span-4 or col-span-5 to prevent reporting month from being too narrow. Eliminate unnecessary blank columns.",
-    "general": "Use generous internal padding (p-4 to p-6) within cards. Avoid tight, crammed data views."
+  "visual_enhancers": {
+    "borders": "border-stone-200 for standard structural cards, border-stone-100 for internal dividers",
+    "shadows": "shadow-sm for interactive overlays/dialogs, shadow-none for flat dashboard cards",
+    "corner_radius": "rounded-lg for main containers, rounded-md for nested inner elements",
+    "glassmorphism": "Avoid in data-heavy medical/finance/assessment areas to prevent visual refraction of data; use solid off-white/stone backgrounds for dialogs."
   },
-  "component_instructions": {
-    "form_fields": {
-      "select_dropdowns": "Add leading icons inside Shadcn SelectTrigger. Add 'pl-10' to the trigger text container, and position the icon absolutely (left-3, top-1/2, -translate-y-1/2) with size 16px.",
-      "radio_buttons": "Override default blue active state. Use custom green accent classes (e.g., text-emerald-600 ring-emerald-600 border-emerald-600) for active/checked states on Scope 1, 2, 3, and biogenic radio groupings."
-    },
-    "calculated_emissions": {
-      "header": "Replace generic calc icon with lucide-react 'Leaf' icon (text-emerald-500) next to the section title.",
-      "disclaimer_badge": "Convert '(Values rounded to 4 decimal places)' to a pill badge: flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-500. Place an 'Info' icon (12px) on the right side.",
-      "emission_cards": "Remove solid grey backgrounds. Apply 'emission_tints' colors (red, orange, yellow, green) for bg, border, and text. Add matching lucide-react icons to the left of the card content. For Scope 3 where only CO2e exists, give it a prominent, full-width or beautified UI treatment rather than a small isolated card."
-    },
-    "calculation_details": {
-      "container": "Wrap this entire section in a Shadcn Accordion component, set to be collapsible and collapsed by default.",
-      "row_styling": "Remove solid block backgrounds. Use white backgrounds with a thin bottom border (border-b border-gray-100) and py-3 for a clean list-item look.",
-      "source_badges": "Transform plain text '(Source - IPCC 2006)' into right-aligned pill badges: bg-orange-50 border border-orange-200 text-orange-600 px-2.5 py-0.5 rounded-full text-xs font-medium.",
-      "final_row": "Style the final calculation row with a soft green background tint (bg-green-50), darker green border (border border-green-200), rounded-lg, and green text. Align the 'CO2e: CO2' label cleanly to the right side inside this specific container."
-    }
+  "layouts_and_grids": {
+    "dashboard_grid": "Tight gap (gap-4 or gap-5), grid-cols-1 md:grid-cols-2 lg:grid-cols-2 for chart comparisons, 1fr for full-width tabular data.",
+    "card_structure": "Flat background, 1px subtle border, no heavy drop shadows."
   },
-  "iconography_mapping": {
-    "library": "lucide-react",
-    "facility": "Building (text-emerald-500)",
-    "reporting_month": "Calendar (text-emerald-500)",
-    "category": "Car (text-emerald-500) for mobile, Factory for stationary, etc.",
-    "fuel_type": "Droplet (text-blue-500)",
-    "calculation_method": "Calculator (text-blue-500)",
-    "co2_card": "Cloud (text-red-500)",
-    "ch4_card": "Dna (text-orange-500)",
-    "n2o_card": "RefreshCcw (text-yellow-600)",
-    "co2e_card": "Leaf (text-green-600)",
-    "calc_input": "ArrowUpFromLine (text-blue-500)",
-    "calc_density": "FlaskConical (text-orange-500)",
-    "calc_calorific": "Flame (text-yellow-500)",
-    "calc_factor": "Calculator (text-purple-500)",
-    "calc_final": "CheckCircle2 (text-green-600)",
-    "disclaimer_info": "Info (text-gray-400)"
+  "instructions_to_main_agent": {
+    "SupplierRanking.jsx": [
+      "In the ESG Tab (`TabsContent value='esg'`), LOCATE the `Card` with `data-testid='esg-module-coverage-card'` ('Assessment module coverage (avg completion)') and REMOVE it.",
+      "In its place (or alongside the ESG score distribution), ADD a new `Card` with `data-testid='esg-supplier-comparison-card'` displaying a grouped bar chart of each supplier's E, S, and G scores.",
+      "Use Recharts `BarChart` for the grouped chart. Map over the `esg` array (which contains suppliers with esg scores).",
+      "Configure `<XAxis dataKey='company_name' />` and three `<Bar>` components: `environment_score` (color: #059669 / emerald-600), `social_score` (color: #3b82f6 / blue-500), and `governance_score` (color: #7c3aed / violet-600).",
+      "Use `ResponsiveContainer` (height ~244), `CartesianGrid`, `ChartTooltip`, and `Legend` for clarity."
+    ],
+    "SupplierDocumentsAdmin.jsx": [
+      "In the list of published agreements (`published-supplier-agreements-list`), REPLACE the inline wrapping list of individual supplier badges (`agreement-assigned-suppliers-...`) with a scalable summary text (e.g., '25 suppliers assigned').",
+      "ADD a 'View suppliers' link or button next to the summary that triggers a dialog (or modify the existing 'Responses' dialog) containing a table/list of all assigned suppliers with their 'Pending' or 'Submitted' statuses.",
+      "ADD a 'Preview Document' button to each document in the main list. Clicking it must trigger a secure in-app preview (e.g., a modal with an iframe or secure object tag for PDF/DOC viewing)."
+    ],
+    "SupplierTrainingAdmin.jsx": [
+      "In the training list (`training-admin-list`), ADD a 'Preview Training' button to each training item so the parent organization can securely preview the uploaded training content in read-only mode.",
+      "The preview should open an in-app dialog overlay containing a secure viewer (video, audio, or document viewer depending on file type).",
+      "Ensure the preview action strictly maintains read-only access."
+    ]
   },
-  "universal_guidelines_for_main_agent": [
-    "CRITICAL: All components must be written in .js files, not .tsx.",
-    "Include 'data-testid' attributes on ALL interactive elements, form inputs, dropdowns, cards, and vital data points for reliable testing.",
-    "Never use pure transparent backgrounds for overlays, headers, or dropdowns. Always use solid surface colors to prevent text overlapping and readability issues.",
-    "Ensure the green Scope radio buttons and form logic applies consistently across Scope 1, Scope 2, Scope 3, and Biogenic contexts.",
-    "Avoid centering dense forms or dashboard layouts. Use left-alignment (optical alignment) for clear readability.",
-    "Implement subtle hover transitions (e.g., hover:-translate-y-[1px] shadow-sm) for interactive cards and rows."
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Preserve existing styles, spacing (Tailwind classes), and Shadcn UI component usage.",
+    "Do not break Recharts responsive containers; ensure all Recharts elements have correct imports from 'recharts'.",
+    "Do not use transparent backgrounds under text or critical UI. All dropdowns, dialogs, and tooltips must have solid backgrounds.",
+    "All interactive elements MUST have a data-testid attribute in kebab-case to facilitate robust automated testing.",
+    "Ensure accessible contrast for all text over chart colors.",
+    "Use optical alignment for buttons with icons, adding slightly more padding to the side without the icon."
   ]
 }

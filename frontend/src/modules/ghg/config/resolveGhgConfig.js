@@ -87,7 +87,7 @@ export const resolveGhgConfig = ({ standardConfig, organizationOverrides } = {})
       return next;
     });
 
-  const organizationMeta = [...RESERVED_OVERRIDE_KEYS, 'disabledScopes', 'disabledCategories', 'disabledSubcategories'].reduce((acc, key) => {
+  const organizationMeta = [...RESERVED_OVERRIDE_KEYS, 'disabledScopes', 'disabledCategories', 'disabledSubcategories', 'capabilityOverrides', 'processTypeOptions'].reduce((acc, key) => {
     if (organizationOverrides[key] !== undefined) acc[key] = organizationOverrides[key];
     return acc;
   }, {});

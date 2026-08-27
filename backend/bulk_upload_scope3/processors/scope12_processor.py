@@ -11,6 +11,7 @@ from ..models import (
     ValidationError, ErrorSeverity, RowResult, CATEGORY_COLUMNS
 )
 from ..validators import FieldValidator
+from ..ghg_config_resolver import ResolvedGhgCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +20,15 @@ class Scope12RowProcessor:
     """Processes individual rows from Scope 1 and Scope 2 bulk upload sheets"""
     
     def __init__(self, db, organization_id: str, user_id: str,
-                 user_email: str = "", user_name: str = ""):
+                 user_email: str = "", user_name: str = "",
+                 capabilities: Optional[ResolvedGhgCapabilities] = None):
         self.db = db
         self.organization_id = organization_id
         self.user_id = user_id
         self.user_email = user_email
         self.user_name = user_name
         self.field_validator = FieldValidator(db, organization_id)
+        self.capabilities = capabilities or ResolvedGhgCapabilities()
         self._fuel_cache = {}  # Cache for fuel lookups
     
     async def get_fuel_by_name(self, fuel_name: str, category: str = None, sector: str = None) -> Optional[Dict]:
@@ -109,6 +112,10 @@ class Scope12RowProcessor:
             return 'mobile_combustion'
         elif cat_lower in ['fugitive emissions', 'fugitive_emissions', 'fugitiveemissions']:
             return 'fugitive_emissions'
+        elif cat_lower in ['flaring', 'flaring (stationary combustion)', 'flaring__stationary_combustion']:
+            return 'flaring'
+        elif cat_lower in ['process emissions', 'process_emissions', 'processemissions']:
+            return 'process_emissions'
         
         # Scope 2 categories
         elif cat_lower in ['purchased electricity', 'purchased_electricity', 'purchasedelectricity']:
@@ -152,26 +159,79 @@ class Scope12RowProcessor:
         # 4. Validate category
         category = row_data.get("category", "").strip()
         category_key = self._normalize_category(category)
+        valid_scope1_keys = [
+            'stationary_combustion', 'mobile_combustion', 'fugitive_emissions',
+            'flaring', 'process_emissions',
+        ]
         if not category:
             errors.append(ValidationError(
                 sheet=sheet_name, row=row_num, column="Category",
                 error_type="MISSING_CATEGORY",
                 message="Category is required",
-                suggestion="Use: Stationary Combustion, Mobile Combustion, or Fugitive Emissions",
+                suggestion="Use: Stationary Combustion, Mobile Combustion, Fugitive Emissions, Flaring, or Process Emissions",
                 severity=ErrorSeverity.ERROR
             ))
-        elif category_key not in ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions']:
+        elif category_key not in valid_scope1_keys:
             errors.append(ValidationError(
                 sheet=sheet_name, row=row_num, column="Category",
                 error_type="INVALID_CATEGORY",
                 message=f"Invalid category: '{category}'",
-                suggestion="Use: Stationary Combustion, Mobile Combustion, or Fugitive Emissions",
+                suggestion="Use: Stationary Combustion, Mobile Combustion, Fugitive Emissions, Flaring, or Process Emissions",
+                severity=ErrorSeverity.ERROR
+            ))
+        elif not self.capabilities.is_scope1_category_enabled(category_key):
+            errors.append(ValidationError(
+                sheet=sheet_name, row=row_num, column="Category",
+                error_type="DISABLED_CATEGORY",
+                message=f"Category '{category}' is disabled for your organization",
+                suggestion="Contact your administrator to enable this category, or remove these rows",
+                severity=ErrorSeverity.ERROR
+            ))
+        
+        # 4b. Validate process type (applicable for Process Emissions and optionally Fugitive Emissions)
+        process_type = row_data.get("process_type", "").strip() if row_data.get("process_type") else ""
+        process_type_key = ""
+        if process_type:
+            pt_lower = process_type.lower().strip()
+            pt_map = {
+                "venting": "venting",
+                "n2o from overall combustion": "n2o_overall_combustion",
+                "n2o_overall_combustion": "n2o_overall_combustion",
+                "ch4 from overall combustion": "ch4_overall_combustion",
+                "ch4_overall_combustion": "ch4_overall_combustion",
+            }
+            process_type_key = pt_map.get(pt_lower, "")
+            if not process_type_key:
+                errors.append(ValidationError(
+                    sheet=sheet_name, row=row_num, column="Process Type",
+                    error_type="INVALID_PROCESS_TYPE",
+                    message=f"Invalid process type: '{process_type}'",
+                    suggestion="Use: Venting, N2O from Overall Combustion, or CH4 from Overall Combustion",
+                    severity=ErrorSeverity.ERROR
+                ))
+            elif not self.capabilities.is_process_type_allowed(process_type_key):
+                errors.append(ValidationError(
+                    sheet=sheet_name, row=row_num, column="Process Type",
+                    error_type="DISABLED_PROCESS_TYPE",
+                    message=f"Process type '{process_type}' is disabled for your organization",
+                    suggestion="Contact your administrator to enable this process type",
+                    severity=ErrorSeverity.ERROR
+                ))
+        
+        # Process type is required for Process Emissions category
+        if category_key == "process_emissions" and not process_type_key:
+            errors.append(ValidationError(
+                sheet=sheet_name, row=row_num, column="Process Type",
+                error_type="MISSING_PROCESS_TYPE",
+                message="Process Type is required for Process Emissions category",
+                suggestion="Use: Venting, N2O from Overall Combustion, or CH4 from Overall Combustion",
                 severity=ErrorSeverity.ERROR
             ))
         
         # 5. Validate fuel/gas
         fuel_name = row_data.get("fuel_gas", "").strip()
         fuel_data = None
+        is_custom_fuel = False
         facility_sector = facility.get("sector") if facility else None
         
         if not fuel_name:
@@ -184,11 +244,105 @@ class Scope12RowProcessor:
         else:
             fuel_data = await self.get_fuel_by_name(fuel_name, sector=facility_sector)
             if not fuel_data:
+                # Fuel not in database → treat as custom fuel
+                is_custom_fuel = True
+                if not self.capabilities.custom_fuel_enabled:
+                    errors.append(ValidationError(
+                        sheet=sheet_name, row=row_num, column="Fuel/Gas Used",
+                        error_type="CUSTOM_FUEL_DISABLED",
+                        message=f"Fuel/Gas '{fuel_name}' not found in database and custom fuel is disabled for your organization",
+                        suggestion="Use a fuel from the database, or contact your administrator to enable custom fuel",
+                        severity=ErrorSeverity.ERROR
+                    ))
+                else:
+                    # Build a synthetic fuel_data for custom fuel
+                    fuel_data = {
+                        "id": None,
+                        "fuel_name": fuel_name,
+                        "fuel_code": None,
+                        "is_custom": True,
+                    }
+                    warnings.append(ValidationError(
+                        sheet=sheet_name, row=row_num, column="Fuel/Gas Used",
+                        error_type="CUSTOM_FUEL_DETECTED",
+                        message=f"Fuel/Gas '{fuel_name}' not found in database — will be treated as custom fuel",
+                        severity=ErrorSeverity.WARNING
+                    ))
+        
+        # 5b. Validate custom fuel inputs — auto-derive methodology and check required fields
+        if is_custom_fuel and fuel_data:
+            has_carbon_content = bool(row_data.get("carbon_content"))
+            has_oxidation_factor = bool(row_data.get("oxidation_factor"))
+            has_ef = bool(row_data.get("ef_quantity"))
+            has_cv = bool(row_data.get("cv"))
+            
+            # Auto-derive methodology
+            if has_carbon_content or has_oxidation_factor:
+                # Carbon Composition method
+                row_data["_derived_methodology"] = "using_carbon_composition"
+                if not has_carbon_content:
+                    errors.append(ValidationError(
+                        sheet=sheet_name, row=row_num, column="Carbon Content (%)",
+                        error_type="MISSING_CARBON_CONTENT",
+                        message="Carbon Content is required for carbon composition calculation",
+                        severity=ErrorSeverity.ERROR
+                    ))
+                if not has_oxidation_factor:
+                    errors.append(ValidationError(
+                        sheet=sheet_name, row=row_num, column="Oxidation Factor",
+                        error_type="MISSING_OXIDATION_FACTOR",
+                        message="Oxidation Factor is required for carbon composition calculation",
+                        severity=ErrorSeverity.ERROR
+                    ))
+            elif has_ef and has_cv:
+                # Heat Basis (NCV)
+                row_data["_derived_methodology"] = "using_heat_basis_ncv"
+            elif has_ef:
+                # Quantity Basis (EF)
+                row_data["_derived_methodology"] = "using_qty_basis_ef"
+            else:
                 errors.append(ValidationError(
-                    sheet=sheet_name, row=row_num, column="Fuel/Gas Used",
-                    error_type="INVALID_FUEL",
-                    message=f"Fuel/Gas '{fuel_name}' not found in database",
-                    suggestion="Check fuel name spelling or use exact name from fuel database",
+                    sheet=sheet_name, row=row_num, column="Emission Factor",
+                    error_type="MISSING_CUSTOM_FUEL_INPUTS",
+                    message="Custom fuel requires at least one of: Emission Factor, Emission Factor + Calorific Value, or Carbon Content + Oxidation Factor",
+                    suggestion="Provide Emission Factor (+ optional CV) for standard methods, or Carbon Content + Oxidation Factor for carbon composition",
+                    severity=ErrorSeverity.ERROR
+                ))
+        
+        # 5c. Validate carbon_content and oxidation_factor values
+        if row_data.get("carbon_content"):
+            try:
+                cc = float(row_data["carbon_content"])
+                if cc < 0 or cc > 100:
+                    errors.append(ValidationError(
+                        sheet=sheet_name, row=row_num, column="Carbon Content (%)",
+                        error_type="INVALID_CARBON_CONTENT",
+                        message=f"Carbon Content must be between 0 and 100, got {cc}",
+                        severity=ErrorSeverity.ERROR
+                    ))
+            except (ValueError, TypeError):
+                errors.append(ValidationError(
+                    sheet=sheet_name, row=row_num, column="Carbon Content (%)",
+                    error_type="INVALID_CARBON_CONTENT",
+                    message=f"Invalid Carbon Content value: '{row_data['carbon_content']}'",
+                    severity=ErrorSeverity.ERROR
+                ))
+        
+        if row_data.get("oxidation_factor"):
+            try:
+                of = float(row_data["oxidation_factor"])
+                if of < 0 or of > 1:
+                    errors.append(ValidationError(
+                        sheet=sheet_name, row=row_num, column="Oxidation Factor",
+                        error_type="INVALID_OXIDATION_FACTOR",
+                        message=f"Oxidation Factor must be between 0 and 1, got {of}",
+                        severity=ErrorSeverity.ERROR
+                    ))
+            except (ValueError, TypeError):
+                errors.append(ValidationError(
+                    sheet=sheet_name, row=row_num, column="Oxidation Factor",
+                    error_type="INVALID_OXIDATION_FACTOR",
+                    message=f"Invalid Oxidation Factor value: '{row_data['oxidation_factor']}'",
                     severity=ErrorSeverity.ERROR
                 ))
         
@@ -284,7 +438,7 @@ class Scope12RowProcessor:
         # 3. Validate reporting period
         errors.extend(self._validate_reporting_period(row_data, row_num, sheet_name))
         
-        # 4. Validate category
+        # 4. Validate category (with org-level enforcement)
         category = row_data.get("category", "").strip()
         category_key = self._normalize_category(category)
         if not category:
@@ -303,10 +457,19 @@ class Scope12RowProcessor:
                 suggestion="Use: Purchased Electricity or Purchased Steam/Heat",
                 severity=ErrorSeverity.ERROR
             ))
+        elif not self.capabilities.scope2_enabled:
+            errors.append(ValidationError(
+                sheet=sheet_name, row=row_num, column="Category",
+                error_type="DISABLED_CATEGORY",
+                message="Scope 2 is disabled for your organization",
+                suggestion="Contact your administrator to enable Scope 2",
+                severity=ErrorSeverity.ERROR
+            ))
         
-        # 5. Validate energy used
+        # 5. Validate energy used (with custom fuel auto-detection)
         energy_name = row_data.get("energy_used", "").strip()
         fuel_data = None
+        is_custom_fuel = False
         facility_sector = facility.get("sector") if facility else None
         
         if not energy_name:
@@ -319,13 +482,38 @@ class Scope12RowProcessor:
         else:
             fuel_data = await self.get_fuel_by_name(energy_name, category=category, sector=facility_sector)
             if not fuel_data:
-                errors.append(ValidationError(
-                    sheet=sheet_name, row=row_num, column="Energy Used",
-                    error_type="INVALID_ENERGY",
-                    message=f"Energy '{energy_name}' not found in database",
-                    suggestion="Check energy name spelling or use exact name from database",
-                    severity=ErrorSeverity.ERROR
-                ))
+                is_custom_fuel = True
+                if not self.capabilities.custom_fuel_enabled:
+                    errors.append(ValidationError(
+                        sheet=sheet_name, row=row_num, column="Energy Used",
+                        error_type="CUSTOM_FUEL_DISABLED",
+                        message=f"Energy '{energy_name}' not found in database and custom fuel is disabled for your organization",
+                        suggestion="Use an energy source from the database, or contact your administrator to enable custom fuel",
+                        severity=ErrorSeverity.ERROR
+                    ))
+                else:
+                    ef_value = row_data.get("ef_quantity_electricity_co2")
+                    if not ef_value:
+                        errors.append(ValidationError(
+                            sheet=sheet_name, row=row_num, column="Emission Factor",
+                            error_type="MISSING_CUSTOM_FUEL_EF",
+                            message=f"Emission factor is required when using custom energy source '{energy_name}'",
+                            suggestion="Provide an emission factor value in the Emission Factor column",
+                            severity=ErrorSeverity.ERROR
+                        ))
+                    else:
+                        fuel_data = {
+                            "id": None,
+                            "fuel_name": energy_name,
+                            "fuel_code": None,
+                            "is_custom": True,
+                        }
+                        warnings.append(ValidationError(
+                            sheet=sheet_name, row=row_num, column="Energy Used",
+                            error_type="CUSTOM_FUEL_DETECTED",
+                            message=f"Energy '{energy_name}' not found in database — will be treated as custom energy source",
+                            severity=ErrorSeverity.WARNING
+                        ))
         
         # 6. Validate mandatory fields
         mandatory_errors = self._validate_mandatory_fields(row_data, row_num, sheet_name, config)
@@ -503,14 +691,26 @@ class Scope12RowProcessor:
             "stationary combustion": "stationary_combustion",
             "mobile combustion": "mobile_combustion",
             "fugitive emissions": "fugitive_emissions",
+            "flaring": "flaring",
+            "process emissions": "process_emissions",
         }
         category_code = category_code_map.get(category_name.lower(), category_key)
         
-        # Get category from emission_categories (same as Scope 3)
+        # Flaring is stored as a sub-type of stationary combustion in some DBs.
+        # Try the canonical code first, fall back to stationary_combustion lookup.
         category_doc = await self.db.emission_categories.find_one(
             {"code": category_code, "is_active": True},
             {"_id": 0, "id": 1, "name": 1}
         )
+        if not category_doc and category_code == "flaring":
+            # Flaring may be registered under its compound code or name
+            category_doc = await self.db.emission_categories.find_one(
+                {"$or": [
+                    {"code": "flaring__stationary_combustion", "is_active": True},
+                    {"name": {"$regex": "flaring", "$options": "i"}, "is_active": True},
+                ]},
+                {"_id": 0, "id": 1, "name": 1}
+            )
         if not category_doc:
             # Try with name match
             category_doc = await self.db.emission_categories.find_one(
@@ -527,6 +727,8 @@ class Scope12RowProcessor:
         
         # Check if user provided emission factor in bulk upload
         ef_quantity_provided = bool(row_data.get("ef_quantity"))
+        is_custom_fuel = fuel_data.get("is_custom", False)
+        derived_methodology = row_data.get("_derived_methodology", "")
         
         # Build decision inputs for formula resolution
         decision_inputs = {
@@ -534,6 +736,25 @@ class Scope12RowProcessor:
             "fuel_database_id": fuel_data.get("id"),
             "ef_quantity_provided": str(ef_quantity_provided).lower(),  # "true" or "false"
         }
+        
+        # For custom fuel, add methodology to decision inputs
+        if is_custom_fuel and derived_methodology:
+            decision_inputs["calculation_methodology"] = derived_methodology
+        
+        # Add process_type to decision inputs when provided (for fugitive/process emissions)
+        process_type_key = ""
+        raw_pt = row_data.get("process_type", "")
+        if raw_pt:
+            pt_map = {
+                "venting": "venting",
+                "n2o from overall combustion": "n2o_overall_combustion",
+                "n2o_overall_combustion": "n2o_overall_combustion",
+                "ch4 from overall combustion": "ch4_overall_combustion",
+                "ch4_overall_combustion": "ch4_overall_combustion",
+            }
+            process_type_key = pt_map.get(str(raw_pt).lower().strip(), "")
+        if process_type_key:
+            decision_inputs["process_type"] = process_type_key
         
         logger.debug(f"[SCOPE1_BULK] Decision inputs: {decision_inputs}")
         
@@ -572,31 +793,79 @@ class Scope12RowProcessor:
             "qty": {"value": qty, "unit": unit_qty},
         }
         
-        # If user provided ef_quantity, add it to inputs
-        if ef_quantity_provided:
-            ef_value = float(row_data.get("ef_quantity"))
-            ef_unit = row_data.get("ef_quantity_unit", "")
-            inputs["ef_quantity"] = {"value": ef_value, "unit": ef_unit}
-        
         # Build user overrides
         user_overrides = {}
         
-        # Calorific value override
-        if row_data.get("cv"):
-            cv_value = float(row_data.get("cv"))
-            cv_unit = row_data.get("cv_unit", "")
-            user_overrides["cv"] = {"value": cv_value, "unit": cv_unit, "is_override": True}
-        
-        # Density override
-        if row_data.get("density"):
-            density_value = float(row_data.get("density"))
-            density_unit = row_data.get("density_unit", "")
-            user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
-        
-        # Emission factor override - only if user provides it in bulk upload
-        if ef_quantity_provided:
-            ef_value = float(row_data.get("ef_quantity"))
-            user_overrides["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg", "is_override": True}
+        if is_custom_fuel and derived_methodology:
+            # ── Custom Fuel: build inputs/overrides per auto-derived methodology ──
+            if derived_methodology == "using_carbon_composition":
+                carbon_content = float(row_data.get("carbon_content", 0))
+                oxidation_factor = float(row_data.get("oxidation_factor", 0))
+                inputs["carbon_content"] = {"value": carbon_content, "unit": "%"}
+                inputs["oxidation_factor"] = {"value": oxidation_factor, "unit": ""}
+                user_overrides["carbon_content"] = {"value": carbon_content, "unit": "%", "is_override": True}
+                user_overrides["oxidation_factor"] = {"value": oxidation_factor, "unit": "", "is_override": True}
+                
+            elif derived_methodology == "using_heat_basis_ncv":
+                ef_value = float(row_data.get("ef_quantity", 0))
+                ef_unit = row_data.get("ef_quantity_unit", "kgCO2/TJ")
+                cv_value = float(row_data.get("cv", 0))
+                cv_unit = row_data.get("cv_unit", "TJ/kg")
+                inputs["ef_co2"] = {"value": ef_value, "unit": ef_unit}
+                inputs["cv"] = {"value": cv_value, "unit": cv_unit}
+                user_overrides["ef_co2"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
+                user_overrides["emission_factor"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
+                user_overrides["cv"] = {"value": cv_value, "unit": cv_unit, "is_override": True}
+                # Zero out ch4/n2o for custom fuel heat basis
+                user_overrides["ef_ch4"] = {"value": 0, "unit": "kgCH4/TJ", "is_override": True}
+                user_overrides["ef_n2o"] = {"value": 0, "unit": "kgN2O/TJ", "is_override": True}
+                
+            elif derived_methodology == "using_qty_basis_ef":
+                ef_value = float(row_data.get("ef_quantity", 0))
+                ef_unit = row_data.get("ef_quantity_unit", "kgCO2/kg")
+                inputs["ef_quantity"] = {"value": ef_value, "unit": ef_unit}
+                user_overrides["ef_quantity"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
+                user_overrides["emission_factor"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
+            
+            # Density override (applies to all custom fuel methods)
+            if row_data.get("density"):
+                density_value = float(row_data.get("density"))
+                density_unit = row_data.get("density_unit", "kg/L")
+                user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
+        else:
+            # ── Standard fuel: existing override logic ──
+            # If user provided ef_quantity, add it to inputs
+            if ef_quantity_provided:
+                ef_value = float(row_data.get("ef_quantity"))
+                ef_unit = row_data.get("ef_quantity_unit", "")
+                inputs["ef_quantity"] = {"value": ef_value, "unit": ef_unit}
+            
+            # Calorific value override
+            if row_data.get("cv"):
+                cv_value = float(row_data.get("cv"))
+                cv_unit = row_data.get("cv_unit", "")
+                user_overrides["cv"] = {"value": cv_value, "unit": cv_unit, "is_override": True}
+            
+            # Density override
+            if row_data.get("density"):
+                density_value = float(row_data.get("density"))
+                density_unit = row_data.get("density_unit", "")
+                user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
+            
+            # Emission factor override - only if user provides it in bulk upload
+            if ef_quantity_provided:
+                ef_value = float(row_data.get("ef_quantity"))
+                user_overrides["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg", "is_override": True}
+            
+            # Carbon content + oxidation factor for standard stationary combustion
+            if row_data.get("carbon_content"):
+                cc_value = float(row_data.get("carbon_content"))
+                inputs["carbon_content"] = {"value": cc_value, "unit": "%"}
+                user_overrides["carbon_content"] = {"value": cc_value, "unit": "%", "is_override": True}
+            if row_data.get("oxidation_factor"):
+                of_value = float(row_data.get("oxidation_factor"))
+                inputs["oxidation_factor"] = {"value": of_value, "unit": ""}
+                user_overrides["oxidation_factor"] = {"value": of_value, "unit": "", "is_override": True}
         
         # GWP for fugitives - user override OR from fuel_database
         if row_data.get("co2_gwp_fugitives"):
@@ -653,11 +922,20 @@ class Scope12RowProcessor:
         if row_data.get("density"):
             dynamic_field_values["density"] = user_overrides.get("density", {})
         if row_data.get("ef_quantity"):
-            dynamic_field_values["ef_quantity"] = user_overrides.get("ef_quantity", {})
+            ef_key = "ef_co2" if derived_methodology == "using_heat_basis_ncv" else "ef_quantity"
+            dynamic_field_values[ef_key] = user_overrides.get(ef_key, user_overrides.get("ef_quantity", {}))
         if row_data.get("co2_gwp_fugitives"):
             dynamic_field_values["co2_gwp_fugitives"] = user_overrides.get("co2_gwp_fugitives", {})
+        if row_data.get("carbon_content"):
+            dynamic_field_values["carbon_content"] = user_overrides.get("carbon_content", {})
+        if row_data.get("oxidation_factor"):
+            dynamic_field_values["oxidation_factor"] = user_overrides.get("oxidation_factor", {})
         
         # Build emission record matching manual upload structure
+        # Flaring records are stored with category "Flaring" (or the DB name)
+        # and category_code "flaring" to match the manual form's storage pattern.
+        stored_category_name = category_doc.get("name") if category_doc else category_key.replace("_", " ").title()
+        
         emission_record = {
             "id": record_id,
             "facility_id": facility.get("id"),
@@ -665,11 +943,15 @@ class Scope12RowProcessor:
             "reporting_period": row_data.get("reporting_period"),
             "frequency_type": row_data.get("frequency_type", "monthly"),
             "scope": "scope1",
-            "category": category_doc.get("name") if category_doc else category_key.replace("_", " ").title(),
+            "category": stored_category_name,
+            "category_code": category_code,
             "sub_category": fuel_data.get("fuel_name"),
             "fuel_type": fuel_data.get("fuel_name"),
             "fuel_database_id": fuel_data.get("id"),
             "formula_id": formula_id,
+            "process_type": process_type_key or None,
+            "is_custom_fuel": is_custom_fuel,
+            "calculation_methodology": derived_methodology or None,
             "dynamic_field_values": dynamic_field_values,
             "outputs": outputs,
             "co2_emissions": outputs.get("co2", {}).get("value", 0) if outputs else 0,
@@ -853,6 +1135,7 @@ class Scope12RowProcessor:
             "fuel_type": fuel_data.get("fuel_name"),
             "fuel_database_id": fuel_data.get("id"),
             "formula_id": formula_id,
+            "is_custom_fuel": fuel_data.get("is_custom", False),
             "dynamic_field_values": dynamic_field_values,
             "outputs": outputs,
             "co2_emissions": outputs.get("co2", {}).get("value", 0) if outputs else 0,

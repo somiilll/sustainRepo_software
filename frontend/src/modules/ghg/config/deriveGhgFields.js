@@ -14,7 +14,6 @@
  *
  * Pure: no React, no network, no module state.
  */
-import { isDensityRequiredForQtyBasis } from '../emissions/shared/utils/unitHelpers';
 
 /** Walk a decision tree with the given field values. Returns a formula id or null. */
 export const traverseDecisionTree = (node, fieldValues) => {
@@ -73,6 +72,7 @@ const findByNameTerms = (formulas, terms) =>
 const resolveScope3Formula = (formConfig, context) => {
   const {
     scope3Method,
+    spendCurrencyConversionMethod,
     scope3ActivityType,
     scope3Subcategory,
     typeOfProduct,
@@ -83,6 +83,7 @@ const resolveScope3Formula = (formConfig, context) => {
   if (formConfig.decision_tree) {
     const formulaId = traverseDecisionTree(formConfig.decision_tree, {
       calculation_method_scope3: scope3Method,
+      spend_currency_conversion_method: spendCurrencyConversionMethod,
       activity_type: scope3ActivityType || undefined,
       subcategory_selection: scope3Subcategory || undefined,
       type_of_product: typeOfProduct || undefined,
@@ -159,6 +160,20 @@ const resolveScope12Formula = (formConfig, context) => {
     const formulaId = traverseDecisionTree(formConfig.decision_tree, {
       calculation_methodology:
         decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv',
+      // Quantity Basis EF routes at calculation time from the selected EF unit.
+      // Until a unit is selected, use the mass branch so the shared Quantity
+      // Basis fields render without adding a second user-facing selector.
+      ...((context.isProcessCategory || context.isStationaryMobileOrFlaringCategory)
+        && decisionFieldValues.calculation_methodology === 'using_qty_basis_ef'
+        && !decisionFieldValues.ef_quantity_basis
+        ? { ef_quantity_basis: 'mass' }
+        : {}),
+      // Heat Basis CV routing follows the selected denominator at calculation
+      // time. Use mass while the form has not yet materialized its CV unit.
+      ...(decisionFieldValues.calculation_methodology === 'using_heat_basis_ncv'
+        && !decisionFieldValues.cv_quantity_basis
+        ? { cv_quantity_basis: 'mass' }
+        : {}),
       ...decisionFieldValues,
     });
     if (formulaId) {
@@ -222,6 +237,17 @@ const isMappingApplicable = ({
 
   if (useCustomFuel && HANDLED_BY_CUSTOM_FUEL.includes(m.maps_to_variable)) return false;
 
+  // Property-based Heat/Quantity conversions can need density even when a
+  // Process Emissions formula does not list it as a formula variable. Keep the
+  // mapped field available; the runtime unit resolver decides when to show it.
+  if (
+    m.maps_to_variable === 'density'
+    && ['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(decisionFieldValues.calculation_methodology)
+    && !selectedFuel?.density
+  ) {
+    return true;
+  }
+
   if (matchedFormula && requiredInputVars?.length) {
     if (m.is_override) {
       const formulaProperties = matchedFormula.properties || [];
@@ -232,18 +258,13 @@ const isMappingApplicable = ({
       ) {
         return true;
       }
-      // Density: shown when the formula supports dimension conversion, or when
-      // Qty Basis EF could hit a dimension mismatch and the fuel has no density.
+      // Density is a runtime conditional field for Qty Basis. The actual unit
+      // pair is chosen in the form, so the UI resolves requiredness later from
+      // central unit metadata rather than guessing from a category/fuel list.
       if (m.maps_to_variable === 'density') {
         if (decisionFieldValues.calculation_methodology === 'using_qty_basis_ef') {
           const fuelHasDensity = selectedFuel?.density != null && selectedFuel.density > 0;
-          if (fuelHasDensity) return false;
-          const efMapping = (formConfig.input_field_mappings || []).find(
-            (fm) => fm.maps_to_variable === 'ef_quantity',
-          );
-          const efAllowedUnits = efMapping?.allowed_units || [];
-          const qtyUnits = selectedFuel?.allowed_units || [];
-          return efAllowedUnits.some((eu) => isDensityRequiredForQtyBasis(eu, qtyUnits));
+          return !fuelHasDensity;
         }
         return (matchedFormula.inputs || []).some((inp) => inp.allow_dimension_conversion);
       }
@@ -266,7 +287,7 @@ const isMappingApplicable = ({
   return true;
 };
 
-const toField = (m, { isQtyBasis, fuelQtyUnits }) => {
+const toField = (m, { isQtyBasis, quantityUnits }) => {
   const field = {
     id: m.id,
     variable: m.maps_to_variable,
@@ -290,7 +311,7 @@ const toField = (m, { isQtyBasis, fuelQtyUnits }) => {
   };
   if (isQtyBasis && m.maps_to_variable === 'density') {
     field.densityQtyBasisCheck = true;
-    field.fuelQtyUnits = fuelQtyUnits;
+    field.densityQuantityUnits = quantityUnits;
   }
   return field;
 };
@@ -353,9 +374,14 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
 
   const isQtyBasis =
     context.decisionFieldValues.calculation_methodology === 'using_qty_basis_ef';
-  const fuelQtyUnits = context.selectedFuel?.allowed_units || [];
+  const quantityMapping = (formConfig.input_field_mappings || []).find(
+    (mapping) => mapping.maps_to_variable === 'qty' || mapping.maps_to_variable === 'quantity',
+  );
+  const quantityUnits = context.selectedFuel?.allowed_units?.length
+    ? context.selectedFuel.allowed_units
+    : quantityMapping?.allowed_units || [quantityMapping?.default_unit].filter(Boolean);
 
-  const calculationFields = applicableMappings.map((m) => toField(m, { isQtyBasis, fuelQtyUnits }));
+  const calculationFields = applicableMappings.map((m) => toField(m, { isQtyBasis, quantityUnits }));
   // C7 is a dedicated multi-employee workflow with its own serialized input
   // contract. Organization custom fields are intentionally unavailable there.
   const presentationFields = context.categoryDefinition?.code === 'c7'

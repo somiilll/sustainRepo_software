@@ -6,11 +6,8 @@
  * and once under Biogenic with different decision trees and different field
  * mappings, so name alone is not an identity.
  *
- * Behaviour note: the two `isProcessCategory` / `isStationaryMobileOrFlaring`
- * predicates below are name-based because that is exactly what the Create form
- * did before this extraction. They are isolated here so the future
- * configuration layer can replace them with real category capabilities without
- * touching the form.
+ * Behaviour note: category identity rules use stable codes. Display names remain
+ * presentation-only and may be renamed without changing form behavior.
  */
 
 /** Scope code the category list and form-config lookups should use. */
@@ -43,12 +40,9 @@ export const findScopeDefinition = (scopes, scopeCode) =>
   (scopes || []).find((s) => s.code === scopeCode);
 
 /**
- * Process Emissions detection.
- * Preserved exactly: the legacy check used the raw selected category name with
- * no fallback to the resolved definition.
+ * Process Emissions detection by canonical category code.
  */
-export const isProcessCategory = (categoryName) =>
-  (categoryName || '').toLowerCase().includes('process');
+export const isProcessCategory = (categoryCode) => categoryCode === 'process_emissions';
 
 /**
  * Stationary / Mobile / Flaring detection, used to prefer the heat-basis

@@ -42,6 +42,8 @@ from shared.constants.gwp import GWP_VALUES, GWP_DEFAULT_SOURCE
 from shared.database.mongo import db
 from shared.helpers.email import send_email
 from shared.helpers.passwords import generate_random_password, get_password_hash
+from modules.sustainability_config.service import resolve_organization_settings, upsert_org_config
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -85,7 +87,7 @@ async def update_organization(
     update_dict = org_data.model_dump(exclude_unset=True)
     
     # Remove fields that shouldn't be overwritten during edit
-    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'industry_sectors', 'organizational_boundary']
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'industry_sectors', 'organizational_boundary', 'approval_workflow_enabled', 'multi_level_approval_enabled', 'esg_frameworks_enabled']
     for field in fields_to_preserve:
         if field in update_dict and field in existing:
             # Keep the existing value unless explicitly provided
@@ -188,7 +190,7 @@ async def get_org_emissions_distribution(
         }
 
     emissions = await db.emission_records.find(
-        {"facility_id": {"$in": facility_ids}}, {"_id": 0}
+        {"facility_id": {"$in": facility_ids}, **eligible_ghg_record_filter()}, {"_id": 0}
     ).to_list(100000)
 
     # Equity share adjustment (matches dashboard logic at lines 4344-4366)
@@ -281,7 +283,7 @@ async def get_org_scope3_biogenic_stats(
 
     # Fetch Scope 3 emissions
     scope3_emissions = await db.emission_records.find(
-        {"facility_id": {"$in": facility_ids}, "scope": "scope3"}, {"_id": 0}
+        {"facility_id": {"$in": facility_ids}, "scope": "scope3", **eligible_ghg_record_filter()}, {"_id": 0}
     ).to_list(100000)
 
     # Fetch Biogenic emissions
@@ -290,7 +292,8 @@ async def get_org_scope3_biogenic_stats(
     biogenic_emissions = await db.emission_records.find(
         {
             "facility_id": {"$in": facility_ids}, 
-            "biogenic_scope_selection": {"$in": ["scope1", "scope3"]}
+            "biogenic_scope_selection": {"$in": ["scope1", "scope3"]},
+            **eligible_ghg_record_filter(),
         }, 
         {"_id": 0}
     ).to_list(100000)
@@ -596,16 +599,13 @@ async def update_org_esg_frameworks(
             detail=f"Invalid ESG frameworks: {invalid}. Valid values: {VALID_ESG_FRAMEWORKS}"
         )
     
-    await db.organizations.update_one(
-        {"id": org_id},
-        {"$set": {"esg_frameworks_enabled": frameworks}}
-    )
-    
-    updated = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    settings = await resolve_organization_settings(org_id, migrate=True)
+    settings["esg_frameworks_enabled"] = frameworks
+    await upsert_org_config(org_id, {"organization_settings": settings}, current_user["id"])
     return {
         "message": "ESG frameworks updated successfully",
         "organization_id": org_id,
-        "esg_frameworks_enabled": updated.get("esg_frameworks_enabled", [])
+        "esg_frameworks_enabled": settings["esg_frameworks_enabled"]
     }
 
 
@@ -622,7 +622,8 @@ async def get_org_esg_frameworks(
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    enabled = org.get("esg_frameworks_enabled", [])
+    settings = await resolve_organization_settings(org_id, migrate=True)
+    enabled = settings["esg_frameworks_enabled"]
     
     # Get all framework details from registry
     all_frameworks = []
@@ -656,10 +657,9 @@ async def toggle_multi_level_approval(
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    await db.organizations.update_one(
-        {"id": org_id},
-        {"$set": {"multi_level_approval_enabled": enabled}}
-    )
+    settings = await resolve_organization_settings(org_id, migrate=True)
+    settings["multi_level_approval_enabled"] = enabled
+    await upsert_org_config(org_id, {"organization_settings": settings}, current_user["id"])
     
     return {
         "message": f"Multi-level approval {'enabled' if enabled else 'disabled'} for organization",
@@ -682,8 +682,8 @@ async def get_org_feature_flags(
         "organization_id": org_id,
         "organization_name": org.get("name"),
         "feature_flags": {
-            "approval_workflow_enabled": org.get("approval_workflow_enabled", False),
-            "multi_level_approval_enabled": org.get("multi_level_approval_enabled", False),
+            "approval_workflow_enabled": (await resolve_organization_settings(org_id, migrate=True))["approval_workflow_enabled"],
+            "multi_level_approval_enabled": (await resolve_organization_settings(org_id, migrate=True))["multi_level_approval_enabled"],
             "has_ghg": org.get("has_ghg", True),
             "has_esg": org.get("has_esg", True),
         }

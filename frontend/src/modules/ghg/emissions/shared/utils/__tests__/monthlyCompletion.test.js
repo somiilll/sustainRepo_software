@@ -11,11 +11,30 @@ describe('isMonthlyEntryComplete', () => {
     expect(isMonthlyEntryComplete({ quantity: '100' }, fields)).toBe(false);
   });
 
+  it('does not mark a Process Emissions month complete when required runtime density is blank', () => {
+    expect(isMonthlyEntryComplete({
+      quantity: '100',
+      emission_factor: '2',
+      runtime_density_required: true,
+      density_unit: 'kg/L',
+    }, fields)).toBe(false);
+  });
+
   it('completes a month only after every required value is present', () => {
     expect(isMonthlyEntryComplete({ quantity: '100', emission_factor: '0.42' }, fields)).toBe(true);
   });
 
   it('treats zero as an entered required value', () => {
     expect(isMonthlyEntryComplete({ quantity: 0, emission_factor: 0 }, fields)).toBe(true);
+  });
+
+  it('treats a displayed required default as complete without editing it', () => {
+    const carbonCompositionFields = [
+      { variable: 'quantity', required: true, isOverride: false },
+      { variable: 'carbon_content', required: true, isOverride: false },
+      { variable: 'oxidation_factor', required: true, isOverride: false, defaultValue: 1 },
+    ];
+
+    expect(isMonthlyEntryComplete({ quantity: '100', carbon_content: '85' }, carbonCompositionFields)).toBe(true);
   });
 });

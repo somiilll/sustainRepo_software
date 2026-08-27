@@ -1,4 +1,6 @@
 /** Shared conditional-visibility policy consumed by active Create and Edit UI. */
+import { STANDARD_PROCESS_TYPE_OPTIONS } from './standardGhgFormConfig';
+
 export const resolveGhgUiState = ({
   capabilities = {},
   scope,
@@ -24,6 +26,15 @@ export const resolveGhgUiState = ({
     && scope3Method === 'activity_basis'
     && requiresSubcategory
     && Boolean(scope3Subcategory);
+  const processTypeOptions = capabilities.processTypeOptions || [];
+  const historicalProcessType = processType
+    && !processTypeOptions.some((option) => option.value === processType)
+    ? STANDARD_PROCESS_TYPE_OPTIONS.find((option) => option.value === processType)
+      || { value: processType, label: String(processType).replace(/_/g, ' ') }
+    : null;
+  const renderableProcessTypeOptions = historicalProcessType
+    ? [...processTypeOptions, { ...historicalProcessType, disabled: true }]
+    : processTypeOptions;
 
   return {
     showProcessType: hasCategory && isDirectScope && capabilities.processType,
@@ -33,6 +44,8 @@ export const resolveGhgUiState = ({
       && (!capabilities.processType || processType === 'venting'),
     showFuelSelection: hasCategory && isFuelScope && capabilities.requiresFuel,
     showCustomFuel: hasCategory && isFuelScope && capabilities.requiresFuel && capabilities.customFuel,
+    processTypeOptions,
+    renderableProcessTypeOptions,
     showManualFactorOverrides: isDirectScope && capabilities.manualFactorOverrides,
     showEmployeeFields: scope === 'scope3' && capabilities.multiEmployee,
     showFlightDetails,

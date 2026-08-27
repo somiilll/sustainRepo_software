@@ -20,6 +20,7 @@ from shared.database.mongo import db as app_db
 from shared.utils.period_utils import (
     format_period, extract_year, detect_type, period_variants, normalize_period
 )
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 router = APIRouter()
 
@@ -206,6 +207,23 @@ def _resolve_target_value(target: dict, period: dict) -> Optional[float]:
 
 
 
+def _resolve_effective_target_value(target: dict, period: dict) -> Optional[float]:
+    """Resolve percentage targets from their explicit reduction fields."""
+    if target.get("target_type") != "percentage":
+        return _resolve_target_value(target, period)
+
+    baseline = target.get("baseline") or {}
+    try:
+        baseline_value = float(baseline.get("value"))
+        percentage_amount = float(target.get("percentage_amount"))
+    except (TypeError, ValueError):
+        return _resolve_target_value(target, period)
+
+    direction = target.get("percentage_direction", "decrease")
+    multiplier = 1 + percentage_amount / 100 if direction == "increase" else 1 - percentage_amount / 100
+    return baseline_value * multiplier
+
+
 def _calculate_progress(actual_value, target_value, goal_type, target) -> dict:
     """
     Calculate progress percentage.
@@ -322,10 +340,10 @@ def _is_target_in_future(target: dict) -> bool:
     return (current_year < start_year) or (current_year == start_year and current_month < start_month)
 
 
-def _get_period_for_target(target: dict) -> dict:
+def _get_period_for_target(target: dict, reporting_year_type: str) -> dict:
     """
     Get the period filter from the TARGET's own reporting_period.
-    Static → current year (target year is deadline).
+    Static → the current organization FY/CY reporting year.
     Monthly → current month of current year.
     Yearly → target's year.
     """
@@ -338,16 +356,17 @@ def _get_period_for_target(target: dict) -> dict:
         target_year = now.year
 
     if tracking_mode == "static":
-        return {"year": now.year}
+        current_year = now.year - 1 if reporting_year_type == "FY" and now.month < 4 else now.year
+        return {"year": current_year, "reporting_year_type": reporting_year_type}
     elif tracking_mode == "monthly":
         if target_year < now.year:
-            return {"year": target_year, "month": 12}
+            return {"year": target_year, "month": 12, "reporting_year_type": reporting_year_type}
         elif target_year == now.year:
-            return {"year": target_year, "month": now.month}
+            return {"year": target_year, "month": now.month, "reporting_year_type": reporting_year_type}
         else:
-            return {"year": target_year, "month": 1}
+            return {"year": target_year, "month": 1, "reporting_year_type": reporting_year_type}
     else:
-        return {"year": target_year}
+        return {"year": target_year, "reporting_year_type": reporting_year_type}
 
 
 # =============================================================================
@@ -453,7 +472,7 @@ async def list_targets_with_progress(
         if kpi_id:
             # Determine period from target's own reporting_period
             tracking_mode = target.get("tracking_mode", "static")
-            period = _get_period_for_target(target)
+            period = _get_period_for_target(target, org_rep_type)
             
             # Get facility_ids if scope is facility
             facility_ids = None
@@ -471,7 +490,7 @@ async def list_targets_with_progress(
                 )
                 
                 actual_value = calculation.get("value")
-                target_value = _resolve_target_value(target, period)
+                target_value = _resolve_effective_target_value(target, period)
                 goal_type = target.get("goal_type", "upper_limit")
                 
                 # For intensity targets: compute actual_intensity = emissions / denominator
@@ -486,26 +505,6 @@ async def list_targets_with_progress(
                     target_with_progress["intensity_denominator"] = denom.get("value")
                     target_with_progress["intensity_unit"] = f"{target.get('unit', '')}/{denom.get('unit', '')}"
 
-                # Recalculate target_value for percentage targets if baseline changed
-                if target.get("target_type") == "percentage" and target.get("percentage_amount"):
-                    baseline = target.get("baseline") or {}
-                    bv = float(baseline.get("value", 0)) if baseline else 0
-                    pct = float(target.get("percentage_amount", 0))
-                    if bv and pct:
-                        direction = target.get("percentage_direction", "decrease")
-                        new_tv = bv * (1 + pct / 100) if direction == "increase" else bv * (1 - pct / 100)
-                        # If stored target_value doesn't match, update it
-                        if target_value is None or abs((target_value or 0) - new_tv) > 0.01:
-                            target_value = new_tv
-                            try:
-                                await esg_targets_service.update_target(
-                                    target_id=target.get("id"), org_id=org_id,
-                                    data=ESGTargetUpdate(target_value=new_tv),
-                                    user_id="system", user_name="system"
-                                )
-                            except Exception:
-                                pass
-                
                 progress_result = _calculate_progress(actual_value, target_value, goal_type, target)
                 progress_percentage = progress_result["percentage"]
                 
@@ -605,7 +604,7 @@ async def get_target_progress(
     
     # Determine period from target's own reporting_period
     tracking_mode = target.get("tracking_mode", "static")
-    period = _get_period_for_target(target)
+    period = _get_period_for_target(target, await _get_org_reporting_type(org_id))
     
     # Get facility_ids if scope is facility
     facility_ids = None
@@ -622,7 +621,7 @@ async def get_target_progress(
     )
     
     actual_value = calculation.get("value")
-    target_value = _resolve_target_value(target, period)
+    target_value = _resolve_effective_target_value(target, period)
     goal_type = target.get("goal_type", "upper_limit")
     
     progress_result = _calculate_progress(actual_value, target_value, goal_type, target)
@@ -855,12 +854,13 @@ async def get_target_chart_data(
         baseline_period = baseline.get("period", "")
 
         actual = None
+        static_period = _get_period_for_target(target, await _get_org_reporting_type(org_id))
         try:
             calc = await kpi_calculator.calculate(
                 kpi_id=kpi_id, org_id=org_id,
                 scope_type=target.get("scope_type", "organization"),
                 facility_ids=facility_ids,
-                period={"year": now.year},
+                period=static_period,
             )
             actual = calc.get("value")
         except Exception:
@@ -887,7 +887,7 @@ async def get_target_chart_data(
             "baseline_value": baseline_value,
             "baseline_period": baseline_period,
             "current_value": round(actual, 2) if actual is not None else None,
-            "current_period": f"FY {now.year}-{now.year+1}" if reporting_type == "FY" else f"CY {now.year}",
+            "current_period": format_period(static_period["year"], static_period["reporting_year_type"]),
             "target_value": tv,
             "target_period": reporting_period,
             "progress_percentage": progress_pct,
@@ -999,7 +999,9 @@ async def get_categories_for_targets(
     """
     from shared.database.mongo import db
     
-    _get_org_id(current_user)  # Validate user has org
+    org_id = _get_org_id(current_user)  # Validate user has org
+    from modules.entitlements.service import entitlement_access_map, resolve_entitlement_config
+    permissions = entitlement_access_map(await resolve_entitlement_config(org_id, migrate=True))
     
     # Get all active, target-enabled KPIs for this section
     kpis = await db.esg_kpi_definitions.find(
@@ -1042,13 +1044,23 @@ async def get_categories_for_targets(
     
     # Special handling for GHG Emissions in environment section
     if section == "environment":
-        hierarchy["GHG Emissions"] = _get_ghg_subcategories()
+        if permissions.get("environment.ghg"):
+            ghg_subcategories = _get_ghg_subcategories()
+            if not permissions.get("environment.ghg.scope_3"):
+                ghg_subcategories = {
+                    name: values for name, values in ghg_subcategories.items()
+                    if "Scope 3" not in name and "Scope 1, 2 & 3" not in name
+                }
+            hierarchy["GHG Emissions"] = ghg_subcategories
         # Add Total Energy Consumption to Energy category
-        if "Energy" not in hierarchy:
-            hierarchy["Energy"] = {}
-        hierarchy["Energy"]["Total Energy Consumption"] = _get_energy_total_kpi()
-        hierarchy["Energy"]["Renewable Energy"] = _get_renewable_energy_kpi()
-        hierarchy["Energy"]["Non-Renewable Energy"] = _get_non_renewable_energy_kpi()
+        if permissions.get("environment.energy"):
+            if "Energy" not in hierarchy:
+                hierarchy["Energy"] = {}
+            hierarchy["Energy"]["Total Energy Consumption"] = _get_energy_total_kpi()
+            hierarchy["Energy"]["Renewable Energy"] = _get_renewable_energy_kpi()
+            hierarchy["Energy"]["Non-Renewable Energy"] = _get_non_renewable_energy_kpi()
+        else:
+            hierarchy.pop("Energy", None)
     
     return {
         "section": section,
@@ -1225,6 +1237,7 @@ async def get_ghg_baseline_from_records(
             {"reporting_period": {"$in": yearly_variants}}
         ]
     }
+    query.update(eligible_ghg_record_filter())
     
     if facility_id:
         query["facility_id"] = facility_id

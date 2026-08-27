@@ -5,12 +5,10 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
-import { Checkbox } from '../components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
-import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown, Download, BarChart3, CheckCircle2, Clock } from 'lucide-react';
+import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown, Download, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import OrgEmissionsDialog from '../components/OrgEmissionsDialog';
@@ -131,7 +129,6 @@ export default function OrganizationManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [logoPreviewError, setLogoPreviewError] = useState(false);
   const [emissionsDialogOrg, setEmissionsDialogOrg] = useState(null);
-  const [availableFrameworks, setAvailableFrameworks] = useState([]);
   const { getAuthHeader } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -147,13 +144,6 @@ export default function OrganizationManagement() {
     max_users: 20,
     subscription_expires_at: '',
     enabled_access: ['scope1_2'],
-    approval_workflow_enabled: false,
-    multi_level_approval_enabled: false,
-    esg_frameworks_enabled: [],
-    sbti_targets_enabled: false,
-    repo_pilot_enabled: false,
-    has_ghg: true,
-    has_esg: true,
     // SuperAdmin Internal Fields
     date_of_joining: '',
     selected_plan: '',
@@ -203,22 +193,6 @@ export default function OrganizationManagement() {
       setLoading(false);
     }
   };
-
-  const fetchFrameworks = async () => {
-    try {
-      const response = await axios.get(`${API}/frameworks`, {
-        headers: getAuthHeader()
-      });
-      setAvailableFrameworks(response.data);
-    } catch (error) {
-      console.error('Frameworks fetch error:', error);
-      setAvailableFrameworks([]);
-    }
-  };
-
-  useEffect(() => {
-    fetchFrameworks();
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -369,13 +343,6 @@ export default function OrganizationManagement() {
       max_users: org.max_users || 20,
       subscription_expires_at: org.subscription_expires_at ? org.subscription_expires_at.split('T')[0] : '',
       enabled_access: org.enabled_access || ['scope1_2'],
-      approval_workflow_enabled: !!org.approval_workflow_enabled,
-      multi_level_approval_enabled: !!org.multi_level_approval_enabled,
-      esg_frameworks_enabled: org.esg_frameworks_enabled || [],
-      sbti_targets_enabled: !!org.sbti_targets_enabled,
-      repo_pilot_enabled: !!org.repo_pilot_enabled,
-      has_ghg: org.has_ghg !== false,
-      has_esg: org.has_esg !== false,
       // SuperAdmin Internal Fields
       date_of_joining: org.date_of_joining ? org.date_of_joining.split('T')[0] : '',
       selected_plan: org.selected_plan || '',
@@ -415,12 +382,6 @@ export default function OrganizationManagement() {
       max_users: 20,
       subscription_expires_at: '',
       enabled_access: ['scope1_2'],
-      approval_workflow_enabled: false,
-      multi_level_approval_enabled: false,
-      esg_frameworks_enabled: [],
-      sbti_targets_enabled: false,
-      has_ghg: true,
-      has_esg: true,
       // SuperAdmin Internal Fields
       date_of_joining: '',
       selected_plan: '',
@@ -664,249 +625,6 @@ export default function OrganizationManagement() {
                     />
                   </div>
                   
-                  {/* Report Access Control */}
-                  <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">Module Access</Label>
-                    <p className="text-xs text-text-muted mb-3">Select which modules this organization can access</p>
-                    
-                    {/* GHG Module Toggle */}
-                    <div className="space-y-3 mb-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.has_ghg !== false}
-                          onChange={(e) => setFormData({ ...formData, has_ghg: e.target.checked })}
-                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                          data-testid="has-ghg-toggle"
-                        />
-                        <span className="text-sm font-medium">Enable GHG Module</span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${formData.has_ghg !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
-                          {formData.has_ghg !== false ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </label>
-                      
-                      {/* GHG Scope Options - Only show if GHG is enabled */}
-                      {formData.has_ghg !== false && (
-                        <div className="ml-6 space-y-2 p-3 bg-stone-50 rounded-lg">
-                          <p className="text-xs text-text-muted">GHG Scope Access</p>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.enabled_access?.includes('scope1_2')}
-                              onChange={(e) => {
-                                const newAccess = e.target.checked
-                                  ? [...(formData.enabled_access || []), 'scope1_2']
-                                  : (formData.enabled_access || []).filter(a => a !== 'scope1_2');
-                                setFormData({ ...formData, enabled_access: newAccess });
-                              }}
-                              className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                              data-testid="access-scope1-2"
-                            />
-                            <span className="text-sm">Scope 1 & 2</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.enabled_access?.includes('scope1_2_3')}
-                              onChange={(e) => {
-                                const newAccess = e.target.checked
-                                  ? [...(formData.enabled_access || []), 'scope1_2_3']
-                                  : (formData.enabled_access || []).filter(a => a !== 'scope1_2_3');
-                                setFormData({ ...formData, enabled_access: newAccess });
-                              }}
-                              className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                              data-testid="access-scope1-2-3"
-                            />
-                            <span className="text-sm">Scope 1, 2 & 3</span>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* ESG Module Toggle */}
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.has_esg !== false}
-                          onChange={(e) => setFormData({ ...formData, has_esg: e.target.checked })}
-                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                          data-testid="has-esg-toggle"
-                        />
-                        <span className="text-sm font-medium">Enable ESG Module</span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${formData.has_esg !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
-                          {formData.has_esg !== false ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </label>
-                      <p className="text-xs text-text-muted ml-6">Includes Environment, Social, and Governance modules</p>
-                    </div>
-                  </div>
-
-                  {/* Approval Workflow Toggle */}
-                  <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">Approval Workflow</Label>
-                    <p className="text-xs text-text-muted mb-3">
-                      When enabled, every emission record submitted by a user (create, edit, delete) is held for admin review before it appears in dashboards or reports.
-                    </p>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!formData.approval_workflow_enabled}
-                        onChange={(e) => setFormData({ ...formData, approval_workflow_enabled: e.target.checked })}
-                        className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                        data-testid="approval-workflow-toggle"
-                      />
-                      <span className="text-sm font-medium">Enable Approval Workflow</span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded ${formData.approval_workflow_enabled
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-stone-100 text-stone-600'}`}
-                      >
-                        {formData.approval_workflow_enabled ? 'On' : 'Off'}
-                      </span>
-                    </label>
-                  </div>
-
-                  {/* Multi-Level Approval Toggle */}
-                  <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">Multi-Level Approval Chain</Label>
-                    <p className="text-xs text-text-muted mb-3">
-                      When enabled, admins can configure approval chains with multiple approvers (e.g., Manager → Director → VP) for ESG disclosures in the Tracking module.
-                    </p>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!formData.multi_level_approval_enabled}
-                        onChange={(e) => setFormData({ ...formData, multi_level_approval_enabled: e.target.checked })}
-                        className="w-4 h-4 rounded border-stone-300 text-violet-600 focus:ring-violet-500"
-                        data-testid="multi-level-approval-toggle"
-                      />
-                      <span className="text-sm font-medium">Enable Multi-Level Approval</span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded ${formData.multi_level_approval_enabled
-                          ? 'bg-violet-100 text-violet-700'
-                          : 'bg-stone-100 text-stone-600'}`}
-                      >
-                        {formData.multi_level_approval_enabled ? 'On' : 'Off'}
-                      </span>
-                    </label>
-                  </div>
-
-                  {/* ESG Frameworks Selection */}
-                  <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">ESG Frameworks</Label>
-                    <p className="text-xs text-text-muted mb-3">
-                      Select the ESG reporting frameworks enabled for this organization.
-                    </p>
-                    <div className="space-y-2">
-                      {availableFrameworks.map((framework) => {
-                        const isEnabled = formData.esg_frameworks_enabled?.includes(framework.id);
-                        const isAvailable = framework.status === 'available';
-                        
-                        return (
-                          <div
-                            key={framework.id}
-                            className={`flex items-center gap-3 p-3 border rounded-lg transition-all ${
-                              isEnabled 
-                                ? 'border-primary bg-primary/5' 
-                                : 'border-stone-200 bg-white'
-                            } ${!isAvailable ? 'opacity-50' : ''}`}
-                          >
-                            <Checkbox
-                              id={`framework-${framework.id}`}
-                              checked={isEnabled}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setFormData({
-                                    ...formData,
-                                    esg_frameworks_enabled: [...(formData.esg_frameworks_enabled || []), framework.id]
-                                  });
-                                } else {
-                                  setFormData({
-                                    ...formData,
-                                    esg_frameworks_enabled: (formData.esg_frameworks_enabled || []).filter(f => f !== framework.id)
-                                  });
-                                }
-                              }}
-                              disabled={!isAvailable}
-                              data-testid={`framework-checkbox-${framework.id}`}
-                            />
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <label
-                                  htmlFor={`framework-${framework.id}`}
-                                  className={`text-sm font-medium cursor-pointer ${!isAvailable ? 'text-text-muted' : ''}`}
-                                >
-                                  {framework.id}
-                                </label>
-                                {framework.status === 'available' ? (
-                                  <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                                    <CheckCircle2 className="w-3 h-3 mr-1" />
-                                    Available
-                                  </Badge>
-                                ) : (
-                                  <Badge className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-100">
-                                    <Clock className="w-3 h-3 mr-1" />
-                                    Coming Soon
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-text-muted mt-0.5">{framework.name}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {formData.esg_frameworks_enabled?.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        <span className="text-xs text-text-muted">Selected:</span>
-                        {formData.esg_frameworks_enabled.map(fwId => (
-                          <Badge key={fwId} variant="outline" className="text-xs text-primary border-primary">
-                            {fwId}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* SBTi Targets — separate toggle */}
-                  <div className="pt-4 border-t border-stone-200">
-                    <div className="flex items-center gap-3 p-3 border rounded-lg transition-all border-stone-200 bg-white">
-                      <Checkbox
-                        id="sbti-targets-toggle"
-                        checked={!!formData.sbti_targets_enabled}
-                        onCheckedChange={(checked) => setFormData({ ...formData, sbti_targets_enabled: !!checked })}
-                        data-testid="sbti-targets-toggle"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <label htmlFor="sbti-targets-toggle" className="text-sm font-medium cursor-pointer">SBTi Targets</label>
-                          <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                            <CheckCircle2 className="w-3 h-3 mr-1" />Available
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-text-muted mt-0.5">Science Based Targets initiative — emission reduction targets aligned with Paris Agreement</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Repo Pilot toggle */}
-                  <div className="flex items-center gap-3 p-3 border rounded-lg transition-all border-stone-200 bg-white">
-                    <Checkbox
-                      id="repo-pilot-toggle"
-                      checked={!!formData.repo_pilot_enabled}
-                      onCheckedChange={(checked) => setFormData({ ...formData, repo_pilot_enabled: !!checked })}
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <label htmlFor="repo-pilot-toggle" className="text-sm font-medium cursor-pointer">Repo Pilot</label>
-                        <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                          <CheckCircle2 className="w-3 h-3 mr-1" />Available
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-text-muted mt-0.5">AI-powered ESG document assistant — upload reports and ask questions</p>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -1249,7 +967,7 @@ export default function OrganizationManagement() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-stone-500 italic">No payment entries. Click "Add Entry" to start tracking payments.</p>
+                          <p className="text-sm text-stone-500 italic">No payment entries. Click &quot;Add Entry&quot; to start tracking payments.</p>
                         )}
                       </div>
 

@@ -7,14 +7,34 @@ Validates:
 - Admin user token works for execute-by-category endpoint
 """
 import os
+from pathlib import Path
 import requests
 import pytest
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
+
+def _resolve_base_url():
+    configured = os.environ.get("REACT_APP_BACKEND_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
+    env_file = Path(__file__).resolve().parents[2] / "frontend" / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.startswith("REACT_APP_BACKEND_URL="):
+                return line.split("=", 1)[1].strip().rstrip("/")
+    pytest.skip("REACT_APP_BACKEND_URL is required for live calc-engine tests", allow_module_level=True)
+
+
+BASE_URL = _resolve_base_url()
 API = f"{BASE_URL}/api"
 
-SUPER = {"email": "superadmin@ecotrack.com", "password": "SuperAdmin123!"}
-ADMIN = {"email": "goyalsomil2@hotmail.com", "password": "Test123!"}
+SUPER = {
+    "email": os.environ.get("TEST_SUPERADMIN_EMAIL", "superadmin@ecotrack.com"),
+    "password": os.environ.get("TEST_SUPERADMIN_PASSWORD", "TestUser123!"),
+}
+ADMIN = {
+    "email": os.environ.get("TEST_ADMIN_EMAIL", "goyalsomil2001@gmail.com"),
+    "password": os.environ.get("TEST_ADMIN_PASSWORD", "TestUser123!"),
+}
 
 
 def _login(creds):

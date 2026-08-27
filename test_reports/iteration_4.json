@@ -1,103 +1,46 @@
 {
-  "summary": "Frontend testing of GHG Calculation Platform v2 updates. All v2 features verified successfully with one bug fix applied.",
+  "summary": "Completed focused Supplier Training tranche verification: unit + controlled live backend tests (auth boundaries, create/list/status/content/progress, threshold lifecycle, immutable version id, live R2 lifecycle with cleanup) and frontend admin/supplier smoke on training routes.",
   "backend_issues": {
     "critical": [],
-    "minor": []
+    "minor": [
+      {
+        "endpoint": "/api/supplier-assessment/my-assessment/trainings/{assignment_id}/progress",
+        "issue": "Invalid progress values are funneled through training_service.update_progress returning None, which router maps to 404 (Training assignment not found) instead of a 400 validation-style error for out-of-range input."
+      }
+    ]
   },
   "frontend_issues": {
     "ui_bugs": [],
     "integration_issues": [],
     "design_issues": []
   },
-  "bugs_fixed": [
-    {
-      "file": "/app/frontend/src/pages/Emissions.js",
-      "line": 889,
-      "issue": "ReferenceError: filterYear is not defined - caused Emissions page crash when clicking Show Filters",
-      "fix": "Changed 'filterYear' to 'filterDateRange.from || filterDateRange.to' to match actual state variable name"
-    }
-  ],
   "test_report_links": [
-    "/app/test_reports/iteration_4.json"
+    "/app/backend/tests/test_supplier_training_focused.py",
+    "/app/backend/tests/test_supplier_training_p0_live_verification.py",
+    "/app/test_reports/pytest/pytest_results.xml"
   ],
-  "action_items": [],
-  "critical_code_review_comments": [],
+  "action_items": [
+    "Return 400 for invalid progress_percent input (while retaining 404 for unknown assignment) to keep API semantics explicit.",
+    "Main agent can optionally add one endpoint-level negative test for progress_percent <0 or >100 to lock behavior."
+  ],
+  "critical_code_review_comments": [
+    "Training R2 bucket mapping validated live through bucket_type 'supplier_assessment' with env bucket 'supplier-assessment-dev'.",
+    "Training version immutability preserved: progress persisted exact training_version_id from assignment requirement_version_id.",
+    "Documents-focused paths and calc_engine routes were not changed in this testing run; no regression observed in reviewed training-related surfaces."
+  ],
   "updated_files": [
-    "/app/frontend/src/pages/Emissions.js"
+    "/app/backend/tests/test_supplier_training_focused.py",
+    "/app/backend/tests/test_supplier_training_p0_live_verification.py",
+    "/app/test_reports/iteration_4.json",
+    "/app/test_reports/pytest/pytest_results.xml"
   ],
   "success_rate": {
-    "backend": "N/A (frontend only testing)",
-    "frontend": "100%"
+    "backend": "100% (7/7 in focused training suite)",
+    "frontend": "100% (requested smoke scope)"
   },
-  "test_credentials": {
-    "super_admin": {
-      "email": "superadmin@ecotrack.com",
-      "password": "SuperAdmin123!"
-    },
-    "admin": {
-      "email": "admin@ghg.com",
-      "password": "admin123"
-    }
-  },
-  "seed_data_creation": "None - used existing test data",
-  "retest_needed": false,
-  "should_main_agent_self_test": false,
-  "context_for_next_testing_agent": "GHG Platform v2 features tested and verified. Bug fix applied to Emissions.js line 889 (filterYear -> filterDateRange).",
-  "verified_features": {
-    "super_admin_organization_form": {
-      "mandatory_address_fields": {
-        "status": "VERIFIED",
-        "details": "All address fields show asterisks: Organization Name *, Street Address *, City *, State/Province *, Country *, PIN/ZIP Code *"
-      },
-      "dual_logo_options": {
-        "status": "VERIFIED",
-        "details": "Company Logo section with Option 1: Enter Logo URL (input field) and Option 2: Upload Logo Image (file upload button)"
-      }
-    },
-    "super_admin_emission_factors_form": {
-      "mandatory_references": {
-        "status": "VERIFIED",
-        "details": "References field shows asterisk (*) and placeholder text 'Links or detailed references (required)'"
-      }
-    },
-    "admin_facilities_form": {
-      "attachments_heading": {
-        "status": "VERIFIED",
-        "details": "Section header is 'Attachments' (not 'Files, Links, Notes')"
-      },
-      "link_upload_remarks": {
-        "status": "VERIFIED",
-        "details": "Form includes: Add Link (name + URL), Or Upload File (drag-drop area 'Drop file here or click to upload'), Remarks / Notes textarea"
-      }
-    },
-    "admin_organization_details": {
-      "attachments_remarks": {
-        "status": "VERIFIED",
-        "details": "Edit mode includes: Attachments section with Add Link + Upload File drag-drop area, Remarks / Notes field"
-      }
-    },
-    "all_roles_emissions_filter": {
-      "simple_date_inputs": {
-        "status": "VERIFIED",
-        "details": "Date Range filter uses type='month' inputs (browser native month picker), NOT calendar popovers"
-      }
-    },
-    "all_roles_reports_button": {
-      "download_report_text": {
-        "status": "VERIFIED",
-        "details": "Button text is 'Download Report' (per-facility) and 'Download Report (N facilities)' (combined), NOT 'Download Combined Report'"
-      }
-    }
-  },
-  "bug_rca": {
-    "issue": "Emissions page crashed with 'ReferenceError: filterYear is not defined' when Show Filters was clicked",
-    "root_cause": "Code refactoring changed filter state from 'filterYear' to 'filterDateRange' (object with from/to properties), but line 889 still referenced the old variable name",
-    "reproduction_steps": [
-      "1. Login as any user",
-      "2. Navigate to Emissions page",
-      "3. Click 'Show Filters' button",
-      "4. Page crashes with runtime error"
-    ],
-    "fix_applied": "Changed conditional from 'filterYear' to 'filterDateRange.from || filterDateRange.to' to check if date range filter is set"
-  }
+  "seed_data_creation": "Created disposable TEST_-prefixed training artifact and temporary DB records only during live test; cleaned in finally block.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Controlled live cleanup counts observed from rerun: {'progress': 1, 'assignments': 1, 'requirements': 1, 'versions': 1, 'contents': 1, 'programs': 1, 'relationship_restored': 1, 'r2_deleted': 1}. Frontend smoke verified /supplier-assessment/trainings (admin) and /supplier-assessment/training (supplier) load without Premium gate on supplier training route.",
+  "rca of the issue": "RCA for minor API semantics issue: training_service.update_progress uses one None return path for both invalid percent bounds and missing assignment; router converts None to HTTP 404, masking client-input validation errors. Mitigation: split error paths in service/router (invalid percent => ValueError/400, missing assignment => 404)."
 }

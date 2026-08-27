@@ -4,6 +4,7 @@ from shared.database.mongo import db
 from modules.internal_data_ai.data_normalization import resolve_emission_unit, resolve_record_quantity
 from modules.internal_data_ai.query_scope import and_filters, normalize_scope, organization_scope, resolve_authorized_facilities, scope_filter
 from modules.internal_data_ai.reporting_periods import annual_record_allocation, emission_period_filter, latest_available_period, period_from_payload
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 
 def _density_kg_per_litre(value, unit):
@@ -75,7 +76,7 @@ async def search_records(org_id: str, facility_ids: list = None, **kwargs) -> di
     deterministic_route = kwargs.get("data_source") == "ghg_emissions"
     resolved_facilities = await resolve_authorized_facilities(db, org_id, facility_ids, kwargs.get("facility"))
     query = organization_scope(org_id, resolved_facilities)
-    query = and_filters(query, {"is_current": {"$ne": False}}, {"$or": [{"deleted_at": {"$exists": False}}, {"deleted_at": None}]})
+    query = and_filters(query, eligible_ghg_record_filter())
 
     scope = kwargs.get("scope")
     if scope:

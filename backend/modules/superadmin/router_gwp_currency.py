@@ -273,7 +273,9 @@ async def get_gwp_values():
 @router.get("/currency-conversion")
 async def get_currency_conversions(
     source_currency: Optional[str] = None,
-    year: Optional[int] = None
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    conversion_method: Optional[str] = None,
 ):
     """Get currency conversion configurations, optionally filtered by currency and year"""
     query = {}
@@ -281,8 +283,12 @@ async def get_currency_conversions(
         query["source_currency"] = source_currency.upper()
     if year:
         query["year_applicable"] = year
+    if month:
+        query["month_applicable"] = month
+    if conversion_method:
+        query["conversion_method"] = conversion_method
     
-    configs = await db.currency_conversion.find(query, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1)]).to_list(500)
+    configs = await db.currency_conversion.find(query, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1), ("month_applicable", -1)]).to_list(500)
     return configs
 
 # Get active currency conversion for a specific currency/year
@@ -306,7 +312,7 @@ async def get_active_currency_conversion(source_currency: str, year: Optional[in
 @router.get("/super-admin/currency-conversions")
 async def get_all_currency_conversions(current_user: dict = Depends(get_super_admin_user)):
     """Get all currency conversion configurations (SuperAdmin only)"""
-    configs = await db.currency_conversion.find({}, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1)]).to_list(1000)
+    configs = await db.currency_conversion.find({}, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1), ("month_applicable", -1)]).to_list(1000)
     return configs
 
 # Create new currency conversion
@@ -316,17 +322,27 @@ async def get_all_currency_conversions(current_user: dict = Depends(get_super_ad
 async def create_currency_conversion(config: CurrencyConversionCreate, current_user: dict = Depends(get_super_admin_user)):
     """Create a new currency conversion configuration (SuperAdmin only)"""
     
-    # Check if a config already exists for this currency pair and year
-    existing = await db.currency_conversion.find_one({
+    if config.month_applicable is not None and not 1 <= config.month_applicable <= 12:
+        raise HTTPException(status_code=400, detail="month_applicable must be between 1 and 12")
+    if config.conversion_method not in {"ppp_inflation", "standard"}:
+        raise HTTPException(status_code=400, detail="conversion_method must be standard or ppp_inflation")
+    if config.conversion_method == "standard" and not config.exchange_rate:
+        raise HTTPException(status_code=400, detail="exchange_rate is required for standard currency conversion")
+    if config.conversion_method == "ppp_inflation" and not config.purchase_parity:
+        raise HTTPException(status_code=400, detail="purchase_parity is required for PPP and inflation conversion")
+    rate_identity = {
         "source_currency": config.source_currency.upper(),
         "target_currency": config.target_currency.upper(),
-        "year_applicable": config.year_applicable
-    })
+        "year_applicable": config.year_applicable,
+        "month_applicable": config.month_applicable,
+        "conversion_method": config.conversion_method,
+    }
+    existing = await db.currency_conversion.find_one(rate_identity, {"_id": 0})
     
     if existing:
         raise HTTPException(
             status_code=400, 
-            detail=f"Currency conversion for {config.source_currency}/{config.target_currency} for year {config.year_applicable} already exists"
+            detail=f"A {config.conversion_method} currency rate already exists for this currency period"
         )
     
     new_config = {
@@ -334,6 +350,9 @@ async def create_currency_conversion(config: CurrencyConversionCreate, current_u
         "source_currency": config.source_currency.upper(),
         "target_currency": config.target_currency.upper(),
         "year_applicable": config.year_applicable,
+        "month_applicable": config.month_applicable,
+        "effective_from": config.effective_from or (f"{config.year_applicable}-{config.month_applicable:02d}" if config.month_applicable else str(config.year_applicable)),
+        "conversion_method": config.conversion_method,
         "purchase_parity": config.purchase_parity,
         "inflation_factor": config.inflation_factor,
         "exchange_rate": config.exchange_rate,
@@ -370,6 +389,10 @@ async def update_currency_conversion(config_id: str, config: CurrencyConversionU
         update_data["source_currency"] = update_data["source_currency"].upper()
     if "target_currency" in update_data:
         update_data["target_currency"] = update_data["target_currency"].upper()
+    if update_data.get("month_applicable") is not None and not 1 <= update_data["month_applicable"] <= 12:
+        raise HTTPException(status_code=400, detail="month_applicable must be between 1 and 12")
+    if "conversion_method" in update_data and update_data["conversion_method"] not in {"ppp_inflation", "standard"}:
+        raise HTTPException(status_code=400, detail="conversion_method must be standard or ppp_inflation")
     
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_data["updated_by"] = current_user["id"]
@@ -410,7 +433,9 @@ async def bulk_create_currency_conversions(
         existing = await db.currency_conversion.find_one({
             "source_currency": config.source_currency.upper(),
             "target_currency": config.target_currency.upper(),
-            "year_applicable": config.year_applicable
+            "year_applicable": config.year_applicable,
+            "month_applicable": config.month_applicable,
+            "conversion_method": config.conversion_method,
         })
         
         if existing:
@@ -419,6 +444,9 @@ async def bulk_create_currency_conversions(
                 "purchase_parity": config.purchase_parity,
                 "inflation_factor": config.inflation_factor,
                 "exchange_rate": config.exchange_rate,
+                "month_applicable": config.month_applicable,
+                "effective_from": config.effective_from or (f"{config.year_applicable}-{config.month_applicable:02d}" if config.month_applicable else str(config.year_applicable)),
+                "conversion_method": config.conversion_method,
                 "source": config.source,
                 "notes": config.notes,
                 "is_active": config.is_active,
@@ -434,6 +462,9 @@ async def bulk_create_currency_conversions(
                 "source_currency": config.source_currency.upper(),
                 "target_currency": config.target_currency.upper(),
                 "year_applicable": config.year_applicable,
+                "month_applicable": config.month_applicable,
+                "effective_from": config.effective_from or (f"{config.year_applicable}-{config.month_applicable:02d}" if config.month_applicable else str(config.year_applicable)),
+                "conversion_method": config.conversion_method,
                 "purchase_parity": config.purchase_parity,
                 "inflation_factor": config.inflation_factor,
                 "exchange_rate": config.exchange_rate,

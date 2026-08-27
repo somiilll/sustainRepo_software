@@ -14,6 +14,13 @@ from ..models import CalculationMethod
 from calc_engine.execution import CalcEngine, CalculationError
 from calc_engine.formulas import get_decision_tree_for_category, resolve_formula_id, DecisionTreeError
 from calc_engine.units import convert
+from calc_engine.currency_conversion import (
+    PPP_INFLATION_METHOD,
+    STANDARD_METHOD,
+    extract_currency_period,
+    normalize_currency_method,
+    resolve_currency_conversion,
+)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -31,39 +38,23 @@ def extract_year_from_reporting_period(reporting_period: str) -> Optional[int]:
     
     Returns None if unable to parse.
     """
+    return extract_currency_period(reporting_period)[0]
+
+
+def normalize_reporting_period(reporting_period: Optional[str]) -> Optional[str]:
+    """Normalize template month labels before resolving an effective currency rate."""
     if not reporting_period:
         return None
-    
-    reporting_period = str(reporting_period).strip()
-    
-    # FY format: "FY 2025-2026" or "FY 2025-26" → use END year
-    fy_match = re.match(r'FY\s*(\d{4})\s*-\s*(\d{2,4})', reporting_period, re.IGNORECASE)
-    if fy_match:
-        start_year = int(fy_match.group(1))
-        end_part = fy_match.group(2)
-        if len(end_part) == 2:
-            # Convert "26" to "2026" based on start year
-            end_year = int(str(start_year)[:2] + end_part)
-        else:
-            end_year = int(end_part)
-        return end_year  # Use END year for FY
-    
-    # CY format: "CY 2025"
-    cy_match = re.match(r'CY\s*(\d{4})', reporting_period, re.IGNORECASE)
-    if cy_match:
-        return int(cy_match.group(1))
-    
-    # Monthly format: "2025-04" or "2025-4"
-    monthly_match = re.match(r'(\d{4})-\d{1,2}', reporting_period)
-    if monthly_match:
-        return int(monthly_match.group(1))
-    
-    # Just a year: "2025"
-    year_match = re.match(r'^(\d{4})$', reporting_period)
-    if year_match:
-        return int(year_match.group(1))
-    
-    return None
+    value = str(reporting_period).strip()
+    monthly_match = re.match(r"^([A-Za-z]{3,9})-(\d{4})$", value)
+    if not monthly_match:
+        return value
+    month_names = {
+        "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
+        "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12",
+    }
+    month = month_names.get(monthly_match.group(1).lower()[:3])
+    return f"{monthly_match.group(2)}-{month}" if month else value
 
 
 # Mapping from bulk upload category codes to emission_categories codes
@@ -443,6 +434,10 @@ class EmissionCalculator:
         decision_inputs = {
             "calculation_method_scope3": method.value,
         }
+        if method == CalculationMethod.SPEND_BASIS:
+            decision_inputs["spend_currency_conversion_method"] = normalize_currency_method(
+                row_data.get("spend_currency_conversion_method") or row_data.get("currency_conversion_method")
+            )
         
         # Add activity_type for C6/C7 - NORMALIZE to lowercase with underscores for decision tree matching
         if row_data.get("activity_type"):
@@ -547,34 +542,18 @@ class EmissionCalculator:
         
         # For spend_basis, fetch currency conversion data for ppp and inflation_rate
         currency_conversion = None
+        currency_method = PPP_INFLATION_METHOD
         if method == CalculationMethod.SPEND_BASIS:
             spent_currency = row_data.get("spent_currency") or row_data.get("currency") or "INR"
-            
-            # Extract year from reporting period for year-specific currency conversion
-            reporting_period = row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
-            target_year = extract_year_from_reporting_period(reporting_period)
-            
-            # First try to find exact year match
-            if target_year:
-                currency_conversion = await self.db.currency_conversion.find_one(
-                    {"source_currency": spent_currency, "year_applicable": target_year, "is_active": True},
-                    {"_id": 0, "purchase_parity": 1, "inflation_factor": 1, "year_applicable": 1, "source": 1}
-                )
-                logger.info(f"[BULK_CALC] Currency lookup for {spent_currency}, year={target_year}: {currency_conversion is not None}")
-            
-            # Fallback: find latest available year if no exact match
-            if not currency_conversion:
-                fallback_cursor = self.db.currency_conversion.find(
-                    {"source_currency": spent_currency, "is_active": True},
-                    {"_id": 0, "purchase_parity": 1, "inflation_factor": 1, "year_applicable": 1, "source": 1}
-                ).sort("year_applicable", -1).limit(1)
-                fallback_list = await fallback_cursor.to_list(length=1)
-                if fallback_list:
-                    currency_conversion = fallback_list[0]
-                    logger.info(f"[BULK_CALC] Fallback to year {currency_conversion.get('year_applicable')} for {spent_currency}")
-            
-            if currency_conversion:
-                logger.info(f"[BULK_CALC] Currency conversion: ppp={currency_conversion.get('purchase_parity')}, inflation={currency_conversion.get('inflation_factor')}, year={currency_conversion.get('year_applicable')}")
+            reporting_period = normalize_reporting_period(
+                row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
+            )
+            currency_method = normalize_currency_method(row_data.get("spend_currency_conversion_method") or row_data.get("currency_conversion_method"))
+            currency_conversion = await resolve_currency_conversion(
+                self.db, source_currency=spent_currency, reporting_period=reporting_period, method=currency_method,
+            )
+            if currency_method == STANDARD_METHOD and not (currency_conversion or {}).get("exchange_rate"):
+                return {"co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0, "calculation_method": "error", "error": f"No active standard currency rate found for {spent_currency} and {reporting_period}"}
         
         # Build calc_engine inputs based on method and formula requirements
         # Map method to correct variable names based on ce_input_field_mappings and formula definitions
@@ -585,14 +564,17 @@ class EmissionCalculator:
             input_unit=default_unit or input_unit or "1",
             formula_doc=formula_doc,
             ef_data=ef_data,
-            currency_conversion=currency_conversion
+            currency_conversion=currency_conversion,
+            currency_method=currency_method,
         )
         
         logger.info(f"[BULK_CALC] calc_inputs={calc_inputs}")
         
         # Build context for property resolution
         # Include reporting_period for currency conversion year lookup in calc_engine
-        reporting_period = row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
+        reporting_period = normalize_reporting_period(
+            row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
+        )
         context = {
             "fuel_name": ef_data.get("activity"),
             "activity": ef_data.get("activity"),
@@ -611,6 +593,8 @@ class EmissionCalculator:
             user_overrides["inflation_rate"] = calc_inputs.pop("inflation_rate")
         if "ppp" in calc_inputs:
             user_overrides["ppp"] = calc_inputs.pop("ppp")
+        if "exchange_rate" in calc_inputs:
+            user_overrides["exchange_rate"] = calc_inputs.pop("exchange_rate")
         
         # For fugitive emissions, add co2_gwp_fugitives to user_overrides
         # The formula expects 'co2_gwp_fugitives' property which comes from fuel_database.gwp_fugitives
@@ -782,7 +766,8 @@ class EmissionCalculator:
     def _build_calc_inputs(self, method: CalculationMethod, row_data: Dict,
                            converted_quantity: float, input_unit: str,
                            formula_doc: Dict, ef_data: Dict,
-                           currency_conversion: Optional[Dict] = None) -> Dict[str, Any]:
+                           currency_conversion: Optional[Dict] = None,
+                           currency_method: str = PPP_INFLATION_METHOD) -> Dict[str, Any]:
         """
         Build calc_engine inputs with correct variable names based on method and formula requirements.
         
@@ -821,7 +806,12 @@ class EmissionCalculator:
                 "unit": spent_currency
             }
             
-            # Add ppp and inflation_rate from template (override) or currency_conversion table
+            if currency_method == STANDARD_METHOD:
+                exchange_rate = row_data.get("exchange_rate") or (currency_conversion or {}).get("exchange_rate")
+                if exchange_rate:
+                    calc_inputs["exchange_rate"] = {"value": float(exchange_rate), "unit": ""}
+                return calc_inputs
+
             # Priority: Template override > Currency conversion table > Default 1.0
             
             # Inflation rate
@@ -1243,6 +1233,10 @@ class EmissionCalculator:
                     "unit": "",
                     "is_override": True
                 }
+            currency_method = normalize_currency_method(row_data.get("spend_currency_conversion_method") or row_data.get("currency_conversion_method"))
+            dynamic_field_values["spend_currency_conversion_method"] = {"value": currency_method, "unit": ""}
+            if currency_method == STANDARD_METHOD and row_data.get("exchange_rate"):
+                dynamic_field_values["exchange_rate"] = {"value": float(row_data.get("exchange_rate")), "unit": "", "is_override": True}
         
         elif method == CalculationMethod.SUPPLIER_BASIS:
             dynamic_field_values["activity_value_supplier_based"] = {
@@ -1356,6 +1350,7 @@ class EmissionCalculator:
             # Scope 3 records have no fuel_database row; manual sends None.
             "fuel_database_id": None,
             "calculation_method_scope3": method.value,
+            "spend_currency_conversion_method": dynamic_field_values.get("spend_currency_conversion_method", {}).get("value"),
             "scope3_ef_id": activity_match.get("activity_id"),
             "scope3_activity": activity_match.get("activity_name") or row_data.get("activity"),
             "scope3_activity_type": activity_type_normalized,
@@ -1415,7 +1410,6 @@ class EmissionCalculator:
             # Calc engine details for edit dialog display
             "audit_log": calculated_emissions.get("audit_log", []),
             "applied_factors": calculated_emissions.get("applied_factors", {}),
-            "outputs": calculated_emissions.get("outputs", {}),
             "formula_name": calculated_emissions.get("formula_name"),
             # Version tracking - embedded in record like manual upload
             "version": 1,
@@ -1752,7 +1746,6 @@ class EmissionCalculator:
             "responsible_person_contact": str(first_row.get("row_data", {}).get("responsible_contact") or "") if first_row.get("row_data", {}).get("responsible_contact") else "",
             "process_names": [first_row.get("row_data", {}).get("process_name")] if first_row.get("row_data", {}).get("process_name") else [],
             "process_descriptions": [{"name": first_row.get("row_data", {}).get("process_name") or "", "description": first_row.get("row_data", {}).get("process_description") or ""}] if first_row.get("row_data", {}).get("process_name") else [],
-            "version": 1,
             "created_at": now.isoformat(),
             "created_by": user_id,
             "created_by_email": user_email,

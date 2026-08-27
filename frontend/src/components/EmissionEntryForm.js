@@ -26,6 +26,7 @@ import {
   DynamicFieldRenderer,
   getFieldUnits as getFieldUnitsShared,
 } from '../modules/ghg/emissions/shared/components/DynamicFieldRenderer';
+import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -41,6 +42,8 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
 import {
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
+  resolveCompoundDenominatorBasis,
+  resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import { isMonthlyEntryComplete } from '../modules/ghg/emissions/shared/utils/monthlyCompletion';
 // Shared GHG configuration layer: resolved config + explicit context -> fields
@@ -104,6 +107,7 @@ export default function EmissionEntryForm({
   hasFullKPIAccess = true,
   // Supplier context for supplier portal emissions
   supplierContext = null,
+  assignedReportingPeriod = null,
   // OCR Prefill Data - from AI Invoice Extractor workflow
   ocrPrefillData = null,
   // Future organization-specific GHG configuration. `null` today, which makes
@@ -135,7 +139,7 @@ export default function EmissionEntryForm({
   // custom-activity auto-enable, editingEmission frequency_type/yearlyData load).
   // Those inline useEffects below this block were removed during F2 integration.
   // ============================================================================
-  const _formState = useEmissionFormState({ organization, editingEmission });
+  const _formState = useEmissionFormState({ organization, editingEmission, assignedReportingPeriod });
   const {
     // Step 1: Basic Selection
     facilityId, setFacilityId,
@@ -151,6 +155,7 @@ export default function EmissionEntryForm({
     fuelSearchTerm, setFuelSearchTerm,
     // Scope 3
     scope3Method, setScope3Method,
+    spendCurrencyConversionMethod, setSpendCurrencyConversionMethod,
     scope3EFData, setScope3EFData,
     scope3ActivityId, setScope3ActivityId,
     scope3ActivityType, setScope3ActivityType,
@@ -176,6 +181,8 @@ export default function EmissionEntryForm({
     c7FormulaName, setC7FormulaName,
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
+    // Process emissions
+    selectedTemplate,
     // Dynamic Form Config (Calc Engine)
     formConfig, setFormConfig,
     loadingFormConfig, setLoadingFormConfig,
@@ -275,7 +282,10 @@ export default function EmissionEntryForm({
       }
       
       // Hydrate reporting period
-      if (editingEmission.reporting_period) {
+      if (assignedReportingPeriod?.reporting_year) {
+        setReportingYear(assignedReportingPeriod.reporting_year);
+        setReportingYearType(assignedReportingPeriod.reporting_year_type);
+      } else if (editingEmission.reporting_period) {
         const rp = editingEmission.reporting_period;
         // Extract year from reporting period (e.g., "2024-01" or "FY2024")
         const yearMatch = rp.match(/(\d{4})/);
@@ -309,6 +319,7 @@ export default function EmissionEntryForm({
       if (editingEmission.scope === 'scope3' || 
           (editingEmission.scope === 'biogenic' && hydrated.biogenicScopeSelection === 'scope3')) {
         setScope3Method(hydrated.scope3Method);
+        setSpendCurrencyConversionMethod(hydrated.spendCurrencyConversionMethod || 'ppp_inflation');
         setScope3ActivityType(hydrated.scope3ActivityType);
         setScope3Subcategory(hydrated.scope3Subcategory);
         setTypeOfProduct(hydrated.typeOfProduct);
@@ -1057,16 +1068,28 @@ export default function EmissionEntryForm({
     return mapping?.quantityUnit || 'kg';
   };
 
+  const customFugitiveQuantityUnits = useMemo(() => {
+    if (!useCustomFuel || !category?.toLowerCase().includes('fugitive')) return [];
+    return getCategoryFuelAllowedUnits({
+      fuelDatabase,
+      scope: resolveEffectiveScopeCode(scope, biogenicScopeSelection),
+      categoryName: category,
+    });
+  }, [useCustomFuel, category, fuelDatabase, scope, biogenicScopeSelection]);
+
   // Resolve the quantity unit for custom fuels based on selected methodology
   const customFuelQtyUnit = useMemo(() => {
     if (!useCustomFuel) return null;
+    if (category?.toLowerCase().includes('fugitive')) {
+      return decisionFieldValues._customQtyUnit || customFugitiveQuantityUnits[0] || '';
+    }
     const calcMethod = decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv';
     if (calcMethod === 'using_qty_basis_ef') {
       return getQuantityUnitFromEFUnit(customEmissionFactorUnit);
     }
     // Heat Basis and Carbon Composition: qty unit selected independently
     return decisionFieldValues._customQtyUnit || 'kg';
-  }, [useCustomFuel, decisionFieldValues, customEmissionFactorUnit, getQuantityUnitFromEFUnit]);
+  }, [useCustomFuel, category, decisionFieldValues, customEmissionFactorUnit, customFugitiveQuantityUnits, getQuantityUnitFromEFUnit]);
 
   // Step 2 + Step 3 form state moved to useEmissionFormState (F2 integration).
   // The hook also owns the reporting-year-type org-pref sync useEffect and the
@@ -1104,7 +1127,7 @@ export default function EmissionEntryForm({
         onFormChange();
       }
     }
-  }, [facilityId, category, fuelId, notes, scope3Method, scope3ActivityType, employees.length, onFormChange]);
+  }, [facilityId, category, fuelId, notes, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, employees.length, onFormChange]);
   
   // Scope 3 specific optional fields — moved to useEmissionFormState (F2 integration).
 
@@ -1199,6 +1222,7 @@ export default function EmissionEntryForm({
         categories: dynamicCategories,
         scopes: dynamicScopes,
         scope3Method,
+        spendCurrencyConversionMethod,
         scope3ActivityType,
         scope3Subcategory,
         typeOfProduct,
@@ -1213,6 +1237,7 @@ export default function EmissionEntryForm({
       dynamicCategories,
       dynamicScopes,
       scope3Method,
+      spendCurrencyConversionMethod,
       scope3ActivityType,
       scope3Subcategory,
       typeOfProduct,
@@ -1316,7 +1341,8 @@ export default function EmissionEntryForm({
     setMonthlyData(prev => {
       const updated = { ...prev };
       
-      activeMonths.forEach(monthKey => {
+      activeMonths.forEach(month => {
+        const monthKey = month.key;
         const monthData = updated[monthKey] || {};
         let needsUpdate = false;
         
@@ -1353,8 +1379,17 @@ export default function EmissionEntryForm({
               fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
             }
             
-            if (fieldUnits.length > 0) {
-              monthData[unitKey] = fieldUnits[0];
+            const configuredDefaultUnit = field.defaultUnit
+              || field.default_unit
+              || field.expectedUnit;
+            // Fuel quantity mappings may retain a generic schema default (for
+            // example, kg) that is not valid for the selected fuel. The unit
+            // persisted in row state must match the fuel-backed dropdown.
+            const initialUnit = field.unitSource === 'fuel'
+              ? (fieldUnits.includes(configuredDefaultUnit) ? configuredDefaultUnit : fieldUnits[0])
+              : (configuredDefaultUnit || fieldUnits[0]);
+            if (initialUnit) {
+              monthData[unitKey] = initialUnit;
               needsUpdate = true;
             }
           }
@@ -1368,6 +1403,47 @@ export default function EmissionEntryForm({
       return updated;
     });
   }, [dynamicInputFields, selectedFuel, activeMonths, centralizedUnits, scope3ActivityId, filteredScope3Activities, scope, biogenicScopeSelection, requiresSubcategory, scope3Method]);
+
+  // The compact monthly ledger can display a configured default without mounting
+  // DynamicFieldRenderer, which is normally responsible for persisting it. Once
+  // a user starts a month, materialize required defaults (for example,
+  // Oxidation Factor = 1) into state so validation and the calculation payload
+  // consume the same value the user sees. Do not populate untouched months.
+  useEffect(() => {
+    if (dynamicInputFields.length === 0 || activeMonths.length === 0) return;
+
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+
+      activeMonths.forEach((month) => {
+        const monthKey = month.key;
+        const currentMonth = previousMonths[monthKey] || {};
+        const hasStartedMonth = dynamicInputFields.some((field) => {
+          if (field.isOverride || field.presentationOnly) return false;
+          const value = currentMonth[field.variable] ?? currentMonth[field.fieldKey];
+          return value !== '' && value !== null && value !== undefined;
+        });
+        if (!hasStartedMonth) return;
+
+        let nextMonth = currentMonth;
+        dynamicInputFields.forEach((field) => {
+          const hasDefault = field.defaultValue !== undefined
+            && field.defaultValue !== null
+            && field.defaultValue !== '';
+          const currentValue = currentMonth[field.variable] ?? currentMonth[field.fieldKey];
+          if (!field.required || field.isOverride || field.presentationOnly || !hasDefault || currentValue !== undefined && currentValue !== null && currentValue !== '') return;
+          if (nextMonth === currentMonth) nextMonth = { ...currentMonth };
+          nextMonth[field.variable] = field.defaultValue;
+          changed = true;
+        });
+
+        if (nextMonth !== currentMonth) nextMonths[monthKey] = nextMonth;
+      });
+
+      return changed ? nextMonths : previousMonths;
+    });
+  }, [activeMonths, dynamicInputFields, monthlyData, setMonthlyData]);
 
   // Initialize unit values in yearlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set for yearly mode, similar to monthly
@@ -1411,8 +1487,16 @@ export default function EmissionEntryForm({
             fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
           }
           
-          if (fieldUnits.length > 0) {
-            updated[unitKey] = fieldUnits[0];
+          const configuredDefaultUnit = field.defaultUnit
+            || field.default_unit
+            || field.expectedUnit;
+          // Keep yearly state aligned with the selected fuel-backed unit,
+          // rather than retaining an invalid generic schema default.
+          const initialUnit = field.unitSource === 'fuel'
+            ? (fieldUnits.includes(configuredDefaultUnit) ? configuredDefaultUnit : fieldUnits[0])
+            : (configuredDefaultUnit || fieldUnits[0]);
+          if (initialUnit) {
+            updated[unitKey] = initialUnit;
             needsUpdate = true;
           }
         }
@@ -1431,7 +1515,8 @@ export default function EmissionEntryForm({
     setMonthlyData(prev => {
       const updated = { ...prev };
       
-      activeMonths.forEach(monthKey => {
+      activeMonths.forEach(month => {
+        const monthKey = month.key;
         const monthData = { ...(updated[monthKey] || {}) };
         let needsUpdate = false;
         
@@ -1480,7 +1565,8 @@ export default function EmissionEntryForm({
       const updated = { ...prev };
       let hasChanges = false;
       
-      activeMonths.forEach(monthKey => {
+      activeMonths.forEach(month => {
+        const monthKey = month.key;
         const monthData = { ...(updated[monthKey] || {}) };
         
         dynamicInputFields.forEach(field => {
@@ -1577,8 +1663,58 @@ export default function EmissionEntryForm({
       decisionInputs['calculation_methodology'] = 'using_heat_basis_ncv';
     }
 
+    // Quantity Basis EF routes to the formula whose expected units match the
+    // selected EF denominator. This is an internal tree key; users continue
+    // selecting the EF unit directly in the monthly/yearly row.
+    if (decisionInputs.calculation_methodology === 'using_qty_basis_ef') {
+      const isStandardCombustionFuel = ghgFormContext.isStationaryMobileOrFlaringCategory
+        && !useCustomFuel;
+      if (isStandardCombustionFuel) {
+        decisionInputs.ef_quantity_basis = 'mass';
+      } else if (ghgFormContext.categoryCode === 'process_emissions' || useCustomFuel) {
+        const efField = dynamicInputFields.find((field) => (
+          field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
+        ));
+        const efUnit = useCustomFuel
+          ? monthData?.custom_ef_unit || 'kgCO2/kg'
+          : monthData?.ef_quantity_unit
+          || monthData?.ef_quantity?.unit
+          || efField?.defaultUnit
+          || efField?.default_unit
+          || efField?.expectedUnit
+          || efField?.allowedUnits?.[0];
+        const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
+        if (basis) decisionInputs.ef_quantity_basis = basis;
+      }
+    }
+
+    // Heat Basis routes internally from the selected CV denominator. The CV
+    // unit remains the single user-facing choice, while the tree selects the
+    // matching mass or volume formula.
+    if (decisionInputs.calculation_methodology === 'using_heat_basis_ncv') {
+      const isStandardCombustionFuel = ghgFormContext.isStationaryMobileOrFlaringCategory
+        && !useCustomFuel;
+      if (isStandardCombustionFuel) {
+        decisionInputs.cv_quantity_basis = 'mass';
+      } else {
+        const cvField = dynamicInputFields.find((field) => (
+          field.variable === 'cv' || field.fieldKey === 'cv'
+        ));
+        const cvUnit = (useCustomFuel ? monthData?.custom_cv_unit : null)
+          || monthData?.cv_unit
+          || monthData?.cv?.unit
+          || cvField?.defaultUnit
+          || cvField?.default_unit
+          || cvField?.expectedUnit
+          || cvField?.allowedUnits?.[0]
+          || 'TJ/kg';
+        const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
+        if (basis) decisionInputs.cv_quantity_basis = basis;
+      }
+    }
+
     return decisionInputs;
-  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, category]);
+  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, ghgFormContext.categoryCode, centralizedUnits, useCustomFuel]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {
@@ -2364,7 +2500,10 @@ export default function EmissionEntryForm({
     processNames, responsiblePerson, requiresAssetName, assetName,
     // Step 3 params
     isC7EmployeeCommuting, employees, dynamicInputFields,
-    frequencyType, yearlyData, monthlyData, filledMonthsCount,
+    frequencyType,
+    yearlyData: submissionYearlyData,
+    monthlyData: submissionMonthlyData,
+    filledMonthsCount: submissionFilledMonthsCount,
     updateMonthData,
   });
 
@@ -2623,13 +2762,62 @@ export default function EmissionEntryForm({
   // Submit handler - creates emissions for each month with data
   // F6 (Option B): handleSubmit body lifted to useEmissionSubmit hook.
   // Form just assembles the ctx and calls submit().
+  const normalizeCarbonCompositionQuantity = useCallback((data = {}) => {
+    if (
+      !ghgFormContext.isProcessCategory
+      || decisionFieldValues.calculation_methodology !== 'using_carbon_composition'
+    ) {
+      return data;
+    }
+
+    const quantityField = dynamicInputFields.find((field) => (
+      field.variable === 'quantity_used_process_emissions'
+      || field.fieldKey === 'quantity_used_process_emissions'
+    ));
+    if (!quantityField) return data;
+
+    const configuredKey = quantityField.variable || quantityField.fieldKey;
+    const configuredValue = data[configuredKey] ?? data[quantityField.fieldKey];
+    if (configuredValue !== undefined && configuredValue !== null && configuredValue !== '') {
+      return data;
+    }
+
+    const legacyValue = data.qty ?? data.quantity;
+    if (legacyValue === undefined || legacyValue === null || legacyValue === '') {
+      return data;
+    }
+
+    const legacyUnit = data.qty_unit || data.quantity_unit || data.unit;
+    return {
+      ...data,
+      [configuredKey]: legacyValue,
+      ...(legacyUnit && { [`${configuredKey}_unit`]: legacyUnit }),
+    };
+  }, [decisionFieldValues.calculation_methodology, dynamicInputFields, ghgFormContext.isProcessCategory]);
+
+  const submissionMonthlyData = useMemo(() => Object.fromEntries(
+    Object.entries(monthlyData).map(([monthKey, data]) => [
+      monthKey,
+      normalizeCarbonCompositionQuantity(data),
+    ]),
+  ), [monthlyData, normalizeCarbonCompositionQuantity]);
+  const submissionYearlyData = useMemo(
+    () => normalizeCarbonCompositionQuantity(yearlyData),
+    [yearlyData, normalizeCarbonCompositionQuantity],
+  );
+  const submissionFilledMonthsCount = useMemo(() => (
+    Object.values(submissionMonthlyData).filter((monthData) =>
+      isMonthlyEntryComplete(monthData, dynamicInputFields),
+    ).length
+  ), [dynamicInputFields, submissionMonthlyData]);
+
   const { submit: handleSubmit } = useEmissionSubmit({
     // State
     facilityId, scope, category, fuelId, useCustomFuel, customFuelName,
-    customEmissionFactor, customSource, isSaving, scope3Method, scope3ActivityId,
+    customEmissionFactor, customSource, isSaving, scope3Method, spendCurrencyConversionMethod, scope3ActivityId,
     scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
     biogenicScopeSelection, employees, frequencyType, reportingYearType, reportingYear,
-    monthlyData, yearlyData, processNames, responsiblePerson,
+    monthlyData: submissionMonthlyData, yearlyData: submissionYearlyData, processNames, responsiblePerson,
     responsiblePersonDesignation, responsiblePersonContact, notes, recordSource, supplierName,
     supplierCode, employeeName, employeeId, assetName, fromLocation, toLocation,
     dynamicCategories,
@@ -2637,7 +2825,10 @@ export default function EmissionEntryForm({
     setIsSaving,
     // Computed
     isC7EmployeeCommuting, requiresSubcategory, selectedFuel, capabilities: resolvedCapabilities,
+    categoryCode: ghgFormContext.categoryCode,
+    isProcessEmissions: ghgFormContext.isProcessCategory,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
+    matchedFormula: dynamicInputFieldsResult?.matchedFormula,
     // Helpers
     canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
     evaluateFormula, buildDecisionInputs,
@@ -2647,6 +2838,7 @@ export default function EmissionEntryForm({
     editingEmission,
     // Supplier context (optional)
     supplierContext,
+    assignedReportingPeriod,
     // OCR context (for finalize-import after save)
     ocrPrefillData,
   });
@@ -2717,6 +2909,8 @@ export default function EmissionEntryForm({
           setCategory={setCategory}
           setFuelId={setFuelId}
           setScope3Method={setScope3Method}
+          spendCurrencyConversionMethod={spendCurrencyConversionMethod}
+          setSpendCurrencyConversionMethod={setSpendCurrencyConversionMethod}
           setScope3ActivityType={setScope3ActivityType}
           setScope3ActivityId={setScope3ActivityId}
           setUseCustomFuel={setUseCustomFuel}
@@ -2784,6 +2978,7 @@ export default function EmissionEntryForm({
           setMonthlyData={setMonthlyData}
           setYearlyData={setYearlyData}
           setExpandedMonths={setExpandedMonths}
+          assignedReportingPeriod={assignedReportingPeriod}
         />
       </EmissionFormSection>
 
@@ -2831,6 +3026,7 @@ export default function EmissionEntryForm({
           scope={scope}
           biogenicScopeSelection={biogenicScopeSelection}
           useCustomFuel={useCustomFuel}
+          customFugitiveQuantityUnits={customFugitiveQuantityUnits}
           selectedFuel={selectedFuel}
           centralizedUnits={centralizedUnits}
           defaultUnit={defaultUnit}
@@ -2843,6 +3039,8 @@ export default function EmissionEntryForm({
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
           BACKEND_URL={BACKEND_URL}
+          isProcessEmissions={ghgFormContext.isProcessCategory}
+          selectedTemplate={selectedTemplate}
           category={category}
           capabilities={resolvedCapabilities}
           fieldOptions={resolvedGhgFieldOptions}

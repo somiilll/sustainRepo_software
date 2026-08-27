@@ -1,125 +1,62 @@
 {
-  "summary": "Completed iteration 16 testing for GHG Platform fixes. All 6 features verified successfully. Backend: 9/10 tests passed (1 skipped - user limit reached). Frontend: All features verified via code review and Playwright testing.",
+  "summary": "Executed focused backend+frontend regression for Org Config ownership of workflow/framework settings. Backend passed 8/9 tests; frontend confirmed control relocation and visibility in Org Config Features.",
   "backend_issues": {
-    "critical": [],
+    "critical": [
+      {
+        "endpoint": "/api/auth/login (OPTIONS preflight)",
+        "issue": "CORS returns Access-Control-Allow-Origin: * for trusted-origin preflight instead of explicit origin while credentials are expected.",
+        "priority": "HIGH"
+      }
+    ],
     "minor": []
   },
   "frontend_issues": {
     "ui_bugs": [],
-    "integration_issues": [],
+    "integration_issues": [
+      {
+        "flow": "Super Admin Organization edit form payload inspection",
+        "issue": "Playwright route interception captured PUT trigger but payload parsing in-run was inconclusive due script/runtime scoping; relied on code review + UI removal checks for non-submission confidence.",
+        "affected_selectors": [
+          "[data-testid='submit-org-btn']",
+          "[data-testid^='edit-org-']"
+        ]
+      }
+    ],
     "design_issues": [
       {
-        "screen": "Multiple pages (Facilities, Emissions, Organization)",
-        "issues": ["Minor React hydration warnings: <span> inside <select>/<option> - cosmetic only, not affecting functionality"]
+        "screen": "Super Admin > Organizations edit dialog",
+        "issues": [
+          "Console shows hydration/DOM nesting warnings around select/option markup while dialog is open.",
+          "DialogContent accessibility warning: missing description/aria-describedby in console."
+        ]
       }
     ]
   },
-  "verified_features": {
-    "feature_1_user_deletion_alertdialog": {
-      "status": "PASSED",
-      "backend_tests": ["DELETE /api/admin/users/{user_id} endpoint works", "Admin cannot delete self (400)", "Deleted user blocked from login"],
-      "ui_verified": true,
-      "screenshot": ".screenshots/delete_user_alertdialog.png",
-      "details": "User deletion now shows AlertDialog confirmation instead of window.confirm. Dialog shows user name, consequences, and Cancel/Delete buttons. Verified AlertDialog component with role='alertdialog'."
-    },
-    "feature_2_evidence_view_download_emissions": {
-      "status": "PASSED",
-      "backend_tests": ["GET /api/files/{id}/view endpoint exists (returns 404 for non-existent)", "GET /api/files/{id}/download endpoint exists (returns 404 for non-existent)"],
-      "ui_verified": true,
-      "screenshot": ".screenshots/emissions_page.png",
-      "details": "Emissions page shows separate View and Download buttons for evidence files. View opens file in new tab, Download triggers file download. Implemented in Emissions.js with handleViewEvidence and handleDownloadEvidence functions."
-    },
-    "feature_3_attachments_view_download_organization": {
-      "status": "PASSED",
-      "code_verified": true,
-      "details": "OrganizationDetails.js has View and Download links for attachments at lines 400-401 (edit mode) and 562-563 (read-only mode). URLs properly constructed using file ID pattern for uploaded files."
-    },
-    "feature_4_attachments_view_download_facilities": {
-      "status": "PASSED",
-      "code_verified": true,
-      "ui_verified": true,
-      "screenshot": ".screenshots/facility_edit_dialog.png",
-      "details": "Facilities.js has View and Download buttons for attachments at lines 497-510. Buttons appear in edit dialog attachment list. View uses Eye icon, Download uses Download icon."
-    },
-    "feature_5_custom_fuel_type_emission_form": {
-      "status": "PASSED",
-      "ui_verified": true,
-      "screenshot": ".screenshots/custom_fuel_type_form.png",
-      "details": "Add Emission form has '+ Add Custom Fuel Type' option in Sub-category dropdown (value='__custom__'). When selected, shows Custom Fuel Type Name and Emission Factor input fields with yellow background. Requires source and justification."
-    },
-    "feature_6_custom_factors_removed_from_sidebar": {
-      "status": "PASSED",
-      "code_verified": true,
-      "ui_verified": true,
-      "details": "Sidebar.js does NOT contain 'Custom Factors' nav item. Verified admin sidebar items: Dashboard, Organization, Facilities, Emissions, Reports, Users. Custom Factors module completely removed from navigation."
-    }
-  },
   "test_report_links": [
-    "/app/backend/tests/test_iteration_16_features.py",
-    "/app/test_reports/pytest/pytest_iteration_16.xml"
+    "/app/backend/tests/test_org_config_workflow_frameworks_iter16.py",
+    "/app/test_reports/pytest/pytest_results_iter16.xml"
   ],
-  "action_items": [],
+  "action_items": [
+    "Fix auth CORS policy to return explicit allowed origin (not '*') for credentialed flows.",
+    "Optionally add a dedicated test-only data-testid/network hook to reliably assert OrganizationManagement submit payload exclusions in browser automation.",
+    "Review and resolve select/dialog console accessibility/hydration warnings in OrganizationManagement modal."
+  ],
   "critical_code_review_comments": [
-    "Minor: React hydration warnings persist for <span> inside <select> elements - cosmetic issue from Visual Editor instrumentation, does not affect functionality"
+    "OrganizationManagement form state and submit payload do not include approval_workflow_enabled, multi_level_approval_enabled, or esg_frameworks_enabled (expected removal confirmed by code).",
+    "Org Config contracts correctly constrain organization_settings.esg_frameworks_enabled to Literal['BRSR','GRI'].",
+    "organization/module-config now reads workflow/framework values via resolve_organization_settings (canonical org_config path), matching requested ownership shift."
   ],
   "updated_files": [
-    "/app/backend/tests/test_iteration_16_features.py"
+    "/app/backend/tests/test_org_config_workflow_frameworks_iter16.py",
+    "/app/test_reports/iteration_16.json"
   ],
   "success_rate": {
-    "backend": "100% (9 passed, 1 skipped due to user creation limit)",
-    "frontend": "100% (all 6 features verified)"
+    "backend": "89%",
+    "frontend": "80%"
   },
-  "test_credentials": {
-    "admin": {"email": "admin@ghg.com", "password": "admin123"},
-    "user": {"email": "test@user.com", "password": "user123", "note": "May not exist or have different password"}
-  },
-  "seed_data_creation": "Test users created during deletion tests are automatically cleaned up",
-  "retest_needed": false,
-  "should_main_agent_self_test": false,
-  "context_for_next_testing_agent": "Iteration 16 complete. All 6 requested features verified: 1) User deletion uses AlertDialog, 2) Emissions evidence has View+Download, 3) Organization attachments have View+Download, 4) Facilities attachments have View+Download, 5) Custom fuel type option in emission form, 6) Custom Factors removed from sidebar. Backend download endpoint at /api/files/{id}/download works. Test file: /app/backend/tests/test_iteration_16_features.py",
-  "testing_method": "pytest for backend API tests + Playwright browser automation for UI verification + code review",
-  "features_tested": [
-    {
-      "feature_id": "Feature-1",
-      "title": "User deletion AlertDialog confirmation",
-      "files": ["/app/frontend/src/pages/UserManagement.js lines 317-346"],
-      "tests": ["AlertDialog appears on delete click", "Cancel button works", "Delete endpoint exists"],
-      "result": "PASSED"
-    },
-    {
-      "feature_id": "Feature-2",
-      "title": "Evidence View + Download buttons in Emissions",
-      "files": ["/app/frontend/src/pages/Emissions.js lines 406-469", "/app/backend/server.py lines 1898-1917"],
-      "tests": ["View endpoint /api/files/{id}/view", "Download endpoint /api/files/{id}/download", "UI shows both buttons"],
-      "result": "PASSED"
-    },
-    {
-      "feature_id": "Feature-3",
-      "title": "Attachments View + Download in Organization Details",
-      "files": ["/app/frontend/src/pages/OrganizationDetails.js lines 386-408, 546-566"],
-      "tests": ["View and Download links in edit mode", "View and Download links in read-only mode"],
-      "result": "PASSED"
-    },
-    {
-      "feature_id": "Feature-4",
-      "title": "Attachments View + Download in Facilities",
-      "files": ["/app/frontend/src/pages/Facilities.js lines 463-519"],
-      "tests": ["View button with Eye icon", "Download button with Download icon"],
-      "result": "PASSED"
-    },
-    {
-      "feature_id": "Feature-5",
-      "title": "Custom fuel type option in emission form",
-      "files": ["/app/frontend/src/pages/Emissions.js lines 611-683"],
-      "tests": ["+ Add Custom Fuel Type option in dropdown", "Custom Fuel Type Name field appears", "Custom Emission Factor field appears"],
-      "result": "PASSED"
-    },
-    {
-      "feature_id": "Feature-6",
-      "title": "Custom Factors removed from sidebar",
-      "files": ["/app/frontend/src/components/Sidebar.js"],
-      "tests": ["No Custom Factors in adminItems", "No Custom Factors in userItems"],
-      "result": "PASSED"
-    }
-  ]
+  "seed_data_creation": "Created and cleaned temporary legacy org/config records during migration-read test (TEST_LEGACY_*).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression file includes restore fixture for admin org canonical+legacy settings. Frontend paths are /super-admin/organizations and /super-admin/org-config (not /organizations or /org-config).",
+  "rca of the issue": "CORS failure RCA: auth preflight currently responds with wildcard origin, which conflicts with strict credentialed-origin requirements in the auth playbook. Repro: OPTIONS /api/auth/login with Origin=https://esg-ai-routing.preview.emergentagent.com + Access-Control-Request-Method: POST returns ACAO='*'. Mitigation: configure explicit allowlist origin reflection with allow_credentials=true."
 }

@@ -61,6 +61,7 @@ describe('buildCustomFuelCalculationPayload — heat basis (NCV)', () => {
       dynamicFieldValues: { qty: 10, custom_ef: 1, custom_ef_unit: 'kgCO2/TJ' },
     });
     expect(result.isReady).toBe(false);
+    expect(result.missingFields).toEqual(['Calorific Value']);
   });
 
   it('defaults the quantity unit to kg and falls back to formData', () => {
@@ -92,6 +93,50 @@ describe('buildCustomFuelCalculationPayload — quantity basis EF', () => {
     });
     expect(result.inputs.ef_quantity).toEqual({ value: 2, unit: 'kgCO2/MJ' });
   });
+
+  it('derives volume routing from a volume-based EF denominator', () => {
+    const result = buildCustomFuelCalculationPayload({
+      dynamicFieldValues: { qty: 100, custom_ef: 2.68, custom_ef_unit: 'kgCO2/L' },
+      calculationMethodology: 'using_qty_basis_ef',
+      centralizedUnits: [
+        { symbol: 'kg', unit_type: 'mass' },
+        { symbol: 'L', unit_type: 'volume' },
+      ],
+    });
+
+    expect(result.inputs.ef_quantity).toEqual({ value: 2.68, unit: 'kgCO2/L' });
+    expect(result.decisionInputs).toEqual({ ef_quantity_basis: 'volume' });
+  });
+});
+
+describe('buildCustomFuelCalculationPayload — custom Fugitive Emissions', () => {
+  it('uses only quantity and GWP Fugitives, without EF or calorific value', () => {
+    const result = buildCustomFuelCalculationPayload({
+      categoryCode: 'fugitive_emissions',
+      dynamicFieldValues: {
+        qty: 25,
+        custom_qty_unit: 'kg',
+        co2_gwp_fugitives: 1430,
+      },
+    });
+
+    expect(result.isReady).toBe(true);
+    expect(result.inputs).toEqual({
+      qty: { value: 25, unit: 'kg' },
+      co2_gwp_fugitives: { value: 1430, unit: '' },
+    });
+    expect(result.userOverrides.co2_gwp_fugitives).toEqual({ value: 1430, unit: '' });
+    expect(result.missingFields).toEqual([]);
+  });
+
+  it('requires GWP Fugitives rather than EF or calorific value', () => {
+    const result = buildCustomFuelCalculationPayload({
+      categoryName: 'Fugitive Emissions',
+      dynamicFieldValues: { qty: 25 },
+    });
+
+    expect(result.missingFields).toEqual(['GWP Fugitives']);
+  });
 });
 
 describe('buildCustomFuelCalculationPayload — carbon composition', () => {
@@ -116,6 +161,7 @@ describe('buildCustomFuelCalculationPayload — carbon composition', () => {
       calculationMethodology: 'using_carbon_composition',
     });
     expect(result.isReady).toBe(false);
+    expect(result.missingFields).toEqual(['Oxidation Factor']);
   });
 });
 
@@ -172,7 +218,9 @@ describe('buildCustomFuelCalculationPayload — legacy key aliases', () => {
         ef_ch4: { value: 0, unit: 'kgCH4/TJ' },
         ef_n2o: { value: 0, unit: 'kgN2O/TJ' },
       },
+      decisionInputs: {},
       isReady: false,
+      missingFields: ['Quantity Used', 'Emission Factor', 'Calorific Value'],
     });
   });
 });

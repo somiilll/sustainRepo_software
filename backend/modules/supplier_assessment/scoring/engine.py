@@ -15,6 +15,7 @@ from .models import (
     ScoreBreakdown,
     SupplierScore,
 )
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 
 class ScoringEngine:
@@ -52,6 +53,9 @@ class ScoringEngine:
         supplier_relationship_id: str,
         questionnaire_id: str,
         save_to_db: bool = True,
+        answers_override: Optional[Dict[str, Any]] = None,
+        manual_scores_override: Optional[Dict[str, Any]] = None,
+        reporting_period: Optional[str] = None,
     ) -> ScoreBreakdown:
         """
         Calculate complete supplier assessment score.
@@ -85,26 +89,35 @@ class ScoringEngine:
             {"_id": 0}
         ).to_list(500)
         
-        # Fetch supplier's responses
-        response_doc = await self.db.supplier_questionnaire_responses.find_one(
-            {
-                "questionnaire_id": questionnaire_id,
-                "supplier_relationship_id": supplier_relationship_id,
-            },
-            {"_id": 0}
-        )
-        answers = response_doc.get("answers", {}) if response_doc else {}
-        
-        # Fetch supplier relationship for revenue and name
+        # Fetch supplier relationship before selecting the period-specific submitted response.
         relationship = await self.db.supplier_relationships.find_one(
             {"id": supplier_relationship_id},
             {"_id": 0}
         )
         supplier_name = relationship.get("company_name") if relationship else None
-        revenue_percentage = relationship.get("revenue_percentage") if relationship else None
+        effective_period = reporting_period or (relationship or {}).get("reporting_period")
+
+        # Fetch the parent-visible response for the active reporting period.
+        response_query: Dict[str, Any] = {
+            "questionnaire_id": questionnaire_id,
+            "supplier_relationship_id": supplier_relationship_id,
+            "status": "submitted",
+            "parent_visible": {"$ne": False},
+        }
+        if effective_period:
+            response_query["reporting_period"] = effective_period
+        response_doc = await self.db.supplier_questionnaire_responses.find_one(
+            response_query,
+            {"_id": 0}, sort=[("revision", -1)]
+        )
+        answers = answers_override if answers_override is not None else (response_doc.get("answers", {}) if response_doc else {})
+        manual_scores = manual_scores_override if manual_scores_override is not None else (response_doc.get("manual_question_scores", {}) if response_doc else {})
+        revenue = await self.get_revenue_component(supplier_relationship_id, effective_period)
         
         # Calculate GHG score
-        ghg_score = await self._calculate_ghg_score(supplier_relationship_id)
+        ghg_component = await self.get_ghg_component(
+            supplier_relationship_id, effective_period, revenue.get("revenue_amount")
+        )
         
         # Get weight configurations
         esg_weights = self._get_esg_weights(questionnaire)
@@ -120,9 +133,12 @@ class ScoringEngine:
             answers=answers,
             esg_weights=esg_weights,
             overall_weights=overall_weights,
-            ghg_score=ghg_score,
-            revenue_percentage=revenue_percentage,
+            ghg_score=ghg_component.get("score"),
+            revenue_percentage=revenue.get("revenue_percentage"),
+            manual_scores=manual_scores,
         )
+        breakdown.supplier_score.ghg_intensity_tco2e_per_million_revenue = ghg_component.get("intensity")
+        breakdown.supplier_score.ghg_total_emissions = ghg_component.get("total_emissions")
         
         # Save results if requested
         if save_to_db:
@@ -134,41 +150,49 @@ class ScoringEngine:
         
         return breakdown
     
-    async def _calculate_ghg_score(self, supplier_relationship_id: str) -> Optional[float]:
-        """
-        Calculate GHG performance score for a supplier.
-        
-        Formula: Higher score = better (lower emissions relative to peers)
-        
-        For now, uses a simple normalization:
-        - 0 emissions = 100 score
-        - 1000+ tCO2e = 0 score
-        - Linear interpolation between
-        
-        TODO: Consider industry benchmarks, scope breakdown, YoY improvement
-        """
+    async def get_ghg_component(
+        self,
+        supplier_relationship_id: str,
+        reporting_period: Optional[str],
+        revenue_amount: Optional[float],
+    ) -> Dict[str, Any]:
+        """Return the persisted-GHG component using emissions intensity, never absolute emissions."""
+        query = {
+            "source": "supplier",
+            "supplier_relationship_id": supplier_relationship_id,
+            "submitted_to_parent_org": {"$exists": True, "$ne": None},
+            "parent_visible": {"$ne": False},
+        }
+        if reporting_period:
+            from modules.supplier_assessment.ghg_submission_service import reporting_period_values
+            query["reporting_period"] = {"$in": reporting_period_values(reporting_period)}
+        query.update(eligible_ghg_record_filter())
         emissions = await self.db.emission_records.find(
-            {
-                "source": "supplier",
-                "supplier_relationship_id": supplier_relationship_id,
-            },
+            query,
             {"_id": 0, "total_emissions": 1, "scope": 1}
         ).to_list(1000)
-        
         if not emissions:
-            return None  # No GHG data submitted
-        
-        total_emissions = sum(e.get("total_emissions", 0) or 0 for e in emissions)
-        
-        # Simple normalization: assume 1000 tCO2e is "bad" (score 0)
-        # 0 tCO2e is "good" (score 100)
-        # This should be configurable per organization
-        max_acceptable = 1000  # tCO2e
-        
-        if total_emissions >= max_acceptable:
-            return 0.0
-        
-        return round(100 - (total_emissions / max_acceptable * 100), 2)
+            return {"score": None, "intensity": None, "total_emissions": 0.0, "scope1_emissions": 0.0, "scope2_emissions": 0.0}
+        scope1 = sum(float(item.get("total_emissions") or 0) for item in emissions if item.get("scope") in {"scope1", "scope_1"})
+        scope2 = sum(float(item.get("total_emissions") or 0) for item in emissions if item.get("scope") in {"scope2", "scope_2"})
+        total = scope1 + scope2
+        if revenue_amount is None or float(revenue_amount) <= 0:
+            return {"score": None, "intensity": None, "total_emissions": round(total, 2), "scope1_emissions": round(scope1, 2), "scope2_emissions": round(scope2, 2)}
+        intensity = (total / float(revenue_amount)) * 1_000_000
+        # Default benchmark: 100 tCO2e per one million units of supplier revenue.
+        score = max(0.0, min(100.0, 100.0 - intensity))
+        return {"score": round(score, 2), "intensity": round(intensity, 4), "total_emissions": round(total, 2), "scope1_emissions": round(scope1, 2), "scope2_emissions": round(scope2, 2)}
+
+    async def get_revenue_component(self, supplier_relationship_id: str, reporting_period: Optional[str]) -> Dict[str, Optional[float]]:
+        query = {"supplier_relationship_id": supplier_relationship_id, "status": "submitted", "parent_visible": {"$ne": False}}
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        submission = await self.db.supplier_revenue_submissions.find_one(
+            query, {"_id": 0, "revenue_percentage": 1, "revenue_amount": 1}, sort=[("revision", -1)]
+        )
+        if not submission:
+            return {"revenue_percentage": None, "revenue_amount": None}
+        return {"revenue_percentage": submission.get("revenue_percentage"), "revenue_amount": submission.get("revenue_amount")}
     
     def _get_esg_weights(self, questionnaire: Dict[str, Any]) -> ESGSectionWeights:
         """Extract ESG section weights from questionnaire config."""
@@ -201,31 +225,25 @@ class ScoringEngine:
         """Save scoring results to database."""
         now = datetime.now(timezone.utc).isoformat()
         
-        # Update supplier_questionnaire_responses with calculated score
+        # Persist the questionnaire-level result, then refresh the one canonical
+        # supplier snapshot used by every downstream view.
         await self.db.supplier_questionnaire_responses.update_one(
             {
                 "questionnaire_id": questionnaire_id,
                 "supplier_relationship_id": supplier_relationship_id,
+                "status": "submitted",
+                "parent_visible": {"$ne": False},
             },
             {"$set": {
-                "calculated_score": breakdown.supplier_score.overall_score,
+                "calculated_score": breakdown.esg_score.overall_score,
                 "esg_score": breakdown.esg_score.overall_score,
                 "score_breakdown": breakdown.model_dump(),
                 "scored_at": now,
             }}
         )
         
-        # Update supplier_relationships with latest scores
-        await self.db.supplier_relationships.update_one(
-            {"id": supplier_relationship_id},
-            {"$set": {
-                "esg_score": breakdown.esg_score.overall_score,
-                "ghg_score": breakdown.supplier_score.ghg_score,
-                "overall_score": breakdown.supplier_score.overall_score,
-                "last_scored_at": now,
-                "updated_at": now,
-            }}
-        )
+        from modules.supplier_assessment.service import supplier_service
+        await supplier_service.refresh_supplier_canonical_score(supplier_relationship_id)
     
     async def get_score_breakdown(
         self,

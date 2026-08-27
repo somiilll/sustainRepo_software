@@ -6,6 +6,7 @@
  */
 
 import { MONTHS } from '../../../../../constants/months';
+import { isMonthlyEntryStarted } from './monthlyCompletion';
 
 /**
  * Validate Step 1 → Step 2 transition (Basic Selection)
@@ -233,12 +234,7 @@ export const validateStep3 = ({
     const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
 
     for (const [monthKey, data] of Object.entries(monthlyData)) {
-      const hasAnyRequiredData = requiredFields.some(field => {
-        const value = data[field.variable] || data[field.fieldKey];
-        return value !== '' && value !== null && value !== undefined;
-      });
-
-      if (hasAnyRequiredData) {
+      if (isMonthlyEntryStarted(data, dynamicInputFields)) {
         for (const field of requiredFields) {
           const value = data[field.variable] || data[field.fieldKey];
           if (value === '' || value === null || value === undefined) {
@@ -282,9 +278,23 @@ export const validateStep3 = ({
     }
   }
 
+  // Runtime Density is not always present in the configured mapping list for
+  // Process Emissions. Once the selected mass/volume units require it, do not
+  // permit a record to be saved without a positive user-provided value.
+  for (const [monthKey, data] of Object.entries(monthlyData)) {
+    if (!isMonthlyEntryStarted(data, dynamicInputFields)) continue;
+    if (data?.runtime_density_required !== true) continue;
+    const density = Number.parseFloat(data.density);
+    if (!Number.isFinite(density) || density <= 0) {
+      const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+      return { valid: false, message: `Please enter Density for ${monthName}` };
+    }
+  }
+
   // Validate override and optional fields - if checkbox is checked, value must be entered
   const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
   for (const [monthKey, data] of Object.entries(monthlyData)) {
+    if (!isMonthlyEntryStarted(data, dynamicInputFields)) continue;
     for (const field of overrideAndOptionalFields) {
       const isCheckboxChecked = data[`override_${field.variable}`];
       const value = data[field.variable] || data[field.fieldKey];

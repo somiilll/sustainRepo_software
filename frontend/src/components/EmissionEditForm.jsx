@@ -20,7 +20,7 @@ import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/Cu
 import { resolveGhgUiState } from '../modules/ghg/config/resolveGhgUiState';
 import {
   getStandardActivityTypeLabel,
-  STANDARD_PROCESS_TYPE_OPTIONS,
+  GHG_FIELD_OPTION_KEYS,
   STANDARD_TYPE_OF_PRODUCT_OPTIONS,
 } from '../modules/ghg/config/standardGhgFormConfig';
 import FlightDetailsSection from './FlightDetailsSection';
@@ -50,7 +50,12 @@ import {
   MapPin,
 } from 'lucide-react';
 import { isVolumeUnit as isVolumeUnitShared } from '../pages/emissions/utils/units';
-import { isQuantityField } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import {
+  getUnitDenominator,
+  isQuantityField,
+  resolveDensityRequirement,
+} from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -72,6 +77,31 @@ const downloadFileHelper = (url, filename) => {
 
 // Local alias used in the JSX below (matches the legacy inline reference).
 const isVolumeUnit = isVolumeUnitShared;
+
+const isCvField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(cv|calorific|ncv)(_|$)/i.test(identity)
+    || /calorific|\bcv\b|\bncv\b/i.test(field.label || '');
+};
+
+const isEfField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(ef|emission_factor)(_|$)/i.test(identity)
+    || /emission factor|\bef\b/i.test(field.label || '');
+};
+
+const isCarbonContentField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /carbon.*content|composition.*carbon/i.test(identity)
+    || /carbon.*content|composition.*carbon/i.test(field.label || '');
+};
+
+const hasNumericValue = (value) => (
+  value !== undefined
+  && value !== null
+  && value !== ''
+  && Number.isFinite(Number.parseFloat(value))
+);
 
 const getCategoryIcon = (category = '') => {
   const normalized = category.toLowerCase();
@@ -152,6 +182,7 @@ export default function EmissionEditForm(props) {
 
     // Optional props for approval mode
     hideSubmitButton = false,
+    assignedReportingPeriod = null,
   } = props;
 
   const setDraftField = useCallback((field, valueOrUpdater) => {
@@ -176,6 +207,7 @@ export default function EmissionEditForm(props) {
   const biogenicScopeSelection = draft.biogenicScopeSelection;
   const selectedCategory = draft.selectedCategory;
   const scope3Method = draft.scope3Method;
+  const spendCurrencyConversionMethod = draft.spendCurrencyConversionMethod || 'ppp_inflation';
   const scope3ActivityType = draft.scope3ActivityType;
   const scope3Subcategory = draft.scope3Subcategory;
   const scope3ActivityId = draft.scope3ActivityId;
@@ -197,6 +229,7 @@ export default function EmissionEditForm(props) {
   const overrideJustification = draft.overrideJustification;
   const setBiogenicScopeSelection = (value) => setDraftField('biogenicScopeSelection', value);
   const setScope3Method = (value) => setDraftField('scope3Method', value);
+  const setSpendCurrencyConversionMethod = (value) => setDraftField('spendCurrencyConversionMethod', value);
   const setScope3ActivityType = (value) => setDraftField('scope3ActivityType', value);
   const setScope3ActivityId = (value) => setDraftField('scope3ActivityId', value);
   const setScope3Subcategory = (value) => setDraftField('scope3Subcategory', value);
@@ -226,6 +259,55 @@ export default function EmissionEditForm(props) {
     hasCategory: Boolean(selectedCategory || formData.category),
   });
   const CategoryIcon = getCategoryIcon(selectedCategory || formData.category);
+  const isProcessEmission = Boolean(capabilities.processType)
+    || (formData.category || selectedCategory || '').toLowerCase().includes('process');
+  const hasConfiguredDensityField = dynamicInputFields.some((field) => field.variable === 'density');
+  const virtualDensityQuantityField = dynamicInputFields.find(isQuantityField);
+  const virtualDensityReferenceField = editCalcMethodology === 'using_heat_basis_ncv'
+    ? dynamicInputFields.find(isCvField)
+    : editCalcMethodology === 'using_qty_basis_ef'
+      ? dynamicInputFields.find(isEfField)
+      : dynamicInputFields.find(isCarbonContentField);
+  const getSavedFieldValue = (field) => (
+    dynamicFieldValues[field?.variable]
+    ?? editingEmission?.dynamic_field_values?.[field?.variable]?.value
+  );
+  const getSavedFieldUnit = (field) => (
+    dynamicFieldValues[`${field?.variable}_unit`]
+    || editingEmission?.dynamic_field_values?.[field?.variable]?.unit
+    || field?.expectedUnit
+    || ''
+  );
+  const virtualDensityRequirement = resolveDensityRequirement({
+    quantityUnit: getSavedFieldUnit(virtualDensityQuantityField),
+    referenceUnit: editCalcMethodology === 'using_carbon_composition'
+      ? 'kg'
+      : getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField)),
+    centralizedUnits,
+  });
+  // A configured Density field renders in the standard grid. For formulas
+  // that resolve Carbon Composition from a volume quantity, expose the same
+  // runtime conversion input for Process, Stationary, and Mobile Combustion.
+  // Custom Fuel owns this input through CustomFuelMonthFields.
+  const showVirtualProcessDensity = !editUseCustomFuel
+    && (isProcessEmission || editCalcMethodology === 'using_carbon_composition')
+    && !hasConfiguredDensityField
+    && hasNumericValue(getSavedFieldValue(virtualDensityQuantityField))
+    && hasNumericValue(getSavedFieldValue(virtualDensityReferenceField))
+    && virtualDensityRequirement.required;
+  const savedVirtualDensity = dynamicFieldValues.density
+    ?? editingEmission?.dynamic_field_values?.density?.value
+    ?? '';
+  const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT] || [];
+  const isFugitiveCustomFuel = editUseCustomFuel
+    && (formData.category || selectedCategory || '').toLowerCase().includes('fugitive');
+  const customFugitiveQuantityUnits = isFugitiveCustomFuel
+    ? getCategoryFuelAllowedUnits({
+      fuelDatabase,
+      scope: formData.scope,
+      categoryName: formData.category || selectedCategory,
+    })
+    : [];
 
   // ─────────────────────────────────────────────────────────────────────
   // Data-based loading gate for C7 Employee Commuting (has deeply nested
@@ -261,13 +343,14 @@ export default function EmissionEditForm(props) {
                   markFormDirty={markFormDirty}
                   reportingPeriod={(
                     <div className="w-full min-w-[15rem] space-y-1.5" data-testid="edit-reporting-period-field">
-                      {editFrequencyType === 'yearly' ? (
+                      {editFrequencyType === 'yearly' || assignedReportingPeriod ? (
                         <>
-                          <Label>Reporting Year</Label>
+                          <Label>{editFrequencyType === 'yearly' ? 'Reporting Year' : 'Reporting Month'}</Label>
                           <div className="flex items-center h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-stone-800 font-medium" data-testid="edit-reporting-year-display">
                             <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
                             {editingEmission.reporting_period || 'N/A'}
                           </div>
+                          {assignedReportingPeriod && <p className="text-xs text-emerald-700" data-testid="supplier-edit-assigned-reporting-period-message">Assigned by your customer: {assignedReportingPeriod.reporting_period}</p>}
                         </>
                       ) : (
                         <>
@@ -378,6 +461,25 @@ export default function EmissionEditForm(props) {
                                 <p className="text-xs text-amber-600">No methods available for this category</p>
                               )}
                             </div>
+                            {scope3Method === 'spend_basis' && (
+                              <div className="space-y-1.5" data-testid="edit-scope3-currency-conversion-method-section">
+                                <Label htmlFor="edit-scope3-currency-conversion-method-select">Currency Conversion Method *</Label>
+                                <select
+                                  id="edit-scope3-currency-conversion-method-select"
+                                  value={spendCurrencyConversionMethod}
+                                  onChange={(event) => {
+                                    setSpendCurrencyConversionMethod(event.target.value);
+                                    setDynamicFieldValues({});
+                                    markFormDirty();
+                                  }}
+                                  className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3"
+                                  data-testid="edit-scope3-currency-conversion-method-select"
+                                >
+                                  <option value="standard">Standard Currency Conversion</option>
+                                  <option value="ppp_inflation">PPP and Inflation Rate</option>
+                                </select>
+                              </div>
+                            )}
                             {availableScope3ActivityTypes.length > 0 && (
                               <div className="space-y-1.5" data-testid="scope3-activity-type-section">
                                 <Label htmlFor="scope3_activity_type_filter">Activity Type *</Label>
@@ -414,6 +516,7 @@ export default function EmissionEditForm(props) {
                             <Label htmlFor="fuel_select" className="whitespace-nowrap">Select Fuel Type *</Label>
                             {ghgUiState.showCustomFuel && (
                               <label className="absolute right-0 top-0 flex items-center gap-1.5 cursor-pointer">
+                                <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
                                 <input
                                   type="checkbox"
                                   checked={editUseCustomFuel}
@@ -454,10 +557,17 @@ export default function EmissionEditForm(props) {
                                 </select>
                               </div>
                             ) : (
-                              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                <div className="space-y-2">
-                                  <Label>Custom Fuel Name <span className="text-red-500">*</span></Label>
+                              <div className="space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
+                                <div className="flex items-center gap-2">
+                                  <Flame className="h-4 w-4 text-amber-600" aria-hidden="true" />
+                                  <Label htmlFor="edit-custom-fuel-name-input">Fuel Name <span className="text-red-500">*</span></Label>
+                                  <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800" data-testid="edit-custom-fuel-badge">
+                                    Custom fuel
+                                  </span>
+                                </div>
+                                <div>
                                   <Input
+                                    id="edit-custom-fuel-name-input"
                                     value={editCustomFuelName}
                                     onChange={(e) => {
                                       setEditCustomFuelName(e.target.value);
@@ -489,8 +599,8 @@ export default function EmissionEditForm(props) {
                               <SelectValue placeholder="Select process type" />
                             </SelectTrigger>
                             <SelectContent>
-                              {STANDARD_PROCESS_TYPE_OPTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                              {ghgUiState.renderableProcessTypeOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value} disabled={option.disabled}>{option.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -797,10 +907,28 @@ export default function EmissionEditForm(props) {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
                         const isQtyField = isQuantityField(field);
-                        const hideStandardQuantityUnit = editUseCustomFuel && isQtyField;
+                        const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
+                        const showCustomFuelQuantityUnit = editUseCustomFuel && isQtyField;
+                        const hideStandardQuantityUnit = false;
                         
                         // Get the currently saved unit for this field
-                        const savedUnit = dynamicFieldValues[`${field.variable}_unit`] || '';
+                        const savedUnit = (showCustomFuelQuantityUnit && dynamicFieldValues.custom_qty_unit)
+                          || dynamicFieldValues[`${field.variable}_unit`]
+                          || (field.variable === 'density' ? formData.density_unit : '')
+                          || '';
+                        const savedDensityValue = field.variable === 'density'
+                          ? dynamicFieldValues.density ?? formData.density ?? editingEmission?.dynamic_field_values?.density?.value
+                          : undefined;
+                        const overrideKey = `override_${field.variable}`;
+                        const isOverrideEnabled = isFugitiveGwpField
+                          || dynamicFieldValues[overrideKey] === true
+                          || (
+                            field.variable === 'density'
+                            && dynamicFieldValues[overrideKey] === undefined
+                            && savedDensityValue !== undefined
+                            && savedDensityValue !== null
+                            && savedDensityValue !== ''
+                          );
                         
                         // Determine field units based on unit_source
                         let fieldUnits = [];
@@ -868,7 +996,14 @@ export default function EmissionEditForm(props) {
                         // Unitless count fields - admin-driven via unit_source === 'none'.
                         const isUnitlessCountField = field.unitSource === 'none';
 
-                        const showUnitSelector = !hideStandardQuantityUnit && !isUnitlessCountField && field.unitSource !== 'text' && fieldUnits.length > 0;
+                        const unitSelectorOptions = showCustomFuelQuantityUnit
+                          ? (isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
+                            ? customFugitiveQuantityUnits
+                            : customFuelQuantityUnits)
+                          : fieldUnits;
+                        const showUnitSelector = !isUnitlessCountField
+                          && field.unitSource !== 'text'
+                          && unitSelectorOptions.length > 0;
                         // Freeform text unit input — admin set unit_source = 'text'
                         const showUnitTextInput = !hideStandardQuantityUnit && !isUnitlessCountField && field.unitSource === 'text' && !field.variable?.endsWith('_unit');
                         
@@ -877,14 +1012,15 @@ export default function EmissionEditForm(props) {
                           (field.variable?.includes('supplier_based') || field.variable?.includes('supplier'));
                         
                         // Show checkbox for override fields OR optional fields (not required and not override)
-                        const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
+                        const showOverrideCheckbox = !isFugitiveGwpField
+                          && (field.isOverride || (!field.required && !field.isOverride));
 
                         return (
                           <div key={field.id || field.variable} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label className="font-medium flex items-center gap-1.5">
+                            <div className="flex min-h-10 items-start justify-between gap-2">
+                              <Label className="flex min-h-10 items-start gap-1.5 pt-0.5 font-medium leading-5">
                                 {field.label}
-                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                                {(field.required || isFugitiveGwpField) && <span className="text-red-500 ml-1">*</span>}
                                 {!hideStandardQuantityUnit && !showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
                                   <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
                                 )}
@@ -914,7 +1050,7 @@ export default function EmissionEditForm(props) {
                                   <input
                                     type="checkbox"
                                     id={`edit-override-${field.variable}`}
-                                    checked={dynamicFieldValues[`override_${field.variable}`] || false}
+                                    checked={isOverrideEnabled}
                                     onChange={(e) => {
                                       const isChecked = e.target.checked;
                                       updateDynamicFieldValue(`override_${field.variable}`, isChecked);
@@ -956,10 +1092,10 @@ export default function EmissionEditForm(props) {
                             {/* Render based on field_type */}
                             {field.fieldType === 'select' && field.options?.length > 0 ? (
                               <select
-                                value={dynamicFieldValues[field.variable] || ''}
+                                value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                 onChange={(e) => updateDynamicFieldValue(field.variable, e.target.value)}
-                                disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                 data-testid={`edit-select-${field.fieldKey}`}
                               >
                                 <option value="">Select {field.label}</option>
@@ -976,7 +1112,7 @@ export default function EmissionEditForm(props) {
                                   step={field.fieldType === 'number' ? 'any' : undefined}
                                   min={field.fieldType === 'number' ? '0' : undefined}
                                   placeholder={field.placeholder}
-                                  value={dynamicFieldValues[field.variable] || ''}
+                                  value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
@@ -988,8 +1124,8 @@ export default function EmissionEditForm(props) {
                                     }
                                   }}
                                   onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
-                                  disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1 min-w-0' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                  disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1 min-w-0' : ''} ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                   data-testid={`edit-input-${field.fieldKey}`}
                                 />
 
@@ -997,10 +1133,10 @@ export default function EmissionEditForm(props) {
                                 {showUnitTextInput && (
                                   <Input
                                     type="text"
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || ''}
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || savedUnit}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
-                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                     placeholder="Unit"
                                     data-testid={`edit-unit-text-${field.fieldKey}`}
                                   />
@@ -1010,10 +1146,10 @@ export default function EmissionEditForm(props) {
                                 {isSupplierBasisUnitField && (
                                   <Input
                                     type="text"
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || ''}
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || savedUnit}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
-                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                     placeholder="Unit (e.g., L, tCO2/L)"
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   />
@@ -1022,19 +1158,24 @@ export default function EmissionEditForm(props) {
                                 {/* Non-supplier basis - use dropdown for units */}
                                 {!isSupplierBasisUnitField && showUnitSelector && (
                                   <select
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || fieldUnits[0] || ''}
+                                    value={showCustomFuelQuantityUnit
+                                      ? (dynamicFieldValues.custom_qty_unit || savedUnit || unitSelectorOptions[0] || '')
+                                      : (dynamicFieldValues[`${field.variable}_unit`] || savedUnit || unitSelectorOptions[0] || '')}
                                     onChange={(e) => {
+                                      if (showCustomFuelQuantityUnit) {
+                                        updateDynamicFieldValue('custom_qty_unit', e.target.value);
+                                      }
                                       updateDynamicFieldValue(`${field.variable}_unit`, e.target.value);
                                       if (isQtyField) {
                                         setFormData(prev => ({ ...prev, quantity_unit: e.target.value }));
                                       }
                                     }}
-                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-24 shrink-0 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
-                                    data-testid={`edit-unit-${field.fieldKey}`}
+                                    disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
+                                    data-testid={showCustomFuelQuantityUnit ? 'edit-custom-fuel-quantity-unit' : `edit-unit-${field.fieldKey}`}
                                   >
                                     {/* savedUnit already included in fieldUnits at line ~4084; no duplicate injection needed */}
-                                    {fieldUnits.map(u => (
+                                    {unitSelectorOptions.map(u => (
                                       <option key={u} value={u}>{u}</option>
                                     ))}
                                   </select>
@@ -1045,6 +1186,37 @@ export default function EmissionEditForm(props) {
                         );
                       })}
                     </div>
+
+                    {showVirtualProcessDensity && (
+                      <div className="grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="edit-process-density-field">
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-process-density-input" className="text-sm font-medium">
+                            Density <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            id="edit-process-density-input"
+                            type="number"
+                            step="any"
+                            min="0"
+                            required
+                            value={savedVirtualDensity}
+                            onChange={(event) => {
+                              updateDynamicFieldValue('density', event.target.value);
+                              updateDynamicFieldValue('density_unit', virtualDensityRequirement.densityUnit);
+                              updateDynamicFieldValue('override_density', true);
+                            }}
+                            className="bg-stone-50"
+                            data-testid="edit-process-density-input"
+                          />
+                        </div>
+                        <span className="mb-2 text-sm text-stone-600" data-testid="edit-process-density-unit">
+                          {virtualDensityRequirement.densityUnit}
+                        </span>
+                        <p className="col-span-2 text-xs text-amber-700" data-testid="edit-process-density-conversion-hint">
+                          Conversion required: {getSavedFieldUnit(virtualDensityQuantityField)} → {editCalcMethodology === 'using_carbon_composition' ? 'kg' : getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField))}
+                        </p>
+                      </div>
+                    )}
                     
                   </div>
                   )
@@ -1102,6 +1274,9 @@ export default function EmissionEditForm(props) {
                     }}
                     calculationMethodology={editCalcMethodology || 'using_heat_basis_ncv'}
                     fieldOptions={fieldOptions}
+                    centralizedUnits={centralizedUnits}
+                    showMethodIndicator={false}
+                    isFugitiveCustomFuel={isFugitiveCustomFuel}
                   />
                 )}
 

@@ -75,6 +75,7 @@ class UploadSummary(BaseModel):
     warnings: List[ValidationError] = []
     results: List[RowResult] = []
     created_emission_ids: List[str] = []
+    preview: Optional[Dict[str, Any]] = None
 
 
 class BulkUploadJob(BaseModel):
@@ -707,7 +708,8 @@ CATEGORY_COLUMNS = {
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
             {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
-            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions"]},
+            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions", "Flaring", "Process Emissions"]},
+            {"name": "Process Type", "key": "process_type", "mandatory": False, "type": "dropdown", "allowed_values": ["Venting", "N2O from Overall Combustion", "CH4 from Overall Combustion"]},
             {"name": "Fuel/Gas Used", "key": "fuel_gas", "mandatory": True, "type": "dropdown"},
             {"name": "Quantity Used", "key": "qty", "mandatory": True, "type": "number"},
             {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
@@ -718,20 +720,24 @@ CATEGORY_COLUMNS = {
             {"name": "Unit of Density", "key": "density_unit", "mandatory": False, "type": "text"},
             {"name": "Emission Factor", "key": "ef_quantity", "mandatory": False, "type": "number"},
             {"name": "Emission Factor Unit", "key": "ef_quantity_unit", "mandatory": False, "type": "text"},
-            {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
-            {"name": "Process Description", "key": "process_description", "mandatory": True, "type": "text"},
+            {"name": "Carbon Content (%)", "key": "carbon_content", "mandatory": False, "type": "number"},
+            {"name": "Oxidation Factor", "key": "oxidation_factor", "mandatory": False, "type": "number"},
+            {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
             {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
-            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
+            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "default": ["facility_name", "category", "fuel_gas", "qty", "unit_qty", "process_name", "process_description", "responsible_person"],
+            "default": ["facility_name", "category", "fuel_gas", "qty", "unit_qty"],
         },
         "conditional_mandatory": {
             "cv": ["cv_unit"],  # If cv is provided, cv_unit is mandatory
             "density": ["density_unit"],  # If density is provided, density_unit is mandatory
+            "ef_quantity": ["ef_quantity_unit"],  # If ef is provided, ef_unit is mandatory
+            "carbon_content": ["oxidation_factor"],  # If carbon_content is provided, oxidation_factor is required
         }
     },
     "Scope2": {
@@ -750,22 +756,41 @@ CATEGORY_COLUMNS = {
             {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
             {"name": "Emission Factor", "key": "ef_quantity_electricity_co2", "mandatory": False, "type": "number"},
             {"name": "Unit of Emission Factor", "key": "ef_unit", "mandatory": False, "type": "text"},
-            {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
-            {"name": "Process Description", "key": "process_description", "mandatory": True, "type": "text"},
+            {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
             {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
-            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
+            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "default": ["facility_name", "category", "energy_used", "qty_energy", "unit_qty", "process_name", "process_description", "responsible_person"],
+            "default": ["facility_name", "category", "energy_used", "qty_energy", "unit_qty"],
         },
         "conditional_mandatory": {
             "ef_quantity_electricity_co2": ["ef_unit"],  # If emission factor is provided, ef_unit is mandatory
         }
     },
 }
+
+# Spend-basis rows use a legacy-safe PPP default when this optional selector is
+# absent. The normalized columns are injected for every category that supports
+# spend basis so generated templates and uploaded records share one contract.
+for _category_config in CATEGORY_COLUMNS.values():
+    if CalculationMethod.SPEND_BASIS not in _category_config.get("supported_methods", []):
+        continue
+    _columns = _category_config.get("columns", [])
+    _spent_index = next((index for index, column in enumerate(_columns) if column["key"] == "spent_amount"), None)
+    if _spent_index is None:
+        continue
+    _columns[_spent_index]["name"] = "Spent Amount"
+    _new_columns = [
+        {"name": "Spent Currency", "key": "spent_currency", "mandatory": False, "type": "dropdown"},
+        {"name": "Currency Conversion Method", "key": "spend_currency_conversion_method", "mandatory": False, "type": "dropdown"},
+        {"name": "Exchange Rate (Override)", "key": "exchange_rate", "mandatory": False, "type": "number"},
+    ]
+    if not any(column["key"] == "spend_currency_conversion_method" for column in _columns):
+        _columns[_spent_index + 1:_spent_index + 1] = _new_columns
 
 
 # Activity type mappings for C6 and C7
@@ -787,11 +812,13 @@ ACTIVITY_TYPES = {
     ]
 }
 
-# Scope 1 categories
+# Scope 1 categories (canonical list — template generator filters by org config)
 SCOPE1_CATEGORIES = [
     {"key": "stationary_combustion", "name": "Stationary Combustion"},
     {"key": "mobile_combustion", "name": "Mobile Combustion"},
     {"key": "fugitive_emissions", "name": "Fugitive Emissions"},
+    {"key": "flaring", "name": "Flaring"},
+    {"key": "process_emissions", "name": "Process Emissions"},
 ]
 
 # Scope 2 categories

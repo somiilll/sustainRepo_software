@@ -8,11 +8,10 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
  * Hook to fetch and check module access flags for the current org.
  * Returns { hasAccess(key), moduleAccess, loading }.
  *
- * Access flags are stored as a flat object on the organization:
- *   module_access: { "dashboard": true, "environment.ghg": true, "targets.sbti": false }
+ * Access flags are resolved from the organization configuration entitlement catalog.
  *
  * hasAccess("environment.ghg") checks:
- *   1. If module_access is empty/null → all modules visible (backwards compatible)
+ *   1. If module access is empty/null → all modules visible (backwards compatible)
  *   2. If key exists → use its boolean value
  *   3. If key doesn't exist → check parent key (e.g. "environment") → default true
  */
@@ -20,6 +19,7 @@ export function useModuleAccess() {
   const { user, getAuthHeader } = useAuth();
   const [moduleAccess, setModuleAccess] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!user || user.role === 'super_admin') {
@@ -31,12 +31,17 @@ export function useModuleAccess() {
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
+        const { data } = await axios.get(`${API}/organization/module-config`, { headers: getAuthHeader() });
         if (!cancelled) {
-          setModuleAccess(data?.module_access || null);
+          setModuleAccess(data?.permissions || data?.entitlements || data?.module_access || null);
+          setLoadError(false);
         }
       } catch {
-        // If fetch fails, allow all modules
+        // A missing policy must never turn into access to protected modules.
+        if (!cancelled) {
+          setModuleAccess({});
+          setLoadError(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -47,7 +52,9 @@ export function useModuleAccess() {
   const hasAccess = useCallback((key) => {
     // Super admins see everything
     if (user?.role === 'super_admin') return true;
-    // If no access config → all visible (backwards compatible)
+    // New organizations receive a migrated configuration from the API.
+    // Only pre-configuration states retain the compatibility fallback.
+    if (loadError) return false;
     if (!moduleAccess || Object.keys(moduleAccess).length === 0) return true;
     // MIS Reports succeeds the legacy Reports sidebar module key.
     if (key === 'mis_reports' && 'reports' in moduleAccess && !('mis_reports' in moduleAccess)) {
@@ -63,7 +70,7 @@ export function useModuleAccess() {
     }
     // Default: visible
     return true;
-  }, [user, moduleAccess]);
+  }, [user, moduleAccess, loadError]);
 
-  return { hasAccess, moduleAccess, loading };
+  return { hasAccess, moduleAccess, loading, loadError };
 }

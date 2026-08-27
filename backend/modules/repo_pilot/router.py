@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, 
 from pydantic import BaseModel
 from modules.auth.dependencies import get_current_user
 from shared.database.mongo import db
+from modules.entitlements.dependencies import assert_entitlement
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -20,9 +21,7 @@ DOCS_COLLECTION = "repo_pilot_documents"
 
 
 async def _check_repo_pilot_access(org_id: str):
-    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "repo_pilot_enabled": 1})
-    if not org or not org.get("repo_pilot_enabled"):
-        raise HTTPException(status_code=403, detail="Repo Pilot not enabled for this organization")
+    await assert_entitlement(org_id, "repo_pilot")
 
 
 def _get_org(user: dict) -> str:

@@ -96,6 +96,7 @@ export function validateEditSubmission(ctx) {
   const {
     module,
     scope3Method,
+    spendCurrencyConversionMethod = 'ppp_inflation',
     scope3ActivityId,
     scope3CustomActivity,
     useCustomActivity,
@@ -194,6 +195,7 @@ export function buildEditPayload(ctx) {
     formData,
     editingEmission,
     scope3Method,
+    spendCurrencyConversionMethod = 'ppp_inflation',
     scope3ActivityId,
     scope3ActivityType,
     scope3Subcategory,
@@ -248,6 +250,9 @@ export function buildEditPayload(ctx) {
             : scope3ActivityId || null
           : scope3ActivityId,
       calculation_method_scope3: scope3Method,
+      ...(scope3Method === 'spend_basis' && {
+        spend_currency_conversion_method: spendCurrencyConversionMethod,
+      }),
       scope3_activity:
         scope3Method === 'supplier_basis'
           ? useCustomActivity
@@ -263,6 +268,9 @@ export function buildEditPayload(ctx) {
       ...dynamicValues,
       ...(isScope3LikeSave && {
         calculation_method_scope3: { value: scope3Method, unit: '' },
+        ...(scope3Method === 'spend_basis' && {
+          spend_currency_conversion_method: { value: spendCurrencyConversionMethod, unit: '' },
+        }),
         scope3_ef_id: {
           value:
             scope3Method === 'supplier_basis'

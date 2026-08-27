@@ -392,11 +392,6 @@ def get_metric_mapping(metric_key: str) -> dict | None:
     if normalized in METRIC_TO_GHG_MAPPING:
         return METRIC_TO_GHG_MAPPING[normalized]
     
-    # Partial match for common patterns
-    for key, mapping in METRIC_TO_GHG_MAPPING.items():
-        if key in normalized or normalized in key:
-            return mapping
-    
     return None
 
 

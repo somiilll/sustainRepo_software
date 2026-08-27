@@ -1,110 +1,49 @@
 {
-  "summary": "Tested major emission factor logic overhaul. Super Admin emission factors CRUD working. Admin/User cannot modify standard factors. Logo upload inconsistency found in Super Admin Organization form.",
+  "summary": "Completed requested Supplier Assessment verification across focused backend suites and read-only superadmin UI flow. Verified Supplier Assessment tab rendering, module toggles/labels/scope controls, registry-label behavior, disabled Documents/Training publishing safeguards, and live supplier my-assessment metadata contract.",
   "backend_issues": {
     "critical": [],
     "minor": [
       {
-        "endpoint": "/api/custom-emission-factors",
-        "issue": "Test admin@ghg.com has no organization_id assigned, cannot test custom factor creation via API",
-        "priority": "LOW"
+        "endpoint": "test execution (pytest collection)",
+        "issue": "Focused suites rely on PYTHONPATH=/app/backend; plain pytest invocation from /app fails collection with ModuleNotFoundError: modules."
       }
     ]
   },
   "frontend_issues": {
-    "ui_bugs": [
-      {
-        "component": "OrganizationManagement.js (Super Admin)",
-        "issue": "Logo upload still has BOTH 'Enter Logo URL' and 'Upload Logo Image' options. Requirements state logo should be file upload only (no URL).",
-        "selector": "#logo, Option 1: Enter Logo URL",
-        "priority": "MEDIUM",
-        "file": "/app/frontend/src/pages/OrganizationManagement.js",
-        "lines": "292-304"
-      }
-    ],
+    "ui_bugs": [],
     "integration_issues": [],
     "design_issues": []
   },
-  "verified_features": {
-    "super_admin_emission_factors": {
-      "view_add_edit_delete": "VERIFIED - Super Admin can CRUD standard emission factors at /super-admin/emission-factors",
-      "factors_from_db": "VERIFIED - 3 standard factors shown (Natural Gas-India, Natural Gas-china, Electricity-India) with 'Standard' badge",
-      "required_fields": "VERIFIED - Form has Name*, Scope*, Category*, Sub-category*, Factor Value*, Unit*, Source*, References*"
-    },
-    "no_hardcoded_default_factors": {
-      "status": "VERIFIED",
-      "details": "Backend has NOTE: Hardcoded emission factors removed. All standard factors come from database via /api/emission-factors/standard"
-    },
-    "admin_cannot_edit_standard_factors": {
-      "status": "VERIFIED",
-      "details": "Admin does NOT see Emission Factors link in sidebar. Admin gets 403 when trying /api/super-admin/emission-factors endpoints"
-    },
-    "admin_can_use_standard_factors": {
-      "status": "VERIFIED",
-      "details": "When adding emission, Admin can select Stationary Combustion > Natural Gas and factor (4.1 kg CO2e/kg) auto-fills from DB"
-    },
-    "user_org_readonly_admin_can_edit": {
-      "organization_code_check": "VERIFIED - OrganizationDetails.js line 28: canEdit = user?.role === 'admin' (User is read-only)",
-      "note": "Cannot fully test UI as test admin@ghg.com has no organization assigned"
-    },
-    "user_can_edit_facility": {
-      "status": "VERIFIED in code",
-      "details": "Facilities.js line 180-182: canEdit includes 'user', canDelete excludes 'user', canCreate is admin only"
-    },
-    "logo_upload_file_only": {
-      "admin_org_page": "VERIFIED - OrganizationDetails.js has file upload only (no URL input)",
-      "super_admin_org_page": "BUG - OrganizationManagement.js still has both URL and file upload options"
-    },
-    "remarks_notes_field": {
-      "organization": "VERIFIED - OrganizationDetails.js has Remarks/Notes textarea",
-      "facilities": "VERIFIED - Facilities.js has Remarks/Notes textarea"
-    },
-    "evidence_file_download": {
-      "status": "VERIFIED",
-      "details": "API /api/files/{file_id} returns 200 OK for uploaded evidence files"
-    },
-    "version_history_simplified": {
-      "status": "VERIFIED in code",
-      "details": "Emissions.js shows timestamp + user email only (lines 897-944)"
-    }
-  },
   "test_report_links": [
-    "/app/backend/tests/test_emission_factor_logic.py",
-    "/app/test_reports/iteration_5.json"
+    "/app/backend/tests/test_supplier_assessment_phase1.py",
+    "/app/backend/tests/test_supplier_documents_p0.py",
+    "/app/backend/tests/test_supplier_training_focused.py",
+    "/app/backend/tests/test_supplier_assessment_module_guards.py",
+    "/app/backend/tests/test_supplier_my_assessment_metadata_live.py",
+    "/app/test_reports/pytest/pytest_results.xml"
   ],
   "action_items": [
-    "FIX: Remove 'Option 1: Enter Logo URL' from OrganizationManagement.js (Super Admin page) - should be file upload only per requirements",
-    "OPTIONAL: Assign organization to admin@ghg.com test account for complete testing"
+    "Optional: make backend tests import-stable without manual PYTHONPATH export (e.g., conftest/sys.path or package setup).",
+    "Refactor oversized supplier assessment router into smaller modules to improve maintainability and risk isolation."
   ],
   "critical_code_review_comments": [
-    "OrganizationManagement.js lines 292-304: Logo URL input should be removed per requirements - file upload only"
+    "File size issue: /app/backend/modules/supplier_assessment/router.py is ~1000 lines (>700 guideline); split by subdomain (suppliers/questionnaires/documents/training/my-assessment/emissions).",
+    "Training service has dense one-line compound statements; behavior is currently correct but readability/reviewability is low for future changes.",
+    "No calc_engine modifications detected in this run; immutable program/version behavior remained intact in focused tests."
   ],
   "updated_files": [
-    "/app/backend/tests/test_emission_factor_logic.py"
+    "/app/backend/tests/test_supplier_assessment_module_guards.py",
+    "/app/backend/tests/test_supplier_my_assessment_metadata_live.py",
+    "/app/test_reports/iteration_5.json",
+    "/app/test_reports/pytest/pytest_results.xml"
   ],
   "success_rate": {
-    "backend": "86% (12/14 tests passed - 2 skipped due to missing org assignment)",
-    "frontend": "95% (all features verified except logo upload inconsistency)"
+    "backend": "100% (21/21 focused tests)",
+    "frontend": "100% (requested read-only flow)"
   },
-  "test_credentials": {
-    "super_admin": {
-      "email": "superadmin@ecotrack.com",
-      "password": "SuperAdmin123!"
-    },
-    "admin": {
-      "email": "admin@ghg.com",
-      "password": "admin123",
-      "note": "This admin has no organization_id assigned"
-    }
-  },
-  "seed_data_creation": "None - used existing test data",
-  "retest_needed": true,
+  "seed_data_creation": "None. This run avoided live org config save/mutation and avoided R2 uploads.",
+  "retest_needed": false,
   "should_main_agent_self_test": true,
-  "context_for_next_testing_agent": "Major emission factor refactor tested. Super Admin CRUD for standard factors works. Logo upload inconsistency between Admin (file only) and Super Admin (file+URL) pages needs fix. Test admin account lacks organization assignment.",
-  "rca_of_issue": {
-    "logo_url_inconsistency": {
-      "issue": "OrganizationManagement.js (Super Admin) still has dual logo options while OrganizationDetails.js (Admin) correctly has file upload only",
-      "root_cause": "OrganizationManagement.js was not updated when logo requirements changed to file-only upload",
-      "fix": "Remove lines 292-304 in OrganizationManagement.js (the 'Option 1: Enter Logo URL' section)"
-    }
-  }
+  "context_for_next_testing_agent": "Frontend check used superadmin credentials, opened /super-admin/org-config, selected an organization from overview, and validated Supplier Assessment tab controls without pressing Save. Backend focused suite command used RUN_LIVE_SUPPLIER_METADATA=1 PYTHONPATH=/app/backend and passed all 21 tests.",
+  "rca of the issue": "Only unresolved issue is test harness import-path coupling: tests import from top-level 'modules' package, but pytest root at /app does not include /app/backend on sys.path by default. Mitigation: enforce PYTHONPATH in test runner config or add stable path bootstrap in conftest/pytest.ini."
 }

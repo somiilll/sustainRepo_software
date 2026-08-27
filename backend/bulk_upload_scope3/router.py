@@ -13,10 +13,23 @@ from .template_generator import generate_scope3_template
 from .processors import UploadProcessor
 from .report_generator import ReportGenerator
 from .models import UploadSummary, UploadStatus
+from .ghg_config_resolver import resolve_ghg_capabilities
+from modules.entitlements.dependencies import assert_period_row_batch_limit
+from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
+
+
+async def ensure_bulk_upload_indexes(db):
+    """Create TTL index on pending records for automatic cleanup (24h)."""
+    try:
+        await db.bulk_upload_pending_records.create_index(
+            "expires_at", expireAfterSeconds=0, name="ttl_expires_at"
+        )
+    except Exception:
+        pass  # Index may already exist
 
 
 def get_db():
@@ -48,7 +61,8 @@ async def download_template(
         if not organization_id:
             raise HTTPException(status_code=400, detail="User must belong to an organization")
         
-        template_bytes = await generate_scope3_template(db, organization_id)
+        capabilities = await resolve_ghg_capabilities(db, organization_id)
+        template_bytes = await generate_scope3_template(db, organization_id, capabilities=capabilities)
         
         return StreamingResponse(
             template_bytes,
@@ -189,10 +203,21 @@ async def save_valid_rows(
         # Remove the job_id field used for tracking
         record.pop("job_id", None)
         record.pop("_temp_id", None)
+        normalized_period = normalize_reporting_period_for_storage(record.get("reporting_period"))
+        if not normalized_period:
+            raise HTTPException(status_code=422, detail=f"Invalid reporting period for bulk-upload record {record.get('id')}")
+        record["reporting_period"] = normalized_period
         records_to_save.append(record)
     
     # Insert records into emission_records collection
     if records_to_save:
+        await assert_period_row_batch_limit(
+            organization_id,
+            "ghg",
+            "emission_records",
+            records_to_save,
+            database=db,
+        )
         await db.emission_records.insert_many(records_to_save)
         created_ids = [r["id"] for r in records_to_save]
         logger.info(f"[BULK_UPLOAD_SAVE] Inserted {len(created_ids)} emission records for job {job_id}")

@@ -1,422 +1,151 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { AlertCircle, Calendar, ClipboardList, Cloud, DollarSign, FileText, GraduationCap } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 import { Badge } from '../../components/ui/badge';
-import { Progress } from '../../components/ui/progress';
-import { Label } from '../../components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../components/ui/select';
-import { 
-  Building2, 
-  ClipboardList, 
-  Cloud, 
-  Percent, 
-  Calendar,
-  CheckCircle,
-  Clock,
-  ArrowRight,
-  DollarSign,
-  AlertCircle,
-} from 'lucide-react';
+import { Button } from '../../components/ui/button';
+import { SupplierOnboarding } from './components/SupplierOnboarding';
+import { SupplierModulePanel } from './components/SupplierModuleAccordion';
+import { SupplierProgressStrip } from './components/SupplierProgressStrip';
+import { SupplierRevenueContent } from './components/SupplierRevenueContent';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-// Common currency options
-const CURRENCIES = [
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
-  { code: 'CNY', symbol: '¥', name: 'Chinese Yuan' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-];
+const statusBadge = (status, testId) => {
+  const styles = {
+    submitted: 'bg-emerald-100 text-emerald-800',
+    completed: 'bg-emerald-100 text-emerald-800',
+    in_progress: 'bg-blue-100 text-blue-800',
+    pending: 'bg-amber-100 text-amber-800',
+  };
+  const labels = { submitted: 'Submitted', completed: 'Completed', in_progress: 'In progress', pending: 'Not started' };
+  return <Badge className={styles[status] || styles.pending} data-testid={testId}>{labels[status] || labels.pending}</Badge>;
+};
 
 export default function SupplierDashboard() {
-  const { getAuthHeader, user } = useAuth();
+  const { getAuthHeader } = useAuth();
+  const navigate = useNavigate();
   const [assessment, setAssessment] = useState(null);
   const [questionnaires, setQuestionnaires] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [ghgState, setGhgState] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [trainings, setTrainings] = useState([]);
+  const [onboarding, setOnboarding] = useState(null);
   const [revenuePercentage, setRevenuePercentage] = useState('');
   const [revenueAmount, setRevenueAmount] = useState('');
   const [revenueCurrency, setRevenueCurrency] = useState('USD');
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [submittingRevenue, setSubmittingRevenue] = useState(false);
+  const [showRevenueSubmitConfirm, setShowRevenueSubmitConfirm] = useState(false);
 
-  const fetchAssessment = useCallback(async () => {
-    try {
-      const res = await axios.get(`${API}/supplier-assessment/my-assessment`, {
-        headers: getAuthHeader(),
-      });
-      setAssessment(res.data);
-      const rel = res.data.relationship;
-      if (rel?.revenue_percentage !== null && rel?.revenue_percentage !== undefined) {
-        setRevenuePercentage(rel.revenue_percentage.toString());
-      }
-      if (rel?.revenue_amount !== null && rel?.revenue_amount !== undefined) {
-        setRevenueAmount(rel.revenue_amount.toString());
-      }
-      if (rel?.revenue_currency) {
-        setRevenueCurrency(rel.revenue_currency);
-      }
-    } catch (err) {
-      if (err.response?.status !== 404) {
-        toast.error('Failed to load assessment');
-      }
-    }
+  const safeGet = useCallback(async (path) => {
+    try { return (await axios.get(`${API}${path}`, { headers: getAuthHeader() })).data; }
+    catch { return null; }
   }, [getAuthHeader]);
 
-  const fetchQuestionnaires = useCallback(async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await axios.get(`${API}/supplier-assessment/my-assessment/questionnaires`, {
-        headers: getAuthHeader(),
-      });
-      setQuestionnaires(res.data || []);
-    } catch (err) {
-      console.error('Failed to load questionnaires');
-    } finally {
-      setLoading(false);
-    }
-  }, [getAuthHeader]);
+      const assessmentData = await safeGet('/supplier-assessment/my-assessment');
+      if (!assessmentData) { setAssessment(null); return; }
+      setAssessment(assessmentData);
+      const codes = new Set((assessmentData.assessment_modules || []).map((module) => module.code));
+      const [questionnaireData, ghgData, documentData, trainingData, onboardingData] = await Promise.all([
+        codes.has('esg') ? safeGet('/supplier-assessment/my-assessment/questionnaires') : [],
+        codes.has('ghg') ? safeGet('/supplier-assessment/my-assessment/emissions/submission') : null,
+        codes.has('documents') ? safeGet('/supplier-assessment/my-assessment/documents') : [],
+        codes.has('training') ? safeGet('/supplier-assessment/my-assessment/trainings') : [],
+        safeGet('/supplier-assessment/my-assessment/onboarding'),
+      ]);
+      setQuestionnaires(questionnaireData || []); setGhgState(ghgData); setDocuments(documentData || []); setTrainings(trainingData || []); setOnboarding(onboardingData);
+      const relationship = assessmentData.relationship || {};
+      setRevenuePercentage(relationship.revenue_percentage ?? ''); setRevenueAmount(relationship.revenue_amount ?? ''); setRevenueCurrency(relationship.revenue_currency || 'USD');
+    } finally { setLoading(false); }
+  }, [safeGet]);
 
-  useEffect(() => {
-    fetchAssessment();
-    fetchQuestionnaires();
-  }, [fetchAssessment, fetchQuestionnaires]);
+  useEffect(() => { load(); }, [load]);
 
-  const handleSaveRevenue = async () => {
-    const percentage = revenuePercentage ? parseFloat(revenuePercentage) : null;
-    const amount = revenueAmount ? parseFloat(revenueAmount) : null;
-    
-    if (percentage !== null && (isNaN(percentage) || percentage < 0 || percentage > 100)) {
-      toast.error('Please enter a valid percentage (0-100)');
-      return;
-    }
-    
-    if (amount !== null && (isNaN(amount) || amount < 0)) {
-      toast.error('Please enter a valid amount');
-      return;
-    }
+  if (loading) return <p className="py-20 text-center text-sm text-slate-500" data-testid="supplier-dashboard-loading">Loading assessment…</p>;
+  if (!assessment) return <div className="py-20 text-center" data-testid="supplier-dashboard-empty"><AlertCircle className="mx-auto h-10 w-10 text-slate-300" /><h2 className="mt-4 text-xl font-semibold text-slate-800">No Active Assessment</h2><p className="mt-2 text-sm text-slate-500">You don&apos;t have an active supplier assessment assigned.</p></div>;
+  if (onboarding && !onboarding.onboarding_complete) return <SupplierOnboarding onboarding={onboarding} />;
 
-    setSaving(true);
-    try {
-      await axios.put(
-        `${API}/supplier-assessment/my-assessment/revenue`,
-        { 
-          revenue_percentage: percentage,
-          revenue_amount: amount,
-          revenue_currency: revenueCurrency,
-        },
-        { headers: getAuthHeader() }
-      );
-      toast.success('Revenue information saved');
-      fetchAssessment();
-    } catch (err) {
-      toast.error('Failed to save revenue information');
-    } finally {
-      setSaving(false);
-    }
+  const { relationship, customer_name: customerName } = assessment;
+  const modules = new Map((assessment.assessment_modules || []).map((module) => [module.code, module]));
+  const revenueRequired = relationship.revenue_required === true;
+  const revenueSubmitted = relationship.revenue_submission_status === 'submitted';
+  const percentageEntered = relationship.revenue_percentage !== null && relationship.revenue_percentage !== undefined;
+  const amountEntered = relationship.revenue_amount !== null && relationship.revenue_amount !== undefined;
+  const revenueTaskCount = revenueRequired ? 3 : 2;
+  const revenueCompletedTasks = Number(percentageEntered) + Number(revenueRequired && amountEntered) + Number(revenueSubmitted);
+  const revenueProgress = Math.round((revenueCompletedTasks / revenueTaskCount) * 100);
+  const ghgSubmitted = ghgState?.submission?.status === 'submitted';
+  const ghgHasDraftEntries = (ghgState?.draft_aggregation || []).some((entry) => entry.entry_count > 0);
+  const pendingDocuments = documents.filter((document) => !document.accepted && !document.selected_response);
+  const completedTrainings = trainings.filter((training) => training.status === 'completed');
+
+  const progressItems = [
+    { id: 'revenue', label: 'Revenue', progress: revenueProgress, Icon: DollarSign, iconClassName: 'bg-blue-50 text-blue-700', shadowClassName: 'shadow-[0_3px_10px_rgba(59,130,246,0.14)]' },
+    ...(modules.has('esg') ? [{ id: 'esg', label: 'ESG Questionnaire', progress: modules.get('esg').completion_percent, Icon: ClipboardList, iconClassName: 'bg-indigo-50 text-indigo-700', shadowClassName: 'shadow-[0_3px_10px_rgba(99,102,241,0.14)]' }] : []),
+    ...(modules.has('ghg') ? [{ id: 'ghg', label: 'GHG Emissions', progress: modules.get('ghg').completion_percent, Icon: Cloud, iconClassName: 'bg-emerald-50 text-emerald-700', shadowClassName: 'shadow-[0_3px_10px_rgba(16,185,129,0.14)]' }] : []),
+    ...(modules.has('documents') ? [{ id: 'documents', label: 'Documents', progress: modules.get('documents').completion_percent, Icon: FileText, iconClassName: 'bg-cyan-50 text-cyan-700', shadowClassName: 'shadow-[0_3px_10px_rgba(6,182,212,0.14)]' }] : []),
+    ...(modules.has('training') ? [{ id: 'training', label: 'Training', progress: modules.get('training').completion_percent, Icon: GraduationCap, iconClassName: 'bg-amber-50 text-amber-700', shadowClassName: 'shadow-[0_3px_10px_rgba(245,158,11,0.14)]' }] : []),
+  ];
+
+  const validateRevenue = () => {
+    const percentage = revenuePercentage === '' ? null : Number(revenuePercentage);
+    const amount = revenueAmount === '' ? null : Number(revenueAmount);
+    if (percentage === null || Number.isNaN(percentage) || percentage < 0 || percentage > 100) { toast.error('Revenue percentage is required and must be between 0 and 100'); return null; }
+    if (revenueRequired && (amount === null || Number.isNaN(amount) || amount < 0)) { toast.error('Annual revenue amount is required'); return null; }
+    if (amount !== null && (Number.isNaN(amount) || amount < 0)) { toast.error('Enter a valid annual revenue amount'); return null; }
+    return { revenue_percentage: percentage, revenue_amount: amount, revenue_currency: revenueCurrency };
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-stone-500">Loading...</div>
+  const saveRevenue = async () => {
+    const payload = validateRevenue(); if (!payload) return;
+    setSaving(true);
+    try { await axios.put(`${API}/supplier-assessment/my-assessment/revenue`, payload, { headers: getAuthHeader() }); toast.success('Revenue information saved'); await load(); }
+    catch (error) { toast.error(error.response?.data?.detail || 'Failed to save revenue information'); }
+    finally { setSaving(false); }
+  };
+
+  const submitRevenue = async () => {
+    const payload = validateRevenue(); if (!payload) return;
+    setSubmittingRevenue(true);
+    try { await axios.put(`${API}/supplier-assessment/my-assessment/revenue`, payload, { headers: getAuthHeader() }); await axios.post(`${API}/supplier-assessment/my-assessment/revenue/submit`, {}, { headers: getAuthHeader() }); toast.success('Revenue information submitted'); setShowRevenueSubmitConfirm(false); await load(); }
+    catch (error) { toast.error(error.response?.data?.detail || 'Could not submit revenue information'); }
+    finally { setSubmittingRevenue(false); }
+  };
+
+  return <div className="mx-auto max-w-7xl space-y-7 pb-10" data-testid="supplier-dashboard">
+    <header className="flex flex-wrap items-end justify-between gap-5 border-b border-slate-200 pb-6">
+      <div><p className="text-xs font-semibold uppercase text-emerald-700">Supplier workspace</p><h1 className="mt-2 text-3xl font-semibold text-slate-900 sm:text-4xl">Supplier Assessment</h1><p className="mt-2 text-sm text-slate-600">Complete the assigned requirements for <span className="font-semibold text-slate-800">{customerName}</span>.</p></div>
+      {relationship.due_date && <Badge variant="outline" className="border-blue-200 bg-white text-blue-800" data-testid="supplier-assessment-due-date"><Calendar className="mr-1 h-3.5 w-3.5" />Due {new Date(relationship.due_date).toLocaleDateString()}</Badge>}
+    </header>
+
+    <SupplierProgressStrip items={progressItems} />
+
+    <section className="space-y-3" data-testid="supplier-assessment-modules">
+      <div><p className="text-xs font-semibold uppercase text-slate-500">Assigned modules</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Complete each requirement</h2></div>
+      <div className="space-y-8" data-testid="supplier-module-panels">
+        <SupplierModulePanel title="Revenue Information" description={`Share your revenue relationship with ${customerName}.`} progress={revenueProgress} status={statusBadge(revenueSubmitted ? 'submitted' : revenueProgress ? 'in_progress' : 'pending', 'revenue-overview-status-badge')} icon={DollarSign} iconClassName="bg-blue-50 text-blue-700" shadowClassName="shadow-[0_10px_28px_rgba(59,130,246,0.18)] hover:shadow-[0_14px_34px_rgba(59,130,246,0.24)]" testId="supplier-revenue-module-panel" collapsible>
+          <SupplierRevenueContent relationship={relationship} customerName={customerName} revenueRequired={revenueRequired} revenuePercentage={revenuePercentage} setRevenuePercentage={setRevenuePercentage} revenueAmount={revenueAmount} setRevenueAmount={setRevenueAmount} revenueCurrency={revenueCurrency} setRevenueCurrency={setRevenueCurrency} saving={saving} submitting={submittingRevenue} onSave={saveRevenue} onSubmit={() => { if (validateRevenue()) setShowRevenueSubmitConfirm(true); }} />
+        </SupplierModulePanel>
+
+        {modules.has('esg') && questionnaires.length === 0 && <SupplierModulePanel title="ESG Questionnaire" description="No questionnaire has been assigned yet." progress={0} status={statusBadge('pending', 'supplier-esg-empty-status')} icon={ClipboardList} iconClassName="bg-indigo-50 text-indigo-700" shadowClassName="shadow-[0_10px_28px_rgba(99,102,241,0.18)] hover:shadow-[0_14px_34px_rgba(99,102,241,0.24)]" testId="supplier-esg-module-panel"><p className="text-sm text-slate-500">Your customer has not assigned an ESG questionnaire yet.</p></SupplierModulePanel>}
+        {modules.has('esg') && questionnaires.map((questionnaire) => <SupplierModulePanel key={questionnaire.questionnaire_id} title={questionnaire.questionnaire_name} description={questionnaire.status === 'submitted' ? 'Response submitted and locked.' : 'Response open.'} progress={questionnaire.completion_percent} status={statusBadge(questionnaire.status === 'submitted' ? 'submitted' : questionnaire.status === 'in_progress' ? 'in_progress' : 'pending', `questionnaire-status-${questionnaire.questionnaire_id}`)} icon={ClipboardList} iconClassName="bg-indigo-50 text-indigo-700" shadowClassName="shadow-[0_10px_28px_rgba(99,102,241,0.18)] hover:shadow-[0_14px_34px_rgba(99,102,241,0.24)]" testId={`questionnaire-card-${questionnaire.questionnaire_id}`} action={<Button variant="outline" onClick={() => navigate(`/supplier-assessment/questionnaire/${questionnaire.questionnaire_id}`)} data-testid={`open-questionnaire-${questionnaire.questionnaire_id}`}>{questionnaire.status === 'submitted' ? 'View response' : 'Continue questionnaire'}</Button>} />)}
+
+        {modules.has('ghg') && <SupplierModulePanel title={modules.get('ghg').display_name} description={ghgSubmitted ? 'Your GHG submission is locked and visible to your customer.' : ghgHasDraftEntries ? 'Draft entries are ready for review and submission.' : 'Start by adding your assigned Scope 1 or Scope 2 entries.'} progress={modules.get('ghg').completion_percent} status={statusBadge(ghgSubmitted ? 'submitted' : ghgHasDraftEntries ? 'in_progress' : 'pending', 'supplier-ghg-status')} icon={Cloud} iconClassName="bg-emerald-50 text-emerald-700" shadowClassName="shadow-[0_10px_28px_rgba(16,185,129,0.18)] hover:shadow-[0_14px_34px_rgba(16,185,129,0.24)]" testId="supplier-ghg-module-panel" action={!ghgSubmitted && <Button variant="outline" onClick={() => navigate(ghgHasDraftEntries ? '/supplier-assessment/emissions' : '/ghg')} data-testid="supplier-ghg-action-button">{ghgHasDraftEntries ? 'Review & submit GHG' : 'Add GHG entries'}</Button>} />}
+
+        {modules.has('documents') && <SupplierModulePanel title={modules.get('documents').display_name} description={documents.length === 0 ? 'No documents are assigned.' : pendingDocuments.length === 0 ? 'All assigned documents are complete.' : `${pendingDocuments.length} document response${pendingDocuments.length === 1 ? '' : 's'} remaining.`} progress={modules.get('documents').completion_percent} status={statusBadge(documents.length > 0 && pendingDocuments.length === 0 ? 'completed' : pendingDocuments.length ? 'pending' : 'in_progress', 'supplier-documents-status')} icon={FileText} iconClassName="bg-cyan-50 text-cyan-700" shadowClassName="shadow-[0_10px_28px_rgba(6,182,212,0.18)] hover:shadow-[0_14px_34px_rgba(6,182,212,0.24)]" testId="supplier-documents-module-panel" action={pendingDocuments.length > 0 && <Button variant="outline" onClick={() => navigate('/supplier-assessment/documents/review')} data-testid="supplier-documents-action-button">Review documents</Button>} />}
+
+        {modules.has('training') && <SupplierModulePanel title={modules.get('training').display_name} description={trainings.length === 0 ? 'No training is assigned.' : completedTrainings.length === trainings.length ? 'All assigned training is complete.' : `${trainings.length - completedTrainings.length} training item${trainings.length - completedTrainings.length === 1 ? '' : 's'} remaining.`} progress={modules.get('training').completion_percent} status={statusBadge(trainings.length > 0 && completedTrainings.length === trainings.length ? 'completed' : trainings.length ? 'pending' : 'in_progress', 'supplier-training-status')} icon={GraduationCap} iconClassName="bg-amber-50 text-amber-700" shadowClassName="shadow-[0_10px_28px_rgba(245,158,11,0.18)] hover:shadow-[0_14px_34px_rgba(245,158,11,0.24)]" testId="supplier-training-module-panel" action={trainings.length > completedTrainings.length && <Button variant="outline" onClick={() => navigate('/supplier-assessment/training')} data-testid="supplier-training-action-button">Open training</Button>} />}
       </div>
-    );
-  }
+    </section>
 
-  if (!assessment) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <Building2 className="h-12 w-12 mx-auto text-stone-300 mb-4" />
-          <h2 className="text-xl font-semibold text-stone-700">No Active Assessment</h2>
-          <p className="text-stone-500 mt-2">
-            You don&apos;t have any active supplier assessments assigned.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const { relationship, customer_name } = assessment;
-
-  return (
-    <div className="space-y-6" data-testid="supplier-dashboard">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-6 text-white">
-        <h1 className="text-2xl font-semibold">Supplier Assessment</h1>
-        <p className="text-emerald-100 mt-1">
-          Complete your assessment for <span className="font-semibold">{customer_name}</span>
-        </p>
-        {relationship.due_date && (
-          <div className="flex items-center gap-2 mt-4 text-emerald-100">
-            <Calendar className="h-4 w-4" />
-            <span>Due: {new Date(relationship.due_date).toLocaleDateString()}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Progress Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Assessment Progress</CardTitle>
-          <CardDescription>Track your completion across all assessment areas</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Overall Progress</span>
-                <span className="text-sm text-stone-500">
-                  {Math.round(relationship.overall_completion_percent || 0)}%
-                </span>
-              </div>
-              <Progress value={relationship.overall_completion_percent || 0} className="h-3" />
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4 pt-4">
-              <div className={`text-center p-4 rounded-lg ${
-                relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
-                  ? 'bg-green-50' 
-                  : 'bg-amber-50'
-              }`}>
-                <DollarSign className={`h-6 w-6 mx-auto mb-2 ${
-                  relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
-                    ? 'text-green-500' 
-                    : 'text-amber-500'
-                }`} />
-                <div className="text-lg font-semibold">
-                  {relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
-                    ? <CheckCircle className="h-5 w-5 mx-auto text-green-500" />
-                    : <AlertCircle className="h-5 w-5 mx-auto text-amber-500" />
-                  }
-                </div>
-                <div className="text-xs text-stone-500">Revenue Info</div>
-              </div>
-              <div className="text-center p-4 bg-stone-50 rounded-lg">
-                <ClipboardList className="h-6 w-6 mx-auto text-emerald-500 mb-2" />
-                <div className="text-lg font-semibold">
-                  {Math.round(relationship.esg_completion_percent || 0)}%
-                </div>
-                <div className="text-xs text-stone-500">ESG Questionnaire</div>
-              </div>
-              <div className="text-center p-4 bg-stone-50 rounded-lg">
-                <Cloud className="h-6 w-6 mx-auto text-purple-500 mb-2" />
-                <div className="text-lg font-semibold">
-                  {Math.round(relationship.ghg_completion_percent || 0)}%
-                </div>
-                <div className="text-xs text-stone-500">GHG Emissions</div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Revenue Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-blue-500" />
-            Revenue Information
-            <Badge variant="outline" className="ml-2 text-xs">Required</Badge>
-          </CardTitle>
-          <CardDescription>
-            Provide your revenue relationship with {customer_name}. This information is required before submitting your assessment.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {/* Warning if not filled */}
-            {(relationship.revenue_percentage === null || relationship.revenue_amount === null) && (
-              <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-amber-800">Revenue information required</p>
-                  <p className="text-sm text-amber-700 mt-1">
-                    Please complete both the revenue percentage and amount to proceed with your assessment.
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Revenue Percentage */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Percent className="h-4 w-4 text-stone-500" />
-                  Revenue Percentage from {customer_name} *
-                </Label>
-                <p className="text-xs text-stone-500 mb-2">
-                  What percentage of your total annual revenue comes from this customer?
-                </p>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={revenuePercentage}
-                    onChange={(e) => setRevenuePercentage(e.target.value)}
-                    placeholder="e.g., 15.5"
-                    className="max-w-[150px]"
-                    data-testid="revenue-percentage-input"
-                  />
-                  <span className="text-stone-500 font-medium">%</span>
-                </div>
-              </div>
-              
-              {/* Revenue Amount */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-stone-500" />
-                  Annual Revenue Amount from {customer_name} *
-                </Label>
-                <p className="text-xs text-stone-500 mb-2">
-                  What is the total annual revenue you receive from this customer?
-                </p>
-                <div className="flex items-center gap-2">
-                  <Select value={revenueCurrency} onValueChange={setRevenueCurrency}>
-                    <SelectTrigger className="w-[100px]" data-testid="revenue-currency-select">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((c) => (
-                        <SelectItem key={c.code} value={c.code}>
-                          {c.symbol} {c.code}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={revenueAmount}
-                    onChange={(e) => setRevenueAmount(e.target.value)}
-                    placeholder="e.g., 500000"
-                    className="flex-1"
-                    data-testid="revenue-amount-input"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-end pt-2">
-              <Button onClick={handleSaveRevenue} disabled={saving} data-testid="save-revenue-btn">
-                {saving ? 'Saving...' : 'Save Revenue Information'}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Questionnaires */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-emerald-500" />
-            ESG Questionnaires
-          </CardTitle>
-          <CardDescription>Complete the assigned questionnaires</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {questionnaires.length === 0 ? (
-            <div className="text-center py-8 text-stone-500">
-              No questionnaires assigned yet.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {questionnaires.map((q) => (
-                <div
-                  key={q.questionnaire_id}
-                  className="border rounded-lg p-4 hover:shadow-sm transition-shadow"
-                  data-testid={`questionnaire-card-${q.questionnaire_id}`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-stone-900">{q.questionnaire_name}</h3>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-stone-500">
-                        <span>{q.answered_count}/{q.total_questions} answered</span>
-                        {q.due_date && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Due: {new Date(q.due_date).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-3">
-                        <Progress value={q.completion_percent} className="h-2" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 ml-4">
-                      {q.status === 'submitted' ? (
-                        <Badge className="bg-green-100 text-green-800">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Submitted
-                        </Badge>
-                      ) : q.status === 'in_progress' ? (
-                        <Badge className="bg-blue-100 text-blue-800">
-                          <Clock className="h-3 w-3 mr-1" />
-                          In Progress
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-stone-100 text-stone-800">Not Started</Badge>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.location.href = `/supplier-assessment/questionnaire/${q.questionnaire_id}`}
-                      >
-                        {q.status === 'submitted' ? 'View' : 'Continue'}
-                        <ArrowRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* GHG Emissions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Cloud className="h-5 w-5 text-purple-500" />
-            GHG Emissions
-          </CardTitle>
-          <CardDescription>Report your Scope 1 and Scope 2 emissions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-stone-600">
-                Enter your organization&apos;s greenhouse gas emissions data for Scope 1 (direct emissions)
-                and Scope 2 (purchased energy).
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => window.location.href = '/supplier-assessment/emissions'}
-            >
-              Manage Emissions
-              <ArrowRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+    <AlertDialog open={showRevenueSubmitConfirm} onOpenChange={setShowRevenueSubmitConfirm}><AlertDialogContent data-testid="confirm-revenue-submit-dialog"><AlertDialogHeader><AlertDialogTitle data-testid="confirm-revenue-submit-title">Submit revenue information?</AlertDialogTitle><AlertDialogDescription data-testid="confirm-revenue-submit-description">Once submitted, this revenue information is locked and cannot be edited.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-revenue-submit-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={submitRevenue} disabled={submittingRevenue} data-testid="confirm-revenue-submit-button">{submittingRevenue ? 'Submitting…' : 'Submit and lock'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+  </div>;
 }

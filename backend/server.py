@@ -56,12 +56,14 @@ from shared.helpers.tokens import (
     create_access_token as _shared_create_access_token,
 )
 from shared.helpers.email import send_email
+from shared.utils.emission_records import eligible_ghg_record_filter
 from app.bootstrap.contract_verifier import verify_module_contracts
 
 # Phase B2: extracted auth deps + per-domain routers.
 # server.py keeps the legacy class definitions and route handlers commented
 # out / removed below; the new modular routers are included in the api_router.
 from modules.auth.dependencies import get_current_user, get_super_admin_user, get_admin_user, security
+from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_ghg_scope_access, require_entitlement
 from modules.auth.router import router as auth_router
 from modules.users.router import router as users_admin_router
 from app.router.health import router as health_router
@@ -70,6 +72,7 @@ from app.router.health import router as health_router
 from modules.facilities.router import router as facilities_router
 from modules.organizations.router import router as organizations_router
 from modules.sinks.router import router as sinks_router
+from modules.base_year.sync_service import sync_base_year_emissions_for_entity
 
 # Phase B4: emissions read/list router (POST/PUT remain in this file until Phase B5).
 from modules.emissions.router import router as emissions_router
@@ -135,15 +138,15 @@ api_router.include_router(facilities_router)
 api_router.include_router(organizations_router)
 api_router.include_router(sinks_router)
 # Phase B4 router (emissions read/list — POST/PUT remain in this file until Phase B5)
-api_router.include_router(emissions_router)
+api_router.include_router(emissions_router, dependencies=[Depends(require_entitlement("environment"))])
 # Phase B5 router (C7 Employee Commuting — 7 routes)
-api_router.include_router(c7_router)
+api_router.include_router(c7_router, dependencies=[Depends(require_entitlement("environment"))])
 # Phase B7 router (Dashboards — 2 routes)
 api_router.include_router(dashboards_router)
 # Phase B11+ WebSocket router (Live cockpit — /ws/dashboard)
 api_router.include_router(dashboards_ws_router)
 # Phase B8 router (Reports — 5 routes)
-api_router.include_router(reports_router)
+api_router.include_router(reports_router, dependencies=[Depends(require_entitlement("reports"))])
 # MIS Reports V1 module (catalog, shared filters, and run history).
 api_router.include_router(mis_reports_router)
 # Phase B9 router (Super-admin / Platform Config — ~91 routes)
@@ -153,14 +156,14 @@ api_router.include_router(superadmin_router)
 api_router.include_router(approvals_router)
 
 # Enterprise Approval Workflow Engine
-api_router.include_router(approval_workflow_router)
+api_router.include_router(approval_workflow_router, dependencies=[Depends(require_entitlement("workflow"))])
 
 # Multi-Proposal Management
 from modules.approval_workflow.proposal_router import router as proposal_router
-api_router.include_router(proposal_router)
+api_router.include_router(proposal_router, dependencies=[Depends(require_entitlement("workflow"))])
 
 # ESG Tracking Module
-api_router.include_router(esg_tracking_router)
+api_router.include_router(esg_tracking_router, dependencies=[Depends(require_entitlement("workflow"))])
 
 # Production quantity module (for Carbon Intensity calculations)
 api_router.include_router(production_router)
@@ -178,14 +181,14 @@ api_router.include_router(framework_details_router)
 api_router.include_router(esg_questionnaire_router)
 # ESG Records system (Environment/Social/Governance records)
 api_router.include_router(esg_records_router)
-api_router.include_router(hr_workforce_router)
-api_router.include_router(governance_router)
+api_router.include_router(hr_workforce_router, dependencies=[Depends(require_entitlement("social"))])
+api_router.include_router(governance_router, dependencies=[Depends(require_entitlement("governance"))])
 # ESG Records Super Admin Config
 api_router.include_router(esg_records_admin_router)
 # ESG Assignments & Access Control
 api_router.include_router(esg_assignments_router)
 # ESG Targets Module (KPI-level targets)
-api_router.include_router(esg_targets_router, prefix="/esg-targets", tags=["ESG Targets"])
+api_router.include_router(esg_targets_router, prefix="/esg-targets", tags=["ESG Targets"], dependencies=[Depends(require_entitlement("targets"))])
 # ESG KPI Definitions Module (Super Admin - reusable metric configurations)
 api_router.include_router(esg_kpi_definitions_router)
 # KPI Calculation Engine (reusable calculation module)
@@ -196,24 +199,24 @@ from modules.notifications.router import router as notifications_router
 api_router.include_router(notifications_router, tags=["Notifications"])
 # SBTi Targets Module
 from modules.sbti_targets.router import router as sbti_targets_router
-api_router.include_router(sbti_targets_router, prefix="/sbti-targets", tags=["SBTi Targets"])
+api_router.include_router(sbti_targets_router, prefix="/sbti-targets", tags=["SBTi Targets"], dependencies=[Depends(require_entitlement("targets"))])
 # Repo Pilot Module
 from modules.repo_pilot.router import router as repo_pilot_router
-api_router.include_router(repo_pilot_router, prefix="/repo-pilot", tags=["Repo Pilot"])
+api_router.include_router(repo_pilot_router, prefix="/repo-pilot", tags=["Repo Pilot"], dependencies=[Depends(require_entitlement("repo_pilot"))])
 
 from modules.internal_data_ai.router import router as internal_ai_router
 api_router.include_router(internal_ai_router, tags=["Internal Data AI"])
 
 # Peer Benchmarking Module
 from modules.benchmarking.router import router as benchmarking_router
-api_router.include_router(benchmarking_router, tags=["Peer Benchmarking"])
+api_router.include_router(benchmarking_router, tags=["Peer Benchmarking"], dependencies=[Depends(require_entitlement("peer_benchmarking"))])
 
 # Materiality Assessment Module
-api_router.include_router(materiality_router, tags=["Materiality Assessment"])
+api_router.include_router(materiality_router, tags=["Materiality Assessment"], dependencies=[Depends(require_entitlement("materiality"))])
 
 # Supplier Assessment Module
 from modules.supplier_assessment.router import router as supplier_assessment_router
-api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment"])
+api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment"], dependencies=[Depends(require_entitlement("supplier_assessment"))])
 
 # Sustainability Module Configuration (Organization-scoped modules/KPIs/questions)
 from modules.sustainability_config.router import router as sustainability_config_router
@@ -221,11 +224,11 @@ api_router.include_router(sustainability_config_router, tags=["Sustainability Co
 
 # BRSR Report Generation Module (Annexure II PDF)
 from modules.brsr_report.router import router as brsr_report_router
-api_router.include_router(brsr_report_router, tags=["BRSR Report"])
+api_router.include_router(brsr_report_router, tags=["BRSR Report"], dependencies=[Depends(require_entitlement("reporting"))])
 
 # OCR Invoice Extractor Module (Scope 1 & 2 emissions from utility invoices)
 from modules.ocr_invoice.router import router as ocr_invoice_router
-api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"])
+api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"], dependencies=[Depends(require_entitlement("uploads"))])
 
 # Airports reference data (search + distance calculation)
 api_router.include_router(airports_router, tags=["Airports"])
@@ -1120,6 +1123,11 @@ class BaseYearEmissionsResponse(BaseModel):
     updated_by_name: Optional[str] = None
 
 
+async def _assert_base_year_scope_access(org_id: str, scope_group: Optional[str]) -> None:
+    """Apply Platform Access to legacy Base Year route handlers."""
+    await assert_ghg_scope_access(org_id, "scope3" if scope_group == "scope3" else "scope1")
+
+
 # ============================================================================
 # Configuration / Label Mappings Endpoint
 # Provides centralized labels for calculation methods, activity types, etc.
@@ -1250,6 +1258,7 @@ async def get_oldest_reporting_year(
     scope_group: Optional[str] = None  # "scope12" or "scope3" - Phase 2 scope filtering
 ):
     """Get the oldest reporting year with emissions data for an entity, optionally filtered by scope group"""
+    await _assert_base_year_scope_access(current_user.get("organization_id") if entity_type == "facility" else entity_id, scope_group)
     if entity_type == "facility":
         query = {"facility_id": entity_id}
     else:  # organization
@@ -1277,6 +1286,7 @@ async def get_oldest_reporting_year(
             ]
     
     # Find oldest emission record - check emission_records collection
+    query.update(eligible_ghg_record_filter())
     emissions = await db.emission_records.find(query, {"_id": 0, "reporting_period": 1}).to_list(10000)
     
     if not emissions:
@@ -1383,6 +1393,7 @@ async def get_emission_combinations(
     scope_group: Optional[str] = None,  # Phase 2: "scope12" or "scope3" for filtering
     base_year_format: Optional[str] = None  # Phase 2: e.g., "FY 2023-2024" or "2024" for proportional allocation
 ):
+    await _assert_base_year_scope_access(current_user.get("organization_id") if entity_type == "facility" else entity_id, scope_group)
     """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation.
     
     Phase 2 Enhancement: Supports proportional allocation when base year crosses calendar/financial boundaries.
@@ -1427,6 +1438,7 @@ async def get_emission_combinations(
         year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
     
     # Use emission_records collection - get more fields for aggregation
+    query.update(eligible_ghg_record_filter())
     emissions = await db.emission_records.find(
         query, 
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, 
@@ -1676,6 +1688,7 @@ async def get_proportional_emissions(
             ]
     
     # Fetch all emissions
+    query.update(eligible_ghg_record_filter())
     emissions = await db.emission_records.find(
         query,
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1,
@@ -1814,6 +1827,20 @@ async def sync_base_year_emissions(
     scope_group: str,
     current_user: dict = Depends(get_current_user)
 ):
+    return await sync_base_year_emissions_for_entity(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        scope_group=scope_group,
+        current_user=current_user,
+    )
+
+
+async def _legacy_sync_base_year_emissions(
+    entity_type: str,
+    entity_id: str,
+    scope_group: str,
+    current_user: dict,
+):
     """
     Phase 2: Real-time auto-sync for base year emissions.
     Called when GHG emissions are added/updated for a period that matches the base year.
@@ -1879,6 +1906,7 @@ async def sync_base_year_emissions(
         ]
     
     # Fetch emissions
+    em_query.update(eligible_ghg_record_filter())
     emissions = await db.emission_records.find(
         em_query,
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1,
@@ -2018,6 +2046,7 @@ async def create_base_year_emissions(
     current_user: dict = Depends(get_current_user)
 ):
     """Create base year emissions record (admin only)"""
+    await _assert_base_year_scope_access(data.organization_id, data.scope_group)
     # Admin permission required
     if current_user.get("role") not in ("admin", "super_admin"):
         raise HTTPException(status_code=403, detail="Admin permission required to create base year emissions")
@@ -2151,6 +2180,7 @@ async def get_base_year_emissions(
     scope_group: Optional[str] = None  # "scope12" or "scope3"
 ):
     """Get base year emissions records"""
+    await _assert_base_year_scope_access(current_user.get("organization_id"), scope_group)
     query = {}
     
     if current_user["role"] == "super_admin":
@@ -2228,6 +2258,7 @@ async def update_base_year_emissions(
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    await _assert_base_year_scope_access(record.get("organization_id"), record.get("scope_group"))
     
     # Validate no negative values (except for Sinks)
     if data.emissions_data is not None:
@@ -2417,6 +2448,7 @@ async def delete_base_year_emissions(
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    await _assert_base_year_scope_access(record.get("organization_id"), record.get("scope_group"))
     
     # Get existing version history before we modify anything
     version_history = list(record.get("version_history", []))
@@ -2509,6 +2541,7 @@ async def change_base_year(
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    await _assert_base_year_scope_access(record.get("organization_id"), record.get("scope_group"))
     
     old_base_year = record.get("base_year")
     entity_type = "facility" if record.get("facility_id") else "organization"
@@ -2544,6 +2577,7 @@ async def change_base_year(
         query["facility_id"] = {"$in": facility_ids}
     
     # Fetch all emissions for the entity
+    query.update(eligible_ghg_record_filter())
     all_emissions = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
     
     # Helper function to parse reporting period and check if it's in the target year
@@ -2868,6 +2902,9 @@ async def upload_evidence_file(
             org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
             if org:
                 org_name = org.get("name")
+
+        if org_id:
+            await assert_evidence_storage_limit(org_id, len(file_content))
         
         logger.info(f"[EVIDENCE_UPLOAD] Starting upload: file={file.filename}, bucket={bucket_type}, org={org_name}, user={current_user.get('email')}")
         
@@ -2897,6 +2934,7 @@ async def upload_evidence_file(
             "bucket_type": bucket_type,
             "r2_key": result['key'],
             "file_size": len(file_content),
+            "organization_id": org_id,
             "content_type": file.content_type,
             "uploaded_by": current_user["id"],
             "uploaded_at": datetime.now(timezone.utc).isoformat()
@@ -3332,6 +3370,8 @@ from bulk_upload_scope3.template_generator import generate_scope3_template
 from bulk_upload_scope3.processors import UploadProcessor
 from bulk_upload_scope3.report_generator import ReportGenerator
 from bulk_upload_scope3.models import ValidationError, ErrorSeverity, UploadSummary, UploadStatus
+from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
+from modules.entitlements.dependencies import assert_period_row_batch_limit
 
 scope3_bulk_router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
 
@@ -3342,7 +3382,8 @@ async def download_scope3_template(current_user: dict = Depends(get_current_user
     if not organization_id:
         raise HTTPException(status_code=400, detail="User must belong to an organization")
     
-    template_bytes = await generate_scope3_template(db, organization_id)
+    capabilities = await resolve_ghg_capabilities(db, organization_id)
+    template_bytes = await generate_scope3_template(db, organization_id, capabilities=capabilities)
     
     return StreamingResponse(
         template_bytes,
@@ -3372,7 +3413,7 @@ async def upload_scope3_file(
     
     file_content = await file.read()
     if len(file_content) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+        raise HTTPException(status_code=413, detail="File size exceeds 10 MB limit. Please split your data into multiple files.")
     
     organization_id = current_user.get("organization_id")
     if not organization_id:
@@ -3450,42 +3491,70 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
     
     # Insert records into emission_records collection (same as manual entry)
     if records_to_save:
-        await db.emission_records.insert_many(records_to_save)
-        created_ids = [r["id"] for r in records_to_save]
-        logger.info(f"[BULK_SAVE] Job {job_id}: Inserted {len(created_ids)} emission records")
+        await assert_period_row_batch_limit(
+            organization_id,
+            "ghg",
+            "emission_records",
+            records_to_save,
+            database=db,
+        )
+        created_ids = []
+        try:
+            await db.emission_records.insert_many(records_to_save)
+            created_ids = [r["id"] for r in records_to_save]
+            logger.info(f"[BULK_SAVE] Job {job_id}: Inserted {len(created_ids)} emission records")
+        except Exception as insert_err:
+            # Compensating rollback: remove any partially inserted records
+            partial_ids = [r["id"] for r in records_to_save]
+            rollback_result = await db.emission_records.delete_many({"id": {"$in": partial_ids}})
+            logger.error(
+                f"[BULK_SAVE] Job {job_id}: insert_many failed ({insert_err}). "
+                f"Rolled back {rollback_result.deleted_count}/{len(partial_ids)} partial records."
+            )
+            await db.bulk_upload_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "failed", "error_message": f"Save failed and rolled back: {str(insert_err)}"}}
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to save records. All partial inserts have been rolled back. Error: {str(insert_err)}"
+            )
         
         # Create emission_history entries for version tracking
-        now = datetime.now(timezone.utc)
-        history_entries = []
-        for record in records_to_save:
-            history_entries.append({
-                "id": str(uuid.uuid4()),
-                "emission_id": record["id"],
-                "scope": record.get("scope", "scope3"),
-                "category": record.get("category", ""),
-                "reporting_month": record.get("reporting_period"),
-                "changed_by": current_user["id"],
-                "changed_by_email": current_user.get("email", ""),
-                "changed_by_name": current_user.get("full_name", ""),
-                "changed_at": now.isoformat(),
-                "version": 1,
-                "field_changes": [],
-                "changes_summary": "Initial creation via bulk upload",
-                "changes": {
-                    "action": "created",
-                    "old_values": None,
-                    "new_values": {
-                        "facility_id": record.get("facility_id"),
-                        "reporting_period": record.get("reporting_period"),
-                        "category": record.get("category"),
-                        "co2e_emissions": record.get("co2e_emissions"),
-                        "total_emissions": record.get("total_emissions"),
+        try:
+            now = datetime.now(timezone.utc)
+            history_entries = []
+            for record in records_to_save:
+                history_entries.append({
+                    "id": str(uuid.uuid4()),
+                    "emission_id": record["id"],
+                    "scope": record.get("scope", "scope3"),
+                    "category": record.get("category", ""),
+                    "reporting_month": record.get("reporting_period"),
+                    "changed_by": current_user["id"],
+                    "changed_by_email": current_user.get("email", ""),
+                    "changed_by_name": current_user.get("full_name", ""),
+                    "changed_at": now.isoformat(),
+                    "version": 1,
+                    "field_changes": [],
+                    "changes_summary": "Initial creation via bulk upload",
+                    "changes": {
+                        "action": "created",
+                        "old_values": None,
+                        "new_values": {
+                            "facility_id": record.get("facility_id"),
+                            "reporting_period": record.get("reporting_period"),
+                            "category": record.get("category"),
+                            "co2e_emissions": record.get("co2e_emissions"),
+                            "total_emissions": record.get("total_emissions"),
+                        }
                     }
-                }
-            })
-        if history_entries:
-            await db.emission_history.insert_many(history_entries)
-            logger.info(f"[BULK_SAVE] Job {job_id}: Created {len(history_entries)} history entries")
+                })
+            if history_entries:
+                await db.emission_history.insert_many(history_entries)
+                logger.info(f"[BULK_SAVE] Job {job_id}: Created {len(history_entries)} history entries")
+        except Exception as hist_err:
+            logger.warning(f"[BULK_SAVE] Job {job_id}: History creation failed (non-fatal): {hist_err}")
         
         # Create audit log entry for bulk upload
         scope_counts = {}
@@ -3563,6 +3632,20 @@ async def download_scope3_error_report(job_id: str, current_user: dict = Depends
         for e in errors
     ]
     
+    # Also fetch warnings stored on the job record
+    warning_objects = []
+    job_warnings = job.get("warnings", [])
+    for w in job_warnings:
+        warning_objects.append(ValidationError(
+            sheet=w.get("sheet", ""),
+            row=w.get("row", 0),
+            column=w.get("column"),
+            error_type=w.get("error_type", ""),
+            message=w.get("message", ""),
+            suggestion=w.get("suggestion"),
+            severity=ErrorSeverity.WARNING,
+        ))
+    
     summary = UploadSummary(
         job_id=job_id,
         status=UploadStatus(job.get("status", "completed")),
@@ -3572,7 +3655,8 @@ async def download_scope3_error_report(job_id: str, current_user: dict = Depends
         warning_count=job.get("warning_count", 0),
         categories_processed=job.get("categories_processed", []),
         total_emissions_tco2e=job.get("total_emissions_tco2e", 0),
-        errors=error_objects
+        errors=error_objects,
+        warnings=warning_objects,
     )
     
     report_bytes = ReportGenerator.generate_error_report(summary)
@@ -3684,8 +3768,10 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS — restrict to trusted origins in production
-_cors_origins = os.environ.get('CORS_ORIGINS', '').strip()
-_allowed_origins = [o.strip() for o in _cors_origins.split(',') if o.strip()] if _cors_origins and _cors_origins != '*' else ["*"]
+_cors_origins = os.environ["CORS_ORIGINS"].strip()
+_allowed_origins = [origin.strip() for origin in _cors_origins.split(",") if origin.strip()]
+if not _allowed_origins or "*" in _allowed_origins:
+    raise RuntimeError("CORS_ORIGINS must list explicit trusted origins when credentials are enabled")
 
 app.add_middleware(
     CORSMiddleware,
@@ -3721,6 +3807,14 @@ async def startup_event():
     await seed_calc_engine(db)
     from modules.sustainability_config.service import ensure_indexes as ensure_sustainability_indexes
     await ensure_sustainability_indexes()
+    from modules.supplier_assessment.programs import ensure_indexes as ensure_supplier_assessment_indexes
+    await ensure_supplier_assessment_indexes()
+    from modules.supplier_assessment.documents_service import ensure_indexes as ensure_supplier_document_indexes
+    await ensure_supplier_document_indexes()
+    from modules.supplier_assessment.training_service import ensure_indexes as ensure_supplier_training_indexes
+    await ensure_supplier_training_indexes()
+    from bulk_upload_scope3.router import ensure_bulk_upload_indexes
+    await ensure_bulk_upload_indexes(db)
     # Seed airport reference data from CSV
     from modules.airports.service import seed_airports_from_csv
     import os

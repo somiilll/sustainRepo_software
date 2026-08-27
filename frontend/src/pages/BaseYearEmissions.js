@@ -46,6 +46,85 @@ import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, A
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+const formatTco2e = (value) => `${Number(value || 0).toFixed(4)} tCO₂e`;
+
+const calculateScope12Totals = (emissions = []) => emissions.reduce((totals, entry) => {
+  const scope = String(entry?.scope || '').toLowerCase().replace(/[\s_-]/g, '');
+  const value = Number.parseFloat(entry?.tco2e);
+  const emissionsValue = Number.isFinite(value) ? value : 0;
+
+  if (scope === 'scope1') totals.scope1 += emissionsValue;
+  if (scope === 'scope2') totals.scope2 += emissionsValue;
+  totals.total = totals.scope1 + totals.scope2;
+  return totals;
+}, { scope1: 0, scope2: 0, total: 0 });
+
+const calculateScope3Total = (emissions = []) => emissions.reduce((total, entry) => {
+  const scope = String(entry?.scope || '').toLowerCase().replace(/[\s_-]/g, '');
+  const value = Number.parseFloat(entry?.tco2e);
+  return scope === 'scope3' && Number.isFinite(value) ? total + value : total;
+}, 0);
+
+function Scope12EmissionsSummary({ emissions, testId, compact = false }) {
+  const totals = calculateScope12Totals(emissions);
+
+  if (compact) {
+    return (
+      <div className="mt-1" data-testid={testId}>
+        <p className="text-[10px] font-medium uppercase tracking-wide text-blue-600">Total Base Year</p>
+        <p className="text-xs font-semibold text-text-primary" data-testid={`${testId}-total`}>
+          {formatTco2e(totals.total)}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <section className="grid grid-cols-1 gap-2 rounded-lg border border-blue-200 bg-blue-50/70 p-3 sm:grid-cols-3" data-testid={testId}>
+      <div>
+        <p className="text-xs text-blue-700">Scope 1</p>
+        <p className="text-sm font-semibold text-text-primary" data-testid={`${testId}-scope1`}>{formatTco2e(totals.scope1)}</p>
+      </div>
+      <div className="border-blue-200 sm:border-x sm:px-3">
+        <p className="text-xs text-blue-700">Scope 2</p>
+        <p className="text-sm font-semibold text-text-primary" data-testid={`${testId}-scope2`}>{formatTco2e(totals.scope2)}</p>
+      </div>
+      <div>
+        <p className="text-xs font-medium text-blue-800">Total Emissions</p>
+        <p className="text-sm font-bold text-blue-900" data-testid={`${testId}-total`}>{formatTco2e(totals.total)}</p>
+      </div>
+    </section>
+  );
+}
+
+function Scope3EmissionsSummary({ emissions, testId, compact = false }) {
+  const total = calculateScope3Total(emissions);
+
+  if (compact) {
+    return (
+      <div className="mt-1" data-testid={testId}>
+        <p className="text-[10px] font-medium uppercase tracking-wide text-purple-600">Total Base Year</p>
+        <p className="text-xs font-semibold text-text-primary" data-testid={`${testId}-total`}>
+          {formatTco2e(total)}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <section className="grid grid-cols-1 gap-2 rounded-lg border border-purple-200 bg-purple-50/70 p-3 sm:grid-cols-2" data-testid={testId}>
+      <div>
+        <p className="text-xs text-purple-700">Scope 3</p>
+        <p className="text-sm font-semibold text-text-primary" data-testid={`${testId}-scope3`}>{formatTco2e(total)}</p>
+      </div>
+      <div className="border-purple-200 sm:border-l sm:pl-3">
+        <p className="text-xs font-medium text-purple-800">Total Emissions</p>
+        <p className="text-sm font-bold text-purple-900" data-testid={`${testId}-total`}>{formatTco2e(total)}</p>
+      </div>
+    </section>
+  );
+}
+
 export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   const { user, getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -1543,6 +1622,13 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             <div>
               <p className="text-xs text-text-muted">Base Year</p>
               <p className="font-semibold text-sm">{record.base_year}</p>
+              {scopeGroup === 'scope12' && (
+                <Scope12EmissionsSummary
+                  emissions={record.emissions_data}
+                  compact
+                  testId={`scope12-${entityType}-${entityId}-base-year-total`}
+                />
+              )}
             </div>
             <div className="flex gap-1 flex-wrap">
               <Button 
@@ -1789,23 +1875,26 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                           </div>
                           
                           {scope12Record ? (
-                            <div className="flex flex-wrap gap-2">
-                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope12Record); }}>
-                                <History className="w-3 h-3 mr-1" /> History
-                              </Button>
-                              {!isOrgReadOnly && (
-                                <>
-                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleEditEmissions(scope12Record); }}>
-                                    <Edit2 className="w-3 h-3 mr-1" /> Edit
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(scope12Record); }}>
-                                    <CalendarClock className="w-3 h-3 mr-1" /> Change
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope12Record.id); }}>
-                                    <Trash2 className="w-3 h-3 mr-1" /> Delete
-                                  </Button>
-                                </>
-                              )}
+                            <div className="space-y-3">
+                              <Scope12EmissionsSummary emissions={scope12Record.emissions_data} compact testId="organization-scope12-panel-base-year-total" />
+                              <div className="flex flex-wrap gap-2">
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope12Record); }}>
+                                  <History className="w-3 h-3 mr-1" /> History
+                                </Button>
+                                {!isOrgReadOnly && (
+                                  <>
+                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleEditEmissions(scope12Record); }}>
+                                      <Edit2 className="w-3 h-3 mr-1" /> Edit
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(scope12Record); }}>
+                                      <CalendarClock className="w-3 h-3 mr-1" /> Change
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope12Record.id); }}>
+                                      <Trash2 className="w-3 h-3 mr-1" /> Delete
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           ) : !isOrgReadOnly ? (
                             <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('organization', organization.id, organization.name, 'scope12'); }}>
@@ -1834,23 +1923,26 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                           </div>
                           
                           {scope3Record ? (
-                            <div className="flex flex-wrap gap-2">
-                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope3Record); }}>
-                                <History className="w-3 h-3 mr-1" /> History
-                              </Button>
-                              {!isOrgReadOnly && (
-                                <>
-                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleEditEmissions(scope3Record); }}>
-                                    <Edit2 className="w-3 h-3 mr-1" /> Edit
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(scope3Record); }}>
-                                    <CalendarClock className="w-3 h-3 mr-1" /> Change
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope3Record.id); }}>
-                                    <Trash2 className="w-3 h-3 mr-1" /> Delete
-                                  </Button>
-                                </>
-                              )}
+                            <div className="space-y-3">
+                              <Scope3EmissionsSummary emissions={scope3Record.emissions_data} compact testId="organization-scope3-panel-base-year-total" />
+                              <div className="flex flex-wrap gap-2">
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope3Record); }}>
+                                  <History className="w-3 h-3 mr-1" /> History
+                                </Button>
+                                {!isOrgReadOnly && (
+                                  <>
+                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleEditEmissions(scope3Record); }}>
+                                      <Edit2 className="w-3 h-3 mr-1" /> Edit
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(scope3Record); }}>
+                                      <CalendarClock className="w-3 h-3 mr-1" /> Change
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope3Record.id); }}>
+                                      <Trash2 className="w-3 h-3 mr-1" /> Delete
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           ) : !isOrgReadOnly ? (
                             <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('organization', organization.id, organization.name, 'scope3'); }}>
@@ -1988,19 +2080,22 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                           </div>
                           
                           {scope12Record ? (
-                            <div className="flex flex-wrap gap-2">
-                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope12Record); }}>
-                                <History className="w-3 h-3 mr-1" /> History
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleEditEmissions(scope12Record); }}>
-                                <Edit2 className="w-3 h-3 mr-1" /> Edit
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(scope12Record); }}>
-                                <CalendarClock className="w-3 h-3 mr-1" /> Change
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope12Record.id); }}>
-                                <Trash2 className="w-3 h-3 mr-1" /> Delete
-                              </Button>
+                            <div className="space-y-3">
+                              <Scope12EmissionsSummary emissions={scope12Record.emissions_data} compact testId={`facility-${facility.id}-scope12-panel-base-year-total`} />
+                              <div className="flex flex-wrap gap-2">
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope12Record); }}>
+                                  <History className="w-3 h-3 mr-1" /> History
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleEditEmissions(scope12Record); }}>
+                                  <Edit2 className="w-3 h-3 mr-1" /> Edit
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(scope12Record); }}>
+                                  <CalendarClock className="w-3 h-3 mr-1" /> Change
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope12Record.id); }}>
+                                  <Trash2 className="w-3 h-3 mr-1" /> Delete
+                                </Button>
+                              </div>
                             </div>
                           ) : (
                             <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('facility', facility.id, facility.name, 'scope12'); }}>
@@ -2022,19 +2117,22 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                             </div>
                             
                             {scope3Record ? (
-                              <div className="flex flex-wrap gap-2">
-                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope3Record); }}>
-                                  <History className="w-3 h-3 mr-1" /> History
-                                </Button>
-                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleEditEmissions(scope3Record); }}>
-                                  <Edit2 className="w-3 h-3 mr-1" /> Edit
-                                </Button>
-                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(scope3Record); }}>
-                                  <CalendarClock className="w-3 h-3 mr-1" /> Change
-                                </Button>
-                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope3Record.id); }}>
-                                  <Trash2 className="w-3 h-3 mr-1" /> Delete
-                                </Button>
+                              <div className="space-y-3">
+                                <Scope3EmissionsSummary emissions={scope3Record.emissions_data} compact testId={`facility-${facility.id}-scope3-panel-base-year-total`} />
+                                <div className="flex flex-wrap gap-2">
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope3Record); }}>
+                                    <History className="w-3 h-3 mr-1" /> History
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleEditEmissions(scope3Record); }}>
+                                    <Edit2 className="w-3 h-3 mr-1" /> Edit
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(scope3Record); }}>
+                                    <CalendarClock className="w-3 h-3 mr-1" /> Change
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope3Record.id); }}>
+                                    <Trash2 className="w-3 h-3 mr-1" /> Delete
+                                  </Button>
+                                </div>
                               </div>
                             ) : (
                               <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('facility', facility.id, facility.name, 'scope3'); }}>
@@ -2145,6 +2243,13 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 </div>
                 <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Editable</span>
               </div>
+
+              {selectedScopeGroup === 'scope12' && (
+                <Scope12EmissionsSummary emissions={emissionsData} testId="base-year-setup-scope12-emissions-summary" />
+              )}
+              {selectedScopeGroup === 'scope3' && (
+                <Scope3EmissionsSummary emissions={emissionsData} testId="base-year-setup-scope3-emissions-summary" />
+              )}
               
               {/* Phase 1 Enhancement: Add Category Button */}
               <div className="flex justify-end">
@@ -2514,6 +2619,13 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               </div>
               <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Editable</span>
             </div>
+
+            {selectedScopeGroup === 'scope12' && (
+              <Scope12EmissionsSummary emissions={emissionsData} testId="base-year-edit-scope12-emissions-summary" />
+            )}
+            {selectedScopeGroup === 'scope3' && (
+              <Scope3EmissionsSummary emissions={emissionsData} testId="base-year-edit-scope3-emissions-summary" />
+            )}
             
             {/* Phase 1 Enhancement: Add Category Button */}
             <div className="flex justify-end">
@@ -2885,12 +2997,18 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               
               {/* Total row */}
               {viewRecord.emissions_data?.length > 0 && (
-                <div className="p-3 bg-stone-50 rounded-lg flex justify-between items-center">
-                  <span className="font-medium text-sm">Total Emissions</span>
-                  <span className="font-bold">
-                    {viewRecord.emissions_data.reduce((sum, e) => sum + (parseFloat(e.tco2e) || 0), 0).toFixed(4)} tCO₂e
-                  </span>
-                </div>
+                (viewRecord.scope_group || 'scope12') === 'scope12' ? (
+                  <Scope12EmissionsSummary emissions={viewRecord.emissions_data} testId="base-year-view-scope12-emissions-summary" />
+                ) : (viewRecord.scope_group || 'scope12') === 'scope3' ? (
+                  <Scope3EmissionsSummary emissions={viewRecord.emissions_data} testId="base-year-view-scope3-emissions-summary" />
+                ) : (
+                  <div className="p-3 bg-stone-50 rounded-lg flex justify-between items-center" data-testid="base-year-view-total-emissions">
+                    <span className="font-medium text-sm">Total Emissions</span>
+                    <span className="font-bold" data-testid="base-year-view-total-emissions-value">
+                      {formatTco2e(viewRecord.emissions_data.reduce((sum, e) => sum + (parseFloat(e.tco2e) || 0), 0))}
+                    </span>
+                  </div>
+                )
               )}
               
               {/* Justification section - always show if exists */}

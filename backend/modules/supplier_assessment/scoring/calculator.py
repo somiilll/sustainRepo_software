@@ -64,6 +64,8 @@ class ScoreCalculator:
         response_type: str,
         raw_value: Any,
         weight: float,
+        importance: Optional[str],
+        weight_source: str,
         scoring_config: ScoringConfig,
     ) -> QuestionScore:
         """
@@ -101,6 +103,8 @@ class ScoreCalculator:
             raw_score=raw_score,
             weight=weight,
             weighted_score=weighted_score,
+            importance=importance,
+            weight_source=weight_source,
             calculation_details=result["calculation_details"],
         )
     
@@ -285,6 +289,7 @@ class ScoreCalculator:
         overall_weights: OverallSupplierWeights,
         ghg_score: Optional[float] = None,
         revenue_percentage: Optional[float] = None,
+        manual_scores: Optional[Dict[str, Any]] = None,
     ) -> ScoreBreakdown:
         """
         Calculate complete supplier score with full breakdown.
@@ -314,6 +319,7 @@ class ScoreCalculator:
         """
         question_scores: List[QuestionScore] = []
         notes: List[str] = []
+        manual_scores = manual_scores or {}
         
         # Calculate score for each question
         for q in questions:
@@ -342,17 +348,43 @@ class ScoreCalculator:
                 notes.append(f"Invalid scoring config for '{question_id}': {e}")
                 continue
             
+            exact_weight = q.get("exact_numerical_weight")
+            importance = (q.get("importance") or "medium").lower()
+            importance_weights = {"low": 1.0, "medium": 2.0, "high": 3.0, "critical": 4.0}
+            if importance not in importance_weights:
+                importance = "medium"
+            if exact_weight is not None:
+                weight = float(exact_weight)
+                weight_source = "exact"
+            elif q.get("importance") is not None:
+                weight = importance_weights[importance]
+                weight_source = "importance"
+            else:
+                weight = float(q.get("weight", 1.0))
+                weight_source = "legacy"
+
             # Calculate question score
             try:
+                manual_entry = manual_scores.get(question_id)
+                manual_score = manual_entry.get("score") if isinstance(manual_entry, dict) else manual_entry
+                has_manual_score = manual_score is not None
                 q_score = self.calculate_question_score(
                     question_id=question_id,
                     question_text=q.get("question_text", ""),
                     section=q.get("category", q.get("section", "environment")),
                     response_type=q.get("response_type", "text"),
-                    raw_value=raw_value,
-                    weight=q.get("weight", 1.0),
+                    raw_value=manual_score if has_manual_score else raw_value,
+                    weight=weight,
+                    importance=importance,
+                    weight_source=weight_source,
                     scoring_config=scoring_config,
                 )
+                if has_manual_score:
+                    q_score.raw_response = raw_value
+                    q_score.calculation_details.update({
+                        "manual_score": float(manual_score),
+                        "score_source": "parent_manual_review",
+                    })
                 question_scores.append(q_score)
             except Exception as e:
                 notes.append(f"Error calculating score for '{question_id}': {e}")

@@ -7,7 +7,9 @@ collection. Phase B4 extracts them; complex POST/PUT route handlers
 """
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 
 class DynamicFieldValue(BaseModel):
@@ -25,6 +27,7 @@ class EmissionRecordCreate(BaseModel):
     frequency_type: Optional[str] = "monthly"
     scope: str
     category: str
+    category_code: Optional[str] = None
     sub_category: str
     fuel_type: Optional[str] = None
 
@@ -38,6 +41,7 @@ class EmissionRecordCreate(BaseModel):
 
     # Scope 3
     calculation_method_scope3: Optional[str] = None
+    spend_currency_conversion_method: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
     scope3_activity_type: Optional[str] = None
@@ -81,6 +85,11 @@ class EmissionRecordCreate(BaseModel):
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
     outputs: Optional[Dict[str, Dict[str, Any]]] = {}
 
+    # Primary activity values are mirrored for ledger and export compatibility.
+    quantity: Optional[float] = None
+    quantity_unit: Optional[str] = None
+    unit: Optional[str] = None
+
     # Metadata
     fuel_database_id: Optional[str] = None
     source_of_information: Optional[str] = None
@@ -88,6 +97,7 @@ class EmissionRecordCreate(BaseModel):
     notes: Optional[str] = None
     justification: Optional[str] = None
     evidence_url: Optional[str] = None
+    submission_batch_id: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
@@ -95,6 +105,18 @@ class EmissionRecordCreate(BaseModel):
     # Process info
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
+
+    @field_validator("reporting_period")
+    @classmethod
+    def normalize_reporting_period(cls, value: str) -> str:
+        normalized = normalize_reporting_period_for_storage(value)
+        if not normalized:
+            raise ValueError("reporting_period must be a valid YYYY-MM, CYyyyy, or FY yyyy-yyyy value")
+        return normalized
+
+
+class EmissionBatchRollbackRequest(BaseModel):
+    submission_batch_id: str
 
 
 class EmissionRecordResponse(BaseModel):
@@ -105,6 +127,7 @@ class EmissionRecordResponse(BaseModel):
     frequency_type: Optional[str] = "monthly"
     scope: str
     category: str
+    category_code: Optional[str] = None
     sub_category: Optional[str] = None
     fuel_type: Optional[str] = None
 
@@ -117,6 +140,7 @@ class EmissionRecordResponse(BaseModel):
     process_type: Optional[str] = None
 
     calculation_method_scope3: Optional[str] = None
+    spend_currency_conversion_method: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
     scope3_activity_type: Optional[str] = None
@@ -149,6 +173,9 @@ class EmissionRecordResponse(BaseModel):
 
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
     outputs: Optional[Dict[str, Dict[str, Any]]] = {}
+    quantity: Optional[float] = None
+    quantity_unit: Optional[str] = None
+    unit: Optional[str] = None
 
     co2_emissions: Optional[float] = None
     ch4_emissions: Optional[float] = None

@@ -1,7 +1,9 @@
 """C7 Employee Commuting Pydantic contracts (monthly + yearly variants)."""
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 
 class C7MonthlyEntryCreate(BaseModel):
@@ -19,6 +21,7 @@ class C7MonthlyEntryCreate(BaseModel):
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    submission_batch_id: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
@@ -72,6 +75,14 @@ class C7YearlyEntryCreate(BaseModel):
     responsible_person_contact: Optional[str] = None
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
+
+    @field_validator("reporting_year")
+    @classmethod
+    def normalize_reporting_year(cls, value: str) -> str:
+        normalized = normalize_reporting_period_for_storage(value)
+        if not normalized or normalized[:2] not in {"CY", "FY"}:
+            raise ValueError("reporting_year must be a valid CYyyyy or FY yyyy-yyyy value")
+        return normalized
 
 
 class C7YearlyEntryResponse(BaseModel):

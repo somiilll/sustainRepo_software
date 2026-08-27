@@ -19,7 +19,11 @@ import {
 } from '../../../../../components/ui/tooltip';
 import { Info } from 'lucide-react';
 import { toast } from 'sonner';
-import { isDensityRequiredForQtyBasis, isQuantityField } from '../utils/unitHelpers';
+import {
+  getUnitDenominator,
+  isQuantityField,
+  resolveDensityRequirement,
+} from '../utils/unitHelpers';
 import { buildNativeOptionsHtml } from '../utils/nativeSelectOptions';
 
 // Field-level help text shown on hover next to the label as an "i" icon.
@@ -175,8 +179,17 @@ export const DynamicFieldRenderer = ({
 
   // For Qty Basis EF: density is dynamically required when EF unit denominator
   // dimension mismatches the fuel's quantity unit dimension for this month
-  const densityRequired = field.densityQtyBasisCheck &&
-    isDensityRequiredForQtyBasis(data.ef_quantity_unit, field.fuelQtyUnits);
+  const selectedQuantityUnit = data.qty_unit
+    || data.quantity_unit
+    || data.unit
+    || field.densityQuantityUnits?.[0]
+    || '';
+  const densityRequirement = resolveDensityRequirement({
+    quantityUnit: selectedQuantityUnit,
+    referenceUnit: getUnitDenominator(data.ef_quantity_unit),
+    centralizedUnits,
+  });
+  const densityRequired = field.densityQtyBasisCheck && densityRequirement.required;
   const isFieldRequired = field.required || densityRequired;
 
   // Apply default value when field is first rendered and has no current value
@@ -196,6 +209,12 @@ export const DynamicFieldRenderer = ({
       updateMonthData(monthKey, `override_${field.variable}`, true);
     }
   }, [densityRequired, data, field.variable, monthKey, updateMonthData]);
+
+  useEffect(() => {
+    if (densityRequired && densityRequirement.densityUnit && data[`${field.variable}_unit`] !== densityRequirement.densityUnit) {
+      updateMonthData(monthKey, `${field.variable}_unit`, densityRequirement.densityUnit);
+    }
+  }, [data, densityRequired, densityRequirement.densityUnit, field.variable, monthKey, updateMonthData]);
 
   const handleValueChange = (e) => {
     const val = e.target.value;

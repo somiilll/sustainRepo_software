@@ -24,13 +24,13 @@ import {
   Leaf,
   Search,
   Wind,
+  Workflow,
   X,
   Zap,
 } from 'lucide-react';
 import { resolveGhgUiState } from '../../../../config/resolveGhgUiState';
 import {
   getStandardActivityTypeLabel,
-  STANDARD_PROCESS_TYPE_OPTIONS,
   STANDARD_TYPE_OF_PRODUCT_OPTIONS,
 } from '../../../../config/standardGhgFormConfig';
 
@@ -87,6 +87,8 @@ export const Step1BasicSelection = ({
   
   // Scope 3 Method props
   scope3Method,
+  spendCurrencyConversionMethod = 'ppp_inflation',
+  setSpendCurrencyConversionMethod,
   availableScope3Methods,
   getMethodLabel,
   
@@ -260,10 +262,10 @@ export const Step1BasicSelection = ({
   }, [availableScope3ActivityTypes, scope3ActivityType, requiresSubcategory, scope3Subcategory, ghgUiState.requiresTypeOfProduct, typeOfProduct, filteredScope3Activities, fuelSearchTerm]);
 
   const processTypeOptionsHtml = useMemo(() => (
-    `<option value="">Select process type</option>${STANDARD_PROCESS_TYPE_OPTIONS.map((option) => (
-      `<option value="${escapeOptionHtml(option.value)}">${escapeOptionHtml(option.label)}</option>`
+    `<option value="">Select process type</option>${ghgUiState.renderableProcessTypeOptions.map((option) => (
+      `<option value="${escapeOptionHtml(option.value)}"${option.disabled ? ' disabled' : ''}>${escapeOptionHtml(option.label)}</option>`
     )).join('')}`
-  ), []);
+  ), [ghgUiState.renderableProcessTypeOptions]);
 
   const fuelOptionsHtml = useMemo(() => (
     `<option value="">Select Fuel Type (${filteredFuelsForCategory.length} available)</option>${filteredFuelsForCategory.map((fuel) => (
@@ -414,6 +416,46 @@ export const Step1BasicSelection = ({
         </div>
       </div>
 
+      {/* Process Emissions: keep Category, Process Type, and Methodology aligned. */}
+      {ghgUiState.showProcessType && (
+        <div className="min-w-0 space-y-2" data-testid="process-type-section">
+          <Label>Process Type <span className="text-red-500">*</span></Label>
+          <div className="relative">
+            <Workflow className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-600" aria-hidden="true" />
+            <select
+              value={decisionFieldValues.process_type || ''}
+              onChange={(event) => setDecisionFieldValues(prev => ({
+                ...prev,
+                process_type: event.target.value,
+                calculation_methodology: 'using_heat_basis_ncv',
+              }))}
+              className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              data-testid="process-type-select"
+              dangerouslySetInnerHTML={{ __html: processTypeOptionsHtml }}
+            />
+          </div>
+        </div>
+      )}
+
+      {ghgUiState.showProcessType && ghgUiState.showCalculationMethodology && (
+        <div className="min-w-0 space-y-2" data-testid="calculation-methodology-section">
+          <Label>Calculation Methodology</Label>
+          <div className="relative">
+            <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
+            <select
+              value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
+              onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: event.target.value }))}
+              className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              data-testid="calculation-methodology-select"
+            >
+              <option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option>
+              <option value="using_qty_basis_ef">Using Qty Basis EF</option>
+              <option value="using_carbon_composition">Using Composition of Carbon</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Biogenic Indirect: Calculation Method */}
       {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && category && (
         <div className="min-w-0 space-y-2">
@@ -540,6 +582,24 @@ export const Step1BasicSelection = ({
               <p className="text-xs text-amber-600">No methods available for this category in Scope 3 EF table</p>
             )}
           </div>
+
+          {scope3Method === 'spend_basis' && (
+            <div className="min-w-0 space-y-2" data-testid="scope3-currency-conversion-method-section">
+              <Label>Currency Conversion Method <span className="text-red-500">*</span></Label>
+              <Select
+                value={spendCurrencyConversionMethod}
+                onValueChange={setSpendCurrencyConversionMethod}
+              >
+                <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-stone-50 text-left" data-testid="scope3-currency-conversion-method-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent data-testid="scope3-currency-conversion-method-options">
+                  <SelectItem value="standard" data-testid="scope3-currency-conversion-method-option-standard">Standard Currency Conversion</SelectItem>
+                  <SelectItem value="ppp_inflation" data-testid="scope3-currency-conversion-method-option-ppp-inflation">PPP and Inflation Rate</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Activity Type Filter (only for C6/C7) */}
           {scope3Method && availableScope3ActivityTypes.length > 0 && (
@@ -688,22 +748,8 @@ export const Step1BasicSelection = ({
         </div>
       )}
       
-      {/* Process Type - Only for Process Emissions (Scope 1) */}
-      {ghgUiState.showProcessType && (
-        <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="process-type-section">
-          <Label>Process Type <span className="text-red-500">*</span></Label>
-          <select
-            value={decisionFieldValues.process_type || ''}
-            onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, process_type: event.target.value, calculation_methodology: '' }))}
-            className="h-10 w-full border border-stone-200 bg-stone-50 px-3 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-            data-testid="process-type-select"
-            dangerouslySetInnerHTML={{ __html: processTypeOptionsHtml }}
-          />
-        </div>
-      )}
-
       {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
-      {ghgUiState.showCalculationMethodology && (
+      {ghgUiState.showCalculationMethodology && !ghgUiState.showProcessType && (
         <div className={`space-y-2 ${usesDirectFuelLayout ? '' : 'mt-4 border-b border-stone-200 pb-6'}`} data-testid="calculation-methodology-section">
           <Label>Calculation Methodology</Label>
           <div className="relative">
@@ -729,6 +775,7 @@ export const Step1BasicSelection = ({
             {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
             {ghgUiState.showCustomFuel && (
               <label className="absolute right-0 top-0 flex items-center gap-2 cursor-pointer">
+                <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
                 <input
                   type="checkbox"
                   checked={useCustomFuel}
@@ -791,20 +838,23 @@ export const Step1BasicSelection = ({
               )}
             </>
           ) : (
-            <div className="space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="space-y-2">
-                <Label>Custom Fuel Name <span className="text-red-500">*</span></Label>
+            <div className="space-y-2 border-l-2 border-amber-300 pl-3" data-testid="custom-fuel-name-section">
+              <div className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-amber-600" aria-hidden="true" />
+                <Label htmlFor="custom-fuel-name-input">Fuel Name <span className="text-red-500">*</span></Label>
+                <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800" data-testid="custom-fuel-badge">
+                  Custom fuel
+                </span>
+              </div>
+              <div>
                 <Input
+                  id="custom-fuel-name-input"
                   value={customFuelName}
                   onChange={(e) => setCustomFuelName(e.target.value)}
                   placeholder="Enter fuel name"
                   className="bg-white"
                   data-testid="custom-fuel-name-input"
                 />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Source</Label>
-                <Input value={customSource} onChange={(e) => setCustomSource(e.target.value)} placeholder="Source of information" className="bg-white" />
               </div>
             </div>
           )}

@@ -48,6 +48,7 @@ SYSTEM_VARIABLES: List[dict] = [
      "dimension": "emission_per_activity", "default_unit": "kgCO2e/kg"},
     {"key": "gwp_ch4", "label": "GWP CH₄", "type": "property", "dimension": "gwp_factor", "default_unit": "1"},
     {"key": "gwp_n2o", "label": "GWP N₂O", "type": "property", "dimension": "gwp_factor", "default_unit": "1"},
+    {"key": "exchange_rate", "label": "Standard Currency Exchange Rate", "type": "property", "dimension": "dimensionless", "default_unit": "1"},
     # Outputs
     {"key": "co2", "label": "CO₂ Emissions", "type": "output", "dimension": "mass_co2", "default_unit": "kgCO2"},
     {"key": "ch4", "label": "CH₄ Emissions", "type": "output", "dimension": "mass_ch4", "default_unit": "kgCH4"},

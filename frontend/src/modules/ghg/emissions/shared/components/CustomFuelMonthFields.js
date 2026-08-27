@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Flame } from 'lucide-react';
 import { Input } from '../../../../../components/ui/input';
 import { Label } from '../../../../../components/ui/label';
 import {
-  isDensityRequiredForHeatBasis,
-  isDensityRequiredForQtyBasis,
-  isDensityRequiredForCarbonComposition,
+  invertDensityUnit,
+  resolveDensityRequirement,
 } from '../utils/unitHelpers';
 import {
   GHG_FIELD_OPTION_KEYS,
@@ -72,9 +72,11 @@ const CustomFuelMonthFields = ({
   updateMonthData,
   calculationMethodology,
   fieldOptions = DEFAULT_FIELD_OPTIONS,
+  centralizedUnits = [],
+  renderFields = true,
+  showMethodIndicator = true,
+  isFugitiveCustomFuel = false,
 }) => {
-  const quantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
-    || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
   const heatEfUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT]
     || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT];
   const heatCvUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT]
@@ -82,43 +84,79 @@ const CustomFuelMonthFields = ({
   const quantityEfUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT]
     || DEFAULT_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT];
   const qtyUnit = data.custom_qty_unit || 'kg';
+  const heatCvUnit = data.custom_cv_unit || 'TJ/kg';
+  const quantityEfUnit = data.custom_ef_unit || 'kgCO2/kg';
+  const referenceUnit = calculationMethodology === 'using_heat_basis_ncv'
+    ? heatCvUnit.split('/')[1] || 'kg'
+    : calculationMethodology === 'using_qty_basis_ef'
+      ? quantityEfUnit.split('/')[1] || 'kg'
+      : calculationMethodology === 'using_carbon_composition'
+        ? 'kg'
+        : '';
+  const densityRequirement = resolveDensityRequirement({
+    quantityUnit: qtyUnit,
+    referenceUnit,
+    centralizedUnits,
+  });
+  const customQuantity = data.qty ?? data.quantity ?? data.custom_qty;
+  const hasDensitySourceValue = calculationMethodology === 'using_heat_basis_ncv'
+    ? [customQuantity, data.custom_cv, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
+    : calculationMethodology === 'using_qty_basis_ef'
+      ? [customQuantity, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
+      : [customQuantity, data.custom_carbon_content].some((value) => value !== '' && value !== null && value !== undefined);
 
-  const qtyUnitSelector = (
-    <div className="space-y-1">
-      <Label className="text-xs">Quantity Unit <span className="text-red-500">*</span></Label>
-      <select
-        value={qtyUnit}
-        onChange={(e) => updateMonthData(monthKey, 'custom_qty_unit', e.target.value)}
-        className="w-full h-9 bg-white border border-stone-200 rounded-lg px-2 text-sm"
-        data-testid={`month-${monthKey}-custom-qty-unit`}
-        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(quantityUnits) }}
-      />
-    </div>
-  );
+  useEffect(() => {
+    if (isFugitiveCustomFuel) return;
+    if (!hasDensitySourceValue || !densityRequirement.required || !densityRequirement.densityUnit) return;
+    const currentDensityUnit = data.density_unit || '';
+    if (currentDensityUnit === densityRequirement.densityUnit) return;
+
+    const nextData = { density_unit: densityRequirement.densityUnit };
+    if (
+      currentDensityUnit === invertDensityUnit(densityRequirement.densityUnit)
+      && data.density !== undefined
+      && data.density !== null
+      && data.density !== ''
+      && Number(data.density) !== 0
+    ) {
+      nextData.density = String(1 / Number(data.density));
+    }
+    Object.entries(nextData).forEach(([key, value]) => updateMonthData(monthKey, key, value));
+  }, [data.density, data.density_unit, densityRequirement.densityUnit, densityRequirement.required, hasDensitySourceValue, isFugitiveCustomFuel, monthKey, updateMonthData]);
+
+  if (!renderFields || isFugitiveCustomFuel) return null;
 
   // Density input — shown only when dimension mismatch detected per-methodology
   const renderDensity = (needed, unitLabel) => {
     if (!needed) return null;
     return (
-      <MeasurementInput
-        label="Density"
-        value={data.density || ''}
-        onChange={(event) => updateMonthData(monthKey, 'density', event.target.value)}
-        placeholder="e.g. 0.84"
-        unitLabel={unitLabel}
-        inputTestId={`month-${monthKey}-density`}
-        unitTestId={`month-${monthKey}-density-unit`}
-      />
+      <div className="space-y-1">
+        <MeasurementInput
+          label="Density"
+          value={data.density || ''}
+          onChange={(event) => updateMonthData(monthKey, 'density', event.target.value)}
+          placeholder="e.g. 0.84"
+          unitLabel={unitLabel}
+          inputTestId={`month-${monthKey}-density`}
+          unitTestId={`month-${monthKey}-density-unit`}
+        />
+        <p className="text-xs text-amber-700" data-testid={`month-${monthKey}-density-conversion-hint`}>
+          Conversion required: {qtyUnit} → {referenceUnit}
+        </p>
+      </div>
     );
   };
 
   if (calculationMethodology === 'using_heat_basis_ncv') {
-    const cvUnit = data.custom_cv_unit || 'TJ/kg';
-    const cvDenom = cvUnit.split('/')[1] || 'kg';
-    const needsDensity = isDensityRequiredForHeatBasis(cvUnit, qtyUnit);
+    const cvUnit = heatCvUnit;
     return (
-      <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
-        <p className="text-xs text-amber-700 font-medium">Custom Fuel — Heat Basis (NCV)</p>
+      <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
+        {showMethodIndicator && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
+            <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+            <span>Custom fuel factors · Heat Basis (NCV)</span>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <MeasurementInput
             label="Emission Factor"
@@ -143,19 +181,20 @@ const CustomFuelMonthFields = ({
             unitTestId={`month-${monthKey}-custom-cv-unit`}
           />
         </div>
-        {qtyUnitSelector}
-        {renderDensity(needsDensity, `kg/${cvDenom}`)}
+        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }
 
   if (calculationMethodology === 'using_qty_basis_ef') {
-    const efUnit = data.custom_ef_unit || 'kgCO2/kg';
-    const efDenom = efUnit.split('/')[1] || 'kg';
-    const needsDensity = isDensityRequiredForQtyBasis(efUnit, [qtyUnit]);
     return (
-      <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
-        <p className="text-xs text-amber-700 font-medium">Custom Fuel — Qty Basis EF</p>
+      <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
+        {showMethodIndicator && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
+            <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+            <span>Custom fuel factors · Quantity Basis EF</span>
+          </div>
+        )}
         <MeasurementInput
           label="Emission Factor"
           value={data.custom_ef || ''}
@@ -167,17 +206,20 @@ const CustomFuelMonthFields = ({
           inputTestId={`month-${monthKey}-custom-ef`}
           unitTestId={`month-${monthKey}-custom-ef-unit`}
         />
-        {qtyUnitSelector}
-        {renderDensity(needsDensity, `kg/${efDenom}`)}
+        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }
 
   if (calculationMethodology === 'using_carbon_composition') {
-    const needsDensity = isDensityRequiredForCarbonComposition(qtyUnit);
     return (
-      <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200 rounded-lg" data-testid={`custom-fuel-fields-${monthKey}`}>
-        <p className="text-xs text-amber-700 font-medium">Custom Fuel — Carbon Composition</p>
+      <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
+        {showMethodIndicator && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
+            <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+            <span>Custom fuel factors · Carbon Composition</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Carbon Content (%) <span className="text-red-500">*</span></Label>
@@ -200,8 +242,7 @@ const CustomFuelMonthFields = ({
             />
           </div>
         </div>
-        {qtyUnitSelector}
-        {renderDensity(needsDensity, 'kg/L')}
+        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }

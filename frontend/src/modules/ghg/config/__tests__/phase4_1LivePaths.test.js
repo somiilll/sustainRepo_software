@@ -94,6 +94,19 @@ describe('Phase 4.1 live Create/Edit capability paths', () => {
     });
   });
 
+  test('Process behavior survives a display-name rename because it uses the category code', () => {
+    const entry = findEntry('process_emissions', 'scope1');
+    const context = resolveGhgFormContext({
+      scope: 'scope1',
+      categoryName: 'Renamed venting category',
+      categoryCode: 'process_emissions',
+      categories: [{ ...entry, code: 'process_emissions', name: 'Renamed venting category' }],
+      scopes,
+    });
+
+    expect(context.isProcessCategory).toBe(true);
+  });
+
   test.each(['stationary_combustion', 'mobile_combustion'])(
     '%s requires fuel and exposes custom-fuel controls',
     (categoryCode) => {

@@ -3,7 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
-import { AlertTriangle, X, Lock } from 'lucide-react';
+import { AlertTriangle, Menu, X, Lock } from 'lucide-react';
+import { isSupplierLockedRoute, SUPPLIER_PREMIUM_TOOLTIP } from '../config/supplierNavigation';
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -16,6 +17,9 @@ const SUPPLIER_ALLOWED_ROUTES = [
   '/facilities',
   '/supplier-assessment/supplier',
   '/supplier-assessment/questionnaire',
+  '/supplier-assessment/documents/review',
+  '/supplier-assessment/training',
+  '/supplier-assessment/emissions',
   '/ghg/scope1',
   '/ghg/scope2',
   '/ghg/scope3',
@@ -40,10 +44,10 @@ const SupplierLockedOverlay = ({ children }) => (
           <Lock className="w-10 h-10 text-emerald-600" />
         </div>
         <h3 className="text-xl font-semibold text-stone-800 mb-3">
-          Premium Module
+          {SUPPLIER_PREMIUM_TOOLTIP.title}
         </h3>
         <p className="text-stone-500 text-sm mb-6 leading-relaxed">
-          Subscribe to unlock this module and access advanced ESG management features for your organization.
+          {SUPPLIER_PREMIUM_TOOLTIP.description}
         </p>
         <button className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
           Contact Sales
@@ -57,6 +61,7 @@ export default function Layout() {
   const { user, getAuthHeader } = useAuth();
   const [subscriptionWarning, setSubscriptionWarning] = useState(null);
   const [warningDismissed, setWarningDismissed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const location = useLocation();
   
   // Check if user is a supplier
@@ -66,6 +71,9 @@ export default function Layout() {
   const isAllowedRoute = SUPPLIER_ALLOWED_ROUTES.some(route => 
     location.pathname === route || location.pathname.startsWith(route + '/')
   );
+  const isExplicitlyLockedSupplierRoute = isSupplierLockedRoute(location.pathname);
+  const isSupplierAssessmentRoute = location.pathname.startsWith('/supplier-assessment');
+  const isSupplierAssessmentWorkspace = isSupplier && isSupplierAssessmentRoute;
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -119,8 +127,10 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      {mobileSidebarOpen && <button type="button" aria-label="Close navigation menu" className="fixed inset-0 z-30 bg-stone-950/20 lg:hidden" onClick={() => setMobileSidebarOpen(false)} data-testid="mobile-sidebar-backdrop" />}
+      <Sidebar mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
       <main className="flex-1 flex flex-col overflow-hidden">
+        <button type="button" aria-label="Open navigation menu" className="fixed left-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-700 shadow-sm transition-colors hover:bg-stone-50 lg:hidden" onClick={() => setMobileSidebarOpen(true)} data-testid="mobile-sidebar-open-button"><Menu className="h-5 w-5" /></button>
         {/* Subscription Warning Banner */}
         {subscriptionWarning && !warningDismissed && (
           <div className={`px-4 py-3 flex items-center justify-between ${
@@ -149,16 +159,18 @@ export default function Layout() {
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto">
+        <div className={`flex-1 overflow-y-auto ${isSupplierAssessmentWorkspace ? 'bg-white' : ''}`}>
             <div
               className={
                 isDashboardPage
-                  ? 'w-full px-4 pt-0 pb-4 lg:px-5'
-                  : 'w-full px-4 py-4 lg:px-5'
+                  ? 'w-full px-4 pt-14 pb-4 lg:px-5 lg:pt-0'
+                  : isSupplierAssessmentRoute
+                    ? 'w-full px-4 pb-4 pt-14 lg:px-5 lg:pt-0'
+                    : 'w-full px-4 pb-4 pt-14 lg:px-5 lg:py-4'
               }
             >
             {/* Show locked overlay for suppliers on restricted routes */}
-            {isSupplier && !isAllowedRoute ? (
+            {isSupplier && (isExplicitlyLockedSupplierRoute || !isAllowedRoute) ? (
               <SupplierLockedOverlay>
                 <Outlet />
               </SupplierLockedOverlay>

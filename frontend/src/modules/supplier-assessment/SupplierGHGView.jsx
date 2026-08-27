@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -21,22 +22,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { Search, Cloud, Factory, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Cloud, Factory, Filter, LockOpen } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const displayValue = (value, digits = 2) => value === null || value === undefined ? '—' : Number(value).toFixed(digits);
+const supplierInitials = (name = '') => name.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '—';
+
+const EmissionValue = ({ value, testId, emphasized = false }) => (
+  <span className={`whitespace-nowrap text-sm ${emphasized ? 'font-semibold text-stone-950' : 'text-stone-700'}`} data-testid={testId}>
+    {displayValue(value)} <span className="text-[11px] font-normal text-stone-400">tCO₂e</span>
+  </span>
+);
 
 export default function SupplierGHGView() {
   const { getAuthHeader } = useAuth();
+  const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
   const [emissions, setEmissions] = useState([]);
   const [supplierTotals, setSupplierTotals] = useState([]);
   const [grandTotal, setGrandTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
+  const [supplierFilter, setSupplierFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [emissionPage, setEmissionPage] = useState(1);
+  const [unlockTarget, setUnlockTarget] = useState(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   const fetchEmissions = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/supplier-assessment/emissions/all`, {
+      const res = await axios.get(`${API}/supplier-assessment/emissions/all?reporting_period=${encodeURIComponent(reportingPeriod)}`, {
         headers: getAuthHeader(),
       });
       setEmissions(res.data.emissions || []);
@@ -47,44 +64,72 @@ export default function SupplierGHGView() {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, reportingPeriod]);
 
   useEffect(() => {
     fetchEmissions();
   }, [fetchEmissions]);
+
+  const unlockSupplierGhg = async () => {
+    if (!unlockTarget) return;
+    setUnlocking(true);
+    try {
+      await axios.post(`${API}/supplier-assessment/suppliers/${unlockTarget.supplier_relationship_id}/emissions/reopen`, {}, { headers: getAuthHeader() });
+      toast.success(`${unlockTarget.supplier_name} can now revise and resubmit GHG data`);
+      setUnlockTarget(null);
+      await fetchEmissions();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not unlock GHG data');
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   const filteredEmissions = emissions.filter((e) => {
     const matchesSearch = !search || 
       e.supplier_name?.toLowerCase().includes(search.toLowerCase()) ||
       e.category?.toLowerCase().includes(search.toLowerCase());
     const matchesScope = scopeFilter === 'all' || e.scope === scopeFilter;
-    return matchesSearch && matchesScope;
+    const matchesSupplier = supplierFilter === 'all' || e.supplier_name === supplierFilter;
+    const matchesCategory = categoryFilter === 'all' || e.category === categoryFilter;
+    return matchesSearch && matchesScope && matchesSupplier && matchesCategory;
   });
+  const emissionPageSize = 20;
+  const emissionPageCount = Math.max(1, Math.ceil(filteredEmissions.length / emissionPageSize));
+  const visibleEmissions = filteredEmissions.slice((emissionPage - 1) * emissionPageSize, emissionPage * emissionPageSize);
+  const emissionStart = filteredEmissions.length ? (emissionPage - 1) * emissionPageSize + 1 : 0;
+  const emissionEnd = Math.min(emissionPage * emissionPageSize, filteredEmissions.length);
 
+  useEffect(() => {
+    setEmissionPage(1);
+  }, [search, scopeFilter, supplierFilter, categoryFilter, reportingPeriod]);
+  const supplierOptions = [...new Set(emissions.map((emission) => emission.supplier_name).filter(Boolean))].sort();
+  const categoryOptions = [...new Set(emissions.map((emission) => emission.category).filter(Boolean))].sort();
   return (
     <div className="space-y-6" data-testid="supplier-ghg-view">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-stone-900">Supplier GHG Emissions</h1>
-        <p className="text-sm text-stone-500 mt-1">
-          View and analyze emissions data from all suppliers
-        </p>
+      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div><h1 className="text-2xl font-semibold text-stone-900">Supplier GHG Emissions</h1><p className="mt-1 text-sm text-stone-500">View attributed supplier emissions using each supplier’s revenue share.</p></div>
+        <div className="w-44" data-testid="supplier-ghg-period-control"><label htmlFor="supplier-ghg-reporting-period" className="mb-1 block text-xs font-medium text-stone-600">Reporting period</label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ghg-reporting-period" className="h-9 bg-white" data-testid="supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ghg-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ghg-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
       </div>
 
+      <Tabs defaultValue="supplier-summary" data-testid="supplier-ghg-tabs">
+        <TabsList className="bg-stone-100" data-testid="supplier-ghg-tab-list"><TabsTrigger value="supplier-summary" data-testid="supplier-ghg-summary-tab">Emissions by Supplier</TabsTrigger><TabsTrigger value="logs" data-testid="supplier-ghg-logs-tab">Logs</TabsTrigger></TabsList>
+        <TabsContent value="supplier-summary" className="mt-5 space-y-6" data-testid="supplier-ghg-summary-panel">
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
               <Cloud className="h-4 w-4" />
               <span className="text-sm">Total Emissions</span>
             </div>
             <div className="text-2xl font-bold text-stone-900">
-              {grandTotal.toFixed(2)} <span className="text-sm font-normal text-stone-500">tCO2e</span>
+              {displayValue(grandTotal)} <span className="text-sm font-normal text-stone-500">tCO2e</span>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
               <Factory className="h-4 w-4" />
@@ -96,7 +141,7 @@ export default function SupplierGHGView() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
               <Factory className="h-4 w-4" />
@@ -108,7 +153,7 @@ export default function SupplierGHGView() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-stone-500 mb-2">
               <Factory className="h-4 w-4" />
@@ -123,37 +168,52 @@ export default function SupplierGHGView() {
 
       {/* Supplier Totals */}
       {supplierTotals.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Emissions by Supplier</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
+        <Card className="overflow-hidden rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-emissions-by-supplier-card">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+            <Table className="min-w-[1180px]" data-testid="supplier-emissions-by-supplier-table">
               <TableHeader>
-                <TableRow>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead className="text-right">Scope 1 (tCO2e)</TableHead>
-                  <TableHead className="text-right">Scope 2 (tCO2e)</TableHead>
-                  <TableHead className="text-right">Total (tCO2e)</TableHead>
-                </TableRow>
+                <TableRow className="border-stone-200 bg-stone-50 hover:bg-stone-50"><TableHead rowSpan={2} className="min-w-[220px] pl-6 text-[11px] font-semibold uppercase text-stone-500">Supplier</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase text-stone-500">Total emissions</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase text-stone-500">Attributed emissions</TableHead><TableHead rowSpan={2} className="text-right text-[11px] font-semibold uppercase text-stone-500">Intensity</TableHead><TableHead rowSpan={2} className="pr-6 text-right text-[11px] font-semibold uppercase text-stone-500">Actions</TableHead></TableRow>
+                <TableRow className="border-stone-200 bg-stone-50 hover:bg-stone-50"><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1</TableHead><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total</TableHead><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 1</TableHead><TableHead className="text-right text-[11px] font-semibold uppercase text-stone-500">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[11px] font-semibold uppercase text-stone-500">Total</TableHead></TableRow>
               </TableHeader>
               <TableBody>
-                {supplierTotals.map((supplier, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
-                    <TableCell className="text-right">{(supplier.scope1 || 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{(supplier.scope2 || 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-semibold">{(supplier.total || 0).toFixed(2)}</TableCell>
+                {supplierTotals.map((supplier) => (
+                  <TableRow key={supplier.supplier_relationship_id} className="border-stone-100 hover:bg-stone-50/70" data-testid={`supplier-emissions-row-${supplier.supplier_relationship_id}`}>
+                    <TableCell className="py-4 pl-6">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800" aria-hidden="true">{supplierInitials(supplier.supplier_name)}</span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-stone-900" data-testid={`supplier-emissions-name-${supplier.supplier_relationship_id}`}>{supplier.supplier_name}</p>
+                          <p className="mt-0.5 text-xs text-stone-400">Revenue share {supplier.revenue_percentage === null || supplier.revenue_percentage === undefined ? '—' : `${displayValue(supplier.revenue_percentage, 1)}%`}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.raw_scope1} testId={`supplier-raw-scope1-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.raw_scope2} testId={`supplier-raw-scope2-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="border-r border-stone-100 text-right"><EmissionValue value={supplier.raw_total} emphasized testId={`supplier-raw-total-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.scope1} testId={`supplier-attributed-scope1-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.scope2} testId={`supplier-attributed-scope2-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="border-r border-stone-100 text-right"><EmissionValue value={supplier.total} emphasized testId={`supplier-attributed-total-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right">
+                      {supplier.total_intensity === null || supplier.total_intensity === undefined
+                        ? <span className="whitespace-nowrap text-xs text-stone-400" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>Not available</span>
+                        : <span className="whitespace-nowrap text-sm font-semibold text-stone-900" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>{displayValue(supplier.total_intensity, 6)} <span className="block text-[10px] font-normal text-stone-400">tCO₂e / {supplier.revenue_currency || 'currency not set'}</span></span>}
+                    </TableCell>
+                    <TableCell className="pr-6 text-right"><Button variant="outline" size="sm" onClick={() => setUnlockTarget(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="mr-1 h-4 w-4" />Unlock</Button></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       )}
+        </TabsContent>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4">
+      <AlertDialog open={Boolean(unlockTarget)} onOpenChange={(open) => !open && setUnlockTarget(null)}><AlertDialogContent data-testid="unlock-supplier-ghg-dialog"><AlertDialogHeader><AlertDialogTitle>Unlock GHG data for resubmission?</AlertDialogTitle><AlertDialogDescription>The supplier receives a private draft copy. Their current submitted data remains visible here until they resubmit.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-unlock-supplier-ghg-button">Cancel</AlertDialogCancel><AlertDialogAction disabled={unlocking} onClick={unlockSupplierGhg} data-testid="confirm-unlock-supplier-ghg-button">{unlocking ? 'Unlocking…' : 'Unlock for resubmission'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+
+        <TabsContent value="logs" className="mt-5 space-y-5" data-testid="supplier-ghg-logs-panel">
+      <div className="flex flex-wrap items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
           <Input
@@ -161,10 +221,11 @@ export default function SupplierGHGView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
+            data-testid="supplier-ghg-search-input"
           />
         </div>
         <Select value={scopeFilter} onValueChange={setScopeFilter}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" data-testid="supplier-ghg-scope-filter">
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Filter scope" />
           </SelectTrigger>
@@ -174,13 +235,12 @@ export default function SupplierGHGView() {
             <SelectItem value="scope2">Scope 2</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={supplierFilter} onValueChange={setSupplierFilter}><SelectTrigger className="w-44" data-testid="supplier-ghg-supplier-filter"><SelectValue placeholder="Filter supplier" /></SelectTrigger><SelectContent><SelectItem value="all">All Suppliers</SelectItem>{supplierOptions.map((supplier) => <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>)}</SelectContent></Select>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="w-44" data-testid="supplier-ghg-category-filter"><SelectValue placeholder="Filter category" /></SelectTrigger><SelectContent><SelectItem value="all">All Categories</SelectItem>{categoryOptions.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectContent></Select>
       </div>
 
       {/* Emissions Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Emission Records</CardTitle>
-        </CardHeader>
+      <Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="all-supplier-emission-records-card">
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-stone-500">Loading emissions...</div>
@@ -197,23 +257,23 @@ export default function SupplierGHGView() {
                   <TableHead>Scope</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Subcategory</TableHead>
-                  <TableHead className="text-right">Emissions (tCO₂e)</TableHead>
+                  <TableHead className="text-right">Attributed emissions (tCO₂e)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEmissions.map((emission) => (
+                {visibleEmissions.map((emission) => (
                   <TableRow key={emission.id}>
                     <TableCell className="font-medium">{emission.supplier_name}</TableCell>
                     <TableCell>{emission.reporting_period}</TableCell>
                     <TableCell>
-                      <Badge variant={emission.scope === 'scope1' ? 'default' : emission.scope === 'scope2' ? 'secondary' : 'outline'}>
+                      <Badge variant="outline" className={emission.scope === 'scope1' ? 'border-blue-200 bg-blue-50 text-blue-700' : emission.scope === 'scope2' ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-stone-200 bg-stone-50 text-stone-700'} data-testid={`supplier-emission-scope-${emission.id}`}>
                         {emission.scope === 'scope1' ? 'Scope 1' : emission.scope === 'scope2' ? 'Scope 2' : emission.scope}
                       </Badge>
                     </TableCell>
                     <TableCell>{emission.category || '-'}</TableCell>
                     <TableCell>{emission.fuel_type || emission.sub_category || '-'}</TableCell>
                     <TableCell className="text-right font-mono">
-                      {(emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)}
+                      {displayValue(emission.attributed_emissions, 4)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -221,7 +281,10 @@ export default function SupplierGHGView() {
             </Table>
           )}
         </CardContent>
+        {filteredEmissions.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-100 px-6 py-4" data-testid="supplier-emissions-pagination"><p className="text-xs text-stone-500" data-testid="supplier-emissions-pagination-count">Showing {emissionStart} to {emissionEnd} of {filteredEmissions.length} records</p><div className="flex items-center gap-1"><Button variant="outline" size="icon" className="h-8 w-8" disabled={emissionPage === 1} onClick={() => setEmissionPage((page) => Math.max(1, page - 1))} data-testid="supplier-emissions-previous-page"><ChevronLeft className="h-4 w-4" /></Button><span className="flex h-8 min-w-8 items-center justify-center text-xs font-semibold text-stone-700" data-testid="supplier-emissions-current-page">{emissionPage}</span><Button variant="outline" size="icon" className="h-8 w-8" disabled={emissionPage === emissionPageCount} onClick={() => setEmissionPage((page) => Math.min(emissionPageCount, page + 1))} data-testid="supplier-emissions-next-page"><ChevronRight className="h-4 w-4" /></Button></div></div>}
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

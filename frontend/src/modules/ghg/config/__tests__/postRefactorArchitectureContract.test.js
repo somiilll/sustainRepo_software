@@ -159,14 +159,13 @@ describe('Post-refactor GHG architecture contract', () => {
     })).toEqual(['Stationary Combustion']);
   });
 
-  test('calculation-domain and capability override attempts reject safely', () => {
+  test('calculation-domain override attempts reject safely', () => {
     [
       'formulaOverrides',
       'decisionTreeOverrides',
       'emissionFactorOverrides',
       'unitOverrides',
       'calculationAlgorithmOverrides',
-      'capabilityOverrides',
     ].forEach((key) => {
       expect(validateGhgOverrides({ [key]: { any: 'value' } }).valid).toBe(false);
     });
