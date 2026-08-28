@@ -25,7 +25,18 @@ class _Collection:
 
     @staticmethod
     def _matches(doc, query):
-        return all(doc.get(key) == value for key, value in query.items())
+        for key, value in query.items():
+            if isinstance(value, dict):
+                if "$ne" in value and doc.get(key) == value["$ne"]:
+                    return False
+                if "$in" in value and doc.get(key) not in value["$in"]:
+                    return False
+                if "$exists" in value and (key in doc) != value["$exists"]:
+                    return False
+                continue
+            if doc.get(key) != value:
+                return False
+        return True
 
     def find(self, query, _projection=None):
         return _Cursor([doc for doc in self.docs if self._matches(doc, query)])
@@ -68,21 +79,27 @@ def _relationship():
 def _completion_database():
     return _Database(
         supplier_relationships=[_relationship()],
-        supplier_questionnaires=[{"id": "questionnaire-1", "organization_id": "customer-1", "is_active": True}],
+        supplier_questionnaires=[
+            {"id": "questionnaire-1", "organization_id": "customer-1", "is_active": True},
+            {"id": "questionnaire-2", "organization_id": "customer-1", "is_active": True},
+        ],
         supplier_questionnaire_responses=[{
             "questionnaire_id": "questionnaire-1",
             "supplier_relationship_id": "relationship-1",
             "answers": {"question-1": "yes", "question-2": None},
+            "status": "submitted", "parent_visible": True,
         }],
         supplier_questions=[
             {"id": "question-1", "questionnaire_id": "questionnaire-1", "is_active": True},
             {"id": "question-2", "questionnaire_id": "questionnaire-1", "is_active": True},
         ],
         emission_records=[
-            {"source": "supplier", "supplier_relationship_id": "relationship-1"},
-            {"source": "supplier", "supplier_relationship_id": "relationship-1"},
+            {"source": "supplier", "supplier_relationship_id": "relationship-1", "submitted_to_parent_org": "2026-01-01", "parent_visible": True},
+            {"source": "supplier", "supplier_relationship_id": "relationship-1", "submitted_to_parent_org": "2026-01-01", "parent_visible": True},
         ],
         supplier_assessment_programs=[],
+        supplier_revenue_submissions=[],
+        supplier_document_submissions=[],
     )
 
 
@@ -186,7 +203,7 @@ async def test_completion_facade_preserves_legacy_weighted_result(monkeypatch):
 
     assert updated["esg_completion_percent"] == 50.0
     assert updated["ghg_completion_percent"] == 50.0
-    assert updated["overall_completion_percent"] == 60.0
+    assert updated["overall_completion_percent"] == 40.0
     assert updated["invitation_status"] == "accepted"
 
 
@@ -229,7 +246,7 @@ async def test_document_acceptance_is_versioned_and_contributes_to_completion(mo
 
     await supplier_service._update_completion_status("relationship-1")
     assert database.supplier_relationships.docs[0]["documents_completion_percent"] == 100.0
-    assert database.supplier_relationships.docs[0]["overall_completion_percent"] == 73.3
+    assert database.supplier_relationships.docs[0]["overall_completion_percent"] == 53.3
 
 
 @pytest.mark.asyncio

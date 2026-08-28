@@ -468,3 +468,13 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Follow-up: `service.py` now primarily contains questionnaire authoring, supplier questionnaire response, evidence, and manual-review operations; these can be extracted into a dedicated questionnaire service in a later maintenance pass.
 
 - `/app/test_reports/iteration_29.json` — service facade delegation and supplier service-split regression verification.
+
+## Latest Changes — 2026-08-28 (Dedicated Questionnaire Service)
+- Extracted questionnaire authoring, question CRUD, supplier responses, evidence records, submission/reopen handling, and manual-review operations into `questionnaire_service.py`.
+- `SupplierAssessmentService` is now a compact 148-line compatibility facade that retains all established public methods and injects its active database dependency into each focused service module.
+- Updated focused test fixtures to model submitted response, document-submission, and revenue-submission records under the current lifecycle policy.
+- Verification passed: 42 focused backend tests, service/questionnaire compilation and import-contract checks, authenticated Questionnaire Builder browser smoke test, and testing-agent iteration 30 (100% backend/frontend; no mocked APIs).
+- Added an ESLint 9 flat configuration, registered the existing React Hooks plugin, and corrected the duplicate hook exports in `pages/emissions/index.js`. ESLint now runs with zero errors (15 existing unused-disable warnings), and the frontend production build passes.
+- Follow-up: split `questionnaire_service.py` further into authoring, supplier-response/evidence, and manual-review read-model modules when further maintenance is scheduled.
+
+- `/app/test_reports/iteration_30.json` — questionnaire-service facade delegation and regression verification.
