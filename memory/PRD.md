@@ -460,3 +460,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Follow-up: `supplier_assessment/service.py` remains large and should later be split into focused relationship, ranking/scoring, and supplier-lifecycle modules.
 
 - `/app/test_reports/iteration_28.json` — canonical assignment lifecycle and supplier-ranking emissions-payload verification.
+
+## Latest Changes — 2026-08-28 (Supplier Assessment Service Modular Split)
+- Reduced `supplier_assessment/service.py` from 2,099 to 1,178 lines by extracting focused `relationship_service.py`, `lifecycle_service.py`, and `ranking_service.py` modules.
+- Kept `SupplierAssessmentService` as a backwards-compatible facade for all router, worker, and test callers. Delegation injects the facade's active database dependency into extracted modules, preserving established test seams and public behavior.
+- Verified the split with extracted-module compilation, a facade-delegation regression suite, 23 focused supplier backend tests, and an authenticated live Supplier Rankings/Detailed Rankings browser smoke test. Testing-agent iteration 29 reports 100% backend/frontend and no mocked APIs.
+- Follow-up: `service.py` now primarily contains questionnaire authoring, supplier questionnaire response, evidence, and manual-review operations; these can be extracted into a dedicated questionnaire service in a later maintenance pass.
+
+- `/app/test_reports/iteration_29.json` — service facade delegation and supplier service-split regression verification.
