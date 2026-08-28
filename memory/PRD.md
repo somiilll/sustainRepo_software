@@ -451,3 +451,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `/app/test_reports/iteration_21.json` — Scope 3 spend-basis currency conversion verification.
 - `/app/test_reports/iteration_26.json` — unit-driven Create Emissions density verification.
 - `/app/test_reports/iteration_27.json` — Supplier Rankings modularization and Base Year validation route verification.
+
+## Latest Changes — 2026-08-28 (Canonical Supplier Assignment & Emissions Cleanup)
+- Removed legacy snapshot Scope 1/2/total calculations and aggregate response fields from the supplier-ranking service and contract. Supplier emissions analytics remain exclusively on the canonical `/api/supplier-assessment/emissions/all` path.
+- Added `assignment_service.py` as the shared orchestration boundary. Supplier creation and updates now delegate explicit Documents and Training selections through it, while each module retains its own storage and content rules.
+- Training synchronization now only reuses active assignments in the same reporting period; it creates a fresh assignment instead of reviving history. Disabling a training deactivates active records; re-enabling it never reactivates historical records.
+- Added document-selection and historical-training regression tests. Verification passed: 17 focused backend tests, Python compilation, frontend production build, authenticated ranking browser smoke test, and testing-agent iteration 28 (100% frontend/backend; no mocked APIs).
+- Follow-up: `supplier_assessment/service.py` remains large and should later be split into focused relationship, ranking/scoring, and supplier-lifecycle modules.
+
+- `/app/test_reports/iteration_28.json` — canonical assignment lifecycle and supplier-ranking emissions-payload verification.

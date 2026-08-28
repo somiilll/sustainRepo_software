@@ -62,6 +62,8 @@ class _Database:
     def __init__(self, **collections):
         for name, docs in collections.items():
             setattr(self, name, _Collection(docs))
+        if not hasattr(self, "supplier_document_submissions"):
+            self.supplier_document_submissions = _Collection()
 
 
 class _Storage:
@@ -218,6 +220,27 @@ async def test_explicit_document_remains_available_after_later_program_revision(
     documents = await documents_service.list_supplier_documents(supplier)
     assert [document["id"] for document in documents] == ["requirement-1"]
     assert await documents_service.get_supplier_document(supplier, "requirement-1") is not None
+
+
+@pytest.mark.asyncio
+async def test_document_selection_sync_centralizes_relationship_assignments(monkeypatch):
+    supplier = _relationship("relationship-1", "supplier-1")
+    database = _Database(
+        supplier_document_requirements=[
+            {"id": "requirement-1", "customer_org_id": "customer-1", "is_active": True, "assignment_mode": "selected", "supplier_relationship_ids": [], "excluded_supplier_relationship_ids": []},
+            {"id": "requirement-2", "customer_org_id": "customer-1", "is_active": True, "assignment_mode": "selected", "supplier_relationship_ids": ["relationship-1"], "excluded_supplier_relationship_ids": []},
+        ],
+    )
+    monkeypatch.setattr(documents_service, "db", database)
+
+    selected = await documents_service.synchronize_document_assignments(supplier, ["requirement-1"], "admin-1")
+
+    first, second = database.supplier_document_requirements.docs
+    assert selected == ["requirement-1"]
+    assert first["supplier_relationship_ids"] == ["relationship-1"]
+    assert "relationship-1" not in first["excluded_supplier_relationship_ids"]
+    assert second["supplier_relationship_ids"] == []
+    assert second["excluded_supplier_relationship_ids"] == ["relationship-1"]
 
 
 def test_document_api_exposes_only_the_audit_safe_delete_mutation_route():

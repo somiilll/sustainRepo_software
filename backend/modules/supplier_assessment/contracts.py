@@ -82,7 +82,6 @@ class SupplierResponse(BaseModel):
     documents_completion_percent: float = 0.0
     overall_completion_percent: float = 0.0
     esg_score: Optional[float] = None
-    ghg_score: Optional[float] = None
     overall_score: Optional[float] = None
     canonical_score_snapshot: Optional[Dict[str, Any]] = None
     revenue_submission_status: str = "not_started"
@@ -568,9 +567,6 @@ class SupplierRankingEntry(BaseModel):
     social_score: Optional[float] = None
     governance_score: Optional[float] = None
     ghg_score: Optional[float] = None
-    scope1_emissions: Optional[float] = None
-    scope2_emissions: Optional[float] = None
-    total_emissions: Optional[float] = None
     overall_score: Optional[float] = None
     completion_status: str
     status_label: Optional[str] = None
@@ -597,14 +593,6 @@ class AverageScores(BaseModel):
     environment: Optional[float] = None
     social: Optional[float] = None
     governance: Optional[float] = None
-    ghg: Optional[float] = None
-
-
-class EmissionsByScope(BaseModel):
-    """Total emissions by scope."""
-    scope1: float = 0
-    scope2: float = 0
-    total: float = 0
 
 
 class SupplierRankingResponse(BaseModel):
@@ -614,7 +602,6 @@ class SupplierRankingResponse(BaseModel):
     ranked_suppliers: int
     score_distribution: Optional[ScoreDistribution] = None
     averages: Optional[AverageScores] = None
-    emissions_by_scope: Optional[EmissionsByScope] = None
     module_summary: Dict[str, Dict[str, Any]] = {}
 
 

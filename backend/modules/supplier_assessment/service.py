@@ -266,16 +266,13 @@ class SupplierAssessmentService:
         await db.supplier_relationships.insert_one(relationship)
         relationship.pop("_id", None)
 
-        if document_requirement_ids:
-            from modules.supplier_assessment import documents_service
-            await documents_service.assign_existing_documents_to_supplier(
-                customer_org_id, relationship, document_requirement_ids, created_by
-            )
-        if training_requirement_ids:
-            from modules.supplier_assessment import training_service
-            await training_service.assign_existing_trainings_to_supplier(
-                customer_org_id, relationship, training_requirement_ids
-            )
+        from modules.supplier_assessment.assignment_service import synchronize_supplier_assignments
+        await synchronize_supplier_assignments(
+            relationship,
+            document_requirement_ids=document_requirement_ids,
+            training_requirement_ids=training_requirement_ids,
+            created_by=created_by,
+        )
         
         # Get customer org name for email
         customer_org = await db.organizations.find_one(
@@ -439,54 +436,15 @@ class SupplierAssessmentService:
                 raise ValueError("A supplier with this organization name already exists")
             updates["company_name"] = company_name
 
-        if "document_requirement_ids" in updates:
-            selected_document_ids = set(updates.pop("document_requirement_ids") or [])
-            requirements = await db.supplier_document_requirements.find(
-                {"customer_org_id": relationship["customer_org_id"], "is_active": True},
-                {"_id": 0, "id": 1, "assignment_mode": 1, "supplier_relationship_ids": 1, "excluded_supplier_relationship_ids": 1},
-            ).to_list(1000)
-            valid_document_ids = {requirement["id"] for requirement in requirements}
-            if selected_document_ids - valid_document_ids:
-                raise ValueError("Selected document is unavailable")
-            for requirement in requirements:
-                assigned = set(requirement.get("supplier_relationship_ids") or [])
-                excluded = set(requirement.get("excluded_supplier_relationship_ids") or [])
-                assignment_mode = requirement.get("assignment_mode") or ("selected" if assigned else "all")
-                if requirement["id"] in selected_document_ids:
-                    if assignment_mode == "selected":
-                        assigned.add(relationship_id)
-                    excluded.discard(relationship_id)
-                else:
-                    assigned.discard(relationship_id); excluded.add(relationship_id)
-                await db.supplier_document_requirements.update_one({"id": requirement["id"]}, {"$set": {"assignment_mode": assignment_mode, "supplier_relationship_ids": list(assigned), "excluded_supplier_relationship_ids": list(excluded)}})
-
-        if "training_requirement_ids" in updates:
-            selected_training_ids = set(updates.pop("training_requirement_ids") or [])
-            requirements = await db.supplier_training_requirements.find(
-                {"organization_id": relationship["customer_org_id"], "is_active": True, "is_deleted": {"$ne": True}},
-                {"_id": 0, "id": 1, "training_version_id": 1},
-            ).to_list(1000)
-            valid_training_ids = {requirement["id"] for requirement in requirements}
-            if selected_training_ids - valid_training_ids:
-                raise ValueError("Selected training is unavailable")
-            existing_assignments = await db.supplier_training_assignments.find(
-                {"supplier_relationship_id": relationship_id, "training_requirement_id": {"$in": list(valid_training_ids)}},
-                {"_id": 0, "id": 1, "training_requirement_id": 1, "assigned_at": 1},
-            ).sort("assigned_at", 1).to_list(1000)
-            assignment_by_requirement = {}
-            for assignment in existing_assignments:
-                assignment_by_requirement.setdefault(assignment["training_requirement_id"], assignment)
-            requirement_by_id = {requirement["id"]: requirement for requirement in requirements}
-            now = datetime.now(timezone.utc).isoformat()
-            for requirement_id in valid_training_ids:
-                assignment = assignment_by_requirement.get(requirement_id)
-                assignment_query = {"supplier_relationship_id": relationship_id, "training_requirement_id": requirement_id}
-                await db.supplier_training_assignments.update_many(assignment_query, {"$set": {"is_active": False, "updated_at": now}})
-                if requirement_id in selected_training_ids:
-                    if assignment:
-                        await db.supplier_training_assignments.update_one({"id": assignment["id"]}, {"$set": {"is_active": True, "requirement_version_id": requirement_by_id[requirement_id]["training_version_id"], "reporting_period": relationship.get("reporting_period"), "updated_at": now}})
-                    else:
-                        await db.supplier_training_assignments.insert_one({"id": str(uuid.uuid4()), "supplier_relationship_id": relationship_id, "organization_id": relationship["customer_org_id"], "training_requirement_id": requirement_id, "requirement_version_id": requirement_by_id[requirement_id]["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": now, "is_active": True})
+        from modules.supplier_assessment.assignment_service import synchronize_supplier_assignments
+        document_requirement_ids = updates.pop("document_requirement_ids", None)
+        training_requirement_ids = updates.pop("training_requirement_ids", None)
+        await synchronize_supplier_assignments(
+            relationship,
+            document_requirement_ids=document_requirement_ids,
+            training_requirement_ids=training_requirement_ids,
+            created_by=relationship.get("created_by"),
+        )
 
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         
@@ -1751,13 +1709,6 @@ class SupplierAssessmentService:
             env_score = snapshot.get("environment_score")
             social_score = snapshot.get("social_score")
             gov_score = snapshot.get("governance_score")
-            attribution_factor = float(s["revenue_percentage"]) / 100 if s.get("revenue_percentage") is not None else None
-            raw_scope1 = snapshot.get("scope1_emissions", 0.0)
-            raw_scope2 = snapshot.get("scope2_emissions", 0.0)
-            raw_total = snapshot.get("total_emissions", 0.0)
-            scope1 = float(raw_scope1) * attribution_factor if attribution_factor is not None else None
-            scope2 = float(raw_scope2) * attribution_factor if attribution_factor is not None else None
-            total_ghg = float(raw_total) * attribution_factor if attribution_factor is not None else None
             overall_score = esg_score
             
             assigned_questionnaire_ids = set(s.get("questionnaire_ids") or all_questionnaire_ids)
@@ -1824,11 +1775,6 @@ class SupplierAssessmentService:
                 "environment_score": round(env_score, 1) if env_score is not None else None,
                 "social_score": round(social_score, 1) if social_score is not None else None,
                 "governance_score": round(gov_score, 1) if gov_score is not None else None,
-                # Parent rankings intentionally do not expose a separate GHG score.
-                "ghg_score": None,
-                "scope1_emissions": round(scope1, 2) if scope1 is not None else None,
-                "scope2_emissions": round(scope2, 2) if scope2 is not None else None,
-                "total_emissions": round(total_ghg, 2) if total_ghg is not None else None,
                 # Rankings are ESG-led: GHG is tracked in its dedicated emissions view.
                 "overall_score": round(esg_score, 1) if esg_score is not None else None,
                 "completion_status": completion_status,
@@ -1860,8 +1806,7 @@ class SupplierAssessmentService:
             "poor": len([r for r in ranked_suppliers if r["overall_score"] is not None and r["overall_score"] < 40]),
         }
         
-        # ESG data remains useful even when a supplier lacks another component
-        # required for an Overall Score (for example, GHG or revenue).
+        # ESG data remains useful even when a supplier lacks other assessment modules.
         def average_score(field: str) -> Optional[float]:
             values = [float(row[field]) for row in rankings if row.get(field) is not None]
             return round(sum(values) / len(values), 1) if values else None
@@ -1870,11 +1815,6 @@ class SupplierAssessmentService:
         avg_env = average_score("environment_score")
         avg_social = average_score("social_score")
         avg_gov = average_score("governance_score")
-        avg_ghg = average_score("ghg_score")
-        
-        # Total emissions by scope (Scope 1 & 2 only)
-        total_scope1 = sum(r["scope1_emissions"] or 0 for r in rankings)
-        total_scope2 = sum(r["scope2_emissions"] or 0 for r in rankings)
         module_summary = {
             code: {
                 "configured_suppliers": int(totals["configured_suppliers"]),
@@ -1894,12 +1834,6 @@ class SupplierAssessmentService:
                 "environment": avg_env,
                 "social": avg_social,
                 "governance": avg_gov,
-                "ghg": avg_ghg,
-            },
-            "emissions_by_scope": {
-                "scope1": round(total_scope1, 2),
-                "scope2": round(total_scope2, 2),
-                "total": round(total_scope1 + total_scope2, 2),
             },
             "module_summary": module_summary,
         }

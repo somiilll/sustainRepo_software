@@ -232,6 +232,42 @@ async def assign_existing_documents_to_supplier(customer_org_id: str, relationsh
     return created_ids
 
 
+async def synchronize_document_assignments(
+    relationship: Dict[str, Any], requirement_ids: List[str], _updated_by: str,
+) -> List[str]:
+    """Persist a supplier's explicit document selection against active requirements."""
+    customer_org_id = relationship["customer_org_id"]
+    selected_requirement_ids = set(requirement_ids or [])
+    requirements = await db.supplier_document_requirements.find(
+        {"customer_org_id": customer_org_id, "is_active": True},
+        {"_id": 0, "id": 1, "assignment_mode": 1, "supplier_relationship_ids": 1, "excluded_supplier_relationship_ids": 1},
+    ).to_list(1000)
+    valid_requirement_ids = {requirement["id"] for requirement in requirements}
+    if selected_requirement_ids - valid_requirement_ids:
+        raise ValueError("Selected document is unavailable")
+
+    for requirement in requirements:
+        assigned = set(requirement.get("supplier_relationship_ids") or [])
+        excluded = set(requirement.get("excluded_supplier_relationship_ids") or [])
+        assignment_mode = requirement.get("assignment_mode") or ("selected" if assigned else "all")
+        if requirement["id"] in selected_requirement_ids:
+            if assignment_mode == "selected":
+                assigned.add(relationship["id"])
+            excluded.discard(relationship["id"])
+        else:
+            assigned.discard(relationship["id"])
+            excluded.add(relationship["id"])
+        await db.supplier_document_requirements.update_one(
+            {"id": requirement["id"]},
+            {"$set": {
+                "assignment_mode": assignment_mode,
+                "supplier_relationship_ids": list(assigned),
+                "excluded_supplier_relationship_ids": list(excluded),
+            }},
+        )
+    return list(selected_requirement_ids)
+
+
 async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str, Any]]:
     requirements = await db.supplier_document_requirements.find(
         {
