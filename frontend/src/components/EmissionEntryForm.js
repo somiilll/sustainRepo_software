@@ -42,6 +42,7 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
 import {
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
+  prepareDensityAwareCalculationInputs,
   resolveCompoundDenominatorBasis,
   resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
@@ -1663,58 +1664,46 @@ export default function EmissionEntryForm({
       decisionInputs['calculation_methodology'] = 'using_heat_basis_ncv';
     }
 
-    // Quantity Basis EF routes to the formula whose expected units match the
-    // selected EF denominator. This is an internal tree key; users continue
-    // selecting the EF unit directly in the monthly/yearly row.
+    // Route from the selected compound-unit denominator. Calculation adapters
+    // may further normalize a reverse density conversion and override this
+    // basis immediately before execution.
     if (decisionInputs.calculation_methodology === 'using_qty_basis_ef') {
-      const isStandardCombustionFuel = ghgFormContext.isStationaryMobileOrFlaringCategory
-        && !useCustomFuel;
-      if (isStandardCombustionFuel) {
-        decisionInputs.ef_quantity_basis = 'mass';
-      } else if (ghgFormContext.categoryCode === 'process_emissions' || useCustomFuel) {
-        const efField = dynamicInputFields.find((field) => (
-          field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
-        ));
-        const efUnit = useCustomFuel
-          ? monthData?.custom_ef_unit || 'kgCO2/kg'
-          : monthData?.ef_quantity_unit
-          || monthData?.ef_quantity?.unit
-          || efField?.defaultUnit
-          || efField?.default_unit
-          || efField?.expectedUnit
-          || efField?.allowedUnits?.[0];
-        const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
-        if (basis) decisionInputs.ef_quantity_basis = basis;
-      }
+      const efField = dynamicInputFields.find((field) => (
+        field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
+      ));
+      const efUnit = useCustomFuel
+        ? monthData?.custom_ef_unit || 'kgCO2/kg'
+        : monthData?.ef_quantity_unit
+        || monthData?.ef_quantity?.unit
+        || efField?.defaultUnit
+        || efField?.default_unit
+        || efField?.expectedUnit
+        || efField?.allowedUnits?.[0];
+      const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
+      if (basis) decisionInputs.ef_quantity_basis = basis;
     }
 
     // Heat Basis routes internally from the selected CV denominator. The CV
     // unit remains the single user-facing choice, while the tree selects the
     // matching mass or volume formula.
     if (decisionInputs.calculation_methodology === 'using_heat_basis_ncv') {
-      const isStandardCombustionFuel = ghgFormContext.isStationaryMobileOrFlaringCategory
-        && !useCustomFuel;
-      if (isStandardCombustionFuel) {
-        decisionInputs.cv_quantity_basis = 'mass';
-      } else {
-        const cvField = dynamicInputFields.find((field) => (
-          field.variable === 'cv' || field.fieldKey === 'cv'
-        ));
-        const cvUnit = (useCustomFuel ? monthData?.custom_cv_unit : null)
-          || monthData?.cv_unit
-          || monthData?.cv?.unit
-          || cvField?.defaultUnit
-          || cvField?.default_unit
-          || cvField?.expectedUnit
-          || cvField?.allowedUnits?.[0]
-          || 'TJ/kg';
-        const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
-        if (basis) decisionInputs.cv_quantity_basis = basis;
-      }
+      const cvField = dynamicInputFields.find((field) => (
+        field.variable === 'cv' || field.fieldKey === 'cv'
+      ));
+      const cvUnit = (useCustomFuel ? monthData?.custom_cv_unit : null)
+        || monthData?.cv_unit
+        || monthData?.cv?.unit
+        || selectedFuel?.calorific_value_unit
+        || cvField?.defaultUnit
+        || cvField?.default_unit
+        || cvField?.expectedUnit
+        || cvField?.allowedUnits?.[0];
+      const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
+      if (basis) decisionInputs.cv_quantity_basis = basis;
     }
 
     return decisionInputs;
-  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, ghgFormContext.categoryCode, centralizedUnits, useCustomFuel]);
+  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, centralizedUnits, useCustomFuel, selectedFuel]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {
@@ -1841,14 +1830,30 @@ export default function EmissionEntryForm({
       });
       
       // Build decision inputs AUTOMATICALLY based on what's filled
-      const decisionInputs = buildDecisionInputs(yearlyData);
+      const baseDecisionInputs = buildDecisionInputs(yearlyData);
+      const preparedCalculation = prepareDensityAwareCalculationInputs({
+        inputs,
+        calculationMethodology: baseDecisionInputs.calculation_methodology,
+        fields: dynamicInputFields,
+        data: yearlyData,
+        selectedFuel: useCustomFuel ? null : selectedFuel,
+        centralizedUnits,
+      });
+      if (preparedCalculation.error) {
+        setYearlyCalcResult(null);
+        return null;
+      }
+      const decisionInputs = {
+        ...baseDecisionInputs,
+        ...preparedCalculation.decisionInputs,
+      };
       
       const response = await axios.post(
         `${API}/calc-engine/execute-by-category`,
         {
           category_id: categoryObj.id,
           decision_inputs: decisionInputs,
-          inputs: inputs,
+          inputs: preparedCalculation.inputs,
           context: context,
           user_overrides: userOverrides,
           dry_run: true,
@@ -2523,6 +2528,9 @@ export default function EmissionEntryForm({
     monthlyData: submissionMonthlyData,
     filledMonthsCount: submissionFilledMonthsCount,
     updateMonthData,
+    calculationMethodology: decisionFieldValues.calculation_methodology,
+    selectedFuel,
+    centralizedUnits,
   });
 
 

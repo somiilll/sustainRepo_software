@@ -25,6 +25,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Preserve the shared create/edit payload contracts, calculation audit linkage, and approval behavior.
 - Monthly multi-row manual submissions must remain atomic through `submission_batch_id` rollback.
 - Organization scope/category/custom-fuel/process-type capabilities must be enforced server-side.
+- Density visibility and requiredness must be resolved exclusively from the actual Quantity/reference unit dimensions: matching dimensions hide Density; mass/volume mismatches use a valid fuel default as an overridable default or require user Density when no valid default exists.
+- Quantity-basis reverse conversions such as mass Quantity with a volume-denominator EF must normalize through the shared adapter before reaching the frozen calculation engine while preserving the entered source values in the record.
 
 ### GHG Period Row Allowance
 - `entitlements.environment.ghg.monthly_rows_allowed` is an organization-wide base allowance.
@@ -414,6 +416,15 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Annual field grids now use responsive auto-fit columns: two visible inputs fill the row at 50% each, three use equal thirds, and up to four use equal quarters. This applies to the shared Scope 1, Scope 2, and Scope 3 annual renderer, process templates, and custom-fuel methods.
 - Verification passed: focused JavaScript lint plus authenticated Scope 1, Scope 2, and Scope 3 Create Emissions yearly-mode smoke checks. No data was saved or changed.
 
+## Latest Changes — 2026-08-28 (Unit-Driven Density Contract)
+- Replaced standard/custom/category-specific density visibility branches with one shared resolver driven by the actual Quantity and calculation-reference dimensions. Monthly and yearly Create Emissions now hide Density for matching dimensions and show it only for a mass/volume mismatch.
+- A mismatched standard fuel with valid catalog density displays the correctly oriented default behind `Override Default`; a mismatch without valid catalog density automatically enables a required Density input with a directional unit such as `L/kg`.
+- Carbon Composition now hides Density for mass Quantity and retains it only for volume-to-mass conversion. Quantity Basis `kg` plus `kgCO2/L` normalizes the EF through the shared calculation adapter, avoiding the previous generic calculator conversion failure without modifying the frozen calculation engine.
+- Removed hardcoded standard-combustion mass routing. Formula basis now follows the resolved compound-unit denominator, and the calculation adapter can override it only after explicit unit normalization.
+- Expanded the backend POST/PUT density guard to all configured supported methodologies using the same unit-dimension contract and fuel-density fallback, with a density-specific 422 detail.
+- Stabilized Add Emission modal opening by using one explicit controlled open action rather than depending on trigger composition.
+- Verification passed: 46 focused frontend tests, 8 backend API/regression tests, production frontend build, three repeated modal opens, density-specific missing-input toast, and a successful reverse-conversion save. The marked UI test record was deleted. Testing-agent iteration 26 reported 100% backend and verified the three core frontend density states; its modal flake was subsequently fixed and self-verified.
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.
@@ -432,3 +443,4 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `/app/test_reports/iteration_18.json` — Bulk Upload parity verification.
 - `/app/test_reports/iteration_19.json` — GHG period row-limit verification.
 - `/app/test_reports/iteration_21.json` — Scope 3 spend-basis currency conversion verification.
+- `/app/test_reports/iteration_26.json` — unit-driven Create Emissions density verification.

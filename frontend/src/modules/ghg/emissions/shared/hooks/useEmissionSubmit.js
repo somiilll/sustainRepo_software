@@ -25,11 +25,7 @@ import { toast } from 'sonner';
 import { categoryRegistry } from '../../../../emissions';
 import { MONTHS } from '../constants/emission-form-constants';
 import { buildLegacyProcessTemplatePayload } from '../utils/processTemplateSavePayload';
-import {
-  getUnitDenominator,
-  isQuantityField,
-  resolveDensityRequirement,
-} from '../utils/unitHelpers';
+import { resolveDensityFieldState } from '../utils/unitHelpers';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -45,102 +41,6 @@ const getApiErrorMessage = (error, fallback) => {
     return detail.map((item) => item.msg || item.message || JSON.stringify(item)).join(', ');
   }
   return typeof detail === 'string' ? detail : fallback;
-};
-
-const getProvidedDensity = (data = {}, selectedFuel = null) => {
-  const rowDensity = Number.parseFloat(data.density);
-  const value = Number.isFinite(rowDensity)
-    ? rowDensity
-    : Number.parseFloat(selectedFuel?.density);
-  if (!Number.isFinite(value)) return null;
-  return {
-    value,
-    unit: data.density_unit || selectedFuel?.density_unit || 'kg/L',
-  };
-};
-
-const hasNumericValue = (value) => (
-  value !== undefined
-  && value !== null
-  && value !== ''
-  && Number.isFinite(Number.parseFloat(value))
-);
-
-const isCvField = (field = {}) => {
-  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
-  return /(^|_)(cv|calorific|ncv)(_|$)/i.test(identity)
-    || /calorific|\bcv\b|\bncv\b/i.test(field.label || '');
-};
-
-const isEfField = (field = {}) => {
-  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
-  return /(^|_)(ef|emission_factor)(_|$)/i.test(identity)
-    || /emission factor|\bef\b/i.test(field.label || '');
-};
-
-const isCarbonContentField = (field = {}) => {
-  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
-  return /carbon.*content|composition.*carbon/i.test(identity)
-    || /carbon.*content|composition.*carbon/i.test(field.label || '');
-};
-
-const getFieldValue = (data = {}, field = {}) => (
-  data[field.variable] ?? data[field.fieldKey]
-);
-
-const getFieldUnit = (data = {}, field = {}) => (
-  data[`${field.variable}_unit`]
-  || data[`${field.fieldKey}_unit`]
-  || field.defaultUnit
-  || field.default_unit
-  || field.expectedUnit
-  || field.allowedUnits?.[0]
-  || ''
-);
-
-/**
- * This intentionally resolves at submit time rather than using the rendered
- * row's asynchronous state flag. The submitted values and units are therefore
- * the sole source of truth for the density requirement.
- */
-const resolveProcessDensityRequirement = ({
-  data,
-  dynamicInputFields = [],
-  calculationMethodology,
-  centralizedUnits = [],
-}) => {
-  const quantityField = dynamicInputFields.find(isQuantityField);
-  if (!quantityField || !hasNumericValue(getFieldValue(data, quantityField))) {
-    return { required: false };
-  }
-
-  const quantityUnit = getFieldUnit(data, quantityField);
-  const isCarbonComposition = calculationMethodology === 'using_carbon_composition';
-
-  // Prefer the selected methodology, but inspect both supported reference
-  // fields if React has not yet synchronized that selector into form state.
-  const referenceFields = isCarbonComposition
-    ? [dynamicInputFields.find(isCarbonContentField)]
-    : calculationMethodology === 'using_heat_basis_ncv'
-    ? [dynamicInputFields.find(isCvField)]
-    : calculationMethodology === 'using_qty_basis_ef'
-      ? [dynamicInputFields.find(isEfField)]
-      : [dynamicInputFields.find(isCvField), dynamicInputFields.find(isEfField)];
-
-  for (const referenceField of referenceFields.filter(Boolean)) {
-    if (!hasNumericValue(getFieldValue(data, referenceField))) continue;
-    const referenceUnit = isCarbonComposition
-      ? 'kg'
-      : getUnitDenominator(getFieldUnit(data, referenceField));
-    const requirement = resolveDensityRequirement({
-      quantityUnit,
-      referenceUnit,
-      centralizedUnits,
-    });
-    if (requirement.required) return requirement;
-  }
-
-  return { required: false };
 };
 
 export function useEmissionSubmit(ctx) {
@@ -231,13 +131,11 @@ export function useEmissionSubmit(ctx) {
       return;
     }
 
-    // Density is a virtual, conditional field for Process Emissions and for
-    // Stationary/Mobile Carbon Composition. Resolve its requirement from the
-    // exact values about to be persisted so a stale UI effect cannot allow the
-    // calculation engine to use a default factor.
+    // Resolve Density from the actual quantity/reference unit pair at submit
+    // time. This is method- and unit-driven, so monthly/yearly, standard/custom
+    // fuels, and future categories share the same validation contract.
     const isProcessCategory = isProcessEmissions || categoryCode === 'process_emissions';
-    const isCombustionCategory = ['stationary_combustion', 'mobile_combustion'].includes(categoryCode);
-    if (isProcessCategory || isCombustionCategory) {
+    if (dynamicInputFields.length > 0) {
       const rowsToValidate = frequencyType === 'yearly'
         ? [['yearly', yearlyData]]
         : Object.entries(monthlyData || {});
@@ -245,21 +143,19 @@ export function useEmissionSubmit(ctx) {
         const calculationMethodology = decisionFieldValues?.calculation_methodology
           || data?.calculation_methodology
           || buildDecisionInputs?.(data)?.calculation_methodology;
-        if (!isProcessCategory && calculationMethodology !== 'using_carbon_composition') continue;
-        const requirement = resolveProcessDensityRequirement({
-          data,
-          dynamicInputFields,
+        const densityState = resolveDensityFieldState({
           calculationMethodology,
+          fields: dynamicInputFields,
+          data,
+          selectedFuel: useCustomFuel ? null : selectedFuel,
           centralizedUnits,
         });
-        if (!requirement.required) continue;
-
-        const density = getProvidedDensity(data, useCustomFuel ? null : selectedFuel);
-        if (!density || density.value <= 0 || density.unit !== requirement.densityUnit) {
+        if (!densityState.visible || densityState.effectiveDensity) continue;
+        {
           const monthName = periodKey === 'yearly'
             ? 'the annual entry'
             : (MONTHS.find((month) => month.key === periodKey)?.name || periodKey);
-          toast.error(`Please enter Density (${requirement.densityUnit}) for ${monthName}`);
+          toast.error(`Please enter Density (${densityState.densityUnit}) for ${monthName} because the quantity and factor units use different dimensions`);
           return;
         }
       }
@@ -305,14 +201,18 @@ export function useEmissionSubmit(ctx) {
       const {
         inputs,
         userOverrides,
+        decisionInputs: extractedDecisionInputs = {},
+        densityError,
         isCustomFuelReady,
         customFuelMissingFields = [],
       } = activeModule.extractInputsForCalcEngine(data, baseCtx);
+      if (densityError) return { error: densityError };
       if (useCustomFuel && !isCustomFuelReady) {
         return { error: `Missing: ${customFuelMissingFields.join(', ') || 'Custom Fuel inputs'}` };
       }
 
-      const { decisionInputs, context, isScope3Like } = activeModule.buildDecisionContext(data, baseCtx);
+      const { decisionInputs: moduleDecisionInputs, context, isScope3Like } = activeModule.buildDecisionContext(data, baseCtx);
+      const decisionInputs = { ...moduleDecisionInputs, ...extractedDecisionInputs };
       const effectiveScopeForLookup = isScope3Like ? 'scope3' : scope;
       const categoryObj = dynamicCategories.find((item) => (
         item.scope_code === effectiveScopeForLookup

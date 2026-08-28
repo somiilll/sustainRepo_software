@@ -7,6 +7,7 @@
 
 import { MONTHS } from '../../../../../constants/months';
 import { isMonthlyEntryStarted } from './monthlyCompletion';
+import { resolveDensityFieldState } from './unitHelpers';
 
 /**
  * Validate Step 1 → Step 2 transition (Basic Selection)
@@ -101,6 +102,9 @@ export const validateStep3 = ({
   isProcessEmissions,
   selectedTemplate,
   updateMonthData,
+  calculationMethodology,
+  selectedFuel,
+  centralizedUnits = [],
 }) => {
   // For C7 Employee Commuting
   if (isC7EmployeeCommuting) {
@@ -226,6 +230,20 @@ export const validateStep3 = ({
       }
     }
 
+    const densityState = resolveDensityFieldState({
+      calculationMethodology: yearlyData?.calculation_methodology || calculationMethodology,
+      fields: dynamicInputFields,
+      data: yearlyData,
+      selectedFuel,
+      centralizedUnits,
+    });
+    if (densityState.visible && !densityState.effectiveDensity) {
+      return {
+        valid: false,
+        message: `Please enter Density (${densityState.densityUnit}) for the annual entry because the quantity and factor units use different dimensions`,
+      };
+    }
+
     return { valid: true };
   }
 
@@ -283,6 +301,20 @@ export const validateStep3 = ({
   // permit a record to be saved without a positive user-provided value.
   for (const [monthKey, data] of Object.entries(monthlyData)) {
     if (!isMonthlyEntryStarted(data, dynamicInputFields)) continue;
+    const densityState = resolveDensityFieldState({
+      calculationMethodology: data?.calculation_methodology || calculationMethodology,
+      fields: dynamicInputFields,
+      data,
+      selectedFuel,
+      centralizedUnits,
+    });
+    if (densityState.visible && !densityState.effectiveDensity) {
+      const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+      return {
+        valid: false,
+        message: `Please enter Density (${densityState.densityUnit}) for ${monthName} because the quantity and factor units use different dimensions`,
+      };
+    }
     if (data?.runtime_density_required !== true) continue;
     const density = Number.parseFloat(data.density);
     if (!Number.isFinite(density) || density <= 0) {

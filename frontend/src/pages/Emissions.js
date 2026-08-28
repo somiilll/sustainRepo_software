@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EmissionFilters from './emissions/EmissionFilters';
@@ -2479,6 +2479,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     setUploadedEvidence(null);
   };
 
+  const openCreateDialog = () => {
+    resetForm();
+    setIsFormDirty(false);
+    setIsEditLoading(false);
+    setDialogOpen(true);
+  };
+
   // Handle dialog change with unsaved changes protection (#19)
   const handleDialogChange = (open) => {
     if (!open && isFormDirty) {
@@ -3080,12 +3087,15 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           </Button>
           {hasEmissionAccess ? (
             <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-              <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-emission-button">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Emission
-                </Button>
-              </DialogTrigger>
+              <Button
+                type="button"
+                onClick={openCreateDialog}
+                className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
+                data-testid="add-emission-button"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Emission
+              </Button>
               <DialogContent 
                 key={editingEmission?.id || 'new'}
                 className={`max-h-[90vh] overflow-x-hidden overflow-y-auto ${!editingEmission ? '!gap-2' : ''}`}

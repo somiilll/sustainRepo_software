@@ -84,12 +84,7 @@ def _unit_dimension(unit: str, unit_definitions: list[dict]) -> Optional[str]:
 
 
 async def _validate_density_requirement(record_data: EmissionRecordCreate) -> None:
-    """Reject protected Scope 1 mass/volume conversions without user density."""
-    is_process_emissions = record_data.category_code == "process_emissions"
-    is_custom_fuel = bool(record_data.is_custom_fuel)
-    if not is_process_emissions and not is_custom_fuel:
-        return
-
+    """Reject any configured mass/volume conversion without usable density."""
     dynamic_values = record_data.dynamic_field_values or {}
     methodology_value = dynamic_values.get("calculation_methodology") or {}
     methodology = record_data.calculation_methodology or (
@@ -152,16 +147,35 @@ async def _validate_density_requirement(record_data: EmissionRecordCreate) -> No
         return
 
     density = dynamic_values.get("density") or {}
+    if not isinstance(density, dict) or density.get("value") in (None, "", 0, "0"):
+        fuel_id = getattr(record_data, "fuel_database_id", None)
+        if fuel_id:
+            fuel_density = await db.fuel_database.find_one(
+                {"id": fuel_id},
+                {"_id": 0, "density": 1, "density_unit": 1},
+            )
+            if fuel_density:
+                density = {
+                    "value": fuel_density.get("density"),
+                    "unit": fuel_density.get("density_unit"),
+                }
     try:
         density_value = float(density.get("value")) if isinstance(density, dict) else None
     except (TypeError, ValueError):
         density_value = None
-    if density_value is None or density_value <= 0 or density.get("unit") != required_density_unit:
+    density_parts = str(density.get("unit") or "").split("/", 1) if isinstance(density, dict) else []
+    density_dimensions = {
+        _unit_dimension(part, units)
+        for part in density_parts
+        if _unit_dimension(part, units)
+    }
+    has_compatible_density_unit = density_dimensions == {"mass", "volume"}
+    if density_value is None or density_value <= 0 or not has_compatible_density_unit:
         raise HTTPException(
             status_code=422,
             detail=(
-                f"{'Process Emissions' if is_process_emissions else 'Custom Fuel'} requires a positive "
-                f"user-provided density in {required_density_unit} for this mass/volume conversion"
+                f"Density ({required_density_unit}) is required because Quantity uses {quantity_unit} "
+                f"while the calculation reference uses {reference_unit}"
             ),
         )
 

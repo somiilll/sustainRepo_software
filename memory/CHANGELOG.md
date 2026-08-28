@@ -1,5 +1,14 @@
 # ESG Platform Changelog
 
+## August 28, 2026 — Unit-Driven Density and Reverse EF Conversion
+- Added one shared density-state resolver for monthly/yearly rendering, validation, calculation preparation, and API enforcement.
+- Density now appears only for a real mass/volume mismatch. Valid standard-fuel density is an overridable default; missing density becomes required with the correct directional unit.
+- Carbon Composition with mass Quantity no longer shows Density.
+- Quantity Basis with mass Quantity and a volume-denominator EF now normalizes the EF before the frozen calculation engine, replacing the previous `Cannot convert 'ef_quantity'` failure.
+- Removed hardcoded standard-fuel formula-basis routing and made basis selection unit-driven.
+- Stabilized the controlled Add Emission modal open action.
+- Verified with 46 frontend tests, 8 backend tests, a production build, repeated modal opens, missing-density validation, and a successful cleaned-up reverse-conversion save.
+
 ## August 25, 2026 — Exact Supplier GHG Scope Enforcement
 - Fixed the shared supplier GHG screen reading the supplier organization's dynamic GHG scopes, which exposed Scope 3 and Biogenic despite the parent assignment.
 - Scope access now resolves canonically from the bound immutable supplier assessment-program revision.

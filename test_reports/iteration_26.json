@@ -1,0 +1,57 @@
+{
+  "summary": "Executed targeted density-regression validation for Scope 1 Create Emission flows (UI + API) on live preview. Backend density contract checks passed; frontend confirms conditional density visibility/default behavior for mismatch vs same-dimension paths, with one flaky modal-open blocker during save-toast validation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "GHG Logs > Add Emission modal",
+        "issue": "Intermittent failure to open Add Emission modal after clicking [data-testid='add-emission-button'] (selector for modal root not appearing in repeated run), blocking deterministic validation of save-time density toast messaging.",
+        "selector": "[data-testid='add-emission-button'] -> [data-testid='emission-facility-select']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Monthly Qty Basis EF save-path error-message validation",
+        "issue": "Could not complete final assertion for save-time density-specific toast vs generic calculator error due intermittent modal-open flake in final validation run.",
+        "affected_selectors": [
+          "[data-testid='emission-form-save-button']",
+          "[data-sonner-toast]"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_process_emissions_venting_regression.py",
+    "/app/backend/tests/test_density_mismatch_api_contract_iter26.py",
+    "/app/test_reports/pytest/pytest_results_iter26_density_existing.xml",
+    "/app/test_reports/pytest/pytest_results_iter26_density_api.xml"
+  ],
+  "action_items": [
+    "Investigate flaky Add Emission modal open behavior from GHG Logs page before finalizing save-path UI assertions.",
+    "Re-run UI save-path validation for Qty Basis mismatch to explicitly confirm density-specific validation toast and absence of generic 'Cannot convert ef_quantity' error.",
+    "Optional maintainability: split oversized files Step3YearMonthlyData.js, EmissionEntryForm.js, and backend/modules/emissions/router.py into smaller modules to reduce regression risk."
+  ],
+  "critical_code_review_comments": [
+    "frontend/src/modules/ghg/emissions/shared/components/steps/Step3YearMonthlyData.js remains very large (>1200 lines), increasing defect risk in density/methodology conditional rendering.",
+    "frontend/src/components/EmissionEntryForm.js is oversized and still orchestrates many coupled concerns, making density path regressions harder to isolate.",
+    "backend/modules/emissions/router.py is oversized and mixes validation + workflow + persistence concerns; density contract logic should remain isolated/testable as API evolves."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_density_mismatch_api_contract_iter26.py",
+    "/app/test_reports/iteration_26.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "75%"
+  },
+  "seed_data_creation": "No explicit seed data created. Temporary emission records created by tests were cleaned up via teardown fixtures.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Verified in UI: (1) Qty Basis + Diesel (volume qty vs mass EF denominator) shows Density column with default value and Override Default toggle, (2) Qty Basis + Anthracite same-dimension default (kg qty and kgCO2/kg EF) hides density entirely, (3) switching Anthracite EF unit to kgCO2/L surfaces required Density input with L/kg and no override toggle/default. Backend API contracts for POST/PUT mismatch density guards and carbon-composition same-dimension acceptance passed.",
+  "rca of the issue": "UI blocker appears intermittent on modal open from GHG Logs: add button click occasionally leaves user on logs table without mounting modal form DOM ([data-testid='emission-facility-select'] absent), likely timing/state race in dialog mount path rather than selector mismatch. This prevented final save-toast assertion in the last run, while earlier runs successfully opened the modal and validated conditional density rendering states."
+}

@@ -16,6 +16,9 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+- Fix the Supplier Documents `Submit and lock` confirmation dialog trigger.
+- Enable the ORG1 Training module in staging after explicit user confirmation.
+- Restart the staging backend/pod so the R2 singleton re-reads `R2_BUCKET_SUPPLIER_ASSESSMENT`.
 - Fix BRSR Section A stale form data when switching reporting years.
 - Document replacement and version-publishing UI.
 - Advanced Document response types, including upload-required workflows.
@@ -46,6 +49,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Unit-driven monthly/yearly Density visibility, requiredness, reverse EF normalization, API guards, and stable Add Emission modal opening.
 - Exact parent-program Scope 1/2 enforcement for supplier GHG; Scope 3 and Biogenic are excluded end-to-end.
 - Muted, clickable supplier navigation for Dashboard, Sinks, Base Year, and Analysis with full-page premium overlays.
 - Hidden supplier-facing GHG history controls while preserving canonical internal history and submission revision lineage.

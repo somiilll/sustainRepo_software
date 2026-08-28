@@ -8,7 +8,7 @@
  * The parent (EmissionEntryForm) manages all state and callbacks.
  */
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
@@ -293,7 +293,13 @@ const MonthlyLedger = ({ columns, rows }) => {
 
 // Import volume unit helper
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
-import { getUnitDenominator, isQuantityField, resolveDensityRequirement } from '../../utils/unitHelpers';
+import {
+  getUnitDenominator,
+  isDensityField,
+  isQuantityField,
+  resolveDensityFieldState,
+  resolveDensityRequirement,
+} from '../../utils/unitHelpers';
 import { normalizeProcessTemplateMonthlyField } from '../../utils/processTemplateMonthlyFields';
 import { buildNativeOptionsHtml } from '../../utils/nativeSelectOptions';
 import { getFieldUnits } from '../DynamicFieldRenderer';
@@ -430,67 +436,31 @@ export const Step3YearMonthlyData = ({
   const runtimeConversionFields = isProcessEmissions && normalizedProcessTemplateFields.length > 0
     ? normalizedProcessTemplateFields
     : dynamicInputFields;
-  const supportsRuntimeDensity = isProcessEmissions || useCustomFuel;
+  const resolveRowDensityState = useCallback((data = {}) => resolveDensityFieldState({
+    calculationMethodology,
+    fields: runtimeConversionFields,
+    data,
+    selectedFuel: useCustomFuel ? null : selectedFuel,
+    centralizedUnits,
+  }), [calculationMethodology, centralizedUnits, runtimeConversionFields, selectedFuel, useCustomFuel]);
 
   useEffect(() => {
+    if (useCustomFuel) return;
     if (!['using_heat_basis_ncv', 'using_qty_basis_ef', 'using_carbon_composition'].includes(calculationMethodology)) return;
-
-    const quantityField = runtimeConversionFields.find((field) => isQuantityField(field));
-    const referenceField = calculationMethodology === 'using_heat_basis_ncv'
-      ? runtimeConversionFields.find(isCvField)
-      : calculationMethodology === 'using_qty_basis_ef'
-        ? runtimeConversionFields.find(isEfField)
-        : runtimeConversionFields.find(isCarbonContentField);
-    if (!quantityField || !referenceField) return;
 
     setMonthlyData((previousMonths) => {
       let changed = false;
       const nextMonths = { ...previousMonths };
-      activeMonths.forEach((monthKey) => {
+      activeMonths.forEach((month) => {
+        const monthKey = month.key || month;
         const current = previousMonths[monthKey] || {};
-        // Unit-based runtime Density is exclusively a Process Emissions and
-        // Custom Fuel concern. Clear a stale requirement if a user switches
-        // back to a standard fuel/category.
-        if (!supportsRuntimeDensity) {
-          if (current.runtime_density_required) {
+        const densityState = resolveRowDensityState(current);
+        if (!densityState.visible) {
+          if (current.runtime_density_required || current.override_density || current.density || current.density_unit) {
             nextMonths[monthKey] = {
               ...current,
-              runtime_density_required: false,
-            };
-            changed = true;
-          }
-          return;
-        }
-        const quantityUnit = resolveEffectiveFieldUnit({
-          field: quantityField,
-          data: current,
-          selectedFuel,
-          fieldUnits: resolveFieldUnits(quantityField),
-          isProcessEmissions,
-        });
-        const referenceUnit = resolveEffectiveFieldUnit({
-          field: referenceField,
-          data: current,
-          selectedFuel,
-          fieldUnits: resolveFieldUnits(referenceField),
-          isProcessEmissions,
-        });
-        const requirement = resolveDensityRequirement({
-          quantityUnit,
-          referenceUnit: calculationMethodology === 'using_carbon_composition'
-            ? 'kg'
-            : getUnitDenominator(referenceUnit),
-          centralizedUnits,
-        });
-        const hasDensityInputs = hasDensitySourceValues({
-          quantityField,
-          referenceField,
-          data: current,
-        });
-        if (!requirement.required || !hasDensityInputs) {
-          if (current.runtime_density_required && !current.density) {
-            nextMonths[monthKey] = {
-              ...current,
+              density: '',
+              density_unit: '',
               override_density: false,
               runtime_density_required: false,
             };
@@ -498,18 +468,36 @@ export const Step3YearMonthlyData = ({
           }
           return;
         }
-        if (current.override_density === true && current.density_unit === requirement.densityUnit) return;
-        nextMonths[monthKey] = {
-          ...current,
-          override_density: true,
-          runtime_density_required: true,
-          density_unit: requirement.densityUnit,
-        };
-        changed = true;
+        if (densityState.required) {
+          if (
+            current.runtime_density_required !== true
+            || current.override_density !== true
+            || current.density_unit !== densityState.densityUnit
+          ) {
+            nextMonths[monthKey] = {
+              ...current,
+              override_density: true,
+              runtime_density_required: true,
+              density_unit: densityState.densityUnit,
+            };
+            changed = true;
+          }
+          return;
+        }
+        if (current.runtime_density_required) {
+          nextMonths[monthKey] = {
+            ...current,
+            density: '',
+            density_unit: '',
+            override_density: false,
+            runtime_density_required: false,
+          };
+          changed = true;
+        }
       });
       return changed ? nextMonths : previousMonths;
     });
-  }, [activeMonths, calculationMethodology, centralizedUnits, monthlyData, runtimeConversionFields, setMonthlyData, supportsRuntimeDensity]);
+  }, [activeMonths, calculationMethodology, monthlyData, resolveRowDensityState, setMonthlyData, useCustomFuel]);
 
   return (
     <div className="space-y-8">
@@ -636,6 +624,14 @@ export const Step3YearMonthlyData = ({
           )}
 
           {(() => {
+            const densityField = dynamicInputFields.find(isDensityField);
+            const monthlyDensityStates = activeMonths.map((month) => (
+              resolveRowDensityState(monthlyData[month.key] || {})
+            ));
+            const showStandardDensityColumn = !useCustomFuel
+              && Boolean(densityField)
+              && monthlyDensityStates.some((state) => state.visible);
+            const densityIsRequired = monthlyDensityStates.some((state) => state.required);
             const ledgerColumns = deriveLedgerColumns(
               dynamicInputFields,
               formConfig,
@@ -644,7 +640,15 @@ export const Step3YearMonthlyData = ({
               useCustomFuel,
               calculationMethodology,
               isFugitiveCustomFuel,
-            );
+            ).filter((column) => (
+              !densityField
+              || column.key !== densityField.variable
+              || showStandardDensityColumn
+            )).map((column) => (
+              densityField && column.key === densityField.variable
+                ? { ...column, required: densityIsRequired }
+                : column
+            ));
             const totalCols = ledgerColumns.length + 2; // Month + fields + Evidence
 
             // Compact cell input renderer — no labels, just input + unit
@@ -779,11 +783,20 @@ export const Step3YearMonthlyData = ({
                 if (!field) return null;
 
                 const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
-                const isOverrideOrOptional = !isFugitiveGwpField
-                  && (field.isOverride || (!field.required && !field.isOverride));
+                const densityState = isDensityField(field) && !useCustomFuel
+                  ? resolveRowDensityState(data)
+                  : null;
+                if (densityState && !densityState.visible) {
+                  return <span className="text-xs text-stone-400" data-testid={`month-${monthKey}-density-not-required`}>—</span>;
+                }
+                const isOverrideOrOptional = densityState
+                  ? densityState.hasFuelDefault
+                  : (!isFugitiveGwpField && (field.isOverride || (!field.required && !field.isOverride)));
                 const overrideKey = `override_${field.variable}`;
-                const isEnabled = !isOverrideOrOptional || data[overrideKey];
-                const defaultValue = getFieldDefaultValue(field, selectedFuel);
+                const isEnabled = densityState
+                  ? densityState.required || data[overrideKey]
+                  : !isOverrideOrOptional || data[overrideKey];
+                const defaultValue = densityState?.defaultDensity?.value ?? getFieldDefaultValue(field, selectedFuel);
                 const storedValue = data[field.variable] ?? data[field.fieldKey] ?? '';
                 const displayedValue = hasFieldValue(storedValue) ? storedValue : defaultValue;
                 const renderOverrideToggle = () => (
@@ -797,7 +810,10 @@ export const Step3YearMonthlyData = ({
                       checked={!!data[overrideKey]}
                       onChange={(e) => {
                         updateMonthData(monthKey, overrideKey, e.target.checked);
-                        if (!e.target.checked) {
+                        if (densityState && e.target.checked && densityState.defaultDensity) {
+                          updateMonthData(monthKey, field.variable, String(densityState.defaultDensity.value));
+                          updateMonthData(monthKey, `${field.variable}_unit`, densityState.defaultDensity.unit);
+                        } else if (!e.target.checked) {
                           updateMonthData(monthKey, field.variable, '');
                           updateMonthData(monthKey, `${field.variable}_unit`, '');
                         }
@@ -805,7 +821,7 @@ export const Step3YearMonthlyData = ({
                       className="h-3 w-3 rounded border-amber-300 text-amber-600"
                       data-testid={`override-${field.fieldKey}-${monthKey}`}
                     />
-                    Override
+                    Override Default
                   </label>
                 );
 
@@ -832,11 +848,14 @@ export const Step3YearMonthlyData = ({
                   );
                 }
 
-                const fieldUnits = getFieldUnits({
+                const configuredFieldUnits = getFieldUnits({
                   field, scope, scope3Method, scope3ActivityId,
                   requiresSubcategory, selectedFuel, filteredScope3Activities,
                   centralizedUnits, biogenicScopeSelection, useCustomFuel,
                 });
+                const fieldUnits = densityState
+                  ? [data.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit].filter(Boolean)
+                  : configuredFieldUnits;
                 const isNoUnitField = field.unitSource === 'none';
                 const isTextUnitField = field.unitSource === 'text';
                 const isSupplierBasis = scope3Method === 'supplier_basis';
@@ -847,13 +866,15 @@ export const Step3YearMonthlyData = ({
                   || (!hideUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis);
                 const showTextUnit = !hideUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                 const defaultUnitValue = getFieldDefaultUnit(field, selectedFuel, fieldUnits);
-                const displayedUnit = resolveEffectiveFieldUnit({
-                  field,
-                  data,
-                  selectedFuel,
-                  fieldUnits,
-                  isProcessEmissions,
-                });
+                const displayedUnit = densityState
+                  ? (data.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit)
+                  : resolveEffectiveFieldUnit({
+                    field,
+                    data,
+                    selectedFuel,
+                    fieldUnits,
+                    isProcessEmissions,
+                  });
 
                 return (
                   <div className="flex h-8 items-center gap-1">
@@ -1261,28 +1282,54 @@ const YearlyDataEntry = ({
   const customQuantityUnitOptions = isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
     ? customFugitiveQuantityUnits
     : customFuelQuantityUnits;
-  // Process Emissions Carbon Composition formulas operate on mass. Custom Fuel
-  // renders its conditional Density field through CustomFuelMonthFields.
-  const isCarbonComposition = calculationMethodology === 'using_carbon_composition';
-  const quantityField = dynamicInputFields.find(isQuantityField);
-  const carbonContentField = dynamicInputFields.find(isCarbonContentField);
-  const quantityUnit = yearlyData[`${quantityField?.variable}_unit`]
-    || yearlyData[`${quantityField?.fieldKey}_unit`]
-    || quantityField?.defaultUnit
-    || quantityField?.default_unit
-    || quantityField?.expectedUnit
-    || quantityField?.allowedUnits?.[0]
-    || '';
-  const yearlyDensityRequirement = resolveDensityRequirement({
-    quantityUnit,
-    referenceUnit: isCarbonComposition ? 'kg' : '',
+  const yearlyDensityFields = isProcessEmissions && selectedTemplate?.input_fields?.length
+    ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
+    : dynamicInputFields;
+  const configuredDensityField = yearlyDensityFields.find(isDensityField);
+  const yearlyDensityState = resolveDensityFieldState({
+    calculationMethodology,
+    fields: yearlyDensityFields,
+    data: yearlyData,
+    selectedFuel: useCustomFuel ? null : selectedFuel,
     centralizedUnits,
   });
-  const showYearlyProcessDensity = isProcessEmissions
-    && isCarbonComposition
-    && hasNumericFieldValue(quantityField, yearlyData)
-    && hasNumericFieldValue(carbonContentField, yearlyData)
-    && yearlyDensityRequirement.required;
+
+  useEffect(() => {
+    if (useCustomFuel) return;
+    setYearlyData((previous) => {
+      if (!yearlyDensityState.visible) {
+        if (!previous.runtime_density_required && !previous.override_density && !previous.density && !previous.density_unit) return previous;
+        return {
+          ...previous,
+          density: '',
+          density_unit: '',
+          override_density: false,
+          runtime_density_required: false,
+        };
+      }
+      if (yearlyDensityState.required) {
+        if (
+          previous.runtime_density_required === true
+          && previous.override_density === true
+          && previous.density_unit === yearlyDensityState.densityUnit
+        ) return previous;
+        return {
+          ...previous,
+          override_density: true,
+          runtime_density_required: true,
+          density_unit: yearlyDensityState.densityUnit,
+        };
+      }
+      if (!previous.runtime_density_required) return previous;
+      return {
+        ...previous,
+        density: '',
+        density_unit: '',
+        override_density: false,
+        runtime_density_required: false,
+      };
+    });
+  }, [setYearlyData, useCustomFuel, yearlyDensityState.densityUnit, yearlyDensityState.required, yearlyDensityState.visible]);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1462,11 +1509,11 @@ const YearlyDataEntry = ({
               </div>
             )}
 
-            {showYearlyProcessDensity && (
+            {yearlyDensityState.visible && !configuredDensityField && (
               <div className="col-span-full grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="yearly-process-density-field">
                 <div className="space-y-1">
                   <Label htmlFor="yearly-process-density-input" className="text-sm font-medium">
-                    Density <span className="text-red-500">*</span>
+                    Density {yearlyDensityState.required && <span className="text-red-500">*</span>}
                   </Label>
                   <Input
                     id="yearly-process-density-input"
@@ -1474,11 +1521,12 @@ const YearlyDataEntry = ({
                     step="any"
                     min="0"
                     required
-                    value={yearlyData.density || ''}
+                    value={yearlyData.density || yearlyDensityState.defaultDensity?.value || ''}
+                    disabled={yearlyDensityState.hasFuelDefault && !yearlyData.override_density}
                     onChange={(event) => setYearlyData((previous) => ({
                       ...previous,
                       density: event.target.value,
-                      density_unit: yearlyDensityRequirement.densityUnit,
+                      density_unit: yearlyDensityState.densityUnit,
                       override_density: true,
                       runtime_density_required: true,
                     }))}
@@ -1487,10 +1535,10 @@ const YearlyDataEntry = ({
                   />
                 </div>
                 <span className="mb-2 text-sm text-stone-600" data-testid="yearly-process-density-unit">
-                  {yearlyDensityRequirement.densityUnit}
+                  {yearlyData.density_unit || yearlyDensityState.defaultDensity?.unit || yearlyDensityState.densityUnit}
                 </span>
                 <p className="col-span-2 text-xs text-amber-700" data-testid="yearly-process-density-conversion-hint">
-                  Conversion required: {quantityUnit} → kg
+                  Conversion required: {yearlyDensityState.quantityUnit} → {yearlyDensityState.referenceUnit}
                 </p>
               </div>
             )}
@@ -1635,26 +1683,35 @@ const YearlyDataEntry = ({
                 {dynamicInputFields.filter(f => f.isOverride
                   && !(isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives')).map(field => {
                   const overrideKey = `override_${field.variable}`;
-                  const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
-                  const fieldUnits = getFieldUnitsForYearly(field);
-                  const defaultValue = getFieldDefaultValue(field, selectedFuel);
+                  const densityState = isDensityField(field) ? yearlyDensityState : null;
+                  if (densityState && !densityState.visible) return null;
+                  const isOverrideEnabled = densityState?.required
+                    || yearlyData[overrideKey] === true
+                    || yearlyData[overrideKey] === 'true';
+                  const configuredFieldUnits = getFieldUnitsForYearly(field);
+                  const fieldUnits = densityState
+                    ? [yearlyData.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit].filter(Boolean)
+                    : configuredFieldUnits;
+                  const defaultValue = densityState?.defaultDensity?.value ?? getFieldDefaultValue(field, selectedFuel);
                   const displayedValue = hasFieldValue(yearlyData[field.variable])
                     ? yearlyData[field.variable]
                     : defaultValue;
-                  const displayedUnit = resolveEffectiveFieldUnit({
-                    field,
-                    data: yearlyData,
-                    selectedFuel,
-                    fieldUnits,
-                    isProcessEmissions,
-                  });
-                  const showStandardExpectedUnit = field.expectedUnit && !(useCustomFuel && isQuantityField(field));
+                  const displayedUnit = densityState
+                    ? (yearlyData.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit)
+                    : resolveEffectiveFieldUnit({
+                      field,
+                      data: yearlyData,
+                      selectedFuel,
+                      fieldUnits,
+                      isProcessEmissions,
+                    });
+                  const showStandardExpectedUnit = (densityState?.visible || field.expectedUnit) && !(useCustomFuel && isQuantityField(field));
                   
                   return (
                     <div key={field.variable} className="min-w-0">
                       <div className="mb-2 flex min-h-6 flex-wrap items-center justify-center gap-2 text-center">
                         <Label className="flex items-center gap-2 text-center leading-snug">
-                          {field.label}
+                          {field.label} {densityState?.required && <span className="text-red-500">*</span>}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
                             <TooltipProvider delayDuration={150}>
                               <Tooltip>
@@ -1675,20 +1732,27 @@ const YearlyDataEntry = ({
                             </TooltipProvider>
                           )}
                         </Label>
-                        <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-amber-700">
-                          <input
-                            type="checkbox"
-                            checked={isOverrideEnabled}
-                            onChange={(e) => setYearlyData(prev => ({ 
-                              ...prev, 
-                              [overrideKey]: e.target.checked,
-                              ...(e.target.checked ? {} : { [field.variable]: '', [`${field.variable}_unit`]: '' })
-                            }))}
-                            className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                            data-testid={`yearly-override-${field.variable}`}
-                          />
-                          Override Default
-                        </label>
+                        {(!densityState || densityState.hasFuelDefault) && (
+                          <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-amber-700">
+                            <input
+                              type="checkbox"
+                              checked={isOverrideEnabled}
+                              onChange={(e) => setYearlyData(prev => ({
+                                ...prev,
+                                [overrideKey]: e.target.checked,
+                                ...(densityState && e.target.checked && densityState.defaultDensity
+                                  ? {
+                                    [field.variable]: String(densityState.defaultDensity.value),
+                                    [`${field.variable}_unit`]: densityState.defaultDensity.unit,
+                                  }
+                                  : e.target.checked ? {} : { [field.variable]: '', [`${field.variable}_unit`]: '' })
+                              }))}
+                              className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                              data-testid={`yearly-override-${field.variable}`}
+                            />
+                            Override Default
+                          </label>
+                        )}
                       </div>
                       
                       <div className={showStandardExpectedUnit ? "flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
@@ -1720,7 +1784,7 @@ const YearlyDataEntry = ({
                             />
                           ) : (
                             <div className={`flex h-10 min-w-24 items-center border-l border-l-stone-200 bg-stone-100 px-3 text-sm text-stone-600 ${!isOverrideEnabled ? 'opacity-50' : ''}`}>
-                              <span>{field.expectedUnit}</span>
+                              <span>{displayedUnit}</span>
                             </div>
                           )
                         )}

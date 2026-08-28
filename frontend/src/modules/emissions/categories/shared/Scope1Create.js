@@ -14,7 +14,10 @@
  */
 
 import { buildCustomFuelCalculationPayload } from '../../../../pages/emissions/utils/customFuelCalcAdapter';
-import { normalizeDensityForCalcEngine } from '../../../ghg/emissions/shared/utils/unitHelpers';
+import {
+  normalizeDensityForCalcEngine,
+  prepareDensityAwareCalculationInputs,
+} from '../../../ghg/emissions/shared/utils/unitHelpers';
 
 // ---------- field unit resolver (Scope 1/2: no scope3_ef branch) ----------
 
@@ -68,6 +71,7 @@ export function extractInputsForCalcEngine(data, ctx) {
     return {
       inputs: customFuelCalculation.inputs,
       userOverrides: customFuelCalculation.userOverrides,
+      decisionInputs: customFuelCalculation.decisionInputs,
       primaryQuantity: quantity?.value || 0,
       primaryUnit: quantity?.unit || ctx.defaultUnit || '',
       isCustomFuelReady: customFuelCalculation.isReady,
@@ -114,7 +118,24 @@ export function extractInputsForCalcEngine(data, ctx) {
     userOverrides.density = normalizeDensityForCalcEngine(densityOverride);
   }
 
-  return { inputs, userOverrides, primaryQuantity, primaryUnit };
+  const calculationMethodology = ctx.buildDecisionInputs?.(data)?.calculation_methodology;
+  const preparedCalculation = prepareDensityAwareCalculationInputs({
+    inputs,
+    calculationMethodology,
+    fields: dynamicInputFields,
+    data,
+    selectedFuel: ctx.selectedFuel,
+    centralizedUnits: ctx.centralizedUnits,
+  });
+
+  return {
+    inputs: preparedCalculation.inputs,
+    userOverrides,
+    decisionInputs: preparedCalculation.decisionInputs,
+    primaryQuantity,
+    primaryUnit,
+    densityError: preparedCalculation.error,
+  };
 }
 
 export function buildDynamicFieldValues(data, ctx) {
