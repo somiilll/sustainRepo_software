@@ -187,13 +187,13 @@ class GHGIntegrationService:
             try:
                 start_year_filter = int(start_date[:4])
                 start_month_filter = int(start_date[5:7])
-            except:
+            except (TypeError, ValueError):
                 pass
         if end_date:
             try:
                 end_year_filter = int(end_date[:4])
                 end_month_filter = int(end_date[5:7])
-            except:
+            except (TypeError, ValueError):
                 pass
         
         use_date_range = start_year_filter and start_month_filter and end_year_filter and end_month_filter
@@ -491,13 +491,13 @@ class GHGIntegrationService:
             try:
                 start_year_filter = int(start_date[:4])
                 start_month_filter = int(start_date[5:7])
-            except:
+            except (TypeError, ValueError):
                 pass
         if end_date:
             try:
                 end_year_filter = int(end_date[:4])
                 end_month_filter = int(end_date[5:7])
-            except:
+            except (TypeError, ValueError):
                 pass
         
         use_date_range = start_year_filter and start_month_filter and end_year_filter and end_month_filter

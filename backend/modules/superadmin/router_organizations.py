@@ -123,8 +123,6 @@ async def soft_delete_organization(org_id: str, current_user: dict = Depends(get
 # Super Admin - Permanently delete organization and ALL related data (incl. R2 files)
 @router.delete("/super-admin/organizations/{org_id}/permanent")
 async def permanent_delete_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
-    from cascade_delete import cascade_delete_organization
-    from r2_storage import get_r2_storage
     r2 = get_r2_storage()
     result = await cascade_delete_organization(db, r2, org_id)
     if not result.get("found"):

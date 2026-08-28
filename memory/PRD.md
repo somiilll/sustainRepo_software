@@ -425,6 +425,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Stabilized Add Emission modal opening by using one explicit controlled open action rather than depending on trigger composition.
 - Verification passed: 46 focused frontend tests, 8 backend API/regression tests, production frontend build, three repeated modal opens, density-specific missing-input toast, and a successful reverse-conversion save. The marked UI test record was deleted. Testing-agent iteration 26 reported 100% backend and verified the three core frontend density states; its modal flake was subsequently fixed and self-verified.
 
+## Latest Changes — 2026-08-28 (Supplier Ranking Modularization & Repository Cleanup)
+- Split the Supplier Rankings screen into focused Overview, ESG Analysis, Emissions, and Detailed Rankings components, with shared score/format utilities and a dedicated supplier-detail dialog. The parent now owns only state, data loading, derived data, and tab orchestration.
+- Preserved existing ranking API calls, interactions, responsive layouts, and test IDs. Added stable extracted-panel test IDs for focused browser verification.
+- Resolved blocking static findings: corrected literal-route ordering for proposal batch reject, C7 yearly, ESG response years, and Base Year report validation; removed duplicate imports/bare exceptions; restored the missing Joule-to-GJ helper; and prevented local `status` shadowing while retaining the public audit-log query parameter.
+- Verification passed: Python compilation, production frontend build, authenticated `/api/base-year-emissions/validate-for-report` endpoint check (HTTP 200), browser smoke across all four ranking tabs plus unmatched search, and testing-agent iteration 27 (100% frontend/backend, no mocked APIs).
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
 - **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.
@@ -444,3 +450,4 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `/app/test_reports/iteration_19.json` — GHG period row-limit verification.
 - `/app/test_reports/iteration_21.json` — Scope 3 spend-basis currency conversion verification.
 - `/app/test_reports/iteration_26.json` — unit-driven Create Emissions density verification.
+- `/app/test_reports/iteration_27.json` — Supplier Rankings modularization and Base Year validation route verification.

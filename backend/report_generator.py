@@ -2715,7 +2715,7 @@ class GHGReportGenerator:
                         return rp_start_year >= start_year and rp_end_year <= end_year + 1
                     else:  # CY
                         return rp_start_year == start_year and rp_end_year == start_year
-                except:
+                except (IndexError, ValueError):
                     pass
             return False
         

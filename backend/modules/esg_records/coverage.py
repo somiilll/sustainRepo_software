@@ -79,7 +79,7 @@ def generate_periods_for_frequency(
         if isinstance(assignment_start_date, str):
             try:
                 assignment_start_date = datetime.fromisoformat(assignment_start_date.replace('Z', '+00:00')).replace(tzinfo=None)
-            except:
+            except (TypeError, ValueError):
                 assignment_start_date = None
         if assignment_start_date:
             start_date = max(ry_start_date, assignment_start_date)
@@ -89,7 +89,7 @@ def generate_periods_for_frequency(
         if isinstance(assignment_end_date, str):
             try:
                 assignment_end_date = datetime.fromisoformat(assignment_end_date.replace('Z', '+00:00')).replace(tzinfo=None)
-            except:
+            except (TypeError, ValueError):
                 assignment_end_date = None
         if assignment_end_date:
             end_date = min(ry_end_date, assignment_end_date)
