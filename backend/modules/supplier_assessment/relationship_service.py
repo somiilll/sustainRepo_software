@@ -386,14 +386,34 @@ async def update_supplier(
     return await self.get_supplier(relationship_id)
 
 async def deactivate_supplier(self, relationship_id: str) -> bool:
-    """Soft delete a supplier relationship."""
+    """Deactivate a supplier relationship and revoke supplier account access."""
+    relationship = await db.supplier_relationships.find_one(
+        {"id": relationship_id, "is_active": True},
+        {"_id": 0, "supplier_org_id": 1},
+    )
+    if not relationship:
+        return False
+    revoked_at = datetime.now(timezone.utc).isoformat()
     result = await db.supplier_relationships.update_one(
         {"id": relationship_id},
         {"$set": {
             "is_active": False,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": revoked_at,
         }}
     )
+    if result.modified_count > 0:
+        await db.users.update_many(
+            {
+                "organization_id": relationship["supplier_org_id"],
+                "user_type": "supplier",
+                "is_deleted": {"$ne": True},
+            },
+            {"$set": {
+                "is_active": False,
+                "supplier_access_revoked_at": revoked_at,
+                "supplier_access_revoked_by_relationship_id": relationship_id,
+            }},
+        )
     return result.modified_count > 0
 
 async def send_reminder(
