@@ -536,3 +536,6 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-30 (Supplier Onboarding Copy)
 - Updated the supplier onboarding heading to “Welcome to Supplier Assessment of {Parent Organization}” while preserving the existing onboarding guidance.
 - **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Supplier GHG Submitted Totals)
+- Supplier GHG summary cards now emphasize the most recently submitted Scope 1 and Scope 2 emissions totals. Current draft totals remain available as lower-priority supporting text.
