@@ -65,6 +65,7 @@ from app.bootstrap.contract_verifier import verify_module_contracts
 from modules.auth.dependencies import get_current_user, get_super_admin_user, get_admin_user, security
 from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_ghg_scope_access, require_entitlement
 from modules.auth.router import router as auth_router
+from modules.contact_sales.router import router as contact_sales_router
 from modules.users.router import router as users_admin_router
 from app.router.health import router as health_router
 
@@ -131,6 +132,7 @@ api_router = APIRouter(prefix="/api")
 # These routers carry their own routes — we register them on `api_router`
 # so the existing `/api/...` prefix is preserved.
 api_router.include_router(auth_router)
+api_router.include_router(contact_sales_router)
 api_router.include_router(users_admin_router)
 api_router.include_router(health_router)
 # Phase B3 routers

@@ -157,7 +157,7 @@ async def test_supplier_isolation_multiple_acceptances_and_immutable_acceptance(
     assert first["id"] == repeated["id"]
     assert first["accepted_at"] == repeated["accepted_at"]
     assert first["document_version_id"] == second_supplier["document_version_id"] == "version-1"
-    assert len(database.supplier_document_acceptances.docs) == 2
+    assert len(database.supplier_document_submissions.docs) == 2
 
     documents_module = next(module for module in supplier_assessment_module_registry.enabled_modules({
         "modules": {"documents": {"enabled": True}}

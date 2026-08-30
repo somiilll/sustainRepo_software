@@ -135,9 +135,6 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
             if current_submission:
                 completed += 1
                 continue
-            response_collection = database.supplier_document_responses if requirement.get("response_mode") == "STATUS" else database.supplier_document_acceptances
-            response = await response_collection.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "document_version_id": requirement["document_version_id"]}, {"_id": 0, "id": 1})
-            completed += int(response is not None)
         return ModuleCompletion(
             self.module_code,
             (completed / len(requirements)) * 100,

@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { AlertTriangle, Menu, X, Lock } from 'lucide-react';
 import { isSupplierLockedRoute, SUPPLIER_PREMIUM_TOOLTIP } from '../config/supplierNavigation';
+import { ContactSalesDialog } from './ContactSalesDialog';
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -28,7 +29,7 @@ const SUPPLIER_ALLOWED_ROUTES = [
 ];
 
 // Locked overlay for supplier users - Full screen coverage
-const SupplierLockedOverlay = ({ children }) => (
+const SupplierLockedOverlay = ({ children, onContactSales }) => (
   <div className="fixed inset-0 z-50 lg:left-64 left-0"> {/* Account for sidebar width on large screens */}
     {/* Blurred background for sneak peek */}
     <div className="absolute inset-0 overflow-hidden">
@@ -49,7 +50,7 @@ const SupplierLockedOverlay = ({ children }) => (
         <p className="text-stone-500 text-sm mb-6 leading-relaxed">
           {SUPPLIER_PREMIUM_TOOLTIP.description}
         </p>
-        <button className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
+        <button onClick={onContactSales} className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm" data-testid="contact-sales-button">
           Contact Sales
         </button>
       </div>
@@ -62,6 +63,7 @@ export default function Layout() {
   const [subscriptionWarning, setSubscriptionWarning] = useState(null);
   const [warningDismissed, setWarningDismissed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [contactSalesOpen, setContactSalesOpen] = useState(false);
   const location = useLocation();
   
   // Check if user is a supplier
@@ -171,7 +173,7 @@ export default function Layout() {
             >
             {/* Show locked overlay for suppliers on restricted routes */}
             {isSupplier && (isExplicitlyLockedSupplierRoute || !isAllowedRoute) ? (
-              <SupplierLockedOverlay>
+              <SupplierLockedOverlay onContactSales={() => setContactSalesOpen(true)}>
                 <Outlet />
               </SupplierLockedOverlay>
             ) : (
@@ -181,6 +183,7 @@ export default function Layout() {
         </div>
 
       </main>
+      <ContactSalesDialog open={contactSalesOpen} onOpenChange={setContactSalesOpen} user={user} getAuthHeader={getAuthHeader} />
     </div>
   );
 }
