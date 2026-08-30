@@ -91,6 +91,27 @@ const FieldInfo = ({ label, testId }) => (
   </TooltipProvider>
 );
 
+const ViewSupplierProgress = ({ supplier }) => {
+  const modules = [
+    { code: 'esg', label: 'ESG Questionnaire', value: supplier.esg_completion_percent, tone: 'bg-blue-500' },
+    { code: 'ghg', label: 'GHG Emissions', value: supplier.ghg_completion_percent, tone: 'bg-emerald-500' },
+    { code: 'documents', label: 'Documents', value: supplier.documents_completion_percent, tone: 'bg-teal-500' },
+    { code: 'training', label: 'Training', value: supplier.training_completion_percent, tone: 'bg-amber-500' },
+  ];
+  return <div className="border-t pt-4" data-testid="supplier-module-progress"><Label className="text-stone-500">Completion Progress</Label><div className="mt-3 grid gap-4 sm:grid-cols-2">{modules.map((module) => { const progress = Math.round(module.value || 0); return <div key={module.code} data-testid={`supplier-${module.code}-progress`}><div className="flex items-center justify-between gap-3 text-sm"><span>{module.label}</span><span className="font-medium" data-testid={`supplier-${module.code}-progress-percent`}>{progress}%</span></div><div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-stone-200" data-testid={`supplier-${module.code}-progress-track`}><div className={`h-2 rounded-full transition-[width] duration-500 ${module.tone}`} style={{ width: `${progress}%` }} data-testid={`supplier-${module.code}-progress-bar`} /></div></div>; })}</div></div>;
+};
+
+const ViewSupplierScores = ({ supplier }) => {
+  const snapshot = supplier.canonical_score_snapshot || {};
+  const scores = [
+    { code: 'esg', label: 'ESG Score', value: supplier.esg_score ?? snapshot.esg_score },
+    { code: 'environment', label: 'Environment Score', value: snapshot.environment_score },
+    { code: 'social', label: 'Social Score', value: snapshot.social_score },
+    { code: 'governance', label: 'Governance Score', value: snapshot.governance_score },
+  ];
+  return <div className="border-t pt-4" data-testid="supplier-score-breakdown"><Label className="text-stone-500">ESG Score Breakdown</Label><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{scores.map((score) => <div key={score.code} className="border-l-2 border-emerald-400 bg-stone-50 px-3 py-2" data-testid={`supplier-${score.code}-score-summary`}><p className="text-xs text-stone-500">{score.label}</p><p className="mt-1 text-lg font-semibold text-stone-900" data-testid={`supplier-${score.code}-score-value`}>{score.value ?? 'Pending'}</p></div>)}</div></div>;
+};
+
 export default function SupplierList() {
   const { getAuthHeader } = useAuth();
   const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
@@ -961,59 +982,14 @@ export default function SupplierList() {
                 </div>
               </div>
               
-              <div className="border-t pt-4">
-                <Label className="text-stone-500">Completion Progress</Label>
-                <div className="space-y-2 mt-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>ESG Questionnaire</span>
-                    <span>{Math.round(selectedSupplier.esg_completion_percent || 0)}%</span>
-                  </div>
-                  <div className="w-full bg-stone-200 rounded-full h-2">
-                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${selectedSupplier.esg_completion_percent || 0}%` }} />
-                  </div>
-                  
-                  <div className="flex items-center justify-between text-sm mt-3">
-                    <span>GHG Emissions</span>
-                    <span>{Math.round(selectedSupplier.ghg_completion_percent || 0)}%</span>
-                  </div>
-                  <div className="w-full bg-stone-200 rounded-full h-2">
-                    <div
-                      className="bg-emerald-500 h-2 rounded-full"
-                      style={{ width: `${selectedSupplier.ghg_completion_percent || 0}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
+              <ViewSupplierProgress supplier={selectedSupplier} />
               {submissionStatus?.esg?.length > 0 && <div className="border-t pt-4" data-testid="supplier-esg-submission-controls">
                 <Label className="text-stone-500">Locked ESG submissions</Label>
                 <div className="mt-2 space-y-2">{submissionStatus.esg.map((submission) => <div key={submission.questionnaire_id} className="flex items-center justify-between gap-3 rounded-md border p-2" data-testid={`supplier-esg-submission-${submission.questionnaire_id}`}><span className="text-sm">Submitted {submission.submitted_at ? new Date(submission.submitted_at).toLocaleDateString() : ''}</span><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => openReview(submission.questionnaire_id)} data-testid={`review-supplier-questionnaire-${submission.questionnaire_id}`}><ClipboardCheck className="mr-1 h-4 w-4" />Review</Button><Button variant="outline" size="sm" disabled={unlockingQuestionnaireId === submission.questionnaire_id} onClick={() => unlockQuestionnaire(submission.questionnaire_id)} data-testid={`unlock-supplier-questionnaire-${submission.questionnaire_id}`}>{unlockingQuestionnaireId === submission.questionnaire_id ? 'Unlocking…' : 'Unlock'}</Button></div></div>)}</div>
               </div>
               }
               
-              {selectedSupplier.esg_score !== null && selectedSupplier.esg_score !== undefined && (
-                <div className="border-t pt-4">
-                  <Label className="text-stone-500">ESG Score</Label>
-                  <div className="mt-2 max-w-40">
-                    <div className="text-center p-3 bg-stone-50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {selectedSupplier.esg_score ?? '-'}
-                      </div>
-                      <div className="text-xs text-stone-500">ESG Score</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {selectedSupplier.canonical_score_snapshot && (
-                <div className="border-t pt-4" data-testid="supplier-canonical-score-breakdown">
-                  <Label className="text-stone-500">Submitted ESG score breakdown</Label>
-                  <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
-                    <div><span className="text-stone-500">Environment</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.environment_score ?? 'Pending'}</p></div>
-                    <div><span className="text-stone-500">Social</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.social_score ?? 'Pending'}</p></div>
-                    <div><span className="text-stone-500">Governance</span><p className="font-medium">{selectedSupplier.canonical_score_snapshot.governance_score ?? 'Pending'}</p></div>
-                  </div>
-                  {!selectedSupplier.canonical_score_snapshot.is_complete && <p className="mt-3 text-xs text-stone-500" data-testid="supplier-canonical-score-pending">ESG score will appear after an ESG questionnaire response is submitted.</p>}
-                </div>
-              )}
+              <ViewSupplierScores supplier={selectedSupplier} />
             </div>
           )}
           <DialogFooter className="shrink-0 border-t border-stone-200 bg-white px-7 py-4">

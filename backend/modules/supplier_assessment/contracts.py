@@ -80,6 +80,7 @@ class SupplierResponse(BaseModel):
     esg_completion_percent: float = 0.0
     ghg_completion_percent: float = 0.0
     documents_completion_percent: float = 0.0
+    training_completion_percent: float = 0.0
     overall_completion_percent: float = 0.0
     esg_score: Optional[float] = None
     overall_score: Optional[float] = None
