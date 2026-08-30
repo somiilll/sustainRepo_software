@@ -45,6 +45,11 @@
 - The parent ranking dashboard now names each overdue module for every supplier listed.
 - Verified by live API and parent-dashboard smoke checks, Python compilation, and frontend linting (zero errors; existing warnings only). No mocked APIs.
 
+## August 30, 2026 — Document/Training Action Consistency
+- Unified due-date action icons and aligned Training actions to the Documents order.
+- Made the Training overflow menu fully opaque.
+- **NOT TESTED** after implementation, per user instruction. No mocked APIs.
+
 ## August 28, 2026 — Unit-Driven Density and Reverse EF Conversion
 - Added one shared density-state resolver for monthly/yearly rendering, validation, calculation preparation, and API enforcement.
 - Density now appears only for a real mass/volume mismatch. Valid standard-fuel density is an overridable default; missing density becomes required with the correct directional unit.

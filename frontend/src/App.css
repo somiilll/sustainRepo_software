@@ -2,6 +2,7 @@
 [data-testid^="manage-training-assignments-"] { order: 2; }
 [data-testid^="edit-training-due-date-"] { order: 3; }
 [data-testid^="training-overflow-menu-"] { order: 4; }
+[data-testid^="training-overflow-menu-content-"] { background-color: #ffffff !important; opacity: 1 !important; }
 .App {
   min-height: 100vh;
   background-color: #F5F7F5;
