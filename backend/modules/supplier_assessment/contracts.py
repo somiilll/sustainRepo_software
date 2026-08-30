@@ -575,6 +575,7 @@ class SupplierRankingEntry(BaseModel):
     status_label: Optional[str] = None
     question_progress: Optional[str] = None
     attention_reasons: List[str] = []
+    overdue_modules: List[str] = []
     module_progress: Dict[str, float] = {}
     due_date: Optional[str] = None
     revenue_percentage: Optional[float] = None

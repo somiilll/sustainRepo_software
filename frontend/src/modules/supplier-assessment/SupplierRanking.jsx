@@ -61,7 +61,8 @@ export default function SupplierRanking() {
   const esg = useMemo(() => rankings.filter((row) => hasValue(row.esg_score)).sort((a, b) => b.esg_score - a.esg_score), [rankings]);
   const emissionsAnalytics = useMemo(() => buildSupplierEmissionsAnalytics(submittedEmissions, reportingPeriod), [submittedEmissions, reportingPeriod]);
   const rows = useMemo(() => rankings.filter((row) => row.company_name.toLowerCase().includes(search.trim().toLowerCase())).sort((first, second) => { const firstValue = first[rankingSort.key]; const secondValue = second[rankingSort.key]; if (!hasValue(firstValue)) return hasValue(secondValue) ? 1 : 0; if (!hasValue(secondValue)) return -1; return (Number(firstValue) - Number(secondValue)) * (rankingSort.direction === 'asc' ? 1 : -1); }), [rankings, rankingSort, search]);
-  const attention = useMemo(() => rankings.filter((row) => (hasValue(row.overall_score) && row.overall_score < 60) || (row.attention_reasons || []).length).slice(0, 5), [rankings]);
+  const overdueSuppliers = useMemo(() => rankings.filter((row) => (row.overdue_modules || []).length > 0), [rankings]);
+  const attention = useMemo(() => overdueSuppliers.slice(0, 5), [overdueSuppliers]);
   const distribution = [{ name: 'Excellent', value: stats.score_distribution.excellent || 0, color: '#10b981' }, { name: 'Good', value: stats.score_distribution.good || 0, color: '#3b82f6' }, { name: 'Needs improvement', value: stats.score_distribution.average || 0, color: '#f59e0b' }, { name: 'Critical', value: stats.score_distribution.poor || 0, color: '#ef4444' }];
   const modules = Object.entries(stats.module_summary || {}).map(([code, item]) => ({ code, name: moduleName(code), completion: item.average_completion || 0 }));
   const visibleModules = moduleFilter === 'all' ? modules : modules.filter((item) => item.code === moduleFilter);
@@ -71,8 +72,8 @@ export default function SupplierRanking() {
   const rankingStart = rows.length ? (rankingPage - 1) * rankingPageSize + 1 : 0;
   const rankingEnd = Math.min(rankingPage * rankingPageSize, rows.length);
   const top = overall[0];
-  const needCount = (stats.score_distribution.average || 0) + (stats.score_distribution.poor || 0);
-  const metrics = [{ id: 'assessed', label: 'Suppliers assessed', value: stats.ranked, detail: `${stats.total} assigned`, Icon: Users, tone: 'stone' }, { id: 'esg', label: 'Avg ESG score', value: scoreText(stats.averages.esg), detail: 'Across submitted ESG assessments', Icon: Target, tone: 'emerald' }, { id: 'top', label: 'Top performer', value: scoreText(top?.overall_score), detail: top?.company_name || 'No overall score yet', Icon: Trophy, tone: 'amber' }, { id: 'attention', label: 'Needs attention', value: needCount, detail: 'Overall score below 60', Icon: TriangleAlert, tone: 'rose' }];
+  const needCount = overdueSuppliers.length;
+  const metrics = [{ id: 'assessed', label: 'Suppliers assessed', value: stats.ranked, detail: `${stats.total} assigned`, Icon: Users, tone: 'stone' }, { id: 'esg', label: 'Avg ESG score', value: scoreText(stats.averages.esg), detail: 'Across submitted ESG assessments', Icon: Target, tone: 'emerald' }, { id: 'top', label: 'Top performer', value: scoreText(top?.overall_score), detail: top?.company_name || 'No overall score yet', Icon: Trophy, tone: 'amber' }, { id: 'attention', label: 'Overdue follow-up', value: needCount, detail: 'Incomplete tasks past due', Icon: TriangleAlert, tone: 'rose' }];
 
   const openDetail = async (row) => { setSupplier(row); setDetail(null); try { const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${row.supplier_id}/submission-status`, { headers: getAuthHeader() }); setDetail(data); } catch { toast.error('Could not load supplier assessment details'); } };
   const toggleRankingSort = (key) => { setRankingSort((current) => ({ key, direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc' })); setRankingPage(1); };

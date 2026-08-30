@@ -46,21 +46,35 @@ async def get_supplier_rankings(
         if key not in current_responses:
             current_responses[key] = response
 
-    document_requirements_exist = await db.supplier_document_requirements.count_documents({
+    document_requirements = await db.supplier_document_requirements.find({
         "customer_org_id": customer_org_id,
         "is_active": True,
         "$or": [{"reporting_period": reporting_period}, {"reporting_period": {"$exists": False}}, {"reporting_period": None}],
-    }) > 0
+    }, {"_id": 0, "id": 1, "document_version_id": 1, "due_date": 1, "reporting_period": 1, "supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1}).to_list(1000)
+    document_submissions = await db.supplier_document_submissions.find(
+        {"supplier_relationship_id": {"$in": supplier_ids}, "is_current": True},
+        {"_id": 0, "supplier_relationship_id": 1, "document_requirement_id": 1, "status": 1},
+    ).to_list(10000)
+    document_submission_status = {
+        (submission["supplier_relationship_id"], submission["document_requirement_id"]): submission.get("status")
+        for submission in document_submissions
+    }
+    training_requirements = await db.supplier_training_requirements.find(
+        {"organization_id": customer_org_id, "is_active": True, "is_deleted": {"$ne": True}},
+        {"_id": 0, "id": 1, "due_date": 1},
+    ).to_list(1000)
+    training_due_dates = {requirement["id"]: requirement.get("due_date") for requirement in training_requirements}
     training_assignments = await db.supplier_training_assignments.find(
         {"supplier_relationship_id": {"$in": supplier_ids}, "is_active": True},
-        {"_id": 0, "supplier_relationship_id": 1, "reporting_period": 1},
+        {"_id": 0, "id": 1, "supplier_relationship_id": 1, "training_requirement_id": 1, "reporting_period": 1},
     ).to_list(10000)
-    training_supplier_ids = {
-        assignment["supplier_relationship_id"]
-        for assignment in training_assignments
-        if not assignment.get("reporting_period") or assignment.get("reporting_period") == reporting_period
+    training_progress = await db.supplier_training_progress.find(
+        {"supplier_relationship_id": {"$in": supplier_ids}},
+        {"_id": 0, "training_assignment_id": 1, "status": 1},
+    ).to_list(10000)
+    training_status_by_assignment = {
+        progress["training_assignment_id"]: progress.get("status") for progress in training_progress
     }
-
     def due_date_has_passed(value: Optional[str]) -> bool:
         if not value:
             return False
@@ -91,8 +105,52 @@ async def get_supplier_rankings(
             len([answer for answer in (response.get("answers") or {}).values() if answer not in (None, "")])
             for response in supplier_responses
         )
-        submitted_count = len([response for response in supplier_responses if response.get("status") == "submitted"])
-        is_overdue = any(due_date_has_passed(value) for value in [s.get("due_date"), *[questionnaire_by_id[qid].get("due_date") for qid in assigned_questionnaire_ids]])
+        submitted_questionnaire_ids = {
+            response["questionnaire_id"] for response in supplier_responses if response.get("status") == "submitted"
+        }
+        submitted_count = len(submitted_questionnaire_ids)
+        applicable_documents = [
+            requirement for requirement in document_requirements
+            if (
+                (not requirement.get("reporting_period") or requirement["reporting_period"] == s.get("reporting_period"))
+                and (
+                    s["id"] in (requirement.get("supplier_relationship_ids") or [])
+                    or (
+                        not requirement.get("supplier_relationship_ids")
+                        and requirement.get("assessment_program_id") == s.get("assessment_program_id")
+                        and requirement.get("assessment_program_version") == s.get("assessment_program_version")
+                    )
+                )
+            )
+        ]
+        applicable_training = [
+            assignment for assignment in training_assignments
+            if assignment["supplier_relationship_id"] == s["id"]
+            and (not assignment.get("reporting_period") or assignment.get("reporting_period") == s.get("reporting_period"))
+        ]
+        overdue_modules = []
+        if any(
+            questionnaire_id not in submitted_questionnaire_ids
+            and due_date_has_passed(questionnaire_by_id[questionnaire_id].get("due_date") or s.get("due_date"))
+            for questionnaire_id in assigned_questionnaire_ids
+        ):
+            overdue_modules.append("ESG Questionnaire")
+        enabled_modules = set(s.get("modules_enabled") or ["esg", "ghg"])
+        if "ghg" in enabled_modules and float(s.get("ghg_completion_percent") or 0) < 100 and due_date_has_passed(s.get("due_date")):
+            overdue_modules.append("GHG Emissions")
+        if any(
+            document_submission_status.get((s["id"], requirement["id"])) != "submitted"
+            and due_date_has_passed(requirement.get("due_date") or s.get("due_date"))
+            for requirement in applicable_documents
+        ):
+            overdue_modules.append("Documents")
+        if any(
+            training_status_by_assignment.get(assignment["id"]) != "completed"
+            and due_date_has_passed(training_due_dates.get(assignment["training_requirement_id"]) or s.get("due_date"))
+            for assignment in applicable_training
+        ):
+            overdue_modules.append("Training")
+        is_overdue = bool(overdue_modules)
         all_assigned_submitted = bool(assigned_questionnaire_ids) and submitted_count == len(assigned_questionnaire_ids)
         if s.get("overall_completion_percent", 0) >= 100:
             completion_status, status_label = "completed", "Completed"
@@ -106,14 +164,7 @@ async def get_supplier_rankings(
             completion_status, status_label = "invited", "Invited"
         else:
             completion_status, status_label = "not_started", "Not Started"
-        attention_reasons = []
-        if overall_score is not None and overall_score < 60:
-            attention_reasons.append("Overall score needs improvement")
-        for label, value in (("Environment", env_score), ("Social", social_score), ("Governance", gov_score)):
-            if value is None and esg_score is not None:
-                attention_reasons.append(f"{label} assessment missing")
-        if completion_status == "overdue":
-            attention_reasons.append("Assessment is overdue")
+        attention_reasons = [f"Overdue: {module}" for module in overdue_modules]
         module_progress: Dict[str, float] = {}
         module_fields = {
             "esg": "esg_completion_percent",
@@ -121,13 +172,12 @@ async def get_supplier_rankings(
             "documents": "documents_completion_percent",
             "training": "training_completion_percent",
         }
-        enabled_modules = set(s.get("modules_enabled") or ["esg", "ghg"])
         for module_code, completion_field in module_fields.items():
             if module_code not in enabled_modules:
                 continue
-            if module_code == "documents" and not document_requirements_exist:
+            if module_code == "documents" and not applicable_documents:
                 continue
-            if module_code == "training" and s["id"] not in training_supplier_ids:
+            if module_code == "training" and not applicable_training:
                 continue
             completion = round(float(s.get(completion_field) or 0), 1)
             module_progress[module_code] = completion
@@ -149,6 +199,7 @@ async def get_supplier_rankings(
             "status_label": status_label,
             "question_progress": f"{answered_questions} / {total_questions} questions" if completion_status == "in_progress" and total_questions else None,
             "attention_reasons": attention_reasons,
+            "overdue_modules": overdue_modules,
             "module_progress": module_progress,
             "due_date": s.get("due_date"),
             "revenue_percentage": s.get("revenue_percentage"),

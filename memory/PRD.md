@@ -521,3 +521,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-30 (Detailed Rankings Table Fit)
 - Reduced Detailed Rankings table minimum width, score/progress column widths, gaps, and horizontal padding so the View action remains visible at standard desktop workspace widths without needing a horizontal scroll.
 - **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Overdue Supplier Task Follow-up)
+- Reworked Supplier Rankings' Attention Required list to exclude low-score-only suppliers. It now contains only suppliers with at least one incomplete task after its applicable deadline.
+- The card identifies precisely which tasks are overdue—ESG Questionnaire, GHG Emissions, Documents, and/or Training—based on each task's due date (falling back to the supplier assessment due date where appropriate) and its canonical completion/submission state.
+- Verified with Python compilation, frontend ESLint (zero errors; pre-existing warnings only), a live rankings API assertion, and authenticated parent-dashboard smoke testing. The live card showed ESG-only and ESG + Documents overdue states correctly.
