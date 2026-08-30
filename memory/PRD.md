@@ -513,3 +513,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Parent Organization's View Supplier dialog now displays completion tracks for ESG Questionnaire, GHG Emissions, Documents, and Training. The supplier response contract now exposes `training_completion_percent` alongside the existing module metrics.
 - Replaced the separated ESG-score cards with one responsive score row containing ESG Score, Environment Score, Social Score, and Governance Score. Pending scores remain clearly labelled.
 - **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Supplier Status Alignment)
+- Moved the status badge in the parent View Supplier dialog beneath the Status label for clearer visual alignment, and added stable test identifiers for the displayed status.
+- **NOT TESTED** after implementation, per the user's explicit instruction.

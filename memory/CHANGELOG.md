@@ -29,6 +29,10 @@
 - Consolidated the ESG, Environment, Social, and Governance scores into one responsive score row.
 - **NOT TESTED** after implementation, per user instruction. No mocked APIs.
 
+## August 30, 2026 — Supplier Status Alignment
+- Positioned the View Supplier status badge beneath its Status label.
+- **NOT TESTED** after implementation, per user instruction. No mocked APIs.
+
 ## August 28, 2026 — Unit-Driven Density and Reverse EF Conversion
 - Added one shared density-state resolver for monthly/yearly rendering, validation, calculation preparation, and API enforcement.
 - Density now appears only for a real mass/volume mismatch. Valid standard-fuel density is an overridable default; missing density becomes required with the correct directional unit.

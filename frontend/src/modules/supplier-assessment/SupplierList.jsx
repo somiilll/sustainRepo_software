@@ -951,9 +951,11 @@ export default function SupplierList() {
                 </div>
                 <div>
                   <Label className="text-stone-500">Status</Label>
-                  <Badge className={statusColors[selectedSupplier.invitation_status]}>
-                    {selectedSupplier.invitation_status}
-                  </Badge>
+                  <div className="mt-1" data-testid="view-supplier-status">
+                    <Badge className={statusColors[selectedSupplier.invitation_status]} data-testid="view-supplier-status-badge">
+                      {selectedSupplier.invitation_status}
+                    </Badge>
+                  </div>
                 </div>
                 <div>
                   <Label className="text-stone-500">Revenue %</Label>
