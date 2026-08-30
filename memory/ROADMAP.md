@@ -58,6 +58,7 @@
 ## Completed Recently
 - Completed the canonical ESG response migration: all runtime reads/writes now use `organization_esg_responses`, immutable history remains in `esg_responses_versions`, the questionnaire queue is source-isolated, and the empty `esg_responses` collection was dropped after 37/37 migration regressions passed.
 - Fixed supplier reminder filtering, completed-item due-date visibility, Annual Revenue required-state retention, and server-side supplier GHG restrictions. Custom fuels, Process Emissions, and Flaring are denied unless the parent program explicitly enables each policy.
+- Connected supplier GHG program settings to the shared GHG form so disallowed Flaring, Process Emissions, and Custom Fuel controls are hidden as well as API-blocked; corrected generic supplier POST rejection behavior.
 - Unit-driven monthly/yearly Density visibility, requiredness, reverse EF normalization, API guards, and stable Add Emission modal opening.
 - Exact parent-program Scope 1/2 enforcement for supplier GHG; Scope 3 and Biogenic are excluded end-to-end.
 - Muted, clickable supplier navigation for Dashboard, Sinks, Base Year, and Analysis with full-page premium overlays.

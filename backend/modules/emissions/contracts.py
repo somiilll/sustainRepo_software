@@ -28,6 +28,7 @@ class EmissionRecordCreate(BaseModel):
     scope: str
     category: str
     category_code: Optional[str] = None
+    category_id: Optional[str] = None
     sub_category: str
     fuel_type: Optional[str] = None
 

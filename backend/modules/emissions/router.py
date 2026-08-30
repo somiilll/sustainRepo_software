@@ -1006,7 +1006,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             await assert_supplier_emission_capability(
                 supplier_relationship,
                 record_data.category,
-                record_data.category_id,
+                getattr(record_data, "category_id", None),
                 bool(record_data.is_custom_fuel),
             )
         except ValueError as error:
@@ -1383,7 +1383,7 @@ async def update_emission_record(
             await assert_supplier_emission_capability(
                 supplier_relationship,
                 record_data.category,
-                record_data.category_id,
+                getattr(record_data, "category_id", None),
                 bool(record_data.is_custom_fuel),
             )
         except ValueError as error:

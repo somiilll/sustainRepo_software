@@ -15,6 +15,11 @@
 - Added immutable-program policy flags for supplier custom fuels, Process Emissions, and Flaring. All are disabled by default and rejected by both supplier-specific and generic emission APIs unless explicitly enabled by the parent.
 - Initial Python/ESLint/API/UI smoke checks passed before the user requested no further testing. **NOT TESTED** after that instruction; no mocked APIs were added.
 
+## August 30, 2026 — Supplier GHG Program Policy Visibility
+- Routed immutable supplier-program permissions into the shared GHG create/edit form. Process Emissions and Flaring are now hidden unless returned as program-allowed categories; Custom Fuel is hidden unless the program enables it.
+- Corrected the generic supplier emission contract to include optional `category_id`, preventing a direct restricted payload from producing a 500. It now returns a controlled 403 rejection.
+- Verified with 2 frontend policy unit tests, 6 backend supplier-policy tests, a live API request, Python compilation, and a supplier `/ghg` browser flow. No mocked APIs.
+
 ## August 28, 2026 — Unit-Driven Density and Reverse EF Conversion
 - Added one shared density-state resolver for monthly/yearly rendering, validation, calculation preparation, and API enforcement.
 - Density now appears only for a real mass/volume mismatch. Valid standard-fuel density is an overridable default; missing density becomes required with the correct directional unit.

@@ -1202,10 +1202,17 @@ async def get_my_emissions_config(current_user: dict = Depends(get_supplier_user
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
     enabled_scopes = await ghg_submission_service.resolve_effective_supplier_ghg_scopes(relationship)
     reporting_assignment = ghg_submission_service.describe_reporting_period(relationship.get("reporting_period")) or {}
+    program_context = await supplier_service.get_program_context(relationship)
+    ghg_module = ((program_context.get("config") or {}).get("modules") or {}).get("ghg") or {}
     return {
         **reporting_assignment,
         "enabled_scopes": enabled_scopes,
         "categories": await _parent_ghg_categories(relationship),
+        "permissions": {
+            "allow_custom_fuels": bool(ghg_module.get("allow_custom_fuels", False)),
+            "allow_process_emissions": bool(ghg_module.get("allow_process_emissions", False)),
+            "allow_flaring": bool(ghg_module.get("allow_flaring", False)),
+        },
     }
 
 

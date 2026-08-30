@@ -498,3 +498,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Edit Supplier now preserves the stored `revenue_required` value in form state, preventing Annual Revenue from being inadvertently reset to Optional on any unrelated edit.
 - Supplier GHG policies now deny custom fuels, Process Emissions, and Flaring by default at both supplier and generic emission API boundaries. Parent Organization Config can explicitly allow each capability, and the supplier category list hides disallowed special categories.
 - Python compilation, frontend ESLint, live reminder API checks, and one authenticated reminder-picker smoke check passed before the user directed `dont test`. No remaining functional or automated verification was run after that direction.
+
+## Latest Changes — 2026-08-30 (Supplier GHG Configuration Visibility)
+- Connected the shared `/ghg` supplier create and edit experiences to the immutable supplier assessment-program permissions returned by `/api/supplier-assessment/my-assessment/emissions/config`.
+- When the program disables Custom Fuels, Process Emissions, or Flaring, the supplier form now hides the Custom Fuel control and the restricted Scope 1 category options. Regular organization/admin GHG forms retain their broader configured choices.
+- Fixed the generic `POST /api/emissions` supplier path to accept the optional `category_id` contract field and safely reject prohibited payloads with 403 rather than raising an AttributeError/500.
+- Validation passed: focused frontend policy tests (2/2), supplier backend permission suite (6/6 feature tests), Python compilation, direct API rejection (403), and authenticated supplier UI smoke check. The preview's `OPTIONS /api/auth/login` wildcard CORS header is injected by Cloudflare (`server: cloudflare`), while backend source already uses an explicit `CORS_ORIGINS` allowlist; it is outside this application code path.

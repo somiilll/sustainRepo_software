@@ -51,7 +51,11 @@ import {
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
-import { filterSupplierVisibleScopes } from '../modules/supplier-assessment/utils/supplierScopeAccess';
+import {
+  filterSupplierVisibleScopes,
+  filterSupplierVisibleCategories,
+  resolveSupplierGhgOverrides,
+} from '../modules/supplier-assessment/utils/supplierScopeAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -80,6 +84,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     refresh: fetchData
   } = useEmissionsCoreData(getAuthHeader, { isSupplier: isSupplierUser });
   const effectiveOrganizationGhgOverrides = organizationGhgOverrides || resolvedOrganizationGhgOverrides;
+  const effectiveSupplierGhgOverrides = useMemo(() => (
+    isSupplierUser
+      ? resolveSupplierGhgOverrides(effectiveOrganizationGhgOverrides, supplierReportingConfig)
+      : effectiveOrganizationGhgOverrides
+  ), [isSupplierUser, effectiveOrganizationGhgOverrides, supplierReportingConfig]);
   
   // ============================================================================
   // KPI ASSIGNMENT-BASED ACCESS CONTROL
@@ -462,11 +471,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const editGhgFormArchitecture = useMemo(
     () => resolveGhgFormArchitecture({
       standardConfig: editFormConfig,
-      organizationOverrides: effectiveOrganizationGhgOverrides,
+      organizationOverrides: effectiveSupplierGhgOverrides,
       formContext: editGhgFormContext,
       biogenicScopeSelection,
     }),
-    [editFormConfig, effectiveOrganizationGhgOverrides, editGhgFormContext, biogenicScopeSelection],
+    [editFormConfig, effectiveSupplierGhgOverrides, editGhgFormContext, biogenicScopeSelection],
   );
   const editCapabilities = editGhgFormArchitecture.capabilities;
   const editGhgFieldOptions = editGhgFormArchitecture.resolvedFieldOptions;
@@ -1610,11 +1619,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   }, [formData.scope, formData.category, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
 
   const getCategoriesForScope = useMemo(() => resolveGhgCategoryOptions({
-    standardCategories: standardCategoriesForScope,
+    standardCategories: isSupplierUser
+      ? filterSupplierVisibleCategories(standardCategoriesForScope, resolveEffectiveScopeCode(formData.scope, biogenicScopeSelection), supplierReportingConfig)
+      : standardCategoriesForScope,
     scopeCode: resolveEffectiveScopeCode(formData.scope, biogenicScopeSelection),
     categoryDefinitions: dynamicCategories,
-    organizationOverrides: effectiveOrganizationGhgOverrides,
-  }), [standardCategoriesForScope, formData.scope, biogenicScopeSelection, dynamicCategories, effectiveOrganizationGhgOverrides]);
+    organizationOverrides: effectiveSupplierGhgOverrides,
+  }), [standardCategoriesForScope, formData.scope, biogenicScopeSelection, dynamicCategories, isSupplierUser, supplierReportingConfig, effectiveSupplierGhgOverrides]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
@@ -3136,7 +3147,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   getAuthHeader={getAuthHeader}
                   configLabels={configLabels}
                   organization={organization}
-                  organizationGhgOverrides={effectiveOrganizationGhgOverrides}
+                  organizationGhgOverrides={effectiveSupplierGhgOverrides}
+                  supplierGhgConfig={isSupplierUser ? supplierReportingConfig : null}
+                  supplierContext={isSupplierUser}
                   assignedReportingPeriod={supplierReportingConfig}
                   onFormChange={markFormDirty}
                   kpiAccessInfo={kpiAccessInfo}

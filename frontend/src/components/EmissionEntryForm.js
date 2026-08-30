@@ -58,6 +58,7 @@ import {
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
+import { filterSupplierVisibleCategories } from '../modules/supplier-assessment/utils/supplierScopeAccess';
 
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
@@ -114,6 +115,7 @@ export default function EmissionEntryForm({
   // Future organization-specific GHG configuration. `null` today, which makes
   // resolveGhgConfig return the standard configuration untouched.
   organizationGhgOverrides = null,
+  supplierGhgConfig = null,
 }) {
   // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
@@ -1200,11 +1202,13 @@ export default function EmissionEntryForm({
   }, [fuelDatabase, scope, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
 
   const categoriesForScope = useMemo(() => resolveGhgCategoryOptions({
-    standardCategories: standardCategoriesForScope,
+    standardCategories: supplierContext
+      ? filterSupplierVisibleCategories(standardCategoriesForScope, resolveEffectiveScopeCode(scope, biogenicScopeSelection), supplierGhgConfig)
+      : standardCategoriesForScope,
     scopeCode: resolveEffectiveScopeCode(scope, biogenicScopeSelection),
     categoryDefinitions: dynamicCategories,
     organizationOverrides: organizationGhgOverrides,
-  }), [standardCategoriesForScope, scope, biogenicScopeSelection, dynamicCategories, organizationGhgOverrides]);
+  }), [standardCategoriesForScope, scope, biogenicScopeSelection, dynamicCategories, organizationGhgOverrides, supplierContext, supplierGhgConfig]);
 
   // ============================================================================
   // Dynamic Form Config - fields come from ce_input_field_mappings.
