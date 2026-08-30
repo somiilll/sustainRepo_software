@@ -971,6 +971,11 @@ async def get_my_assessment_onboarding(current_user: dict = Depends(get_supplier
 @router.post("/my-assessment/facility", response_model=FacilityResponse)
 async def create_my_supplier_facility(data: FacilityCreate, current_user: dict = Depends(get_supplier_user)):
     """Supplier-facing entry point that reuses the shared facility validation and persistence."""
+    relationship = await supplier_service.get_supplier_relationship_for_user(user_id=current_user["id"], user_org_id=current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    if not await ghg_submission_service.supplier_ghg_is_enabled(relationship):
+        raise HTTPException(status_code=403, detail="Facility setup is unavailable because GHG is not assigned to this supplier assessment")
     return await create_facility_for_organization(data, current_user["organization_id"], current_user)
 
 

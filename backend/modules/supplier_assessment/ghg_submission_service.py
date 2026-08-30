@@ -33,6 +33,11 @@ async def resolve_effective_supplier_ghg_scopes(relationship: Dict[str, Any]) ->
     return resolve_supplier_ghg_scopes({"ghg_scopes_enabled": ghg_module.get("scopes")})
 
 
+async def supplier_ghg_is_enabled(relationship: Dict[str, Any]) -> bool:
+    context = await resolve_program_context(relationship)
+    return bool((((context.get("config") or {}).get("modules") or {}).get("ghg") or {}).get("enabled", False))
+
+
 async def assert_supplier_emission_capability(
     relationship: Dict[str, Any],
     category: str | None,
@@ -42,6 +47,8 @@ async def assert_supplier_emission_capability(
     """Apply the immutable parent-program restrictions to supplier GHG payloads."""
     context = await resolve_program_context(relationship)
     ghg_module = ((context.get("config") or {}).get("modules") or {}).get("ghg") or {}
+    if not ghg_module.get("enabled", False):
+        raise ValueError("GHG is not assigned to this supplier assessment")
     normalized_category = " ".join(
         str(value or "").strip().casefold()
         for value in (category, category_id)
