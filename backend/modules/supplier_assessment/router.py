@@ -36,6 +36,7 @@ from modules.supplier_assessment.contracts import (
     SupplierEmissionRevisionHistoryResponse,
     SupplierDocumentResponse,
     SupplierDocumentStatusSubmit,
+    DueDateUpdate,
     TrainingUpdate,
     TrainingConsumptionEvent,
 )
@@ -344,6 +345,42 @@ async def get_document_supplier_responses(requirement_id: str, current_user: dic
         raise HTTPException(status_code=404, detail="Agreement not found")
     return response_data
 
+
+@router.patch("/documents/{requirement_id}")
+async def update_document_due_date(requirement_id: str, data: DueDateUpdate, current_user: dict = Depends(get_customer_admin)):
+    document = await documents_service.update_document_due_date(current_user["organization_id"], requirement_id, data.due_date)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document
+
+
+@router.get("/documents/{requirement_id}/assignments")
+async def get_document_assignments(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
+    result = await documents_service.list_document_assignments(current_user["organization_id"], requirement_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return result
+
+
+@router.post("/documents/{requirement_id}/assignments/{supplier_id}")
+async def assign_document_supplier(requirement_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    try:
+        await documents_service.assign_document_to_supplier(current_user["organization_id"], requirement_id, supplier_id, current_user["id"])
+        await supplier_service._update_completion_status(supplier_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return {"message": "Document assigned"}
+
+
+@router.delete("/documents/{requirement_id}/assignments/{supplier_id}")
+async def unassign_document_supplier(requirement_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    try:
+        await documents_service.unassign_document_from_supplier(current_user["organization_id"], requirement_id, supplier_id)
+        await supplier_service._update_completion_status(supplier_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return {"message": "Document unassigned"}
+
 @router.get("/documents/{requirement_id}/preview")
 async def preview_document(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
     try:
@@ -392,6 +429,34 @@ async def update_training(training_id: str, data: TrainingUpdate, current_user: 
     if not training:
         raise HTTPException(status_code=404, detail="Training not found")
     return training
+
+
+@router.get("/trainings/{training_id}/assignments")
+async def get_training_assignments(training_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
+    result = await training_service.list_training_assignments(current_user["organization_id"], training_id, reporting_period)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Training not found")
+    return result
+
+
+@router.post("/trainings/{training_id}/assignments/{supplier_id}")
+async def assign_training_supplier(training_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    try:
+        await training_service.assign_training_to_supplier(current_user["organization_id"], training_id, supplier_id)
+        await supplier_service._update_completion_status(supplier_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return {"message": "Training assigned"}
+
+
+@router.delete("/trainings/{training_id}/assignments/{supplier_id}")
+async def unassign_training_supplier(training_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    try:
+        await training_service.unassign_training_from_supplier(current_user["organization_id"], training_id, supplier_id)
+        await supplier_service._update_completion_status(supplier_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return {"message": "Training unassigned"}
 
 @router.delete("/trainings/{training_id}")
 async def delete_training(training_id: str, current_user: dict = Depends(get_customer_admin)):
@@ -482,6 +547,34 @@ async def get_questionnaire_submissions(
     if not result:
         raise HTTPException(status_code=404, detail="Questionnaire not found")
     return result
+
+
+@router.get("/questionnaires/{questionnaire_id}/assignments")
+async def get_questionnaire_assignments(questionnaire_id: str, current_user: dict = Depends(get_customer_admin)):
+    result = await supplier_service.list_questionnaire_assignments(current_user["organization_id"], questionnaire_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Questionnaire not found")
+    return result
+
+
+@router.post("/questionnaires/{questionnaire_id}/assignments/{supplier_id}")
+async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    try:
+        await supplier_service.assign_questionnaire_to_supplier(current_user["organization_id"], questionnaire_id, supplier_id)
+        await supplier_service._update_completion_status(supplier_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return {"message": "Questionnaire assigned"}
+
+
+@router.delete("/questionnaires/{questionnaire_id}/assignments/{supplier_id}")
+async def unassign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    try:
+        await supplier_service.unassign_questionnaire_from_supplier(current_user["organization_id"], questionnaire_id, supplier_id)
+        await supplier_service._update_completion_status(supplier_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return {"message": "Questionnaire unassigned"}
 
 
 @router.put("/questionnaires/{questionnaire_id}", response_model=QuestionnaireResponse)

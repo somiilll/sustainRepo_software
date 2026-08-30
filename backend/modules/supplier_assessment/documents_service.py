@@ -268,6 +268,90 @@ async def synchronize_document_assignments(
     return list(selected_requirement_ids)
 
 
+async def update_document_due_date(customer_org_id: str, requirement_id: str, due_date: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Keep every active program-specific requirement for one document version on one deadline."""
+    requirement = await db.supplier_document_requirements.find_one(
+        {"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    )
+    if not requirement:
+        return None
+    now = _now()
+    await db.supplier_document_requirements.update_many(
+        {"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True},
+        {"$set": {"due_date": due_date or None, "updated_at": now}},
+    )
+    return await db.supplier_document_requirements.find_one({"id": requirement_id}, {"_id": 0})
+
+
+async def list_document_assignments(customer_org_id: str, requirement_id: str) -> Optional[Dict[str, Any]]:
+    requirement = await db.supplier_document_requirements.find_one(
+        {"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    )
+    if not requirement:
+        return None
+    requirements = await db.supplier_document_requirements.find(
+        {"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True}, {"_id": 0}
+    ).to_list(1000)
+    suppliers = await db.supplier_relationships.find(
+        {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1}
+    ).to_list(1000)
+    rows = []
+    for supplier in suppliers:
+        applicable = next((item for item in requirements if _is_requirement_available_to_relationship(item, supplier)), None)
+        submission = await db.supplier_document_submissions.find_one(
+            {"supplier_relationship_id": supplier["id"], "document_version_id": requirement["document_version_id"], "is_current": True},
+            {"_id": 0, "status": 1},
+        )
+        submitted = bool(submission and submission.get("status") == "submitted")
+        rows.append({
+            "supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"),
+            "is_assigned": bool(applicable), "status": "submitted" if submitted else "pending",
+            "can_unassign": bool(applicable) and not submitted,
+        })
+    return {"document_id": requirement_id, "document_version_id": requirement["document_version_id"], "assignments": rows}
+
+
+async def assign_document_to_supplier(customer_org_id: str, requirement_id: str, supplier_relationship_id: str, assigned_by: str) -> None:
+    source = await db.supplier_document_requirements.find_one(
+        {"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    )
+    relationship = await db.supplier_relationships.find_one(
+        {"id": supplier_relationship_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    )
+    if not source or not relationship:
+        raise ValueError("Document or supplier is unavailable")
+    await assign_existing_documents_to_supplier(customer_org_id, relationship, [source["id"]], assigned_by)
+
+
+async def unassign_document_from_supplier(customer_org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:
+    source = await db.supplier_document_requirements.find_one(
+        {"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    )
+    relationship = await db.supplier_relationships.find_one(
+        {"id": supplier_relationship_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    )
+    if not source or not relationship:
+        raise ValueError("Document or supplier is unavailable")
+    submitted = await db.supplier_document_submissions.find_one(
+        {"supplier_relationship_id": supplier_relationship_id, "document_version_id": source["document_version_id"], "is_current": True, "status": "submitted"}, {"_id": 0, "id": 1}
+    )
+    if submitted:
+        raise ValueError("A submitted document response cannot be unassigned")
+    requirements = await db.supplier_document_requirements.find(
+        {"customer_org_id": customer_org_id, "document_version_id": source["document_version_id"], "is_active": True}, {"_id": 0}
+    ).to_list(1000)
+    for requirement in requirements:
+        if not _is_requirement_available_to_relationship(requirement, relationship):
+            continue
+        assigned = set(requirement.get("supplier_relationship_ids") or [])
+        excluded = set(requirement.get("excluded_supplier_relationship_ids") or [])
+        assigned.discard(supplier_relationship_id)
+        excluded.add(supplier_relationship_id)
+        await db.supplier_document_requirements.update_one(
+            {"id": requirement["id"]}, {"$set": {"supplier_relationship_ids": list(assigned), "excluded_supplier_relationship_ids": list(excluded), "updated_at": _now()}}
+        )
+
+
 async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str, Any]]:
     requirements = await db.supplier_document_requirements.find(
         {

@@ -5,6 +5,7 @@
 ### Supplier Reporting Policy
 - Make supplier facility allowance an intentional configurable policy instead of a fallback.
 - Add monthly and quarterly supplier GHG submission windows that lock individual periods rather than only annual assignments.
+- Add a deliberate parent-controlled migration/reassignment flow for existing suppliers when a new immutable assessment-program revision changes supplier GHG permissions (Custom Fuels, Process Emissions, or Flaring). Existing and newly added suppliers must be able to be aligned explicitly without silently changing issued assessments.
 
 ### User Verification
 - Verify GHG period row limits in the live workflow:

@@ -91,13 +91,15 @@ const FieldInfo = ({ label, testId }) => (
   </TooltipProvider>
 );
 
-const ViewSupplierProgress = ({ supplier }) => {
+const ViewSupplierProgress = ({ supplier, submissionStatus }) => {
+  if (!submissionStatus) return <div className="border-t pt-4 text-sm text-stone-500" data-testid="supplier-module-progress-loading">Loading assigned module progress…</div>;
+  const visibility = submissionStatus.module_visibility || {};
   const modules = [
     { code: 'esg', label: 'ESG Questionnaire', value: supplier.esg_completion_percent, tone: 'bg-blue-500' },
     { code: 'ghg', label: 'GHG Emissions', value: supplier.ghg_completion_percent, tone: 'bg-emerald-500' },
     { code: 'documents', label: 'Documents', value: supplier.documents_completion_percent, tone: 'bg-teal-500' },
     { code: 'training', label: 'Training', value: supplier.training_completion_percent, tone: 'bg-amber-500' },
-  ];
+  ].filter((module) => visibility[module.code]);
   return <div className="border-t pt-4" data-testid="supplier-module-progress"><Label className="text-stone-500">Completion Progress</Label><div className="mt-3 grid gap-4 sm:grid-cols-2">{modules.map((module) => { const progress = Math.round(module.value || 0); return <div key={module.code} data-testid={`supplier-${module.code}-progress`}><div className="flex items-center justify-between gap-3 text-sm"><span>{module.label}</span><span className="font-medium" data-testid={`supplier-${module.code}-progress-percent`}>{progress}%</span></div><div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-stone-200" data-testid={`supplier-${module.code}-progress-track`}><div className={`h-2 rounded-full transition-[width] duration-500 ${module.tone}`} style={{ width: `${progress}%` }} data-testid={`supplier-${module.code}-progress-bar`} /></div></div>; })}</div></div>;
 };
 
@@ -984,7 +986,7 @@ export default function SupplierList() {
                 </div>
               </div>
               
-              <ViewSupplierProgress supplier={selectedSupplier} />
+              <ViewSupplierProgress supplier={selectedSupplier} submissionStatus={submissionStatus} />
               {submissionStatus?.esg?.length > 0 && <div className="border-t pt-4" data-testid="supplier-esg-submission-controls">
                 <Label className="text-stone-500">Locked ESG submissions</Label>
                 <div className="mt-2 space-y-2">{submissionStatus.esg.map((submission) => <div key={submission.questionnaire_id} className="flex items-center justify-between gap-3 rounded-md border p-2" data-testid={`supplier-esg-submission-${submission.questionnaire_id}`}><span className="text-sm">Submitted {submission.submitted_at ? new Date(submission.submitted_at).toLocaleDateString() : ''}</span><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => openReview(submission.questionnaire_id)} data-testid={`review-supplier-questionnaire-${submission.questionnaire_id}`}><ClipboardCheck className="mr-1 h-4 w-4" />Review</Button><Button variant="outline" size="sm" disabled={unlockingQuestionnaireId === submission.questionnaire_id} onClick={() => unlockQuestionnaire(submission.questionnaire_id)} data-testid={`unlock-supplier-questionnaire-${submission.questionnaire_id}`}>{unlockingQuestionnaireId === submission.questionnaire_id ? 'Unlocking…' : 'Unlock'}</Button></div></div>)}</div>

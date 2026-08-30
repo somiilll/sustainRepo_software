@@ -147,6 +147,10 @@ class TrainingUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class DueDateUpdate(BaseModel):
+    due_date: Optional[str] = None
+
+
 class TrainingConsumptionEvent(BaseModel):
     event_type: Literal["page_view", "media_progress"]
     unit_index: Optional[int] = Field(default=None, ge=1)

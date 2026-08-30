@@ -1,5 +1,8 @@
 # ESG Platform Changelog
 
+## August 30, 2026 — Roadmap Update
+- Added P0: a deliberate migration/reassignment workflow for existing suppliers after parent GHG permission changes, preserving immutable issued assessments while allowing explicit alignment with newer program revisions.
+
 ## August 30, 2026 — Canonical ESG Response Migration
 - Removed runtime dependencies on the deprecated `esg_responses` collection across questionnaire approvals, completion, BRSR/GRI retrieval, and Internal Data AI history.
 - Standardized current questionnaire responses on flat `organization_esg_responses` documents and retained immutable approval history in `esg_responses_versions`.

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
+from modules.supplier_assessment.programs import resolve_program_context
 
 # ========================================================================
 # Questionnaire Management (Customer Admin)
@@ -154,6 +155,56 @@ async def update_questionnaire(
         {"$set": updates}
     )
     return await self.get_questionnaire(questionnaire_id)
+
+
+async def list_questionnaire_assignments(self, customer_org_id: str, questionnaire_id: str) -> Optional[Dict[str, Any]]:
+    questionnaire = await db.supplier_questionnaires.find_one({"id": questionnaire_id, "organization_id": customer_org_id, "is_active": True}, {"_id": 0})
+    if not questionnaire:
+        return None
+    supplier_query = {"customer_org_id": customer_org_id, "is_active": True}
+    if questionnaire.get("assignment_reporting_period"):
+        supplier_query["reporting_period"] = questionnaire["assignment_reporting_period"]
+    suppliers = await db.supplier_relationships.find(supplier_query, {"_id": 0, "id": 1, "company_name": 1, "questionnaire_ids": 1, "reporting_period": 1}).to_list(1000)
+    assigned_ids = set(questionnaire.get("assigned_supplier_ids") or [])
+    responses = await db.supplier_questionnaire_responses.find(
+        {"questionnaire_id": questionnaire_id, "supplier_relationship_id": {"$in": [supplier["id"] for supplier in suppliers]}, "is_current": True}, {"_id": 0, "supplier_relationship_id": 1, "status": 1}
+    ).to_list(1000)
+    response_statuses = {response["supplier_relationship_id"]: response.get("status") for response in responses}
+    rows = []
+    for supplier in suppliers:
+        is_assigned = supplier["id"] in assigned_ids or ("questionnaire_ids" in supplier and questionnaire_id in (supplier.get("questionnaire_ids") or []))
+        status = response_statuses.get(supplier["id"], "not_started")
+        rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"), "is_assigned": is_assigned, "status": status, "can_unassign": is_assigned and status != "submitted"})
+    return {"questionnaire_id": questionnaire_id, "assignments": rows}
+
+
+async def assign_questionnaire_to_supplier(self, customer_org_id: str, questionnaire_id: str, supplier_relationship_id: str) -> None:
+    questionnaire = await db.supplier_questionnaires.find_one({"id": questionnaire_id, "organization_id": customer_org_id, "is_active": True}, {"_id": 0, "assigned_supplier_ids": 1})
+    relationship = await db.supplier_relationships.find_one({"id": supplier_relationship_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1})
+    if not questionnaire or not relationship:
+        raise ValueError("Questionnaire or supplier is unavailable")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.supplier_questionnaires.update_one({"id": questionnaire_id}, {"$addToSet": {"assigned_supplier_ids": supplier_relationship_id}, "$set": {"assignment_mode": "selected", "updated_at": now}})
+    await db.supplier_relationships.update_one({"id": supplier_relationship_id}, {"$addToSet": {"questionnaire_ids": questionnaire_id}, "$set": {"updated_at": now}})
+
+
+async def unassign_questionnaire_from_supplier(self, customer_org_id: str, questionnaire_id: str, supplier_relationship_id: str) -> None:
+    response = await db.supplier_questionnaire_responses.find_one(
+        {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "is_current": True, "status": "submitted"}, {"_id": 0, "id": 1}
+    )
+    if response:
+        raise ValueError("A submitted questionnaire cannot be unassigned")
+    questionnaire = await db.supplier_questionnaires.find_one({"id": questionnaire_id, "organization_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1})
+    relationship = await db.supplier_relationships.find_one({"id": supplier_relationship_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "questionnaire_ids": 1})
+    if not questionnaire or not relationship:
+        raise ValueError("Questionnaire or supplier is unavailable")
+    now = datetime.now(timezone.utc).isoformat()
+    if "questionnaire_ids" not in relationship:
+        active_ids = [item["id"] for item in await db.supplier_questionnaires.find({"organization_id": customer_org_id, "is_active": True, "id": {"$ne": questionnaire_id}}, {"_id": 0, "id": 1}).to_list(1000)]
+        await db.supplier_relationships.update_one({"id": supplier_relationship_id}, {"$set": {"questionnaire_ids": active_ids, "updated_at": now}})
+    else:
+        await db.supplier_relationships.update_one({"id": supplier_relationship_id}, {"$pull": {"questionnaire_ids": questionnaire_id}, "$set": {"updated_at": now}})
+    await db.supplier_questionnaires.update_one({"id": questionnaire_id}, {"$pull": {"assigned_supplier_ids": supplier_relationship_id}, "$set": {"assignment_mode": "selected", "updated_at": now}})
 
 async def delete_questionnaire(self, questionnaire_id: str) -> bool:
     """Soft delete questionnaire."""
@@ -1076,10 +1127,19 @@ async def get_supplier_submission_status(self, supplier_relationship_id: str) ->
         {"id": item["assignment_id"], "name": item.get("title", "Training"), "status": item.get("status", "pending"), "completed_at": item.get("completed_at"), "progress_percent": item.get("progress_percent", 0), "due_date": item.get("due_date") or relationship.get("due_date")}
         for item in await supplier_trainings(relationship)
     ]
+    program_context = await resolve_program_context(relationship)
+    program_modules = (program_context.get("config") or {}).get("modules") or {}
+    module_visibility = {
+        "esg": bool((program_modules.get("esg") or {}).get("enabled", False)),
+        "ghg": bool((program_modules.get("ghg") or {}).get("enabled", False)),
+        "documents": bool((program_modules.get("documents") or {}).get("enabled", False)) and bool(documents),
+        "training": bool((program_modules.get("training") or {}).get("enabled", False)) and bool(training),
+    }
     return {
         "esg": [item for item in esg_items if item["status"] == "locked"],
         "esg_items": esg_items,
         "ghg": {"status": "locked" if ghg_entries else "pending", "locked_at": locked_at, "entry_count": len(ghg_entries), "due_date": relationship.get("due_date")},
         "documents": documents,
         "training": training,
+        "module_visibility": module_visibility,
     }

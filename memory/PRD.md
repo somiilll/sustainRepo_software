@@ -490,6 +490,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Current Priorities
 - **P0:** Make supplier facility allowance an explicit configurable policy rather than a fallback.
 - **P0:** Add monthly and quarterly supplier GHG submission windows that lock individual reporting periods.
+- **P0:** Add an explicit existing-supplier assessment-program revision migration/reassignment flow so parents can align supplier GHG permissions after changing Custom Fuel, Process Emissions, or Flaring policy.
 - **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.
 
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
