@@ -57,6 +57,10 @@
 ## August 30, 2026 — Supplier GHG Submitted Totals
 - Promoted submitted Scope 1 and Scope 2 totals above current draft values in the supplier GHG summary.
 
+## August 30, 2026 — Published Emission Consumer Filter
+- Applied the shared published-record lifecycle filter to Internal AI analytics/evidence and Peer Benchmarking date discovery.
+- Kept operational lifecycle surfaces able to inspect drafts, pending approvals, rejected records, and history by design.
+
 ## August 28, 2026 — Unit-Driven Density and Reverse EF Conversion
 - Added one shared density-state resolver for monthly/yearly rendering, validation, calculation preparation, and API enforcement.
 - Density now appears only for a real mass/volume mismatch. Valid standard-fuel density is an overridable default; missing density becomes required with the correct directional unit.

@@ -539,3 +539,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 
 ## Latest Changes — 2026-08-30 (Supplier GHG Submitted Totals)
 - Supplier GHG summary cards now emphasize the most recently submitted Scope 1 and Scope 2 emissions totals. Current draft totals remain available as lower-priority supporting text.
+
+## Latest Changes — 2026-08-30 (Published Emission Consumer Filter)
+- Standardized Internal Data AI analytics and evidence retrieval plus Peer Benchmarking reporting-period discovery on `eligible_ghg_record_filter()`. These consumer paths now exclude draft, pending, rejected, deleted, superseded, and non-current emission rows and honor approval eligibility.
+- Lifecycle tools (approval queues, record editing/history, OCR reconciliation, and data-status diagnostics) retain deliberate access to non-published states because their functionality depends on them.

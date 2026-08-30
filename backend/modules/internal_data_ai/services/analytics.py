@@ -2,6 +2,7 @@
 from shared.database.mongo import db
 from modules.internal_data_ai.query_scope import and_filters, normalize_scope, organization_scope, resolve_authorized_facilities, scope_filter
 from modules.internal_data_ai.reporting_periods import annual_period_allocation_map, emission_period_filter, latest_available_period, period_from_payload
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 
 def _allocation_stages(period) -> list[dict]:
@@ -51,6 +52,7 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
 
     resolved_facilities = await resolve_authorized_facilities(db, org_id, facility_ids, facility_name)
     match_stage = organization_scope(org_id, resolved_facilities)
+    match_stage = and_filters(match_stage, eligible_ghg_record_filter())
     if scope:
         match_stage = and_filters(match_stage, scope_filter(scope))
     if category:
