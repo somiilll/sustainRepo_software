@@ -635,7 +635,7 @@ class AssignmentService:
             configs_list = await configs_cursor.to_list(500)
             question_configs = {c["question_key"]: c for c in configs_list}
         
-        # Fetch approval statuses from esg_responses for these questions
+        # Fetch approval statuses from organization_esg_responses for these questions
         # For parent questions (like gri_101_2_a), also get subpart responses (gri_101_2_a_i, gri_101_2_a_ii, etc.)
         approval_statuses = {}
         if question_entity_ids and reporting_period:
@@ -792,7 +792,7 @@ class AssignmentService:
                     doc["question_name"] = entity_id.replace("_", " ").title() if entity_id else ""
                     doc["section_id"] = None
                 
-                # Merge approval status AND completion status from esg_responses (source of truth)
+                # Merge approval and completion status from organization_esg_responses.
                 if entity_id and entity_id in approval_statuses:
                     status_data = approval_statuses[entity_id]
                     doc["approval_status"] = status_data.get("approval_status")

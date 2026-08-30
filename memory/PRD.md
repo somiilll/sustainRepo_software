@@ -478,3 +478,17 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Follow-up: split `questionnaire_service.py` further into authoring, supplier-response/evidence, and manual-review read-model modules when further maintenance is scheduled.
 
 - `/app/test_reports/iteration_30.json` — questionnaire-service facade delegation and regression verification.
+
+## Latest Changes — 2026-08-30 (Canonical ESG Response Migration)
+- Removed every production read/write dependency on the deprecated `esg_responses` collection. Questionnaire approval, completion, BRSR/GRI retrieval, and Internal Data AI history now use `organization_esg_responses`; immutable history remains in `esg_responses_versions`.
+- Migrated the legacy questionnaire queue and approve/reject helpers to canonical flat response documents, including approver edits, prior-approved-value restoration on rejection, organization-boundary checks, audit events, and version snapshots.
+- Restricted `/api/approval-workflows/questionnaire/queue` to questionnaire responses only. ESG and emission record approvals remain available through `/api/approval-workflows/requests` and are no longer duplicated in this queue.
+- Confirmed the legacy collection contained zero records, dropped it, and verified it remained absent after approval, rejection, reporting, completion, and history flows. Canonical records were preserved.
+- Verification passed: Python compilation, authenticated live-app smoke, frontend ESLint with zero errors, 37/37 independent migration regression checks after the queue isolation fix, plus 11 focused completion/history checks. No APIs were mocked. A standard `yarn lint` script now exposes the existing ESLint 9 configuration to automation.
+- `/app/test_reports/iteration_31.json` — initial independent migration run; its single queue-isolation finding was fixed and the exact 37-test suite then passed.
+
+## Current Priorities
+- **P0:** Make supplier facility allowance an explicit configurable policy rather than a fallback.
+- **P0:** Add monthly and quarterly supplier GHG submission windows that lock individual reporting periods.
+- **P1:** Reject Process Emissions, Flaring, and custom supplier fuels server-side unless explicitly permitted by the parent program.
+- **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.

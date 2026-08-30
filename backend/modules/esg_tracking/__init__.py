@@ -6,7 +6,7 @@ assignments, completion monitoring, and disclosure ownership management.
 
 This module aggregates data from:
 - esg_assignments (ownership)
-- esg_responses (completion data)
+- organization_esg_responses (completion data)
 - esg_question_configs (framework structure)
 - approval_requests (approval status)
 """

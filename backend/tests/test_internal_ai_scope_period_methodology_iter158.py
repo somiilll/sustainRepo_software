@@ -610,7 +610,7 @@ class TestEvidenceAndHistoryScoping:
     @pytest.mark.asyncio
     async def test_framework_version_history_should_include_org_filter_in_version_query(self, monkeypatch):
         fake_db = FakeDB({
-            "esg_responses": FakeCollection([
+            "organization_esg_responses": FakeCollection([
                 {"id": "rec-1", "organization_id": "org-a", "question_key": "q-1", "framework": "BRSR"}
             ]),
             "esg_responses_versions": FakeCollection([]),

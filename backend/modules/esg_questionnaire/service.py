@@ -1241,7 +1241,7 @@ class ESGQuestionnaireService:
         merged_value: Optional[str] = None,
     ) -> dict:
         """
-        Approve a submission and save to final esg_responses.
+        Approve a submission and save it to organization_esg_responses.
         
         If merged_value is provided, use that instead of the submission's value.
         This supports:
@@ -1600,7 +1600,7 @@ class ESGQuestionnaireService:
         2. If approval workflow ON and approver assigned → submissions go to approver queue
            - All saves create/update submissions in pending_approval state
            - Approver reviews and approves one (or merges)
-           - Only approved submission goes to esg_responses
+           - Only the approved submission becomes the canonical response
         
         Returns dict with:
           - success: bool
@@ -2327,7 +2327,7 @@ class ESGQuestionnaireService:
         approver_email: str,
     ) -> bool:
         """
-        Approve a submitted draft and save to final esg_responses.
+        Approve a submitted draft and save it to organization_esg_responses.
         Only drafts with status 'submitted' can be approved.
         """
         now = datetime.now(timezone.utc)
@@ -3209,7 +3209,7 @@ class ESGQuestionnaireService:
         
         This is called after a response is saved. It:
         1. Checks if there's an assignment for this question with requires_approval=True
-        2. Writes/updates the esg_responses collection with approval_status
+        2. Updates organization_esg_responses with approval_status
         3. Creates an approval_request if conditions are met
         4. Updates assignment status accordingly
         

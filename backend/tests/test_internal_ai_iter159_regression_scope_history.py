@@ -59,7 +59,7 @@ async def test_analytics_scope_variants_normalize_and_apply_org_facility_categor
 @pytest.mark.asyncio
 async def test_history_framework_version_query_is_org_scoped_and_allowlisted(monkeypatch):
     fake_db = FakeDB({
-        "esg_responses": FakeCollection([
+        "organization_esg_responses": FakeCollection([
             {"id": "rec-1", "organization_id": "org-a", "question_key": "q-1", "framework": "BRSR"},
         ]),
         "esg_responses_versions": FakeCollection([]),
@@ -77,7 +77,7 @@ async def test_history_framework_version_query_is_org_scoped_and_allowlisted(mon
 @pytest.mark.asyncio
 async def test_brsr_version_history_query_is_org_scoped(monkeypatch):
     fake_db = FakeDB({
-        "esg_responses": FakeCollection([
+        "organization_esg_responses": FakeCollection([
             {"id": "rec-1", "organization_id": "org-a", "question_key": "brsr_q1", "framework": "BRSR"},
         ]),
         "esg_responses_versions": FakeCollection([]),
@@ -86,13 +86,16 @@ async def test_brsr_version_history_query_is_org_scoped(monkeypatch):
 
     await brsr.get_version_history(org_id="org-a")
     query = fake_db.esg_responses_versions.find_calls[0]["query"]
-    assert query.get("organization_id") == "org-a"
+    assert query.get("organization_id") == "org-a" or any(
+        isinstance(clause, dict) and clause.get("organization_id") == "org-a"
+        for clause in query.get("$and", [])
+    )
 
 
 @pytest.mark.asyncio
 async def test_gri_version_history_query_is_org_scoped(monkeypatch):
     fake_db = FakeDB({
-        "esg_responses": FakeCollection([
+        "organization_esg_responses": FakeCollection([
             {"id": "rec-1", "organization_id": "org-a", "question_key": "gri_q1", "framework": "GRI"},
         ]),
         "esg_responses_versions": FakeCollection([]),

@@ -1,0 +1,52 @@
+{
+  "summary": "Executed focused backend migration regression for questionnaire approval flow and unified ESG response storage. 36/37 tests passed; one critical functional mismatch remains in questionnaire queue source isolation.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/approval-workflows/questionnaire/queue",
+        "issue": "Queue includes non-questionnaire pending records from approval_requests (e.g., emission_record) instead of only pending canonical questionnaire records from organization_esg_responses.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_questionnaire_migration_iter31.py",
+    "/app/backend/tests/test_questionnaire_approval_iter123.py",
+    "/app/backend/tests/test_unified_collection_iter128.py",
+    "/app/backend/tests/test_gri_approval_flow.py",
+    "/app/backend/tests/test_internal_ai_brsr_regressions.py",
+    "/app/backend/tests/test_internal_ai_iter159_regression_scope_history.py",
+    "/app/test_reports/pytest/pytest_results_iter31_migration.xml"
+  ],
+  "action_items": [
+    "Restrict ApprovalWorkflowService.get_questionnaire_approval_queue() to canonical questionnaire source only (organization_esg_responses with approval_status=pending_approval) and remove/guard PART 2 + PART 3 non-questionnaire appends for this endpoint.",
+    "Re-run /app/backend/tests/test_questionnaire_migration_iter31.py after queue source fix.",
+    "Optionally update stale comments in esg_assignments/service.py and esg_tracking/service.py that still mention esg_responses as source-of-truth, to avoid migration confusion."
+  ],
+  "critical_code_review_comments": [
+    "approval_workflow/service.py:get_questionnaire_approval_queue currently aggregates from three sources (canonical responses + approval_requests + pending_emission_records), violating strict questionnaire-only queue requirement.",
+    "Cross-organization guard in legacy questionnaire approve endpoint is functioning (response lookup scoped by approver organization).",
+    "Legacy esg_responses Mongo collection remained absent before and after tested flows; migration persistence checks passed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_questionnaire_migration_iter31.py",
+    "/app/backend/tests/test_internal_ai_brsr_regressions.py",
+    "/app/backend/tests/test_internal_ai_iter159_regression_scope_history.py",
+    "/app/test_reports/iteration_31.json"
+  ],
+  "success_rate": {
+    "backend": "97%",
+    "frontend": "N/A (skipped)"
+  },
+  "seed_data_creation": "Seeded temporary TEST_ITER31_* question configs, canonical responses, and one emission approval_request for isolation; cleaned up in pytest fixture teardown.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Latest run command: pytest test_questionnaire_migration_iter31.py test_questionnaire_approval_iter123.py test_unified_collection_iter128.py test_gri_approval_flow.py test_internal_ai_brsr_regressions.py test_internal_ai_iter159_regression_scope_history.py -v --tb=short --junitxml=/app/test_reports/pytest/pytest_results_iter31_migration.xml. Only failing case is questionnaire queue source pollution by seeded emission approval_request.",
+  "rca of the issue": "Repro: seed one pending organization_esg_responses doc and one pending approval_requests emission_record in same org; call GET /api/approval-workflows/questionnaire/queue as admin. Observed emission request id returned in items. Root cause: ApprovalWorkflowService.get_questionnaire_approval_queue() appends PART 2 approval_requests (entity_type emission_record/esg_record) and PART 3 pending_emission_records after querying canonical questionnaire responses. Mitigation: split queue responsibilities by endpoint (questionnaire endpoint should return only canonical questionnaire approvals) or add explicit source filter guard before appending non-questionnaire items."
+}

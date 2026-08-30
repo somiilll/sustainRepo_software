@@ -357,38 +357,6 @@ class DataChecker:
                             updated_at = DataChecker._parse_datetime(sub_data.get("updated_at") or parent_doc.get("updated_at"))
                             return True, updated_at, sub_data.get("approval_status")
         
-        # Fallback: Check legacy esg_responses collection for backward compatibility
-        legacy_query = {
-            "organization_id": organization_id,
-            "question_key": question_key,
-            "status": {"$ne": "draft"},
-        }
-        if period_key:
-            if len(period_key) == 4:
-                legacy_query["$or"] = [
-                    {"reporting_period": period_key},
-                    {"reporting_period": int(period_key)},
-                    {"reporting_period.year": int(period_key)},
-                    {"reporting_year": period_key},
-                ]
-            elif "-" in period_key:
-                legacy_query["$or"] = [
-                    {"reporting_period": period_key},
-                    {"reporting_year": period_key},
-                ]
-        
-        records = await db.esg_responses.find(
-            legacy_query,
-            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1, "value": 1}
-        ).to_list(100)
-        
-        # Filter for records with actual values
-        valid_records = [r for r in records if DataChecker._has_value(r.get("value"))]
-        
-        if valid_records:
-            last_updated, approval_status = DataChecker._get_best_approval_status(valid_records)
-            return True, last_updated, approval_status
-        
         # Check Section A nested responses format (question keys like brsr_a_*)
         # Section A stores data in: { section: "section_a", responses: { brsr_a_cin: "...", ... } }
         if question_key.startswith("brsr_a_"):

@@ -2,6 +2,10 @@
 
 ## P0 — Immediate
 
+### Supplier Reporting Policy
+- Make supplier facility allowance an intentional configurable policy instead of a fallback.
+- Add monthly and quarterly supplier GHG submission windows that lock individual periods rather than only annual assignments.
+
 ### User Verification
 - Verify GHG period row limits in the live workflow:
   - 10 monthly rows accepted for May and another 10 for June.
@@ -16,6 +20,10 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+- Enforce the supplier GHG category allow-list server-side: reject Process Emissions, Flaring, and custom fuels unless the parent program explicitly permits them.
+- Add multi-organization membership/context for suppliers that are also standalone customer organizations.
+- Add parent-configurable Supplier GHG dashboard widgets, KPIs, and visibility.
+- Implement a cleaner Supplier-to-Customer conversion architecture.
 - Fix the Supplier Documents `Submit and lock` confirmation dialog trigger.
 - Enable the ORG1 Training module in staging after explicit user confirmation.
 - Restart the staging backend/pod so the R2 singleton re-reads `R2_BUCKET_SUPPLIER_ASSESSMENT`.
@@ -49,6 +57,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Completed the canonical ESG response migration: all runtime reads/writes now use `organization_esg_responses`, immutable history remains in `esg_responses_versions`, the questionnaire queue is source-isolated, and the empty `esg_responses` collection was dropped after 37/37 migration regressions passed.
 - Unit-driven monthly/yearly Density visibility, requiredness, reverse EF normalization, API guards, and stable Add Emission modal opening.
 - Exact parent-program Scope 1/2 enforcement for supplier GHG; Scope 3 and Biogenic are excluded end-to-end.
 - Muted, clickable supplier navigation for Dashboard, Sinks, Base Year, and Analysis with full-page premium overlays.

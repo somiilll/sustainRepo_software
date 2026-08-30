@@ -1,5 +1,13 @@
 # ESG Platform Changelog
 
+## August 30, 2026 — Canonical ESG Response Migration
+- Removed runtime dependencies on the deprecated `esg_responses` collection across questionnaire approvals, completion, BRSR/GRI retrieval, and Internal Data AI history.
+- Standardized current questionnaire responses on flat `organization_esg_responses` documents and retained immutable approval history in `esg_responses_versions`.
+- Updated legacy approval helpers to preserve approver edits, rejection restoration, audit/version events, and organization isolation without dual writes.
+- Made the questionnaire approval queue questionnaire-only; record approvals continue through the canonical workflow request endpoint.
+- Dropped the empty legacy collection and verified it was not recreated.
+- Verification passed with the 37-test migration suite, 11 focused completion/history checks, Python compilation, frontend ESLint with zero errors, and live-app smoke testing. Added the missing `yarn lint` script for reliable automated lint execution. No mocked APIs.
+
 ## August 28, 2026 — Unit-Driven Density and Reverse EF Conversion
 - Added one shared density-state resolver for monthly/yearly rendering, validation, calculation preparation, and API enforcement.
 - Density now appears only for a real mass/volume mismatch. Valid standard-fuel density is an overridable default; missing density becomes required with the correct directional unit.

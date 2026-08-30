@@ -469,7 +469,7 @@ async def approve_submission(
     current_user: dict = Depends(get_approver_user)
 ):
     """
-    Approve a submission and save to final esg_responses.
+    Approve a submission and save to organization_esg_responses.
     
     Expects: {
         submission_id: "uuid",
@@ -794,7 +794,7 @@ async def approve_draft(
 ):
     """
     Approve a submitted draft (admin only).
-    Saves the draft data to final esg_responses.
+    Saves the draft data to organization_esg_responses.
     """
     org_id = current_user.get("organization_id")
     if not org_id:

@@ -62,8 +62,8 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
     if question_filter:
         common_filters.append(question_filter)
 
-    response_query = {"$and": [{"organization_id": org_id}, *common_filters]}
-    filled = await db.esg_responses.find(response_query, {"_id": 0}).sort("updated_at", -1).to_list(1000)
+    response_query = {"$and": [{"$or": [{"org_id": org_id}, {"organization_id": org_id}]}, *common_filters]}
+    filled = await db.organization_esg_responses.find(response_query, {"_id": 0}).sort("updated_at", -1).to_list(1000)
     submission_query = {"$and": [{"organization_id": org_id}, *common_filters]}
     submissions = await db.esg_response_submissions.find(
         submission_query,
@@ -74,12 +74,9 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
         for item in submissions if item.get("question_key")
     }
 
-    unified_query = {"$and": [{"$or": [{"org_id": org_id}, {"organization_id": org_id}]}, *common_filters]}
-    unified = await db.organization_esg_responses.find(unified_query, {"_id": 0}).sort("updated_at", -1).to_list(1000)
-
     records = []
     seen = set()
-    for record in filled + unified:
+    for record in filled:
         key = record.get("question_key")
         period = record.get("reporting_year") or record.get("reporting_period")
         if not key or record.get("value") in (None, "", [], {}):
@@ -126,11 +123,16 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
 async def get_version_history(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     """GRI response version history."""
     question_key = kwargs.get("metric") or kwargs.get("entity_name") or ""
-    source_query = {"organization_id": org_id, "framework": {"$in": _FW_VARIANTS}}
+    source_query = {
+        "$and": [
+            {"$or": [{"org_id": org_id}, {"organization_id": org_id}]},
+            {"framework": {"$in": _FW_VARIANTS}},
+        ]
+    }
     if question_key:
-        source_query["question_key"] = {"$regex": question_key, "$options": "i"}
+        source_query["$and"].append({"question_key": {"$regex": question_key, "$options": "i"}})
 
-    responses = await db.esg_responses.find(source_query, {"_id": 0, "id": 1, "question_key": 1}).to_list(1000)
+    responses = await db.organization_esg_responses.find(source_query, {"_id": 0, "id": 1, "question_key": 1}).to_list(1000)
     record_ids = [response["id"] for response in responses if response.get("id")]
     question_keys = [response["question_key"] for response in responses if response.get("question_key")]
     query = {"organization_id": org_id, "$or": [{"record_id": {"$in": record_ids}}, {"question_key": {"$in": question_keys}}]}

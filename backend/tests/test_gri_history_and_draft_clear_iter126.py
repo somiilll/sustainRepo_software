@@ -207,7 +207,7 @@ class TestQuestionnaireReturnsApprovedValue:
 
         # Note: Since the test key is synthetic, it may not appear in GRI section listing.
         # We validate via /draft endpoint (already covered) and via direct check that
-        # esg_responses shows approved.
+        # organization_esg_responses shows approved.
         # Just verify draft is cleared via draft endpoint
         get_draft = client.get(
             f"{API}/esg-questionnaire/draft/{FRAMEWORK_ID}/qn-{SUFFIX}",

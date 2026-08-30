@@ -36,7 +36,7 @@ class TrackingService:
     
     Aggregates data from:
     - esg_question_configs (framework structure)
-    - esg_responses (completion data)
+    - organization_esg_responses (completion data)
     - esg_assignments (ownership)
     - approval_requests (approval status)
     """
@@ -995,7 +995,7 @@ class TrackingService:
                 else:
                     unassigned += 1
                 
-                # Approval status - from esg_responses (single source of truth for questionnaires)
+                # Approval status comes from organization_esg_responses.
                 appr_status = None
                 if response and response.get("approval_status"):
                     appr_status = response.get("approval_status")

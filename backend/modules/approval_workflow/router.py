@@ -5,7 +5,7 @@ REST API endpoints for the Enterprise Approval Workflow Engine.
 """
 
 import logging
-from typing import Optional, List
+from typing import Any, Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -547,7 +547,7 @@ async def get_questionnaire_approval_queue(
 class QuestionnaireApprovalInput(BaseModel):
     """Input for questionnaire response approval."""
     comment: Optional[str] = None
-    updated_response: Optional[dict] = None  # If approver edited the response
+    updated_response: Optional[Any] = None  # If approver edited the response
 
 
 class QuestionnaireRejectionInput(BaseModel):

@@ -19,6 +19,7 @@ MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "test_database")
 
 ADMIN_EMAIL = "goyalsomil2001@gmail.com"
+USER_EMAIL = "goyalsomil+1@hotmail.com"
 ADMIN_PASSWORD = "TestUser123!"
 ORG_ID = "9067d872-8a3a-4ed9-8494-e3ef04952f7c"
 REPORTING_PERIOD = "FY 2026-2027"
@@ -34,18 +35,24 @@ def db():
     return MongoClient(MONGO_URL)[DB_NAME]
 
 
-@pytest.fixture(scope="module")
-def token():
+def _login(email):
     r = requests.post(f"{API}/auth/login",
-                      json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}, timeout=30)
+                      json={"email": email, "password": ADMIN_PASSWORD}, timeout=30)
     assert r.status_code == 200, r.text
     return r.json().get("access_token") or r.json().get("token")
 
 
 @pytest.fixture(scope="module")
-def client(token):
+def user_client():
     s = requests.Session()
-    s.headers.update({"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    s.headers.update({"Authorization": f"Bearer {_login(USER_EMAIL)}", "Content-Type": "application/json"})
+    return s
+
+
+@pytest.fixture(scope="module")
+def admin_client():
+    s = requests.Session()
+    s.headers.update({"Authorization": f"Bearer {_login(ADMIN_EMAIL)}", "Content-Type": "application/json"})
     return s
 
 
@@ -53,8 +60,13 @@ def client(token):
 def setup_approver(db):
     """Ensure approver assignment exists so save routes to approval queue."""
     ids = []
+    assignee_ids = []
+    user = db.users.find_one({"email": USER_EMAIL}, {"id": 1})
+    admin = db.users.find_one({"email": ADMIN_EMAIL}, {"id": 1})
+    assert user and admin
     for key in [SUB_KEY, PARENT_KEY, SIMPLE_KEY]:
         aid = str(uuid.uuid4())
+        assignee_id = str(uuid.uuid4())
         db.esg_assignments.insert_one({
             "id": aid,
             "organization_id": ORG_ID,
@@ -62,23 +74,30 @@ def setup_approver(db):
             "entity_type": "question",
             "reporting_period": REPORTING_PERIOD,
             "requires_approval": True,
-            "approver_user_id": "test-approver",
+            "approver_ids": [admin["id"]],
+        })
+        db.esg_assignment_assignees.insert_one({
+            "id": assignee_id,
+            "assignment_id": aid,
+            "organization_id": ORG_ID,
+            "user_id": user["id"],
+            "removed_at": None,
         })
         ids.append(aid)
+        assignee_ids.append(assignee_id)
     yield
+    for assignee_id in assignee_ids:
+        db.esg_assignment_assignees.delete_one({"id": assignee_id})
     for aid in ids:
         db.esg_assignments.delete_one({"id": aid})
     db.organization_esg_responses.delete_many(
-        {"org_id": ORG_ID, "question_key": {"$in": [PARENT_KEY, SIMPLE_KEY]}}
+        {"org_id": ORG_ID, "question_key": {"$in": [SUB_KEY, PARENT_KEY, SIMPLE_KEY]}}
     )
     db.esg_submissions.delete_many(
         {"organization_id": ORG_ID, "question_key": {"$in": [SUB_KEY, PARENT_KEY, SIMPLE_KEY]}}
     )
     db.approval_requests.delete_many(
         {"organization_id": ORG_ID, "entity_id": {"$in": [SUB_KEY, PARENT_KEY, SIMPLE_KEY]}}
-    )
-    db.esg_responses.delete_many(
-        {"organization_id": ORG_ID, "question_key": {"$in": [SUB_KEY, PARENT_KEY, SIMPLE_KEY]}}
     )
 
 
@@ -89,10 +108,10 @@ class TestGRIUnifiedCollection:
     submission_id_simple = None
     approval_request_id_sub = None
 
-    def test_01_save_sub_question_creates_nested_sub_responses(self, client, db):
-        """Save GRI sub-question -> parent doc with sub_responses.{sub_key}."""
+    def test_01_save_sub_question_creates_flat_canonical_response(self, user_client, db):
+        """Save a GRI sub-question as its own canonical flat response."""
         value = f"sub-value-{SUFFIX}"
-        r = client.post(f"{API}/esg-questionnaire/response", json={
+        r = user_client.post(f"{API}/esg-questionnaire/response", json={
             "question_key": SUB_KEY,
             "value": value,
             "reporting_period": REPORTING_PERIOD,
@@ -118,9 +137,9 @@ class TestGRIUnifiedCollection:
         assert (req.get("framework") or "").upper() == "GRI", f"framework={req.get('framework')}"
         TestGRIUnifiedCollection.approval_request_id_sub = req.get("id")
 
-    def test_03_approver_queue_endpoint_returns_framework(self, client):
+    def test_03_approver_queue_endpoint_returns_framework(self, admin_client):
         """/api/approval-workflows/requests should include framework field for esg_response."""
-        r = client.get(f"{API}/approval-workflows/requests",
+        r = admin_client.get(f"{API}/approval-workflows/requests",
                        params={"status": "pending", "my_approvals": True})
         assert r.status_code == 200, r.text
         requests_list = r.json().get("requests", [])
@@ -131,39 +150,30 @@ class TestGRIUnifiedCollection:
             f"framework not returned in approval-workflows/requests: {our_item}"
         )
 
-    def test_04_approve_updates_organization_esg_responses(self, client, db):
+    def test_04_approve_updates_organization_esg_responses(self, admin_client, db):
         """Approving should update approval_status in organization_esg_responses (unified)."""
         sid = TestGRIUnifiedCollection.submission_id_sub
         assert sid
-        r = client.post(f"{API}/esg-questionnaire/submissions/approve",
+        r = admin_client.post(f"{API}/esg-questionnaire/submissions/approve",
                         json={"submission_id": sid})
         assert r.status_code == 200, r.text
         data = r.json()
         assert data.get("success") is True, data
 
         time.sleep(0.5)
-        # Verify unified collection - parent doc with sub_responses
-        parent_doc = db.organization_esg_responses.find_one({
+        response_doc = db.organization_esg_responses.find_one({
             "org_id": ORG_ID,
-            "question_key": PARENT_KEY,
+            "question_key": SUB_KEY,
             "reporting_year": REPORTING_PERIOD,
         })
-        assert parent_doc is not None, (
-            f"Parent doc missing in organization_esg_responses for question_key={PARENT_KEY}"
-        )
-        sub_responses = parent_doc.get("sub_responses", {})
-        assert "i" in sub_responses, f"sub_responses missing 'i' key: {sub_responses}"
-        sub = sub_responses["i"]
-        assert sub.get("value") == f"sub-value-{SUFFIX}", sub
-        # After approval, status should be approved
-        assert sub.get("approval_status") == "approved" or sub.get("status") == "approved", (
-            f"Sub not approved: {sub}"
-        )
+        assert response_doc is not None, f"Canonical response missing for question_key={SUB_KEY}"
+        assert response_doc.get("value") == f"sub-value-{SUFFIX}", response_doc
+        assert response_doc.get("approval_status") == "approved", response_doc
 
-    def test_05_simple_question_creates_question_level_document(self, client, db):
+    def test_05_simple_question_creates_question_level_document(self, user_client, admin_client, db):
         """Simple (non-sub) GRI question should create its own question-level document."""
         value = f"simple-value-{SUFFIX}"
-        r = client.post(f"{API}/esg-questionnaire/response", json={
+        r = user_client.post(f"{API}/esg-questionnaire/response", json={
             "question_key": SIMPLE_KEY,
             "value": value,
             "reporting_period": REPORTING_PERIOD,
@@ -175,7 +185,7 @@ class TestGRIUnifiedCollection:
         assert data.get("status") in ("pending_approval", "saved", "approved"), data
         if data.get("submitted_for_approval"):
             sid = data.get("submission_id")
-            ar = client.post(f"{API}/esg-questionnaire/submissions/approve",
+            ar = admin_client.post(f"{API}/esg-questionnaire/submissions/approve",
                              json={"submission_id": sid})
             assert ar.status_code == 200, ar.text
 
@@ -189,10 +199,10 @@ class TestGRIUnifiedCollection:
         assert doc.get("value") == value, doc
         assert doc.get("framework") in ("GRI", None), doc
 
-    def test_06_completion_service_reads_unified(self, client, db):
+    def test_06_completion_service_reads_unified(self, admin_client, db):
         """Verify completion service can read via /api/esg-assignments/summary or similar."""
         # Use questionnaire GET endpoint which internally checks completion
-        r = client.get(f"{API}/esg-questionnaire/response/{SIMPLE_KEY}",
+        r = admin_client.get(f"{API}/esg-questionnaire/response/{SIMPLE_KEY}",
                        params={"reporting_period": REPORTING_PERIOD})
         # 200 or 404 both fine, we just need to check the underlying doc
         # We already validated the doc directly in db above
