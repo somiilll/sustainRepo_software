@@ -532,3 +532,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Aligned Documents and Training due-date actions to use the same calendar icon. Training action order mirrors Documents: Preview, Manage suppliers, Due date, then more actions.
 - Training's overflow menu is explicitly opaque white to avoid blending into content behind it.
 - **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Supplier Onboarding Copy)
+- Updated the supplier onboarding heading to “Welcome to Supplier Assessment of {Parent Organization}” while preserving the existing onboarding guidance.
+- **NOT TESTED** after implementation, per the user's explicit instruction.
