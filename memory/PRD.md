@@ -504,3 +504,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - When the program disables Custom Fuels, Process Emissions, or Flaring, the supplier form now hides the Custom Fuel control and the restricted Scope 1 category options. Regular organization/admin GHG forms retain their broader configured choices.
 - Fixed the generic `POST /api/emissions` supplier path to accept the optional `category_id` contract field and safely reject prohibited payloads with 403 rather than raising an AttributeError/500.
 - Validation passed: focused frontend policy tests (2/2), supplier backend permission suite (6/6 feature tests), Python compilation, direct API rejection (403), and authenticated supplier UI smoke check. The preview's `OPTIONS /api/auth/login` wildcard CORS header is injected by Cloudflare (`server: cloudflare`), while backend source already uses an explicit `CORS_ORIGINS` allowlist; it is outside this application code path.
+
+## Latest Changes — 2026-08-30 (Training Video Controls)
+- Removed Picture-in-Picture from both supplier training playback and the admin read-only training viewer. Video controls now disable Picture-in-Picture and remote playback while retaining normal in-page playback and progress tracking.
+- **NOT TESTED** after implementation, per the user's explicit instruction.
