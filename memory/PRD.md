@@ -490,5 +490,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Current Priorities
 - **P0:** Make supplier facility allowance an explicit configurable policy rather than a fallback.
 - **P0:** Add monthly and quarterly supplier GHG submission windows that lock individual reporting periods.
-- **P1:** Reject Process Emissions, Flaring, and custom supplier fuels server-side unless explicitly permitted by the parent program.
 - **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.
+
+## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
+- Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
+- Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.
+- Edit Supplier now preserves the stored `revenue_required` value in form state, preventing Annual Revenue from being inadvertently reset to Optional on any unrelated edit.
+- Supplier GHG policies now deny custom fuels, Process Emissions, and Flaring by default at both supplier and generic emission API boundaries. Parent Organization Config can explicitly allow each capability, and the supplier category list hides disallowed special categories.
+- Python compilation, frontend ESLint, live reminder API checks, and one authenticated reminder-picker smoke check passed before the user directed `dont test`. No remaining functional or automated verification was run after that direction.

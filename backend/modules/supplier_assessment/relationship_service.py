@@ -475,6 +475,44 @@ async def send_reminder(
     
     return True
 
+
+async def get_pending_reminder_modules(
+    self,
+    relationship_id: str,
+    reporting_period: Optional[str] = None,
+) -> List[Dict[str, str]]:
+    """Return the module picker data from the same canonical state as reminder emails."""
+    relationship = await self.get_supplier(relationship_id)
+    if not relationship:
+        return []
+    target_period = reporting_period or relationship.get("reporting_period") or self._default_reporting_period()
+    pending_items = await self._pending_reminder_modules(
+        relationship,
+        {"esg", "ghg", "documents", "training", "revenue"},
+        target_period,
+    )
+    code_by_prefix = {
+        "ESG Questionnaire": "esg",
+        "GHG Emissions": "ghg",
+        "Revenue Information": "revenue",
+        "Document:": "documents",
+        "Training:": "training",
+    }
+    pending_codes = {
+        code
+        for item in pending_items
+        for prefix, code in code_by_prefix.items()
+        if item.startswith(prefix)
+    }
+    labels = {
+        "esg": "ESG Questionnaire",
+        "ghg": "GHG Emissions",
+        "documents": "Documents",
+        "training": "Training",
+        "revenue": "Revenue Information",
+    }
+    return [{"code": code, "label": labels[code]} for code in labels if code in pending_codes]
+
 async def _pending_reminder_modules(self, relationship: Dict[str, Any], requested_modules: set[str], reporting_period: str) -> List[str]:
     pending = []
     labels = {
@@ -482,9 +520,29 @@ async def _pending_reminder_modules(self, relationship: Dict[str, Any], requeste
         "ghg": "GHG Emissions",
         "revenue": "Revenue Information",
     }
-    for module_code, completion_field in (("esg", "esg_completion_percent"), ("ghg", "ghg_completion_percent")):
-        if module_code in requested_modules and relationship.get(completion_field, 0) < 100:
-            pending.append(labels[module_code])
+    program_context = await resolve_program_context(relationship)
+    enabled_module_codes = {
+        module.module_code
+        for module in supplier_assessment_module_registry.enabled_modules(program_context["config"])
+    }
+    if "esg" in requested_modules and "esg" in enabled_module_codes:
+        esg_completion = await supplier_assessment_module_registry._modules["esg"].get_completion(db, relationship)
+        if esg_completion.is_applicable and esg_completion.completion_percent < 100:
+            pending.append(labels["esg"])
+    if "ghg" in requested_modules and "ghg" in enabled_module_codes:
+        from modules.supplier_assessment.ghg_submission_service import reporting_period_values
+        submitted_ghg = await db.emission_records.find_one(
+            {
+                "source": "supplier",
+                "supplier_relationship_id": relationship["id"],
+                "reporting_period": {"$in": reporting_period_values(reporting_period)},
+                "submitted_to_parent_org": {"$exists": True, "$ne": None},
+                "parent_visible": {"$ne": False},
+            },
+            {"_id": 0, "id": 1},
+        )
+        if not submitted_ghg:
+            pending.append(labels["ghg"])
     if "revenue" in requested_modules:
         revenue = await db.supplier_revenue_submissions.find_one(
             {"supplier_relationship_id": relationship["id"], "reporting_period": reporting_period, "status": "submitted", "parent_visible": {"$ne": False}},

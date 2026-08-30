@@ -100,11 +100,18 @@ async def _parent_ghg_categories(relationship: dict) -> dict:
         },
         {"_id": 0, "scope": 1, "category": 1, "category_id": 1},
     ).to_list(5000)
+    program_context = await supplier_service.get_program_context(relationship)
+    ghg_policy = ((program_context.get("config") or {}).get("modules") or {}).get("ghg") or {}
     categories = {scope: [] for scope in enabled_scopes}
     seen = set()
     for record in records:
         key = (record.get("scope"), record.get("category"))
-        if key in seen or key[0] not in categories:
+        normalized_category = f"{record.get('category') or ''} {record.get('category_id') or ''}".casefold()
+        restricted = (
+            ("process" in normalized_category and not ghg_policy.get("allow_process_emissions", False))
+            or ("flaring" in normalized_category and not ghg_policy.get("allow_flaring", False))
+        )
+        if key in seen or key[0] not in categories or restricted:
             continue
         seen.add(key)
         categories[key[0]].append({"value": record["category"], "label": record["category"], "category_id": record.get("category_id")})
@@ -741,6 +748,19 @@ async def get_supplier_submission_status(supplier_id: str, current_user: dict = 
     return await supplier_service.get_supplier_submission_status(supplier_id)
 
 
+@router.get("/suppliers/{supplier_id}/reminder-pending")
+async def get_supplier_reminder_pending_modules(supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    """Expose only currently incomplete modules for the reminder picker."""
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    modules = await supplier_service.get_pending_reminder_modules(
+        supplier_id,
+        reporting_period=supplier.get("reporting_period"),
+    )
+    return {"modules": modules}
+
+
 @router.post("/suppliers/{supplier_id}/emissions/reopen")
 async def reopen_supplier_ghg(supplier_id: str, current_user: dict = Depends(get_customer_admin)):
     supplier = await supplier_service.get_supplier(supplier_id)
@@ -1257,6 +1277,15 @@ async def create_my_emission(
             status_code=400, 
             detail=f"Scope {data.scope} is not enabled. Allowed: {allowed_scopes}"
         )
+    try:
+        await ghg_submission_service.assert_supplier_emission_capability(
+            relationship,
+            data.category,
+            data.category_id,
+            data.is_custom_fuel,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=403, detail=str(error))
     allowed_categories = {item["value"] for item in (await _parent_ghg_categories(relationship)).get(data.scope, [])}
     if data.category not in allowed_categories:
         raise HTTPException(status_code=400, detail="This emission category is not configured by your customer for the selected scope")
@@ -1371,6 +1400,8 @@ async def create_my_emission(
         "sub_category": data.sub_category,
         "fuel_type": data.fuel_type,
         "fuel_database_id": data.fuel_database_id,
+        "is_custom_fuel": data.is_custom_fuel,
+        "custom_fuel_name": data.custom_fuel_name,
         "dynamic_field_values": data.dynamic_field_values or {},
         "outputs": outputs,
         "formula_id": formula_id,

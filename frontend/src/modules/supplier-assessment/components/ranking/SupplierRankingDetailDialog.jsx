@@ -12,7 +12,8 @@ const statusStyle = (status) => (status === 'locked' || status === 'completed' ?
 const DetailItem = ({ item, Icon, accent }) => {
   const overdue = item.status !== 'locked' && item.status !== 'completed' && isPastDue(item.due_date);
   const status = overdue ? 'overdue' : item.status;
-  const context = item.status === 'locked' ? `Submitted ${formatDate(item.locked_at)}` : item.status === 'completed' ? `Completed ${item.completed_at ? formatDate(item.completed_at) : ''}` : overdue ? `Due ${formatDate(item.due_date)}` : item.status === 'in_progress' ? `${item.progress_percent || 0}% complete` : 'Awaiting supplier response';
+  const completionContext = item.status === 'locked' ? `Submitted ${formatDate(item.locked_at)}` : item.status === 'completed' ? `Completed ${item.completed_at ? formatDate(item.completed_at) : ''}` : overdue ? `Due ${formatDate(item.due_date)}` : item.status === 'in_progress' ? `${item.progress_percent || 0}% complete` : 'Awaiting supplier response';
+  const context = item.due_date && !overdue ? `${completionContext} · Due ${formatDate(item.due_date)}` : completionContext;
   return <div className={`flex items-center justify-between gap-3 border-l-2 ${overdue ? 'border-rose-400 bg-rose-50/50' : accent} px-3 py-2.5`}><div className="flex min-w-0 items-center gap-2"><Icon className="h-4 w-4 shrink-0" /><div className="min-w-0"><p className="truncate text-sm font-medium text-stone-800">{item.name}</p><p className="text-xs text-stone-500">{context}</p></div></div><Badge variant="outline" className={`shrink-0 text-xs ${statusStyle(status)}`} data-testid={`supplier-detail-status-${item.name}`}>{String(status).replace('_', ' ')}</Badge></div>;
 };
 

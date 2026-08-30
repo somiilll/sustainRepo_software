@@ -32,6 +32,7 @@ from modules.base_year.sync_service import (
 )
 from modules.entitlements.dependencies import assert_ghg_scope_access, assert_period_row_limit
 from modules.supplier_assessment.ghg_submission_service import (
+    assert_supplier_emission_capability,
     exclude_reopened_supplier_submission_revisions,
     reporting_period_values,
     resolve_effective_supplier_ghg_scopes,
@@ -1001,6 +1002,15 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                 status_code=403,
                 detail=f"{record_data.scope} is not assigned by your customer. Allowed scopes: {', '.join(allowed_supplier_scopes) or 'none'}",
             )
+        try:
+            await assert_supplier_emission_capability(
+                supplier_relationship,
+                record_data.category,
+                record_data.category_id,
+                bool(record_data.is_custom_fuel),
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=403, detail=str(error))
         if not supplier_emission_period_allowed(
             reporting_period,
             frequency_type,
@@ -1369,6 +1379,15 @@ async def update_emission_record(
                 status_code=403,
                 detail=f"{record_data.scope} is not assigned by your customer. Allowed scopes: {', '.join(allowed_supplier_scopes) or 'none'}",
             )
+        try:
+            await assert_supplier_emission_capability(
+                supplier_relationship,
+                record_data.category,
+                record_data.category_id,
+                bool(record_data.is_custom_fuel),
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=403, detail=str(error))
         if not supplier_emission_period_allowed(
             record_data.reporting_period,
             record_data.frequency_type,

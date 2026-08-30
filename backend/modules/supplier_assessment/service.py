@@ -59,6 +59,7 @@ class SupplierAssessmentService:
     update_supplier = _delegate_to(relationship_operations, relationship_operations.update_supplier)
     deactivate_supplier = _delegate_to(relationship_operations, relationship_operations.deactivate_supplier)
     send_reminder = _delegate_to(relationship_operations, relationship_operations.send_reminder)
+    get_pending_reminder_modules = _delegate_to(relationship_operations, relationship_operations.get_pending_reminder_modules)
     _pending_reminder_modules = _delegate_to(relationship_operations, relationship_operations._pending_reminder_modules)
     get_supplier_relationship_for_user = _delegate_to(relationship_operations, relationship_operations.get_supplier_relationship_for_user)
     update_revenue_info = _delegate_to(relationship_operations, relationship_operations.update_revenue_info)

@@ -8,6 +8,13 @@
 - Dropped the empty legacy collection and verified it was not recreated.
 - Verification passed with the 37-test migration suite, 11 focused completion/history checks, Python compilation, frontend ESLint with zero errors, and live-app smoke testing. Added the missing `yarn lint` script for reliable automated lint execution. No mocked APIs.
 
+## August 30, 2026 — Supplier Assessment State and Policy Repairs
+- Reminders now load and send only incomplete, parent-program-enabled modules for the supplier's assigned reporting period. The picker no longer presents completed work.
+- Restored due-date visibility after completion across parent assessment detail, supplier Documents, and supplier Trainings views.
+- Preserved `revenue_required` while opening Edit Supplier, avoiding accidental Annual Revenue requirement resets on save.
+- Added immutable-program policy flags for supplier custom fuels, Process Emissions, and Flaring. All are disabled by default and rejected by both supplier-specific and generic emission APIs unless explicitly enabled by the parent.
+- Initial Python/ESLint/API/UI smoke checks passed before the user requested no further testing. **NOT TESTED** after that instruction; no mocked APIs were added.
+
 ## August 28, 2026 — Unit-Driven Density and Reverse EF Conversion
 - Added one shared density-state resolver for monthly/yearly rendering, validation, calculation preparation, and API enforcement.
 - Density now appears only for a real mass/volume mismatch. Valid standard-fuel density is an overridable default; missing density becomes required with the correct directional unit.

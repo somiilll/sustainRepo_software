@@ -448,6 +448,8 @@ class SupplierEmissionCreate(BaseModel):
     sub_category: Optional[str] = None
     fuel_type: Optional[str] = None
     fuel_database_id: Optional[str] = None  # For emission factor lookup
+    is_custom_fuel: bool = False
+    custom_fuel_name: Optional[str] = None
     
     # Dynamic field values for calculation (same format as main emissions)
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}

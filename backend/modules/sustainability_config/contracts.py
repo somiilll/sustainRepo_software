@@ -163,6 +163,9 @@ class SupplierAssessmentModuleConfig(BaseModel):
 class SupplierAssessmentGhgModuleConfig(SupplierAssessmentModuleConfig):
     """GHG supplier-assessment controls; calculation controls stay out of config."""
     scopes: List[Literal["scope1", "scope2"]] = Field(default_factory=lambda: ["scope1", "scope2"])
+    allow_custom_fuels: bool = False
+    allow_process_emissions: bool = False
+    allow_flaring: bool = False
 
 
 class SupplierAssessmentModulesConfig(BaseModel):

@@ -33,6 +33,27 @@ async def resolve_effective_supplier_ghg_scopes(relationship: Dict[str, Any]) ->
     return resolve_supplier_ghg_scopes({"ghg_scopes_enabled": ghg_module.get("scopes")})
 
 
+async def assert_supplier_emission_capability(
+    relationship: Dict[str, Any],
+    category: str | None,
+    category_id: str | None = None,
+    is_custom_fuel: bool = False,
+) -> None:
+    """Apply the immutable parent-program restrictions to supplier GHG payloads."""
+    context = await resolve_program_context(relationship)
+    ghg_module = ((context.get("config") or {}).get("modules") or {}).get("ghg") or {}
+    normalized_category = " ".join(
+        str(value or "").strip().casefold()
+        for value in (category, category_id)
+    )
+    if is_custom_fuel and not ghg_module.get("allow_custom_fuels", False):
+        raise ValueError("Custom fuels are not permitted for this supplier assessment")
+    if "process" in normalized_category and not ghg_module.get("allow_process_emissions", False):
+        raise ValueError("Process Emissions are not permitted for this supplier assessment")
+    if "flaring" in normalized_category and not ghg_module.get("allow_flaring", False):
+        raise ValueError("Flaring is not permitted for this supplier assessment")
+
+
 def reporting_period_values(parent_period: str | None) -> list[str]:
     """Return the assigned annual label and its twelve valid supplier months."""
     assignment = describe_reporting_period(parent_period)

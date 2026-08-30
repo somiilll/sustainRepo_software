@@ -118,6 +118,8 @@ export default function SupplierList() {
   const [questionnaireAssignmentsLoaded, setQuestionnaireAssignmentsLoaded] = useState(false);
   const [reminderTarget, setReminderTarget] = useState(null);
   const [reminderModules, setReminderModules] = useState(['all']);
+  const [pendingReminderModules, setPendingReminderModules] = useState([]);
+  const [reminderModulesLoading, setReminderModulesLoading] = useState(false);
   const [reviewResponse, setReviewResponse] = useState(null);
   const resetAddSupplierForm = useCallback(() => setFormData(createSupplierForm(reportingPeriod)), [reportingPeriod]);
 
@@ -280,6 +282,7 @@ export default function SupplierList() {
       reporting_period: supplier.reporting_period || `CY${new Date().getFullYear()}`,
       modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
       ghg_scopes_enabled: supplier.ghg_scopes_enabled || ['scope1', 'scope2'],
+      revenue_required: supplier.revenue_required === true,
       questionnaire_ids: supplier.questionnaire_ids || [],
       document_requirement_ids: supplier.document_requirement_ids || [],
       training_requirement_ids: supplier.training_requirement_ids || [],
@@ -536,7 +539,7 @@ export default function SupplierList() {
                         variant="ghost"
                         size="icon"
                         className="h-9 w-9 text-stone-600 transition-[background-color,color] hover:bg-blue-50 hover:text-blue-700"
-                        onClick={() => { setReminderTarget(supplier); setReminderModules(['all']); }}
+                        onClick={() => { setReminderTarget(supplier); setReminderModules(['all']); setPendingReminderModules([]); setReminderModulesLoading(true); axios.get(`${API}/supplier-assessment/suppliers/${supplier.id}/reminder-pending`, { headers: getAuthHeader() }).then((response) => setPendingReminderModules(response.data.modules || [])).catch(() => toast.error('Could not load pending reminder items')).finally(() => setReminderModulesLoading(false)); }}
                         aria-label={`Send reminder to ${supplier.company_name}`}
                         title="Send Reminder"
                         data-testid={`remind-supplier-${supplier.id}`}
@@ -1022,8 +1025,8 @@ export default function SupplierList() {
       </Dialog>
       <Dialog open={Boolean(reminderTarget)} onOpenChange={(open) => !open && setReminderTarget(null)}>
         <DialogContent data-testid="supplier-reminder-dialog"><DialogHeader><DialogTitle>Send assessment reminder</DialogTitle></DialogHeader>
-          <div className="space-y-3"><p className="text-sm text-stone-600" data-testid="supplier-reminder-period">Reporting period: {reminderTarget?.reporting_period || 'Current period'}</p>{['all', 'esg', 'ghg', 'documents', 'training', 'revenue'].map((module) => <label key={module} className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes(module)} onCheckedChange={(checked) => setReminderModules(checked ? [...new Set([...reminderModules, module])] : reminderModules.filter((item) => item !== module))} data-testid={`supplier-reminder-module-${module}`} />{module === 'all' ? 'All pending modules' : module[0].toUpperCase() + module.slice(1)}</label>)}</div>
-          <DialogFooter><Button variant="outline" onClick={() => setReminderTarget(null)} data-testid="cancel-supplier-reminder-button">Cancel</Button><Button onClick={handleReminder} data-testid="send-supplier-reminder-button">Send reminder</Button></DialogFooter>
+          <div className="space-y-3"><p className="text-sm text-stone-600" data-testid="supplier-reminder-period">Reporting period: {reminderTarget?.reporting_period || 'Current period'}</p>{reminderModulesLoading ? <p className="text-sm text-stone-500" data-testid="supplier-reminder-loading">Checking incomplete modules…</p> : pendingReminderModules.length ? <><label className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes('all')} onCheckedChange={(checked) => setReminderModules(checked ? ['all'] : [])} data-testid="supplier-reminder-module-all" />All pending modules</label>{pendingReminderModules.map((module) => <label key={module.code} className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes('all') || reminderModules.includes(module.code)} onCheckedChange={(checked) => setReminderModules((current) => { const withoutAll = current.filter((item) => item !== 'all'); return checked ? [...new Set([...withoutAll, module.code])] : withoutAll.filter((item) => item !== module.code); })} data-testid={`supplier-reminder-module-${module.code}`} />{module.label}</label>)}</> : <p className="text-sm text-stone-500" data-testid="supplier-reminder-empty">No incomplete modules need a reminder.</p>}</div>
+          <DialogFooter><Button variant="outline" onClick={() => setReminderTarget(null)} data-testid="cancel-supplier-reminder-button">Cancel</Button><Button onClick={handleReminder} disabled={reminderModulesLoading || pendingReminderModules.length === 0 || reminderModules.length === 0} data-testid="send-supplier-reminder-button">Send reminder</Button></DialogFooter>
         </DialogContent>
       </Dialog>
       <SupplierResponseReviewDialog open={Boolean(reviewResponse)} onOpenChange={(open) => !open && setReviewResponse(null)} response={reviewResponse} supplierId={selectedSupplier?.id} getAuthHeader={getAuthHeader} onScoreSaved={() => { fetchSuppliers(); openReview(reviewResponse.id); }} />
