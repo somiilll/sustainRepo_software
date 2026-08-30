@@ -2349,14 +2349,14 @@ class ESGQuestionnaireService:
         if not draft:
             return False
         
-        # Save each question response to esg_responses (final)
+        # Save each approved answer to the unified current-response store.
         draft_data = draft.get("draft_data", {})
         for question_key, value in draft_data.items():
-            await db.esg_responses.update_one(
+            await db.organization_esg_responses.update_one(
                 {
-                    "organization_id": org_id,
+                    "org_id": org_id,
                     "question_key": question_key,
-                    "reporting_period": reporting_period,
+                    "reporting_year": reporting_period,
                 },
                 {
                     "$set": {
@@ -2375,7 +2375,7 @@ class ESGQuestionnaireService:
                     },
                     "$setOnInsert": {
                         "id": str(uuid.uuid4()),
-                        "organization_id": org_id,
+                        "org_id": org_id,
                         "question_key": question_key,
                         "reporting_period": reporting_period,
                         "created_at": now_iso,
