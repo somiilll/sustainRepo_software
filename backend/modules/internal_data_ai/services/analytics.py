@@ -52,7 +52,11 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
 
     resolved_facilities = await resolve_authorized_facilities(db, org_id, facility_ids, facility_name)
     match_stage = organization_scope(org_id, resolved_facilities)
-    match_stage = and_filters(match_stage, eligible_ghg_record_filter())
+    approval_status = kwargs.get("approval_status_filter")
+    match_stage = and_filters(
+        match_stage,
+        {"approval_status": approval_status} if approval_status in {"pending_approval", "rejected"} else eligible_ghg_record_filter(),
+    )
     if scope:
         match_stage = and_filters(match_stage, scope_filter(scope))
     if category:

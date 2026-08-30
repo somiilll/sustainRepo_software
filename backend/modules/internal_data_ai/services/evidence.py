@@ -69,7 +69,9 @@ async def find_files(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     seen_ids = set()
 
     # 1. Evidence linked to emission records (via evidence_url)
-    em_query = and_filters(organization_scope(org_id, facility_id_filter), eligible_ghg_record_filter(), {"evidence_url": {"$nin": [None, ""]}})
+    approval_status = kwargs.get("approval_status_filter")
+    lifecycle_filter = {"approval_status": approval_status} if approval_status in {"pending_approval", "rejected"} else eligible_ghg_record_filter()
+    em_query = and_filters(organization_scope(org_id, facility_id_filter), lifecycle_filter, {"evidence_url": {"$nin": [None, ""]}})
     if search_terms:
         em_query = and_filters(em_query, {"$or": [
             cond

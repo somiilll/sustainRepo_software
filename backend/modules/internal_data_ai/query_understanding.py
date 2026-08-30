@@ -74,6 +74,8 @@ def _approval_status_filter(question: str) -> Optional[str]:
         return "pending_approval"
     if re.search(r"\bapproved\b", text):
         return "approved"
+    if re.search(r"\b(rejected|declined)\b", text):
+        return "rejected"
     return None
 
 
