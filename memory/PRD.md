@@ -517,3 +517,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-30 (Supplier Status Alignment)
 - Moved the status badge in the parent View Supplier dialog beneath the Status label for clearer visual alignment, and added stable test identifiers for the displayed status.
 - **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Detailed Rankings Table Fit)
+- Reduced Detailed Rankings table minimum width, score/progress column widths, gaps, and horizontal padding so the View action remains visible at standard desktop workspace widths without needing a horizontal scroll.
+- **NOT TESTED** after implementation, per the user's explicit instruction.
