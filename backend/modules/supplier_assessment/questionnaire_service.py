@@ -1001,7 +1001,7 @@ async def set_manual_question_score(
     if not question:
         raise ValueError("Question not found")
     if (question.get("scoring") or {}).get("rule") != "manual":
-        raise ValueError("Only Manual Review questions can receive a parent score")
+        raise ValueError("Only questions marked as Manual Review can be manually scored.")
     response = await db.supplier_questionnaire_responses.find_one(
         {
             "supplier_relationship_id": supplier_relationship_id,
