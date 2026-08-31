@@ -31,10 +31,27 @@ async def ensure_supplier_relationship_active(user: dict, organization: dict | N
         return
     relationship = await db.supplier_relationships.find_one(
         {"supplier_org_id": user["organization_id"], "is_active": True},
-        {"_id": 0, "id": 1},
+        {"_id": 0, "id": 1, "due_date": 1, "customer_org_id": 1},
     )
     if not relationship:
         raise HTTPException(status_code=403, detail="Your supplier access has been deactivated by your customer.")
+    expiry_value = relationship.get("due_date")
+    expiry_label = "supplier assessment deadline"
+    if not expiry_value:
+        parent_org = await db.organizations.find_one({"id": relationship.get("customer_org_id")}, {"_id": 0, "subscription_expires_at": 1})
+        expiry_value = (parent_org or {}).get("subscription_expires_at")
+        expiry_label = "customer organization's subscription"
+    if expiry_value:
+        try:
+            now = datetime.now(timezone.utc)
+            if "T" in str(expiry_value):
+                expired = datetime.fromisoformat(str(expiry_value).replace("Z", "+00:00")) < now
+            else:
+                expired = datetime.strptime(str(expiry_value), "%Y-%m-%d").date() < now.date()
+            if expired:
+                raise HTTPException(status_code=403, detail=f"Your portal access is locked because the {expiry_label} has expired. Please contact your customer.")
+        except (ValueError, TypeError):
+            pass
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
@@ -77,7 +94,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         if organization and (organization.get("is_deleted") or not organization.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
 
-        if organization and organization.get("subscription_expires_at"):
+        if organization and organization.get("subscription_expires_at") and not (user.get("user_type") == "supplier" or organization.get("org_type") == "supplier"):
             try:
                 expires_str = organization["subscription_expires_at"]
                 now = datetime.now(timezone.utc)

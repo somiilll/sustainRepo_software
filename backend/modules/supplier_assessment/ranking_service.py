@@ -131,22 +131,20 @@ async def get_supplier_rankings(
         overdue_modules = []
         if any(
             questionnaire_id not in submitted_questionnaire_ids
-            and due_date_has_passed(questionnaire_by_id[questionnaire_id].get("due_date") or s.get("due_date"))
+            and due_date_has_passed(questionnaire_by_id[questionnaire_id].get("due_date"))
             for questionnaire_id in assigned_questionnaire_ids
         ):
             overdue_modules.append("ESG Questionnaire")
         enabled_modules = set(s.get("modules_enabled") or ["esg", "ghg"])
-        if "ghg" in enabled_modules and float(s.get("ghg_completion_percent") or 0) < 100 and due_date_has_passed(s.get("due_date")):
-            overdue_modules.append("GHG Emissions")
         if any(
             document_submission_status.get((s["id"], requirement["id"])) != "submitted"
-            and due_date_has_passed(requirement.get("due_date") or s.get("due_date"))
+            and due_date_has_passed(requirement.get("due_date"))
             for requirement in applicable_documents
         ):
             overdue_modules.append("Documents")
         if any(
             training_status_by_assignment.get(assignment["id"]) != "completed"
-            and due_date_has_passed(training_due_dates.get(assignment["training_requirement_id"]) or s.get("due_date"))
+            and due_date_has_passed(training_due_dates.get(assignment["training_requirement_id"]))
             for assignment in applicable_training
         ):
             overdue_modules.append("Training")

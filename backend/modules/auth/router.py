@@ -154,7 +154,7 @@ async def login(request: Request, credentials: UserLogin):
         if organization and (organization.get("is_deleted") or not organization.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
 
-        if organization and organization.get("subscription_expires_at"):
+        if organization and organization.get("subscription_expires_at") and not (user.get("user_type") == "supplier" or organization.get("org_type") == "supplier"):
             try:
                 expires_str = organization["subscription_expires_at"]
                 now = datetime.now(timezone.utc)
