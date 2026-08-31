@@ -557,7 +557,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 
 ## Latest Changes — 2026-08-31 (Supplier Ranking Risk and Requirement Views)
 - Ranking Overview now includes a Supplier Sustainability Risk Matrix styled as the supplied 2×2 strategic reference: High/Low ESG on the horizontal axis, High/Low Emissions on the vertical axis, and Critical, Strategic, Priority Improvement, and Developing quadrants with plotted supplier points.
-- Ranking data now includes supplier-by-document statuses (Submitted, Pending, Overdue) and supplier-by-training-topic statuses (Not started, In progress, Completed, Overdue), rendered as compact status matrices on Overview.
+- Ranking data includes supplier-by-document and supplier-by-training completion. Overview now presents these as side-by-side supplier progress bars rather than repeated per-requirement columns.
 - Adjusted the risk matrix vertical axis spacing so its attributed-emissions label and values remain legible.
 - Applied the Materiality Assessment’s zone color language to the supplier risk matrix: red Critical, green Strategic, orange Priority Improvement, and amber Developing zones. The matrix now fills the available space beside a compact legend, has no unused grey background, and supplier dots reveal supplier/ESG/emissions details on hover.
 - Risk matrix grouping now recognizes low emissions as favorable: Strategic Suppliers are low-emission/high-ESG, while high-emission/high-ESG suppliers are Priority Improvement.

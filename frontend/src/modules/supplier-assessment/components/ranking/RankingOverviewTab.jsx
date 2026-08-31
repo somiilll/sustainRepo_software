@@ -5,7 +5,7 @@ import { Button } from '../../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../../components/ui/select';
 import { initials, scoreMeta, scoreText } from './rankingUtils';
-import { SupplierRequirementStatusTable } from './SupplierRequirementStatusTable';
+import { SupplierRequirementProgress } from './SupplierRequirementProgress';
 import { SupplierSustainabilityRiskMatrix } from './SupplierSustainabilityRiskMatrix';
 
 export const RankingOverviewTab = ({ attention, distribution, moduleFilter, modules, needCount, onModuleFilterChange, onReview, onViewAll, overall, riskMatrix, statusRows, visibleModules }) => {
@@ -45,7 +45,6 @@ export const RankingOverviewTab = ({ attention, distribution, moduleFilter, modu
       </Card>
     </section>
     <SupplierSustainabilityRiskMatrix matrix={riskMatrix} />
-    <SupplierRequirementStatusTable rows={statusRows} type="documents" />
-    <SupplierRequirementStatusTable rows={statusRows} type="training" />
+    <section className="grid gap-5 lg:grid-cols-2" data-testid="supplier-requirement-progress-row"><SupplierRequirementProgress rows={statusRows} type="documents" /><SupplierRequirementProgress rows={statusRows} type="training" /></section>
   </section>;
 };
