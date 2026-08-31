@@ -4,8 +4,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../components/
 
 const GROUPS = {
   critical: { label: 'Critical suppliers', detail: 'High emissions · Low ESG', zoneClass: 'bg-rose-100/70', pointClass: 'bg-rose-700' },
-  priority: { label: 'Priority improvement', detail: 'High emissions · High ESG', zoneClass: 'bg-orange-100/70', pointClass: 'bg-orange-700' },
-  developing: { label: 'Developing suppliers', detail: 'Low emissions · Low ESG', zoneClass: 'bg-amber-100/55', pointClass: 'bg-amber-700' },
+  priority: { label: 'Emissions Reduction', detail: 'High emissions · High ESG', zoneClass: 'bg-orange-100/70', pointClass: 'bg-orange-700' },
+  developing: { label: 'ESG Development', detail: 'Low emissions · Low ESG', zoneClass: 'bg-amber-100/55', pointClass: 'bg-amber-700' },
   strategic: { label: 'Strategic suppliers', detail: 'Low emissions · High ESG', zoneClass: 'bg-emerald-100/60', pointClass: 'bg-emerald-700' },
 };
 
