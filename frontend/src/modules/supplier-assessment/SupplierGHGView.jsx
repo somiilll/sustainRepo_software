@@ -5,7 +5,6 @@ import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPe
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Textarea } from '../../components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import {
@@ -52,8 +51,6 @@ export default function SupplierGHGView() {
   const [emissionPage, setEmissionPage] = useState(1);
   const [unlockTarget, setUnlockTarget] = useState(null);
   const [unlocking, setUnlocking] = useState(false);
-  const [unlockReason, setUnlockReason] = useState('');
-  const [unlockInstructions, setUnlockInstructions] = useState('');
   const [unlockPeriodKey, setUnlockPeriodKey] = useState('');
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
   const [viewingEmission, setViewingEmission] = useState(null);
@@ -83,16 +80,20 @@ export default function SupplierGHGView() {
       const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${supplier.supplier_relationship_id}/emissions/submission-periods`, { headers: getAuthHeader() });
       const submittedPeriods = (data.periods || []).filter((period) => period.status === 'submitted');
       if (!submittedPeriods.length) { toast.error('This supplier has no submitted GHG periods to unlock'); return; }
-      setUnlockTarget({ ...supplier, periods: submittedPeriods }); setUnlockPeriodKey(submittedPeriods[0].period_key); setUnlockReason(''); setUnlockInstructions('');
-    } catch (error) { toast.error(error.response?.data?.detail || 'Could not load submitted GHG periods'); }
+      setUnlockTarget({ ...supplier, periods: submittedPeriods });
+      setUnlockPeriodKey(submittedPeriods[0].period_key);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not load submitted GHG periods');
+    }
   };
 
   const unlockSupplierGhg = async () => {
-    if (!unlockTarget || !unlockPeriodKey || !unlockReason.trim()) { toast.error('An unlock reason is required'); return; }
+    if (!unlockTarget || !unlockPeriodKey) return;
     setUnlocking(true);
     try {
-      await axios.post(`${API}/supplier-assessment/suppliers/${unlockTarget.supplier_relationship_id}/emissions/submission-periods/${encodeURIComponent(unlockPeriodKey)}/unlock`, { reason: unlockReason.trim(), supplier_instructions: unlockInstructions.trim() || null }, { headers: getAuthHeader() });
-      toast.success(`${unlockTarget.supplier_name} can now revise and resubmit this GHG period`);
+      const period = unlockTarget.periods.find((item) => item.period_key === unlockPeriodKey);
+      await axios.post(`${API}/supplier-assessment/suppliers/${unlockTarget.supplier_relationship_id}/emissions/submission-periods/${encodeURIComponent(unlockPeriodKey)}/unlock`, {}, { headers: getAuthHeader() });
+      toast.success(`${unlockTarget.supplier_name} can now revise and resubmit ${period?.label || 'this period'}`);
       setUnlockTarget(null);
       await fetchEmissions();
     } catch (error) {
@@ -256,8 +257,6 @@ export default function SupplierGHGView() {
       )}
         </TabsContent>
 
-      <Dialog open={Boolean(unlockTarget)} onOpenChange={(open) => !open && setUnlockTarget(null)}><DialogContent data-testid="unlock-supplier-ghg-dialog"><DialogHeader><DialogTitle data-testid="unlock-supplier-ghg-title">Unlock GHG reporting period</DialogTitle><DialogDescription data-testid="unlock-supplier-ghg-description">The supplier receives editable drafts only for the selected period. A reason is required; supplier instructions are optional.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><label className="text-sm font-medium" htmlFor="unlock-supplier-ghg-period" data-testid="unlock-supplier-ghg-period-label">Submitted period</label><Select value={unlockPeriodKey} onValueChange={setUnlockPeriodKey}><SelectTrigger id="unlock-supplier-ghg-period" data-testid="unlock-supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="unlock-supplier-ghg-period-menu">{(unlockTarget?.periods || []).map((period) => <SelectItem key={period.period_key} value={period.period_key} data-testid={`unlock-supplier-ghg-period-option-${period.period_key}`}>{period.label}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><label className="text-sm font-medium" htmlFor="unlock-supplier-ghg-reason" data-testid="unlock-supplier-ghg-reason-label">Reason <span className="text-red-700">*</span></label><Textarea id="unlock-supplier-ghg-reason" value={unlockReason} onChange={(event) => setUnlockReason(event.target.value)} data-testid="unlock-supplier-ghg-reason-input" /></div><div className="space-y-2"><label className="text-sm font-medium" htmlFor="unlock-supplier-ghg-instructions" data-testid="unlock-supplier-ghg-instructions-label">Instructions to supplier <span className="text-stone-400">(optional)</span></label><Textarea id="unlock-supplier-ghg-instructions" value={unlockInstructions} onChange={(event) => setUnlockInstructions(event.target.value)} data-testid="unlock-supplier-ghg-instructions-input" /></div></div><DialogFooter><Button variant="outline" onClick={() => setUnlockTarget(null)} data-testid="cancel-unlock-supplier-ghg-button">Cancel</Button><Button disabled={unlocking || !unlockReason.trim()} onClick={unlockSupplierGhg} data-testid="submit-unlock-supplier-ghg-button">{unlocking ? 'Unlocking…' : 'Unlock period'}</Button></DialogFooter></DialogContent></Dialog>
-
         <TabsContent value="logs" className="mt-5 space-y-5" data-testid="supplier-ghg-logs-panel">
       <div className="flex flex-wrap items-center gap-4">
         <div className="relative flex-1 max-w-sm">
@@ -327,6 +326,7 @@ export default function SupplierGHGView() {
       </Card>
         </TabsContent>
       </Tabs>
+      <Dialog open={Boolean(unlockTarget)} onOpenChange={(open) => !open && setUnlockTarget(null)}><DialogContent data-testid="unlock-supplier-ghg-dialog"><DialogHeader><DialogTitle data-testid="unlock-supplier-ghg-title">Unlock GHG reporting period</DialogTitle><DialogDescription data-testid="unlock-supplier-ghg-description">Choose the submitted month, quarter, or year to reopen for this supplier.</DialogDescription></DialogHeader><div className="space-y-2"><label className="text-sm font-medium" htmlFor="unlock-supplier-ghg-period" data-testid="unlock-supplier-ghg-period-label">Submitted period</label><Select value={unlockPeriodKey} onValueChange={setUnlockPeriodKey}><SelectTrigger id="unlock-supplier-ghg-period" data-testid="unlock-supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="unlock-supplier-ghg-period-menu">{(unlockTarget?.periods || []).map((period) => <SelectItem key={period.period_key} value={period.period_key} data-testid={`unlock-supplier-ghg-period-option-${period.period_key}`}>{period.label}</SelectItem>)}</SelectContent></Select></div><DialogFooter><Button variant="outline" onClick={() => setUnlockTarget(null)} data-testid="cancel-unlock-supplier-ghg-button">Cancel</Button><Button disabled={unlocking || !unlockPeriodKey} onClick={unlockSupplierGhg} data-testid="submit-unlock-supplier-ghg-button">{unlocking ? 'Unlocking…' : 'Unlock period'}</Button></DialogFooter></DialogContent></Dialog>
       <SupplierEmissionReadOnlyDialog open={Boolean(viewingEmission)} onOpenChange={(open) => !open && setViewingEmission(null)} emission={viewingEmission} loading={viewingEmissionLoading} onOpenEvidence={openEmissionEvidence} openingEvidenceKey={openingEvidenceKey} />
     </div>
   );

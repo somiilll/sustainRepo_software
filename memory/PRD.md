@@ -497,6 +497,14 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Fixed supplier GHG period submission failing with HTTP 500 for a period without a prior submission ledger record. New submissions now initialize their audit history from an empty list, while resubmissions retain existing history.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
 
+## Latest Changes — 2026-08-31 (Direct Parent GHG Unlock)
+- Parent Supplier GHG unlock actions now ask only which submitted month, quarter, or year should be reopened. The reason and instructions fields are removed.
+- The API accepts an empty unlock request and records `Unlocked directly by parent organization` in the immutable audit history.
+
+## Latest Changes — 2026-08-31 (Supplier GHG Resubmission Log Cleanup)
+- Supplier GHG Logs now hide prior `is_current_revision: false` records after a parent unlock and supplier resubmission. The immutable earlier revision remains preserved in storage and audit history, while the supplier sees only the current live record.
+- **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.

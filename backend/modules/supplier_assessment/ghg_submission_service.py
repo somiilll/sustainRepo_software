@@ -400,13 +400,11 @@ async def submit_supplier_ghg_period(
 
 
 async def unlock_supplier_ghg_period(
-    relationship: Dict[str, Any], period_key: str, unlocked_by: str, reason: str, supplier_instructions: Optional[str] = None,
+    relationship: Dict[str, Any], period_key: str, unlocked_by: str, reason: Optional[str] = None, supplier_instructions: Optional[str] = None,
 ) -> Dict[str, Any]:
     await ensure_ghg_submission_indexes()
     await _hydrate_reporting_year_start(relationship)
-    reason = reason.strip()
-    if not reason:
-        raise ValueError("An unlock reason is required")
+    reason = (reason or "").strip() or "Unlocked directly by parent organization"
     submission = await db.supplier_ghg_submissions.find_one(
         {"relationship_id": relationship["id"], "period_key": period_key}, {"_id": 0},
     )

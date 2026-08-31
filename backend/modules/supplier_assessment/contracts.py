@@ -431,7 +431,7 @@ class SupplierGhgSubmissionPeriodSubmit(SupplierDataVerificationSubmit):
 
 
 class SupplierGhgUnlockRequest(BaseModel):
-    reason: str = Field(min_length=1, max_length=2000)
+    reason: Optional[str] = Field(default=None, max_length=2000)
     supplier_instructions: Optional[str] = Field(default=None, max_length=4000)
 
 

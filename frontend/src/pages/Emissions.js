@@ -2846,6 +2846,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
 
   const filteredEmissions = useMemo(() => {
     let filtered = emissions.filter(e => {
+      // Supplier users see the current resubmission revision only. The prior
+      // immutable revision remains stored for audit history but is not a live
+      // GHG log entry.
+      if (isSupplierUser && e.source === 'supplier' && e.is_current_revision === false) {
+        return false;
+      }
+
       // Hide emissions from deactivated facilities
       if (!activeFacilityIds.includes(e.facility_id)) return false;
       
@@ -3017,7 +3024,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     });
     
     return filtered;
-  }, [emissions, activeScope, filterFacility, filterCategory, filterFrequency, filterCalculationMethod, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery, hasScope3Access]);
+  }, [emissions, isSupplierUser, activeScope, filterFacility, filterCategory, filterFrequency, filterCalculationMethod, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery, hasScope3Access]);
 
   const uniqueCategories = useMemo(() => {
     return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
