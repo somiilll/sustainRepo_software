@@ -5,8 +5,10 @@ import { Button } from '../../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../../components/ui/select';
 import { initials, scoreMeta, scoreText } from './rankingUtils';
+import { SupplierRequirementStatusTable } from './SupplierRequirementStatusTable';
+import { SupplierSustainabilityRiskMatrix } from './SupplierSustainabilityRiskMatrix';
 
-export const RankingOverviewTab = ({ attention, distribution, moduleFilter, modules, needCount, onModuleFilterChange, onReview, onViewAll, overall, visibleModules }) => {
+export const RankingOverviewTab = ({ attention, distribution, moduleFilter, modules, needCount, onModuleFilterChange, onReview, onViewAll, overall, riskMatrix, statusRows, visibleModules }) => {
   const statusCards = [
     { id: 'excellent', label: 'Excellent', value: distribution[0].value, detail: 'Overall score 80–100', Icon: CheckCircle2, iconClass: 'bg-emerald-50 text-emerald-600' },
     { id: 'good', label: 'Good', value: distribution[1].value, detail: 'Overall score 60–79', Icon: CircleDot, iconClass: 'bg-blue-50 text-blue-600' },
@@ -20,6 +22,10 @@ export const RankingOverviewTab = ({ attention, distribution, moduleFilter, modu
         <div><p className="text-sm font-semibold text-stone-900">{label}</p><p className="mt-0.5 text-xs text-stone-500" data-testid={`supplier-ranking-${id}-count`}>{value} supplier{value === 1 ? '' : 's'} · {detail}</p></div>
       </div>)}
     </section>
+
+    <SupplierSustainabilityRiskMatrix matrix={riskMatrix} />
+    <SupplierRequirementStatusTable rows={statusRows} type="documents" />
+    <SupplierRequirementStatusTable rows={statusRows} type="training" />
 
     <section className="grid gap-5 lg:grid-cols-2">
       <Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-score-distribution-card">

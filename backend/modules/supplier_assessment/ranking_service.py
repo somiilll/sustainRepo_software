@@ -50,7 +50,7 @@ async def get_supplier_rankings(
         "customer_org_id": customer_org_id,
         "is_active": True,
         "$or": [{"reporting_period": reporting_period}, {"reporting_period": {"$exists": False}}, {"reporting_period": None}],
-    }, {"_id": 0, "id": 1, "document_version_id": 1, "due_date": 1, "reporting_period": 1, "supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1}).to_list(1000)
+    }, {"_id": 0, "id": 1, "title": 1, "document_version_id": 1, "due_date": 1, "reporting_period": 1, "supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1}).to_list(1000)
     document_submissions = await db.supplier_document_submissions.find(
         {"supplier_relationship_id": {"$in": supplier_ids}, "is_current": True},
         {"_id": 0, "supplier_relationship_id": 1, "document_requirement_id": 1, "status": 1},
@@ -61,7 +61,7 @@ async def get_supplier_rankings(
     }
     training_requirements = await db.supplier_training_requirements.find(
         {"organization_id": customer_org_id, "is_active": True, "is_deleted": {"$ne": True}},
-        {"_id": 0, "id": 1, "due_date": 1},
+        {"_id": 0, "id": 1, "title": 1, "due_date": 1},
     ).to_list(1000)
     training_due_dates = {requirement["id"]: requirement.get("due_date") for requirement in training_requirements}
     training_assignments = await db.supplier_training_assignments.find(
@@ -128,6 +128,25 @@ async def get_supplier_rankings(
             if assignment["supplier_relationship_id"] == s["id"]
             and (not assignment.get("reporting_period") or assignment.get("reporting_period") == s.get("reporting_period"))
         ]
+        document_statuses = [
+            {
+                "requirement_id": requirement["id"],
+                "title": requirement.get("title") or "Document",
+                "status": "submitted" if document_submission_status.get((s["id"], requirement["id"])) == "submitted" else "overdue" if due_date_has_passed(requirement.get("due_date")) else "pending",
+            }
+            for requirement in applicable_documents
+        ]
+        training_statuses = []
+        for assignment in applicable_training:
+            requirement_id = assignment["training_requirement_id"]
+            status = training_status_by_assignment.get(assignment["id"]) or "not_started"
+            if status != "completed" and due_date_has_passed(training_due_dates.get(requirement_id)):
+                status = "overdue"
+            training_statuses.append({
+                "requirement_id": requirement_id,
+                "title": next((item.get("title") for item in training_requirements if item["id"] == requirement_id), "Training"),
+                "status": status,
+            })
         overdue_modules = []
         if any(
             questionnaire_id not in submitted_questionnaire_ids
@@ -203,6 +222,8 @@ async def get_supplier_rankings(
             "revenue_percentage": s.get("revenue_percentage"),
             "revenue_amount": s.get("revenue_amount"),
             "revenue_currency": s.get("revenue_currency"),
+            "document_statuses": document_statuses,
+            "training_statuses": training_statuses,
         })
     
     # Sort and rank suppliers by ESG score. GHG has its own parent-emissions experience.

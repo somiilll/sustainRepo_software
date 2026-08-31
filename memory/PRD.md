@@ -547,6 +547,21 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Removed hover messaging from muted supplier navigation items.
 - Global `/ghg` and Facility routes for unassigned suppliers show the existing Premium Module overlay. In Supplier Assessment → GHG, the normal workspace remains visible with a simple `No GHG task assigned` state and no Premium Module or Contact Sales prompt.
 
+## Latest Changes — 2026-08-31 (Contact Request Email Branding)
+- Restyled the SustainRepo contact-request acknowledgement email with an email-client-safe branded table layout, SustainRepo logo, clear response expectation, resource CTA, and accessible inline styling.
+- The email Resources CTA now links directly to `https://sustainrepo.com/resources`.
+
+## Latest Changes — 2026-08-31 (Parent Supplier Summary Tables)
+- Supplier ESG summary headings and values are center-aligned, and its per-row View column has been removed. Supplier attributed emissions headings now explicitly show Supplier, Scope 1 (tCO2e), Scope 2 (tCO2e), Total attributed (tCO2e), and Revenue share.
+
+## Latest Changes — 2026-08-31 (Supplier Ranking Risk and Requirement Views)
+- Ranking Overview now includes a Supplier Sustainability Risk Matrix styled as the supplied 2×2 strategic reference: High/Low ESG on the horizontal axis, High/Low Emissions on the vertical axis, and Critical, Strategic, Priority Improvement, and Developing quadrants with plotted supplier points.
+- Ranking data now includes supplier-by-document statuses (Submitted, Pending, Overdue) and supplier-by-training-topic statuses (Not started, In progress, Completed, Overdue), rendered as compact status matrices on Overview.
+- Adjusted the risk matrix vertical axis spacing so its attributed-emissions label and values remain legible.
+- Applied the Materiality Assessment’s zone color language to the supplier risk matrix: red Critical, green Strategic, orange Priority Improvement, and amber Developing zones. The matrix now fills the available space beside a compact legend, has no unused grey background, and supplier dots reveal supplier/ESG/emissions details on hover.
+- Risk matrix grouping now recognizes low emissions as favorable: Strategic Suppliers are low-emission/high-ESG, while high-emission/high-ESG suppliers are Priority Improvement.
+- Ranking tabs now mount chart components only while active, preventing hidden Recharts panels from calculating invalid container dimensions during tab transitions.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.

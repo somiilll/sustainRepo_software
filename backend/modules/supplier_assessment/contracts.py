@@ -592,6 +592,8 @@ class SupplierRankingEntry(BaseModel):
     revenue_percentage: Optional[float] = None
     revenue_amount: Optional[float] = None
     revenue_currency: Optional[str] = None
+    document_statuses: List[Dict[str, str]] = []
+    training_statuses: List[Dict[str, str]] = []
 
 
 class ScoreDistribution(BaseModel):
