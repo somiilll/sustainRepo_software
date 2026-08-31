@@ -93,13 +93,11 @@ function MenuItem(props) {
   var padClass = depth === 0 ? 'pl-3' : depth === 1 ? 'pl-8' : 'pl-12';
 
   if (hasChildren) {
-    return React.createElement('div', null,
+    var groupContent = React.createElement('div', null,
       React.createElement('button', {
         type: 'button',
-        onClick: function() { if (!lockedForSupplier) onToggle(item.key); },
-        disabled: lockedForSupplier,
-        title: lockedForSupplier ? 'GHG emissions is not assigned to this supplier' : undefined,
-        className: 'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'cursor-not-allowed text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : groupActive ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
+        onClick: function() { onToggle(item.key); },
+        className: 'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : groupActive ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
         'data-testid': 'sidebar-' + item.key,
       },
         React.createElement('span', { className: 'flex items-center gap-2.5' },
@@ -118,21 +116,10 @@ function MenuItem(props) {
         })
       ) : null
     );
+    return groupContent;
   }
 
-  if (lockedForSupplier) {
-    return React.createElement('span', {
-      className: 'flex cursor-not-allowed items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-stone-400 opacity-55 ' + padClass,
-      title: 'GHG emissions is not assigned to this supplier',
-      'aria-disabled': true,
-      'data-testid': 'sidebar-' + item.key,
-    },
-      Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
-      React.createElement('span', null, item.label)
-    );
-  }
-
-  return React.createElement(Link, {
+  var linkContent = React.createElement(Link, {
     to: item.path,
     className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
     'data-testid': 'sidebar-' + item.key,
@@ -140,6 +127,7 @@ function MenuItem(props) {
     Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
     React.createElement('span', null, item.label)
   );
+  return linkContent;
 }
 
 export default function Sidebar({ mobileOpen, onMobileClose }) {

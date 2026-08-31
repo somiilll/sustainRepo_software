@@ -58,12 +58,21 @@ const SupplierLockedOverlay = ({ children, onContactSales }) => (
   </div>
 );
 
+const SupplierNoGhgTask = () => (
+  <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center px-6 text-center" data-testid="supplier-no-ghg-task">
+    <div>
+      <h2 className="text-2xl font-semibold text-stone-900" data-testid="supplier-no-ghg-task-title">No GHG task assigned</h2>
+    </div>
+  </div>
+);
+
 export default function Layout() {
-  const { user, getAuthHeader } = useAuth();
+  const { user, token, getAuthHeader } = useAuth();
   const [subscriptionWarning, setSubscriptionWarning] = useState(null);
   const [warningDismissed, setWarningDismissed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [contactSalesOpen, setContactSalesOpen] = useState(false);
+  const [supplierModules, setSupplierModules] = useState(null);
   const location = useLocation();
   
   // Check if user is a supplier
@@ -76,6 +85,11 @@ export default function Layout() {
   const isExplicitlyLockedSupplierRoute = isSupplierLockedRoute(location.pathname);
   const isSupplierAssessmentRoute = location.pathname.startsWith('/supplier-assessment');
   const isSupplierAssessmentWorkspace = isSupplier && isSupplierAssessmentRoute;
+  const supplierGhgIsAssigned = supplierModules?.includes('ghg');
+  const isSupplierGhgDependentRoute = location.pathname === '/facilities'
+    || location.pathname.startsWith('/ghg')
+    || location.pathname.startsWith('/supplier-assessment/emissions');
+  const isUnassignedSupplierGhgRoute = isSupplier && supplierModules !== null && !supplierGhgIsAssigned && isSupplierGhgDependentRoute;
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -83,6 +97,16 @@ export default function Layout() {
       checkSubscription();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!token || !isSupplier) {
+      setSupplierModules(null);
+      return;
+    }
+    axios.get(`${API}/supplier-assessment/my-assessment`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => setSupplierModules((response.data.assessment_modules || []).map((module) => module.code)))
+      .catch(() => setSupplierModules(null));
+  }, [token, isSupplier]);
 
   const checkSubscription = async () => {
     try {
@@ -172,7 +196,7 @@ export default function Layout() {
               }
             >
             {/* Show locked overlay for suppliers on restricted routes */}
-            {isSupplier && (isExplicitlyLockedSupplierRoute || !isAllowedRoute) ? (
+            {isSupplier && isUnassignedSupplierGhgRoute ? <SupplierNoGhgTask /> : isSupplier && (isExplicitlyLockedSupplierRoute || !isAllowedRoute) ? (
               <SupplierLockedOverlay onContactSales={() => setContactSalesOpen(true)}>
                 <Outlet />
               </SupplierLockedOverlay>
