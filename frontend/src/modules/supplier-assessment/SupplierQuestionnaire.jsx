@@ -309,7 +309,7 @@ export default function SupplierQuestionnaire() {
             Back
           </Button>}
         aside={<>
-        {questionnaire.due_date && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900" data-testid="supplier-questionnaire-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(questionnaire.due_date).toLocaleDateString()}</Badge>}
+        {questionnaire.due_date && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900" data-testid="supplier-questionnaire-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(questionnaire.due_date).toLocaleDateString()}</Badge>}{!isReadOnly && questionnaire.due_date && new Date(`${questionnaire.due_date.slice(0, 10)}T23:59:59`) < new Date() && <Badge className="bg-rose-100 text-rose-800" data-testid="supplier-questionnaire-overdue-badge">Overdue</Badge>}
         {isReadOnly && (
           <Badge className="bg-green-100 text-green-800" data-testid="supplier-questionnaire-locked-badge">
             <CheckCircle className="h-3 w-3 mr-1" />

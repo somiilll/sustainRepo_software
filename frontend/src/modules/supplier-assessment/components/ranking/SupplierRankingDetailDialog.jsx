@@ -10,7 +10,7 @@ const isPastDue = (dueDate) => dueDate && new Date(`${dueDate}T23:59:59`).getTim
 const statusStyle = (status) => (status === 'locked' || status === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : status === 'in_progress' ? 'border-blue-200 bg-blue-50 text-blue-800' : status === 'overdue' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-800');
 
 const DetailItem = ({ item, Icon, accent }) => {
-  const overdue = item.status !== 'locked' && item.status !== 'completed' && isPastDue(item.due_date);
+  const overdue = !['locked', 'completed', 'submitted'].includes(item.status) && isPastDue(item.due_date);
   const status = overdue ? 'overdue' : item.status;
   const completionContext = item.status === 'locked' ? `Submitted ${formatDate(item.locked_at)}` : item.status === 'completed' ? `Completed ${item.completed_at ? formatDate(item.completed_at) : ''}` : overdue ? `Due ${formatDate(item.due_date)}` : item.status === 'in_progress' ? `${item.progress_percent || 0}% complete` : 'Awaiting supplier response';
   const context = item.due_date && !overdue ? `${completionContext} · Due ${formatDate(item.due_date)}` : completionContext;
