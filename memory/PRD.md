@@ -530,6 +530,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 - The guide now communicates combined-score shares (Low 16.67%, Medium 33.33%, High 50% when one of each is used), while dropdowns remain concise with Low, Medium, and High labels only.
 - In the single-question edit form, the score-share explanation is now available through a hoverable information icon beside Question Importance rather than occupying permanent form space. The bulk ledger retains its visible guide.
 
+## Latest Changes — 2026-08-31 (Target Based Scoring Removal)
+- Removed Target Based scoring from supplier questionnaire authoring, API validation, and the scoring-rule registry. No existing questionnaire used the removed rule, so no data migration was required.
+
+## Latest Changes — 2026-08-31 (Supplier GHG Submitted State)
+- Supplier GHG period ledger now renders the `Submitted · Locked` status badge with an explicit green background, making completed locked periods visually distinct from pending states.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.

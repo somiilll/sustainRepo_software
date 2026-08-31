@@ -742,7 +742,6 @@ async def _calculate_questionnaire_score(
     - lower_is_better: Inverted scale (e.g., emissions)
     - boolean: Yes/No mapping
     - choice_mapping: Map choices to scores
-    - target_based: % of target achieved
     - manual: Requires human review
     
     Falls back to legacy scoring for backward compatibility.

@@ -180,7 +180,6 @@ class QuestionScoringConfig(BaseModel):
     - lower_is_better: Inverted scale where lower values = higher scores
     - boolean: Yes/No mapping with configurable scores
     - choice_mapping: Map discrete choices to specific scores
-    - target_based: Score based on % of target achieved
     - manual: Requires human review/scoring
     """
     rule: Literal[
@@ -188,11 +187,10 @@ class QuestionScoringConfig(BaseModel):
         "lower_is_better", 
         "boolean",
         "choice_mapping",
-        "target_based",
         "manual"
     ]
     
-    # For higher_is_better, lower_is_better, target_based
+    # For higher_is_better and lower_is_better
     target: Optional[float] = None  # Target value to achieve
     min: Optional[float] = 0  # Minimum value
     max: Optional[float] = 100  # Maximum value (for higher_is_better)
@@ -227,9 +225,6 @@ class QuestionScoringConfig(BaseModel):
                 raise ValueError("lower_is_better requires a best value and zero-score threshold")
             if self.max_acceptable <= self.min:
                 raise ValueError("lower_is_better zero-score threshold must be greater than its best value")
-
-        if self.rule == "target_based" and (self.target is None or self.target <= 0):
-            raise ValueError("target_based requires a target value greater than zero")
 
         if self.rule == "boolean" and (not 0 <= self.true_score <= 100 or not 0 <= self.false_score <= 100):
             raise ValueError("boolean scores must be between 0 and 100")

@@ -16,7 +16,6 @@ class ScoringRuleType(str, Enum):
     LOWER_IS_BETTER = "lower_is_better"
     BOOLEAN = "boolean"
     CHOICE_MAPPING = "choice_mapping"
-    TARGET_BASED = "target_based"
     MANUAL = "manual"
 
 
@@ -72,7 +71,7 @@ class ScoringConfig(BaseModel):
     """
     rule: ScoringRuleType
     
-    # For higher_is_better, lower_is_better, target_based
+    # For higher_is_better and lower_is_better
     target: Optional[float] = None
     min: Optional[float] = 0
     max: Optional[float] = 100

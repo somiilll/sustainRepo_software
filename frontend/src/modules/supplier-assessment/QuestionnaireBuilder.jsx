@@ -43,7 +43,6 @@ import {
   ArrowDownRight,
   ToggleLeft,
   List,
-  Target,
   Pencil,
   Info,
   ClipboardCheck,
@@ -105,14 +104,6 @@ const scoringRules = [
     icon: List,
     color: 'text-amber-600',
     fields: ['choices'],
-  },
-  { 
-    value: 'target_based', 
-    label: 'Target Based',
-    description: 'Score based on percentage of target achieved',
-    icon: Target,
-    color: 'text-rose-600',
-    fields: ['target'],
   },
   { 
     value: 'manual', 
@@ -601,7 +592,7 @@ export default function QuestionnaireBuilder() {
       return true;
     };
 
-    if (['higher_is_better', 'lower_is_better', 'target_based'].includes(rule)
+    if (['higher_is_better', 'lower_is_better'].includes(rule)
       && !requireScore(scoring.max_score, 'Score cap')) return false;
 
     if (rule === 'higher_is_better') {
@@ -615,12 +606,6 @@ export default function QuestionnaireBuilder() {
       if (!requireNumber(scoring.min, 'Best value') || !requireNumber(scoring.max_acceptable, 'Zero-score threshold')) return false;
       if (Number(scoring.max_acceptable) <= Number(scoring.min)) {
         toast.error('Zero-score threshold must be greater than the best value.');
-        return false;
-      }
-    }
-    if (rule === 'target_based') {
-      if (!requireNumber(scoring.target, 'Target value') || Number(scoring.target) <= 0) {
-        toast.error('Target value must be greater than zero.');
         return false;
       }
     }
@@ -1302,9 +1287,6 @@ export default function QuestionnaireBuilder() {
                             newScoring.max_acceptable = 100;
                             newScoring.min = 0;
                             newScoring.max_score = 100;
-                          } else if (rule.value === 'target_based') {
-                            newScoring.target = 100;
-                            newScoring.max_score = 100;
                           } else if (rule.value === 'choice_mapping') {
                             newScoring.choices = {};
                           }
@@ -1429,33 +1411,6 @@ export default function QuestionnaireBuilder() {
                       onChange={(e) => updateScoringConfig('false_score', parseNumericInput(e.target.value))}
                       placeholder="0"
                       data-testid="boolean-false-score-input"
-                    />
-                  </div>
-                </div>
-              )}
-              
-              {questionForm.scoring?.rule === 'target_based' && (
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Target value (full score)</Label>
-                    <Input
-                      type="number"
-                      value={questionForm.scoring.target ?? 100}
-                      onChange={(e) => updateScoringConfig('target', parseNumericInput(e.target.value))}
-                      placeholder="100"
-                      data-testid="target-based-target-input"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Score cap</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={questionForm.scoring.max_score ?? 100}
-                      onChange={(e) => updateScoringConfig('max_score', parseNumericInput(e.target.value))}
-                      placeholder="100"
-                      data-testid="target-based-score-cap-input"
                     />
                   </div>
                 </div>

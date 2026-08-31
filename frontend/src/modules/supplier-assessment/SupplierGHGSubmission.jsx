@@ -15,7 +15,7 @@ import { SupplierPageHeader } from './components/SupplierPageHeader';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const periodTone = (period) => period.status === 'submitted'
-  ? 'border-stone-200 bg-stone-100 text-stone-700'
+  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
   : period.status === 'unlocked' ? 'border-amber-200 bg-amber-50 text-amber-800'
     : period.status === 'overdue' ? 'border-red-200 bg-red-50 text-red-800'
       : period.status === 'in_progress' ? 'border-blue-200 bg-blue-50 text-blue-800'
