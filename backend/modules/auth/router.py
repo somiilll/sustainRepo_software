@@ -38,7 +38,11 @@ from modules.auth.contracts import (
     UserResponse,
     TokenResponse,
 )
-from modules.auth.dependencies import ensure_supplier_relationship_active, get_current_user
+from modules.auth.dependencies import (
+    ensure_supplier_relationship_active,
+    get_current_user,
+    mark_supplier_invitation_accepted_on_login,
+)
 from modules.auth.email_templates import password_reset_email
 
 logger = logging.getLogger(__name__)
@@ -172,6 +176,7 @@ async def login(request: Request, credentials: UserLogin):
                 print(f"Subscription date parse error: {e}")
 
     await ensure_supplier_relationship_active(user, organization)
+    await mark_supplier_invitation_accepted_on_login(user, organization)
 
     access_token = create_access_token(data={"sub": user["id"]})
     refresh_token = create_refresh_token(data={"sub": user["id"]})

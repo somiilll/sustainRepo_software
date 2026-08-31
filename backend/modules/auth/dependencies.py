@@ -54,6 +54,27 @@ async def ensure_supplier_relationship_active(user: dict, organization: dict | N
             pass
 
 
+async def mark_supplier_invitation_accepted_on_login(user: dict, organization: dict | None = None) -> None:
+    """Record a supplier's first successful portal login on pending relationships."""
+    if user.get("role") == "super_admin" or not user.get("organization_id"):
+        return
+    organization = organization or await db.organizations.find_one(
+        {"id": user["organization_id"]}, {"_id": 0, "org_type": 1}
+    )
+    is_supplier = user.get("user_type") == "supplier" or (organization or {}).get("org_type") == "supplier"
+    if not is_supplier:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    await db.supplier_relationships.update_many(
+        {
+            "supplier_org_id": user["organization_id"],
+            "is_active": True,
+            "invitation_status": "pending",
+        },
+        {"$set": {"invitation_status": "accepted", "accepted_at": now, "updated_at": now}},
+    )
+
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """
     Resolve and validate the bearer token, returning the user document.
@@ -112,6 +133,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 pass
 
     await ensure_supplier_relationship_active(user, organization)
+    await mark_supplier_invitation_accepted_on_login(user, organization)
 
     return user
 

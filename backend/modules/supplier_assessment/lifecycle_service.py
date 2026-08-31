@@ -116,9 +116,10 @@ async def _update_completion_status(self, relationship_id: str):
     revenue_completion = 20.0 if revenue_submission else 0.0
     overall_completion = module_completion + revenue_completion
     
-    # Update status
+    # Invitation status is set by the supplier's first successful login and
+    # remains accepted as their assessment work progresses.
     status = "pending"
-    if overall_completion > 0:
+    if relationship.get("accepted_at") or relationship.get("invitation_status") in {"accepted", "completed"} or overall_completion > 0:
         status = "accepted"
     if overall_completion >= 100:
         status = "completed"

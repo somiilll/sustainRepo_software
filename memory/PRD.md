@@ -518,6 +518,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-31 (Questionnaire Delete Semantics)
 - Questionnaire deletion now marks a template as deleted in addition to inactive. Deactivated templates remain visible for reactivation; deleted templates are excluded from both questionnaire management and new-supplier assignment lists.
 
+## Latest Changes — 2026-08-31 (Supplier First-Login Status)
+- Supplier relationship invitation status now reflects first successful portal login: pending relationships become accepted on login and remain accepted during later completion recalculations. Completed relationships remain completed.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.

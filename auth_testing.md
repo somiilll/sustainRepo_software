@@ -20,3 +20,10 @@
 3. Confirm the linked supplier user has `is_active: false`, a revocation timestamp, and the deactivating relationship ID.
 4. Confirm subsequent supplier login and authenticated `/api/auth/me` requests return HTTP 403; the prior bearer token must be rejected immediately.
 5. Confirm the supplier relationship and related assessment documents remain in MongoDB; the relationship is inactive while the supplier user account is revoked.
+
+## Supplier First-Login Invitation Status Checks
+
+1. Sign in with an active supplier whose relationship status is `pending`.
+2. Confirm their active pending relationship becomes `accepted` and receives `accepted_at` after the successful login.
+3. Confirm later supplier API calls preserve `accepted` while completion is below 100%, and preserve `completed` when it is complete.
+4. Confirm an invalid login does not update supplier relationship status.
