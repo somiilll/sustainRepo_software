@@ -545,7 +545,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-31 (Supplier Navigation Assignment Gates)
 - Supplier sidebar navigation now reads assigned assessment modules. If GHG is not assigned, Facilities, the Environment/GHG branch, and the supplier GHG entry are muted but remain clickable.
 - Removed hover messaging from muted supplier navigation items.
-- Opening an unassigned Facility or GHG route now shows a simple `No GHG task assigned` state, without Premium Module messaging or a Contact Sales control.
+- Global `/ghg` and Facility routes for unassigned suppliers show the existing Premium Module overlay. In Supplier Assessment → GHG, the normal workspace remains visible with a simple `No GHG task assigned` state and no Premium Module or Contact Sales prompt.
 
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.

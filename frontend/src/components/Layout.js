@@ -58,14 +58,6 @@ const SupplierLockedOverlay = ({ children, onContactSales }) => (
   </div>
 );
 
-const SupplierNoGhgTask = () => (
-  <div className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center px-6 text-center" data-testid="supplier-no-ghg-task">
-    <div>
-      <h2 className="text-2xl font-semibold text-stone-900" data-testid="supplier-no-ghg-task-title">No GHG task assigned</h2>
-    </div>
-  </div>
-);
-
 export default function Layout() {
   const { user, token, getAuthHeader } = useAuth();
   const [subscriptionWarning, setSubscriptionWarning] = useState(null);
@@ -86,10 +78,8 @@ export default function Layout() {
   const isSupplierAssessmentRoute = location.pathname.startsWith('/supplier-assessment');
   const isSupplierAssessmentWorkspace = isSupplier && isSupplierAssessmentRoute;
   const supplierGhgIsAssigned = supplierModules?.includes('ghg');
-  const isSupplierGhgDependentRoute = location.pathname === '/facilities'
-    || location.pathname.startsWith('/ghg')
-    || location.pathname.startsWith('/supplier-assessment/emissions');
-  const isUnassignedSupplierGhgRoute = isSupplier && supplierModules !== null && !supplierGhgIsAssigned && isSupplierGhgDependentRoute;
+  const isSupplierGhgPremiumRoute = location.pathname === '/facilities' || location.pathname.startsWith('/ghg');
+  const isUnassignedSupplierGhgPremiumRoute = isSupplier && supplierModules !== null && !supplierGhgIsAssigned && isSupplierGhgPremiumRoute;
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -196,7 +186,7 @@ export default function Layout() {
               }
             >
             {/* Show locked overlay for suppliers on restricted routes */}
-            {isSupplier && isUnassignedSupplierGhgRoute ? <SupplierNoGhgTask /> : isSupplier && (isExplicitlyLockedSupplierRoute || !isAllowedRoute) ? (
+            {isSupplier && (isExplicitlyLockedSupplierRoute || isUnassignedSupplierGhgPremiumRoute || !isAllowedRoute) ? (
               <SupplierLockedOverlay onContactSales={() => setContactSalesOpen(true)}>
                 <Outlet />
               </SupplierLockedOverlay>

@@ -57,6 +57,7 @@ export default function SupplierGHGSubmission() {
   useEffect(() => { load(); }, [load]);
   const totals = useMemo(() => (state?.draft_aggregation || []).reduce((all, row) => ({ ...all, [row.scope]: (all[row.scope] || 0) + row.total_emissions }), {}), [state]);
   const enabledScopes = state?.enabled_scopes || [];
+  const hasGhgTask = enabledScopes.length > 0;
   const submit = async () => {
     if (!verificationAccepted || !selectedPeriod) return;
     setSubmitting(true);
@@ -67,6 +68,8 @@ export default function SupplierGHGSubmission() {
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not submit GHG data'); }
     finally { setSubmitting(false); }
   };
+
+  if (state && !hasGhgTask) return <div className="space-y-6" data-testid="supplier-ghg-submission-page"><SupplierPageHeader title="Supplier Assessment GHG" description="Review and lock each reporting period when its data is complete." icon={Cloud} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="supplier-ghg-submission" /><Card className="border-stone-200" data-testid="supplier-ghg-no-task-card"><CardContent className="py-16 text-center"><p className="text-lg font-semibold text-stone-900" data-testid="supplier-ghg-no-task-message">No GHG task assigned</p></CardContent></Card></div>;
 
   return <div className="space-y-6" data-testid="supplier-ghg-submission-page">
     <SupplierPageHeader title="Supplier Assessment GHG" description="Review and lock each reporting period when its data is complete." icon={Cloud} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="supplier-ghg-submission" />
