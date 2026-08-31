@@ -195,13 +195,63 @@ async def test_overdue_is_indicator_not_lock(monkeypatch):
     }
     fake_db = SimpleNamespace(
         supplier_ghg_submissions=_FakeSubmissionsCollection(rows=[]),
+        emission_records=_FakeSubmissionsCollection(rows=[]),
     )
     monkeypatch.setattr(service, "db", fake_db)
 
     periods = await service.get_supplier_ghg_submission_periods(overdue_relationship)
     assert len(periods) == 12
-    assert periods[0]["status"] == "in_progress"
+    assert periods[0]["status"] == "overdue"
     assert periods[0]["is_overdue"] is True
+    assert periods[0]["has_unsubmitted_entries"] is False
+    assert periods[0]["unsubmitted_entry_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_future_empty_period_is_not_started_and_cannot_be_submitted(monkeypatch):
+    relationship = {
+        "id": "REL_EMPTY_FUTURE",
+        "reporting_period": "FY 2099-00",
+        "ghg_submission_frequency": "monthly",
+        "financial_year_start_month": 4,
+    }
+    fake_db = SimpleNamespace(
+        supplier_ghg_submissions=_FakeSubmissionsCollection(rows=[]),
+        emission_records=_FakeSubmissionsCollection(rows=[]),
+    )
+    monkeypatch.setattr(service, "db", fake_db)
+
+    periods = await service.get_supplier_ghg_submission_periods(relationship)
+
+    assert periods[0]["status"] == "not_started"
+    assert periods[0]["has_unsubmitted_entries"] is False
+
+
+@pytest.mark.asyncio
+async def test_future_period_with_draft_data_is_in_progress_and_submittable(monkeypatch):
+    relationship = {
+        "id": "REL_DATA_FUTURE",
+        "reporting_period": "FY 2099-00",
+        "ghg_submission_frequency": "monthly",
+        "financial_year_start_month": 4,
+    }
+    fake_db = SimpleNamespace(
+        supplier_ghg_submissions=_FakeSubmissionsCollection(rows=[]),
+        emission_records=_FakeSubmissionsCollection(rows=[{
+            "source": "supplier",
+            "supplier_relationship_id": "REL_DATA_FUTURE",
+            "scope": "scope1",
+            "reporting_period": "2099-04",
+            "submitted_to_parent_org": None,
+        }]),
+    )
+    monkeypatch.setattr(service, "db", fake_db)
+
+    periods = await service.get_supplier_ghg_submission_periods(relationship)
+
+    assert periods[0]["status"] == "in_progress"
+    assert periods[0]["has_unsubmitted_entries"] is True
+    assert periods[0]["unsubmitted_entry_count"] == 1
 
 
 @pytest.mark.asyncio

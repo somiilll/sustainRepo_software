@@ -250,6 +250,17 @@ def _period_entries_query(relationship: Dict[str, Any], period: Dict[str, Any]) 
     return query
 
 
+def submission_period_display_status(
+    stored_status: Optional[str], has_unsubmitted_entries: bool, is_overdue: bool,
+) -> str:
+    """Return the supplier-facing status for a submission period."""
+    if stored_status in {"submitted", "unlocked"}:
+        return stored_status
+    if is_overdue:
+        return "overdue"
+    return "in_progress" if has_unsubmitted_entries else "not_started"
+
+
 async def ensure_ghg_submission_indexes() -> None:
     await db.supplier_ghg_submissions.create_index(
         [("relationship_id", 1), ("period_key", 1)], unique=True, name="unique_supplier_ghg_submission_period",
@@ -264,11 +275,35 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
         {"relationship_id": relationship["id"]}, {"_id": 0}
     ).to_list(100)
     stored_by_key = {item.get("period_key"): item for item in stored}
+    unsubmitted_entries = await db.emission_records.find(
+        {
+            "source": "supplier",
+            "supplier_relationship_id": relationship["id"],
+            "scope": {"$in": ["scope1", "scope2"]},
+            "$or": [
+                {"submitted_to_parent_org": {"$exists": False}},
+                {"submitted_to_parent_org": None},
+            ],
+        },
+        {"_id": 0, "reporting_period": 1},
+    ).to_list(5000)
     today = datetime.now(timezone.utc).date()
     periods = []
     for definition in definitions:
         record = stored_by_key.get(definition["period_key"]) or {}
-        status = record.get("status") or "in_progress"
+        allowed_entry_periods = (
+            reporting_period_values(relationship.get("reporting_period"))
+            if definition["frequency"] == "yearly"
+            else definition["month_keys"]
+        )
+        unsubmitted_entry_count = sum(
+            1 for entry in unsubmitted_entries
+            if entry.get("reporting_period") in allowed_entry_periods
+        )
+        is_overdue = record.get("status") != "submitted" and date.fromisoformat(definition["due_date"]) < today
+        status = submission_period_display_status(
+            record.get("status"), bool(unsubmitted_entry_count), is_overdue,
+        )
         periods.append({
             "id": record.get("id") or definition["period_key"],
             **definition,
@@ -282,7 +317,9 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             "supplier_instructions": record.get("supplier_instructions") if status == "unlocked" else None,
             "unlock_requested_at": record.get("unlock_requested_at"),
             "unlock_requested_by": record.get("unlock_requested_by"),
-            "is_overdue": status != "submitted" and date.fromisoformat(definition["due_date"]) < today,
+            "is_overdue": is_overdue,
+            "has_unsubmitted_entries": bool(unsubmitted_entry_count),
+            "unsubmitted_entry_count": unsubmitted_entry_count,
         })
     return periods
 

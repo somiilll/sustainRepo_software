@@ -92,10 +92,11 @@ export function useEmissionSubmit(ctx) {
       }
     };
     
-    // Use supplier API endpoint if in supplier context
-    const apiBase = supplierContext 
-      ? `${API}/supplier-assessment/my-assessment/emissions`
-      : `${API}/emissions`;
+    // All emission creation uses the canonical endpoint so the calculated
+    // outputs, validation, audit history, and supplier safeguards share one
+    // persistence path. Supplier submission and period-lock actions remain in
+    // the supplier-assessment API.
+    const apiBase = `${API}/emissions`;
 
     const rollbackSubmissionBatch = async (submissionBatchId) => {
       try {
