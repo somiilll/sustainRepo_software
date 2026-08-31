@@ -25,7 +25,7 @@ export default function AnimatedNumber({ value = 0, decimals = 2, suffix = '', d
     };
     raf = requestAnimationFrame(tick);
     return () => raf && cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [value]);
 
   const formatted = Number(display).toLocaleString('en-IN', {

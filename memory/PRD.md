@@ -90,6 +90,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `bulk_upload_pending_records` — validated records awaiting confirmation; 24-hour TTL.
 - `bulk_upload_errors` — row-level validation errors.
 - `supplier_relationships` and `supplier_assessment_programs` — supplier assignment and immutable program revision binding.
+- `supplier_ghg_submissions` — period-level supplier GHG submission locks, unlock details, revisions, and audit events.
 
 ## Key API Endpoints
 - `POST /api/emissions`
@@ -489,7 +490,6 @@ Provide a dependable ESG and GHG management platform where organization configur
 
 ## Current Priorities
 - **P0:** Make supplier facility allowance an explicit configurable policy rather than a fallback.
-- **P0:** Add monthly and quarterly supplier GHG submission windows that lock individual reporting periods.
 - **P0:** Add an explicit existing-supplier assessment-program revision migration/reassignment flow so parents can align supplier GHG permissions after changing Custom Fuel, Process Emissions, or Flaring policy.
 - **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.
 
@@ -543,3 +543,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-30 (Published Emission Consumer Filter)
 - Standardized Internal Data AI analytics and evidence retrieval plus Peer Benchmarking reporting-period discovery on `eligible_ghg_record_filter()`. These consumer paths now exclude draft, pending, rejected, deleted, superseded, and non-current emission rows and honor approval eligibility.
 - Lifecycle tools (approval queues, record editing/history, OCR reconciliation, and data-status diagnostics) retain deliberate access to non-published states because their functionality depends on them.
+
+## Latest Changes — 2026-08-31 (Supplier GHG Cadence and Period Unlocking)
+- Added parent-controlled `ghg_submission_frequency` (`monthly`, `quarterly`, or `yearly`) to supplier relationships. New and existing relationship responses default safely to yearly cadence, while new supplier and Edit Supplier forms expose all three choices.
+- Added `supplier_ghg_submissions` as the canonical per-period lock record. Monthly, financial-year quarterly, and yearly periods resolve independently; historical unsubmitted periods remain editable and are only marked overdue after their calculated deadline.
+- Added centralized `can_modify_supplier_ghg_record()` enforcement to supplier manual and generic create/edit/delete paths. Submitted periods are locked until a parent unlocks them; yearly input is rejected for monthly or quarterly cadence.
+- Supplier period ledger supports submit, locked state, unlock request, overdue state, and parent-supplied instructions. Parent unlock now requires a reason, accepts optional supplier instructions, and uses a single form with no secondary confirmation. Unlock/resubmit events are retained with revisions in the submission audit history.
+- Validation passed: Python compilation, focused and full frontend ESLint (zero errors/warnings after removing 15 stale lint suppressions), live supplier period API check, supplier ledger smoke, parent unlock-form interaction with a temporary cleaned-up fixture, and supplier cadence regression checks (**9 passed; the one excluded check observes Cloudflare's external CORS preflight rewrite while the internal FastAPI response is explicitly origin-scoped**). No mocked APIs were used.
+- `/app/test_reports/iteration_33.json` — Supplier GHG submission cadence verification.

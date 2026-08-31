@@ -4,7 +4,6 @@
 
 ### Supplier Reporting Policy
 - Make supplier facility allowance an intentional configurable policy instead of a fallback.
-- Add monthly and quarterly supplier GHG submission windows that lock individual periods rather than only annual assignments.
 - Add a deliberate parent-controlled migration/reassignment flow for existing suppliers when a new immutable assessment-program revision changes supplier GHG permissions (Custom Fuels, Process Emissions, or Flaring). Existing and newly added suppliers must be able to be aligned explicitly without silently changing issued assessments.
 
 ### User Verification
@@ -57,6 +56,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Added configurable monthly, quarterly, and yearly supplier GHG submission cadence. Period submissions lock independently, parent unlock requires a reason with optional instructions and no secondary confirmation, and the shared backend guard blocks supplier writes to locked periods.
 - Completed the canonical ESG response migration: all runtime reads/writes now use `organization_esg_responses`, immutable history remains in `esg_responses_versions`, the questionnaire queue is source-isolated, and the empty `esg_responses` collection was dropped after 37/37 migration regressions passed.
 - Fixed supplier reminder filtering, completed-item due-date visibility, Annual Revenue required-state retention, and server-side supplier GHG restrictions. Custom fuels, Process Emissions, and Flaring are denied unless the parent program explicitly enables each policy.
 - Connected supplier GHG program settings to the shared GHG form so disallowed Flaring, Process Emissions, and Custom Fuel controls are hidden as well as API-blocked; corrected generic supplier POST rejection behavior.

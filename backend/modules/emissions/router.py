@@ -38,6 +38,7 @@ from modules.supplier_assessment.ghg_submission_service import (
     resolve_effective_supplier_ghg_scopes,
     supplier_emission_period_allowed,
     supplier_period_error,
+    can_modify_supplier_ghg_record,
 )
 from modules.emissions.contracts import (
     EmissionBatchRollbackRequest,
@@ -992,10 +993,14 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     if current_user.get("user_type") == "supplier":
         supplier_relationship = await db.supplier_relationships.find_one(
             {"supplier_org_id": current_user.get("organization_id"), "is_active": True},
-            {"_id": 0, "id": 1, "customer_org_id": 1, "reporting_period": 1},
+            {"_id": 0, "id": 1, "customer_org_id": 1, "reporting_period": 1, "ghg_submission_frequency": 1, "financial_year_start_month": 1},
         )
         if not supplier_relationship:
             raise HTTPException(status_code=403, detail="No active supplier assignment found")
+        try:
+            await can_modify_supplier_ghg_record(supplier_relationship, reporting_period, frequency_type)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error))
         allowed_supplier_scopes = await resolve_effective_supplier_ghg_scopes(supplier_relationship)
         if record_data.scope not in allowed_supplier_scopes:
             raise HTTPException(
@@ -1015,6 +1020,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             reporting_period,
             frequency_type,
             supplier_relationship.get("reporting_period"),
+            supplier_relationship.get("financial_year_start_month") or 4,
         ):
             raise HTTPException(
                 status_code=400,
@@ -1365,7 +1371,7 @@ async def update_emission_record(
     if current_user.get("user_type") == "supplier":
         supplier_relationship = await db.supplier_relationships.find_one(
             {"supplier_org_id": current_user.get("organization_id"), "is_active": True},
-            {"_id": 0, "id": 1, "reporting_period": 1},
+            {"_id": 0, "id": 1, "reporting_period": 1, "ghg_submission_frequency": 1, "financial_year_start_month": 1},
         )
         if (
             not supplier_relationship
@@ -1373,6 +1379,10 @@ async def update_emission_record(
             or existing.get("supplier_relationship_id") != supplier_relationship.get("id")
         ):
             raise HTTPException(status_code=403, detail="This GHG record is not part of your active supplier assignment")
+        try:
+            await can_modify_supplier_ghg_record(supplier_relationship, record_data.reporting_period, record_data.frequency_type)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error))
         allowed_supplier_scopes = await resolve_effective_supplier_ghg_scopes(supplier_relationship)
         if record_data.scope not in allowed_supplier_scopes:
             raise HTTPException(
@@ -1392,6 +1402,7 @@ async def update_emission_record(
             record_data.reporting_period,
             record_data.frequency_type,
             supplier_relationship.get("reporting_period"),
+            supplier_relationship.get("financial_year_start_month") or 4,
         ):
             raise HTTPException(
                 status_code=400,
@@ -1941,6 +1952,17 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
 
     if existing.get("source") == "supplier" and existing.get("submitted_to_parent_org"):
         raise HTTPException(status_code=409, detail="Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.")
+
+    if current_user.get("user_type") == "supplier" and existing.get("source") == "supplier":
+        supplier_relationship = await db.supplier_relationships.find_one(
+            {"supplier_org_id": current_user.get("organization_id"), "is_active": True}, {"_id": 0},
+        )
+        if not supplier_relationship or existing.get("supplier_relationship_id") != supplier_relationship.get("id"):
+            raise HTTPException(status_code=403, detail="This GHG record is not part of your active supplier assignment")
+        try:
+            await can_modify_supplier_ghg_record(supplier_relationship, existing.get("reporting_period"), existing.get("frequency_type"))
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error))
 
     # Approval-workflow gate
     delete_action, delete_payload = await approval_intercept_delete(record_id, current_user)

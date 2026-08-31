@@ -26,6 +26,9 @@ from modules.supplier_assessment.contracts import (
     QuestionResponse,
     SupplierResponsesSubmit,
     SupplierDataVerificationSubmit,
+    SupplierGhgSubmissionPeriodSubmit,
+    SupplierGhgUnlockRequest,
+    SupplierGhgUnlockRequestCreate,
     SupplierQuestionnaireStatusResponse,
     SupplierRankingResponse,
     ReminderSend,
@@ -168,6 +171,7 @@ async def create_supplier(
             created_by_email=current_user["email"],
             modules_enabled=data.modules_enabled,
             ghg_scopes_enabled=data.ghg_scopes_enabled,
+            ghg_submission_frequency=data.ghg_submission_frequency,
             reporting_period=data.reporting_period,
             revenue_required=data.revenue_required,
             questionnaire_ids=data.questionnaire_ids,
@@ -867,6 +871,34 @@ async def reopen_supplier_ghg(supplier_id: str, current_user: dict = Depends(get
         raise HTTPException(status_code=400, detail=str(error))
 
 
+@router.get("/suppliers/{supplier_id}/emissions/submission-periods")
+async def get_parent_supplier_ghg_submission_periods(supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return {"periods": await ghg_submission_service.get_supplier_ghg_submission_periods(supplier)}
+
+
+@router.post("/suppliers/{supplier_id}/emissions/submission-periods/{period_key}/unlock")
+async def unlock_parent_supplier_ghg_submission_period(
+    supplier_id: str,
+    period_key: str,
+    data: SupplierGhgUnlockRequest,
+    current_user: dict = Depends(get_customer_admin),
+):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    try:
+        result = await ghg_submission_service.unlock_supplier_ghg_period(
+            supplier, period_key, current_user["id"], data.reason, data.supplier_instructions,
+        )
+        await supplier_service._update_completion_status(supplier_id)
+        return result
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
 @router.post("/suppliers/{supplier_id}/documents/{requirement_id}/reopen")
 async def reopen_supplier_document(supplier_id: str, requirement_id: str, current_user: dict = Depends(get_customer_admin)):
     try:
@@ -1292,6 +1324,17 @@ async def get_my_ghg_submission(current_user: dict = Depends(get_supplier_user))
     }
 
 
+@router.get("/my-assessment/emissions/submission-periods")
+async def get_my_ghg_submission_periods(current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    return {
+        "frequency": ghg_submission_service.supplier_submission_frequency(relationship),
+        "periods": await ghg_submission_service.get_supplier_ghg_submission_periods(relationship),
+    }
+
+
 @router.get("/my-assessment/emissions/config")
 async def get_my_emissions_config(current_user: dict = Depends(get_supplier_user)):
     """Expose only the parent organization's active Scope 1/2 categories to its supplier."""
@@ -1305,6 +1348,7 @@ async def get_my_emissions_config(current_user: dict = Depends(get_supplier_user
     return {
         **reporting_assignment,
         "enabled_scopes": enabled_scopes,
+        "ghg_submission_frequency": ghg_submission_service.supplier_submission_frequency(relationship),
         "categories": await _parent_ghg_categories(relationship),
         "permissions": {
             "allow_custom_fuels": bool(ghg_module.get("allow_custom_fuels", False)),
@@ -1344,6 +1388,42 @@ async def submit_my_ghg(data: SupplierDataVerificationSubmit, current_user: dict
     return submission
 
 
+@router.post("/my-assessment/emissions/submission-periods/{period_key}/submit")
+async def submit_my_ghg_submission_period(
+    period_key: str,
+    data: SupplierGhgSubmissionPeriodSubmit,
+    current_user: dict = Depends(get_supplier_user),
+):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        submission = await ghg_submission_service.submit_supplier_ghg_period(
+            relationship, period_key, current_user["id"], data.data_verified,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    await supplier_service._update_completion_status(relationship["id"])
+    return submission
+
+
+@router.post("/my-assessment/emissions/submission-periods/{period_key}/request-unlock")
+async def request_my_ghg_submission_period_unlock(
+    period_key: str,
+    data: SupplierGhgUnlockRequestCreate,
+    current_user: dict = Depends(get_supplier_user),
+):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        return await ghg_submission_service.request_supplier_ghg_period_unlock(
+            relationship, period_key, current_user["id"], data.note,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
 @router.post("/my-assessment/emissions")
 async def create_my_emission(
     data: SupplierEmissionCreate,
@@ -1362,18 +1442,10 @@ async def create_my_emission(
     
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
-    if not ghg_submission_service.supplier_emission_period_allowed(
-        data.reporting_period,
-        data.frequency_type,
-        relationship.get("reporting_period"),
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=ghg_submission_service.supplier_period_error(
-                relationship.get("reporting_period"),
-                data.frequency_type,
-            ),
-        )
+    try:
+        await ghg_submission_service.can_modify_supplier_ghg_record(relationship, data.reporting_period, data.frequency_type)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error))
     
     # Validate scope (only scope1 and scope2 allowed for suppliers)
     allowed_scopes = await ghg_submission_service.resolve_effective_supplier_ghg_scopes(relationship)

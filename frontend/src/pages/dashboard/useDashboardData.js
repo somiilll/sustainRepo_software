@@ -82,12 +82,12 @@ export function useDashboardData() {
     fetchOrganization();
     fetchBaseYearData();
     fetchLatestReportingPeriod();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   useEffect(() => {
     if (dateRange.from && dateRange.to) fetchStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [selectedFacilities, dateRange]);
 
   const fetchOrganization = async () => {

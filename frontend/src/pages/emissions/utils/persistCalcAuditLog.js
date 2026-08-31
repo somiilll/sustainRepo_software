@@ -135,7 +135,7 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       headers: getAuthHeader(),
     });
   } catch (auditError) {
-    // eslint-disable-next-line no-console
+     
     console.warn('Failed to persist audit log:', auditError);
     // Don't fail the save flow on audit log error
   }

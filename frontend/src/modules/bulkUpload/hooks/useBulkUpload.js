@@ -44,11 +44,11 @@ export function useBulkUpload(activeModule) {
     } catch (error) {
       console.error('[useBulkUpload] listJobs failed:', error);
     }
-  }, [api]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api]);  
 
   useEffect(() => {
     if (activeModule && !activeModule.notImplemented) loadSessions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [activeModule?.id]);
 
   const handleDownloadTemplate = async () => {

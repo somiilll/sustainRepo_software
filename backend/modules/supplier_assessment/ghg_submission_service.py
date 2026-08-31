@@ -1,6 +1,6 @@
 """One-time Supplier Assessment GHG submission state on existing emission records."""
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import re
 from typing import Any, Dict, List, Optional
 
@@ -73,7 +73,7 @@ def reporting_period_values(parent_period: str | None) -> list[str]:
     ]))
 
 
-def describe_reporting_period(parent_period: str | None) -> Dict[str, Any] | None:
+def describe_reporting_period(parent_period: str | None, financial_year_start_month: int = 4) -> Dict[str, Any] | None:
     """Normalize a supplier assignment into frontend and validation constraints."""
     if not parent_period or not parent_period.strip():
         return None
@@ -83,11 +83,12 @@ def describe_reporting_period(parent_period: str | None) -> Dict[str, Any] | Non
         start_year = int(financial_match.group(1))
         end_year = start_year + 1
         canonical_period = f"FY {start_year}-{str(end_year)[-2:]}"
+        start_month = max(1, min(12, int(financial_year_start_month or 4)))
         allowed_months = [
             f"{year}-{month:02d}"
             for year, month in (
-                [(start_year, month) for month in range(4, 13)]
-                + [(end_year, month) for month in range(1, 4)]
+                [(start_year, month) for month in range(start_month, 13)]
+                + [(end_year, month) for month in range(1, start_month)]
             )
         ]
         return {
@@ -119,9 +120,10 @@ def supplier_emission_period_allowed(
     submission_period: str | None,
     frequency_type: str | None,
     parent_period: str | None,
+    financial_year_start_month: int = 4,
 ) -> bool:
     """Require monthly rows inside the assignment and yearly rows on its exact year."""
-    assignment = describe_reporting_period(parent_period)
+    assignment = describe_reporting_period(parent_period, financial_year_start_month)
     if not assignment or not submission_period:
         return False
     if (frequency_type or "monthly") == "yearly":
@@ -137,8 +139,289 @@ def supplier_period_error(parent_period: str | None, frequency_type: str | None)
     return f"Monthly GHG data must use a month within the assigned reporting period {assigned_label}"
 
 
+async def _hydrate_reporting_year_start(relationship: Dict[str, Any]) -> None:
+    if relationship.get("financial_year_start_month"):
+        return
+    organization = await db.organizations.find_one(
+        {"id": relationship.get("customer_org_id")}, {"_id": 0, "financial_year_start_month": 1},
+    ) or {}
+    relationship["financial_year_start_month"] = int(organization.get("financial_year_start_month") or 4)
+
+
 def period_belongs_to_parent(submission_period: str | None, parent_period: str | None) -> bool:
     return bool(submission_period and submission_period in reporting_period_values(parent_period))
+
+
+def supplier_submission_frequency(relationship: Dict[str, Any]) -> str:
+    value = relationship.get("ghg_submission_frequency")
+    return value if value in {"monthly", "quarterly", "yearly"} else "yearly"
+
+
+def _month_start(month_key: str) -> date:
+    return datetime.strptime(month_key, "%Y-%m").date().replace(day=1)
+
+
+def _month_end(month_key: str) -> date:
+    start = _month_start(month_key)
+    next_month = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return next_month - timedelta(days=1)
+
+
+def resolve_supplier_submission_period(
+    relationship: Dict[str, Any],
+    reporting_period: str,
+    frequency_type: str | None = "monthly",
+) -> Dict[str, Any]:
+    """Resolve one emission record to the relationship's independent submission period."""
+    assignment = describe_reporting_period(
+        relationship.get("reporting_period"),
+        relationship.get("financial_year_start_month") or 4,
+    )
+    if not assignment or not reporting_period:
+        raise ValueError("A valid supplier reporting assignment is required")
+    data_frequency = frequency_type or "monthly"
+    cadence = supplier_submission_frequency(relationship)
+    if data_frequency not in {"monthly", "yearly"}:
+        raise ValueError("GHG data frequency must be monthly or yearly")
+    if data_frequency == "yearly":
+        is_allowed = reporting_period.strip().replace(" ", "").upper() == assignment["reporting_period"].replace(" ", "").upper()
+    else:
+        is_allowed = reporting_period.strip() in assignment["allowed_months"]
+    if not is_allowed:
+        raise ValueError(supplier_period_error(relationship.get("reporting_period"), data_frequency))
+    if data_frequency == "yearly" and cadence != "yearly":
+        raise ValueError("Yearly GHG data can only be used with yearly submission frequency")
+
+    months = assignment["allowed_months"]
+    if data_frequency == "yearly":
+        start_key, end_key = months[0], months[-1]
+        period_key = assignment["reporting_period"]
+        label = assignment["reporting_period"]
+    elif cadence == "monthly":
+        start_key = end_key = reporting_period
+        period_key = reporting_period
+        label = datetime.strptime(reporting_period, "%Y-%m").strftime("%B %Y")
+    elif cadence == "quarterly":
+        month_index = months.index(reporting_period)
+        quarter_number = month_index // 3 + 1
+        start_key, end_key = months[(quarter_number - 1) * 3], months[quarter_number * 3 - 1]
+        period_key = f"{assignment['reporting_period']}-Q{quarter_number}"
+        label = f"Q{quarter_number} · {datetime.strptime(start_key, '%Y-%m').strftime('%b')}–{datetime.strptime(end_key, '%Y-%m').strftime('%b %Y')}"
+    else:
+        start_key, end_key = months[0], months[-1]
+        period_key = assignment["reporting_period"]
+        label = assignment["reporting_period"]
+
+    end_date = _month_end(end_key)
+    return {
+        "period_key": period_key,
+        "frequency": cadence,
+        "label": label,
+        "period_start": _month_start(start_key).isoformat(),
+        "period_end": end_date.isoformat(),
+        "due_date": (end_date + timedelta(days=15)).isoformat(),
+        "month_keys": months if cadence == "yearly" else (months[(quarter_number - 1) * 3:quarter_number * 3] if cadence == "quarterly" else [start_key]),
+        "reporting_year": assignment["reporting_period"],
+    }
+
+
+def _submission_period_definitions(relationship: Dict[str, Any]) -> List[Dict[str, Any]]:
+    assignment = describe_reporting_period(
+        relationship.get("reporting_period"), relationship.get("financial_year_start_month") or 4,
+    )
+    if not assignment:
+        return []
+    cadence = supplier_submission_frequency(relationship)
+    months = assignment["allowed_months"]
+    keys = months if cadence == "monthly" else ([months[index] for index in range(0, len(months), 3)] if cadence == "quarterly" else [months[0]])
+    return [resolve_supplier_submission_period(relationship, key, "monthly") for key in keys]
+
+
+def _period_entries_query(relationship: Dict[str, Any], period: Dict[str, Any]) -> Dict[str, Any]:
+    query = {
+        "source": "supplier",
+        "supplier_relationship_id": relationship["id"],
+        "scope": {"$in": ["scope1", "scope2"]},
+    }
+    if period["frequency"] == "yearly":
+        query["reporting_period"] = {"$in": reporting_period_values(relationship.get("reporting_period"))}
+    else:
+        query["reporting_period"] = {"$in": period["month_keys"]}
+    return query
+
+
+async def ensure_ghg_submission_indexes() -> None:
+    await db.supplier_ghg_submissions.create_index(
+        [("relationship_id", 1), ("period_key", 1)], unique=True, name="unique_supplier_ghg_submission_period",
+    )
+
+
+async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> List[Dict[str, Any]]:
+    await ensure_ghg_submission_indexes()
+    await _hydrate_reporting_year_start(relationship)
+    definitions = _submission_period_definitions(relationship)
+    stored = await db.supplier_ghg_submissions.find(
+        {"relationship_id": relationship["id"]}, {"_id": 0}
+    ).to_list(100)
+    stored_by_key = {item.get("period_key"): item for item in stored}
+    today = datetime.now(timezone.utc).date()
+    periods = []
+    for definition in definitions:
+        record = stored_by_key.get(definition["period_key"]) or {}
+        status = record.get("status") or "in_progress"
+        periods.append({
+            "id": record.get("id") or definition["period_key"],
+            **definition,
+            "status": status,
+            "revision": int(record.get("revision") or 0),
+            "submitted_at": record.get("submitted_at"),
+            "submitted_by": record.get("submitted_by"),
+            "unlocked_at": record.get("unlocked_at"),
+            "unlocked_by": record.get("unlocked_by"),
+            "unlock_reason": record.get("unlock_reason"),
+            "supplier_instructions": record.get("supplier_instructions") if status == "unlocked" else None,
+            "unlock_requested_at": record.get("unlock_requested_at"),
+            "unlock_requested_by": record.get("unlock_requested_by"),
+            "is_overdue": status != "submitted" and date.fromisoformat(definition["due_date"]) < today,
+        })
+    return periods
+
+
+async def can_modify_supplier_ghg_record(
+    relationship: Dict[str, Any], reporting_period: str, frequency_type: str | None = "monthly",
+) -> Dict[str, Any]:
+    """Single lock guard used before a supplier GHG record is created, edited, or deleted."""
+    await _hydrate_reporting_year_start(relationship)
+    period = resolve_supplier_submission_period(relationship, reporting_period, frequency_type)
+    submitted = await db.supplier_ghg_submissions.find_one(
+        {"relationship_id": relationship["id"], "period_key": period["period_key"], "status": "submitted"},
+        {"_id": 0, "id": 1},
+    )
+    if submitted:
+        raise ValueError(f"{period['label']} GHG data is submitted and locked. Ask your customer to unlock it.")
+    return period
+
+
+async def submit_supplier_ghg_period(
+    relationship: Dict[str, Any], period_key: str, submitted_by: str, data_verified: bool,
+) -> Dict[str, Any]:
+    await ensure_ghg_submission_indexes()
+    await _hydrate_reporting_year_start(relationship)
+    if not data_verified:
+        raise ValueError("Confirm that the submitted data has been reviewed and verified")
+    period = next((item for item in _submission_period_definitions(relationship) if item["period_key"] == period_key), None)
+    if not period:
+        raise ValueError("GHG submission period is not part of this supplier assignment")
+    existing = await db.supplier_ghg_submissions.find_one(
+        {"relationship_id": relationship["id"], "period_key": period_key}, {"_id": 0},
+    )
+    if existing and existing.get("status") == "submitted":
+        raise ValueError("This GHG submission period is already locked")
+    entries = await db.emission_records.find(
+        {
+            **_period_entries_query(relationship, period),
+            "$or": [{"submitted_to_parent_org": {"$exists": False}}, {"submitted_to_parent_org": None}],
+        }, {"_id": 0},
+    ).to_list(5000)
+    if not entries:
+        raise ValueError("Add at least one GHG entry in this period before submitting")
+    now = _now()
+    submission_id = existing.get("id") if existing else str(uuid.uuid4())
+    revision = int(existing.get("revision") or 0) + 1 if existing else 1
+    event = {"event": "submitted", "at": now, "by": submitted_by, "revision": revision}
+    document = {
+        "id": submission_id,
+        "relationship_id": relationship["id"],
+        "parent_organization_id": relationship["customer_org_id"],
+        "supplier_organization_id": relationship["supplier_org_id"],
+        "reporting_year": period["reporting_year"],
+        "frequency": period["frequency"],
+        "period_key": period_key,
+        "period_start": period["period_start"],
+        "period_end": period["period_end"],
+        "due_date": period["due_date"],
+        "status": "submitted",
+        "submitted_at": now,
+        "submitted_by": submitted_by,
+        "unlocked_at": None,
+        "unlocked_by": None,
+        "unlock_reason": None,
+        "supplier_instructions": None,
+        "unlock_requested_at": None,
+        "unlock_requested_by": None,
+        "revision": revision,
+        "history": [*(existing.get("history") or []), event],
+    }
+    await db.emission_records.update_many(
+        {"id": {"$in": [entry["id"] for entry in entries]}},
+        {"$set": {"submitted_to_parent_org": now, "submission_id": submission_id, "submitted_by": submitted_by, "parent_visible": True, "status": "submitted", "approval_status": "submitted", "data_verified": True, "data_verified_at": now, "data_verified_by": submitted_by}},
+    )
+    await db.supplier_ghg_submissions.update_one(
+        {"relationship_id": relationship["id"], "period_key": period_key}, {"$set": document}, upsert=True,
+    )
+    return {key: value for key, value in document.items() if key != "history"}
+
+
+async def unlock_supplier_ghg_period(
+    relationship: Dict[str, Any], period_key: str, unlocked_by: str, reason: str, supplier_instructions: Optional[str] = None,
+) -> Dict[str, Any]:
+    await ensure_ghg_submission_indexes()
+    await _hydrate_reporting_year_start(relationship)
+    reason = reason.strip()
+    if not reason:
+        raise ValueError("An unlock reason is required")
+    submission = await db.supplier_ghg_submissions.find_one(
+        {"relationship_id": relationship["id"], "period_key": period_key}, {"_id": 0},
+    )
+    if not submission or submission.get("status") != "submitted":
+        raise ValueError("No submitted GHG period is available to unlock")
+    period = next((item for item in _submission_period_definitions(relationship) if item["period_key"] == period_key), None)
+    if not period:
+        raise ValueError("GHG submission period is not part of this supplier assignment")
+    visible_entries = await db.emission_records.find(
+        {**_period_entries_query(relationship, period), "submission_id": submission["id"], "parent_visible": {"$ne": False}}, {"_id": 0},
+    ).to_list(5000)
+    if not visible_entries:
+        raise ValueError("No submitted GHG entries are available to unlock")
+    now = _now()
+    copies = []
+    for entry in visible_entries:
+        lineage_id = entry.get("revision_lineage_id") or entry["id"]
+        draft = {key: value for key, value in entry.items() if key not in {"_id", "id", "submitted_to_parent_org", "submission_id", "submitted_by", "parent_visible", "replaced_at", "replaced_by_submission_id"}}
+        draft.update({
+            "id": str(uuid.uuid4()), "status": "draft", "approval_status": "draft", "submitted_to_parent_org": None,
+            "submission_id": None, "submitted_by": None, "resubmission_of": submission["id"], "reopened_at": now,
+            "reopened_by": unlocked_by, "unlock_reason": reason, "supplier_instructions": supplier_instructions or None,
+            "created_at": now, "updated_at": now, "revision_lineage_id": lineage_id,
+            "revision_number": _revision_number(entry) + 1, "is_current_revision": True, "revised_from_record_id": entry["id"],
+        })
+        copies.append(draft)
+    await db.emission_records.insert_many(copies)
+    await db.emission_records.update_many(
+        {"id": {"$in": [entry["id"] for entry in visible_entries]}}, {"$set": {"is_current_revision": False, "parent_visible": False}},
+    )
+    event = {"event": "unlocked", "at": now, "by": unlocked_by, "reason": reason, "supplier_instructions": supplier_instructions or None}
+    await db.supplier_ghg_submissions.update_one(
+        {"id": submission["id"]}, {"$set": {"status": "unlocked", "unlocked_at": now, "unlocked_by": unlocked_by, "unlock_reason": reason, "supplier_instructions": supplier_instructions or None, "unlock_requested_at": None, "unlock_requested_by": None}, "$push": {"history": event}},
+    )
+    return {"id": submission["id"], "period_key": period_key, "status": "unlocked", "entry_count": len(copies), "unlocked_at": now, "unlock_reason": reason, "supplier_instructions": supplier_instructions or None}
+
+
+async def request_supplier_ghg_period_unlock(
+    relationship: Dict[str, Any], period_key: str, requested_by: str, note: Optional[str] = None,
+) -> Dict[str, Any]:
+    await ensure_ghg_submission_indexes()
+    submission = await db.supplier_ghg_submissions.find_one(
+        {"relationship_id": relationship["id"], "period_key": period_key}, {"_id": 0},
+    )
+    if not submission or submission.get("status") != "submitted":
+        raise ValueError("Only submitted and locked GHG periods can be reopened")
+    now = _now()
+    event = {"event": "unlock_requested", "at": now, "by": requested_by, "note": (note or "").strip() or None}
+    await db.supplier_ghg_submissions.update_one(
+        {"id": submission["id"]}, {"$set": {"unlock_requested_at": now, "unlock_requested_by": requested_by, "unlock_request_note": event["note"]}, "$push": {"history": event}},
+    )
+    return {"id": submission["id"], "period_key": period_key, "status": "submitted", "unlock_requested_at": now}
 
 
 def aggregate_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -261,7 +544,17 @@ async def get_supplier_ghg_state(relationship: Dict[str, Any]) -> Dict[str, Any]
     submitted_entries = [entry for entry in entries if entry.get("submitted_to_parent_org") and entry.get("parent_visible", True)]
     drafts = [entry for entry in entries if not entry.get("submitted_to_parent_org")]
     submission = None
-    if submitted_entries:
+    if relationship.get("ghg_submission_frequency") in {"monthly", "quarterly", "yearly"}:
+        periods = await get_supplier_ghg_submission_periods(relationship)
+        submitted_periods = [period for period in periods if period["status"] == "submitted"]
+        unlocked_periods = [period for period in periods if period["status"] == "unlocked"]
+        submission = {
+            "status": "submitted" if periods and len(submitted_periods) == len(periods) else "reopened" if unlocked_periods else "in_progress",
+            "entry_count": len(submitted_entries),
+            "submitted_period_count": len(submitted_periods),
+            "period_count": len(periods),
+        }
+    elif submitted_entries:
         first_submission = min(submitted_entries, key=lambda entry: entry.get("submitted_to_parent_org", ""))
         resubmission_open = any(entry.get("resubmission_of") for entry in drafts)
         submission = {"id": first_submission.get("submission_id"), "status": "reopened" if resubmission_open else "submitted", "submitted_at": first_submission.get("submitted_to_parent_org"), "entry_count": len(submitted_entries)}

@@ -72,6 +72,7 @@ const createSupplierForm = (reportingPeriod) => ({
   reporting_period: reportingPeriod,
   modules_enabled: ['esg', 'ghg'],
   ghg_scopes_enabled: ['scope1', 'scope2'],
+  ghg_submission_frequency: 'yearly',
   revenue_required: false,
   questionnaire_ids: [],
   document_requirement_ids: [],
@@ -305,6 +306,7 @@ export default function SupplierList() {
       reporting_period: supplier.reporting_period || `CY${new Date().getFullYear()}`,
       modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
       ghg_scopes_enabled: supplier.ghg_scopes_enabled || ['scope1', 'scope2'],
+      ghg_submission_frequency: supplier.ghg_submission_frequency || 'yearly',
       revenue_required: supplier.revenue_required === true,
       questionnaire_ids: supplier.questionnaire_ids || [],
       document_requirement_ids: supplier.document_requirement_ids || [],
@@ -756,6 +758,14 @@ export default function SupplierList() {
                     </label>
                         </div>
                       </div>
+                      <div className="space-y-2 border-t border-stone-100 pt-3" data-testid="supplier-ghg-submission-frequency-options">
+                        <Label className="text-sm font-medium">GHG submission frequency</Label>
+                        <RadioGroup value={formData.ghg_submission_frequency} onValueChange={(value) => setFormData((current) => ({ ...current, ghg_submission_frequency: value }))} className="flex flex-wrap gap-4" data-testid="supplier-ghg-submission-frequency-control">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="new-supplier-ghg-monthly"><RadioGroupItem id="new-supplier-ghg-monthly" value="monthly" data-testid="new-supplier-ghg-monthly-radio" />Monthly</label>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="new-supplier-ghg-quarterly"><RadioGroupItem id="new-supplier-ghg-quarterly" value="quarterly" data-testid="new-supplier-ghg-quarterly-radio" />Quarterly</label>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="new-supplier-ghg-yearly"><RadioGroupItem id="new-supplier-ghg-yearly" value="yearly" data-testid="new-supplier-ghg-yearly-radio" />Yearly</label>
+                        </RadioGroup>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -764,7 +774,7 @@ export default function SupplierList() {
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="grid gap-4 border-t pt-4 md:grid-cols-2 [&>div:first-child]:!border-teal-300 [&>div:first-child]:!shadow-[0_4px_16px_rgba(20,184,166,0.18)] [&>div:last-child]:!border-amber-300 [&>div:last-child]:!shadow-[0_4px_16px_rgba(245,158,11,0.18)]" data-testid="supplier-existing-assignment-options">
                 {documents.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
-                {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.document_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
+                {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
               </div>
             )}
           </div>
@@ -908,6 +918,14 @@ export default function SupplierList() {
                       Scope 2 (Indirect)
                     </label>
                   </div>
+                </div>
+                <div className="space-y-2 border-t border-stone-100 pt-3" data-testid="edit-supplier-ghg-submission-frequency-options">
+                  <Label className="text-sm font-medium">GHG submission frequency</Label>
+                  <RadioGroup value={formData.ghg_submission_frequency} onValueChange={(value) => setFormData((current) => ({ ...current, ghg_submission_frequency: value }))} className="flex flex-wrap gap-4" data-testid="edit-supplier-ghg-submission-frequency-control">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="edit-supplier-ghg-monthly"><RadioGroupItem id="edit-supplier-ghg-monthly" value="monthly" data-testid="edit-supplier-ghg-monthly-radio" />Monthly</label>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="edit-supplier-ghg-quarterly"><RadioGroupItem id="edit-supplier-ghg-quarterly" value="quarterly" data-testid="edit-supplier-ghg-quarterly-radio" />Quarterly</label>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="edit-supplier-ghg-yearly"><RadioGroupItem id="edit-supplier-ghg-yearly" value="yearly" data-testid="edit-supplier-ghg-yearly-radio" />Yearly</label>
+                  </RadioGroup>
                 </div>
               </div>
             )}

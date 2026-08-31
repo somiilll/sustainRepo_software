@@ -43,6 +43,7 @@ async def create_supplier(
     created_by_email: str,
     modules_enabled: Optional[List[str]] = None,
     ghg_scopes_enabled: Optional[List[str]] = None,
+    ghg_submission_frequency: str = "yearly",
     reporting_period: Optional[str] = None,
     revenue_required: bool = False,
     questionnaire_ids: Optional[List[str]] = None,
@@ -158,6 +159,9 @@ async def create_supplier(
 
     # Create supplier relationship
     relationship_id = str(uuid.uuid4())
+    customer_reporting_config = await db.organizations.find_one(
+        {"id": customer_org_id}, {"_id": 0, "financial_year_start_month": 1},
+    ) or {}
     relationship = {
         "id": relationship_id,
         "customer_org_id": customer_org_id,
@@ -171,12 +175,14 @@ async def create_supplier(
         "invitation_status": "pending",
         "due_date": due_date,
         "reporting_period": reporting_period or await self._organization_default_reporting_period(customer_org_id),
+        "financial_year_start_month": int(customer_reporting_config.get("financial_year_start_month") or 4),
         "last_reminder_sent": None,
         "reminder_count": 0,
         "is_active": True,
         # Module configuration
         "modules_enabled": modules_enabled,
         "ghg_scopes_enabled": ghg_scopes_enabled,
+        "ghg_submission_frequency": ghg_submission_frequency,
         "questionnaire_ids": assigned_questionnaire_ids,
         "assessment_program_id": program_revision["program_id"],
         "assessment_program_version": program_revision["version"],

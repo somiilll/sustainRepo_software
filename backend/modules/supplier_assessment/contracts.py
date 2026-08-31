@@ -24,6 +24,7 @@ class SupplierCreate(BaseModel):
     # Module configuration
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
+    ghg_submission_frequency: Literal["monthly", "quarterly", "yearly"] = "yearly"
     questionnaire_ids: List[str] = Field(default_factory=list)
     document_requirement_ids: List[str] = Field(default_factory=list)
     training_requirement_ids: List[str] = Field(default_factory=list)
@@ -40,6 +41,7 @@ class SupplierUpdate(BaseModel):
     # Module configuration
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
+    ghg_submission_frequency: Optional[Literal["monthly", "quarterly", "yearly"]] = None
     questionnaire_ids: Optional[List[str]] = None
     document_requirement_ids: Optional[List[str]] = None
     training_requirement_ids: Optional[List[str]] = None
@@ -71,6 +73,7 @@ class SupplierResponse(BaseModel):
     # Module configuration
     modules_enabled: List[str] = ["esg", "ghg"]
     ghg_scopes_enabled: List[str] = ["scope1", "scope2"]
+    ghg_submission_frequency: Literal["monthly", "quarterly", "yearly"] = "yearly"
     questionnaire_ids: List[str] = []
     document_requirement_ids: List[str] = []
     training_requirement_ids: List[str] = []
@@ -421,6 +424,19 @@ class SupplierResponsesSubmit(BaseModel):
 class SupplierDataVerificationSubmit(BaseModel):
     """Required acknowledgement for a final supplier submission."""
     data_verified: Literal[True]
+
+
+class SupplierGhgSubmissionPeriodSubmit(SupplierDataVerificationSubmit):
+    """Required acknowledgement for one supplier GHG reporting period."""
+
+
+class SupplierGhgUnlockRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+    supplier_instructions: Optional[str] = Field(default=None, max_length=4000)
+
+
+class SupplierGhgUnlockRequestCreate(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=2000)
 
 
 class SupplierQuestionnaireStatusResponse(BaseModel):
