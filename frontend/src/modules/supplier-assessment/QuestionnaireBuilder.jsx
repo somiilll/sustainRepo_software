@@ -54,7 +54,6 @@ import { QuestionLedgerDialog } from './components/QuestionLedgerDialog';
 import { SupplierQuestionnairePreviewDialog } from './components/SupplierQuestionnairePreviewDialog';
 import { QuestionnaireQuestionRow } from './components/QuestionnaireQuestionRow';
 import { SupplierAssignmentManagerDialog } from './components/SupplierAssignmentManagerDialog';
-import { QuestionImportanceGuide } from './components/QuestionImportanceGuide';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -1181,7 +1180,7 @@ export default function QuestionnaireBuilder() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Question Importance</Label>
+                <Label className="flex items-center gap-1.5">Question Importance<Tooltip><TooltipTrigger asChild><button type="button" className="inline-flex text-sky-700 transition-colors hover:text-sky-900" aria-label="View question importance score share" data-testid="question-importance-share-info"><Info className="h-4 w-4" aria-hidden="true" /></button></TooltipTrigger><TooltipContent className="max-w-xs" data-testid="question-importance-share-tooltip"><p>Score share is calculated within each ESG section. Low = 1, Medium = 2, High = 3. With one of each, shares are 16.67%, 33.33%, and 50% respectively. Shares adjust based on all answered questions.</p></TooltipContent></Tooltip></Label>
                 <Select
                   value={questionForm.importance}
                   onValueChange={(importance) => setQuestionForm({ ...questionForm, importance })}
@@ -1193,7 +1192,6 @@ export default function QuestionnaireBuilder() {
                     <SelectItem value="high">High</SelectItem>
                   </SelectContent>
                 </Select>
-                <QuestionImportanceGuide testId="question-importance-weighting-guide" />
               </div>
               <div className="space-y-2">
                 <Label>Required</Label>

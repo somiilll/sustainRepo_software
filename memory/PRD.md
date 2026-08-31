@@ -528,6 +528,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Questionnaire importance is now limited to High (3), Medium (2), and Low (1). Legacy Critical questions are migrated to High with a standard weight of 3, and Critical is removed from creation, editing, API validation, and scoring controls.
 - Questionnaire authors now see the Low (1×), Medium (2×), and High (3×) guide directly beside the single-question importance selector and at the top of the bulk question ledger. Dropdown options include the same weight labels.
 - The guide now communicates combined-score shares (Low 16.67%, Medium 33.33%, High 50% when one of each is used), while dropdowns remain concise with Low, Medium, and High labels only.
+- In the single-question edit form, the score-share explanation is now available through a hoverable information icon beside Question Importance rather than occupying permanent form space. The bulk ledger retains its visible guide.
 
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
