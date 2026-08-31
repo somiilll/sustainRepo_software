@@ -553,7 +553,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 
 ## Latest Changes — 2026-08-31 (Parent Supplier Summary Tables)
 - Supplier ESG summary headings and values are center-aligned, and its per-row View column has been removed. Supplier attributed emissions headings now explicitly show Supplier, Scope 1 (tCO2e), Scope 2 (tCO2e), Total attributed (tCO2e), and Revenue share.
-- ESG Analysis now includes an E / S / G performance comparison table with dimension average score and supplier count. Supplier summary scores use green for good (80+), yellow for at-risk (60–79.9), and red for low (<60) performance.
+- ESG Analysis now shows the number of suppliers assessed directly in the ESG score breakdown. Supplier summary scores use green for good (80+), yellow for at-risk (60–79.9), and red for low (<60) performance. The separate E / S / G performance comparison table was removed.
 
 ## Latest Changes — 2026-08-31 (Supplier Ranking Risk and Requirement Views)
 - Ranking Overview now includes a Supplier Sustainability Risk Matrix styled as the supplied 2×2 strategic reference: High/Low ESG on the horizontal axis, High/Low Emissions on the vertical axis, and Critical, Strategic, Priority Improvement, and Developing quadrants with plotted supplier points.
