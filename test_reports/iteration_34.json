@@ -1,0 +1,40 @@
+{
+  "summary": "Ran targeted backend + frontend regression for supplier GHG Logs duplicate-visibility fix. Verified /api/emissions for supplier hides superseded revisions, helper logic covers legacy non-lineage rows, and MongoDB still retains historical records for the reported relationship.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_supplier_ghg_submission.py",
+    "/app/backend/tests/test_supplier_ghg_log_revisions.py",
+    "/app/backend/tests/test_supplier_ghg_logs_revision_visibility_iter34.py",
+    "/app/test_reports/pytest/pytest_results_iter34_targeted.xml"
+  ],
+  "action_items": [
+    "Optional: provide valid credentials for goyalsomil+27@hotmail.com if direct user-reported account reproduction is required.",
+    "Optional maintainability follow-up: split oversized frontend file /app/frontend/src/pages/Emissions.js (>700 lines) into smaller modules/components."
+  ],
+  "critical_code_review_comments": [
+    "GET /api/emissions applies exclude_reopened_supplier_submission_revisions() before response serialization, matching intended dedupe path.",
+    "exclude_reopened_supplier_submission_revisions now filters supplier rows where is_current_revision is explicitly false, which covers legacy rows missing revision_lineage_id.",
+    "Emissions.js is very large (3454 lines), exceeding maintainability guideline threshold and increasing regression risk."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_supplier_ghg_logs_revision_visibility_iter34.py",
+    "/app/test_reports/iteration_34.json"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7 passed, 1 skipped data-conditional)",
+    "frontend": "100% (targeted supplier GHG Logs smoke passed)"
+  },
+  "seed_data_creation": "None (non-mutating checks only).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Supplier UI checked on /ghg/scope1 with data-testid row selectors (2 visible rows, no duplicate rendering observed). Live backend test confirms /api/emissions returns no supplier rows with is_current_revision=false for supplier account goyalsomil+919@hotmail.com. MongoDB check confirms reported relationship 53d631c3-9bc7-4c20-babc-068bc53af68f still contains both current and historical (is_current_revision=false) records, so audit history is retained.",
+  "rca of the issue": "Original duplication came from old submitted rows remaining visible after unlock/resubmission. Those historical rows were marked is_current_revision:false but some lacked revision_lineage_id, so prior lineage-based filtering missed them. New filtering by source=supplier + is_current_revision=false removes superseded rows from normal GHG Logs while preserving records in MongoDB for audit/revision history."
+}

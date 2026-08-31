@@ -470,14 +470,7 @@ def aggregate_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def exclude_reopened_supplier_submission_revisions(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Keep the editable draft visible in GHG Logs while retaining its submitted source in storage."""
-    current_lineage_ids = {
-        entry["revision_lineage_id"]
-        for entry in entries
-        if entry.get("source") == "supplier"
-        and entry.get("revision_lineage_id")
-        and entry.get("is_current_revision") is True
-    }
+    """Keep current supplier revisions visible while retaining prior ones for audit."""
     reopened_submission_ids = {
         entry["resubmission_of"]
         for entry in entries
@@ -485,7 +478,10 @@ def exclude_reopened_supplier_submission_revisions(entries: List[Dict[str, Any]]
         and not entry.get("submitted_to_parent_org")
         and entry.get("resubmission_of")
     }
-    if not current_lineage_ids and not reopened_submission_ids:
+    if not reopened_submission_ids and not any(
+        entry.get("source") == "supplier" and entry.get("is_current_revision") is False
+        for entry in entries
+    ):
         return entries
     return [
         entry
@@ -494,8 +490,7 @@ def exclude_reopened_supplier_submission_revisions(entries: List[Dict[str, Any]]
             entry.get("source") == "supplier"
             and (
                 (
-                    entry.get("revision_lineage_id") in current_lineage_ids
-                    and entry.get("is_current_revision") is False
+                    entry.get("is_current_revision") is False
                 )
                 or (
                     entry.get("submitted_to_parent_org")

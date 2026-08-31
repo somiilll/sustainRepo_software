@@ -505,6 +505,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier GHG Logs now hide prior `is_current_revision: false` records after a parent unlock and supplier resubmission. The immutable earlier revision remains preserved in storage and audit history, while the supplier sees only the current live record.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
 
+## Latest Changes — 2026-08-31 (Supplier GHG Duplicate Revision Fix)
+- Corrected the central GHG log filter so it hides every supplier record marked `is_current_revision: false`, including earlier records created before lineage IDs were introduced. This resolves duplicate April/May entries after resubmission without deleting historical audit data.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.
