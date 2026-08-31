@@ -493,6 +493,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - **P0:** Add an explicit existing-supplier assessment-program revision migration/reassignment flow so parents can align supplier GHG permissions after changing Custom Fuel, Process Emissions, or Flaring policy.
 - **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.
 
+## Latest Changes — 2026-08-31 (Supplier GHG First-Submission Repair)
+- Fixed supplier GHG period submission failing with HTTP 500 for a period without a prior submission ledger record. New submissions now initialize their audit history from an empty list, while resubmissions retain existing history.
+- **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.

@@ -387,7 +387,7 @@ async def submit_supplier_ghg_period(
         "unlock_requested_at": None,
         "unlock_requested_by": None,
         "revision": revision,
-        "history": [*(existing.get("history") or []), event],
+        "history": [*((existing or {}).get("history") or []), event],
     }
     await db.emission_records.update_many(
         {"id": {"$in": [entry["id"] for entry in entries]}},
