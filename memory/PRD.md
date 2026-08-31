@@ -536,6 +536,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-31 (Supplier GHG Submitted State)
 - Supplier GHG period ledger now renders the `Submitted · Locked` status badge with an explicit green background, making completed locked periods visually distinct from pending states.
 
+## Latest Changes — 2026-08-31 (Supplier Unlock-Request Removal)
+- Removed the supplier GHG unlock-request action, status message, request payload contract, and API endpoint. Parent organizations retain direct, period-specific unlock control.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.

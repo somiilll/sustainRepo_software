@@ -28,7 +28,6 @@ from modules.supplier_assessment.contracts import (
     SupplierDataVerificationSubmit,
     SupplierGhgSubmissionPeriodSubmit,
     SupplierGhgUnlockRequest,
-    SupplierGhgUnlockRequestCreate,
     SupplierQuestionnaireStatusResponse,
     SupplierRankingResponse,
     ReminderSend,
@@ -1406,23 +1405,6 @@ async def submit_my_ghg_submission_period(
         raise HTTPException(status_code=400, detail=str(error))
     await supplier_service._update_completion_status(relationship["id"])
     return submission
-
-
-@router.post("/my-assessment/emissions/submission-periods/{period_key}/request-unlock")
-async def request_my_ghg_submission_period_unlock(
-    period_key: str,
-    data: SupplierGhgUnlockRequestCreate,
-    current_user: dict = Depends(get_supplier_user),
-):
-    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
-    if not relationship:
-        raise HTTPException(status_code=404, detail="No active supplier relationship found")
-    try:
-        return await ghg_submission_service.request_supplier_ghg_period_unlock(
-            relationship, period_key, current_user["id"], data.note,
-        )
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.post("/my-assessment/emissions")

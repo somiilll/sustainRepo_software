@@ -352,8 +352,6 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             "unlocked_by": record.get("unlocked_by"),
             "unlock_reason": record.get("unlock_reason"),
             "supplier_instructions": record.get("supplier_instructions") if status == "unlocked" else None,
-            "unlock_requested_at": record.get("unlock_requested_at"),
-            "unlock_requested_by": record.get("unlock_requested_by"),
             "is_overdue": is_overdue,
             "has_unsubmitted_entries": bool(unsubmitted_entry_count),
             "unsubmitted_entry_count": unsubmitted_entry_count,
@@ -422,8 +420,6 @@ async def submit_supplier_ghg_period(
         "unlocked_by": None,
         "unlock_reason": None,
         "supplier_instructions": None,
-        "unlock_requested_at": None,
-        "unlock_requested_by": None,
         "revision": revision,
         "history": [*((existing or {}).get("history") or []), event],
     }
@@ -475,26 +471,9 @@ async def unlock_supplier_ghg_period(
     )
     event = {"event": "unlocked", "at": now, "by": unlocked_by, "reason": reason, "supplier_instructions": supplier_instructions or None}
     await db.supplier_ghg_submissions.update_one(
-        {"id": submission["id"]}, {"$set": {"status": "unlocked", "unlocked_at": now, "unlocked_by": unlocked_by, "unlock_reason": reason, "supplier_instructions": supplier_instructions or None, "unlock_requested_at": None, "unlock_requested_by": None}, "$push": {"history": event}},
+        {"id": submission["id"]}, {"$set": {"status": "unlocked", "unlocked_at": now, "unlocked_by": unlocked_by, "unlock_reason": reason, "supplier_instructions": supplier_instructions or None}, "$push": {"history": event}},
     )
     return {"id": submission["id"], "period_key": period_key, "status": "unlocked", "entry_count": len(copies), "unlocked_at": now, "unlock_reason": reason, "supplier_instructions": supplier_instructions or None}
-
-
-async def request_supplier_ghg_period_unlock(
-    relationship: Dict[str, Any], period_key: str, requested_by: str, note: Optional[str] = None,
-) -> Dict[str, Any]:
-    await ensure_ghg_submission_indexes()
-    submission = await db.supplier_ghg_submissions.find_one(
-        {"relationship_id": relationship["id"], "period_key": period_key}, {"_id": 0},
-    )
-    if not submission or submission.get("status") != "submitted":
-        raise ValueError("Only submitted and locked GHG periods can be reopened")
-    now = _now()
-    event = {"event": "unlock_requested", "at": now, "by": requested_by, "note": (note or "").strip() or None}
-    await db.supplier_ghg_submissions.update_one(
-        {"id": submission["id"]}, {"$set": {"unlock_requested_at": now, "unlock_requested_by": requested_by, "unlock_request_note": event["note"]}, "$push": {"history": event}},
-    )
-    return {"id": submission["id"], "period_key": period_key, "status": "submitted", "unlock_requested_at": now}
 
 
 def aggregate_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

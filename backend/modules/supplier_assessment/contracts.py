@@ -430,10 +430,6 @@ class SupplierGhgUnlockRequest(BaseModel):
     supplier_instructions: Optional[str] = Field(default=None, max_length=4000)
 
 
-class SupplierGhgUnlockRequestCreate(BaseModel):
-    note: Optional[str] = Field(default=None, max_length=2000)
-
-
 class SupplierQuestionnaireStatusResponse(BaseModel):
     """Supplier's questionnaire status."""
     model_config = ConfigDict(extra="ignore")
