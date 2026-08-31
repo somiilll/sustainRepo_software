@@ -23,10 +23,6 @@ export const RankingOverviewTab = ({ attention, distribution, moduleFilter, modu
       </div>)}
     </section>
 
-    <SupplierSustainabilityRiskMatrix matrix={riskMatrix} />
-    <SupplierRequirementStatusTable rows={statusRows} type="documents" />
-    <SupplierRequirementStatusTable rows={statusRows} type="training" />
-
     <section className="grid gap-5 lg:grid-cols-2">
       <Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="supplier-score-distribution-card">
         <CardHeader className="border-b border-stone-100 pb-4"><div><CardTitle className="text-base text-stone-900">Overall score distribution</CardTitle><p className="mt-1 text-xs text-stone-500">Suppliers by overall score band</p></div></CardHeader>
@@ -48,5 +44,8 @@ export const RankingOverviewTab = ({ attention, distribution, moduleFilter, modu
         <CardContent className="divide-y divide-stone-100 p-0">{attention.length ? attention.map((row) => <div key={row.supplier_id} className="flex items-center gap-3 px-5 py-3.5" data-testid={`attention-supplier-${row.supplier_id}`}><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-700"><TriangleAlert className="h-4 w-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-stone-800" data-testid={`attention-supplier-name-${row.supplier_id}`}>{row.company_name}</p><p className="mt-0.5 truncate text-xs text-rose-700" data-testid={`attention-supplier-overdue-modules-${row.supplier_id}`}>Overdue: {(row.overdue_modules || []).join(' · ')}</p></div><Button variant="outline" size="sm" className="h-8 shrink-0 border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800" onClick={() => onReview(row)} data-testid={`review-attention-supplier-${row.supplier_id}`}>Review <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></div>) : <p className="flex items-center gap-2 p-6 text-sm text-stone-500" data-testid="supplier-attention-required-empty"><CheckCircle2 className="h-4 w-4 text-emerald-600" />No suppliers have overdue incomplete tasks.</p>}</CardContent>
       </Card>
     </section>
+    <SupplierSustainabilityRiskMatrix matrix={riskMatrix} />
+    <SupplierRequirementStatusTable rows={statusRows} type="documents" />
+    <SupplierRequirementStatusTable rows={statusRows} type="training" />
   </section>;
 };
