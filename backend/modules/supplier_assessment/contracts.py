@@ -256,7 +256,7 @@ class QuestionCreate(BaseModel):
     # `weight` is retained for older API clients. New clients use importance or
     # an exact override; the service persists the effective value in `weight`.
     weight: Optional[float] = None
-    importance: Literal["low", "medium", "high", "critical"] = "medium"
+    importance: Literal["low", "medium", "high"] = "medium"
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: str  # environment, social, governance
     order: int = 0
@@ -286,7 +286,7 @@ class QuestionUpdate(BaseModel):
     required: Optional[bool] = None
     evidence_requirement: Optional[Literal["not_required", "optional", "required"]] = None
     weight: Optional[float] = None
-    importance: Optional[Literal["low", "medium", "high", "critical"]] = None
+    importance: Optional[Literal["low", "medium", "high"]] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
     order: Optional[int] = None

@@ -524,6 +524,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-31 (Supplier GHG Progress Display)
 - Supplier dashboard GHG progress now uses the cadence-based completion percentage instead of a binary 0%/100% value. Monthly suppliers therefore see incremental progress (for example, 2 submitted months of 12 = 17%).
 
+## Latest Changes — 2026-08-31 (Question Importance Simplification)
+- Questionnaire importance is now limited to High (3), Medium (2), and Low (1). Legacy Critical questions are migrated to High with a standard weight of 3, and Critical is removed from creation, editing, API validation, and scoring controls.
+- Questionnaire authors now see the Low (1×), Medium (2×), and High (3×) guide directly beside the single-question importance selector and at the top of the bulk question ledger. Dropdown options include the same weight labels.
+- The guide now communicates combined-score shares (Low 16.67%, Medium 33.33%, High 50% when one of each is used), while dropdowns remain concise with Low, Medium, and High labels only.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.

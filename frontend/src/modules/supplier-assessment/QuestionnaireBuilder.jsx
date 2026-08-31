@@ -54,6 +54,7 @@ import { QuestionLedgerDialog } from './components/QuestionLedgerDialog';
 import { SupplierQuestionnairePreviewDialog } from './components/SupplierQuestionnairePreviewDialog';
 import { QuestionnaireQuestionRow } from './components/QuestionnaireQuestionRow';
 import { SupplierAssignmentManagerDialog } from './components/SupplierAssignmentManagerDialog';
+import { QuestionImportanceGuide } from './components/QuestionImportanceGuide';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -161,7 +162,6 @@ const importanceClasses = {
   low: 'border-stone-200 bg-stone-50 text-stone-600',
   medium: 'border-stone-200 bg-stone-50 text-stone-600',
   high: 'border-stone-200 bg-stone-50 text-stone-600',
-  critical: 'border-stone-200 bg-stone-50 text-stone-700',
 };
 
 export default function QuestionnaireBuilder() {
@@ -1191,9 +1191,9 @@ export default function QuestionnaireBuilder() {
                     <SelectItem value="low">Low</SelectItem>
                     <SelectItem value="medium">Medium</SelectItem>
                     <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
                   </SelectContent>
                 </Select>
+                <QuestionImportanceGuide testId="question-importance-weighting-guide" />
               </div>
               <div className="space-y-2">
                 <Label>Required</Label>

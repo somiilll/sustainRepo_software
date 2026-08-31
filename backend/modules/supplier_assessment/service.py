@@ -39,7 +39,7 @@ def _delegate_to(operations, operation):
 class SupplierAssessmentService:
     """Service for supplier assessment operations."""
 
-    IMPORTANCE_WEIGHTS = {"low": 1.0, "medium": 2.0, "high": 3.0, "critical": 4.0}
+    IMPORTANCE_WEIGHTS = {"low": 1.0, "medium": 2.0, "high": 3.0}
     QUESTION_EVIDENCE_BUCKET = "supplier_assessment"
     QUESTION_EVIDENCE_FOLDER = "questionnaire-evidence"
     MAX_QUESTION_EVIDENCE_SIZE = 5 * 1024 * 1024
@@ -114,6 +114,8 @@ class SupplierAssessmentService:
     @classmethod
     def _resolve_question_weight(cls, importance: Optional[str], exact_numerical_weight: Optional[float], legacy_weight: Optional[float]) -> tuple[str, Optional[float], float]:
         normalized_importance = (importance or "medium").lower()
+        if normalized_importance == "critical":
+            normalized_importance = "high"
         if normalized_importance not in cls.IMPORTANCE_WEIGHTS:
             normalized_importance = "medium"
         if exact_numerical_weight is not None:
