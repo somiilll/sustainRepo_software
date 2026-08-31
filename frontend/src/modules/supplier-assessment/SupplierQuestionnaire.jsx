@@ -401,6 +401,7 @@ export default function SupplierQuestionnaire() {
           />
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="cancel-supplier-questionnaire-submit-button">Keep editing</AlertDialogCancel>
+            <Button variant="outline" onClick={async () => { await handleSave(false); setShowSubmitConfirm(false); }} disabled={saving} data-testid="save-supplier-questionnaire-draft-button">{saving ? 'Saving...' : 'Save as Draft'}</Button>
             <AlertDialogAction onClick={() => handleSave(true)} disabled={submitting || !verificationAccepted} data-testid="confirm-supplier-questionnaire-submit-button">{submitting ? 'Submitting...' : 'Submit and lock'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
