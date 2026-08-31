@@ -521,6 +521,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-31 (Supplier First-Login Status)
 - Supplier relationship invitation status now reflects first successful portal login: pending relationships become accepted on login and remain accepted during later completion recalculations. Completed relationships remain completed.
 
+## Latest Changes — 2026-08-31 (Supplier GHG Progress Display)
+- Supplier dashboard GHG progress now uses the cadence-based completion percentage instead of a binary 0%/100% value. Monthly suppliers therefore see incremental progress (for example, 2 submitted months of 12 = 17%).
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.
