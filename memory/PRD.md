@@ -542,6 +542,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-31 (Supplier GHG Ledger Simplification)
 - Removed the dedicated Action column from the supplier GHG period ledger. Period-specific Submit/Resubmit controls now appear directly beneath the applicable status, so the workflow remains available without an otherwise empty column.
 
+## Latest Changes — 2026-08-31 (Supplier Navigation Assignment Gates)
+- Supplier sidebar navigation now reads assigned assessment modules. If GHG is not assigned, Facilities, the Environment/GHG branch, and the supplier GHG entry are muted and non-navigable without a lock icon.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.
