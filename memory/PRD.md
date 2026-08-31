@@ -508,6 +508,16 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-08-31 (Supplier GHG Duplicate Revision Fix)
 - Corrected the central GHG log filter so it hides every supplier record marked `is_current_revision: false`, including earlier records created before lineage IDs were introduced. This resolves duplicate April/May entries after resubmission without deleting historical audit data.
 
+## Latest Changes — 2026-08-31 (Supplier Period Scope Totals)
+- Supplier GHG submission periods now show submitted Scope 1 and Scope 2 totals per period. Scope columns are dynamic: only scopes assigned by the parent organization are shown.
+
+## Latest Changes — 2026-08-31 (Supplier Requirement Availability and Reference Totals)
+- Questionnaire management now includes an activate/deactivate control. Inactive questionnaires stay visible to administrators for reactivation but are excluded from new-supplier assignment choices.
+- New-supplier assignment choices now display due dates and an explicit `Deadline passed` badge for ESG questionnaires, documents, and trainings. Supplier period ledgers now retain the latest submitted Scope 1/2 totals as a reference while a period is unlocked for resubmission.
+
+## Latest Changes — 2026-08-31 (Questionnaire Delete Semantics)
+- Questionnaire deletion now marks a template as deleted in addition to inactive. Deactivated templates remain visible for reactivation; deleted templates are excluded from both questionnaire management and new-supplier assignment lists.
+
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
 - Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.

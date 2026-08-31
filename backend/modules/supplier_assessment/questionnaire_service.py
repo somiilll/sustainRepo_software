@@ -77,6 +77,7 @@ async def create_questionnaire(
         "assigned_supplier_ids": assigned_supplier_ids,
         "assignment_reporting_period": assignment_reporting_period,
         "is_active": True,
+        "is_deleted": False,
         "question_count": 0,
         "created_by": created_by,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -102,10 +103,20 @@ async def create_questionnaire(
 async def get_questionnaires(
     self,
     organization_id: str,
+    include_inactive: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Get all questionnaires for an organization."""
+    """Get questionnaires for an organization, including inactive templates when requested by an admin."""
+    query = {"organization_id": organization_id}
+    if include_inactive:
+        query["$or"] = [
+            {"is_active": True},
+            {"is_active": False, "is_deleted": False},
+        ]
+    else:
+        query["is_active"] = True
+        query["is_deleted"] = {"$ne": True}
     questionnaires = await db.supplier_questionnaires.find(
-        {"organization_id": organization_id, "is_active": True},
+        query,
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     for questionnaire in questionnaires:
@@ -149,6 +160,8 @@ async def update_questionnaire(
             {"esg": 40.0, "ghg": 40.0, "revenue": 20.0},
             "Overall component weights",
         )
+    if "is_active" in updates:
+        updates["is_deleted"] = False
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.supplier_questionnaires.update_one(
         {"id": questionnaire_id},
@@ -210,7 +223,7 @@ async def delete_questionnaire(self, questionnaire_id: str) -> bool:
     """Soft delete questionnaire."""
     result = await db.supplier_questionnaires.update_one(
         {"id": questionnaire_id},
-        {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"is_active": False, "is_deleted": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     return result.modified_count > 0
 

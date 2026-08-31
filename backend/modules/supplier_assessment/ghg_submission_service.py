@@ -261,6 +261,33 @@ def submission_period_display_status(
     return "in_progress" if has_unsubmitted_entries else "not_started"
 
 
+def period_submitted_scope_totals(
+    entries: List[Dict[str, Any]], allowed_reporting_periods: List[str],
+) -> Dict[str, float]:
+    latest_revisions: Dict[str, Dict[str, Any]] = {}
+    for index, entry in enumerate(entries):
+        lineage_id = entry.get("revision_lineage_id") or entry.get("id") or f"untracked-{index}"
+        try:
+            revision_number = int(entry.get("revision_number") or 1)
+        except (TypeError, ValueError):
+            revision_number = 1
+        revision_key = (
+            revision_number,
+            entry.get("submitted_to_parent_org") or "",
+            entry.get("created_at") or "",
+        )
+        current = latest_revisions.get(lineage_id)
+        if not current or revision_key > current[0]:
+            latest_revisions[lineage_id] = (revision_key, entry)
+
+    totals = {"scope1": 0.0, "scope2": 0.0}
+    for _, entry in latest_revisions.values():
+        scope = entry.get("scope")
+        if scope in totals and entry.get("reporting_period") in allowed_reporting_periods:
+            totals[scope] += float(entry.get("total_emissions") or entry.get("co2e_emissions") or 0)
+    return totals
+
+
 async def ensure_ghg_submission_indexes() -> None:
     await db.supplier_ghg_submissions.create_index(
         [("relationship_id", 1), ("period_key", 1)], unique=True, name="unique_supplier_ghg_submission_period",
@@ -287,6 +314,15 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
         },
         {"_id": 0, "reporting_period": 1},
     ).to_list(5000)
+    submitted_entries = await db.emission_records.find(
+        {
+            "source": "supplier",
+            "supplier_relationship_id": relationship["id"],
+            "scope": {"$in": ["scope1", "scope2"]},
+            "submitted_to_parent_org": {"$exists": True, "$ne": None},
+        },
+        {"_id": 0, "id": 1, "scope": 1, "reporting_period": 1, "total_emissions": 1, "co2e_emissions": 1, "revision_lineage_id": 1, "revision_number": 1, "submitted_to_parent_org": 1, "created_at": 1},
+    ).to_list(5000)
     today = datetime.now(timezone.utc).date()
     periods = []
     for definition in definitions:
@@ -300,6 +336,7 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             1 for entry in unsubmitted_entries
             if entry.get("reporting_period") in allowed_entry_periods
         )
+        submitted_scope_totals = period_submitted_scope_totals(submitted_entries, allowed_entry_periods)
         is_overdue = record.get("status") != "submitted" and date.fromisoformat(definition["due_date"]) < today
         status = submission_period_display_status(
             record.get("status"), bool(unsubmitted_entry_count), is_overdue,
@@ -320,6 +357,7 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             "is_overdue": is_overdue,
             "has_unsubmitted_entries": bool(unsubmitted_entry_count),
             "unsubmitted_entry_count": unsubmitted_entry_count,
+            "submitted_scope_totals": submitted_scope_totals,
         })
     return periods
 

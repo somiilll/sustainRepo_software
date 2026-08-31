@@ -63,6 +63,15 @@ const groupAvailableDocuments = (requirements) => Object.values((requirements ||
   return groups;
 }, {}));
 
+const RequirementDeadline = ({ dueDate, testId }) => {
+  if (!dueDate) return null;
+  const datePart = String(dueDate).slice(0, 10);
+  const deadline = new Date(`${datePart}T23:59:59`);
+  if (Number.isNaN(deadline.getTime())) return null;
+  const isPastDue = deadline.getTime() < Date.now();
+  return <span className="flex flex-wrap items-center gap-1.5 text-xs text-stone-500" data-testid={`${testId}-due-date`}><span>Due {new Date(`${datePart}T12:00:00`).toLocaleDateString()}</span>{isPastDue && <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700" data-testid={`${testId}-deadline-passed`}>Deadline passed</Badge>}</span>;
+};
+
 const createSupplierForm = (reportingPeriod) => ({
   company_name: '',
   contact_person: '',
@@ -704,13 +713,13 @@ export default function SupplierList() {
                       <p className="text-xs text-stone-500">Select the questionnaires this supplier must complete.</p>
                       <div className="space-y-2">
                         {questionnaires.map((questionnaire) => (
-                          <label key={questionnaire.id} className="flex items-center gap-2 text-sm">
+                          <label key={questionnaire.id} className="flex items-start gap-2 text-sm">
                             <Checkbox
                               checked={formData.questionnaire_ids.includes(questionnaire.id)}
                               onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
                               data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
                             />
-                            {questionnaire.name}
+                            <span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.name}</span><RequirementDeadline dueDate={questionnaire.due_date} testId={`new-supplier-questionnaire-${questionnaire.id}`} /></span>
                           </label>
                         ))}
                       </div>
@@ -773,8 +782,8 @@ export default function SupplierList() {
             </div>
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="grid gap-4 border-t pt-4 md:grid-cols-2 [&>div:first-child]:!border-teal-300 [&>div:first-child]:!shadow-[0_4px_16px_rgba(20,184,166,0.18)] [&>div:last-child]:!border-amber-300 [&>div:last-child]:!shadow-[0_4px_16px_rgba(245,158,11,0.18)]" data-testid="supplier-existing-assignment-options">
-                {documents.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} />{document.title}</label>)}</div>}
-                {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-center gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} />{training.title}</label>)}</div>}
+                {documents.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-start gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} /><span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-document-name-${document.id}`}>{document.title}</span><RequirementDeadline dueDate={document.due_date} testId={`new-supplier-document-${document.id}`} /></span></label>)}</div>}
+                {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-start gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} /><span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-training-name-${training.id}`}>{training.title}</span><RequirementDeadline dueDate={training.due_date} testId={`new-supplier-training-${training.id}`} /></span></label>)}</div>}
               </div>
             )}
           </div>

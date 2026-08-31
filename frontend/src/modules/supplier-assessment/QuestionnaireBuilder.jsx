@@ -219,7 +219,7 @@ export default function QuestionnaireBuilder() {
 
   const fetchQuestionnaires = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/supplier-assessment/questionnaires`, {
+      const res = await axios.get(`${API}/supplier-assessment/questionnaires?include_inactive=true`, {
         headers: getAuthHeader(),
       });
       setQuestionnaires(res.data || []);
@@ -357,6 +357,21 @@ export default function QuestionnaireBuilder() {
       fetchQuestionnaires();
     } catch (err) {
       toast.error('Failed to delete questionnaire');
+    }
+  };
+
+  const handleQuestionnaireActivation = async (questionnaire) => {
+    try {
+      const response = await axios.put(
+        `${API}/supplier-assessment/questionnaires/${questionnaire.id}`,
+        { is_active: !questionnaire.is_active },
+        { headers: getAuthHeader() },
+      );
+      if (selectedQuestionnaire?.id === questionnaire.id) setSelectedQuestionnaire(response.data);
+      toast.success(`Questionnaire ${questionnaire.is_active ? 'deactivated' : 'activated'}`);
+      fetchQuestionnaires();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not update questionnaire availability');
     }
   };
 
@@ -711,7 +726,7 @@ export default function QuestionnaireBuilder() {
                         <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${selectedQuestionnaire?.id === q.id ? 'bg-emerald-500' : 'bg-stone-300'}`} />
                         <div className="min-w-0 flex-1">
                           <h3 className="truncate text-sm font-semibold text-stone-900">{q.name}</h3>
-                          <p className="mt-1 text-xs text-stone-500">{q.question_count} questions</p>
+                          <p className="mt-1 text-xs text-stone-500">{q.question_count} questions</p>{!q.is_active && <Badge variant="outline" className="mt-1 border-stone-200 bg-stone-50 text-stone-600" data-testid={`questionnaire-inactive-status-${q.id}`}>Inactive</Badge>}
                         </div>
                         <div className="flex items-center gap-1">
                           <Tooltip><TooltipTrigger asChild><Button
@@ -741,6 +756,18 @@ export default function QuestionnaireBuilder() {
                           <Tooltip><TooltipTrigger asChild><Button
                             variant="ghost"
                             size="sm"
+                            aria-label={`${q.is_active ? 'Deactivate' : 'Activate'} ${q.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleQuestionnaireActivation(q);
+                            }}
+                            data-testid={`toggle-questionnaire-active-${q.id}`}
+                          >
+                            <ToggleLeft className={`h-3 w-3 ${q.is_active ? 'text-emerald-700' : 'text-stone-500'}`} />
+                          </Button></TooltipTrigger><TooltipContent>{q.is_active ? 'Deactivate questionnaire' : 'Activate questionnaire'}</TooltipContent></Tooltip>
+                          <Tooltip><TooltipTrigger asChild><Button
+                            variant="ghost"
+                            size="sm"
                             className="text-red-600"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -764,7 +791,7 @@ export default function QuestionnaireBuilder() {
           {selectedQuestionnaire ? (
             <section className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_5px_20px_rgba(28,55,43,0.06)]" data-testid="selected-questionnaire-panel">
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-100 px-5 py-5">
-                <div><div className="flex flex-wrap items-center gap-2"><CardTitle className="text-2xl font-bold text-stone-950">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-stone-200 bg-stone-50 text-xs font-medium text-stone-600' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-2 text-sm text-stone-500">{selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
+                <div><div className="flex flex-wrap items-center gap-2"><CardTitle className="text-2xl font-bold text-stone-950">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={!selectedQuestionnaire.is_active ? 'border-stone-200 bg-stone-50 text-xs font-medium text-stone-600' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-amber-200 bg-amber-50 text-xs font-medium text-amber-800' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{!selectedQuestionnaire.is_active ? 'Inactive' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-2 text-sm text-stone-500">{selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
                 <div className="flex flex-wrap gap-2"><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openQuestionnaireAssignments} data-testid="manage-questionnaire-assignments-button">Manage suppliers</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
                   resetQuestionForm();
                   setEditingQuestion(null);
