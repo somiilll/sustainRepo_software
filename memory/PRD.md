@@ -654,3 +654,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Pinned the frontend `recharts` dependency to the exact `3.6.0` version and regenerated `frontend/yarn.lock` from the frontend workspace.
 - Verification passed: `yarn build` completed successfully with the resolved lockfile entry `recharts@3.6.0`.
 - Netlify deployment is confirmed complete; no additional deployment follow-up is required.
+
+## Latest Changes — 2026-09-01 (Supplier Workspace Desktop Header Spacing)
+- Updated the shared `/supplier-assessment` desktop content wrapper from `lg:pt-0` to `lg:pt-4`, restoring the consistent top spacing visible in the local Supplier workspace across Suppliers, ESG Questionnaires, Supplier GHG Emissions, Documents, Trainings, and Rankings.
+- The user requested no additional testing after this visual adjustment. A production frontend build had already completed successfully immediately after the code update, with pre-existing lint warnings only.
