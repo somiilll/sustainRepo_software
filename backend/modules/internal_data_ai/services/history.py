@@ -277,10 +277,10 @@ async def get_esg_record_history(org_id: str, facility_ids: list = None, **kwarg
 
 async def get_framework_version_history(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     framework = kwargs.get("entity_name") or ""
-    source_query = {"organization_id": org_id}
+    source_query = {"$and": [{"$or": [{"org_id": org_id}, {"organization_id": org_id}]}]}
     if framework:
-        source_query["framework"] = {"$regex": framework, "$options": "i"}
-    source = await db.esg_responses.find(source_query, {"_id": 0, "id": 1, "question_key": 1}).to_list(1000)
+        source_query["$and"].append({"framework": {"$regex": framework, "$options": "i"}})
+    source = await db.organization_esg_responses.find(source_query, {"_id": 0, "id": 1, "question_key": 1}).to_list(1000)
     record_ids = [item["id"] for item in source if item.get("id")]
     question_keys = [item["question_key"] for item in source if item.get("question_key")]
     version_query = {"organization_id": org_id, "$or": [_id_filter("record_id", record_ids), _id_filter("question_key", question_keys)]}

@@ -126,7 +126,7 @@ def test_carbon_composition_volume_quantity_requires_density(auth_headers, facil
 
     create = requests.post(f"{API}/emissions", headers=auth_headers, json=payload, timeout=45)
     assert create.status_code == 422, f"Expected density guard, got: {create.status_code} {create.text}"
-    assert "density in kg/L" in create.json().get("detail", "")
+    assert "Density (kg/L) is required" in create.json().get("detail", "")
 
 
 def test_carbon_composition_volume_quantity_density_is_required_on_update(
@@ -155,7 +155,7 @@ def test_carbon_composition_volume_quantity_density_is_required_on_update(
         timeout=45,
     )
     assert update.status_code == 422, f"Expected PUT density guard, got: {update.status_code} {update.text}"
-    assert "density in kg/L" in update.json().get("detail", "")
+    assert "Density (kg/L) is required" in update.json().get("detail", "")
 
 
 # Scope 1 Process Emissions: Venting + Using NCV should not carry carbon-composition fields

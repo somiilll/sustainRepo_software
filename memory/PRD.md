@@ -25,6 +25,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Preserve the shared create/edit payload contracts, calculation audit linkage, and approval behavior.
 - Monthly multi-row manual submissions must remain atomic through `submission_batch_id` rollback.
 - Organization scope/category/custom-fuel/process-type capabilities must be enforced server-side.
+- Density visibility and requiredness must be resolved exclusively from the actual Quantity/reference unit dimensions: matching dimensions hide Density; mass/volume mismatches use a valid fuel default as an overridable default or require user Density when no valid default exists.
+- Quantity-basis reverse conversions such as mass Quantity with a volume-denominator EF must normalize through the shared adapter before reaching the frozen calculation engine while preserving the entered source values in the record.
 
 ### GHG Period Row Allowance
 - `entitlements.environment.ghg.monthly_rows_allowed` is an organization-wide base allowance.
@@ -88,6 +90,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `bulk_upload_pending_records` — validated records awaiting confirmation; 24-hour TTL.
 - `bulk_upload_errors` — row-level validation errors.
 - `supplier_relationships` and `supplier_assessment_programs` — supplier assignment and immutable program revision binding.
+- `supplier_ghg_submissions` — period-level supplier GHG submission locks, unlock details, revisions, and audit events.
 
 ## Key API Endpoints
 - `POST /api/emissions`
@@ -289,9 +292,149 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Parent Training cards no longer expand every supplier progress row inline. Each card now has a scalable `View suppliers` dialog showing one supplier per row with Progress and Status.
 - Supplier emission totals now expose each supplier's stored `revenue_currency`; intensity labels and chart tooltips render the actual currency code (for example, `tCO₂e / INR`) instead of a generic denominator label.
 
+## Latest Changes — 2026-08-27 (Staging Database Catalog Migration)
+- Added an environment-driven, credential-free migration runner at `backend/scripts/migrate_local_to_staging.py` with dry-run, conflict blocking, timestamped `mongodump` backup, transactions, idempotent upserts, index recreation, and reference validation.
+- Created all 14 previously missing collections in `sustainrepo_staging` and copied only local records whose organization/user/supplier dependencies already existed in staging: 18 assessment program revisions, 5 document versions, 19 document requirements, 3 training contents, 3 training requirements, and 3 training versions.
+- Migrated the current calculation catalog without importing conflicting local history UUIDs: 8 new formulas, 5 new versions for changed formulas, 20 new decision-tree versions, 4 supporting catalog inserts, 4 targeted catalog updates, 2 currency inserts, and 1 currency-method update.
+- Preserved existing environment-specific UUID references while converting every `exchange_rate` catalog layer to the canonical unitless form: variable `default_unit=""`, property `unit=""`, mapping `unit_source="none"`, and no mapping `default_unit` or `allowed_units`.
+- Backup created at `/app/.emergent/backups/staging-migration-20260827T044052Z` before the first staging write.
+- Post-migration dry-run is a complete no-op with zero conflicts. Validation confirmed all collections/indexes exist, local and staging current formula definitions and decision trees match, currency identities are complete, formula/version references resolve, exactly one active version exists per formula, and all 8 migrated R2 file objects are accessible.
+- As requested, local records with nonmatching staging relationships were skipped: 4 document submissions, 4 revenue submissions, 11 training assignments, 12 training consumption events, and 4 training progress records. Ten local login-attempt telemetry records were intentionally not migrated to avoid carrying lockout state into staging.
+
+## Latest Changes — 2026-08-27 (Exchange Rate Unitless Catalog Completion)
+- Extended `backend/scripts/migrate_exchange_rate_unitless.py` to update and validate the Exchange Rate variable, property, and input-field mapping without replacing their UUIDs or breaking references.
+- Applied the idempotent migration to both local and `sustainrepo_staging` databases. Verified neither environment retains the legacy unit `1` in any Exchange Rate catalog layer.
+- Re-ran the full local-to-staging migration dry run: zero pending inserts, zero catalog actions, and zero conflicts.
+
+## Latest Changes — 2026-08-27 (Staging Ingestion Credential Cleanup)
+- Removed the hardcoded staging MongoDB connection URI from `scripts/ingest_amns_to_staging.py`.
+- The one-off ingestion script now requires `TARGET_MONGO_URL` and `TARGET_DB_NAME` at runtime and fails clearly when either is absent.
+- Verification passed: Python compilation succeeded and a full workspace credential scan found no remaining instance of the removed URI.
+
+## Latest Changes — 2026-08-27 (Parent Supplier Ledger UI Refinement)
+- Refined the parent-org Suppliers heading with a restrained forest-green treatment, organization icon, stronger hierarchy, and softer supporting subtitle.
+- Consolidated supplier search, Add Supplier, and reporting-period controls into one responsive, lightly elevated control bar while preserving all existing behavior.
+- Polished the supplier ledger with a sage-tinted header, increased row spacing, softer separators, stronger company/progress/score hierarchy, modern accepted-status pills, and larger restrained action targets.
+- Renamed the reminder action hover label from `Email supplier` to `Send Reminder` without changing its reminder functionality.
+- Focused JavaScript lint and an authenticated desktop screenshot passed before the final tooltip-only wording change. Per user instruction, no testing was run after that final change.
+
+## Latest Changes — 2026-08-27 (Add Supplier Form Guidance)
+- Removed the bordered container around the Annual Revenue requirement so it follows the same field rhythm as the rest of the supplier form.
+- Added accessible information tooltips explaining that annual revenue supports intensity calculations and that supplier assessment access locks after the due date.
+- Removed the redundant selected-by-default helper copy from the Documents and Training assignment sections.
+- **NOT TESTED** per the user's explicit instruction.
+
+## Latest Changes — 2026-08-27 (Parent Supplier & ESG Questionnaire Hierarchy)
+- Increased the Suppliers heading and organization icon, and removed its supporting `Manage your supplier assessments` copy for a cleaner workspace header.
+- Redesigned the ESG Questionnaires workspace with the same top-left heading alignment, a purple questionnaire icon, and a single rounded control group containing Reporting period, Review responses, and the green New Questionnaire action.
+- Refined the questionnaire navigator, selected questionnaire panel, question hierarchy, row spacing, low-weight separators, neutral supporting metadata, and understated importance badges. Preview remains neutral while Add Questions stays green.
+- Corrected the questionnaire header's vertical offset: its larger period control had bottom-aligned the title. The header now top-aligns, and a live authenticated browser check confirmed both the ESG Questionnaire and Suppliers icons render at `y=24`.
+
+## Latest Changes — 2026-08-27 (Supplier GHG Emissions Refinement)
+- Removed the explanatory header copy and aligned Supplier GHG Emissions with the Suppliers and ESG Questionnaire headers, using a neutral cloud icon and matching `text-3xl` heading hierarchy.
+- Refined Emissions by Supplier/Logs into a restrained segmented navigation. Total and Attributed Emissions table groups now display their shared `tCO₂e` unit in the headers, use darker group labels, muted subheaders, and clear but subtle vertical separation.
+- Supplier rows now have light-green hover feedback, refined neutral initials, clearer name/revenue hierarchy, bold totals only, a stronger two-line intensity treatment, and compact neutral Unlock actions.
+- Verification passed: JavaScript lint and authenticated browser smoke on the populated Supplier GHG table (3 supplier rows). No APIs were changed or mocked.
+
+## Latest Changes — 2026-08-27 (Supplier GHG Logs Refinement)
+- Supplier GHG Logs rows now have the same subtle light-green hover feedback as the summary ledger, with a pale green header row and softly emphasized column labels.
+- Search Emissions now matches supplier organization, category, subcategory, and the displayed fuel-type fallback.
+- **NOT TESTED** per the user's explicit instruction.
+
+## Latest Changes — 2026-08-27 (Supplier Documents Workspace Refinement)
+- Replaced legacy parent-admin `Agreement` terminology with `Document` across the Documents workspace, including title, create/publish actions, empty state, feedback, and deletion confirmation. Existing API contracts and test IDs remain unchanged.
+- Aligned Supplier Documents with the Supplier and ESG Questionnaire headers, added a neutral document icon, moved Reporting period and Add document into one rounded header control group, and added the matching heading divider.
+- Rebuilt published document cards into compact white `rounded-xl` surfaces with low-contrast borders and soft shadows: clear title, wrapped response metadata, compact supplier count, and a right-aligned neutral Preview/View suppliers/Delete action group.
+- **NOT TESTED** per the user's explicit instruction.
+
+## Latest Changes — 2026-08-27 (Documents & Training Summary Refinement)
+- Updated the Supplier Documents and Supplier GHG Emissions header icons with teal and sky-blue color treatments while retaining restrained surfaces.
+- Added three compact parent Documents summary cards: Documents published, Acceptance required, and Supplier assignments.
+- Aligned Supplier Trainings with the same workspace header pattern: an amber training icon, divider, and shared right-side Reporting period/Add Training group. Removed its explanatory header copy and added Published, Supplier assignments, and Completed summary cards.
+- **NOT TESTED** per the user's explicit instruction.
+
+## Latest Changes — 2026-08-27 (Supplier Training Card Progress Refinement)
+- Rebuilt training cards into a clear three-part layout: title and completion requirement, visible progress and due date, then frequent supplier/preview actions on the right.
+- Added per-training completion meters with `completed / assigned` counts and calculated percentages. Due dates are now a readable, neutral content block rather than a persistent edit field.
+- Consolidated Save due date, Disable/Enable, and Delete into an accessible overflow menu; View suppliers and Preview remain compact neutral primary actions. Global controls were not duplicated or changed in the page-level card UI.
+- **NOT TESTED** per the user's explicit instruction.
+
+## Latest Changes — 2026-08-27 (Supplier Evidence Visibility and ESG Question Evidence)
+- Parent Supplier GHG Logs now show an Evidence column with secure View and Download actions for evidence attached to submitted supplier emission records. The parent API exposes file metadata only; it no longer returns raw evidence URLs.
+- Added question-level ESG evidence configuration: parent users can set each question to Not required, Optional, or Required for submission in the multi-question ledger and the question editor.
+- Suppliers can upload permitted evidence files (up to 5 MB) per question, view/download their attachments, and are blocked from final submission when required evidence is missing. Uploaded evidence is retained in the immutable questionnaire response revision history.
+- Parent response review now lists per-question evidence with secure View and Download actions. Dedicated endpoints verify supplier/customer ownership, response visibility, and evidence-to-question linkage before issuing 15-minute storage URLs.
+- Verification passed: focused backend evidence regression (**5/5 passed**), Python/JavaScript static checks, and an authenticated browser smoke check showing the Evidence column and working action controls on populated Supplier GHG Logs. No mocked APIs were used.
+
+## Latest Changes — 2026-08-27 (Supplier Workspace Copy and Navigation Refinement)
+- Removed the redundant Supplier Rankings subtitle and aligned its heading with the Suppliers and ESG Questionnaire workspaces. Rankings now has a colored amber trophy icon and the same heading hierarchy/alignment.
+- Removed the Monitor and Report frequency badges from facility cards; the saved facility-frequency values and related validation remain unchanged.
+- Supplier ESG final submission now smoothly scrolls to, focuses, and briefly highlights the first missing required response (or required evidence) instead of merely reporting a remaining-count error.
+- Verification passed: JavaScript lint for all changed screens plus authenticated browser checks for the aligned Rankings header and hidden facility frequency badges.
+- Current GHG behavior documented: parent users can see submitted raw supplier emissions without revenue data. A saved revenue percentage determines attributed emissions; a revenue amount is used only to calculate intensity. The pipeline currently does not require the revenue record itself to be locked/submitted before using a saved percentage.
+
+## Latest Changes — 2026-08-27 (Revenue Submission Gate for Parent GHG Attribution)
+- Parent supplier GHG attribution and intensity now require `revenue_submission_status == "submitted"`. Saved draft revenue values are not used in calculations.
+- The parent GHG ledger retains submitted raw emissions, while displaying `Revenue not submitted`, unavailable attributed totals, and unavailable intensity until the supplier locks their Revenue response.
+- Verification passed: Python/JavaScript static checks, authenticated parent API check, and authenticated browser check for Supplier5. Its `1.45996 tCO₂e` raw total remains visible while attributed total and intensity are both unavailable.
+
+## Latest Changes — 2026-08-27 (Exact Parent Supplier GHG Read-only Form)
+- Replaced the parent supplier-emission summary viewer with the shared GHG edit-form renderer in a dedicated read-only mode. Parent users now see the familiar Scope 1/2 form layout, including saved conditional calculation inputs, output summary, optional details, and reporting assignment.
+- The read-only mode disables the complete form fieldset, prevents form submission, and hides submission, recalculation, upload, evidence-removal, and delete controls. Secure evidence View/Download remains outside the locked form.
+- The parent-only record-detail API remains limited to submitted, parent-visible supplier records and returns no raw evidence URLs. **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-27 (Supplier Dashboard Submission-aware Progress)
+- Removed the redundant Supplier workspace label and customer instruction from the supplier-facing dashboard header. Passed due dates now render as explicit red Overdue warnings with day/month/year formatting.
+- Requirement cards distinguish data being filled from formal submission: Revenue, ESG, GHG, and Documents can show `100% Filled` while remaining `In progress` until submitted.
+- Overall Progress now counts formal Revenue, ESG, GHG, and Document submissions. GHG is binary in both views: its requirement card is either 0% or 100% filled, while its overall-progress value remains 0% until submission and becomes 100% only after submission.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-27 (Supplier-facing Header Consistency)
+- Standardized the live supplier-facing Supplier Assessment pages on the parent workspace heading treatment: bold emerald page titles, a bottom divider, and a 48px bordered icon tile.
+- Added page-specific icon colors across the dashboard/onboarding, facility, ESG overview/questionnaire, GHG submission, Documents, and Training pages.
+- Removed the `100% Filled` display from the GHG requirement ledger card while preserving its Submitted/In progress/Not started status and its submission-based value in Overall Progress.
+- Focused JavaScript lint passed before the user's `dont test` instruction. No browser or functional testing was run.
+
+## Latest Changes — 2026-08-27 (GHG Create Form Layout and Annual Evidence)
+- Tightened the monthly data ledger’s Month and input-column spacing and replaced the icon-only final header with the visible `Evidence` column label.
+- Reworked yearly data fields into responsive grids and added a labelled annual evidence upload control. Annual evidence is stored on `yearlyData.evidences` and follows the existing create-payload evidence mapping.
+- Reorganized process responsibility details so Person Responsible and Designation share one row, while Contact Details and Source of Information share the next row on desktop.
+- Focused JavaScript lint passed for the three changed files before the user's `dont test` instruction. No browser or functional testing was run.
+
+## Latest Changes — 2026-08-27 (GHG Annual Three-Field Layout)
+- Create Emissions now keeps yearly inputs on a white surface and fits up to three compact fields per desktop row, including yearly custom-fuel factor and density inputs when applicable. Labels are centered above their corresponding field.
+- Monthly ledger headings, including Month and Evidence, are centered within their columns.
+- Verification passed: JavaScript lint for both updated components and authenticated browser smoke checks for opening Create Emissions and changing it to yearly mode. No data was saved or changed.
+
+## Latest Changes — 2026-08-27 (GHG Annual Field Alignment and Defaults)
+- Yearly required, optional, and override fields now share one three-column layout. This keeps inputs such as Quantity Used, Calorific Value, and Density on the same row when configured for the selected fuel.
+- All yearly fields now reserve the same label height and label-to-input spacing, preventing Override Default controls from pushing Calorific Value or Density inputs below Quantity Used.
+- Yearly default-value and unit rendering now uses the same selected-fuel resolver as monthly data. Unchanged override inputs visibly show their fuel defaults and remain disabled until Override Default is enabled.
+- Verification passed: focused JavaScript lint and authenticated browser smoke check of the selected yearly Scope 1 form; no emissions data was saved or changed.
+
+## Latest Changes — 2026-08-27 (GHG Annual Cross-Scope Alignment)
+- Carbon Composition fields now flatten into the same annual row as Quantity Used. Carbon Content (%), Oxidation Factor, and conditional Density use identical label height, label-to-input spacing, and control height.
+- Annual field grids now use responsive auto-fit columns: two visible inputs fill the row at 50% each, three use equal thirds, and up to four use equal quarters. This applies to the shared Scope 1, Scope 2, and Scope 3 annual renderer, process templates, and custom-fuel methods.
+- Verification passed: focused JavaScript lint plus authenticated Scope 1, Scope 2, and Scope 3 Create Emissions yearly-mode smoke checks. No data was saved or changed.
+
+## Latest Changes — 2026-08-28 (Unit-Driven Density Contract)
+- Replaced standard/custom/category-specific density visibility branches with one shared resolver driven by the actual Quantity and calculation-reference dimensions. Monthly and yearly Create Emissions now hide Density for matching dimensions and show it only for a mass/volume mismatch.
+- A mismatched standard fuel with valid catalog density displays the correctly oriented default behind `Override Default`; a mismatch without valid catalog density automatically enables a required Density input with a directional unit such as `L/kg`.
+- Carbon Composition now hides Density for mass Quantity and retains it only for volume-to-mass conversion. Quantity Basis `kg` plus `kgCO2/L` normalizes the EF through the shared calculation adapter, avoiding the previous generic calculator conversion failure without modifying the frozen calculation engine.
+- Removed hardcoded standard-combustion mass routing. Formula basis now follows the resolved compound-unit denominator, and the calculation adapter can override it only after explicit unit normalization.
+- Expanded the backend POST/PUT density guard to all configured supported methodologies using the same unit-dimension contract and fuel-density fallback, with a density-specific 422 detail.
+- Stabilized Add Emission modal opening by using one explicit controlled open action rather than depending on trigger composition.
+- Verification passed: 46 focused frontend tests, 8 backend API/regression tests, production frontend build, three repeated modal opens, density-specific missing-input toast, and a successful reverse-conversion save. The marked UI test record was deleted. Testing-agent iteration 26 reported 100% backend and verified the three core frontend density states; its modal flake was subsequently fixed and self-verified.
+
+## Latest Changes — 2026-08-28 (Supplier Ranking Modularization & Repository Cleanup)
+- Split the Supplier Rankings screen into focused Overview, ESG Analysis, Emissions, and Detailed Rankings components, with shared score/format utilities and a dedicated supplier-detail dialog. The parent now owns only state, data loading, derived data, and tab orchestration.
+- Preserved existing ranking API calls, interactions, responsive layouts, and test IDs. Added stable extracted-panel test IDs for focused browser verification.
+- Resolved blocking static findings: corrected literal-route ordering for proposal batch reject, C7 yearly, ESG response years, and Base Year report validation; removed duplicate imports/bare exceptions; restored the missing Joule-to-GJ helper; and prevented local `status` shadowing while retaining the public audit-log query parameter.
+- Verification passed: Python compilation, production frontend build, authenticated `/api/base-year-emissions/validate-for-report` endpoint check (HTTP 200), browser smoke across all four ranking tabs plus unmatched search, and testing-agent iteration 27 (100% frontend/backend, no mocked APIs).
+
 ## Prioritized Backlog
 - **P0:** Verify the legacy version-history unit `1` cleanup after user authorization; verify soft-deleted suppliers cannot log in or refresh tokens; consolidate assignment deletion behavior and legacy/V2 architecture; unify disconnected target systems.
-- **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns.
+- **P1:** BRSR Section A year-switch state; document replacement/version publishing; custom dashboard; target settings UI; onboarding wizards; BRSR Word export and previous-year columns; configurable evidence retention/deletion controls.
 - **P2/P3:** Bulk Upload database duplicate detection, effective-settings summary, MIS previews/bookmarks, bulk upload progress/history. AI credit enforcement remains deferred per user request.
 
 ## Third-Party Integrations
@@ -307,3 +450,202 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `/app/test_reports/iteration_18.json` — Bulk Upload parity verification.
 - `/app/test_reports/iteration_19.json` — GHG period row-limit verification.
 - `/app/test_reports/iteration_21.json` — Scope 3 spend-basis currency conversion verification.
+- `/app/test_reports/iteration_26.json` — unit-driven Create Emissions density verification.
+- `/app/test_reports/iteration_27.json` — Supplier Rankings modularization and Base Year validation route verification.
+
+## Latest Changes — 2026-08-28 (Canonical Supplier Assignment & Emissions Cleanup)
+- Removed legacy snapshot Scope 1/2/total calculations and aggregate response fields from the supplier-ranking service and contract. Supplier emissions analytics remain exclusively on the canonical `/api/supplier-assessment/emissions/all` path.
+- Added `assignment_service.py` as the shared orchestration boundary. Supplier creation and updates now delegate explicit Documents and Training selections through it, while each module retains its own storage and content rules.
+- Training synchronization now only reuses active assignments in the same reporting period; it creates a fresh assignment instead of reviving history. Disabling a training deactivates active records; re-enabling it never reactivates historical records.
+- Added document-selection and historical-training regression tests. Verification passed: 17 focused backend tests, Python compilation, frontend production build, authenticated ranking browser smoke test, and testing-agent iteration 28 (100% frontend/backend; no mocked APIs).
+- Follow-up: `supplier_assessment/service.py` remains large and should later be split into focused relationship, ranking/scoring, and supplier-lifecycle modules.
+
+- `/app/test_reports/iteration_28.json` — canonical assignment lifecycle and supplier-ranking emissions-payload verification.
+
+## Latest Changes — 2026-08-28 (Supplier Assessment Service Modular Split)
+- Reduced `supplier_assessment/service.py` from 2,099 to 1,178 lines by extracting focused `relationship_service.py`, `lifecycle_service.py`, and `ranking_service.py` modules.
+- Kept `SupplierAssessmentService` as a backwards-compatible facade for all router, worker, and test callers. Delegation injects the facade's active database dependency into extracted modules, preserving established test seams and public behavior.
+- Verified the split with extracted-module compilation, a facade-delegation regression suite, 23 focused supplier backend tests, and an authenticated live Supplier Rankings/Detailed Rankings browser smoke test. Testing-agent iteration 29 reports 100% backend/frontend and no mocked APIs.
+- Follow-up: `service.py` now primarily contains questionnaire authoring, supplier questionnaire response, evidence, and manual-review operations; these can be extracted into a dedicated questionnaire service in a later maintenance pass.
+
+- `/app/test_reports/iteration_29.json` — service facade delegation and supplier service-split regression verification.
+
+## Latest Changes — 2026-08-28 (Dedicated Questionnaire Service)
+- Extracted questionnaire authoring, question CRUD, supplier responses, evidence records, submission/reopen handling, and manual-review operations into `questionnaire_service.py`.
+- `SupplierAssessmentService` is now a compact 148-line compatibility facade that retains all established public methods and injects its active database dependency into each focused service module.
+- Updated focused test fixtures to model submitted response, document-submission, and revenue-submission records under the current lifecycle policy.
+- Verification passed: 42 focused backend tests, service/questionnaire compilation and import-contract checks, authenticated Questionnaire Builder browser smoke test, and testing-agent iteration 30 (100% backend/frontend; no mocked APIs).
+- Added an ESLint 9 flat configuration, registered the existing React Hooks plugin, and corrected the duplicate hook exports in `pages/emissions/index.js`. ESLint now runs with zero errors (15 existing unused-disable warnings), and the frontend production build passes.
+- Follow-up: split `questionnaire_service.py` further into authoring, supplier-response/evidence, and manual-review read-model modules when further maintenance is scheduled.
+
+- `/app/test_reports/iteration_30.json` — questionnaire-service facade delegation and regression verification.
+
+## Latest Changes — 2026-08-30 (Canonical ESG Response Migration)
+- Removed every production read/write dependency on the deprecated `esg_responses` collection. Questionnaire approval, completion, BRSR/GRI retrieval, and Internal Data AI history now use `organization_esg_responses`; immutable history remains in `esg_responses_versions`.
+- Migrated the legacy questionnaire queue and approve/reject helpers to canonical flat response documents, including approver edits, prior-approved-value restoration on rejection, organization-boundary checks, audit events, and version snapshots.
+- Restricted `/api/approval-workflows/questionnaire/queue` to questionnaire responses only. ESG and emission record approvals remain available through `/api/approval-workflows/requests` and are no longer duplicated in this queue.
+- Confirmed the legacy collection contained zero records, dropped it, and verified it remained absent after approval, rejection, reporting, completion, and history flows. Canonical records were preserved.
+- Verification passed: Python compilation, authenticated live-app smoke, frontend ESLint with zero errors, 37/37 independent migration regression checks after the queue isolation fix, plus 11 focused completion/history checks. No APIs were mocked. A standard `yarn lint` script now exposes the existing ESLint 9 configuration to automation.
+- `/app/test_reports/iteration_31.json` — initial independent migration run; its single queue-isolation finding was fixed and the exact 37-test suite then passed.
+
+## Current Priorities
+- **P0:** Make supplier facility allowance an explicit configurable policy rather than a fallback.
+- **P0:** Add an explicit existing-supplier assessment-program revision migration/reassignment flow so parents can align supplier GHG permissions after changing Custom Fuel, Process Emissions, or Flaring policy.
+- **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.
+
+## Latest Changes — 2026-09-01 (Supplier Ranking Overview Reference Layout)
+- Rebuilt the Supplier Assessment → Ranking → Overview tab around the supplied three-column reference hierarchy: score bands, score distribution, and top performers; module coverage, attention-required rows, and overdue follow-up; then the risk matrix, training progress, and document progress.
+- Updated the Good score-band treatment to orange and separated the overdue follow-up card into its dedicated right-side panel, preserving live ranking data, existing actions, and test IDs.
+- **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
+
+## Latest Changes — 2026-09-01 (Authoritative Ranking Overview PDF Correction)
+- Replaced the initial incorrect grid interpretation using the exact user-provided PDF: summary cards; paired Overall score distribution and Assessment module coverage; paired Top performing suppliers and Attention required; full-width Supplier sustainability risk matrix; paired Document and Training completion cards.
+- Matched the PDF’s compact white-card treatment, soft colored panel accents, shallow full-width risk matrix, contextual overflow indicators, progress-row density, and score/attention action styling without changing any live data flow or interactions.
+- **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
+
+## Latest Changes — 2026-09-01 (Supplier Risk Matrix Height)
+- Increased the Supplier sustainability risk matrix canvas from 118px to 220px, providing more vertical space for quadrants, labels, and plotted supplier markers.
+- **NOT TESTED** after implementation, following the user’s earlier instruction not to test.
+
+## Latest Changes — 2026-09-01 (Supplier Ranking KPI Card Reference Match)
+- Rebuilt the four Supplier Rankings KPI cards to match the supplied reference: large rounded, accent-colored borders; blue, teal, amber, and rose themes; colored circular icons; prominent values; and soft wave-style lower decorations.
+- Verified with an authenticated desktop browser smoke check that the live Supplier Rankings page renders all four cards correctly. No APIs or data behavior changed.
+
+## Latest Changes — 2026-09-01 (Ranking Overdue GHG and Annual Revenue States)
+- Extended the Supplier Rankings overdue read model so a supplier is now included once when they have any missed canonical GHG submission window, alongside ESG, Documents, and Training overdue states. GHG timing follows the assigned monthly, quarterly, or yearly window and its canonical due date.
+- Added Annual Revenue as an overdue module when the annual revenue requirement is enabled, the supplier assignment due date has passed, and there is no parent-visible submitted revenue record for the assigned reporting period.
+- Verification passed: testing-agent iteration 38 reported **6/6 focused backend checks** and **100% frontend KPI/API parity**. Live FY 2026-27 data returned 8 unique overdue suppliers, including GHG Emissions where applicable. No mocked APIs.
+
+## Latest Changes — 2026-08-31 (Supplier GHG First-Submission Repair)
+- Fixed supplier GHG period submission failing with HTTP 500 for a period without a prior submission ledger record. New submissions now initialize their audit history from an empty list, while resubmissions retain existing history.
+- **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
+
+## Latest Changes — 2026-08-31 (Direct Parent GHG Unlock)
+- Parent Supplier GHG unlock actions now ask only which submitted month, quarter, or year should be reopened. The reason and instructions fields are removed.
+- The API accepts an empty unlock request and records `Unlocked directly by parent organization` in the immutable audit history.
+
+## Latest Changes — 2026-08-31 (Supplier GHG Resubmission Log Cleanup)
+- Supplier GHG Logs now hide prior `is_current_revision: false` records after a parent unlock and supplier resubmission. The immutable earlier revision remains preserved in storage and audit history, while the supplier sees only the current live record.
+- **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
+
+## Latest Changes — 2026-08-31 (Supplier GHG Duplicate Revision Fix)
+- Corrected the central GHG log filter so it hides every supplier record marked `is_current_revision: false`, including earlier records created before lineage IDs were introduced. This resolves duplicate April/May entries after resubmission without deleting historical audit data.
+
+## Latest Changes — 2026-08-31 (Supplier Period Scope Totals)
+- Supplier GHG submission periods now show submitted Scope 1 and Scope 2 totals per period. Scope columns are dynamic: only scopes assigned by the parent organization are shown.
+
+## Latest Changes — 2026-08-31 (Supplier Requirement Availability and Reference Totals)
+- Questionnaire management now includes an activate/deactivate control. Inactive questionnaires stay visible to administrators for reactivation but are excluded from new-supplier assignment choices.
+- New-supplier assignment choices now display due dates and an explicit `Deadline passed` badge for ESG questionnaires, documents, and trainings. Supplier period ledgers now retain the latest submitted Scope 1/2 totals as a reference while a period is unlocked for resubmission.
+
+## Latest Changes — 2026-08-31 (Questionnaire Delete Semantics)
+- Questionnaire deletion now marks a template as deleted in addition to inactive. Deactivated templates remain visible for reactivation; deleted templates are excluded from both questionnaire management and new-supplier assignment lists.
+
+## Latest Changes — 2026-08-31 (Supplier First-Login Status)
+- Supplier relationship invitation status now reflects first successful portal login: pending relationships become accepted on login and remain accepted during later completion recalculations. Completed relationships remain completed.
+
+## Latest Changes — 2026-08-31 (Supplier GHG Progress Display)
+- Supplier dashboard GHG progress now uses the cadence-based completion percentage instead of a binary 0%/100% value. Monthly suppliers therefore see incremental progress (for example, 2 submitted months of 12 = 17%).
+
+## Latest Changes — 2026-08-31 (Question Importance Simplification)
+- Questionnaire importance is now limited to High (3), Medium (2), and Low (1). Legacy Critical questions are migrated to High with a standard weight of 3, and Critical is removed from creation, editing, API validation, and scoring controls.
+- Questionnaire authors now see the Low (1×), Medium (2×), and High (3×) guide directly beside the single-question importance selector and at the top of the bulk question ledger. Dropdown options include the same weight labels.
+- The guide now communicates combined-score shares (Low 16.67%, Medium 33.33%, High 50% when one of each is used), while dropdowns remain concise with Low, Medium, and High labels only.
+- In the single-question edit form, the score-share explanation is now available through a hoverable information icon beside Question Importance rather than occupying permanent form space. The bulk ledger retains its visible guide.
+
+## Latest Changes — 2026-08-31 (Target Based Scoring Removal)
+- Removed Target Based scoring from supplier questionnaire authoring, API validation, and the scoring-rule registry. No existing questionnaire used the removed rule, so no data migration was required.
+
+## Latest Changes — 2026-08-31 (Supplier GHG Submitted State)
+- Supplier GHG period ledger now renders the `Submitted · Locked` status badge with an explicit green background, making completed locked periods visually distinct from pending states.
+
+## Latest Changes — 2026-08-31 (Supplier Unlock-Request Removal)
+- Removed the supplier GHG unlock-request action, status message, request payload contract, and API endpoint. Parent organizations retain direct, period-specific unlock control.
+
+## Latest Changes — 2026-08-31 (Supplier GHG Ledger Simplification)
+- Removed the dedicated Action column from the supplier GHG period ledger. Period-specific Submit/Resubmit controls now appear directly beneath the applicable status, so the workflow remains available without an otherwise empty column.
+
+## Latest Changes — 2026-08-31 (Supplier Navigation Assignment Gates)
+- Supplier sidebar navigation now reads assigned assessment modules. If GHG is not assigned, Facilities, the Environment/GHG branch, and the supplier GHG entry are muted but remain clickable.
+- Removed hover messaging from muted supplier navigation items.
+- Global `/ghg` and Facility routes for unassigned suppliers show the existing Premium Module overlay. In Supplier Assessment → GHG, the normal workspace remains visible with a simple `No GHG task assigned` state and no Premium Module or Contact Sales prompt.
+
+## Latest Changes — 2026-08-31 (Contact Request Email Branding)
+- Restyled the SustainRepo contact-request acknowledgement email with an email-client-safe branded table layout, SustainRepo logo, clear response expectation, resource CTA, and accessible inline styling.
+- The email Resources CTA now links directly to `https://sustainrepo.com/resources`.
+
+## Latest Changes — 2026-08-31 (Parent Supplier Summary Tables)
+- Supplier ESG summary headings and values are center-aligned, and its per-row View column has been removed. Supplier attributed emissions headings now explicitly show Supplier, Scope 1 (tCO2e), Scope 2 (tCO2e), Total attributed (tCO2e), and Revenue share.
+- ESG Analysis now shows the number of suppliers assessed directly in the ESG score breakdown. Supplier summary scores use green for good (80+), yellow for at-risk (60–79.9), and red for low (<60) performance. The separate E / S / G performance comparison table was removed.
+- Supplier ESG Summary now displays its Green 80–100, Yellow 60–79.9, and Red below 60 thresholds. Risk matrix mixed-risk groups are explicitly named Emissions Reduction (high emissions/high ESG) and ESG Development (low emissions/low ESG).
+
+## Latest Changes — 2026-08-31 (Supplier Ranking Risk and Requirement Views)
+- Ranking Overview now includes a Supplier Sustainability Risk Matrix styled as the supplied 2×2 strategic reference: High/Low ESG on the horizontal axis, High/Low Emissions on the vertical axis, and Critical, Strategic, Priority Improvement, and Developing quadrants with plotted supplier points.
+- Ranking data includes supplier-by-document and supplier-by-training completion. Overview now presents these as side-by-side supplier progress bars rather than repeated per-requirement columns.
+- Adjusted the risk matrix vertical axis spacing so its attributed-emissions label and values remain legible.
+- Applied the Materiality Assessment’s zone color language to the supplier risk matrix: red Critical, green Strategic, orange Priority Improvement, and amber Developing zones. The matrix now fills the available space beside a compact legend, has no unused grey background, and supplier dots reveal supplier/ESG/emissions details on hover.
+- Risk matrix grouping now recognizes low emissions as favorable: Strategic Suppliers are low-emission/high-ESG, while high-emission/high-ESG suppliers are Priority Improvement.
+- Ranking tabs now mount chart components only while active, preventing hidden Recharts panels from calculating invalid container dimensions during tab transitions.
+- Risk matrix, document completion, and training completion sections are positioned below the Top performing suppliers / Attention required row in Ranking Overview.
+- Document completion now deduplicates programme-default and supplier-specific assignments by document version, preferring the explicit supplier assignment. This prevents duplicate documents from inflating supplier progress denominators.
+- Ranking Overview visual refresh: added colorful premium card surfaces, depth, score accents, and distinct document/training progress treatments while retaining the existing light SustainRepo workspace design.
+- ESG Analysis now follows the supplied reference exactly: a pale mint canvas, white bento cards, horizontal score-breakdown panel, restrained card backgrounds, donut distribution, comparison chart, compact legend, and summary table. Color is reserved for data meaning rather than full-card backgrounds.
+
+## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
+- Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
+- Due dates remain visible after completion in parent assessment details and supplier Document/Training cards. The submission-status API continues returning the original relationship, document, training, and questionnaire deadline metadata for locked/completed items.
+- Edit Supplier now preserves the stored `revenue_required` value in form state, preventing Annual Revenue from being inadvertently reset to Optional on any unrelated edit.
+- Supplier GHG policies now deny custom fuels, Process Emissions, and Flaring by default at both supplier and generic emission API boundaries. Parent Organization Config can explicitly allow each capability, and the supplier category list hides disallowed special categories.
+- Python compilation, frontend ESLint, live reminder API checks, and one authenticated reminder-picker smoke check passed before the user directed `dont test`. No remaining functional or automated verification was run after that direction.
+
+## Latest Changes — 2026-08-30 (Supplier GHG Configuration Visibility)
+- Connected the shared `/ghg` supplier create and edit experiences to the immutable supplier assessment-program permissions returned by `/api/supplier-assessment/my-assessment/emissions/config`.
+- When the program disables Custom Fuels, Process Emissions, or Flaring, the supplier form now hides the Custom Fuel control and the restricted Scope 1 category options. Regular organization/admin GHG forms retain their broader configured choices.
+- Fixed the generic `POST /api/emissions` supplier path to accept the optional `category_id` contract field and safely reject prohibited payloads with 403 rather than raising an AttributeError/500.
+- Validation passed: focused frontend policy tests (2/2), supplier backend permission suite (6/6 feature tests), Python compilation, direct API rejection (403), and authenticated supplier UI smoke check. The preview's `OPTIONS /api/auth/login` wildcard CORS header is injected by Cloudflare (`server: cloudflare`), while backend source already uses an explicit `CORS_ORIGINS` allowlist; it is outside this application code path.
+
+## Latest Changes — 2026-08-30 (Training Video Controls)
+- Removed Picture-in-Picture from both supplier training playback and the admin read-only training viewer. Video controls now disable Picture-in-Picture and remote playback while retaining normal in-page playback and progress tracking.
+- **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Parent Supplier Detail Expansion)
+- Parent Organization's View Supplier dialog now displays completion tracks for ESG Questionnaire, GHG Emissions, Documents, and Training. The supplier response contract now exposes `training_completion_percent` alongside the existing module metrics.
+- Replaced the separated ESG-score cards with one responsive score row containing ESG Score, Environment Score, Social Score, and Governance Score. Pending scores remain clearly labelled.
+- **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Supplier Status Alignment)
+- Moved the status badge in the parent View Supplier dialog beneath the Status label for clearer visual alignment, and added stable test identifiers for the displayed status.
+- **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Detailed Rankings Table Fit)
+- Reduced Detailed Rankings table minimum width, score/progress column widths, gaps, and horizontal padding so the View action remains visible at standard desktop workspace widths without needing a horizontal scroll.
+- **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Overdue Supplier Task Follow-up)
+- Reworked Supplier Rankings' Attention Required list to exclude low-score-only suppliers. It now contains only suppliers with at least one incomplete task after its applicable deadline.
+- The card identifies precisely which tasks are overdue—ESG Questionnaire, GHG Emissions, Documents, and/or Training—based on each task's due date (falling back to the supplier assessment due date where appropriate) and its canonical completion/submission state.
+- Verified with Python compilation, frontend ESLint (zero errors; pre-existing warnings only), a live rankings API assertion, and authenticated parent-dashboard smoke testing. The live card showed ESG-only and ESG + Documents overdue states correctly.
+
+## Latest Changes — 2026-08-30 (Document/Training Action Consistency)
+- Aligned Documents and Training due-date actions to use the same calendar icon. Training action order mirrors Documents: Preview, Manage suppliers, Due date, then more actions.
+- Training's overflow menu is explicitly opaque white to avoid blending into content behind it.
+- **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Supplier Onboarding Copy)
+- Updated the supplier onboarding heading to “Welcome to Supplier Assessment of {Parent Organization}” while preserving the existing onboarding guidance.
+- **NOT TESTED** after implementation, per the user's explicit instruction.
+
+## Latest Changes — 2026-08-30 (Supplier GHG Submitted Totals)
+- Supplier GHG summary cards now emphasize the most recently submitted Scope 1 and Scope 2 emissions totals. Current draft totals remain available as lower-priority supporting text.
+
+## Latest Changes — 2026-08-30 (Published Emission Consumer Filter)
+- Standardized Internal Data AI analytics and evidence retrieval plus Peer Benchmarking reporting-period discovery on `eligible_ghg_record_filter()`. These consumer paths now exclude draft, pending, rejected, deleted, superseded, and non-current emission rows and honor approval eligibility.
+- Lifecycle tools (approval queues, record editing/history, OCR reconciliation, and data-status diagnostics) retain deliberate access to non-published states because their functionality depends on them.
+
+## Latest Changes — 2026-08-31 (Supplier GHG Cadence and Period Unlocking)
+- Added parent-controlled `ghg_submission_frequency` (`monthly`, `quarterly`, or `yearly`) to supplier relationships. New and existing relationship responses default safely to yearly cadence, while new supplier and Edit Supplier forms expose all three choices.
+- Added `supplier_ghg_submissions` as the canonical per-period lock record. Monthly, financial-year quarterly, and yearly periods resolve independently; historical unsubmitted periods remain editable and are only marked overdue after their calculated deadline.
+- Added centralized `can_modify_supplier_ghg_record()` enforcement to supplier manual and generic create/edit/delete paths. Submitted periods are locked until a parent unlocks them; yearly input is rejected for monthly or quarterly cadence.
+- Supplier period ledger supports submit, locked state, unlock request, overdue state, and parent-supplied instructions. Parent unlock now requires a reason, accepts optional supplier instructions, and uses a single form with no secondary confirmation. Unlock/resubmit events are retained with revisions in the submission audit history.
+- Validation passed: Python compilation, focused and full frontend ESLint (zero errors/warnings after removing 15 stale lint suppressions), live supplier period API check, supplier ledger smoke, parent unlock-form interaction with a temporary cleaned-up fixture, and supplier cadence regression checks (**9 passed; the one excluded check observes Cloudflare's external CORS preflight rewrite while the internal FastAPI response is explicitly origin-scoped**). No mocked APIs were used.
+- `/app/test_reports/iteration_33.json` — Supplier GHG submission cadence verification.

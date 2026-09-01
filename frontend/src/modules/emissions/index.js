@@ -248,7 +248,7 @@ export function initializeCategoryModules() {
   attachStep3(genericScope2);
   attachStep3(genericScope3);
 
-  // eslint-disable-next-line no-console
+   
   console.log(`[Emissions] Category modules initialized: ${categoryRegistry.size} entries`);
 
   // Run module contract verification (warn-only — never breaks runtime)

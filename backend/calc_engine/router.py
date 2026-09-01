@@ -1041,7 +1041,6 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                         for step in definition.get("steps", []):
                             expr = step.get("expression", "")
                             # Simple check: variable appears as word in expression
-                            import re
                             if re.search(rf'\b{re.escape(var_key)}\b', expr):
                                 using_formulas.append({"id": f["id"], "name": f["name"], "usage": f"step '{step.get('name')}'"})
                                 break
@@ -1646,7 +1645,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 if derived_year is None and filter_value:
                     try:
                         query["year_applicable"] = int(filter_value)
-                    except:
+                    except (TypeError, ValueError):
                         query["year_applicable"] = filter_value
             
             elif filter_field == "is_active":

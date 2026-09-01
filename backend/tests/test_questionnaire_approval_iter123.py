@@ -5,7 +5,7 @@ Tests:
 - GET /api/approval-workflows/questionnaire/queue
 - POST /api/approval-workflows/questionnaire/{response_id}/approve
 - POST /api/approval-workflows/questionnaire/{response_id}/reject
-- Tracking service returns approval_status/rejection_reason from esg_responses
+- Tracking service returns approval_status/rejection_reason from organization_esg_responses
 """
 
 import os
@@ -154,7 +154,7 @@ class TestQuestionnaireApproveReject:
 
 @pytest.fixture(scope="module")
 def seeded_pending_response(headers, current_user):
-    """Seed an esg_response with approval_status=pending_approval + assignment for admin."""
+    """Seed a canonical response with approval_status=pending_approval + assignment for admin."""
     import pymongo
     mongo_url = os.environ.get("MONGO_URL")
     db_name = os.environ.get("DB_NAME")
@@ -198,11 +198,13 @@ def seeded_pending_response(headers, current_user):
     })
 
     # Insert response as pending_approval
-    db.esg_responses.insert_one({
+    db.organization_esg_responses.insert_one({
         "id": response_id,
         "organization_id": org_id,
+        "org_id": org_id,
         "question_key": question_key,
-        "response": {"value": "initial answer"},
+        "value": {"value": "initial answer"},
+        "status": "pending_approval",
         "approval_status": "pending_approval",
         "submitted_by": user_id,
         "submitted_at": "2026-01-01T00:00:00+00:00",
@@ -218,7 +220,7 @@ def seeded_pending_response(headers, current_user):
     }
 
     # Cleanup
-    db.esg_responses.delete_many({"question_key": question_key})
+    db.organization_esg_responses.delete_many({"question_key": question_key})
     db.esg_assignments.delete_one({"id": assignment_id})
     db.esg_question_configs.delete_one({"question_key": question_key})
     db.esg_responses_versions.delete_many({"record_id": question_key})
@@ -254,7 +256,7 @@ class TestEndToEndApproval:
         question_key = seeded_pending_response["question_key"]
 
         # First reset to pending to ensure clean state
-        db.esg_responses.update_one(
+        db.organization_esg_responses.update_one(
             {"id": response_id},
             {"$set": {"approval_status": "pending_approval"}, "$unset": {"rejection_reason": ""}},
         )
@@ -272,7 +274,7 @@ class TestEndToEndApproval:
         assert body.get("response", {}).get("rejection_reason") == reason
 
         # Verify persistence
-        doc = db.esg_responses.find_one({"id": response_id})
+        doc = db.organization_esg_responses.find_one({"id": response_id})
         assert doc["approval_status"] == "rejected"
         assert doc["rejection_reason"] == reason
 
@@ -289,7 +291,7 @@ class TestEndToEndApproval:
         question_key = seeded_pending_response["question_key"]
 
         # Reset to pending
-        db.esg_responses.update_one(
+        db.organization_esg_responses.update_one(
             {"id": response_id},
             {"$set": {"approval_status": "pending_approval"}},
         )
@@ -304,7 +306,7 @@ class TestEndToEndApproval:
         assert r.status_code == 200, r.text
         resp = r.json().get("response", {})
         assert resp.get("approval_status") == "approved"
-        assert resp.get("response") == updated_value
+        assert resp.get("value") == updated_value
         assert resp.get("edited_by_approver") is True
 
         # Verify approve on already approved returns 400

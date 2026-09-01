@@ -23,6 +23,7 @@ export const EditOptionalFields = ({
   capabilities = {},
   selectedCategory,
   isEditC7EmployeeCommuting,
+  readOnly = false,
 }) => {
   const updateForm = (updates) => {
     setFormData((previous) => ({ ...previous, ...updates }));
@@ -41,7 +42,7 @@ export const EditOptionalFields = ({
   };
 
   return (
-    <Collapsible className="border border-stone-200 bg-white" data-testid="edit-optional-fields-section">
+    <Collapsible className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="edit-optional-fields-section">
       <CollapsibleTrigger
         className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-stone-50"
         data-testid="edit-optional-fields-section-trigger"
@@ -53,6 +54,7 @@ export const EditOptionalFields = ({
         <ChevronDown className="h-5 w-5 shrink-0 text-stone-500 transition-transform duration-200 group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent className="border-t border-stone-100 px-5 py-6">
+        <fieldset disabled={readOnly} className="min-w-0 space-y-8 disabled:opacity-100" data-testid={readOnly ? "read-only-optional-fields" : undefined}>
         <div className="space-y-8" data-testid="edit-optional-fields-content">
           {!isEditC7EmployeeCommuting && (
             <>
@@ -171,6 +173,7 @@ export const EditOptionalFields = ({
 
           <NotesSection formData={formData} setFormData={(nextFormData) => { setFormData(nextFormData); markFormDirty?.(); }} />
         </div>
+        </fieldset>
       </CollapsibleContent>
     </Collapsible>
   );

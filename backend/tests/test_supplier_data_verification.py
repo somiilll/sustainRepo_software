@@ -65,8 +65,16 @@ async def test_esg_final_submission_sets_data_verification_audit_fields(monkeypa
             captured_update["update"] = update
             return None
 
+    class EmptyQuestionsCollection:
+        def find(self, *args, **kwargs):
+            class Cursor:
+                async def to_list(self, _limit):
+                    return []
+            return Cursor()
+
     class FakeDB:
         supplier_questionnaire_responses = FakeResponsesCollection()
+        supplier_questions = EmptyQuestionsCollection()
 
     monkeypatch.setattr("modules.supplier_assessment.service.db", FakeDB())
 

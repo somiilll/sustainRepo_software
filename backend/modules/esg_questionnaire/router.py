@@ -469,7 +469,7 @@ async def approve_submission(
     current_user: dict = Depends(get_approver_user)
 ):
     """
-    Approve a submission and save to final esg_responses.
+    Approve a submission and save to organization_esg_responses.
     
     Expects: {
         submission_id: "uuid",
@@ -794,7 +794,7 @@ async def approve_draft(
 ):
     """
     Approve a submitted draft (admin only).
-    Saves the draft data to final esg_responses.
+    Saves the draft data to organization_esg_responses.
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -909,6 +909,24 @@ async def get_draft_history(
 # =============================================================================
 # Response Endpoints
 # =============================================================================
+
+@router.get("/responses/{framework}/{section}/years")
+async def list_available_years(
+    framework: str,
+    section: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """List reporting years with responses for an organization, framework, and section."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    years = await esg_questionnaire_service.list_available_years(
+        org_id=org_id,
+        framework=framework,
+        section=section,
+    )
+    return {"years": years}
+
 
 @router.get("/responses/{framework}/{section}/{reporting_year}")
 async def get_responses(
@@ -1069,27 +1087,6 @@ async def get_question_response_timeline(
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     return timeline.model_dump()
-
-
-@router.get("/responses/{framework}/{section}/years")
-async def list_available_years(
-    framework: str,
-    section: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    List reporting years with responses for org+framework+section.
-    """
-    org_id = current_user.get("organization_id")
-    if not org_id:
-        raise HTTPException(status_code=400, detail="No organization assigned")
-    
-    years = await esg_questionnaire_service.list_available_years(
-        org_id=org_id,
-        framework=framework,
-        section=section
-    )
-    return {"years": years}
 
 
 @router.get("/responses/{framework}/{section}/{reporting_year}/statuses")

@@ -350,7 +350,9 @@ class ScoreCalculator:
             
             exact_weight = q.get("exact_numerical_weight")
             importance = (q.get("importance") or "medium").lower()
-            importance_weights = {"low": 1.0, "medium": 2.0, "high": 3.0, "critical": 4.0}
+            importance_weights = {"low": 1.0, "medium": 2.0, "high": 3.0}
+            if importance == "critical":
+                importance = "high"
             if importance not in importance_weights:
                 importance = "medium"
             if exact_weight is not None:

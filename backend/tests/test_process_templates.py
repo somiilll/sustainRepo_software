@@ -294,7 +294,7 @@ def cleanup(auth_headers):
         try:
             requests.delete(f"{BASE_URL}/api/super-admin/process-templates/{template_id}",
                           headers={"Authorization": f"Bearer {SUPER_ADMIN_CREDS}", "Content-Type": "application/json"})
-        except:
+        except requests.RequestException:
             pass
     print(f"\nCleanup: Attempted to delete {len(created_template_ids)} test templates")
 

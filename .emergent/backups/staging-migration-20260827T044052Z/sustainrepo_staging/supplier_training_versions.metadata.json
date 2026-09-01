@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"id":{"$numberInt":"1"}},"name":"id_1","unique":true}],"uuid":"fe30c1ab0da941cb8db6b3a4ef7f03d0","collectionName":"supplier_training_versions","type":"collection"}

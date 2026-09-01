@@ -320,65 +320,6 @@ class ChoiceMappingRule(ScoringRule):
         })
 
 
-class TargetBasedRule(ScoringRule):
-    """
-    Score based on proximity to a target value (can be higher or lower).
-    
-    Use cases:
-        - Target percentage achieved (e.g., 80% of target = 80 score)
-        - KPI achievement rates
-        
-    Formula:
-        score = (actual / target) * max_score (capped at max_score)
-        
-    Examples:
-        - target=100, actual=80 -> score=80
-        - target=100, actual=120 -> score=100 (capped)
-        - target=50, actual=25 -> score=50
-    """
-    
-    @property
-    def rule_type(self) -> ScoringRuleType:
-        return ScoringRuleType.TARGET_BASED
-    
-    def calculate(
-        self,
-        raw_value: Any,
-        config: ScoringConfig,
-    ) -> Dict[str, Any]:
-        try:
-            value = float(raw_value)
-        except (ValueError, TypeError):
-            return self._build_result(0, {
-                "error": f"Invalid numeric value: {raw_value}",
-                "raw_value": raw_value,
-            })
-        
-        target = config.target
-        max_score = config.max_score
-        
-        if target is None or target == 0:
-            return self._build_result(0, {
-                "error": "Target not configured or is zero",
-                "raw_value": value,
-                "target": target,
-            })
-        
-        # Calculate percentage of target achieved
-        achievement = (value / target) * max_score
-        
-        # Cap at max_score
-        score = min(achievement, max_score)
-        
-        return self._build_result(score, {
-            "raw_value": value,
-            "target": target,
-            "max_score": max_score,
-            "achievement_percentage": (value / target) * 100,
-            "formula": f"({value} / {target}) * {max_score}",
-        })
-
-
 class ManualScoringRule(ScoringRule):
     """
     Score requires manual review and entry.
@@ -427,7 +368,6 @@ RULE_REGISTRY: Dict[ScoringRuleType, type] = {
     ScoringRuleType.LOWER_IS_BETTER: LowerIsBetterRule,
     ScoringRuleType.BOOLEAN: BooleanRule,
     ScoringRuleType.CHOICE_MAPPING: ChoiceMappingRule,
-    ScoringRuleType.TARGET_BASED: TargetBasedRule,
     ScoringRuleType.MANUAL: ManualScoringRule,
 }
 

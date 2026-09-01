@@ -17,7 +17,7 @@ import pytest
 import requests
 from openpyxl import Workbook, load_workbook
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://esg-ai-routing.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://emissions-review.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "goyalsomil2@hotmail.com"
 ADMIN_PASSWORD = "Test123!"
 

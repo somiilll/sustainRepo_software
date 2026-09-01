@@ -210,7 +210,7 @@ class UnifiedResponseService:
         if updated_at and isinstance(updated_at, str):
             try:
                 updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-            except:
+            except (TypeError, ValueError):
                 updated_at = None
         
         approval_status = doc.get("approval_status")

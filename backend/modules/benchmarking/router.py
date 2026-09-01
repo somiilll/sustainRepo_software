@@ -34,6 +34,7 @@ load_dotenv()
 from shared.database.mongo import db
 from modules.auth.dependencies import get_current_user
 from modules.benchmarking.peer_benchmarking_service import get_benchmarking_metrics
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,7 @@ async def get_date_range(
     try:
         periods = await db.emission_records.distinct(
             "reporting_period",
-            {"organization_id": org_id}
+            {"organization_id": org_id, **eligible_ghg_record_filter()}
         )
         
         dates = []

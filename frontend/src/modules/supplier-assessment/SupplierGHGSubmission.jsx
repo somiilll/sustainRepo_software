@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { ArrowRight, Factory, Lock, Send, Zap } from 'lucide-react';
+import { ArrowRight, CalendarDays, Cloud, Factory, Lock, Send, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
@@ -10,25 +10,79 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { SupplierDataVerificationAcknowledgement } from './components/SupplierDataVerificationAcknowledgement';
+import { SupplierPageHeader } from './components/SupplierPageHeader';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+const periodTone = (period) => period.status === 'submitted'
+  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+  : period.status === 'unlocked' ? 'border-amber-200 bg-amber-50 text-amber-800'
+    : period.status === 'overdue' ? 'border-red-200 bg-red-50 text-red-800'
+      : period.status === 'in_progress' ? 'border-blue-200 bg-blue-50 text-blue-800'
+        : 'border-stone-200 bg-stone-50 text-stone-600';
+
+const periodStatusLabel = (period) => {
+  if (period.status === 'submitted') return <><Lock className="mr-1 h-3 w-3" />Submitted · Locked</>;
+  if (period.status === 'unlocked') return 'Unlocked for resubmission';
+  if (period.status === 'overdue') return 'Overdue';
+  return period.status === 'in_progress' ? 'In progress' : 'Not started';
+};
+
+const canSubmitPeriod = (period) => period.status !== 'submitted' && Boolean(period.has_unsubmitted_entries);
+
+const submittedScopeTotal = (period, scope) => (
+  period.submitted_at ? `${(period.submitted_scope_totals?.[scope] || 0).toFixed(4)} tCO₂e` : '—'
+);
+
 export default function SupplierGHGSubmission() {
-  const { getAuthHeader } = useAuth(); const navigate = useNavigate(); const [state, setState] = useState(null); const [submitting, setSubmitting] = useState(false); const [confirmOpen, setConfirmOpen] = useState(false); const [verificationAccepted, setVerificationAccepted] = useState(false);
-  const load = useCallback(async () => { try { setState((await axios.get(`${API}/supplier-assessment/my-assessment/emissions/submission`, { headers: getAuthHeader() })).data); } catch (error) { toast.error(error.response?.data?.detail || 'Could not load GHG submission'); } }, [getAuthHeader]);
+  const { getAuthHeader } = useAuth();
+  const navigate = useNavigate();
+  const [state, setState] = useState(null);
+  const [periods, setPeriods] = useState([]);
+  const [selectedPeriod, setSelectedPeriod] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [verificationAccepted, setVerificationAccepted] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const [submission, periodResponse] = await Promise.all([
+        axios.get(`${API}/supplier-assessment/my-assessment/emissions/submission`, { headers: getAuthHeader() }),
+        axios.get(`${API}/supplier-assessment/my-assessment/emissions/submission-periods`, { headers: getAuthHeader() }),
+      ]);
+      setState(submission.data);
+      setPeriods(periodResponse.data.periods || []);
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not load GHG submissions'); }
+  }, [getAuthHeader]);
+
   useEffect(() => { load(); }, [load]);
   const totals = useMemo(() => (state?.draft_aggregation || []).reduce((all, row) => ({ ...all, [row.scope]: (all[row.scope] || 0) + row.total_emissions }), {}), [state]);
-  const lastSubmittedTotals = useMemo(() => (state?.last_submitted_aggregation || []).reduce((all, row) => ({ ...all, [row.scope]: (all[row.scope] || 0) + row.total_emissions }), {}), [state]);
-  const submit = async () => { if (!verificationAccepted) return; setSubmitting(true); try { await axios.post(`${API}/supplier-assessment/my-assessment/emissions/submit`, { data_verified: true }, { headers: getAuthHeader() }); toast.success('GHG submission sent'); setConfirmOpen(false); setVerificationAccepted(false); await load(); } catch (error) { toast.error(error.response?.data?.detail || 'Could not submit GHG data'); } finally { setSubmitting(false); } };
-  const locked = state?.submission?.status === 'submitted';
-  const reopened = state?.submission?.status === 'reopened';
   const enabledScopes = state?.enabled_scopes || [];
-  return <div className="space-y-6" data-testid="supplier-ghg-submission-page"><div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-semibold">Supplier Assessment GHG</h1><p className="mt-2 text-sm text-stone-600">Review your logged GHG data before submitting it to your customer.</p></div>{locked ? <Badge className="bg-stone-200 text-stone-700" data-testid="supplier-ghg-submission-locked"><Lock className="mr-1 h-3 w-3" />Submitted and locked</Badge> : reopened ? <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-ghg-submission-reopened">Unlocked for resubmission</Badge> : null}{!locked && <Button disabled={!state?.can_submit || submitting} onClick={() => setConfirmOpen(true)} data-testid="submit-supplier-ghg-button"><Send className="mr-2 h-4 w-4" />{reopened ? 'Resubmit GHG data' : 'Submit GHG data'}</Button>}</div>
-    <div className="grid gap-5 md:grid-cols-2">
-      {enabledScopes.includes('scope1') && <Card className="border-blue-200 bg-white shadow-[0_5px_16px_rgba(59,130,246,0.10)]" data-testid="supplier-ghg-scope1-total"><CardContent className="pt-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700" data-testid="supplier-ghg-scope1-draft-icon"><Factory className="h-5 w-5" aria-hidden="true" /></span><p className="text-sm font-medium text-blue-800">Scope 1 draft total</p></div><p className="mt-4 text-2xl font-semibold text-slate-900">{(totals.scope1 || 0).toFixed(2)} tCO₂e</p><p className="mt-1 text-xs text-stone-500" data-testid="supplier-ghg-last-submitted-scope1">Last submitted: {lastSubmittedTotals.scope1 != null ? `${lastSubmittedTotals.scope1.toFixed(2)} tCO₂e` : '—'}</p></CardContent></Card>}
-      {enabledScopes.includes('scope2') && <Card className="border-purple-200 bg-white shadow-[0_5px_16px_rgba(147,51,234,0.10)]" data-testid="supplier-ghg-scope2-total"><CardContent className="pt-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-700" data-testid="supplier-ghg-scope2-draft-icon"><Zap className="h-5 w-5" aria-hidden="true" /></span><p className="text-sm font-medium text-purple-800">Scope 2 draft total</p></div><p className="mt-4 text-2xl font-semibold text-slate-900">{(totals.scope2 || 0).toFixed(2)} tCO₂e</p><p className="mt-1 text-xs text-stone-500" data-testid="supplier-ghg-last-submitted-scope2">Last submitted: {lastSubmittedTotals.scope2 != null ? `${lastSubmittedTotals.scope2.toFixed(2)} tCO₂e` : '—'}</p></CardContent></Card>}
+  const hasGhgTask = enabledScopes.length > 0;
+  const submit = async () => {
+    if (!verificationAccepted || !selectedPeriod) return;
+    setSubmitting(true);
+    try {
+      await axios.post(`${API}/supplier-assessment/my-assessment/emissions/submission-periods/${encodeURIComponent(selectedPeriod.period_key)}/submit`, { data_verified: true }, { headers: getAuthHeader() });
+      toast.success(`${selectedPeriod.label} GHG data submitted`);
+      setSelectedPeriod(null); setVerificationAccepted(false); await load();
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not submit GHG data'); }
+    finally { setSubmitting(false); }
+  };
+
+  if (state && !hasGhgTask) return <div className="space-y-6" data-testid="supplier-ghg-submission-page"><SupplierPageHeader title="Supplier Assessment GHG" description="Review and lock each reporting period when its data is complete." icon={Cloud} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="supplier-ghg-submission" /><Card className="border-stone-200" data-testid="supplier-ghg-no-task-card"><CardContent className="py-16 text-center"><p className="text-lg font-semibold text-stone-900" data-testid="supplier-ghg-no-task-message">No GHG task assigned</p></CardContent></Card></div>;
+
+  return <div className="space-y-6" data-testid="supplier-ghg-submission-page">
+    <SupplierPageHeader title="Supplier Assessment GHG" description="Review and lock each reporting period when its data is complete." icon={Cloud} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="supplier-ghg-submission" />
+    <Card className="overflow-hidden border-stone-200" data-testid="supplier-ghg-period-ledger">
+      <CardHeader className="border-b border-stone-100"><CardTitle className="flex items-center gap-2 text-lg"><CalendarDays className="h-4 w-4 text-sky-700" />Submission periods</CardTitle></CardHeader>
+      <CardContent className="p-0">
+        {!state ? <p className="p-6 text-sm text-stone-500" data-testid="supplier-ghg-periods-loading">Loading submission periods…</p> : <Table data-testid="supplier-ghg-periods-table"><TableHeader><TableRow><TableHead>Period</TableHead><TableHead>Deadline</TableHead>{enabledScopes.includes('scope1') && <TableHead data-testid="supplier-ghg-period-scope1-header">Scope 1 last submitted</TableHead>}{enabledScopes.includes('scope2') && <TableHead data-testid="supplier-ghg-period-scope2-header">Scope 2 last submitted</TableHead>}<TableHead>Status</TableHead><TableHead>Submitted</TableHead></TableRow></TableHeader><TableBody>{periods.map((period) => <TableRow key={period.period_key} data-testid={`supplier-ghg-period-${period.period_key}`}><TableCell className="font-medium text-stone-900" data-testid={`supplier-ghg-period-label-${period.period_key}`}>{period.label}</TableCell><TableCell data-testid={`supplier-ghg-period-deadline-${period.period_key}`}>{new Date(`${period.due_date}T00:00:00Z`).toLocaleDateString('en-GB')}</TableCell>{enabledScopes.includes('scope1') && <TableCell className="font-medium tabular-nums text-stone-800" data-testid={`supplier-ghg-period-scope1-total-${period.period_key}`}>{submittedScopeTotal(period, 'scope1')}</TableCell>}{enabledScopes.includes('scope2') && <TableCell className="font-medium tabular-nums text-stone-800" data-testid={`supplier-ghg-period-scope2-total-${period.period_key}`}>{submittedScopeTotal(period, 'scope2')}</TableCell>}<TableCell><Badge variant="outline" className={periodTone(period)} data-testid={`supplier-ghg-period-status-${period.period_key}`}>{periodStatusLabel(period)}</Badge>{period.status === 'unlocked' && period.supplier_instructions && <p className="mt-1 max-w-sm text-xs text-amber-800" data-testid={`supplier-ghg-period-instructions-${period.period_key}`}>{period.supplier_instructions}</p>}{canSubmitPeriod(period) && <Button size="sm" className="mt-2" disabled={submitting} onClick={() => { setSelectedPeriod(period); setVerificationAccepted(false); }} data-testid={`submit-supplier-ghg-period-${period.period_key}`}><Send className="mr-1.5 h-3.5 w-3.5" />{period.status === 'unlocked' ? 'Resubmit' : 'Submit'}</Button>}</TableCell><TableCell data-testid={`supplier-ghg-period-submitted-at-${period.period_key}`}>{period.submitted_at ? new Date(period.submitted_at).toLocaleDateString('en-GB') : '—'}</TableCell></TableRow>)}</TableBody></Table>}</CardContent>
+    </Card>
+    <div className="grid gap-5 md:grid-cols-2" data-testid="supplier-ghg-draft-totals">
+      {enabledScopes.includes('scope1') && <Card className="border-blue-200 bg-white shadow-[0_5px_16px_rgba(59,130,246,0.10)]" data-testid="supplier-ghg-scope1-total"><CardContent className="pt-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700" data-testid="supplier-ghg-scope1-icon"><Factory className="h-5 w-5" /></span><p className="text-sm font-medium text-blue-800">Scope 1 draft total</p></div><p className="mt-4 text-2xl font-semibold text-slate-900" data-testid="supplier-ghg-draft-scope1">{(totals.scope1 || 0).toFixed(2)} tCO₂e</p></CardContent></Card>}
+      {enabledScopes.includes('scope2') && <Card className="border-purple-200 bg-white shadow-[0_5px_16px_rgba(147,51,234,0.10)]" data-testid="supplier-ghg-scope2-total"><CardContent className="pt-6"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 text-purple-700" data-testid="supplier-ghg-scope2-icon"><Zap className="h-5 w-5" /></span><p className="text-sm font-medium text-purple-800">Scope 2 draft total</p></div><p className="mt-4 text-2xl font-semibold text-slate-900" data-testid="supplier-ghg-draft-scope2">{(totals.scope2 || 0).toFixed(2)} tCO₂e</p></CardContent></Card>}
     </div>
-    <Card data-testid="supplier-ghg-submission-aggregation"><CardHeader><CardTitle>Scope and category summary</CardTitle></CardHeader><CardContent>{!state ? <p data-testid="supplier-ghg-submission-loading">Loading…</p> : (state.draft_aggregation || []).length === 0 ? locked ? <div className="space-y-3" data-testid="supplier-ghg-submission-locked-empty"><p className="text-sm text-stone-600" data-testid="supplier-ghg-locked-message">Your submitted GHG data is locked. Ask {state.customer_name || 'your customer'} to unlock it before entering or editing values.</p></div> : <div className="flex flex-wrap items-center justify-between gap-3" data-testid="supplier-ghg-submission-empty"><p className="text-sm text-stone-500">No unsubmitted GHG entries are available.</p><Button variant="outline" onClick={() => navigate('/ghg')} data-testid="supplier-ghg-add-data-button">Add GHG data<ArrowRight className="ml-2 h-4 w-4" /></Button></div> : <Table data-testid="supplier-ghg-submission-table"><TableHeader><TableRow><TableHead>Scope</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Entries</TableHead><TableHead className="text-right">Emissions (tCO₂e)</TableHead></TableRow></TableHeader><TableBody>{state.draft_aggregation.map((row) => <TableRow key={`${row.scope}-${row.category}`} data-testid={`supplier-ghg-submission-row-${row.scope}-${row.category}`}><TableCell><span className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${row.scope === 'scope1' ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-purple-200 bg-purple-50 text-purple-800'}`} data-testid={`supplier-ghg-summary-scope-${row.scope}-${row.category}`}>{row.scope === 'scope1' ? <Factory className="h-4 w-4" aria-hidden="true" /> : <Zap className="h-4 w-4" aria-hidden="true" />}{row.scope === 'scope1' ? 'Scope 1' : 'Scope 2'}</span></TableCell><TableCell>{row.category}</TableCell><TableCell className="text-right">{row.entry_count}</TableCell><TableCell className="text-right font-mono">{row.total_emissions.toFixed(4)}</TableCell></TableRow>)}</TableBody></Table>}</CardContent></Card>
-    <AlertDialog open={confirmOpen} onOpenChange={(open) => { setConfirmOpen(open); if (!open) setVerificationAccepted(false); }}><AlertDialogContent data-testid="confirm-supplier-ghg-submit-dialog"><AlertDialogHeader><AlertDialogTitle>{reopened ? 'Resubmit GHG data?' : 'Submit GHG data?'}</AlertDialogTitle><AlertDialogDescription>{reopened ? 'This replaces the parent-visible submission with your revised draft.' : 'This sends the current GHG snapshot to your customer. It becomes locked until your customer unlocks it for resubmission.'}</AlertDialogDescription></AlertDialogHeader><SupplierDataVerificationAcknowledgement checked={verificationAccepted} onCheckedChange={setVerificationAccepted} testIdPrefix="supplier-ghg-data-verification" /><AlertDialogFooter><AlertDialogCancel data-testid="cancel-supplier-ghg-submit-button">Cancel</AlertDialogCancel><AlertDialogAction disabled={submitting || !verificationAccepted} onClick={submit} data-testid="confirm-supplier-ghg-submit-button">{submitting ? 'Submitting…' : reopened ? 'Resubmit GHG data' : 'Submit GHG data'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <Card data-testid="supplier-ghg-submission-aggregation"><CardHeader><CardTitle>Current draft summary</CardTitle></CardHeader><CardContent>{(state?.draft_aggregation || []).length === 0 ? <div className="flex flex-wrap items-center justify-between gap-3" data-testid="supplier-ghg-submission-empty"><p className="text-sm text-stone-500">No editable GHG entries are available.</p><Button variant="outline" onClick={() => navigate('/ghg')} data-testid="supplier-ghg-add-data-button">Add GHG data<ArrowRight className="ml-2 h-4 w-4" /></Button></div> : <p className="text-sm text-stone-600" data-testid="supplier-ghg-draft-summary-count">{state.draft_aggregation.reduce((count, row) => count + row.entry_count, 0)} editable {state.draft_aggregation.reduce((count, row) => count + row.entry_count, 0) === 1 ? 'entry' : 'entries'} ready for submission.</p>}</CardContent></Card>
+    <AlertDialog open={Boolean(selectedPeriod)} onOpenChange={(open) => { if (!open) { setSelectedPeriod(null); setVerificationAccepted(false); } }}><AlertDialogContent data-testid="confirm-supplier-ghg-period-submit-dialog"><AlertDialogHeader><AlertDialogTitle data-testid="confirm-supplier-ghg-period-submit-title">Submit {selectedPeriod?.label}?</AlertDialogTitle><AlertDialogDescription data-testid="confirm-supplier-ghg-period-submit-description">Only data in this period will be sent to your customer and locked until they unlock it.</AlertDialogDescription></AlertDialogHeader><SupplierDataVerificationAcknowledgement checked={verificationAccepted} onCheckedChange={setVerificationAccepted} testIdPrefix="supplier-ghg-period-data-verification" /><AlertDialogFooter><AlertDialogCancel data-testid="cancel-supplier-ghg-period-submit-button">Cancel</AlertDialogCancel><AlertDialogAction disabled={submitting || !verificationAccepted} onClick={submit} data-testid="confirm-supplier-ghg-period-submit-button">{submitting ? 'Submitting…' : 'Submit period'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;
 }

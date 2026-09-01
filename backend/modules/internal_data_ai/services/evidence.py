@@ -11,6 +11,7 @@ import logging
 from shared.database.mongo import db
 from modules.internal_data_ai.query_scope import and_filters, organization_scope, resolve_authorized_facilities
 from modules.internal_data_ai.reporting_periods import emission_period_filter, esg_period_filter, period_from_payload
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,9 @@ async def find_files(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     seen_ids = set()
 
     # 1. Evidence linked to emission records (via evidence_url)
-    em_query = and_filters(organization_scope(org_id, facility_id_filter), {"evidence_url": {"$nin": [None, ""]}})
+    approval_status = kwargs.get("approval_status_filter")
+    lifecycle_filter = {"approval_status": approval_status} if approval_status in {"pending_approval", "rejected"} else eligible_ghg_record_filter()
+    em_query = and_filters(organization_scope(org_id, facility_id_filter), lifecycle_filter, {"evidence_url": {"$nin": [None, ""]}})
     if search_terms:
         em_query = and_filters(em_query, {"$or": [
             cond

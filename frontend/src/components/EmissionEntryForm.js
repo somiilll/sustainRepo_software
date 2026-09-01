@@ -42,6 +42,7 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
 import {
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
+  prepareDensityAwareCalculationInputs,
   resolveCompoundDenominatorBasis,
   resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
@@ -57,6 +58,7 @@ import {
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
+import { filterSupplierVisibleCategories } from '../modules/supplier-assessment/utils/supplierScopeAccess';
 
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
@@ -113,6 +115,7 @@ export default function EmissionEntryForm({
   // Future organization-specific GHG configuration. `null` today, which makes
   // resolveGhgConfig return the standard configuration untouched.
   organizationGhgOverrides = null,
+  supplierGhgConfig = null,
 }) {
   // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
@@ -1199,11 +1202,13 @@ export default function EmissionEntryForm({
   }, [fuelDatabase, scope, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
 
   const categoriesForScope = useMemo(() => resolveGhgCategoryOptions({
-    standardCategories: standardCategoriesForScope,
+    standardCategories: supplierContext
+      ? filterSupplierVisibleCategories(standardCategoriesForScope, resolveEffectiveScopeCode(scope, biogenicScopeSelection), supplierGhgConfig)
+      : standardCategoriesForScope,
     scopeCode: resolveEffectiveScopeCode(scope, biogenicScopeSelection),
     categoryDefinitions: dynamicCategories,
     organizationOverrides: organizationGhgOverrides,
-  }), [standardCategoriesForScope, scope, biogenicScopeSelection, dynamicCategories, organizationGhgOverrides]);
+  }), [standardCategoriesForScope, scope, biogenicScopeSelection, dynamicCategories, organizationGhgOverrides, supplierContext, supplierGhgConfig]);
 
   // ============================================================================
   // Dynamic Form Config - fields come from ce_input_field_mappings.
@@ -1663,58 +1668,46 @@ export default function EmissionEntryForm({
       decisionInputs['calculation_methodology'] = 'using_heat_basis_ncv';
     }
 
-    // Quantity Basis EF routes to the formula whose expected units match the
-    // selected EF denominator. This is an internal tree key; users continue
-    // selecting the EF unit directly in the monthly/yearly row.
+    // Route from the selected compound-unit denominator. Calculation adapters
+    // may further normalize a reverse density conversion and override this
+    // basis immediately before execution.
     if (decisionInputs.calculation_methodology === 'using_qty_basis_ef') {
-      const isStandardCombustionFuel = ghgFormContext.isStationaryMobileOrFlaringCategory
-        && !useCustomFuel;
-      if (isStandardCombustionFuel) {
-        decisionInputs.ef_quantity_basis = 'mass';
-      } else if (ghgFormContext.categoryCode === 'process_emissions' || useCustomFuel) {
-        const efField = dynamicInputFields.find((field) => (
-          field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
-        ));
-        const efUnit = useCustomFuel
-          ? monthData?.custom_ef_unit || 'kgCO2/kg'
-          : monthData?.ef_quantity_unit
-          || monthData?.ef_quantity?.unit
-          || efField?.defaultUnit
-          || efField?.default_unit
-          || efField?.expectedUnit
-          || efField?.allowedUnits?.[0];
-        const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
-        if (basis) decisionInputs.ef_quantity_basis = basis;
-      }
+      const efField = dynamicInputFields.find((field) => (
+        field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
+      ));
+      const efUnit = useCustomFuel
+        ? monthData?.custom_ef_unit || 'kgCO2/kg'
+        : monthData?.ef_quantity_unit
+        || monthData?.ef_quantity?.unit
+        || efField?.defaultUnit
+        || efField?.default_unit
+        || efField?.expectedUnit
+        || efField?.allowedUnits?.[0];
+      const basis = resolveProcessEfDenominatorBasis(efUnit, centralizedUnits);
+      if (basis) decisionInputs.ef_quantity_basis = basis;
     }
 
     // Heat Basis routes internally from the selected CV denominator. The CV
     // unit remains the single user-facing choice, while the tree selects the
     // matching mass or volume formula.
     if (decisionInputs.calculation_methodology === 'using_heat_basis_ncv') {
-      const isStandardCombustionFuel = ghgFormContext.isStationaryMobileOrFlaringCategory
-        && !useCustomFuel;
-      if (isStandardCombustionFuel) {
-        decisionInputs.cv_quantity_basis = 'mass';
-      } else {
-        const cvField = dynamicInputFields.find((field) => (
-          field.variable === 'cv' || field.fieldKey === 'cv'
-        ));
-        const cvUnit = (useCustomFuel ? monthData?.custom_cv_unit : null)
-          || monthData?.cv_unit
-          || monthData?.cv?.unit
-          || cvField?.defaultUnit
-          || cvField?.default_unit
-          || cvField?.expectedUnit
-          || cvField?.allowedUnits?.[0]
-          || 'TJ/kg';
-        const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
-        if (basis) decisionInputs.cv_quantity_basis = basis;
-      }
+      const cvField = dynamicInputFields.find((field) => (
+        field.variable === 'cv' || field.fieldKey === 'cv'
+      ));
+      const cvUnit = (useCustomFuel ? monthData?.custom_cv_unit : null)
+        || monthData?.cv_unit
+        || monthData?.cv?.unit
+        || selectedFuel?.calorific_value_unit
+        || cvField?.defaultUnit
+        || cvField?.default_unit
+        || cvField?.expectedUnit
+        || cvField?.allowedUnits?.[0];
+      const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
+      if (basis) decisionInputs.cv_quantity_basis = basis;
     }
 
     return decisionInputs;
-  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, ghgFormContext.categoryCode, centralizedUnits, useCustomFuel]);
+  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, centralizedUnits, useCustomFuel, selectedFuel]);
 
   // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
   const executeYearlyCalcEngine = useCallback(async () => {
@@ -1841,14 +1834,30 @@ export default function EmissionEntryForm({
       });
       
       // Build decision inputs AUTOMATICALLY based on what's filled
-      const decisionInputs = buildDecisionInputs(yearlyData);
+      const baseDecisionInputs = buildDecisionInputs(yearlyData);
+      const preparedCalculation = prepareDensityAwareCalculationInputs({
+        inputs,
+        calculationMethodology: baseDecisionInputs.calculation_methodology,
+        fields: dynamicInputFields,
+        data: yearlyData,
+        selectedFuel: useCustomFuel ? null : selectedFuel,
+        centralizedUnits,
+      });
+      if (preparedCalculation.error) {
+        setYearlyCalcResult(null);
+        return null;
+      }
+      const decisionInputs = {
+        ...baseDecisionInputs,
+        ...preparedCalculation.decisionInputs,
+      };
       
       const response = await axios.post(
         `${API}/calc-engine/execute-by-category`,
         {
           category_id: categoryObj.id,
           decision_inputs: decisionInputs,
-          inputs: inputs,
+          inputs: preparedCalculation.inputs,
           context: context,
           user_overrides: userOverrides,
           dry_run: true,
@@ -2327,8 +2336,8 @@ export default function EmissionEntryForm({
     }));
   };
 
-  // Handle evidence upload for a month
-  const handleEvidenceUpload = async (monthKey, file) => {
+  // Handle evidence upload for a monthly or yearly entry
+  const handleEvidenceUpload = async (periodKey, file) => {
     if (!file) return;
 
     const sizeErr = validateFileSize(file);
@@ -2350,21 +2359,32 @@ export default function EmissionEntryForm({
       
       if (response.data?.url) {
         // Use functional update to ensure we always read the latest state
-        setMonthlyData(prev => {
-          const currentEvidences = prev[monthKey]?.evidences || [];
-          return {
+        const uploadedFile = {
+          url: response.data.url,
+          filename: file.name,
+          uploaded_at: new Date().toISOString()
+        };
+        if (periodKey === 'yearly') {
+          setYearlyData(prev => ({
             ...prev,
-            [monthKey]: {
-              ...(prev[monthKey] || {}),
-              evidences: [...currentEvidences, {
-                url: response.data.url,
-                filename: file.name,
-                uploaded_at: new Date().toISOString()
-              }]
-            }
-          };
-        });
-        toast.success(`Evidence uploaded for ${MONTHS.find(m => m.key === monthKey)?.name}`);
+            evidences: [...(prev.evidences || []), uploadedFile]
+          }));
+        } else {
+          setMonthlyData(prev => {
+            const currentEvidences = prev[periodKey]?.evidences || [];
+            return {
+              ...prev,
+              [periodKey]: {
+                ...(prev[periodKey] || {}),
+                evidences: [...currentEvidences, uploadedFile]
+              }
+            };
+          });
+        }
+        const periodLabel = periodKey === 'yearly'
+          ? 'annual data'
+          : MONTHS.find((month) => month.key === periodKey)?.name;
+        toast.success(`Evidence uploaded for ${periodLabel}`);
       }
     } catch (error) {
       console.error('Evidence upload failed:', error);
@@ -2372,10 +2392,17 @@ export default function EmissionEntryForm({
     }
   };
 
-  const removeEvidence = (monthKey, evidenceIndex) => {
-    const currentEvidences = monthlyData[monthKey]?.evidences || [];
-    updateMonthData(monthKey, 'evidences', 
-      currentEvidences.filter((_, idx) => idx !== evidenceIndex)
+  const removeEvidence = (periodKey, evidenceIndex) => {
+    if (periodKey === 'yearly') {
+      setYearlyData(prev => ({
+        ...prev,
+        evidences: (prev.evidences || []).filter((_, index) => index !== evidenceIndex)
+      }));
+      return;
+    }
+    const currentEvidences = monthlyData[periodKey]?.evidences || [];
+    updateMonthData(periodKey, 'evidences',
+      currentEvidences.filter((_, index) => index !== evidenceIndex)
     );
   };
 
@@ -2505,6 +2532,9 @@ export default function EmissionEntryForm({
     monthlyData: submissionMonthlyData,
     filledMonthsCount: submissionFilledMonthsCount,
     updateMonthData,
+    calculationMethodology: decisionFieldValues.calculation_methodology,
+    selectedFuel,
+    centralizedUnits,
   });
 
 

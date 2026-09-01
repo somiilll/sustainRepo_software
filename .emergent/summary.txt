@@ -1,155 +1,171 @@
-<analysis>**original_problem_statement**: 
-User reported failures in the Internal Data AI engine's query routing for specific questions: CIN, CSR Applicability, and Anti-corruption policies. The user provided a highly detailed, explicit architectural blueprint to fix this deterministic routing, requesting: a proper hierarchy, a question registry (synonyms), explicit fallback handling, a source authority concept, and a unified  resolver returning standardized JSON states (FOUND, CONFIGURED — RESPONSE NOT FOUND, etc.).
-PRODUCT REQUIREMENTS: A full-stack application featuring a Deterministic Internal Data AI engine for ESG/Sustainability reporting that routes natural language to MongoDB queries, utilizing Shadcn UI on the frontend and FastAPI/MongoDB on the backend.
+<analysis>**original_problem_statement**: Maintain product roadmap and cleanup repository. Fix backend bugs and perform rapid UI/UX enhancements on the Supplier Portal dashboard. Bring Bulk Upload functionality into strict architectural parity with the canonical GHG configuration pipeline. Ensure strict period-based reporting limits. Add Scope 3 Spend basis monthly currency conversion methods. Ensure 100% strict data fetching on the GHG dashboard to prevent data inflation. Unify calculation logic between Dashboard and Target Module without deduplicating overlapping records on targets. PRODUCT REQUIREMENTS: Maintain robust automated testing, accessible contrast, and high-quality UX patterns.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
-**what currently exists?** 
-A FastAPI backend and React frontend with a Deterministic Internal Data AI engine. Currently, the AI routes based purely on keyword matching (generic wording) which causes it to query the wrong collections (e.g., querying generic Governance incidents instead of BRSR Anti-corruption policies, or exact-matching fragile CSR keys). 
+**what currently exists?**: A full-stack React + FastAPI + MongoDB ESG platform. The Supplier Assessment module is highly developed with detailed ranking views, dynamic score comparison charts, scalable assignment revocation logic, and safe staging-to-local database migration synchronization.
 
 **Last working item**: 
-    - Last item agent was working: Analyzing the user's extensive architectural requirements for the Internal Data AI routing refactor (from Message 3) and reviewing . The agent formulated a priority plan and fired an  request to the user to confirm.
-    - Status: USER VERIFICATION PENDING / IN PROGRESS (Agent just asked for plan approval).
-    - Agent Testing Done: N
-    - Which testing method agent to use? backend testing agent / manual testing by curl
-    - User Testing Done: N
+    - Last item agent was working: Removing a hardcoded MongoDB Atlas credential () from the ingestion script  and making it environment-driven. 
+    - Status: NONE (The script credential cleanup was successfully completed. The previous pending item of enabling the ORG1 training module was explicitly paused by the user saying ignore it for now).
+    - Agent Testing Done: Y (Syntax validation via Python  and grepping workspace).
+    - Which testing method agent to use? backend testing agent/ manual testing by curl/ python -c
+    - User Testing Done: N/A
 
-**All Pending/In progress Issue list**: 
-  Issue 1: Internal Data AI Routing & Mapping Mismatches (Architectural Refactor) (P0)
-     - Attempted fixes: Investigated code flow. No code has been modified yet.
-     - Next debug checklist: 
-       - Implement  as the unified resolver inside  (or a dedicated file).
-       - Build a Question Registry with synonyms for , , and .
-       - Implement Framework Precedence (favor BRSR/GRI configured queries before falling back to generic ESG metric modules).
-       - Define Source Authority mappings (CIN -> BRSR unified response, Water -> Environment, etc.).
-       - Update AI response states to match the requested matrix: FOUND, CONFIGURED — RESPONSE NOT FOUND, etc.
-     - Why fix this issue and what will be achieved with the fix? Replaces fragile text-based routing with robust, deterministic intent + framework mapping, allowing the AI to correctly answer complex policy and organizational queries without hallucinations.
-     - Status: IN PROGRESS (Planning completed; Implementation pending)
+**All Pending/In progress Issue list**:  
+  Issue 1: Enable ORG1 Training Module in Staging (P0)
+     - Attempted fixes: Investigated DB and identified the configuration mismatch between UI expectation and DB state.
+     - Next debug checklist: Update  for  in staging so . (Note: User explicitly said ignore it for now in this session, but it remains an unresolved issue in the backlog).
+     - Why fix this issue and what will be achieved with the fix? Allows the user to successfully assign and view trainings in staging.
+     - Status: BLOCKED/PAUSED
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? backend
-     - Blocked on other issue: None
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: User requested to pause.
 
-  Issue 2: BRSR Section A Stale Form Data on Year Switch (P1)
-     - Attempted fixes: None yet.
-     - Next debug checklist: Modify  to reset  to  when the reporting year is switched in the  hook.
-     - Why fix this issue and what will be achieved with the fix? Fixes UI bug where stale data from a previously viewed year bleeds into the new year view.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? frontend
-     - Blocked on other issue: None
-
-  Issue 3: Playwright UI automation locators timing out frequently on Shadcn Select elements (P2)
-     - Attempted fixes: None.
-     - Next debug checklist: Review frontend E2E test scripts, adjust timeout limits, or simplify Select dropdown locators.
-     - Why fix this issue and what will be achieved with the fix? Prevents flaky E2E testing pipelines.
+  Issue 2: Staging R2 Backend Singleton Cache (P0)
+     - Attempted fixes: Diagnosed that the  singleton in  cached a  value before the user added  to the staging environment variables. 
+     - Next debug checklist: Restart the staging backend server/pod so the environment variable is re-read by the singleton on boot.
+     - Why fix this issue and what will be achieved with the fix? Will fix the Invalid bucket type: supplier_assessment error when attempting to preview documents/trainings in staging.
      - Status: NOT STARTED
      - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? both
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: Pod restart required.
+
+  Issue 3: Submit and lock dialog failing on Supplier Documents (P1)
+     - Attempted fixes: Agent tried to trace the failure previously, but user prioritized other tasks.
+     - Next debug checklist: Check . Find why the  state for submission is failing to trigger.
+     - Why fix this issue and what will be achieved with the fix? Ensures suppliers get a confirmation prompt before locking their document responses.
+     - Status: NOT STARTED
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? Frontend
+     - Blocked on other issue: None
+
+  Issue 4: Code Review Scalability Warnings (P2)
+     - Attempted fixes: Code review performed, findings documented. 
+     - Next debug checklist:  caps submitted records at  which will break emissions totals at scale. Replace with MongoDB aggregation. Fix N+1 queries in Document/Training supplier dialogs.
+     - Why fix this issue and what will be achieved with the fix? Prepares the system for a high volume of suppliers.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
+
+  Issue 5: Hard-delete vs Soft-delete inconsistency in Assignments (P2)
+     - Attempted fixes: None.
+     - Next debug checklist: Migrate legacy operations in  to V2. Consolidate deletion behavior.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Backend
      - Blocked on other issue: None
 
 **In progress Task List**: 
-  *(None active other than P0 issue above)*
+  None actively pending (Agent just finished removing credentials from the script).
 
 **Upcoming and Future Tasks**
-    Upcoming Tasks (P1):
-    - Custom Dashboard Implementation: Wire  frontend to consume custom .
-    - Target Settings UI: Explicit configuration of  (Increase/Decrease/Maintain).
-    - Hash-based Integrity Verification for Evidence Files: Generate SHA-256 on upload.
-    - Supplier and Customer Org Onboarding Wizards.
-    - Word document download option for BRSR (.docx) + Previous Year Columns.
-    - MIS Schedule Preview & Report Bookmarks.
+    Upcoming Tasks:
+    - Implement cleaner Supplier-to-Customer conversion architecture (P1).
+    - Phase 1-5 of Canonical RBAC access model overhaul (P1).
+    - Document Replacement / Version Publishing UI (P1).
+    - Advanced Document Response Types (Upload-required, etc.) (P1).
+    - Custom Dashboard Implementation (P1).
+    - Target Settings UI (Explicit configuration of ) (P1).
+    - Hash-based Integrity Verification for Evidence Files (P1).
+    - Customer Org Onboarding Wizards (P1).
+    - Word document download option for BRSR (.docx) + Previous Year Columns (P1).
     
-    Future Tasks (P2/P3):
-    - P2: Decouple Add/Edit Emissions Flow into a unified  workflow.
-    - P2: Copy Month Values for Custom Fuel EF/CV values.
-    - P3: Dashboard Scope 1 & 3 Emissions Deduplication.
-    - P3: Admin Disable UI: Add settings panel to enable/disable specific ESG subcategories per organization.
+    Future Tasks:
+    - Build Effective Settings read-only summary for Super Admins (P2).
+    - MIS Schedule Preview & Report Bookmarks (P2).
+    - Bulk Upload Progress Bar (P3).
+    - Bulk Upload History Dashboard (P3).
 
 **Completed work in this session**
-- Extracted and verified detailed user architectural requirements for the deterministic AI engine refactor.
-- Inspected  and .
+- Removed the hardcoded MongoDB Atlas credential () from  and set it to use runtime OS environment variables (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-   *(None outside of active lists)*
+   - Issue 1: Bulk Upload Biogenic Scope Selection / Scope 2 Custom Fuel 
+     - Debug checklist: Validate the scopes and specific fuel parameters sent from the UI mapping in Bulk Upload.
+     - Why to solve this issue and what will be achieved with this? Architectural parity with canonical GHG pipeline.
+     - Should Test frontend/backend/both after fix: Both
+     - Is recurring issue? N (User explicitly asked to ignore for now)
+   - Issue 2: Misaligned Month selection for calculations.
+     - Debug checklist: Standardize month boundaries and currency conversion scopes across calculations.
+   - Issue 3: Submit and Lock dialog failing to render (Listed above in Pending Issues).
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Playwright E2E testing tool frequently times out on Shadcn UI elements (Select dropdowns specifically).
-  - Recurrence count: 15+
+  - Issue recurrence in previous fork: None
+  - Recurrence count: 0
   - Status: NOT STARTED
 
 **Code Architecture**
-- : Contains deterministic AI routing modules (, , , , ).
-- : Core ESG records module.
-- : React frontend with Shadcn UI components.
+- : Core logic for questionnaires, scoring, documents, and trainings.
+- : React components for Parent-Org admin views and Supplier-facing completion views.
+- : Org configuration and entitlements.
+- : Migration runners and ingestion tools (e.g., LlamaParse workflows).
 
 **Key Technical Concepts**
-- Backend: FastAPI, MongoDB (Motor).
-- Frontend: React, Shadcn UI.
-- Deterministic AI Engine: Uses LLMs solely for mapping intents and formatting JSON, whereas fetching logic (the resolver) builds strict query objects directed at explicitly mapped DB collections.
+- React frontend, FastAPI backend, MongoDB.
+- **Supplier Scoring & Rankings**: Uses real-time aggregation from .
+- **R2 Storage**: Singleton pattern inside  that fails if  is missing at backend boot time.
 
 **key DB schema**
-  - : Authoritative source for framework responses (BRSR, GRI).
-  - : Authoritative source for org metadata (but *not* CIN, per user's new rule).
+  - : {modules, enabled flags}
+  -  /  / : Calculation engine rules
+  -  / : Supplier statuses and references
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Checked for ongoing tasks/state)
-  -  (Target file for new  logic)
-  - 
-  -  (Target for P1 bug)
+  -  (Updated to remove hardcoded DB URI).
+  -  (Updated with completion notes).
+  -  (Org config fetching for ORG1).
+  -  (R2 singleton initialization).
 
 **Areas that need refactoring**: 
-- : R2 bucket uploads for page images are using  in paths, while documents use . Needs standardization.
+  -  has extremely long JSX lines and multiple tabs crammed in. Should be split into Overview, ESG, Emissions, and Detailed Ranking components.
+  - Legacy snapshot emissions calculations in  are dead code and should be removed.
 
 **key api endpoints**
   - 
+  - 
 
 **Critical Info for New Agent** 
-- **IMMEDIATE ACTION REQUIRED**: The previous agent was waiting on an  confirmation for the refactoring plan. **DO NOT WAIT.** The user's instructions in Message 3 provide a meticulous, step-by-step architectural blueprint. You must immediately begin implementing the  function, the question registry, and the source authority routing exactly as the user specified in Message 3. 
-- You are updating  and the adjacent routing scripts. Do not use the LLM to guess collection names; hardcode the mappings/registry as requested (e.g.  maps to  with framework ).
+- **USER CONSTRAINTS**: The user issues strict **dont test** commands frequently for UI changes. Respect this constraint. Never run testing agents if the user says no.
+- **DB Migrations**: Never overwrite staging formulas directly with a local dump. Only use idempotent scripts that preserve UUID references properly.
+- **Staging Backend Bug**: The R2 bucket variable was added, but the user is still facing an error because they haven't restarted the backend pod. Instruct them to do so or initiate a restart command so the singleton rebuilds.
+- **Ignored Task**: The user explicitly said ignore it for now regarding the ORG1 database manual fix. Check with the user before resuming work on it.
 
 **documents and test reports created in this job** 
-  - (No new docs created, existing read: )
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - *User*: The fix should be architectural, not a few extra keywords... 1. Fix the routing hierarchy... 2. Create a question registry... 11. The final routing architecture... (Provided massive masterplan for P0 issue).
- - *Agent*: I’ve got the architectural direction. I’m reviewing the current resolver and project plan now. (Viewed files).
- - *User*: (Tool results returned).
- - *Agent*: Fired  for confirmation.
- - *Pending*: The agent is effectively waiting. You should bypass the wait and execute the refactor.
+ - *User*: ignore it for now (Referencing the paused work on ORG1 configuration).
+ - *User*: why did you add MONGO_URI=mongodb+srv://staging_user:STAGING_PASSWORD@... in your file delete it
+ - *User*: in /app/scripts/ingest_amns_to_staging.py TARGET_MONGO_URL = mongodb+srv://sustainrepo_tool_api:jw1i9nPZAeQ8aoRO@sustainrepo.32wcdfx.mongodb.net/?retryWrites=true&w=majority got stored
+ - *Assistant resolved the credentials leak successfully.*
+ - No pending HUMAN messages waiting for answer.
 
 **Project Health Check:**
-- Broken: Internal Data AI routing (CIN, CSR, broad policy questions). BRSR Section A UI on reporting year switch (stale data).
+- Broken: Supplier Assessment R2 fetching in Staging (needs pod restart). Supplier Document Submit and Lock modal UI bug.
 - Mocked: None
 
 **3rd Party Integrations** 
+ - Cloudflare R2 (Object Storage) — requires User API Key
  - Resend (Emails) — requires User API Key
- - OpenAI GPT 5.6 Sol / text-embedding-3-large (Repo Pilot & Internal AI Formatter) — uses Emergent LLM Key
+ - LlamaParse (Llama Cloud) — requires User API Key
+ - OpenAI GPT 5.6 Sol / text-embedding-3-large — uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Code changes not started yet)
+  - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None
+  - Known regressions: Submit and lock dialog is broken.
 
 **Credentials to test flow:**
-  - Admin:  / 
-  - Standard User:  (password inside )
+  - 
 
 **What agent forgot to execute**
-- The agent paused to ask for human permission via  instead of just executing the user's extremely explicit and comprehensive blueprint from Message 3.
+- The agent successfully completed the micro-task (removing credentials). Ensure the next agent starts by planning the remaining backlog (such as the Supplier Document Submit and Lock bug or the R2 Singleton error) according to priority.
 
-**Debugging checklist for current issue**
-    Issue: Internal Data AI Routing Refactor (P0)
-
-    Backend files to check: 
-    - : 
-      * Implement  replacing old loose matching.
-      * Add Question Registry dict with synonyms for , , .
-      * Add Framework Precedence logic.
-      * Return standard JSON: 
-    -  or :
-      * Ensure downstream systems consume the new response format.
-      * Implement the user's specific text response formats (e.g. FOUND, CONFIGURED — RESPONSE NOT FOUND).</analysis>
+<TESTING METHOD>
+Use backend testing agent / manual curl / screenshot tool based on next picked feature. (Respect user's dont test command if mentioned).
+</TESTING METHOD></analysis>

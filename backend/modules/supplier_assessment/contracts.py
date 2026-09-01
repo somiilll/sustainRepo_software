@@ -24,6 +24,7 @@ class SupplierCreate(BaseModel):
     # Module configuration
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
+    ghg_submission_frequency: Literal["monthly", "quarterly", "yearly"] = "yearly"
     questionnaire_ids: List[str] = Field(default_factory=list)
     document_requirement_ids: List[str] = Field(default_factory=list)
     training_requirement_ids: List[str] = Field(default_factory=list)
@@ -40,6 +41,7 @@ class SupplierUpdate(BaseModel):
     # Module configuration
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
+    ghg_submission_frequency: Optional[Literal["monthly", "quarterly", "yearly"]] = None
     questionnaire_ids: Optional[List[str]] = None
     document_requirement_ids: Optional[List[str]] = None
     training_requirement_ids: Optional[List[str]] = None
@@ -71,6 +73,7 @@ class SupplierResponse(BaseModel):
     # Module configuration
     modules_enabled: List[str] = ["esg", "ghg"]
     ghg_scopes_enabled: List[str] = ["scope1", "scope2"]
+    ghg_submission_frequency: Literal["monthly", "quarterly", "yearly"] = "yearly"
     questionnaire_ids: List[str] = []
     document_requirement_ids: List[str] = []
     training_requirement_ids: List[str] = []
@@ -80,9 +83,9 @@ class SupplierResponse(BaseModel):
     esg_completion_percent: float = 0.0
     ghg_completion_percent: float = 0.0
     documents_completion_percent: float = 0.0
+    training_completion_percent: float = 0.0
     overall_completion_percent: float = 0.0
     esg_score: Optional[float] = None
-    ghg_score: Optional[float] = None
     overall_score: Optional[float] = None
     canonical_score_snapshot: Optional[Dict[str, Any]] = None
     revenue_submission_status: str = "not_started"
@@ -147,6 +150,10 @@ class TrainingUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class DueDateUpdate(BaseModel):
+    due_date: Optional[str] = None
+
+
 class TrainingConsumptionEvent(BaseModel):
     event_type: Literal["page_view", "media_progress"]
     unit_index: Optional[int] = Field(default=None, ge=1)
@@ -173,7 +180,6 @@ class QuestionScoringConfig(BaseModel):
     - lower_is_better: Inverted scale where lower values = higher scores
     - boolean: Yes/No mapping with configurable scores
     - choice_mapping: Map discrete choices to specific scores
-    - target_based: Score based on % of target achieved
     - manual: Requires human review/scoring
     """
     rule: Literal[
@@ -181,11 +187,10 @@ class QuestionScoringConfig(BaseModel):
         "lower_is_better", 
         "boolean",
         "choice_mapping",
-        "target_based",
         "manual"
     ]
     
-    # For higher_is_better, lower_is_better, target_based
+    # For higher_is_better and lower_is_better
     target: Optional[float] = None  # Target value to achieve
     min: Optional[float] = 0  # Minimum value
     max: Optional[float] = 100  # Maximum value (for higher_is_better)
@@ -221,9 +226,6 @@ class QuestionScoringConfig(BaseModel):
             if self.max_acceptable <= self.min:
                 raise ValueError("lower_is_better zero-score threshold must be greater than its best value")
 
-        if self.rule == "target_based" and (self.target is None or self.target <= 0):
-            raise ValueError("target_based requires a target value greater than zero")
-
         if self.rule == "boolean" and (not 0 <= self.true_score <= 100 or not 0 <= self.false_score <= 100):
             raise ValueError("boolean scores must be between 0 and 100")
 
@@ -245,10 +247,11 @@ class QuestionCreate(BaseModel):
     response_type: str  # yes_no, numeric, text, dropdown, percentage, currency
     options: Optional[List[QuestionOption]] = None  # For dropdown
     required: bool = True
+    evidence_requirement: Literal["not_required", "optional", "required"] = "not_required"
     # `weight` is retained for older API clients. New clients use importance or
     # an exact override; the service persists the effective value in `weight`.
     weight: Optional[float] = None
-    importance: Literal["low", "medium", "high", "critical"] = "medium"
+    importance: Literal["low", "medium", "high"] = "medium"
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: str  # environment, social, governance
     order: int = 0
@@ -276,8 +279,9 @@ class QuestionUpdate(BaseModel):
     response_type: Optional[str] = None
     options: Optional[List[QuestionOption]] = None
     required: Optional[bool] = None
+    evidence_requirement: Optional[Literal["not_required", "optional", "required"]] = None
     weight: Optional[float] = None
-    importance: Optional[Literal["low", "medium", "high", "critical"]] = None
+    importance: Optional[Literal["low", "medium", "high"]] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
     order: Optional[int] = None
@@ -311,6 +315,7 @@ class QuestionResponse(BaseModel):
     response_type: str
     options: Optional[List[Dict[str, Any]]] = None
     required: bool = True
+    evidence_requirement: Literal["not_required", "optional", "required"] = "not_required"
     weight: float = 1.0
     importance: str = "medium"
     exact_numerical_weight: Optional[float] = None
@@ -416,6 +421,15 @@ class SupplierDataVerificationSubmit(BaseModel):
     data_verified: Literal[True]
 
 
+class SupplierGhgSubmissionPeriodSubmit(SupplierDataVerificationSubmit):
+    """Required acknowledgement for one supplier GHG reporting period."""
+
+
+class SupplierGhgUnlockRequest(BaseModel):
+    reason: Optional[str] = Field(default=None, max_length=2000)
+    supplier_instructions: Optional[str] = Field(default=None, max_length=4000)
+
+
 class SupplierQuestionnaireStatusResponse(BaseModel):
     """Supplier's questionnaire status."""
     model_config = ConfigDict(extra="ignore")
@@ -446,6 +460,8 @@ class SupplierEmissionCreate(BaseModel):
     sub_category: Optional[str] = None
     fuel_type: Optional[str] = None
     fuel_database_id: Optional[str] = None  # For emission factor lookup
+    is_custom_fuel: bool = False
+    custom_fuel_name: Optional[str] = None
     
     # Dynamic field values for calculation (same format as main emissions)
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
@@ -508,6 +524,7 @@ class SupplierEmissionTotalResponse(BaseModel):
     revenue_percentage: Optional[float] = None
     annual_revenue_amount: Optional[float] = None
     revenue_currency: Optional[str] = None
+    revenue_submitted: bool = False
     attribution_available: bool = False
 
 
@@ -564,19 +581,19 @@ class SupplierRankingEntry(BaseModel):
     social_score: Optional[float] = None
     governance_score: Optional[float] = None
     ghg_score: Optional[float] = None
-    scope1_emissions: Optional[float] = None
-    scope2_emissions: Optional[float] = None
-    total_emissions: Optional[float] = None
     overall_score: Optional[float] = None
     completion_status: str
     status_label: Optional[str] = None
     question_progress: Optional[str] = None
     attention_reasons: List[str] = []
+    overdue_modules: List[str] = []
     module_progress: Dict[str, float] = {}
     due_date: Optional[str] = None
     revenue_percentage: Optional[float] = None
     revenue_amount: Optional[float] = None
     revenue_currency: Optional[str] = None
+    document_statuses: List[Dict[str, str]] = []
+    training_statuses: List[Dict[str, str]] = []
 
 
 class ScoreDistribution(BaseModel):
@@ -593,14 +610,6 @@ class AverageScores(BaseModel):
     environment: Optional[float] = None
     social: Optional[float] = None
     governance: Optional[float] = None
-    ghg: Optional[float] = None
-
-
-class EmissionsByScope(BaseModel):
-    """Total emissions by scope."""
-    scope1: float = 0
-    scope2: float = 0
-    total: float = 0
 
 
 class SupplierRankingResponse(BaseModel):
@@ -610,7 +619,6 @@ class SupplierRankingResponse(BaseModel):
     ranked_suppliers: int
     score_distribution: Optional[ScoreDistribution] = None
     averages: Optional[AverageScores] = None
-    emissions_by_scope: Optional[EmissionsByScope] = None
     module_summary: Dict[str, Dict[str, Any]] = {}
 
 

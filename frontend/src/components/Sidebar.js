@@ -23,6 +23,7 @@ const SUPPLIER_ASSESSMENT_LABEL_KEYS = {
   'supplier_assessment.documents': 'documents',
   'supplier_assessment.trainings': 'training',
 };
+const SUPPLIER_GHG_REQUIRED_MENU_KEYS = new Set(['facilities', 'environment', 'environment.ghg', 'supplier_assessment.my_ghg']);
 
 function _sectionIcons(section) {
   if (section === 'social') return SOCIAL_MODULE_ICONS;
@@ -67,6 +68,8 @@ function MenuItem(props) {
   var userType = props.userType;
   var orgType = props.orgType;
   var inheritedMuted = props.inheritedMuted;
+  var inheritedLocked = props.inheritedLocked;
+  var supplierModules = props.supplierModules;
 
   // Check adminOnly
   if (item.adminOnly && userRole !== 'admin' && userRole !== 'super_admin') return null;
@@ -78,7 +81,9 @@ function MenuItem(props) {
 
   var isSupplier = userType === 'supplier' || orgType === 'supplier';
   var supplierAccessibleItem = item.supplierOnly || ['dashboard', 'facilities', 'profile', 'supplier_assessment'].includes(item.key) || item.key === 'environment' || item.key?.startsWith('environment.ghg');
-  var mutedForSupplier = inheritedMuted || (isSupplier && (isSupplierMutedMenuItem(item.key) || !supplierAccessibleItem));
+  var missingSupplierGhgAssignment = isSupplier && Array.isArray(supplierModules) && !supplierModules.includes('ghg') && SUPPLIER_GHG_REQUIRED_MENU_KEYS.has(item.key);
+  var lockedForSupplier = inheritedLocked || missingSupplierGhgAssignment;
+  var mutedForSupplier = lockedForSupplier || inheritedMuted || (isSupplier && (isSupplierMutedMenuItem(item.key) || !supplierAccessibleItem));
 
   var hasChildren = item.children && item.children.length > 0;
   var active = item.path ? isActive(item.path, location) : false;
@@ -88,7 +93,7 @@ function MenuItem(props) {
   var padClass = depth === 0 ? 'pl-3' : depth === 1 ? 'pl-8' : 'pl-12';
 
   if (hasChildren) {
-    return React.createElement('div', null,
+    var groupContent = React.createElement('div', null,
       React.createElement('button', {
         type: 'button',
         onClick: function() { onToggle(item.key); },
@@ -106,14 +111,15 @@ function MenuItem(props) {
           return React.createElement(MenuItem, {
             key: child.key, item: child, depth: depth + 1, expanded: expanded,
             onToggle: onToggle, location: location, hasAccess: hasAccess, userRole: userRole,
-            userType: userType, orgType: orgType, inheritedMuted: mutedForSupplier
+            userType: userType, orgType: orgType, inheritedMuted: mutedForSupplier, inheritedLocked: lockedForSupplier, supplierModules: supplierModules
           });
         })
       ) : null
     );
+    return groupContent;
   }
 
-  return React.createElement(Link, {
+  var linkContent = React.createElement(Link, {
     to: item.path,
     className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
     'data-testid': 'sidebar-' + item.key,
@@ -121,6 +127,7 @@ function MenuItem(props) {
     Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
     React.createElement('span', null, item.label)
   );
+  return linkContent;
 }
 
 export default function Sidebar({ mobileOpen, onMobileClose }) {
@@ -130,6 +137,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   const { hasAccess } = useModuleAccess();
   const [logoUrl, setLogoUrl] = useState(LOGO_FALLBACK);
   const [resolvedConfig, setResolvedConfig] = useState(null);
+  const [supplierModules, setSupplierModules] = useState(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
   const isSupplier = user?.user_type === 'supplier' || user?.org_type === 'supplier';
@@ -141,6 +149,18 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
       headers: { Authorization: `Bearer ${token}` },
     }).then(r => setResolvedConfig(r.data)).catch(() => null);
   }, [token, isSuperAdmin]);
+
+  useEffect(() => {
+    if (!token || !isSupplier) {
+      setSupplierModules(null);
+      return;
+    }
+    axios.get(`${API}/supplier-assessment/my-assessment`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((response) => {
+      setSupplierModules((response.data.assessment_modules || []).map((module) => module.code));
+    }).catch(() => setSupplierModules(null));
+  }, [token, isSupplier]);
 
   // Build the active sidebar config, replacing section children if org has custom config
   const activeConfig = useMemo(() => {
@@ -286,7 +306,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3" data-testid="sidebar-nav">
         {activeConfig.map(item => (
-          <MenuItem key={item.key} item={item} depth={0} expanded={expanded} onToggle={toggleMenu} location={location} hasAccess={hasAccess} userRole={user.role} userType={user.user_type} orgType={user.org_type} />
+          <MenuItem key={item.key} item={item} depth={0} expanded={expanded} onToggle={toggleMenu} location={location} hasAccess={hasAccess} userRole={user.role} userType={user.user_type} orgType={user.org_type} inheritedMuted={false} inheritedLocked={false} supplierModules={supplierModules} />
         ))}
       </nav>
 

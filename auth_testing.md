@@ -13,9 +13,17 @@
 4. Send an OPTIONS request to `/api/auth/login` from the configured frontend origin; it must return that explicit origin.
 5. Send the same request from an untrusted origin; it must not return an `Access-Control-Allow-Origin` header.
 
-## Supplier Soft-Deactivation Checks
+## Supplier Account Revocation Checks
 
 1. Sign in with an active supplier account and retain the access and refresh tokens.
 2. As the parent organization, call `DELETE /api/supplier-assessment/suppliers/{supplier_id}`.
-3. Confirm subsequent supplier login, `POST /api/auth/refresh`, and authenticated `/api/auth/me` requests return HTTP 403 with the supplier-access deactivation message.
-4. Confirm the supplier relationship and all related assessment documents remain in MongoDB; only `supplier_relationships.is_active` is set to `false`.
+3. Confirm the linked supplier user has `is_active: false`, a revocation timestamp, and the deactivating relationship ID.
+4. Confirm subsequent supplier login and authenticated `/api/auth/me` requests return HTTP 403; the prior bearer token must be rejected immediately.
+5. Confirm the supplier relationship and related assessment documents remain in MongoDB; the relationship is inactive while the supplier user account is revoked.
+
+## Supplier First-Login Invitation Status Checks
+
+1. Sign in with an active supplier whose relationship status is `pending`.
+2. Confirm their active pending relationship becomes `accepted` and receives `accepted_at` after the successful login.
+3. Confirm later supplier API calls preserve `accepted` while completion is below 100%, and preserve `completed` when it is complete.
+4. Confirm an invalid login does not update supplier relationship status.

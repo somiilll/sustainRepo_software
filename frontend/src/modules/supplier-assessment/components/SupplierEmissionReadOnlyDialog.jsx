@@ -1,0 +1,60 @@
+import React, { useMemo } from 'react';
+import { Download, Eye, FileText, Lock } from 'lucide-react';
+import EmissionEditForm from '../../../components/EmissionEditForm';
+import { Button } from '../../../components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
+
+const titleCase = (value = '') => String(value).replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const readOnlyFieldLabel = (variable, mapping) => mapping?.field_label || mapping?.label || titleCase(variable);
+const fieldValue = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value.value ?? '' : value ?? '';
+const fieldUnit = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value.unit || '' : '';
+
+const buildReadOnlyDraft = (emission) => {
+  const defaults = emission.resolved_default_inputs || {};
+  const data = Object.fromEntries(Object.entries(emission.dynamic_field_values || {}).map(([key, value]) => [key, value && typeof value === 'object' && value.value === null && defaults[key] ? { ...value, value: defaults[key].value, unit: value.unit || defaults[key].unit, default_source: defaults[key].source } : value]));
+  const dynamicValues = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, fieldValue(value)]));
+  return {
+    values: {
+      facility_id: emission.facility_id || 'supplier-submission-facility', scope: emission.scope || 'scope1', category: emission.category || '',
+      sub_category: emission.sub_category || emission.fuel_type || '', fuel_id: emission.fuel_database_id || 'supplier-submission-fuel', fuel_type: emission.fuel_type || '',
+      quantity: fieldValue(data.qty) || emission.quantity || '', quantity_unit: fieldUnit(data.qty) || emission.quantity_unit || '',
+      source_of_information: emission.source_of_information || '', record_source: emission.record_source || emission.source_of_information || '', notes: emission.notes || '',
+      justification: emission.justification || '', responsible_person: emission.responsible_person || '',
+      responsible_person_designation: emission.responsible_person_designation || '', responsible_person_contact: emission.responsible_person_contact || '',
+      calorific_value: fieldValue(data.cv), calorific_value_unit: fieldUnit(data.cv) || 'MJ/kg', calorific_value_justification: data.cv?.justification || '',
+      density: fieldValue(data.density), density_unit: fieldUnit(data.density) || 'kg/L', density_justification: data.density?.justification || '',
+      process_names: emission.process_descriptions?.length ? emission.process_descriptions : (emission.process_names?.length ? emission.process_names.map((name) => ({ name, description: '' })) : [{ name: '', description: '' }]),
+      supplier_name: fieldValue(data.supplier_name), supplier_code: fieldValue(data.supplier_code), asset_name: emission.asset_name || fieldValue(data.asset_name),
+      from_location: emission.from_location || fieldValue(data.from_location), to_location: emission.to_location || fieldValue(data.to_location),
+    },
+    frequencyType: emission.frequency_type || 'monthly', biogenicScopeSelection: emission.biogenic_scope_selection || fieldValue(data.biogenic_scope_selection) || 'scope1',
+    selectedCategory: emission.category || '', scope3Method: emission.calculation_method_scope3 || fieldValue(data.calculation_method_scope3),
+    spendCurrencyConversionMethod: fieldValue(data.spend_currency_conversion_method) || 'ppp_inflation', scope3ActivityType: fieldValue(data.scope3_activity_type),
+    scope3Subcategory: fieldValue(data.scope3_subcategory), scope3ActivityId: emission.scope3_ef_id || fieldValue(data.scope3_ef_id),
+    scope3CustomActivity: emission.scope3_activity || fieldValue(data.scope3_activity), useCustomActivity: Boolean(fieldValue(data.use_custom_activity)),
+    typeOfProduct: emission.type_of_product || fieldValue(data.type_of_product), calculationMethodology: emission.calculation_methodology || fieldValue(data.calculation_methodology),
+    processType: emission.process_type || fieldValue(data.process_type), useCustomFuel: Boolean(emission.is_custom_fuel), customFuelName: emission.custom_fuel_name || emission.fuel_type || '',
+    employees: [], employeeMonthlyTotals: {}, employeeYearlyTotal: {}, dynamicFieldValues: dynamicValues, existingEvidences: [],
+    overrideCalorificValue: Boolean(data.cv?.is_override), overrideDensity: Boolean(data.density?.is_override), overrideEmissionFactorHeat: false,
+    overrideJustification: emission.override_justification || '',
+  };
+};
+
+export default function SupplierEmissionReadOnlyDialog({ open, onOpenChange, emission, loading, onOpenEvidence, openingEvidenceKey }) {
+  const draft = useMemo(() => emission ? buildReadOnlyDraft(emission) : null, [emission]);
+  const inputMappingsByVariable = useMemo(() => Object.fromEntries((emission?.input_field_mappings || []).map((mapping) => [mapping.maps_to_variable || mapping.field_key, mapping])), [emission]);
+  const dynamicInputFields = useMemo(() => Object.entries(emission?.dynamic_field_values || {})
+    .filter(([key]) => !key.endsWith('_unit') && !['biogenic_scope_selection', 'calculation_methodology'].includes(key))
+    .map(([variable, value]) => {
+      const mapping = inputMappingsByVariable[variable];
+      const resolvedDefault = emission?.resolved_default_inputs?.[variable];
+      const baseLabel = readOnlyFieldLabel(variable, mapping);
+      const source = value?.is_override ? 'User Specified' : resolvedDefault?.source || value?.source_name || value?.source;
+      return { id: mapping?.id || `read-only-${variable}`, variable, fieldKey: mapping?.field_key || variable, label: source ? `${baseLabel} · Source: ${source}` : baseLabel, fieldType: mapping?.field_type || (typeof fieldValue(value) === 'number' ? 'number' : 'text'), expectedUnit: fieldUnit(value) || resolvedDefault?.unit || mapping?.default_unit || '', allowedUnits: mapping?.allowed_units || [fieldUnit(value)].filter(Boolean), unitSource: mapping?.unit_source || 'static', required: Boolean(mapping?.required), isOverride: Boolean(value?.is_override), displayOrder: mapping?.display_order ?? Number.MAX_SAFE_INTEGER };
+    }).sort((left, right) => left.displayOrder - right.displayOrder), [emission, inputMappingsByVariable]);
+  const evidenceContent = emission ? <div className="space-y-3" data-testid="supplier-emission-read-only-evidence"><div className="flex items-center gap-2"><FileText className="h-4 w-4 text-sky-700" /><span className="text-sm font-medium text-stone-900">Evidence Documents</span></div>{(emission.evidence_files || []).length === 0 ? <p className="text-sm text-stone-500" data-testid="supplier-emission-view-no-evidence">No evidence attached.</p> : <div className="space-y-2 rounded-lg border border-stone-200 bg-stone-50 p-3">{emission.evidence_files.map((file) => <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-stone-200 bg-white p-2" data-testid={`supplier-emission-view-evidence-${file.id}`}><span className="min-w-0 truncate text-sm text-stone-700">{file.original_filename}</span><div className="flex gap-1"><Button type="button" variant="ghost" size="sm" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${emission.id}-${file.id}-view`} onClick={() => onOpenEvidence(emission, file)} data-testid={`view-read-only-emission-evidence-${file.id}`}><Eye className="h-4 w-4" />View</Button><Button type="button" variant="ghost" size="sm" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${emission.id}-${file.id}-download`} onClick={() => onOpenEvidence(emission, file, true)} data-testid={`download-read-only-emission-evidence-${file.id}`}><Download className="h-4 w-4" />Download</Button></div></div>)}</div>}</div> : null;
+  const dynamicScopes = emission ? [{ code: emission.scope, name: titleCase(emission.scope) }] : [];
+  const outputs = emission?.outputs || {};
+  const calculated = emission ? { co2Emissions: outputs.co2?.value ?? emission.co2_emissions ?? 0, ch4Emissions: outputs.ch4?.value ?? emission.ch4_emissions ?? 0, n2oEmissions: outputs.n2o?.value ?? emission.n2o_emissions ?? 0, co2eEmissions: outputs.co2e?.value ?? emission.co2e_emissions ?? emission.total_emissions ?? 0 } : null;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto" data-testid="supplier-emission-read-only-dialog"><DialogHeader><div><DialogTitle className="text-xl text-emerald-950">View Emission Record</DialogTitle><DialogDescription className="mt-1 flex items-center gap-1.5"><Lock className="h-3.5 w-3.5" />Supplier submission — read-only</DialogDescription></div></DialogHeader>{loading || !emission || !draft ? <div className="py-16 text-center text-sm text-stone-500" data-testid="supplier-emission-view-loading">Loading emission record…</div> : <EmissionEditForm draft={draft} onDraftChange={() => {}} editingEmission={emission} activitySearchTerm="" loadingScope3EF={false} loadingBiogenicCategories={false} isCalculatingEditEmployee={false} isEditLoading={false} editFormConfigLoading={false} dynamicInputFields={dynamicInputFields} effectiveCalculatedEmissions={calculated} isCalculating={false} isSaving={false} setActivitySearchTerm={() => {}} facilities={[{ id: draft.values.facility_id, name: emission.facility_name || 'Supplier facility', is_active: true }]} dynamicScopes={dynamicScopes} hasScope3Access={false} centralizedUnits={[]} fuelDatabase={[{ id: draft.values.fuel_id, fuel_name: emission.fuel_type || emission.custom_fuel_name || 'Recorded fuel', allowed_units: [draft.values.quantity_unit].filter(Boolean) }]} selectedFuel={{ id: draft.values.fuel_id, fuel_name: emission.fuel_type || emission.custom_fuel_name || 'Recorded fuel', allowed_units: [draft.values.quantity_unit].filter(Boolean) }} isEditC7EmployeeCommuting={false} editActiveMonths={[]} ModuleDynamicFieldsRenderer={null} getCategoriesForScope={[emission.category].filter(Boolean)} getFuelsForCategory={[{ id: draft.values.fuel_id, fuel_name: emission.fuel_type || emission.custom_fuel_name || 'Recorded fuel' }]} availableScope3Methods={[]} availableScope3ActivityTypes={[]} capabilities={{ requiresFuel: true, calculationMethodology: true, journeyLocations: true, customerCounterparty: false }} fieldOptions={{}} requiresSubcategory={false} availableSubcategories={[]} filteredScope3Activities={[]} availableQuantityUnits={[{ value: draft.values.quantity_unit, label: draft.values.quantity_unit }].filter((unit) => unit.value)} handleSubmit={(event) => event.preventDefault()} handleFuelSelect={() => {}} handleCategorySelect={() => {}} markFormDirty={() => {}} updateDynamicFieldValue={() => {}} getMethodLabel={titleCase} handleCalculateEditEmployeeMonth={() => {}} handleFileUpload={() => {}} handleRemoveEvidence={() => {}} handleDeleteExistingEvidence={() => {}} handleDeleteAllEvidences={() => {}} handleDialogChange={onOpenChange} hideSubmitButton assignedReportingPeriod={{ reporting_period: emission.reporting_period }} showAssignedReportingPeriodMessage={false} readOnly readOnlyEvidenceContent={evidenceContent} />}</DialogContent></Dialog>;
+}

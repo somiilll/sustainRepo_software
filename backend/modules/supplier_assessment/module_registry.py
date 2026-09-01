@@ -73,6 +73,15 @@ class GhgAssessmentModule(SupplierAssessmentModule):
     supplier_description = "Report the greenhouse gas data requested by your customer."
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
+        if relationship.get("ghg_submission_frequency") in {"monthly", "quarterly", "yearly"}:
+            from modules.supplier_assessment.ghg_submission_service import get_supplier_ghg_submission_periods
+            periods = await get_supplier_ghg_submission_periods(relationship)
+            submitted_periods = sum(period["status"] == "submitted" for period in periods)
+            return ModuleCompletion(
+                self.module_code,
+                (submitted_periods / len(periods)) * 100 if periods else 0.0,
+                self.legacy_completion_field,
+            )
         query = {
             "source": "supplier",
             "supplier_relationship_id": relationship["id"],
@@ -135,9 +144,6 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
             if current_submission:
                 completed += 1
                 continue
-            response_collection = database.supplier_document_responses if requirement.get("response_mode") == "STATUS" else database.supplier_document_acceptances
-            response = await response_collection.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"], "document_version_id": requirement["document_version_id"]}, {"_id": 0, "id": 1})
-            completed += int(response is not None)
         return ModuleCompletion(
             self.module_code,
             (completed / len(requirements)) * 100,

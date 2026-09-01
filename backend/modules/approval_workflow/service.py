@@ -114,7 +114,6 @@ async def _create_approval_version_snapshot(
         "social_records": "social_record_versions",
         "governance_records": "governance_record_versions",
         "emission_records": "emission_history",  # Emission records use emission_history
-        "esg_responses": "esg_responses_versions",
         "organization_esg_responses": "esg_responses_versions",
     }
     
@@ -142,7 +141,7 @@ async def _create_approval_version_snapshot(
     
     # Get the current record to capture its state
     record = await db[collection_name].find_one(
-        {"id": record_id} if collection_name != "esg_responses" else {"question_key": record_id},
+        {"id": record_id},
         {"_id": 0}
     )
     
@@ -2123,19 +2122,22 @@ class ApprovalWorkflowService:
         queue_items = []
         
         # =====================================================================
-        # PART 1: Questionnaire Approvals (from esg_responses)
+        # PART 1: Questionnaire approvals from the canonical response store
         # =====================================================================
         
         # Fetch ALL pending approval responses for the organization
         responses_query = {
-            "organization_id": organization_id,
+            "$or": [
+                {"org_id": organization_id},
+                {"organization_id": organization_id},
+            ],
             "approval_status": "pending_approval",
         }
         
         if framework:
             responses_query["framework"] = framework.upper()
         
-        responses = await db.esg_responses.find(
+        responses = await db.organization_esg_responses.find(
             responses_query,
             {"_id": 0}
         ).to_list(500)
@@ -2259,6 +2261,10 @@ class ApprovalWorkflowService:
                     "organization_id": organization_id,
                     "_source": "questionnaire_approval_v2",
                 })
+
+        # This endpoint is intentionally questionnaire-only. Record approvals are
+        # served by /approval-workflows/requests and must not be duplicated here.
+        return queue_items
         
         # =====================================================================
         # PART 2: Emission Record & ESG Record Approvals (from approval_requests)
@@ -2466,13 +2472,13 @@ class ApprovalWorkflowService:
         response_id: str,
         approver: dict,
         comment: Optional[str] = None,
-        updated_response: Optional[dict] = None,
+        updated_response: Optional[Any] = None,
     ) -> Tuple[bool, str, Optional[dict]]:
         """
         Approve a questionnaire response.
         
         Args:
-            response_id: The esg_responses document id
+            response_id: The organization_esg_responses document id
             approver: Current user dict
             comment: Optional approval comment
             updated_response: If approver edited the response, the new value
@@ -2481,8 +2487,15 @@ class ApprovalWorkflowService:
             (success, message, updated_response)
         """
         # Get the response
-        response = await db.esg_responses.find_one(
-            {"id": response_id},
+        approver_org_id = approver.get("organization_id")
+        response = await db.organization_esg_responses.find_one(
+            {
+                "id": response_id,
+                "$or": [
+                    {"org_id": approver_org_id},
+                    {"organization_id": approver_org_id},
+                ],
+            },
             {"_id": 0}
         )
         
@@ -2494,13 +2507,15 @@ class ApprovalWorkflowService:
         
         now = _now_iso()
         question_key = response.get("question_key")
-        org_id = response.get("organization_id")
+        org_id = response.get("org_id") or response.get("organization_id")
         
         # Prepare update
         update_data = {
+            "status": "saved",
             "approval_status": "approved",
             "approved_at": now,
             "approved_by": approver.get("id"),
+            "approved_by_name": approver.get("full_name") or approver.get("name") or approver.get("email"),
             "approval_comment": comment,
             "updated_at": now,
         }
@@ -2510,50 +2525,28 @@ class ApprovalWorkflowService:
             update_data["value"] = updated_response  # Use 'value' field, not 'response'
             update_data["edited_by_approver"] = True
         
-        # Update the esg_responses collection (approval tracking)
-        await db.esg_responses.update_one(
+        await db.organization_esg_responses.update_one(
             {"id": response_id},
-            {"$set": update_data}
-        )
-        
-        # CRITICAL: Sync edited value back to organization_esg_responses (what UI reads)
-        if updated_response is not None:
-            # Get section from response or config
-            section = response.get("section")
-            if not section:
-                config = await db.esg_question_configs.find_one(
-                    {"question_key": question_key},
-                    {"_id": 0, "section": 1}
-                )
-                section = config.get("section") if config else None
-            
-            if section:
-                # Update the organization_esg_responses document
-                # Use case-insensitive regex for framework to handle BRSR vs brsr
-                framework = response.get("framework", "brsr")
-                await db.organization_esg_responses.update_one(
-                    {
-                        "org_id": org_id,
-                        "framework": {"$regex": f"^{framework}$", "$options": "i"},
-                        "reporting_year": response.get("reporting_year"),
-                        "section": section,
-                    },
-                    {"$set": {f"responses.{question_key}": updated_response}}
-                )
-                logger.info(f"Synced edited response to organization_esg_responses for {question_key}")
-        
-        # Create version snapshot
-        await _create_approval_version_snapshot(
-            collection_name="esg_responses",
-            record_id=question_key,
-            action="approved",
-            user_id=approver.get("id"),
-            extra_metadata={
-                "question_key": question_key,
-                "framework": response.get("framework"),
-                "reporting_year": response.get("reporting_year"),
-                "approval_comment": comment,
+            {
+                "$set": update_data,
+                "$unset": {"last_approved_value": "", "rejection_reason": ""},
             }
+        )
+        updated = await db.organization_esg_responses.find_one(
+            {"id": response_id},
+            {"_id": 0},
+        )
+        await _create_question_response_version_event(
+            organization_id=org_id,
+            framework=response.get("framework", ""),
+            question_key=question_key,
+            reporting_year=response.get("reporting_year"),
+            snapshot=updated or {},
+            action="approved",
+            actor=approver,
+            submitted_value=response.get("value"),
+            final_value=updated_response if updated_response is not None else response.get("value"),
+            approver_edited=updated_response is not None,
         )
         
         # Record in approval history
@@ -2573,7 +2566,7 @@ class ApprovalWorkflowService:
             new_status="approved",
         )
         
-        # Update assignment timestamp (approval_status is tracked in esg_responses as single source of truth)
+        # Update assignment timestamp; response status lives in the canonical store.
         await db.esg_assignments.update_one(
             {
                 "organization_id": org_id,
@@ -2599,7 +2592,6 @@ class ApprovalWorkflowService:
             },
         })
         
-        updated = await db.esg_responses.find_one({"id": response_id}, {"_id": 0})
         logger.info(f"Approved questionnaire response {response_id} (question: {question_key})")
         
         return (True, "Response approved", updated)
@@ -2614,7 +2606,7 @@ class ApprovalWorkflowService:
         Reject a questionnaire response.
         
         Args:
-            response_id: The esg_responses document id
+            response_id: The organization_esg_responses document id
             rejector: Current user dict
             reason: Required rejection reason
         
@@ -2625,8 +2617,15 @@ class ApprovalWorkflowService:
             return (False, "Rejection reason is required", None)
         
         # Get the response
-        response = await db.esg_responses.find_one(
-            {"id": response_id},
+        rejector_org_id = rejector.get("organization_id")
+        response = await db.organization_esg_responses.find_one(
+            {
+                "id": response_id,
+                "$or": [
+                    {"org_id": rejector_org_id},
+                    {"organization_id": rejector_org_id},
+                ],
+            },
             {"_id": 0}
         )
         
@@ -2638,25 +2637,37 @@ class ApprovalWorkflowService:
         
         now = _now_iso()
         question_key = response.get("question_key")
-        org_id = response.get("organization_id")
+        org_id = response.get("org_id") or response.get("organization_id")
         
-        # Update the response
-        update_data = {
-            "approval_status": "rejected",
-            "rejected_at": now,
-            "rejected_by": rejector.get("id"),
-            "rejection_reason": reason,
-            "updated_at": now,
-        }
-        
-        await db.esg_responses.update_one(
+        last_approved_value = response.get("last_approved_value")
+        if last_approved_value is not None:
+            update_data = {
+                "value": last_approved_value,
+                "status": "saved",
+                "approval_status": "approved",
+                "updated_at": now,
+            }
+            update_operation = {
+                "$set": update_data,
+                "$unset": {"last_approved_value": "", "rejection_reason": ""},
+            }
+        else:
+            update_data = {
+                "status": "rejected",
+                "approval_status": "rejected",
+                "rejected_at": now,
+                "rejected_by": rejector.get("id"),
+                "rejection_reason": reason,
+                "updated_at": now,
+            }
+            update_operation = {"$set": update_data}
+
+        await db.organization_esg_responses.update_one(
             {"id": response_id},
-            {"$set": update_data}
+            update_operation,
         )
         
-        rejected_snapshot = await db.organization_esg_responses.find_one(
-            {"org_id": org_id, "question_key": question_key, "reporting_year": response.get("reporting_year")}, {"_id": 0}
-        )
+        rejected_snapshot = await db.organization_esg_responses.find_one({"id": response_id}, {"_id": 0})
         await _create_question_response_version_event(
             organization_id=org_id, framework=response.get("framework", ""), question_key=question_key,
             reporting_year=response.get("reporting_year"), snapshot=rejected_snapshot or {}, action="rejected",
@@ -2680,7 +2691,7 @@ class ApprovalWorkflowService:
             new_status="rejected",
         )
         
-        # Update assignment timestamp (approval_status is tracked in esg_responses as single source of truth)
+        # Update assignment timestamp; response status lives in the canonical store.
         await db.esg_assignments.update_one(
             {
                 "organization_id": org_id,
@@ -2705,7 +2716,7 @@ class ApprovalWorkflowService:
             "rejection_reason": reason,
         })
         
-        updated = await db.esg_responses.find_one({"id": response_id}, {"_id": 0})
+        updated = await db.organization_esg_responses.find_one({"id": response_id}, {"_id": 0})
         logger.info(f"Rejected questionnaire response {response_id} (question: {question_key}): {reason}")
         
         return (True, "Response rejected", updated)

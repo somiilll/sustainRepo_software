@@ -32,11 +32,13 @@ from modules.base_year.sync_service import (
 )
 from modules.entitlements.dependencies import assert_ghg_scope_access, assert_period_row_limit
 from modules.supplier_assessment.ghg_submission_service import (
+    assert_supplier_emission_capability,
     exclude_reopened_supplier_submission_revisions,
     reporting_period_values,
     resolve_effective_supplier_ghg_scopes,
     supplier_emission_period_allowed,
     supplier_period_error,
+    can_modify_supplier_ghg_record,
 )
 from modules.emissions.contracts import (
     EmissionBatchRollbackRequest,
@@ -84,12 +86,7 @@ def _unit_dimension(unit: str, unit_definitions: list[dict]) -> Optional[str]:
 
 
 async def _validate_density_requirement(record_data: EmissionRecordCreate) -> None:
-    """Reject protected Scope 1 mass/volume conversions without user density."""
-    is_process_emissions = record_data.category_code == "process_emissions"
-    is_custom_fuel = bool(record_data.is_custom_fuel)
-    if not is_process_emissions and not is_custom_fuel:
-        return
-
+    """Reject any configured mass/volume conversion without usable density."""
     dynamic_values = record_data.dynamic_field_values or {}
     methodology_value = dynamic_values.get("calculation_methodology") or {}
     methodology = record_data.calculation_methodology or (
@@ -152,16 +149,35 @@ async def _validate_density_requirement(record_data: EmissionRecordCreate) -> No
         return
 
     density = dynamic_values.get("density") or {}
+    if not isinstance(density, dict) or density.get("value") in (None, "", 0, "0"):
+        fuel_id = getattr(record_data, "fuel_database_id", None)
+        if fuel_id:
+            fuel_density = await db.fuel_database.find_one(
+                {"id": fuel_id},
+                {"_id": 0, "density": 1, "density_unit": 1},
+            )
+            if fuel_density:
+                density = {
+                    "value": fuel_density.get("density"),
+                    "unit": fuel_density.get("density_unit"),
+                }
     try:
         density_value = float(density.get("value")) if isinstance(density, dict) else None
     except (TypeError, ValueError):
         density_value = None
-    if density_value is None or density_value <= 0 or density.get("unit") != required_density_unit:
+    density_parts = str(density.get("unit") or "").split("/", 1) if isinstance(density, dict) else []
+    density_dimensions = {
+        _unit_dimension(part, units)
+        for part in density_parts
+        if _unit_dimension(part, units)
+    }
+    has_compatible_density_unit = density_dimensions == {"mass", "volume"}
+    if density_value is None or density_value <= 0 or not has_compatible_density_unit:
         raise HTTPException(
             status_code=422,
             detail=(
-                f"{'Process Emissions' if is_process_emissions else 'Custom Fuel'} requires a positive "
-                f"user-provided density in {required_density_unit} for this mass/volume conversion"
+                f"Density ({required_density_unit}) is required because Quantity uses {quantity_unit} "
+                f"while the calculation reference uses {reference_unit}"
             ),
         )
 
@@ -977,20 +993,34 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     if current_user.get("user_type") == "supplier":
         supplier_relationship = await db.supplier_relationships.find_one(
             {"supplier_org_id": current_user.get("organization_id"), "is_active": True},
-            {"_id": 0, "id": 1, "customer_org_id": 1, "reporting_period": 1},
+            {"_id": 0, "id": 1, "customer_org_id": 1, "reporting_period": 1, "ghg_submission_frequency": 1, "financial_year_start_month": 1},
         )
         if not supplier_relationship:
             raise HTTPException(status_code=403, detail="No active supplier assignment found")
+        try:
+            await can_modify_supplier_ghg_record(supplier_relationship, reporting_period, frequency_type)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error))
         allowed_supplier_scopes = await resolve_effective_supplier_ghg_scopes(supplier_relationship)
         if record_data.scope not in allowed_supplier_scopes:
             raise HTTPException(
                 status_code=403,
                 detail=f"{record_data.scope} is not assigned by your customer. Allowed scopes: {', '.join(allowed_supplier_scopes) or 'none'}",
             )
+        try:
+            await assert_supplier_emission_capability(
+                supplier_relationship,
+                record_data.category,
+                getattr(record_data, "category_id", None),
+                bool(record_data.is_custom_fuel),
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=403, detail=str(error))
         if not supplier_emission_period_allowed(
             reporting_period,
             frequency_type,
             supplier_relationship.get("reporting_period"),
+            supplier_relationship.get("financial_year_start_month") or 4,
         ):
             raise HTTPException(
                 status_code=400,
@@ -1341,7 +1371,7 @@ async def update_emission_record(
     if current_user.get("user_type") == "supplier":
         supplier_relationship = await db.supplier_relationships.find_one(
             {"supplier_org_id": current_user.get("organization_id"), "is_active": True},
-            {"_id": 0, "id": 1, "reporting_period": 1},
+            {"_id": 0, "id": 1, "reporting_period": 1, "ghg_submission_frequency": 1, "financial_year_start_month": 1},
         )
         if (
             not supplier_relationship
@@ -1349,16 +1379,30 @@ async def update_emission_record(
             or existing.get("supplier_relationship_id") != supplier_relationship.get("id")
         ):
             raise HTTPException(status_code=403, detail="This GHG record is not part of your active supplier assignment")
+        try:
+            await can_modify_supplier_ghg_record(supplier_relationship, record_data.reporting_period, record_data.frequency_type)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error))
         allowed_supplier_scopes = await resolve_effective_supplier_ghg_scopes(supplier_relationship)
         if record_data.scope not in allowed_supplier_scopes:
             raise HTTPException(
                 status_code=403,
                 detail=f"{record_data.scope} is not assigned by your customer. Allowed scopes: {', '.join(allowed_supplier_scopes) or 'none'}",
             )
+        try:
+            await assert_supplier_emission_capability(
+                supplier_relationship,
+                record_data.category,
+                getattr(record_data, "category_id", None),
+                bool(record_data.is_custom_fuel),
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=403, detail=str(error))
         if not supplier_emission_period_allowed(
             record_data.reporting_period,
             record_data.frequency_type,
             supplier_relationship.get("reporting_period"),
+            supplier_relationship.get("financial_year_start_month") or 4,
         ):
             raise HTTPException(
                 status_code=400,
@@ -1908,6 +1952,17 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
 
     if existing.get("source") == "supplier" and existing.get("submitted_to_parent_org"):
         raise HTTPException(status_code=409, detail="Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.")
+
+    if current_user.get("user_type") == "supplier" and existing.get("source") == "supplier":
+        supplier_relationship = await db.supplier_relationships.find_one(
+            {"supplier_org_id": current_user.get("organization_id"), "is_active": True}, {"_id": 0},
+        )
+        if not supplier_relationship or existing.get("supplier_relationship_id") != supplier_relationship.get("id"):
+            raise HTTPException(status_code=403, detail="This GHG record is not part of your active supplier assignment")
+        try:
+            await can_modify_supplier_ghg_record(supplier_relationship, existing.get("reporting_period"), existing.get("frequency_type"))
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error))
 
     # Approval-workflow gate
     delete_action, delete_payload = await approval_intercept_delete(record_id, current_user)

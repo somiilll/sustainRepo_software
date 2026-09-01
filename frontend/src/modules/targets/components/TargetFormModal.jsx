@@ -64,7 +64,7 @@ function TargetFormBody({ initial, yearOptions, hasScope3, onSubmit, onClose, bu
   // we don't carry stale shape (total → scope → category).
   useEffect(() => {
     form.setConfig(initial?.target_mode === form.mode ? initial?.target_configuration || {} : {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [form.mode]);
 
   const formContent = useMemo(() => {

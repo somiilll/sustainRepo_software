@@ -19,7 +19,6 @@ Supported Scoring Rules:
     - lower_is_better: Inverted scale where lower values = higher scores
     - boolean: Yes/No mapping with configurable scores
     - choice_mapping: Map discrete choices to specific scores
-    - target_based: Score based on % of target achieved
     - manual: Requires human review/scoring
 """
 
@@ -30,7 +29,6 @@ from .rules import (
     LowerIsBetterRule,
     BooleanRule,
     ChoiceMappingRule,
-    TargetBasedRule,
     ManualScoringRule,
     get_rule,
     RULE_REGISTRY,
@@ -61,7 +59,6 @@ __all__ = [
     "LowerIsBetterRule", 
     "BooleanRule",
     "ChoiceMappingRule",
-    "TargetBasedRule",
     "ManualScoringRule",
     "get_rule",
     "RULE_REGISTRY",

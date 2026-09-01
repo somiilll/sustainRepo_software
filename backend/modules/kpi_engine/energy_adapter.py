@@ -28,6 +28,11 @@ def to_gj(value: float, unit: str) -> float:
     return unit_convert(value, unit, "GJ")
 
 
+def j_to_gj(value: float) -> float:
+    """Convert stored Joule values to gigajoules."""
+    return value / 1_000_000_000
+
+
 # =============================================================================
 # Energy Adapter Functions
 # =============================================================================

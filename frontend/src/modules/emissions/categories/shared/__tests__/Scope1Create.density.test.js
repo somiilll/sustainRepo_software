@@ -115,4 +115,31 @@ describe('Scope 1 runtime density forwarding', () => {
       ef_quantity_basis: 'volume',
     });
   });
+
+  it('normalizes a standard-fuel volume EF when quantity is mass', () => {
+    const context = {
+      ...baseContext,
+      dynamicInputFields: [
+        { variable: 'qty', fieldKey: 'qty', required: true, unitSource: 'fuel' },
+        { variable: 'ef_quantity', fieldKey: 'ef_quantity', required: true, defaultUnit: 'kgCO2/kg' },
+        { variable: 'density', fieldKey: 'density', isOverride: true, defaultUnit: 'kg/L' },
+      ],
+      selectedFuel: { density: 0.5, density_unit: 'kg/L' },
+      centralizedUnits: [
+        { symbol: 'kg', unit_type: 'mass' },
+        { symbol: 'L', unit_type: 'volume' },
+      ],
+      buildDecisionInputs: () => ({ calculation_methodology: 'using_qty_basis_ef' }),
+    };
+    const result = extractInputsForCalcEngine({
+      qty: '10',
+      qty_unit: 'kg',
+      ef_quantity: '2',
+      ef_quantity_unit: 'kgCO2/L',
+    }, context);
+
+    expect(result.densityError).toBeUndefined();
+    expect(result.inputs.ef_quantity).toEqual({ value: 4, unit: 'kgCO2/kg' });
+    expect(result.decisionInputs).toEqual({ ef_quantity_basis: 'mass' });
+  });
 });

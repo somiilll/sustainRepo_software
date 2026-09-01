@@ -38,7 +38,11 @@ from modules.auth.contracts import (
     UserResponse,
     TokenResponse,
 )
-from modules.auth.dependencies import ensure_supplier_relationship_active, get_current_user
+from modules.auth.dependencies import (
+    ensure_supplier_relationship_active,
+    get_current_user,
+    mark_supplier_invitation_accepted_on_login,
+)
 from modules.auth.email_templates import password_reset_email
 
 logger = logging.getLogger(__name__)
@@ -154,7 +158,7 @@ async def login(request: Request, credentials: UserLogin):
         if organization and (organization.get("is_deleted") or not organization.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
 
-        if organization and organization.get("subscription_expires_at"):
+        if organization and organization.get("subscription_expires_at") and not (user.get("user_type") == "supplier" or organization.get("org_type") == "supplier"):
             try:
                 expires_str = organization["subscription_expires_at"]
                 now = datetime.now(timezone.utc)
@@ -172,6 +176,7 @@ async def login(request: Request, credentials: UserLogin):
                 print(f"Subscription date parse error: {e}")
 
     await ensure_supplier_relationship_active(user, organization)
+    await mark_supplier_invitation_accepted_on_login(user, organization)
 
     access_token = create_access_token(data={"sub": user["id"]})
     refresh_token = create_refresh_token(data={"sub": user["id"]})
@@ -218,7 +223,7 @@ async def forgot_password(request: Request, reset_data: PasswordReset):
         "used": False,
     })
 
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-ai-routing.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-review.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
 
     email_body = password_reset_email(user.get('full_name', 'User'), reset_link)

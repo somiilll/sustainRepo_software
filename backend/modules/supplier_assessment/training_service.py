@@ -269,28 +269,53 @@ async def training_status(org_id: str, requirement_id: str, reporting_period: Op
 
 
 async def assign_existing_trainings_to_supplier(org_id: str, relationship: Dict[str, Any], requirement_ids: List[str]) -> List[str]:
-    """Create auditable assignments for selected existing trainings during supplier onboarding."""
+    """Compatibility wrapper for canonical training assignment synchronization."""
+    if org_id != relationship.get("customer_org_id"):
+        raise ValueError("Supplier relationship does not belong to this organization")
+    return await synchronize_training_assignments(relationship, requirement_ids)
+
+
+async def synchronize_training_assignments(
+    relationship: Dict[str, Any], requirement_ids: List[str],
+) -> List[str]:
+    """Sync current-period training selections without reactivating historical assignments."""
+    org_id = relationship["customer_org_id"]
     requirements = await db.supplier_training_requirements.find(
         {"id": {"$in": list(set(requirement_ids))}, "organization_id": org_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0}
     ).to_list(1000)
     if len(requirements) != len(set(requirement_ids)):
         raise ValueError("One or more selected trainings are unavailable")
-    created_ids = []
+    selected_requirement_ids = set(requirement_ids)
+    active_assignments = await db.supplier_training_assignments.find(
+        {
+            "supplier_relationship_id": relationship["id"],
+            "training_requirement_id": {"$in": list(selected_requirement_ids)},
+            "reporting_period": relationship.get("reporting_period"),
+            "is_active": True,
+        },
+        {"_id": 0, "id": 1, "training_requirement_id": 1},
+    ).to_list(1000)
+    active_by_requirement = {assignment["training_requirement_id"]: assignment for assignment in active_assignments}
+    await db.supplier_training_assignments.update_many(
+        {
+            "supplier_relationship_id": relationship["id"],
+            "reporting_period": relationship.get("reporting_period"),
+            "is_active": True,
+            "training_requirement_id": {"$nin": list(selected_requirement_ids)},
+        },
+        {"$set": {"is_active": False, "updated_at": _now()}},
+    )
+
+    assignment_ids = []
     for requirement in requirements:
-        existing = await db.supplier_training_assignments.find_one(
-            {"supplier_relationship_id": relationship["id"], "training_requirement_id": requirement["id"]}, {"_id": 0, "id": 1}
-        )
-        if existing:
-            await db.supplier_training_assignments.update_one(
-                {"id": existing["id"]},
-                {"$set": {"is_active": True, "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "updated_at": _now()}},
-            )
-            created_ids.append(existing["id"])
+        active_assignment = active_by_requirement.get(requirement["id"])
+        if active_assignment:
+            assignment_ids.append(active_assignment["id"])
             continue
         assignment = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id, "training_requirement_id": requirement["id"], "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True}
         await db.supplier_training_assignments.insert_one(assignment)
-        created_ids.append(assignment["id"])
-    return created_ids
+        assignment_ids.append(assignment["id"])
+    return assignment_ids
 
 async def update_training(org_id: str, requirement_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     requirement = await db.supplier_training_requirements.find_one(
@@ -304,10 +329,11 @@ async def update_training(org_id: str, requirement_id: str, updates: Dict[str, A
     allowed_updates["updated_at"] = _now()
     await db.supplier_training_requirements.update_one({"id": requirement_id}, {"$set": allowed_updates})
     if "is_active" in allowed_updates:
-        await db.supplier_training_assignments.update_many(
-            {"training_requirement_id": requirement_id, "organization_id": org_id},
-            {"$set": {"is_active": allowed_updates["is_active"]}},
-        )
+        if not allowed_updates["is_active"]:
+            await db.supplier_training_assignments.update_many(
+                {"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": True},
+                {"$set": {"is_active": False, "updated_at": _now()}},
+            )
         relationships = await db.supplier_relationships.find(
             {"id": {"$in": await db.supplier_training_assignments.distinct("supplier_relationship_id", {"training_requirement_id": requirement_id, "organization_id": org_id})}},
             {"_id": 0, "id": 1},
@@ -316,6 +342,63 @@ async def update_training(org_id: str, requirement_id: str, updates: Dict[str, A
             from modules.supplier_assessment.service import supplier_service
             await supplier_service._update_completion_status(relationship["id"])
     return await db.supplier_training_requirements.find_one({"id": requirement_id}, {"_id": 0})
+
+
+async def list_training_assignments(org_id: str, requirement_id: str, reporting_period: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    requirement = await db.supplier_training_requirements.find_one(
+        {"id": requirement_id, "organization_id": org_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0}
+    )
+    if not requirement:
+        return None
+    supplier_query = {"customer_org_id": org_id, "is_active": True}
+    if reporting_period:
+        supplier_query["reporting_period"] = reporting_period
+    suppliers = await db.supplier_relationships.find(supplier_query, {"_id": 0, "id": 1, "company_name": 1}).to_list(1000)
+    assignment_query = {"organization_id": org_id, "training_requirement_id": requirement_id, "is_active": True}
+    if reporting_period:
+        assignment_query["reporting_period"] = reporting_period
+    assignments = await db.supplier_training_assignments.find(assignment_query, {"_id": 0, "id": 1, "supplier_relationship_id": 1}).to_list(1000)
+    assignment_by_supplier = {assignment["supplier_relationship_id"]: assignment for assignment in assignments}
+    progress = await db.supplier_training_progress.find(
+        {"training_assignment_id": {"$in": [assignment["id"] for assignment in assignments]}}, {"_id": 0, "training_assignment_id": 1, "status": 1}
+    ).to_list(1000)
+    progress_by_assignment = {item["training_assignment_id"]: item.get("status") for item in progress}
+    rows = []
+    for supplier in suppliers:
+        assignment = assignment_by_supplier.get(supplier["id"])
+        status = progress_by_assignment.get(assignment["id"]) if assignment else "not_assigned"
+        rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"), "is_assigned": bool(assignment), "status": status, "can_unassign": bool(assignment) and status != "completed"})
+    return {"training_id": requirement_id, "assignments": rows}
+
+
+async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:
+    requirement = await db.supplier_training_requirements.find_one(
+        {"id": requirement_id, "organization_id": org_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0}
+    )
+    relationship = await db.supplier_relationships.find_one(
+        {"id": supplier_relationship_id, "customer_org_id": org_id, "is_active": True}, {"_id": 0}
+    )
+    if not requirement or not relationship:
+        raise ValueError("Training or supplier is unavailable")
+    existing = await db.supplier_training_assignments.find_one(
+        {"supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id, "reporting_period": relationship.get("reporting_period"), "is_active": True}, {"_id": 0, "id": 1}
+    )
+    if not existing:
+        await db.supplier_training_assignments.insert_one({"id": str(uuid.uuid4()), "supplier_relationship_id": supplier_relationship_id, "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True})
+
+
+async def unassign_training_from_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:
+    assignments = await db.supplier_training_assignments.find(
+        {"supplier_relationship_id": supplier_relationship_id, "organization_id": org_id, "training_requirement_id": requirement_id, "is_active": True}, {"_id": 0, "id": 1}
+    ).to_list(1000)
+    if not assignments:
+        raise ValueError("Training assignment is unavailable")
+    completed = await db.supplier_training_progress.find_one(
+        {"training_assignment_id": {"$in": [assignment["id"] for assignment in assignments]}, "status": "completed"}, {"_id": 0, "id": 1}
+    )
+    if completed:
+        raise ValueError("A completed training cannot be unassigned")
+    await db.supplier_training_assignments.update_many({"id": {"$in": [assignment["id"] for assignment in assignments]}}, {"$set": {"is_active": False, "updated_at": _now()}})
 
 async def archive_training(org_id: str, requirement_id: str) -> bool:
     training = await update_training(org_id, requirement_id, {"is_active": False})

@@ -1,61 +1,106 @@
 {
-  "theme_and_context": {
-    "app_type": "Dashboard",
-    "theme": "Light mode preference (Data-heavy)",
-    "archetype": "ARCHETYPE 4: SWISS & HIGH-CONTRAST variant tailored for enterprise dashboard",
-    "description": "Functional beauty, dense compact spacing, high-contrast readability, clear interaction states. The design preserves the existing clean Stone, Emerald, Violet, and Sky palettes already established in the dashboard."
-  },
+  "theme": "Premium Dark Mode (Neo-Glass) with Vibrant Data Accents",
   "typography": {
-    "headings": "System default clean sans-serif (Inter/Geist) to match existing design. Preserve classes like text-stone-900, font-semibold.",
-    "body": "text-sm text-stone-500, text-stone-600, or text-stone-800 for maximum data density and legibility.",
-    "hierarchy": "Strict text sizes: max text-4xl for page titles (like 'Supplier rankings'), text-base/text-sm for card titles and data."
-  },
-  "colors": {
-    "background": "bg-white or bg-stone-50/100",
-    "text": "text-stone-900 (primary), text-stone-500 (secondary)",
-    "primary_brand": "Emerald (emerald-600/700) for ESG/Emissions, Sky/Teal for Documents, Violet for GHG, Amber for Training",
-    "status": {
-      "excellent": "emerald-600",
-      "good": "blue-600",
-      "average": "amber-500",
-      "critical": "rose-600"
-    }
-  },
-  "visual_enhancers": {
-    "borders": "border-stone-200 for standard structural cards, border-stone-100 for internal dividers",
-    "shadows": "shadow-sm for interactive overlays/dialogs, shadow-none for flat dashboard cards",
-    "corner_radius": "rounded-lg for main containers, rounded-md for nested inner elements",
-    "glassmorphism": "Avoid in data-heavy medical/finance/assessment areas to prevent visual refraction of data; use solid off-white/stone backgrounds for dialogs."
-  },
-  "layouts_and_grids": {
-    "dashboard_grid": "Tight gap (gap-4 or gap-5), grid-cols-1 md:grid-cols-2 lg:grid-cols-2 for chart comparisons, 1fr for full-width tabular data.",
-    "card_structure": "Flat background, 1px subtle border, no heavy drop shadows."
-  },
-  "instructions_to_main_agent": {
-    "SupplierRanking.jsx": [
-      "In the ESG Tab (`TabsContent value='esg'`), LOCATE the `Card` with `data-testid='esg-module-coverage-card'` ('Assessment module coverage (avg completion)') and REMOVE it.",
-      "In its place (or alongside the ESG score distribution), ADD a new `Card` with `data-testid='esg-supplier-comparison-card'` displaying a grouped bar chart of each supplier's E, S, and G scores.",
-      "Use Recharts `BarChart` for the grouped chart. Map over the `esg` array (which contains suppliers with esg scores).",
-      "Configure `<XAxis dataKey='company_name' />` and three `<Bar>` components: `environment_score` (color: #059669 / emerald-600), `social_score` (color: #3b82f6 / blue-500), and `governance_score` (color: #7c3aed / violet-600).",
-      "Use `ResponsiveContainer` (height ~244), `CartesianGrid`, `ChartTooltip`, and `Legend` for clarity."
-    ],
-    "SupplierDocumentsAdmin.jsx": [
-      "In the list of published agreements (`published-supplier-agreements-list`), REPLACE the inline wrapping list of individual supplier badges (`agreement-assigned-suppliers-...`) with a scalable summary text (e.g., '25 suppliers assigned').",
-      "ADD a 'View suppliers' link or button next to the summary that triggers a dialog (or modify the existing 'Responses' dialog) containing a table/list of all assigned suppliers with their 'Pending' or 'Submitted' statuses.",
-      "ADD a 'Preview Document' button to each document in the main list. Clicking it must trigger a secure in-app preview (e.g., a modal with an iframe or secure object tag for PDF/DOC viewing)."
-    ],
-    "SupplierTrainingAdmin.jsx": [
-      "In the training list (`training-admin-list`), ADD a 'Preview Training' button to each training item so the parent organization can securely preview the uploaded training content in read-only mode.",
-      "The preview should open an in-app dialog overlay containing a secure viewer (video, audio, or document viewer depending on file type).",
-      "Ensure the preview action strictly maintains read-only access."
+    "headings": {
+      "family": "Outfit",
+      "classes": "font-sans font-semibold tracking-tight text-slate-50",
+      "weights": [
+        "500",
+        "600"
+      ]
+    },
+    "body": {
+      "family": "Manrope",
+      "classes": "font-sans text-slate-300 leading-relaxed",
+      "weights": [
+        "400",
+        "500"
+      ]
+    },
+    "rules": [
+      "CRITICAL: Do not use Inter, Roboto, Space Grotesk, or Open Sans for headings.",
+      "Use tight letter spacing (tracking-tight) for large headers.",
+      "Overlines and labels must be uppercase with wide spacing (tracking-[0.2em] text-xs font-semibold)."
     ]
   },
-  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "Preserve existing styles, spacing (Tailwind classes), and Shadcn UI component usage.",
-    "Do not break Recharts responsive containers; ensure all Recharts elements have correct imports from 'recharts'.",
-    "Do not use transparent backgrounds under text or critical UI. All dropdowns, dialogs, and tooltips must have solid backgrounds.",
-    "All interactive elements MUST have a data-testid attribute in kebab-case to facilitate robust automated testing.",
-    "Ensure accessible contrast for all text over chart colors.",
-    "Use optical alignment for buttons with icons, adding slightly more padding to the side without the icon."
+  "colors": {
+    "background": "bg-[#0B0F19]",
+    "surface": "bg-[#131B2C]/80 backdrop-blur-xl",
+    "surface_solid": "bg-[#131B2C]",
+    "border": "border-slate-800/60",
+    "text": {
+      "primary": "text-slate-50",
+      "secondary": "text-slate-400",
+      "muted": "text-slate-500"
+    },
+    "accents": {
+      "brand": "bg-blue-600 hover:bg-blue-500 text-white",
+      "high_performer": "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+      "attention": "text-rose-400 bg-rose-400/10 border-rose-400/20",
+      "warning": "text-amber-400 bg-amber-400/10 border-amber-400/20",
+      "esg_charts": [
+        "#3B82F6",
+        "#10B981",
+        "#F59E0B",
+        "#F43F5E",
+        "#8B5CF6"
+      ]
+    },
+    "rules": [
+      "BANNED: Purple-dominant palettes (#7351B7) and teal green (#1B93A4).",
+      "Use vivid, saturated colors ONLY for data visualization, risk matrix cells, and status badges to achieve the 'colourful and premium' look.",
+      "Maintain a structural dark slate/navy grayscale to anchor the bright colors."
+    ]
+  },
+  "visual_enhancers": {
+    "shadows": "shadow-[0_8px_30px_rgb(0,0,0,0.2)]",
+    "borders": "1px solid border-white/5",
+    "effects": [
+      "Add a subtle ambient glow (blur-3xl opacity-10) behind primary chart components using the dominant chart color.",
+      "Glassmorphism for floating elements (dropdowns, tooltips): bg-[#131B2C]/90 backdrop-blur-2xl border border-white/10."
+    ]
+  },
+  "layouts": {
+    "grid_system": "Bento Grid Protocol - High Density",
+    "spacing": "Generous internal padding: use p-6 or p-8 inside cards to prevent data from feeling cramped.",
+    "structural_classes": "grid grid-cols-1 md:grid-cols-12 gap-6",
+    "rules": [
+      "Never fill 100% of the grid with equal squares. Use col-span-8 for primary charts (ESG Breakdown) and col-span-4 for summaries.",
+      "Risk Matrix should be prominently displayed (col-span-full or large section)."
+    ]
+  },
+  "components": {
+    "cards": "Premium tactile surfaces: rounded-2xl bg-[#131B2C] border border-white/5 hover:border-white/10 transition-colors shadow-sm",
+    "charts": "Use Recharts. Tooltips MUST have a solid dark background (bg-slate-900 border border-slate-700) to avoid text bleeding into underlying charts.",
+    "risk_matrix": "A highly visual 2D grid/heat map. Use rich gradients or solid vivid colors (Emerald, Yellow, Orange, Red) with dark, high-contrast labels inside.",
+    "progress_bars": "Rounded-full, h-2 or h-3, using bright accent colors (e.g., emerald for training completion) on a dark slate track (bg-slate-800).",
+    "tables": "Cardless integration for Supplier Ranking. Left-aligned, subtle border-b on rows (border-slate-800). Highlight top performers with subtle row backgrounds."
+  },
+  "motion": {
+    "hover": "hover:-translate-y-1 hover:shadow-lg transition-all duration-300",
+    "entrance": "Staggered fade-up for grid items on load.",
+    "interactive": "Active states must slightly scale down (active:scale-95)."
+  },
+  "accessibility": {
+    "contrast": "Ensure APCA contrast compliance, especially for text placed over colored Risk Matrix cells.",
+    "focus": "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F19]",
+    "testing": "CRITICAL: All interactive and key informational elements MUST include a data-testid attribute (e.g., data-testid='esg-score-card')."
+  },
+  "instructions_to_main_agent": [
+    "You must write .js files (not .tsx) for all React components.",
+    "Implement the UI as a Dashboard SaaS layout with a premium dark mode.",
+    "Ensure 'Supplier Ranking Overview' feels like a high-end command center: lots of data, cleanly spaced, with pops of vibrant color for scores and risks.",
+    "The Risk Matrix must be the visual centerpiece: vibrant, color-coded cells clearly displaying sustainability risks.",
+    "Include specific sections for ESG Score Breakdown, Document/Training Progress, and Attention Required alerts.",
+    "Do not use default generic styling; elevate the components with the specified spacing, rounded corners, and subtle borders.",
+    "Never use purely transparent backgrounds over content (especially for tooltips, modals, and sticky headers)."
+  ],
+  "universal_guidelines": [
+    "Avoid generic centered layouts. Use optical alignment.",
+    "Create depth through layered design elements with z-index hierarchy and glassmorphism (backdrop-blur).",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Do NOT apply universal transition (transition: all). Target specific properties to avoid breaking transforms.",
+    "Never use AI emojis (🤖, 💡, etc.) for icons. Use Phosphor or Lucide icons.",
+    "Do NOT center align the app container (.App { text-align: center; })."
   ]
 }

@@ -25,9 +25,10 @@ const MeasurementInput = ({
   unitOptions = [],
   inputTestId,
   unitTestId,
+  annualRow = false,
 }) => (
-  <div className="space-y-1">
-    <Label className="text-xs">{label} <span className="text-red-500">*</span></Label>
+  <div className={annualRow ? 'min-w-0' : 'min-w-0 space-y-1'}>
+    <Label className={annualRow ? 'mb-2 flex min-h-6 items-center justify-center text-center text-xs leading-snug' : 'text-xs'}>{label} <span className="text-red-500">*</span></Label>
     <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
       <Input
         type="number"
@@ -36,19 +37,19 @@ const MeasurementInput = ({
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="h-9 flex-1 rounded-none border-0 bg-transparent text-sm shadow-none focus-visible:ring-0"
+        className={`${annualRow ? 'h-10' : 'h-9'} flex-1 rounded-none border-0 bg-transparent text-sm shadow-none focus-visible:ring-0`}
         data-testid={inputTestId}
       />
       {unitOptions.length > 0 ? (
         <select
           value={unitValue}
           onChange={onUnitChange}
-          className="h-9 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-2 text-sm outline-none"
+          className={`${annualRow ? 'h-10' : 'h-9'} min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-2 text-sm outline-none`}
           data-testid={unitTestId}
           dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(unitOptions) }}
         />
       ) : (
-        <div className="flex h-9 min-w-20 items-center border-l border-l-stone-200 bg-stone-50 px-2 text-sm text-stone-600" data-testid={unitTestId}>
+        <div className={`flex ${annualRow ? 'h-10' : 'h-9'} min-w-20 items-center border-l border-l-stone-200 bg-stone-50 px-2 text-sm text-stone-600`} data-testid={unitTestId}>
           {unitLabel}
         </div>
       )}
@@ -99,11 +100,13 @@ const CustomFuelMonthFields = ({
     centralizedUnits,
   });
   const customQuantity = data.qty ?? data.quantity ?? data.custom_qty;
+  const isYearlyEntry = monthKey === 'yearly';
   const hasDensitySourceValue = calculationMethodology === 'using_heat_basis_ncv'
     ? [customQuantity, data.custom_cv, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
     : calculationMethodology === 'using_qty_basis_ef'
       ? [customQuantity, data.custom_ef].some((value) => value !== '' && value !== null && value !== undefined)
       : [customQuantity, data.custom_carbon_content].some((value) => value !== '' && value !== null && value !== undefined);
+  const shouldShowDensity = hasDensitySourceValue && densityRequirement.required;
 
   useEffect(() => {
     if (isFugitiveCustomFuel) return;
@@ -139,6 +142,7 @@ const CustomFuelMonthFields = ({
           unitLabel={unitLabel}
           inputTestId={`month-${monthKey}-density`}
           unitTestId={`month-${monthKey}-density-unit`}
+          annualRow={isYearlyEntry}
         />
         <p className="text-xs text-amber-700" data-testid={`month-${monthKey}-density-conversion-hint`}>
           Conversion required: {qtyUnit} → {referenceUnit}
@@ -150,14 +154,14 @@ const CustomFuelMonthFields = ({
   if (calculationMethodology === 'using_heat_basis_ncv') {
     const cvUnit = heatCvUnit;
     return (
-      <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
-        {showMethodIndicator && (
+      <div className={isYearlyEntry ? 'contents' : 'space-y-3 border-l-2 border-amber-300 pl-3'} data-testid={`custom-fuel-fields-${monthKey}`}>
+        {showMethodIndicator && !isYearlyEntry && (
           <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
             <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
             <span>Custom fuel factors · Heat Basis (NCV)</span>
           </div>
         )}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className={isYearlyEntry ? 'contents' : 'grid grid-cols-1 gap-4 md:grid-cols-2'}>
           <MeasurementInput
             label="Emission Factor"
             value={data.custom_ef || ''}
@@ -168,6 +172,7 @@ const CustomFuelMonthFields = ({
             unitOptions={heatEfUnits}
             inputTestId={`month-${monthKey}-custom-ef`}
             unitTestId={`month-${monthKey}-custom-ef-unit`}
+            annualRow={isYearlyEntry}
           />
           <MeasurementInput
             label="Calorific Value"
@@ -179,70 +184,74 @@ const CustomFuelMonthFields = ({
             unitOptions={heatCvUnits}
             inputTestId={`month-${monthKey}-custom-cv`}
             unitTestId={`month-${monthKey}-custom-cv-unit`}
+            annualRow={isYearlyEntry}
           />
+          {renderDensity(shouldShowDensity, densityRequirement.densityUnit)}
         </div>
-        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }
 
   if (calculationMethodology === 'using_qty_basis_ef') {
     return (
-      <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
-        {showMethodIndicator && (
+      <div className={isYearlyEntry ? 'contents' : 'space-y-3 border-l-2 border-amber-300 pl-3'} data-testid={`custom-fuel-fields-${monthKey}`}>
+        {showMethodIndicator && !isYearlyEntry && (
           <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
             <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
             <span>Custom fuel factors · Quantity Basis EF</span>
           </div>
         )}
-        <MeasurementInput
-          label="Emission Factor"
-          value={data.custom_ef || ''}
-          onChange={(event) => updateMonthData(monthKey, 'custom_ef', event.target.value)}
-          placeholder="e.g. 2.68"
-          unitValue={data.custom_ef_unit || 'kgCO2/kg'}
-          onUnitChange={(event) => updateMonthData(monthKey, 'custom_ef_unit', event.target.value)}
-          unitOptions={quantityEfUnits}
-          inputTestId={`month-${monthKey}-custom-ef`}
-          unitTestId={`month-${monthKey}-custom-ef-unit`}
-        />
-        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
+        <div className={isYearlyEntry ? 'contents' : 'grid grid-cols-1 gap-4'}>
+          <MeasurementInput
+            label="Emission Factor"
+            value={data.custom_ef || ''}
+            onChange={(event) => updateMonthData(monthKey, 'custom_ef', event.target.value)}
+            placeholder="e.g. 2.68"
+            unitValue={data.custom_ef_unit || 'kgCO2/kg'}
+            onUnitChange={(event) => updateMonthData(monthKey, 'custom_ef_unit', event.target.value)}
+            unitOptions={quantityEfUnits}
+            inputTestId={`month-${monthKey}-custom-ef`}
+            unitTestId={`month-${monthKey}-custom-ef-unit`}
+            annualRow={isYearlyEntry}
+          />
+          {renderDensity(shouldShowDensity, densityRequirement.densityUnit)}
+        </div>
       </div>
     );
   }
 
   if (calculationMethodology === 'using_carbon_composition') {
     return (
-      <div className="space-y-3 border-l-2 border-amber-300 pl-3" data-testid={`custom-fuel-fields-${monthKey}`}>
-        {showMethodIndicator && (
+      <div className={isYearlyEntry ? 'contents' : 'space-y-3 border-l-2 border-amber-300 pl-3'} data-testid={`custom-fuel-fields-${monthKey}`}>
+        {showMethodIndicator && !isYearlyEntry && (
           <div className="flex items-center gap-1.5 text-xs font-medium text-amber-800" data-testid={`custom-fuel-method-indicator-${monthKey}`}>
             <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
             <span>Custom fuel factors · Carbon Composition</span>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Carbon Content (%) <span className="text-red-500">*</span></Label>
+        <div className={isYearlyEntry ? 'contents' : 'grid grid-cols-2 gap-3'}>
+          <div className={isYearlyEntry ? 'min-w-0' : 'space-y-1'}>
+            <Label className={isYearlyEntry ? 'mb-2 flex min-h-6 items-center justify-center text-center text-xs leading-snug' : 'text-xs'}>Carbon Content (%) <span className="text-red-500">*</span></Label>
             <Input
               type="number" step="any" min="0" max="100"
               value={data.custom_carbon_content || ''}
               onChange={(e) => updateMonthData(monthKey, 'custom_carbon_content', e.target.value)}
-              placeholder="e.g. 85" className="bg-white h-9 text-sm"
+              placeholder="e.g. 85" className={`bg-white text-sm ${isYearlyEntry ? 'h-10' : 'h-9'}`}
               data-testid={`month-${monthKey}-custom-carbon-content`}
             />
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Oxidation Factor <span className="text-red-500">*</span></Label>
+          <div className={isYearlyEntry ? 'min-w-0' : 'space-y-1'}>
+            <Label className={isYearlyEntry ? 'mb-2 flex min-h-6 items-center justify-center text-center text-xs leading-snug' : 'text-xs'}>Oxidation Factor <span className="text-red-500">*</span></Label>
             <Input
               type="number" step="any" min="0" max="1"
               value={data.custom_oxidation_factor || ''}
               onChange={(e) => updateMonthData(monthKey, 'custom_oxidation_factor', e.target.value)}
-              placeholder="e.g. 1" className="bg-white h-9 text-sm"
+              placeholder="e.g. 1" className={`bg-white text-sm ${isYearlyEntry ? 'h-10' : 'h-9'}`}
               data-testid={`month-${monthKey}-custom-oxidation-factor`}
             />
           </div>
+          {renderDensity(shouldShowDensity, densityRequirement.densityUnit)}
         </div>
-        {renderDensity(hasDensitySourceValue && densityRequirement.required, densityRequirement.densityUnit)}
       </div>
     );
   }

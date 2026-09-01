@@ -1,5 +1,75 @@
 # ESG Platform Changelog
 
+## August 30, 2026 — Roadmap Update
+- Added P0: a deliberate migration/reassignment workflow for existing suppliers after parent GHG permission changes, preserving immutable issued assessments while allowing explicit alignment with newer program revisions.
+
+## August 30, 2026 — Canonical ESG Response Migration
+- Removed runtime dependencies on the deprecated `esg_responses` collection across questionnaire approvals, completion, BRSR/GRI retrieval, and Internal Data AI history.
+- Standardized current questionnaire responses on flat `organization_esg_responses` documents and retained immutable approval history in `esg_responses_versions`.
+- Updated legacy approval helpers to preserve approver edits, rejection restoration, audit/version events, and organization isolation without dual writes.
+- Made the questionnaire approval queue questionnaire-only; record approvals continue through the canonical workflow request endpoint.
+- Dropped the empty legacy collection and verified it was not recreated.
+- Verification passed with the 37-test migration suite, 11 focused completion/history checks, Python compilation, frontend ESLint with zero errors, and live-app smoke testing. Added the missing `yarn lint` script for reliable automated lint execution. No mocked APIs.
+
+## August 30, 2026 — Supplier Assessment State and Policy Repairs
+- Reminders now load and send only incomplete, parent-program-enabled modules for the supplier's assigned reporting period. The picker no longer presents completed work.
+- Restored due-date visibility after completion across parent assessment detail, supplier Documents, and supplier Trainings views.
+- Preserved `revenue_required` while opening Edit Supplier, avoiding accidental Annual Revenue requirement resets on save.
+- Added immutable-program policy flags for supplier custom fuels, Process Emissions, and Flaring. All are disabled by default and rejected by both supplier-specific and generic emission APIs unless explicitly enabled by the parent.
+- Initial Python/ESLint/API/UI smoke checks passed before the user requested no further testing. **NOT TESTED** after that instruction; no mocked APIs were added.
+
+## August 30, 2026 — Supplier GHG Program Policy Visibility
+- Routed immutable supplier-program permissions into the shared GHG create/edit form. Process Emissions and Flaring are now hidden unless returned as program-allowed categories; Custom Fuel is hidden unless the program enables it.
+- Corrected the generic supplier emission contract to include optional `category_id`, preventing a direct restricted payload from producing a 500. It now returns a controlled 403 rejection.
+- Verified with 2 frontend policy unit tests, 6 backend supplier-policy tests, a live API request, Python compilation, and a supplier `/ghg` browser flow. No mocked APIs.
+
+## August 30, 2026 — Training Player Control Cleanup
+- Disabled Picture-in-Picture and remote playback for supplier and administrator training video viewers.
+- **NOT TESTED** after implementation, per user instruction. No mocked APIs.
+
+## August 30, 2026 — Parent Supplier Detail Expansion
+- Extended parent-side supplier details with ESG, GHG, Documents, and Training completion tracks.
+- Consolidated the ESG, Environment, Social, and Governance scores into one responsive score row.
+- **NOT TESTED** after implementation, per user instruction. No mocked APIs.
+
+## August 30, 2026 — Supplier Status Alignment
+- Positioned the View Supplier status badge beneath its Status label.
+- **NOT TESTED** after implementation, per user instruction. No mocked APIs.
+
+## August 30, 2026 — Detailed Rankings Table Fit
+- Compacted Detailed Rankings columns and spacing to retain the View action within standard desktop content widths.
+- **NOT TESTED** after implementation, per user instruction. No mocked APIs.
+
+## August 30, 2026 — Overdue Supplier Task Follow-up
+- Replaced score-driven Attention Required entries with overdue, incomplete task detection across ESG, GHG, Documents, and Training.
+- The parent ranking dashboard now names each overdue module for every supplier listed.
+- Verified by live API and parent-dashboard smoke checks, Python compilation, and frontend linting (zero errors; existing warnings only). No mocked APIs.
+
+## August 30, 2026 — Document/Training Action Consistency
+- Unified due-date action icons and aligned Training actions to the Documents order.
+- Made the Training overflow menu fully opaque.
+- **NOT TESTED** after implementation, per user instruction. No mocked APIs.
+
+## August 30, 2026 — Supplier Onboarding Copy
+- Clarified the supplier onboarding heading with the Supplier Assessment workspace name.
+- **NOT TESTED** after implementation, per user instruction. No mocked APIs.
+
+## August 30, 2026 — Supplier GHG Submitted Totals
+- Promoted submitted Scope 1 and Scope 2 totals above current draft values in the supplier GHG summary.
+
+## August 30, 2026 — Published Emission Consumer Filter
+- Applied the shared published-record lifecycle filter to Internal AI analytics/evidence and Peer Benchmarking date discovery.
+- Kept operational lifecycle surfaces able to inspect drafts, pending approvals, rejected records, and history by design.
+
+## August 28, 2026 — Unit-Driven Density and Reverse EF Conversion
+- Added one shared density-state resolver for monthly/yearly rendering, validation, calculation preparation, and API enforcement.
+- Density now appears only for a real mass/volume mismatch. Valid standard-fuel density is an overridable default; missing density becomes required with the correct directional unit.
+- Carbon Composition with mass Quantity no longer shows Density.
+- Quantity Basis with mass Quantity and a volume-denominator EF now normalizes the EF before the frozen calculation engine, replacing the previous `Cannot convert 'ef_quantity'` failure.
+- Removed hardcoded standard-fuel formula-basis routing and made basis selection unit-driven.
+- Stabilized the controlled Add Emission modal open action.
+- Verified with 46 frontend tests, 8 backend tests, a production build, repeated modal opens, missing-density validation, and a successful cleaned-up reverse-conversion save.
+
 ## August 25, 2026 — Exact Supplier GHG Scope Enforcement
 - Fixed the shared supplier GHG screen reading the supplier organization's dynamic GHG scopes, which exposed Scope 3 and Biogenic despite the parent assignment.
 - Scope access now resolves canonically from the bound immutable supplier assessment-program revision.

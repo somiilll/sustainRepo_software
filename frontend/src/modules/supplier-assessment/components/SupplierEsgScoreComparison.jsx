@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 const shortName = (name) => name.length > 16 ? `${name.slice(0, 14)}…` : name;
 
 export const SupplierEsgScoreComparison = ({ suppliers }) => (
-  <Card className="rounded-lg border-stone-200 bg-white shadow-none" data-testid="esg-supplier-comparison-card">
+  <Card className="overflow-hidden rounded-lg border-stone-200 bg-white shadow-[0_8px_20px_rgba(28,25,23,0.06)]" data-testid="esg-supplier-comparison-card">
     <CardHeader className="border-b border-stone-100 pb-4">
       <CardTitle className="text-base text-stone-900" data-testid="esg-supplier-comparison-title">Supplier ESG score comparison</CardTitle>
       <p className="mt-1 text-xs text-stone-500" data-testid="esg-supplier-comparison-description">Environment, Social, and Governance scores by supplier</p>

@@ -48,7 +48,14 @@ _coll = lambda: db["organization_config"]
 DEFAULT_SUPPLIER_ASSESSMENT_CONFIG = {
     "modules": {
         "esg": {"enabled": True, "display_name": "ESG Questionnaire"},
-        "ghg": {"enabled": True, "display_name": "GHG Emissions", "scopes": ["scope1", "scope2"]},
+        "ghg": {
+            "enabled": True,
+            "display_name": "GHG Emissions",
+            "scopes": ["scope1", "scope2"],
+            "allow_custom_fuels": False,
+            "allow_process_emissions": False,
+            "allow_flaring": False,
+        },
         "documents": {"enabled": False, "display_name": "Documents"},
         "training": {"enabled": False, "display_name": "Training"},
     }

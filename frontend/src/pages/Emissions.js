@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EmissionFilters from './emissions/EmissionFilters';
@@ -51,7 +51,11 @@ import {
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
-import { filterSupplierVisibleScopes } from '../modules/supplier-assessment/utils/supplierScopeAccess';
+import {
+  filterSupplierVisibleScopes,
+  filterSupplierVisibleCategories,
+  resolveSupplierGhgOverrides,
+} from '../modules/supplier-assessment/utils/supplierScopeAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -80,6 +84,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     refresh: fetchData
   } = useEmissionsCoreData(getAuthHeader, { isSupplier: isSupplierUser });
   const effectiveOrganizationGhgOverrides = organizationGhgOverrides || resolvedOrganizationGhgOverrides;
+  const effectiveSupplierGhgOverrides = useMemo(() => (
+    isSupplierUser
+      ? resolveSupplierGhgOverrides(effectiveOrganizationGhgOverrides, supplierReportingConfig)
+      : effectiveOrganizationGhgOverrides
+  ), [isSupplierUser, effectiveOrganizationGhgOverrides, supplierReportingConfig]);
   
   // ============================================================================
   // KPI ASSIGNMENT-BASED ACCESS CONTROL
@@ -462,11 +471,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const editGhgFormArchitecture = useMemo(
     () => resolveGhgFormArchitecture({
       standardConfig: editFormConfig,
-      organizationOverrides: effectiveOrganizationGhgOverrides,
+      organizationOverrides: effectiveSupplierGhgOverrides,
       formContext: editGhgFormContext,
       biogenicScopeSelection,
     }),
-    [editFormConfig, effectiveOrganizationGhgOverrides, editGhgFormContext, biogenicScopeSelection],
+    [editFormConfig, effectiveSupplierGhgOverrides, editGhgFormContext, biogenicScopeSelection],
   );
   const editCapabilities = editGhgFormArchitecture.capabilities;
   const editGhgFieldOptions = editGhgFormArchitecture.resolvedFieldOptions;
@@ -1610,11 +1619,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   }, [formData.scope, formData.category, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
 
   const getCategoriesForScope = useMemo(() => resolveGhgCategoryOptions({
-    standardCategories: standardCategoriesForScope,
+    standardCategories: isSupplierUser
+      ? filterSupplierVisibleCategories(standardCategoriesForScope, resolveEffectiveScopeCode(formData.scope, biogenicScopeSelection), supplierReportingConfig)
+      : standardCategoriesForScope,
     scopeCode: resolveEffectiveScopeCode(formData.scope, biogenicScopeSelection),
     categoryDefinitions: dynamicCategories,
-    organizationOverrides: effectiveOrganizationGhgOverrides,
-  }), [standardCategoriesForScope, formData.scope, biogenicScopeSelection, dynamicCategories, effectiveOrganizationGhgOverrides]);
+    organizationOverrides: effectiveSupplierGhgOverrides,
+  }), [standardCategoriesForScope, formData.scope, biogenicScopeSelection, dynamicCategories, isSupplierUser, supplierReportingConfig, effectiveSupplierGhgOverrides]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
@@ -2479,6 +2490,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     setUploadedEvidence(null);
   };
 
+  const openCreateDialog = () => {
+    resetForm();
+    setIsFormDirty(false);
+    setIsEditLoading(false);
+    setDialogOpen(true);
+  };
+
   // Handle dialog change with unsaved changes protection (#19)
   const handleDialogChange = (open) => {
     if (!open && isFormDirty) {
@@ -2828,6 +2846,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
 
   const filteredEmissions = useMemo(() => {
     let filtered = emissions.filter(e => {
+      // Supplier users see the current resubmission revision only. The prior
+      // immutable revision remains stored for audit history but is not a live
+      // GHG log entry.
+      if (isSupplierUser && e.source === 'supplier' && e.is_current_revision === false) {
+        return false;
+      }
+
       // Hide emissions from deactivated facilities
       if (!activeFacilityIds.includes(e.facility_id)) return false;
       
@@ -2999,7 +3024,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     });
     
     return filtered;
-  }, [emissions, activeScope, filterFacility, filterCategory, filterFrequency, filterCalculationMethod, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery, hasScope3Access]);
+  }, [emissions, isSupplierUser, activeScope, filterFacility, filterCategory, filterFrequency, filterCalculationMethod, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery, hasScope3Access]);
 
   const uniqueCategories = useMemo(() => {
     return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
@@ -3080,12 +3105,15 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           </Button>
           {hasEmissionAccess ? (
             <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-              <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-emission-button">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Emission
-                </Button>
-              </DialogTrigger>
+              <Button
+                type="button"
+                onClick={openCreateDialog}
+                className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
+                data-testid="add-emission-button"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Emission
+              </Button>
               <DialogContent 
                 key={editingEmission?.id || 'new'}
                 className={`max-h-[90vh] overflow-x-hidden overflow-y-auto ${!editingEmission ? '!gap-2' : ''}`}
@@ -3126,7 +3154,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   getAuthHeader={getAuthHeader}
                   configLabels={configLabels}
                   organization={organization}
-                  organizationGhgOverrides={effectiveOrganizationGhgOverrides}
+                  organizationGhgOverrides={effectiveSupplierGhgOverrides}
+                  supplierGhgConfig={isSupplierUser ? supplierReportingConfig : null}
+                  supplierContext={isSupplierUser}
                   assignedReportingPeriod={supplierReportingConfig}
                   onFormChange={markFormDirty}
                   kpiAccessInfo={kpiAccessInfo}

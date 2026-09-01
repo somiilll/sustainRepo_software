@@ -47,7 +47,7 @@ export const TrainingViewer = ({ assignmentId, viewer, getAuthHeader, onProgress
 
   const MediaTag = viewer.viewer_type === 'video' ? 'video' : 'audio';
   return <div className="space-y-4" data-testid={`training-${viewer.viewer_type}-player`}>
-    <MediaTag src={viewer.asset_url} controls controlsList="nodownload" className={viewer.viewer_type === 'video' ? 'aspect-video w-full bg-black' : 'w-full'} onContextMenu={(event) => event.preventDefault()} onTimeUpdate={(event) => recordMedia(event.currentTarget)} onEnded={(event) => recordMedia(event.currentTarget, true)} data-testid="training-media-element" />
+    <MediaTag src={viewer.asset_url} controls controlsList="nodownload noremoteplayback" disablePictureInPicture={viewer.viewer_type === 'video'} className={viewer.viewer_type === 'video' ? 'aspect-video w-full bg-black' : 'w-full'} onContextMenu={(event) => event.preventDefault()} onTimeUpdate={(event) => recordMedia(event.currentTarget)} onEnded={(event) => recordMedia(event.currentTarget, true)} data-testid="training-media-element" />
     <Progress value={0} className="invisible" data-testid="training-media-progress-placeholder" />
     {isSaving && <p className="flex items-center gap-2 text-xs text-stone-500" data-testid="training-progress-saving"><Loader2 className="h-3 w-3 animate-spin" />Saving progress</p>}
   </div>;

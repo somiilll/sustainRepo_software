@@ -92,7 +92,7 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
     section = kwargs.get("category") or ""
     keyword = kwargs.get("metric") or kwargs.get("entity_name") or ""
 
-    # 1. Primary data — esg_responses (actual filled values, incl. Section A)
+    # 1. Primary data from the canonical response store
     period_values = _period_values(kwargs.get("period"))
     question_filter = _question_key_filter(keyword)
     common_filters = [_framework_filter()]
@@ -103,9 +103,9 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
     if question_filter:
         common_filters.append(question_filter)
 
-    resp_query = {"$and": [{"organization_id": org_id}, *common_filters]}
+    resp_query = {"$and": [{"$or": [{"org_id": org_id}, {"organization_id": org_id}]}, *common_filters]}
 
-    filled = await db.esg_responses.find(resp_query, {"_id": 0}).sort("updated_at", -1).to_list(1000)
+    filled = await db.organization_esg_responses.find(resp_query, {"_id": 0}).sort("updated_at", -1).to_list(1000)
 
     # 2. Submission statuses (Section B/C approval flow)
     sub_query = {"$and": [{"organization_id": org_id}, *common_filters]}
@@ -117,17 +117,7 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
         for s in submissions if s.get("question_key")
     }
 
-    # 3. Unified collection data (organization_esg_responses)
-    unified = await db.organization_esg_responses.find(
-        {"$and": [{"$or": [{"org_id": org_id}, {"organization_id": org_id}]}, *common_filters]}, {"_id": 0}
-    ).to_list(1000)
-    unified_map = {
-        (u.get("question_key"), u.get("reporting_year") or u.get("reporting_period")): u
-        for u in unified if u.get("question_key") and _is_filled(u)
-    }
-
-    # Merge: filled values + submission status + unified data
-    seen_keys = set()
+    # Merge canonical values with submission metadata.
     records = []
     for r in filled:
         key = r.get("question_key")
@@ -135,7 +125,6 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
         if not key or not _is_filled(r):
             continue
         identity = (key, reporting_period)
-        seen_keys.add(identity)
         sub = sub_map.get(identity, {})
         records.append({
             "question_key": key,
@@ -146,19 +135,6 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
             "submitted_by": sub.get("submitted_by_user_name"),
             "submitted_at": sub.get("submitted_at"),
         })
-
-    # Add unified-only records not already seen
-    for (key, reporting_period), u in unified_map.items():
-        if (key, reporting_period) not in seen_keys:
-            sub = sub_map.get((key, reporting_period), {})
-            records.append({
-                "question_key": key,
-                "section": u.get("section"),
-                "reporting_period": reporting_period,
-                "value": u.get("value"),
-                "approval_status": sub.get("status"),
-            })
-
     # 4. Section-level progress
     section_pipeline = [
         {"$match": resp_query},
@@ -169,7 +145,7 @@ async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dic
         }},
         {"$sort": {"_id": 1}},
     ]
-    section_stats = await db.esg_responses.aggregate(section_pipeline).to_list(10)
+    section_stats = await db.organization_esg_responses.aggregate(section_pipeline).to_list(10)
 
     draft_count = await db.esg_response_drafts.count_documents({"$and": [{"organization_id": org_id}, *common_filters]})
     brsr_questions = await db.esg_question_configs.count_documents({"$and": [_framework_filter(), *([_section_filter(section)] if section else []), *([question_filter] if question_filter else [])]})

@@ -183,6 +183,9 @@ export default function EmissionEditForm(props) {
     // Optional props for approval mode
     hideSubmitButton = false,
     assignedReportingPeriod = null,
+    showAssignedReportingPeriodMessage = true,
+    readOnly = false,
+    readOnlyEvidenceContent = null,
   } = props;
 
   const setDraftField = useCallback((field, valueOrUpdater) => {
@@ -329,7 +332,9 @@ export default function EmissionEditForm(props) {
   }
 
   return (
-                <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
+                <form onSubmit={readOnly ? (event) => event.preventDefault() : handleSubmit} className="space-y-5" data-testid="emission-form">
+                {readOnly && <p className="sr-only" data-testid="emission-form-read-only-status">This emission record is read-only.</p>}
+                <fieldset disabled={readOnly} className="min-w-0 space-y-5 disabled:opacity-100" data-testid={readOnly ? "emission-form-read-only-fields" : undefined}>
                 <section className="space-y-5 rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="edit-form-inputs-section">
                 {/* Facility and Scope Selection - Extracted Component */}
                 <FacilityScopeSection
@@ -341,6 +346,7 @@ export default function EmissionEditForm(props) {
                   handleFuelSelect={handleFuelSelect}
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   markFormDirty={markFormDirty}
+                  readOnly={readOnly}
                   reportingPeriod={(
                     <div className="w-full min-w-[15rem] space-y-1.5" data-testid="edit-reporting-period-field">
                       {editFrequencyType === 'yearly' || assignedReportingPeriod ? (
@@ -350,7 +356,7 @@ export default function EmissionEditForm(props) {
                             <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
                             {editingEmission.reporting_period || 'N/A'}
                           </div>
-                          {assignedReportingPeriod && <p className="text-xs text-emerald-700" data-testid="supplier-edit-assigned-reporting-period-message">Assigned by your customer: {assignedReportingPeriod.reporting_period}</p>}
+                          {assignedReportingPeriod && showAssignedReportingPeriodMessage && <p className="text-xs text-emerald-700" data-testid="supplier-edit-assigned-reporting-period-message">Assigned by your customer: {assignedReportingPeriod.reporting_period}</p>}
                         </>
                       ) : (
                         <>
@@ -406,7 +412,7 @@ export default function EmissionEditForm(props) {
                           <Label htmlFor="category_select">Select Category *</Label>
                           <div className="relative">
                             <CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-                            <select
+                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <select
                               id="category_select"
                               value={selectedCategory}
                               onChange={(e) => handleCategorySelect(e.target.value)}
@@ -418,7 +424,7 @@ export default function EmissionEditForm(props) {
                               {getCategoriesForScope.map(category => (
                                 <option key={category} value={category}>{category}</option>
                               ))}
-                            </select>
+                            </select>}
                           </div>
                         </div>
                         
@@ -539,7 +545,7 @@ export default function EmissionEditForm(props) {
                             {!editUseCustomFuel ? (
                               <div className="relative mt-1.5">
                                 <Droplet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-                                <select
+                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <select
                                   id="fuel_select"
                                   value={formData.fuel_id}
                                   onChange={(e) => handleFuelSelect(e.target.value)}
@@ -554,7 +560,7 @@ export default function EmissionEditForm(props) {
                                       {fuel.fuel_name}
                                     </option>
                                   ))}
-                                </select>
+                                </select>}
                               </div>
                             ) : (
                               <div className="space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
@@ -923,6 +929,8 @@ export default function EmissionEditForm(props) {
                         const isOverrideEnabled = isFugitiveGwpField
                           || dynamicFieldValues[overrideKey] === true
                           || (
+                            !readOnly
+                            &&
                             field.variable === 'density'
                             && dynamicFieldValues[overrideKey] === undefined
                             && savedDensityValue !== undefined
@@ -1012,7 +1020,7 @@ export default function EmissionEditForm(props) {
                           (field.variable?.includes('supplier_based') || field.variable?.includes('supplier'));
                         
                         // Show checkbox for override fields OR optional fields (not required and not override)
-                        const showOverrideCheckbox = !isFugitiveGwpField
+                        const showOverrideCheckbox = !readOnly && !isFugitiveGwpField
                           && (field.isOverride || (!field.required && !field.isOverride));
 
                         return (
@@ -1157,7 +1165,7 @@ export default function EmissionEditForm(props) {
                                 
                                 {/* Non-supplier basis - use dropdown for units */}
                                 {!isSupplierBasisUnitField && showUnitSelector && (
-                                  <select
+                                  readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-24 shrink-0 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid={showCustomFuelQuantityUnit ? 'edit-custom-fuel-quantity-unit' : `edit-unit-${field.fieldKey}`}>{showCustomFuelQuantityUnit ? (dynamicFieldValues.custom_qty_unit || savedUnit || field.expectedUnit || '—') : (dynamicFieldValues[`${field.variable}_unit`] || savedUnit || (isQtyField ? formData.quantity_unit : '') || field.expectedUnit || '—')}</div> : <select
                                     value={showCustomFuelQuantityUnit
                                       ? (dynamicFieldValues.custom_qty_unit || savedUnit || unitSelectorOptions[0] || '')
                                       : (dynamicFieldValues[`${field.variable}_unit`] || savedUnit || unitSelectorOptions[0] || '')}
@@ -1479,6 +1487,8 @@ export default function EmissionEditForm(props) {
                   )
                 )}
 
+                </fieldset>
+
                 <EditOptionalFields
                   formData={formData}
                   setFormData={setFormData}
@@ -1486,10 +1496,11 @@ export default function EmissionEditForm(props) {
                   capabilities={capabilities}
                   selectedCategory={selectedCategory}
                   isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
+                  readOnly={readOnly}
                 />
 
                 {/* Evidence Management Section */}
-                <div className="space-y-3">
+                {readOnly ? readOnlyEvidenceContent : <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
                   <div className="flex items-center justify-between">
                     <Label>Evidence Documents</Label>
                     {existingEvidences.length > 0 && (
@@ -1507,7 +1518,7 @@ export default function EmissionEditForm(props) {
                   </div>
                   
                   {/* Existing Evidences List */}
-                  {existingEvidences.length > 0 && (
+                  {existingEvidences.length > 0 ? (
                     <div className="space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
                       <p className="text-xs text-stone-500 font-medium mb-2">
                         {existingEvidences.length} evidence file(s) attached
@@ -1564,7 +1575,7 @@ export default function EmissionEditForm(props) {
                         );
                       })}
                     </div>
-                  )}
+                  ) : <div className="flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-500" data-testid="emission-edit-no-evidence"><FileText className="h-4 w-4" />No Evidence</div>}
                   
                   {/* Upload New Evidence */}
                   <FileUpload
@@ -1573,7 +1584,7 @@ export default function EmissionEditForm(props) {
                     onRemove={handleRemoveEvidence}
                     multiple={true}
                   />
-                </div>
+                </div>}
 
                 {/* Submit Buttons - Extracted Component */}
                 {!hideSubmitButton && (

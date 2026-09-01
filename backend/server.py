@@ -65,6 +65,7 @@ from app.bootstrap.contract_verifier import verify_module_contracts
 from modules.auth.dependencies import get_current_user, get_super_admin_user, get_admin_user, security
 from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_ghg_scope_access, require_entitlement
 from modules.auth.router import router as auth_router
+from modules.contact_sales.router import router as contact_sales_router
 from modules.users.router import router as users_admin_router
 from app.router.health import router as health_router
 
@@ -131,6 +132,7 @@ api_router = APIRouter(prefix="/api")
 # These routers carry their own routes — we register them on `api_router`
 # so the existing `/api/...` prefix is preserved.
 api_router.include_router(auth_router)
+api_router.include_router(contact_sales_router)
 api_router.include_router(users_admin_router)
 api_router.include_router(health_router)
 # Phase B3 routers
@@ -2127,7 +2129,7 @@ async def create_base_year_emissions(
     filtered_emissions = [e for e in data.emissions_data if is_valid_scope(e.scope)]
     
     # Determine status based on emissions data
-    status = "configured" if len(filtered_emissions) > 0 else "incomplete"
+    base_year_status = "configured" if len(filtered_emissions) > 0 else "incomplete"
     
     record = {
         "id": str(uuid.uuid4()),
@@ -2141,7 +2143,7 @@ async def create_base_year_emissions(
         "sinks_data": data.sinks_data,
         "justification": data.justification.strip(),
         "notes": data.notes,
-        "status": status,
+        "status": base_year_status,
         "version": 1,
         "version_history": [{
             "version": 1,
@@ -2230,6 +2232,19 @@ async def get_base_year_emissions(
             record["justification"] = record.get("notes", "")
     
     return records
+
+
+@api_router.get("/base-year-emissions/validate-for-report")
+async def validate_base_year_for_report(
+    current_user: dict = Depends(get_current_user),
+    facility_ids: List[str] = Query(default=[]),
+    include_org_level: bool = False,
+):
+    return await _validate_base_year_for_report(
+        current_user=current_user,
+        facility_ids=facility_ids,
+        include_org_level=include_org_level,
+    )
 
 
 @api_router.get("/base-year-emissions/{record_id}", response_model=BaseYearEmissionsResponse)
@@ -2755,11 +2770,10 @@ async def check_base_year_exists(
     }
 
 
-@api_router.get("/base-year-emissions/validate-for-report")
-async def validate_base_year_for_report(
-    current_user: dict = Depends(get_current_user),
-    facility_ids: List[str] = Query(default=[]),
-    include_org_level: bool = False
+async def _validate_base_year_for_report(
+    current_user: dict,
+    facility_ids: List[str],
+    include_org_level: bool,
 ):
     """Validate that base year data exists for report generation.
     
@@ -3206,7 +3220,7 @@ async def get_audit_logs(
     resource_id: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    status: Optional[str] = None,
+    status_filter: Optional[str] = Query(default=None, alias="status"),
     search: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
@@ -3233,7 +3247,7 @@ async def get_audit_logs(
         resource_id=resource_id,
         start_date=start_date,
         end_date=end_date,
-        status=status,
+        status=status_filter,
         search=search,
         skip=skip,
         limit=limit,

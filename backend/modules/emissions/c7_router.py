@@ -372,6 +372,33 @@ async def get_c7_yearly_summary(
         "old_entries_count": len(old_entries)
     }
 
+@router.get("/emissions/c7/yearly/{facility_id}/{reporting_year}")
+async def get_c7_yearly_entry(
+    facility_id: str,
+    reporting_year: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get yearly C7 entry for a facility."""
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    entry = await db.emission_records.find_one({
+        "facility_id": facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_period": reporting_year,
+        "frequency_type": "yearly",
+        "c7_data_model_version": 2,
+    }, {"_id": 0})
+    if not entry:
+        return {"message": "No yearly C7 entry found", "facility_id": facility_id, "reporting_year": reporting_year}
+    entry["facility_name"] = facility.get("name", "")
+    entry["calculation_method"] = entry.get("calculation_method_scope3", "")
+    return entry
+
+
 @router.get("/emissions/c7/{facility_id}/{year}/{month}", response_model=C7MonthlyEntryResponse)
 async def get_c7_monthly_entry(
     facility_id: str,
@@ -707,39 +734,6 @@ async def create_or_update_c7_yearly_entry(
         new_record["activity_id"] = entry_data.activity_id
         new_record["activity_name"] = entry_data.activity_name
         return C7YearlyEntryResponse(**new_record)
-
-@router.get("/emissions/c7/yearly/{facility_id}/{reporting_year}")
-async def get_c7_yearly_entry(
-    facility_id: str,
-    reporting_year: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Get yearly C7 entry for a facility"""
-    
-    # Verify facility access
-    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
-    if not facility:
-        raise HTTPException(status_code=404, detail="Facility not found")
-    
-    org_id = facility.get("organization_id")
-    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Find yearly entry
-    entry = await db.emission_records.find_one({
-        "facility_id": facility_id,
-        "category": "C7 - Employee Commuting",
-        "reporting_period": reporting_year,
-        "frequency_type": "yearly",
-        "c7_data_model_version": 2
-    }, {"_id": 0})
-    
-    if not entry:
-        return {"message": "No yearly C7 entry found", "facility_id": facility_id, "reporting_year": reporting_year}
-    
-    entry["facility_name"] = facility.get("name", "")
-    entry["calculation_method"] = entry.get("calculation_method_scope3", "")
-    return entry
 
 @router.post("/emissions/c7/migrate/{facility_id}/{year}")
 async def migrate_c7_to_monthly_model(

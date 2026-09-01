@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { AlertTriangle, Menu, X, Lock } from 'lucide-react';
 import { isSupplierLockedRoute, SUPPLIER_PREMIUM_TOOLTIP } from '../config/supplierNavigation';
+import { ContactSalesDialog } from './ContactSalesDialog';
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -28,7 +29,7 @@ const SUPPLIER_ALLOWED_ROUTES = [
 ];
 
 // Locked overlay for supplier users - Full screen coverage
-const SupplierLockedOverlay = ({ children }) => (
+const SupplierLockedOverlay = ({ children, onContactSales }) => (
   <div className="fixed inset-0 z-50 lg:left-64 left-0"> {/* Account for sidebar width on large screens */}
     {/* Blurred background for sneak peek */}
     <div className="absolute inset-0 overflow-hidden">
@@ -49,7 +50,7 @@ const SupplierLockedOverlay = ({ children }) => (
         <p className="text-stone-500 text-sm mb-6 leading-relaxed">
           {SUPPLIER_PREMIUM_TOOLTIP.description}
         </p>
-        <button className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
+        <button onClick={onContactSales} className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm" data-testid="contact-sales-button">
           Contact Sales
         </button>
       </div>
@@ -58,10 +59,12 @@ const SupplierLockedOverlay = ({ children }) => (
 );
 
 export default function Layout() {
-  const { user, getAuthHeader } = useAuth();
+  const { user, token, getAuthHeader } = useAuth();
   const [subscriptionWarning, setSubscriptionWarning] = useState(null);
   const [warningDismissed, setWarningDismissed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [contactSalesOpen, setContactSalesOpen] = useState(false);
+  const [supplierModules, setSupplierModules] = useState(null);
   const location = useLocation();
   
   // Check if user is a supplier
@@ -74,6 +77,9 @@ export default function Layout() {
   const isExplicitlyLockedSupplierRoute = isSupplierLockedRoute(location.pathname);
   const isSupplierAssessmentRoute = location.pathname.startsWith('/supplier-assessment');
   const isSupplierAssessmentWorkspace = isSupplier && isSupplierAssessmentRoute;
+  const supplierGhgIsAssigned = supplierModules?.includes('ghg');
+  const isSupplierGhgPremiumRoute = location.pathname === '/facilities' || location.pathname.startsWith('/ghg');
+  const isUnassignedSupplierGhgPremiumRoute = isSupplier && supplierModules !== null && !supplierGhgIsAssigned && isSupplierGhgPremiumRoute;
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -81,6 +87,16 @@ export default function Layout() {
       checkSubscription();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!token || !isSupplier) {
+      setSupplierModules(null);
+      return;
+    }
+    axios.get(`${API}/supplier-assessment/my-assessment`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => setSupplierModules((response.data.assessment_modules || []).map((module) => module.code)))
+      .catch(() => setSupplierModules(null));
+  }, [token, isSupplier]);
 
   const checkSubscription = async () => {
     try {
@@ -170,8 +186,8 @@ export default function Layout() {
               }
             >
             {/* Show locked overlay for suppliers on restricted routes */}
-            {isSupplier && (isExplicitlyLockedSupplierRoute || !isAllowedRoute) ? (
-              <SupplierLockedOverlay>
+            {isSupplier && (isExplicitlyLockedSupplierRoute || isUnassignedSupplierGhgPremiumRoute || !isAllowedRoute) ? (
+              <SupplierLockedOverlay onContactSales={() => setContactSalesOpen(true)}>
                 <Outlet />
               </SupplierLockedOverlay>
             ) : (
@@ -181,6 +197,7 @@ export default function Layout() {
         </div>
 
       </main>
+      <ContactSalesDialog open={contactSalesOpen} onOpenChange={setContactSalesOpen} user={user} getAuthHeader={getAuthHeader} />
     </div>
   );
 }

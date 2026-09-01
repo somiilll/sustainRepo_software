@@ -24,8 +24,12 @@ class _Collection:
     @staticmethod
     def _matches(doc, query):
         for key, value in query.items():
-            if isinstance(value, dict) and "$in" in value:
-                if doc.get(key) not in value["$in"]:
+            if isinstance(value, dict):
+                if "$in" in value and doc.get(key) not in value["$in"]:
+                    return False
+                if "$nin" in value and doc.get(key) in value["$nin"]:
+                    return False
+                if "$ne" in value and doc.get(key) == value["$ne"]:
                     return False
                 continue
             if doc.get(key) != value:
@@ -53,6 +57,23 @@ class _Collection:
                 return
         if upsert:
             self.docs.append(deepcopy(update.get("$set", {})))
+
+    async def update_many(self, query, update):
+        for index, doc in enumerate(self.docs):
+            matches = True
+            for key, value in query.items():
+                if isinstance(value, dict) and "$nin" in value:
+                    matches = doc.get(key) not in value["$nin"]
+                elif isinstance(value, dict) and "$in" in value:
+                    matches = doc.get(key) in value["$in"]
+                else:
+                    matches = doc.get(key) == value
+                if not matches:
+                    break
+            if matches:
+                next_doc = deepcopy(doc)
+                next_doc.update(update.get("$set", {}))
+                self.docs[index] = next_doc
 
     async def insert_one(self, doc):
         self.docs.append(deepcopy(doc))
@@ -218,6 +239,25 @@ async def test_update_progress_status_lifecycle_and_version_id_immutable(monkeyp
 
     with pytest.raises(ValueError, match="between 0 and 100"):
         await training_service.update_progress(relationship, "assignment-1", 101, "supplier-user")
+
+
+@pytest.mark.asyncio
+async def test_training_sync_never_reactivates_historical_assignments(monkeypatch):
+    fake_db = _DB(
+        supplier_training_requirements=[{"id": "requirement-1", "organization_id": "org-1", "training_version_id": "version-current", "is_active": True, "is_deleted": False}],
+        supplier_training_assignments=[{"id": "historical-assignment", "supplier_relationship_id": "relationship-1", "organization_id": "org-1", "training_requirement_id": "requirement-1", "requirement_version_id": "version-historic", "reporting_period": "FY 2025-26", "is_active": False}],
+    )
+    monkeypatch.setattr(training_service, "db", fake_db)
+    relationship = {"id": "relationship-1", "customer_org_id": "org-1", "reporting_period": "FY 2026-27"}
+
+    assignment_ids = await training_service.synchronize_training_assignments(relationship, ["requirement-1"])
+
+    historical = next(item for item in fake_db.supplier_training_assignments.docs if item["id"] == "historical-assignment")
+    current = next(item for item in fake_db.supplier_training_assignments.docs if item["id"] in assignment_ids)
+    assert historical["is_active"] is False
+    assert current["id"] != historical["id"]
+    assert current["reporting_period"] == "FY 2026-27"
+    assert current["requirement_version_id"] == "version-current"
 
 
 @pytest.mark.asyncio

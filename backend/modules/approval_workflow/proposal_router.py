@@ -214,6 +214,29 @@ async def edit_proposal(
     return result
 
 
+@router.post("/batch/reject")
+async def batch_reject_proposals(
+    proposal_ids: List[str],
+    reason: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Reject multiple proposals at once."""
+    user_id = current_user.get("id")
+    results = []
+    for proposal_id in proposal_ids:
+        try:
+            await check_approver_access(proposal_id, user_id)
+            await proposal_service.reject_proposal(
+                proposal_id=proposal_id,
+                approver_id=user_id,
+                rejection_reason=reason,
+            )
+            results.append({"id": proposal_id, "success": True})
+        except Exception as error:
+            results.append({"id": proposal_id, "success": False, "error": str(error)})
+    return {"results": results}
+
+
 @router.post("/{proposal_id}/approve")
 async def approve_proposal(
     proposal_id: str,
@@ -314,30 +337,3 @@ async def withdraw_proposal(
     return {"success": True, "message": "Proposal withdrawn"}
 
 
-# ============================================================================
-# Batch Operations
-# ============================================================================
-
-@router.post("/batch/reject")
-async def batch_reject_proposals(
-    proposal_ids: List[str],
-    reason: str = Query(...),
-    current_user: dict = Depends(get_current_user),
-):
-    """Reject multiple proposals at once."""
-    user_id = current_user.get("id")
-    
-    results = []
-    for pid in proposal_ids:
-        try:
-            await check_approver_access(pid, user_id)
-            result = await proposal_service.reject_proposal(
-                proposal_id=pid,
-                approver_id=user_id,
-                rejection_reason=reason,
-            )
-            results.append({"id": pid, "success": True})
-        except Exception as e:
-            results.append({"id": pid, "success": False, "error": str(e)})
-    
-    return {"results": results}

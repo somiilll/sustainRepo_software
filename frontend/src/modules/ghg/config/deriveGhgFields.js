@@ -237,13 +237,14 @@ const isMappingApplicable = ({
 
   if (useCustomFuel && HANDLED_BY_CUSTOM_FUEL.includes(m.maps_to_variable)) return false;
 
-  // Property-based Heat/Quantity conversions can need density even when a
-  // Process Emissions formula does not list it as a formula variable. Keep the
-  // mapped field available; the runtime unit resolver decides when to show it.
+  // Keep Density available as a candidate for every supported conversion
+  // method. The row-level unit resolver is the sole authority for whether the
+  // field is hidden, optional with a fuel default, or required.
   if (
     m.maps_to_variable === 'density'
-    && ['using_heat_basis_ncv', 'using_qty_basis_ef'].includes(decisionFieldValues.calculation_methodology)
-    && !selectedFuel?.density
+    && ['using_heat_basis_ncv', 'using_qty_basis_ef', 'using_carbon_composition'].includes(
+      decisionFieldValues.calculation_methodology,
+    )
   ) {
     return true;
   }
@@ -258,16 +259,7 @@ const isMappingApplicable = ({
       ) {
         return true;
       }
-      // Density is a runtime conditional field for Qty Basis. The actual unit
-      // pair is chosen in the form, so the UI resolves requiredness later from
-      // central unit metadata rather than guessing from a category/fuel list.
-      if (m.maps_to_variable === 'density') {
-        if (decisionFieldValues.calculation_methodology === 'using_qty_basis_ef') {
-          const fuelHasDensity = selectedFuel?.density != null && selectedFuel.density > 0;
-          return !fuelHasDensity;
-        }
-        return (matchedFormula.inputs || []).some((inp) => inp.allow_dimension_conversion);
-      }
+      if (m.maps_to_variable === 'density') return true;
       return false;
     }
     if (requiredInputVars.includes(m.maps_to_variable)) return true;

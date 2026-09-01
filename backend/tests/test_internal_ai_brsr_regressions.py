@@ -7,8 +7,9 @@ from modules.internal_data_ai.reporting_periods import extract_explicit_period
 from modules.internal_data_ai.services import brsr
 
 
-def test_generic_brsr_count_does_not_create_question_key_filter():
-    plan = build_query_plan(
+@pytest.mark.asyncio
+async def test_generic_brsr_count_does_not_create_question_key_filter():
+    plan = await build_query_plan(
         "How many BRSR questions are filled?",
         {"intent": "brsr_lookup", "entities": {"metric": "BRSR questions filled"}},
         None,

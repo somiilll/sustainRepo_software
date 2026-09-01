@@ -48,7 +48,7 @@ class TestSinksPerMonthRecords:
         for sink_id in self.created_sink_ids:
             try:
                 self.session.delete(f"{BASE_URL}/api/sinks/{sink_id}")
-            except:
+            except requests.RequestException:
                 pass
     
     def test_create_sink_with_reporting_month(self):
@@ -312,7 +312,7 @@ class TestSinksAPIEdgeCases:
         for sink_id in self.created_sink_ids:
             try:
                 self.session.delete(f"{BASE_URL}/api/sinks/{sink_id}")
-            except:
+            except requests.RequestException:
                 pass
     
     def test_reporting_month_boundary_values(self):
