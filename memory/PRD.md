@@ -661,8 +661,13 @@ Provide a dependable ESG and GHG management platform where organization configur
 
 ## Latest Changes — 2026-09-01 (Training Disable/Enable Recovery)
 - Disabled trainings now remain visible in the parent Training workspace with a Disabled status and an accessible Enable action. Manage suppliers is unavailable until the training is enabled again.
-- Disabling records an auditable deactivation batch. Re-enabling creates fresh active assignments only for suppliers who were disabled in that batch and whose current reporting period still matches, preserving every prior assignment row as immutable history.
+- Disabling records an auditable deactivation batch. Re-enabling reactivates the original assignment rows only for suppliers disabled in that batch whose current reporting period still matches, preserving linked progress and completed status.
 - Focused lifecycle tests and frontend static checks passed before the user requested no additional testing. No further tests were run.
+
+## Latest Changes — 2026-09-01 (Training Completion-preserving Re-enable)
+- Re-enabling a training now restores the original eligible assignment records rather than creating replacements. Existing completion, page/slide progress, and training status remain attached to their original assignment IDs and are immediately visible to suppliers.
+- Explicitly unassigned suppliers remain excluded. Legacy disabled trainings use their matching historical assignment only when no deactivation batch exists.
+- **NOT TESTED**, per the user's explicit instruction.
 
 ## Latest Changes — 2026-09-01 (Create Supplier Assignment Availability)
 - Create Supplier now hides the ESG Questionnaire module entirely when no active ESG questionnaire is available and removes ESG from the submitted module selection in that state.

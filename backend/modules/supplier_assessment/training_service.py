@@ -355,27 +355,26 @@ async def update_training(org_id: str, requirement_id: str, updates: Dict[str, A
                 {"_id": 0, "id": 1, "reporting_period": 1},
             ).to_list(1000)
             relationships_by_id = {relationship["id"]: relationship for relationship in relationships}
-            restored_keys = set()
+            assignments_to_restore = {}
             for assignment in historical_assignments:
                 relationship = relationships_by_id.get(assignment["supplier_relationship_id"])
                 reporting_period = assignment.get("reporting_period")
                 if not relationship or reporting_period != relationship.get("reporting_period"):
                     continue
                 restore_key = (relationship["id"], reporting_period)
-                if restore_key in restored_keys:
-                    continue
-                restored_keys.add(restore_key)
+                current = assignments_to_restore.get(restore_key)
+                if current is None or assignment.get("assigned_at", "") > current.get("assigned_at", ""):
+                    assignments_to_restore[restore_key] = assignment
+            for (supplier_relationship_id, reporting_period), assignment in assignments_to_restore.items():
                 existing = await db.supplier_training_assignments.find_one(
-                    {"supplier_relationship_id": relationship["id"], "training_requirement_id": requirement_id, "reporting_period": reporting_period, "is_active": True},
+                    {"supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id, "reporting_period": reporting_period, "is_active": True},
                     {"_id": 0, "id": 1},
                 )
                 if not existing:
-                    await db.supplier_training_assignments.insert_one({
-                        "id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id,
-                        "training_requirement_id": requirement_id, "requirement_version_id": requirement["training_version_id"],
-                        "reporting_period": reporting_period, "assigned_at": now, "is_active": True,
-                        "restored_from_assignment_id": assignment["id"], "restored_at": now, "assignment_reason": "training_reenabled",
-                    })
+                    await db.supplier_training_assignments.update_one(
+                        {"id": assignment["id"], "is_active": False},
+                        {"$set": {"is_active": True, "updated_at": now, "reactivated_at": now, "reactivated_from_deactivation_batch_id": last_disabled_batch_id}},
+                    )
         relationships = await db.supplier_relationships.find(
             {"id": {"$in": await db.supplier_training_assignments.distinct("supplier_relationship_id", {"training_requirement_id": requirement_id, "organization_id": org_id})}, "is_active": True},
             {"_id": 0, "id": 1},

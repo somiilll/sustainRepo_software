@@ -273,7 +273,7 @@ async def test_training_sync_never_reactivates_historical_assignments(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_reenabling_training_restores_new_active_assignments(monkeypatch):
+async def test_reenabling_training_reactivates_original_assignments(monkeypatch):
     fake_db = _DB(
         supplier_training_requirements=[{"id": "requirement-1", "organization_id": "org-1", "training_version_id": "version-1", "is_active": True, "is_deleted": False}],
         supplier_training_assignments=[{"id": "assignment-1", "supplier_relationship_id": "relationship-1", "organization_id": "org-1", "training_requirement_id": "requirement-1", "requirement_version_id": "version-1", "reporting_period": "FY 2026-27", "is_active": True}],
@@ -294,10 +294,11 @@ async def test_reenabling_training_restores_new_active_assignments(monkeypatch):
     await training_service.update_training("org-1", "requirement-1", {"is_active": True})
     active_assignments = [item for item in fake_db.supplier_training_assignments.docs if item["is_active"]]
     assert len(active_assignments) == 1
-    assert active_assignments[0]["id"] != "assignment-1"
+    assert len(fake_db.supplier_training_assignments.docs) == 1
+    assert active_assignments[0]["id"] == "assignment-1"
     assert active_assignments[0]["supplier_relationship_id"] == "relationship-1"
     assert active_assignments[0]["reporting_period"] == "FY 2026-27"
-    assert active_assignments[0]["restored_from_assignment_id"] == "assignment-1"
+    assert active_assignments[0]["reactivated_at"]
     assert refreshed == ["relationship-1", "relationship-1"]
 
 
