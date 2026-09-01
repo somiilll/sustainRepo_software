@@ -649,3 +649,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Supplier period ledger supports submit, locked state, unlock request, overdue state, and parent-supplied instructions. Parent unlock now requires a reason, accepts optional supplier instructions, and uses a single form with no secondary confirmation. Unlock/resubmit events are retained with revisions in the submission audit history.
 - Validation passed: Python compilation, focused and full frontend ESLint (zero errors/warnings after removing 15 stale lint suppressions), live supplier period API check, supplier ledger smoke, parent unlock-form interaction with a temporary cleaned-up fixture, and supplier cadence regression checks (**9 passed; the one excluded check observes Cloudflare's external CORS preflight rewrite while the internal FastAPI response is explicitly origin-scoped**). No mocked APIs were used.
 - `/app/test_reports/iteration_33.json` — Supplier GHG submission cadence verification.
+
+## Latest Changes — 2026-09-01 (Netlify Recharts Dependency Lock)
+- Pinned the frontend `recharts` dependency to the exact `3.6.0` version and regenerated `frontend/yarn.lock` from the frontend workspace.
+- Verification passed: `yarn build` completed successfully with the resolved lockfile entry `recharts@3.6.0`.
+- `frontend/yarn.lock` is present but is currently untracked by Git; it must be included through **Save to Github** before the Netlify-deployed branch can consume the deterministic dependency resolution.
