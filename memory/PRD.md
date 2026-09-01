@@ -507,6 +507,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Increased the Supplier sustainability risk matrix canvas from 118px to 220px, providing more vertical space for quadrants, labels, and plotted supplier markers.
 - **NOT TESTED** after implementation, following the user’s earlier instruction not to test.
 
+## Latest Changes — 2026-09-01 (Supplier Ranking KPI Card Reference Match)
+- Rebuilt the four Supplier Rankings KPI cards to match the supplied reference: large rounded, accent-colored borders; blue, teal, amber, and rose themes; colored circular icons; prominent values; and soft wave-style lower decorations.
+- Verified with an authenticated desktop browser smoke check that the live Supplier Rankings page renders all four cards correctly. No APIs or data behavior changed.
+
 ## Latest Changes — 2026-08-31 (Supplier GHG First-Submission Repair)
 - Fixed supplier GHG period submission failing with HTTP 500 for a period without a prior submission ledger record. New submissions now initialize their audit history from an empty list, while resubmissions retain existing history.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
