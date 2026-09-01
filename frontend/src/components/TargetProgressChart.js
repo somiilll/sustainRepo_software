@@ -5,7 +5,7 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Legend, Cell, Dot
+  ResponsiveContainer, ReferenceLine, Legend, Cell
 } from 'recharts';
 import { TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react';
 
