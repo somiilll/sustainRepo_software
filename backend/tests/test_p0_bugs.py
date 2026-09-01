@@ -12,7 +12,7 @@ import requests
 import os
 import io
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ghg-reporting-hub.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://emissions-review.preview.emergentagent.com').rstrip('/')
 API = f"{BASE_URL}/api"
 
 # Test credentials

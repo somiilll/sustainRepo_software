@@ -58,5 +58,5 @@
   "retest_needed": true,
   "should_main_agent_self_test": true,
   "context_for_next_testing_agent": "Backend regression file includes restore fixture for admin org canonical+legacy settings. Frontend paths are /super-admin/organizations and /super-admin/org-config (not /organizations or /org-config).",
-  "rca of the issue": "CORS failure RCA: auth preflight currently responds with wildcard origin, which conflicts with strict credentialed-origin requirements in the auth playbook. Repro: OPTIONS /api/auth/login with Origin=https://ghg-reporting-hub.preview.emergentagent.com + Access-Control-Request-Method: POST returns ACAO='*'. Mitigation: configure explicit allowlist origin reflection with allow_credentials=true."
+  "rca of the issue": "CORS failure RCA: auth preflight currently responds with wildcard origin, which conflicts with strict credentialed-origin requirements in the auth playbook. Repro: OPTIONS /api/auth/login with Origin=https://emissions-review.preview.emergentagent.com + Access-Control-Request-Method: POST returns ACAO='*'. Mitigation: configure explicit allowlist origin reflection with allow_credentials=true."
 }

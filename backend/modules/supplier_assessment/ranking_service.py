@@ -83,6 +83,19 @@ async def get_supplier_rankings(
         except ValueError:
             return False
 
+
+    def dedupe_document_requirements(requirements: list[Dict[str, Any]], relationship_id: str) -> list[Dict[str, Any]]:
+        """Keep one applicable requirement per document version, preferring an explicit supplier assignment."""
+        selected: Dict[str, Dict[str, Any]] = {}
+        for requirement in requirements:
+            document_key = requirement.get("document_version_id") or requirement["id"]
+            current = selected.get(document_key)
+            is_explicit = relationship_id in (requirement.get("supplier_relationship_ids") or [])
+            current_is_explicit = current and relationship_id in (current.get("supplier_relationship_ids") or [])
+            if not current or (is_explicit and not current_is_explicit):
+                selected[document_key] = requirement
+        return list(selected.values())
+
     rankings = []
     module_totals: Dict[str, Dict[str, float]] = {}
     for s in suppliers:
@@ -109,7 +122,7 @@ async def get_supplier_rankings(
             response["questionnaire_id"] for response in supplier_responses if response.get("status") == "submitted"
         }
         submitted_count = len(submitted_questionnaire_ids)
-        applicable_documents = [
+        applicable_documents = dedupe_document_requirements([
             requirement for requirement in document_requirements
             if (
                 (not requirement.get("reporting_period") or requirement["reporting_period"] == s.get("reporting_period"))
@@ -122,7 +135,7 @@ async def get_supplier_rankings(
                     )
                 )
             )
-        ]
+        ], s["id"])
         applicable_training = [
             assignment for assignment in training_assignments
             if assignment["supplier_relationship_id"] == s["id"]

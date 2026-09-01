@@ -495,7 +495,7 @@ export default function QuestionnaireBuilder() {
     const esgTotal = Object.values(questionnaireForm.esg_section_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
     const overallTotal = Object.values(questionnaireForm.overall_supplier_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
     if (Math.abs(esgTotal - 100) > 0.01 || Math.abs(overallTotal - 100) > 0.01) {
-      toast.error(`Weights need to total 100% in both sections. ESG categories: ${esgTotal.toFixed(2)}%. Overall components: ${overallTotal.toFixed(2)}%.`);
+      toast.error(`Weight distribution is incomplete, must be 100% currently it is ${esgTotal.toFixed(2)}%.`);
       return false;
     }
     return true;

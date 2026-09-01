@@ -493,6 +493,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - **P0:** Add an explicit existing-supplier assessment-program revision migration/reassignment flow so parents can align supplier GHG permissions after changing Custom Fuel, Process Emissions, or Flaring policy.
 - **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.
 
+## Latest Changes — 2026-09-01 (Supplier Ranking Overview Reference Layout)
+- Rebuilt the Supplier Assessment → Ranking → Overview tab around the supplied three-column reference hierarchy: score bands, score distribution, and top performers; module coverage, attention-required rows, and overdue follow-up; then the risk matrix, training progress, and document progress.
+- Updated the Good score-band treatment to orange and separated the overdue follow-up card into its dedicated right-side panel, preserving live ranking data, existing actions, and test IDs.
+- **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
+
 ## Latest Changes — 2026-08-31 (Supplier GHG First-Submission Repair)
 - Fixed supplier GHG period submission failing with HTTP 500 for a period without a prior submission ledger record. New submissions now initialize their audit history from an empty list, while resubmissions retain existing history.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
@@ -564,6 +569,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Risk matrix grouping now recognizes low emissions as favorable: Strategic Suppliers are low-emission/high-ESG, while high-emission/high-ESG suppliers are Priority Improvement.
 - Ranking tabs now mount chart components only while active, preventing hidden Recharts panels from calculating invalid container dimensions during tab transitions.
 - Risk matrix, document completion, and training completion sections are positioned below the Top performing suppliers / Attention required row in Ranking Overview.
+- Document completion now deduplicates programme-default and supplier-specific assignments by document version, preferring the explicit supplier assignment. This prevents duplicate documents from inflating supplier progress denominators.
+- Ranking Overview visual refresh: added colorful premium card surfaces, depth, score accents, and distinct document/training progress treatments while retaining the existing light SustainRepo workspace design.
+- ESG Analysis now follows the supplied reference exactly: a pale mint canvas, white bento cards, horizontal score-breakdown panel, restrained card backgrounds, donut distribution, comparison chart, compact legend, and summary table. Color is reserved for data meaning rather than full-card backgrounds.
 
 ## Latest Changes — 2026-08-30 (Supplier Reminder, Due-Date, Revenue, and GHG Policy Repairs)
 - Supplier reminder selection now loads only modules that are currently incomplete. Email generation uses the same canonical submission state, scoped to the immutable assessment-program modules and assigned reporting period; completed GHG is no longer included merely because a legacy completion percentage is stale.
