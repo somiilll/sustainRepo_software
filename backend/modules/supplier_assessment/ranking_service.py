@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from shared.database.mongo import db
+from modules.supplier_assessment.ghg_submission_service import has_overdue_supplier_ghg_submission_window
 
 # ========================================================================
 # Supplier Rankings
@@ -34,6 +35,29 @@ async def get_supplier_rankings(
         {"_id": 0, "supplier_relationship_id": 1, "questionnaire_id": 1, "reporting_period": 1, "status": 1, "answers": 1, "revision": 1, "updated_at": 1},
     ).sort([("revision", -1), ("updated_at", -1)]).to_list(10000)
     supplier_by_id = {supplier["id"]: supplier for supplier in suppliers}
+    ghg_submission_records = await db.supplier_ghg_submissions.find(
+        {"relationship_id": {"$in": supplier_ids}},
+        {"_id": 0, "relationship_id": 1, "period_key": 1, "status": 1},
+    ).to_list(10000)
+    ghg_submission_statuses: Dict[str, Dict[str, str]] = {}
+    for record in ghg_submission_records:
+        relationship_id = record.get("relationship_id")
+        period_key = record.get("period_key")
+        if relationship_id and period_key:
+            ghg_submission_statuses.setdefault(relationship_id, {})[period_key] = record.get("status") or ""
+    revenue_submissions = await db.supplier_revenue_submissions.find(
+        {
+            "supplier_relationship_id": {"$in": supplier_ids},
+            "status": "submitted",
+            "parent_visible": {"$ne": False},
+        },
+        {"_id": 0, "supplier_relationship_id": 1, "reporting_period": 1},
+    ).to_list(10000)
+    submitted_revenue_periods = {
+        (record["supplier_relationship_id"], record.get("reporting_period"))
+        for record in revenue_submissions
+        if record.get("supplier_relationship_id")
+    }
     current_responses: Dict[tuple[str, str], Dict[str, Any]] = {}
     for response in response_docs:
         supplier = supplier_by_id.get(response["supplier_relationship_id"])
@@ -168,6 +192,16 @@ async def get_supplier_rankings(
         ):
             overdue_modules.append("ESG Questionnaire")
         enabled_modules = set(s.get("modules_enabled") or ["esg", "ghg"])
+        if "ghg" in enabled_modules and await has_overdue_supplier_ghg_submission_window(
+            s, ghg_submission_statuses.get(s["id"]),
+        ):
+            overdue_modules.append("GHG Emissions")
+        if (
+            s.get("revenue_required", False)
+            and (s["id"], s.get("reporting_period")) not in submitted_revenue_periods
+            and due_date_has_passed(s.get("due_date"))
+        ):
+            overdue_modules.append("Annual Revenue")
         if any(
             document_submission_status.get((s["id"], requirement["id"])) != "submitted"
             and due_date_has_passed(requirement.get("due_date"))

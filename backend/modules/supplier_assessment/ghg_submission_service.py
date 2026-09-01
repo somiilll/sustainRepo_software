@@ -237,6 +237,20 @@ def _submission_period_definitions(relationship: Dict[str, Any]) -> List[Dict[st
     return [resolve_supplier_submission_period(relationship, key, "monthly") for key in keys]
 
 
+async def has_overdue_supplier_ghg_submission_window(
+    relationship: Dict[str, Any], submission_statuses: Optional[Dict[str, str]] = None,
+) -> bool:
+    """Return whether an assigned GHG submission window is past due and not submitted."""
+    await _hydrate_reporting_year_start(relationship)
+    statuses = submission_statuses or {}
+    today = datetime.now(timezone.utc).date()
+    return any(
+        statuses.get(period["period_key"]) != "submitted"
+        and date.fromisoformat(period["due_date"]) < today
+        for period in _submission_period_definitions(relationship)
+    )
+
+
 def _period_entries_query(relationship: Dict[str, Any], period: Dict[str, Any]) -> Dict[str, Any]:
     query = {
         "source": "supplier",

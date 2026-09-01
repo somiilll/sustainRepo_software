@@ -511,6 +511,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Rebuilt the four Supplier Rankings KPI cards to match the supplied reference: large rounded, accent-colored borders; blue, teal, amber, and rose themes; colored circular icons; prominent values; and soft wave-style lower decorations.
 - Verified with an authenticated desktop browser smoke check that the live Supplier Rankings page renders all four cards correctly. No APIs or data behavior changed.
 
+## Latest Changes — 2026-09-01 (Ranking Overdue GHG and Annual Revenue States)
+- Extended the Supplier Rankings overdue read model so a supplier is now included once when they have any missed canonical GHG submission window, alongside ESG, Documents, and Training overdue states. GHG timing follows the assigned monthly, quarterly, or yearly window and its canonical due date.
+- Added Annual Revenue as an overdue module when the annual revenue requirement is enabled, the supplier assignment due date has passed, and there is no parent-visible submitted revenue record for the assigned reporting period.
+- Verification passed: testing-agent iteration 38 reported **6/6 focused backend checks** and **100% frontend KPI/API parity**. Live FY 2026-27 data returned 8 unique overdue suppliers, including GHG Emissions where applicable. No mocked APIs.
+
 ## Latest Changes — 2026-08-31 (Supplier GHG First-Submission Repair)
 - Fixed supplier GHG period submission failing with HTTP 500 for a period without a prior submission ledger record. New submissions now initialize their audit history from an empty list, while resubmissions retain existing history.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
