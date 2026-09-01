@@ -670,7 +670,7 @@ export default function SupplierList() {
                   <Label>Due Date</Label>
                   <FieldInfo label="After this date, the supplier assessment will be locked for the supplier." testId="supplier-due-date-info" />
                 </div>
-                <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} data-testid="supplier-due-date" />
+                <Input type="date" min={new Date().toISOString().slice(0, 10)} value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} data-testid="supplier-due-date" />
               </div>
             <div className="space-y-2">
               <div className="flex items-center gap-1.5">
@@ -836,8 +836,10 @@ export default function SupplierList() {
               <Label>Due Date</Label>
               <Input
                 type="date"
+                min={new Date().toISOString().slice(0, 10)}
                 value={formData.due_date}
                 onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                data-testid="edit-supplier-due-date"
               />
             </div>
             <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3">

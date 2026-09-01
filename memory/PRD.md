@@ -677,3 +677,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-01 (Muted Disabled Training State)
 - Disabled training cards now use a muted gray surface, softened text, gray completion indicator, and a compact Disabled status pill. The existing Enable action remains available from the overflow menu.
 - **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-01 (Physical R2 Asset Deletion)
+- Deleting a Supplier Document now physically deletes its source object from Cloudflare R2 before marking its requirements/version deleted. Deleting a Supplier Training removes its generated viewer-page objects first and source object last, then archives its records.
+- R2 failures return an explicit 502 error and leave the application deletion state unchanged. Deletion audit metadata records the successful storage cleanup without exposing storage URLs.

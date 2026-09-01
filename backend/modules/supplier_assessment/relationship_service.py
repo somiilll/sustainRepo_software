@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from modules.supplier_assessment.email_templates import supplier_invitation_email, supplier_reminder_email
+from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.programs import apply_legacy_request_overrides, bind_current_program, get_or_create_program_revision, resolve_program_context
 from shared.database.mongo import db
@@ -57,6 +58,7 @@ async def create_supplier(
     3. Generate temp password and send invitation email
     4. Create supplier_relationship record
     """
+    validate_due_date(due_date)
     company_name = (company_name or "").strip()
     duplicate_supplier = await db.supplier_relationships.find_one(
         {"customer_org_id": customer_org_id, "is_active": True, "company_name": {"$regex": f"^{re.escape(company_name)}$", "$options": "i"}},
@@ -321,6 +323,8 @@ async def update_supplier(
     relationship = await self.get_supplier(relationship_id)
     if not relationship:
         return None
+    if "due_date" in updates:
+        validate_due_date(updates["due_date"])
 
     if "modules_enabled" in updates or "ghg_scopes_enabled" in updates:
         context = await resolve_program_context(relationship)

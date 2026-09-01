@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
+from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.programs import resolve_program_context
 
 # ========================================================================
@@ -27,6 +28,7 @@ async def create_questionnaire(
     assignment_reporting_period: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a new questionnaire template."""
+    validate_due_date(due_date)
     questionnaire_id = str(uuid.uuid4())
     esg_weights = self._validated_weight_config(
         esg_section_weights or section_weights,
@@ -147,6 +149,8 @@ async def update_questionnaire(
     existing = await self.get_questionnaire(questionnaire_id)
     if not existing:
         return None
+    if "due_date" in updates:
+        validate_due_date(updates["due_date"])
     if "esg_section_weights" in updates or "section_weights" in updates:
         updates["esg_section_weights"] = self._validated_weight_config(
             updates.get("esg_section_weights") or updates.get("section_weights"),

@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
+from modules.supplier_assessment.due_dates import validate_due_date
 from modules.sustainability_config import service as sustainability_config_service
 from modules.supplier_assessment.programs import get_or_create_program_revision, resolve_program_context
 
@@ -92,6 +93,7 @@ async def publish_agreement(
     due_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Upload one organization agreement and bind it to immutable program revisions."""
+    validate_due_date(due_date)
     if not filename or content_type not in ALLOWED_DOCUMENT_TYPES:
         raise ValueError("Only PDF, DOC, and DOCX agreement files are supported")
     if not content or len(content) > MAX_DOCUMENT_SIZE:
@@ -270,6 +272,7 @@ async def synchronize_document_assignments(
 
 async def update_document_due_date(customer_org_id: str, requirement_id: str, due_date: Optional[str]) -> Optional[Dict[str, Any]]:
     """Keep every active program-specific requirement for one document version on one deadline."""
+    validate_due_date(due_date)
     requirement = await db.supplier_document_requirements.find_one(
         {"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
     )
@@ -546,14 +549,25 @@ async def archive_document(customer_org_id: str, requirement_id: str) -> Optiona
     if not requirement:
         return None
     now = _now()
+    version = await db.supplier_document_versions.find_one(
+        {"id": requirement["document_version_id"], "customer_org_id": customer_org_id}, {"_id": 0}
+    )
+    if version and version.get("r2_key") and version.get("bucket_type"):
+        try:
+            deleted = await get_r2_storage().delete_file(version["bucket_type"], version["r2_key"])
+            if not deleted:
+                raise ValueError("R2 did not confirm document deletion")
+        except Exception as error:
+            raise ValueError("Could not permanently delete the document file from storage") from error
     await db.supplier_document_requirements.update_many(
         {"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True},
         {"$set": {"is_active": False, "deleted_at": now}},
     )
-    await db.supplier_document_versions.update_one(
-        {"id": requirement["document_version_id"], "customer_org_id": customer_org_id},
-        {"$set": {"is_deleted": True, "deleted_at": now}},
-    )
+    if version:
+        await db.supplier_document_versions.update_one(
+            {"id": requirement["document_version_id"], "customer_org_id": customer_org_id},
+            {"$set": {"is_deleted": True, "deleted_at": now, "r2_delete_status": "deleted", "r2_deleted_at": now}},
+        )
     relationships = await db.supplier_relationships.find(
         {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1}
     ).to_list(1000)

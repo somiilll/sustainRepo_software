@@ -401,7 +401,10 @@ async def preview_document(requirement_id: str, current_user: dict = Depends(get
 @router.delete("/documents/{requirement_id}")
 async def delete_document(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
     """Remove an agreement from active supplier access while retaining immutable records."""
-    relationship_ids = await documents_service.archive_document(current_user["organization_id"], requirement_id)
+    try:
+        relationship_ids = await documents_service.archive_document(current_user["organization_id"], requirement_id)
+    except ValueError as error:
+        raise HTTPException(status_code=502, detail=str(error))
     if relationship_ids is None:
         raise HTTPException(status_code=404, detail="Agreement not found")
     for relationship_id in relationship_ids:
@@ -463,7 +466,11 @@ async def unassign_training_supplier(training_id: str, supplier_id: str, current
 
 @router.delete("/trainings/{training_id}")
 async def delete_training(training_id: str, current_user: dict = Depends(get_customer_admin)):
-    if not await training_service.archive_training(current_user["organization_id"], training_id):
+    try:
+        deleted = await training_service.archive_training(current_user["organization_id"], training_id)
+    except ValueError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+    if not deleted:
         raise HTTPException(status_code=404, detail="Training not found")
     return {"message": "Training deleted"}
 

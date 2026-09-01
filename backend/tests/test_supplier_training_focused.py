@@ -303,6 +303,32 @@ async def test_reenabling_training_reactivates_original_assignments(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_training_delete_removes_preview_and_source_r2_objects(monkeypatch):
+    fake_db = _DB(
+        supplier_training_requirements=[{"id": "requirement-1", "organization_id": "org-1", "training_version_id": "version-1", "is_active": True, "is_deleted": False}],
+        supplier_training_versions=[{"id": "version-1", "bucket_type": "supplier_assessment", "r2_key": "training/source.pdf", "viewer_manifest": {"pages": [{"r2_key": "training/source/viewer/page-1.png"}, {"r2_key": "training/source/viewer/page-2.png"}]}}],
+        supplier_training_assignments=[{"id": "assignment-1", "supplier_relationship_id": "relationship-1", "organization_id": "org-1", "training_requirement_id": "requirement-1", "reporting_period": "FY 2026-27", "is_active": True}],
+        supplier_relationships=[{"id": "relationship-1", "customer_org_id": "org-1", "reporting_period": "FY 2026-27", "is_active": True}],
+    )
+    deleted = []
+    class _Storage:
+        async def delete_file(self, bucket_type, key):
+            deleted.append((bucket_type, key))
+            return True
+    monkeypatch.setattr(training_service, "db", fake_db)
+    monkeypatch.setattr(training_service, "get_r2_storage", lambda: _Storage())
+    from modules.supplier_assessment.service import supplier_service
+    async def _refresh_completion(_relationship_id):
+        return None
+    monkeypatch.setattr(supplier_service, "_update_completion_status", _refresh_completion)
+
+    assert await training_service.archive_training("org-1", "requirement-1") is True
+    assert deleted == [("supplier_assessment", "training/source/viewer/page-1.png"), ("supplier_assessment", "training/source/viewer/page-2.png"), ("supplier_assessment", "training/source.pdf")]
+    assert fake_db.supplier_training_requirements.docs[0]["is_deleted"] is True
+    assert fake_db.supplier_training_versions.docs[0]["r2_delete_status"] == "deleted"
+
+
+@pytest.mark.asyncio
 async def test_training_module_completion_empty_and_completed_paths():
     # module_registry.TrainingAssessmentModule completion contract
     module = TrainingAssessmentModule()

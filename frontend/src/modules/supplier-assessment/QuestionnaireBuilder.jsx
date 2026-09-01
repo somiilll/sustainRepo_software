@@ -827,8 +827,10 @@ export default function QuestionnaireBuilder() {
               <Label>Due Date</Label>
               <Input
                 type="date"
+                min={new Date().toISOString().slice(0, 10)}
                 value={questionnaireForm.due_date}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
+                data-testid="new-questionnaire-due-date-input"
               />
             </div>
 
@@ -972,8 +974,10 @@ export default function QuestionnaireBuilder() {
               <Label>Due Date</Label>
               <Input
                 type="date"
+                min={new Date().toISOString().slice(0, 10)}
                 value={questionnaireForm.due_date}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
+                data-testid="edit-questionnaire-due-date-input"
               />
             </div>
             
