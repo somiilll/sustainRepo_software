@@ -187,13 +187,14 @@ export default function SupplierList() {
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
     ]).then(([documentResponse, trainingResponse, questionnaireResponse]) => {
       const availableDocuments = groupAvailableDocuments(documentResponse.data);
-      const availableTrainings = trainingResponse.data || [];
+      const availableTrainings = (trainingResponse.data || []).filter((training) => training.is_active !== false && !training.is_deleted);
       setDocuments(availableDocuments);
       setTrainings(availableTrainings);
-      const availableQuestionnaires = questionnaireResponse.data || [];
+      const availableQuestionnaires = (questionnaireResponse.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted);
       setQuestionnaires(availableQuestionnaires);
       setFormData((current) => ({
         ...current,
+        modules_enabled: current.modules_enabled.filter((module) => module !== 'esg' || availableQuestionnaires.length > 0),
         questionnaire_ids: current.questionnaire_ids.length ? current.questionnaire_ids : availableQuestionnaires.map((questionnaire) => questionnaire.id),
         document_requirement_ids: availableDocuments.map((document) => document.id),
         training_requirement_ids: availableTrainings.map((training) => training.id),
@@ -211,13 +212,13 @@ export default function SupplierList() {
       axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/submission-status`, { headers: getAuthHeader() }),
     ]).then(([documentResponse, trainingResponse, questionnaireResponse, statusResponse]) => {
       const availableDocuments = groupAvailableDocuments(documentResponse.data);
-      const availableTrainings = trainingResponse.data || [];
+      const availableTrainings = (trainingResponse.data || []).filter((training) => training.is_active !== false && !training.is_deleted);
       setDocuments(availableDocuments);
       setTrainings(availableTrainings);
       const selectedDocumentIds = availableDocuments.filter((document) => selectedSupplier.document_requirement_ids?.includes(document.id) || document.supplier_relationship_ids?.includes(selectedSupplier.id)).map((document) => document.id);
       const selectedTrainingIds = availableTrainings.filter((training) => selectedSupplier.training_requirement_ids?.includes(training.id) || training.supplier_relationship_ids?.includes(selectedSupplier.id)).map((training) => training.id);
       setFormData((current) => ({ ...current, document_requirement_ids: selectedDocumentIds, training_requirement_ids: selectedTrainingIds }));
-      const availableQuestionnaires = questionnaireResponse.data || [];
+      const availableQuestionnaires = (questionnaireResponse.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted);
       setQuestionnaires(availableQuestionnaires);
       setSubmissionStatus(statusResponse.data);
       if (selectedSupplier.questionnaire_assignment_is_implicit) {
@@ -693,8 +694,8 @@ export default function SupplierList() {
             <div className="space-y-3 border-t pt-2">
               <Label className="text-base font-medium">Assessment Modules *</Label>
               <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-3 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
+              <div className={`grid gap-4 ${questionnaires.length > 0 ? 'md:grid-cols-2' : ''}`}>
+                {questionnaires.length > 0 && <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-3 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
                   <div className="flex items-center gap-2">
                   <Checkbox
                     id="module-esg"
@@ -725,7 +726,7 @@ export default function SupplierList() {
                       </div>
                     </div>
                   )}
-                </div>
+                </div>}
                 <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-3 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
                   <div className="flex items-center gap-2">
                     <Checkbox
