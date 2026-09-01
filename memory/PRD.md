@@ -498,6 +498,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Updated the Good score-band treatment to orange and separated the overdue follow-up card into its dedicated right-side panel, preserving live ranking data, existing actions, and test IDs.
 - **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
 
+## Latest Changes — 2026-09-01 (Authoritative Ranking Overview PDF Correction)
+- Replaced the initial incorrect grid interpretation using the exact user-provided PDF: summary cards; paired Overall score distribution and Assessment module coverage; paired Top performing suppliers and Attention required; full-width Supplier sustainability risk matrix; paired Document and Training completion cards.
+- Matched the PDF’s compact white-card treatment, soft colored panel accents, shallow full-width risk matrix, contextual overflow indicators, progress-row density, and score/attention action styling without changing any live data flow or interactions.
+- **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
+
 ## Latest Changes — 2026-08-31 (Supplier GHG First-Submission Repair)
 - Fixed supplier GHG period submission failing with HTTP 500 for a period without a prior submission ledger record. New submissions now initialize their audit history from an empty list, while resubmissions retain existing history.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
