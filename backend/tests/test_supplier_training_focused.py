@@ -16,6 +16,9 @@ class _Cursor:
     async def to_list(self, _limit):
         return deepcopy(self.docs)
 
+    def sort(self, *_args, **_kwargs):
+        return self
+
 
 class _Collection:
     def __init__(self, docs=None):
@@ -47,6 +50,15 @@ class _Collection:
 
     async def count_documents(self, query):
         return len([doc for doc in self.docs if self._matches(doc, query)])
+
+    async def distinct(self, field, query=None):
+        values = []
+        for doc in self.docs:
+            if query is None or self._matches(doc, query):
+                value = doc.get(field)
+                if value not in values:
+                    values.append(value)
+        return values
 
     async def update_one(self, query, update, upsert=False):
         for index, doc in enumerate(self.docs):
@@ -258,6 +270,35 @@ async def test_training_sync_never_reactivates_historical_assignments(monkeypatc
     assert current["id"] != historical["id"]
     assert current["reporting_period"] == "FY 2026-27"
     assert current["requirement_version_id"] == "version-current"
+
+
+@pytest.mark.asyncio
+async def test_reenabling_training_restores_new_active_assignments(monkeypatch):
+    fake_db = _DB(
+        supplier_training_requirements=[{"id": "requirement-1", "organization_id": "org-1", "training_version_id": "version-1", "is_active": True, "is_deleted": False}],
+        supplier_training_assignments=[{"id": "assignment-1", "supplier_relationship_id": "relationship-1", "organization_id": "org-1", "training_requirement_id": "requirement-1", "requirement_version_id": "version-1", "reporting_period": "FY 2026-27", "is_active": True}],
+        supplier_relationships=[{"id": "relationship-1", "customer_org_id": "org-1", "reporting_period": "FY 2026-27", "is_active": True}],
+    )
+    monkeypatch.setattr(training_service, "db", fake_db)
+    refreshed = []
+    from modules.supplier_assessment.service import supplier_service
+    async def _refresh_completion(relationship_id):
+        refreshed.append(relationship_id)
+    monkeypatch.setattr(supplier_service, "_update_completion_status", _refresh_completion)
+
+    await training_service.update_training("org-1", "requirement-1", {"is_active": False})
+    disabled_assignment = fake_db.supplier_training_assignments.docs[0]
+    assert disabled_assignment["is_active"] is False
+    assert disabled_assignment["deactivation_reason"] == "training_disabled"
+
+    await training_service.update_training("org-1", "requirement-1", {"is_active": True})
+    active_assignments = [item for item in fake_db.supplier_training_assignments.docs if item["is_active"]]
+    assert len(active_assignments) == 1
+    assert active_assignments[0]["id"] != "assignment-1"
+    assert active_assignments[0]["supplier_relationship_id"] == "relationship-1"
+    assert active_assignments[0]["reporting_period"] == "FY 2026-27"
+    assert active_assignments[0]["restored_from_assignment_id"] == "assignment-1"
+    assert refreshed == ["relationship-1", "relationship-1"]
 
 
 @pytest.mark.asyncio

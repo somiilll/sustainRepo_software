@@ -422,7 +422,7 @@ async def create_training(file: UploadFile = File(...), title: str = Form(...), 
 async def list_trainings(reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     query = {"organization_id": current_user["organization_id"], "is_deleted": {"$ne": True}}
     if reporting_period:
-        assignment_ids = await db.supplier_training_assignments.distinct("training_requirement_id", {"organization_id": current_user["organization_id"], "reporting_period": reporting_period, "is_active": True})
+        assignment_ids = await db.supplier_training_assignments.distinct("training_requirement_id", {"organization_id": current_user["organization_id"], "reporting_period": reporting_period})
         query["id"] = {"$in": assignment_ids}
     return await db.supplier_training_requirements.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
 

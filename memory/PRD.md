@@ -658,3 +658,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-01 (Supplier Workspace Desktop Header Spacing)
 - Updated the shared `/supplier-assessment` desktop content wrapper from `lg:pt-0` to `lg:pt-4`, restoring the consistent top spacing visible in the local Supplier workspace across Suppliers, ESG Questionnaires, Supplier GHG Emissions, Documents, Trainings, and Rankings.
 - The user requested no additional testing after this visual adjustment. A production frontend build had already completed successfully immediately after the code update, with pre-existing lint warnings only.
+
+## Latest Changes — 2026-09-01 (Training Disable/Enable Recovery)
+- Disabled trainings now remain visible in the parent Training workspace with a Disabled status and an accessible Enable action. Manage suppliers is unavailable until the training is enabled again.
+- Disabling records an auditable deactivation batch. Re-enabling creates fresh active assignments only for suppliers who were disabled in that batch and whose current reporting period still matches, preserving every prior assignment row as immutable history.
+- Focused lifecycle tests and frontend static checks passed before the user requested no additional testing. No further tests were run.

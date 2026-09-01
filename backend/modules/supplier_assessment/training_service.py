@@ -326,16 +326,58 @@ async def update_training(org_id: str, requirement_id: str, updates: Dict[str, A
     allowed_updates = {key: value for key, value in updates.items() if key in {"due_date", "is_active"}}
     if not allowed_updates:
         return requirement
-    allowed_updates["updated_at"] = _now()
+    now = _now()
+    was_active = requirement.get("is_active", True)
+    is_active_update = allowed_updates.get("is_active")
+    disable_batch_id = None
+    if is_active_update is False and was_active:
+        disable_batch_id = str(uuid.uuid4())
+        allowed_updates["last_disabled_assignment_batch_id"] = disable_batch_id
+        allowed_updates["disabled_at"] = now
+    allowed_updates["updated_at"] = now
     await db.supplier_training_requirements.update_one({"id": requirement_id}, {"$set": allowed_updates})
     if "is_active" in allowed_updates:
-        if not allowed_updates["is_active"]:
+        if is_active_update is False and was_active:
             await db.supplier_training_assignments.update_many(
                 {"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": True},
-                {"$set": {"is_active": False, "updated_at": _now()}},
+                {"$set": {"is_active": False, "updated_at": now, "deactivation_reason": "training_disabled", "deactivation_batch_id": disable_batch_id}},
             )
+        elif is_active_update is True and not was_active:
+            historical_query = {"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": False}
+            last_disabled_batch_id = requirement.get("last_disabled_assignment_batch_id")
+            if last_disabled_batch_id:
+                historical_query["deactivation_reason"] = "training_disabled"
+                historical_query["deactivation_batch_id"] = last_disabled_batch_id
+            historical_assignments = await db.supplier_training_assignments.find(historical_query, {"_id": 0}).to_list(1000)
+            relationship_ids = list({assignment["supplier_relationship_id"] for assignment in historical_assignments})
+            relationships = await db.supplier_relationships.find(
+                {"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True},
+                {"_id": 0, "id": 1, "reporting_period": 1},
+            ).to_list(1000)
+            relationships_by_id = {relationship["id"]: relationship for relationship in relationships}
+            restored_keys = set()
+            for assignment in historical_assignments:
+                relationship = relationships_by_id.get(assignment["supplier_relationship_id"])
+                reporting_period = assignment.get("reporting_period")
+                if not relationship or reporting_period != relationship.get("reporting_period"):
+                    continue
+                restore_key = (relationship["id"], reporting_period)
+                if restore_key in restored_keys:
+                    continue
+                restored_keys.add(restore_key)
+                existing = await db.supplier_training_assignments.find_one(
+                    {"supplier_relationship_id": relationship["id"], "training_requirement_id": requirement_id, "reporting_period": reporting_period, "is_active": True},
+                    {"_id": 0, "id": 1},
+                )
+                if not existing:
+                    await db.supplier_training_assignments.insert_one({
+                        "id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id,
+                        "training_requirement_id": requirement_id, "requirement_version_id": requirement["training_version_id"],
+                        "reporting_period": reporting_period, "assigned_at": now, "is_active": True,
+                        "restored_from_assignment_id": assignment["id"], "restored_at": now, "assignment_reason": "training_reenabled",
+                    })
         relationships = await db.supplier_relationships.find(
-            {"id": {"$in": await db.supplier_training_assignments.distinct("supplier_relationship_id", {"training_requirement_id": requirement_id, "organization_id": org_id})}},
+            {"id": {"$in": await db.supplier_training_assignments.distinct("supplier_relationship_id", {"training_requirement_id": requirement_id, "organization_id": org_id})}, "is_active": True},
             {"_id": 0, "id": 1},
         ).to_list(1000)
         for relationship in relationships:
