@@ -668,3 +668,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Create Supplier now hides the ESG Questionnaire module entirely when no active ESG questionnaire is available and removes ESG from the submitted module selection in that state.
 - Create and Edit Supplier assignment choices now exclude disabled or deleted trainings, preventing unavailable training requirements from being assigned.
 - **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-01 (Muted Disabled Training State)
+- Disabled training cards now use a muted gray surface, softened text, gray completion indicator, and a compact Disabled status pill. The existing Enable action remains available from the overflow menu.
+- **NOT TESTED**, per the user's explicit instruction.
