@@ -503,6 +503,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Matched the PDF’s compact white-card treatment, soft colored panel accents, shallow full-width risk matrix, contextual overflow indicators, progress-row density, and score/attention action styling without changing any live data flow or interactions.
 - **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
 
+## Latest Changes — 2026-09-01 (Supplier Risk Matrix Height)
+- Increased the Supplier sustainability risk matrix canvas from 118px to 220px, providing more vertical space for quadrants, labels, and plotted supplier markers.
+- **NOT TESTED** after implementation, following the user’s earlier instruction not to test.
+
 ## Latest Changes — 2026-08-31 (Supplier GHG First-Submission Repair)
 - Fixed supplier GHG period submission failing with HTTP 500 for a period without a prior submission ledger record. New submissions now initialize their audit history from an empty list, while resubmissions retain existing history.
 - **NOT TESTED** after implementation, per the user's explicit `dont test` instruction.
