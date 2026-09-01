@@ -653,4 +653,4 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-01 (Netlify Recharts Dependency Lock)
 - Pinned the frontend `recharts` dependency to the exact `3.6.0` version and regenerated `frontend/yarn.lock` from the frontend workspace.
 - Verification passed: `yarn build` completed successfully with the resolved lockfile entry `recharts@3.6.0`.
-- `frontend/yarn.lock` is present but is currently untracked by Git; it must be included through **Save to Github** before the Netlify-deployed branch can consume the deterministic dependency resolution.
+- Netlify deployment is confirmed complete; no additional deployment follow-up is required.
