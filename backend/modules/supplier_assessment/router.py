@@ -165,7 +165,7 @@ async def create_supplier(
             contact_person=data.contact_person,
             email=data.email,
             contact_number=data.contact_number,
-            due_date=data.due_date,
+            access_revoke_date=data.access_revoke_date,
             created_by=current_user["id"],
             created_by_email=current_user["email"],
             modules_enabled=data.modules_enabled,
@@ -256,7 +256,7 @@ async def deactivate_supplier(
         raise HTTPException(status_code=403, detail="Access denied")
     
     await supplier_service.deactivate_supplier(supplier_id)
-    return {"message": "Supplier deactivated"}
+    return {"message": "Supplier deleted"}
 
 
 @router.post("/suppliers/{supplier_id}/remind")

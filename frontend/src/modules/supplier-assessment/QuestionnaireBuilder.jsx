@@ -115,6 +115,18 @@ const scoringRules = [
   },
 ];
 
+const scoringRulesByResponseType = {
+  text: ['manual'],
+  yes_no: ['boolean'],
+  numeric: ['higher_is_better', 'lower_is_better'],
+  percentage: ['higher_is_better', 'lower_is_better'],
+  dropdown: ['choice_mapping'],
+};
+
+const compatibleScoringRules = (responseType) => scoringRules.filter(
+  (rule) => (scoringRulesByResponseType[responseType] || ['manual']).includes(rule.value),
+);
+
 // Helper to get default scoring config based on response type
 const getDefaultScoringConfig = (responseType) => {
   switch (responseType) {
@@ -511,7 +523,10 @@ export default function QuestionnaireBuilder() {
   };
 
   const openEditQuestion = (question) => {
-    const scoring = question.scoring || getDefaultScoringConfig(question.response_type);
+    const existingScoring = question.scoring || getDefaultScoringConfig(question.response_type);
+    const scoring = compatibleScoringRules(question.response_type).some((rule) => rule.value === existingScoring.rule)
+      ? existingScoring
+      : getDefaultScoringConfig(question.response_type);
     setEditingQuestion(question);
     setQuestionForm({
       question_text: question.question_text,
@@ -1269,13 +1284,14 @@ export default function QuestionnaireBuilder() {
               <div className="space-y-2">
                 <Label className="text-sm">How should this answer become a 0–100 score?</Label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {scoringRules.map((rule) => {
+                  {compatibleScoringRules(questionForm.response_type).map((rule) => {
                     const Icon = rule.icon;
                     const isSelected = questionForm.scoring?.rule === rule.value;
                     return (
                       <button
                         key={rule.value}
                         type="button"
+                        data-testid={`question-scoring-rule-${rule.value}`}
                         onClick={() => {
                           const newScoring = { ...questionForm.scoring, rule: rule.value };
                           // Reset rule-specific fields

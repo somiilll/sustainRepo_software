@@ -106,7 +106,7 @@ export default function SupplierDashboard() {
   const documentsSubmitted = documents.length > 0 && submittedDocuments.length === documents.length;
   const pendingDocuments = documents.filter((document) => document.submission_status !== 'submitted');
   const completedTrainings = trainings.filter((training) => training.status === 'completed');
-  const dueDate = parseDueDate(relationship.due_date);
+  const dueDate = parseDueDate(relationship.access_revoke_date || relationship.due_date);
   const dueDateOverdue = Boolean(dueDate && dueDate < new Date());
 
   const progressItems = [

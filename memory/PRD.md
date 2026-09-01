@@ -681,3 +681,12 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-01 (Physical R2 Asset Deletion)
 - Deleting a Supplier Document now physically deletes its source object from Cloudflare R2 before marking its requirements/version deleted. Deleting a Supplier Training removes its generated viewer-page objects first and source object last, then archives its records.
 - R2 failures return an explicit 502 error and leave the application deletion state unchanged. Deletion audit metadata records the successful storage cleanup without exposing storage URLs.
+
+## Latest Changes — 2026-09-01 (Supplier Access Revoke Date Terminology)
+- Supplier Create and Edit now use the `access_revoke_date` field and label it Access Revoke Date. Existing `due_date` values remain readable through a backward-compatible mapping while all new supplier relationships write the unambiguous field.
+- Parent-side supplier deletion now returns and displays Delete/Supplier deleted terminology rather than Deactivate/Supplier deactivated.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-01 (Compatible ESG Question Scoring)
+- The ESG Question Builder now limits scoring methods by response type: Text → Manual Review; Yes/No → Yes/No Score; Numeric/Percentage → Higher is Better or Lower is Better; Dropdown → Choice Mapping.
+- Legacy questions with an incompatible scoring rule are normalized to their response type's default when opened for editing. **NOT TESTED**, per the user's explicit instruction.
