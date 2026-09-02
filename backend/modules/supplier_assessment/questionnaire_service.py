@@ -599,7 +599,10 @@ async def delete_supplier_question_evidence(
     response = await self._current_questionnaire_response(questionnaire_id, relationship["id"], relationship.get("reporting_period"))
     if not response or response.get("status") == "submitted":
         raise ValueError("Evidence cannot be removed from a submitted questionnaire")
-    evidence = await self.get_question_evidence_file(relationship, questionnaire_id, question_id, evidence_id)
+    evidence = await db.supplier_question_evidence.find_one(
+        {"id": evidence_id, "supplier_relationship_id": relationship["id"], "questionnaire_id": questionnaire_id,
+         "question_id": question_id, "is_deleted": {"$ne": True}}, {"_id": 0}
+    )
     if not evidence:
         return None
     try:
@@ -609,10 +612,11 @@ async def delete_supplier_question_evidence(
     except Exception as error:
         raise ValueError("Could not delete the evidence file from storage") from error
     now = datetime.now(timezone.utc).isoformat()
-    question_evidence = dict(response.get("question_evidence") or {})
-    question_evidence[question_id] = [item for item in question_evidence.get(question_id, []) if item != evidence_id]
     await db.supplier_question_evidence.update_one({"id": evidence_id}, {"$set": {"is_deleted": True, "deleted_at": now, "r2_delete_status": "deleted", "r2_deleted_at": now}})
-    await db.supplier_questionnaire_responses.update_one({"id": response["id"]}, {"$set": {"question_evidence": question_evidence, "updated_at": now}})
+    if response:
+        question_evidence = dict(response.get("question_evidence") or {})
+        question_evidence[question_id] = [item for item in question_evidence.get(question_id, []) if item != evidence_id]
+        await db.supplier_questionnaire_responses.update_one({"id": response["id"]}, {"$set": {"question_evidence": question_evidence, "updated_at": now}})
     return {"id": evidence_id, "deleted_at": now}
 
 async def get_question_evidence_file(
