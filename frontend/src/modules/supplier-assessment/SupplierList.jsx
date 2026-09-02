@@ -195,7 +195,7 @@ export default function SupplierList() {
       setFormData((current) => ({
         ...current,
         modules_enabled: current.modules_enabled.filter((module) => module !== 'esg' || availableQuestionnaires.length > 0),
-        questionnaire_ids: current.questionnaire_ids.length ? current.questionnaire_ids : availableQuestionnaires.map((questionnaire) => questionnaire.id),
+        questionnaire_ids: current.questionnaire_ids.length ? current.questionnaire_ids.filter((questionnaireId) => availableQuestionnaires.some((questionnaire) => questionnaire.id === questionnaireId)) : availableQuestionnaires.map((questionnaire) => questionnaire.id),
         document_requirement_ids: availableDocuments.map((document) => document.id),
         training_requirement_ids: availableTrainings.map((training) => training.id),
       }));

@@ -160,7 +160,18 @@ async def create_supplier(
             assigned_questionnaire_ids = list(dict.fromkeys(questionnaire_ids))
             invalid_ids = set(assigned_questionnaire_ids) - active_ids
             if invalid_ids:
-                raise ValueError("Selected ESG questionnaire is unavailable")
+                unavailable = await db.supplier_questionnaires.find({"organization_id": customer_org_id, "id": {"$in": list(invalid_ids)}}, {"_id": 0, "id": 1, "name": 1, "is_active": 1, "is_deleted": 1}).to_list(100)
+                by_id = {questionnaire["id"]: questionnaire for questionnaire in unavailable}
+                labels = []
+                for questionnaire_id in sorted(invalid_ids):
+                    questionnaire = by_id.get(questionnaire_id)
+                    if not questionnaire:
+                        labels.append(f"{questionnaire_id} (not found)")
+                    elif questionnaire.get("is_deleted"):
+                        labels.append(f"{questionnaire.get('name') or questionnaire_id} (deleted)")
+                    else:
+                        labels.append(f"{questionnaire.get('name') or questionnaire_id} (inactive)")
+                raise ValueError(f"Selected ESG questionnaire is unavailable: {', '.join(labels)}")
 
     # Create supplier relationship
     relationship_id = str(uuid.uuid4())
