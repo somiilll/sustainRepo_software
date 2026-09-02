@@ -1,11 +1,37 @@
 /* global describe, expect, it */
 
 import {
+  resolveMonthlySelectableUnit,
+} from '../../../utils/monthlyFieldUnits';
+import {
   getProcessTemplateFieldUnit,
   normalizeProcessTemplateMonthlyField,
 } from '../../../utils/processTemplateMonthlyFields';
 
 describe('Process Emissions monthly field normalization', () => {
+  it('uses the active fuel unit shown after switching from yearly to monthly', () => {
+    expect(resolveMonthlySelectableUnit({
+      configuredUnit: 'kg',
+      allowedUnits: ['L'],
+    })).toBe('L');
+  });
+
+  it('preserves an allowed unit already stored in the monthly row', () => {
+    expect(resolveMonthlySelectableUnit({
+      storedUnit: 'kL',
+      configuredUnit: 'kg',
+      allowedUnits: ['L', 'kL'],
+    })).toBe('kL');
+  });
+
+  it('prefers the active configured unit over a stale allowed monthly unit', () => {
+    expect(resolveMonthlySelectableUnit({
+      storedUnit: 'kg',
+      configuredUnit: 'L',
+      allowedUnits: ['kg', 'L'],
+    })).toBe('L');
+  });
+
   it('gives the rendered Quantity field one canonical state identity', () => {
     expect(normalizeProcessTemplateMonthlyField({
       key: 'quantity_used_process_emissions',

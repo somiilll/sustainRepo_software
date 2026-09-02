@@ -43,7 +43,6 @@ import {
   ArrowDownRight,
   ToggleLeft,
   List,
-  Pencil,
   Info,
   ClipboardCheck,
   CalendarDays,
@@ -61,7 +60,6 @@ const responseTypes = [
   { value: 'yes_no', label: 'Yes / No' },
   { value: 'numeric', label: 'Numeric' },
   { value: 'percentage', label: 'Percentage' },
-  { value: 'text', label: 'Text' },
   { value: 'dropdown', label: 'Dropdown' },
 ];
 
@@ -105,15 +103,19 @@ const scoringRules = [
     color: 'text-amber-600',
     fields: ['choices'],
   },
-  { 
-    value: 'manual', 
-    label: 'Manual Review',
-    description: 'Requires human review to assign score',
-    icon: Pencil,
-    color: 'text-stone-600',
-    fields: [],
-  },
 ];
+
+const scoringRulesByResponseType = {
+  yes_no: ['boolean'],
+  numeric: ['higher_is_better', 'lower_is_better'],
+  percentage: ['higher_is_better', 'lower_is_better'],
+  dropdown: ['choice_mapping'],
+};
+
+const compatibleScoringRules = (responseType) => scoringRules.filter(
+  (rule) => (scoringRulesByResponseType[responseType] || []).includes(rule.value),
+);
+const isSupportedResponseType = (responseType) => responseTypes.some((type) => type.value === responseType);
 
 // Helper to get default scoring config based on response type
 const getDefaultScoringConfig = (responseType) => {
@@ -125,9 +127,8 @@ const getDefaultScoringConfig = (responseType) => {
       return { rule: 'higher_is_better', target: 100, min: 0, max: 100, max_score: 100 };
     case 'dropdown':
       return { rule: 'choice_mapping', choices: {} };
-    case 'text':
     default:
-      return { rule: 'manual', requires_manual_review: true };
+      return { rule: 'boolean', true_score: 100, false_score: 0 };
   }
 };
 
@@ -166,6 +167,7 @@ export default function QuestionnaireBuilder() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
+  const [questionDialogMode, setQuestionDialogMode] = useState(null);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [showSubmissionsDialog, setShowSubmissionsDialog] = useState(false);
   const [submissions, setSubmissions] = useState([]);
@@ -396,13 +398,16 @@ export default function QuestionnaireBuilder() {
       for (const [index, question] of draftQuestions.entries()) {
         const values = question.response_type === 'dropdown' ? question.options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
         const options = values.map((value) => ({ value, label: value, score: Number(question.option_scores?.[value]) }));
-        const scoring = { ...getDefaultScoringConfig(question.response_type), rule: question.scoring_rule };
+        const scoring = question.scoring_rule === 'lower_is_better'
+          ? { rule: 'lower_is_better', min: 0, max_acceptable: 100, max_score: 100 }
+          : { ...getDefaultScoringConfig(question.response_type), rule: question.scoring_rule };
         if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
         if (question.response_type === 'yes_no') { scoring.true_score = Number(question.yes_score); scoring.false_score = Number(question.no_score); }
         await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...question, description: '', importance: question.importance, exact_numerical_weight: null, options, scoring, order: questions.length + index }, { headers: getAuthHeader() });
       }
       toast.success(`${draftQuestions.length} question${draftQuestions.length === 1 ? '' : 's'} added`);
       setShowQuestionDialog(false);
+      setQuestionDialogMode(null);
       fetchQuestions(selectedQuestionnaire.id);
     } catch (err) {
       toast.error('Failed to add question');
@@ -424,6 +429,7 @@ export default function QuestionnaireBuilder() {
       );
       toast.success('Question updated');
       setShowQuestionDialog(false);
+      setQuestionDialogMode(null);
       setEditingQuestion(null);
       resetQuestionForm();
       fetchQuestions(selectedQuestionnaire.id);
@@ -491,6 +497,15 @@ export default function QuestionnaireBuilder() {
     });
   };
 
+  const handleQuestionDialogOpenChange = (open) => {
+    setShowQuestionDialog(open);
+    if (!open) {
+      setQuestionDialogMode(null);
+      setEditingQuestion(null);
+      resetQuestionForm();
+    }
+  };
+
   const validateQuestionnaireWeights = () => {
     const esgTotal = Object.values(questionnaireForm.esg_section_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
     const overallTotal = Object.values(questionnaireForm.overall_supplier_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
@@ -511,12 +526,18 @@ export default function QuestionnaireBuilder() {
   };
 
   const openEditQuestion = (question) => {
-    const scoring = question.scoring || getDefaultScoringConfig(question.response_type);
+    const responseType = isSupportedResponseType(question.response_type)
+      ? question.response_type
+      : 'yes_no';
+    const existingScoring = question.scoring || getDefaultScoringConfig(responseType);
+    const scoring = compatibleScoringRules(responseType).some((rule) => rule.value === existingScoring.rule)
+      ? existingScoring
+      : getDefaultScoringConfig(responseType);
     setEditingQuestion(question);
     setQuestionForm({
       question_text: question.question_text,
       description: question.description || '',
-      response_type: question.response_type,
+      response_type: responseType,
       options: hydrateDropdownOptionScores(question.options, scoring),
       required: question.required,
       evidence_requirement: question.evidence_requirement || 'not_required',
@@ -526,6 +547,7 @@ export default function QuestionnaireBuilder() {
       order: question.order,
       scoring,
     });
+    setQuestionDialogMode('edit');
     setShowQuestionDialog(true);
   };
 
@@ -779,6 +801,7 @@ export default function QuestionnaireBuilder() {
                 <div className="flex flex-wrap gap-2"><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openQuestionnaireAssignments} data-testid="manage-questionnaire-assignments-button">Manage suppliers</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
                   resetQuestionForm();
                   setEditingQuestion(null);
+                  setQuestionDialogMode('create');
                   setShowQuestionDialog(true);
                 }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
@@ -827,8 +850,10 @@ export default function QuestionnaireBuilder() {
               <Label>Due Date</Label>
               <Input
                 type="date"
+                min={new Date().toISOString().slice(0, 10)}
                 value={questionnaireForm.due_date}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
+                data-testid="new-questionnaire-due-date-input"
               />
             </div>
 
@@ -972,8 +997,10 @@ export default function QuestionnaireBuilder() {
               <Label>Due Date</Label>
               <Input
                 type="date"
+                min={new Date().toISOString().slice(0, 10)}
                 value={questionnaireForm.due_date}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
+                data-testid="edit-questionnaire-due-date-input"
               />
             </div>
             
@@ -1098,7 +1125,7 @@ export default function QuestionnaireBuilder() {
       </Dialog>
 
       {/* Question Dialog */}
-      <Dialog open={showQuestionDialog && Boolean(editingQuestion)} onOpenChange={setShowQuestionDialog}>
+      <Dialog open={showQuestionDialog && questionDialogMode === 'edit'} onOpenChange={handleQuestionDialogOpenChange}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
@@ -1265,7 +1292,7 @@ export default function QuestionnaireBuilder() {
               <div className="space-y-2">
                 <Label className="text-sm">How should this answer become a 0–100 score?</Label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {scoringRules.map((rule) => {
+                  {compatibleScoringRules(questionForm.response_type).map((rule) => {
                     const Icon = rule.icon;
                     const isSelected = questionForm.scoring?.rule === rule.value;
                     return (
@@ -1427,19 +1454,11 @@ export default function QuestionnaireBuilder() {
                 </div>
               )}
               
-              {questionForm.scoring?.rule === 'manual' && (
-                <div className="flex items-center gap-2 pt-2 text-sm text-stone-500">
-                  <Info className="h-4 w-4" />
-                  <span>This question requires manual review to assign a score</span>
-                </div>
-              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
-              setShowQuestionDialog(false);
-              setEditingQuestion(null);
-              resetQuestionForm();
+              handleQuestionDialogOpenChange(false);
             }}>
               Cancel
             </Button>
@@ -1453,7 +1472,7 @@ export default function QuestionnaireBuilder() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <QuestionLedgerDialog open={showQuestionDialog && !editingQuestion} onOpenChange={(open) => { setShowQuestionDialog(open); if (!open) resetQuestionForm(); }} onSave={handleAddLedgerQuestions} saving={submitting} />
+      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleAddLedgerQuestions} saving={submitting} />
       <SupplierQuestionnairePreviewDialog open={showQuestionPreview} onOpenChange={setShowQuestionPreview} questionnaire={selectedQuestionnaire} questions={questions} />
     </div></TooltipProvider>
   );

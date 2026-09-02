@@ -13,6 +13,7 @@ import fitz
 
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
+from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.programs import get_or_create_program_revision, resolve_program_context
 from modules.sustainability_config import service as sustainability_config_service
 
@@ -79,6 +80,7 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
     threshold = 100.0
     if not title.strip(): raise ValueError("Title is required")
     if content_type not in ALLOWED_TYPES or not content or len(content) > MAX_TRAINING_SIZE: raise ValueError("Unsupported training file or file exceeds 250MB")
+    validate_due_date(due_date)
     organization_config = await sustainability_config_service.resolve_supplier_assessment_config(org_id)
     if not (organization_config.get("modules", {}).get("training") or {}).get("enabled"):
         raise ValueError("Enable the Training module in Organization Config before assigning training")
@@ -326,16 +328,59 @@ async def update_training(org_id: str, requirement_id: str, updates: Dict[str, A
     allowed_updates = {key: value for key, value in updates.items() if key in {"due_date", "is_active"}}
     if not allowed_updates:
         return requirement
-    allowed_updates["updated_at"] = _now()
+    if "due_date" in allowed_updates:
+        validate_due_date(allowed_updates["due_date"])
+    now = _now()
+    was_active = requirement.get("is_active", True)
+    is_active_update = allowed_updates.get("is_active")
+    disable_batch_id = None
+    if is_active_update is False and was_active:
+        disable_batch_id = str(uuid.uuid4())
+        allowed_updates["last_disabled_assignment_batch_id"] = disable_batch_id
+        allowed_updates["disabled_at"] = now
+    allowed_updates["updated_at"] = now
     await db.supplier_training_requirements.update_one({"id": requirement_id}, {"$set": allowed_updates})
     if "is_active" in allowed_updates:
-        if not allowed_updates["is_active"]:
+        if is_active_update is False and was_active:
             await db.supplier_training_assignments.update_many(
                 {"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": True},
-                {"$set": {"is_active": False, "updated_at": _now()}},
+                {"$set": {"is_active": False, "updated_at": now, "deactivation_reason": "training_disabled", "deactivation_batch_id": disable_batch_id}},
             )
+        elif is_active_update is True and not was_active:
+            historical_query = {"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": False}
+            last_disabled_batch_id = requirement.get("last_disabled_assignment_batch_id")
+            if last_disabled_batch_id:
+                historical_query["deactivation_reason"] = "training_disabled"
+                historical_query["deactivation_batch_id"] = last_disabled_batch_id
+            historical_assignments = await db.supplier_training_assignments.find(historical_query, {"_id": 0}).to_list(1000)
+            relationship_ids = list({assignment["supplier_relationship_id"] for assignment in historical_assignments})
+            relationships = await db.supplier_relationships.find(
+                {"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True},
+                {"_id": 0, "id": 1, "reporting_period": 1},
+            ).to_list(1000)
+            relationships_by_id = {relationship["id"]: relationship for relationship in relationships}
+            assignments_to_restore = {}
+            for assignment in historical_assignments:
+                relationship = relationships_by_id.get(assignment["supplier_relationship_id"])
+                reporting_period = assignment.get("reporting_period")
+                if not relationship or reporting_period != relationship.get("reporting_period"):
+                    continue
+                restore_key = (relationship["id"], reporting_period)
+                current = assignments_to_restore.get(restore_key)
+                if current is None or assignment.get("assigned_at", "") > current.get("assigned_at", ""):
+                    assignments_to_restore[restore_key] = assignment
+            for (supplier_relationship_id, reporting_period), assignment in assignments_to_restore.items():
+                existing = await db.supplier_training_assignments.find_one(
+                    {"supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id, "reporting_period": reporting_period, "is_active": True},
+                    {"_id": 0, "id": 1},
+                )
+                if not existing:
+                    await db.supplier_training_assignments.update_one(
+                        {"id": assignment["id"], "is_active": False},
+                        {"$set": {"is_active": True, "updated_at": now, "reactivated_at": now, "reactivated_from_deactivation_batch_id": last_disabled_batch_id}},
+                    )
         relationships = await db.supplier_relationships.find(
-            {"id": {"$in": await db.supplier_training_assignments.distinct("supplier_relationship_id", {"training_requirement_id": requirement_id, "organization_id": org_id})}},
+            {"id": {"$in": await db.supplier_training_assignments.distinct("supplier_relationship_id", {"training_requirement_id": requirement_id, "organization_id": org_id})}, "is_active": True},
             {"_id": 0, "id": 1},
         ).to_list(1000)
         for relationship in relationships:
@@ -401,12 +446,46 @@ async def unassign_training_from_supplier(org_id: str, requirement_id: str, supp
     await db.supplier_training_assignments.update_many({"id": {"$in": [assignment["id"] for assignment in assignments]}}, {"$set": {"is_active": False, "updated_at": _now()}})
 
 async def archive_training(org_id: str, requirement_id: str) -> bool:
+    requirement = await db.supplier_training_requirements.find_one(
+        {"id": requirement_id, "organization_id": org_id, "is_deleted": {"$ne": True}}, {"_id": 0}
+    )
+    if not requirement:
+        return False
+    version = await db.supplier_training_versions.find_one(
+        {"id": requirement.get("training_version_id")}, {"_id": 0}
+    )
+    deleted_keys = []
+    if version and version.get("bucket_type"):
+        source_key = version.get("r2_key")
+        page_keys = [
+            page.get("r2_key") for page in (version.get("viewer_manifest") or {}).get("pages", [])
+            if page.get("r2_key") and page.get("r2_key") != source_key
+        ]
+        try:
+            storage = get_r2_storage()
+            for key in dict.fromkeys(page_keys):
+                deleted = await storage.delete_file(version["bucket_type"], key)
+                if not deleted:
+                    raise ValueError("R2 did not confirm training preview deletion")
+                deleted_keys.append(key)
+            if source_key:
+                deleted = await storage.delete_file(version["bucket_type"], source_key)
+                if not deleted:
+                    raise ValueError("R2 did not confirm training deletion")
+                deleted_keys.append(source_key)
+        except Exception as error:
+            raise ValueError("Could not permanently delete the training file from storage") from error
     training = await update_training(org_id, requirement_id, {"is_active": False})
     if not training:
         return False
+    now = _now()
     await db.supplier_training_requirements.update_one(
-        {"id": requirement_id, "organization_id": org_id}, {"$set": {"is_deleted": True, "deleted_at": _now()}}
+        {"id": requirement_id, "organization_id": org_id}, {"$set": {"is_deleted": True, "deleted_at": now}}
     )
+    if version:
+        await db.supplier_training_versions.update_one(
+            {"id": version["id"]}, {"$set": {"r2_delete_status": "deleted", "r2_deleted_at": now, "r2_deleted_keys": deleted_keys}}
+        )
     return True
 
 async def ensure_indexes():

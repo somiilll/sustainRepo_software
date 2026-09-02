@@ -106,7 +106,7 @@ export default function SupplierDashboard() {
   const documentsSubmitted = documents.length > 0 && submittedDocuments.length === documents.length;
   const pendingDocuments = documents.filter((document) => document.submission_status !== 'submitted');
   const completedTrainings = trainings.filter((training) => training.status === 'completed');
-  const dueDate = parseDueDate(relationship.due_date);
+  const dueDate = parseDueDate(relationship.access_revoke_date || relationship.due_date);
   const dueDateOverdue = Boolean(dueDate && dueDate < new Date());
 
   const progressItems = [
@@ -165,6 +165,6 @@ export default function SupplierDashboard() {
       </div>
     </section>
 
-    <AlertDialog open={showRevenueSubmitConfirm} onOpenChange={setShowRevenueSubmitConfirm}><AlertDialogContent data-testid="confirm-revenue-submit-dialog"><AlertDialogHeader><AlertDialogTitle data-testid="confirm-revenue-submit-title">Submit revenue information?</AlertDialogTitle><AlertDialogDescription data-testid="confirm-revenue-submit-description">Once submitted, this revenue information is locked and cannot be edited.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-revenue-submit-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={submitRevenue} disabled={submittingRevenue} data-testid="confirm-revenue-submit-button">{submittingRevenue ? 'Submitting…' : 'Submit and lock'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <AlertDialog open={showRevenueSubmitConfirm} onOpenChange={setShowRevenueSubmitConfirm}><AlertDialogContent data-testid="confirm-revenue-submit-dialog"><AlertDialogHeader><AlertDialogTitle data-testid="confirm-revenue-submit-title">Submit revenue information?</AlertDialogTitle><AlertDialogDescription data-testid="confirm-revenue-submit-description">Once submitted, this revenue information is locked and cannot be edited.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-revenue-submit-button">Cancel</AlertDialogCancel><Button variant="outline" onClick={async () => { await saveRevenue(); setShowRevenueSubmitConfirm(false); }} disabled={saving || submittingRevenue} data-testid="save-revenue-draft-from-submit-button">{saving ? 'Saving…' : 'Save as draft'}</Button><AlertDialogAction onClick={submitRevenue} disabled={submittingRevenue || saving} data-testid="confirm-revenue-submit-button">{submittingRevenue ? 'Submitting…' : 'Submit and lock'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;
 }

@@ -3,7 +3,7 @@ Supplier Assessment Pydantic contracts/schemas.
 """
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, EmailStr, ConfigDict, Field, field_validator, model_validator
 
 from shared.utils.emission_records import normalize_reporting_period_for_storage
 
@@ -18,7 +18,7 @@ class SupplierCreate(BaseModel):
     contact_person: str
     email: EmailStr
     contact_number: Optional[str] = None
-    due_date: Optional[str] = None  # ISO date string
+    access_revoke_date: Optional[str] = Field(default=None, validation_alias=AliasChoices("access_revoke_date", "due_date"))
     reporting_period: Optional[str] = None
     revenue_required: bool = False
     # Module configuration
@@ -35,7 +35,7 @@ class SupplierUpdate(BaseModel):
     company_name: Optional[str] = None
     contact_person: Optional[str] = None
     contact_number: Optional[str] = None
-    due_date: Optional[str] = None
+    access_revoke_date: Optional[str] = Field(default=None, validation_alias=AliasChoices("access_revoke_date", "due_date"))
     reporting_period: Optional[str] = None
     is_active: Optional[bool] = None
     # Module configuration
@@ -64,7 +64,7 @@ class SupplierResponse(BaseModel):
     revenue_currency: Optional[str] = "USD"
     revenue_required: bool = False
     invitation_status: str  # pending, accepted, completed
-    due_date: Optional[str] = None
+    access_revoke_date: Optional[str] = None
     reporting_period: Optional[str] = None
     last_reminder_sent: Optional[str] = None
     reminder_count: int = 0
@@ -137,6 +137,7 @@ class SupplierDocumentResponse(BaseModel):
     selected_response: Optional[str] = None
     responded_at: Optional[str] = None
     submission_status: Optional[str] = None
+    has_been_viewed: bool = False
     created_at: str
 
 

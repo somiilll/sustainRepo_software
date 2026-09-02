@@ -1,106 +1,82 @@
 {
-  "theme": "Premium Dark Mode (Neo-Glass) with Vibrant Data Accents",
+  "project_type": "saas_app",
+  "archetype": "ORGANIC & EARTHY",
+  "context": "Supplier Assessment Admin - Training and Document Creation Modals",
+  "component_path": "/app/frontend/src/modules/supplier-assessment/",
   "typography": {
-    "headings": {
-      "family": "Outfit",
-      "classes": "font-sans font-semibold tracking-tight text-slate-50",
-      "weights": [
-        "500",
-        "600"
-      ]
+    "font_family_heading": "Cabinet Grotesk, sans-serif",
+    "font_family_body": "Inter, sans-serif",
+    "heading_scale": {
+      "h1": "text-3xl font-bold text-emerald-950",
+      "h2": "text-2xl font-bold text-stone-900",
+      "h3": "text-xl font-semibold text-stone-800",
+      "modal_title": "text-xl font-bold text-emerald-950"
     },
-    "body": {
-      "family": "Manrope",
-      "classes": "font-sans text-slate-300 leading-relaxed",
-      "weights": [
-        "400",
-        "500"
-      ]
-    },
-    "rules": [
-      "CRITICAL: Do not use Inter, Roboto, Space Grotesk, or Open Sans for headings.",
-      "Use tight letter spacing (tracking-tight) for large headers.",
-      "Overlines and labels must be uppercase with wide spacing (tracking-[0.2em] text-xs font-semibold)."
-    ]
+    "body_scale": {
+      "base": "text-sm text-stone-600",
+      "small": "text-xs text-stone-500",
+      "label": "text-xs font-medium text-stone-700"
+    }
   },
   "colors": {
-    "background": "bg-[#0B0F19]",
-    "surface": "bg-[#131B2C]/80 backdrop-blur-xl",
-    "surface_solid": "bg-[#131B2C]",
-    "border": "border-slate-800/60",
-    "text": {
-      "primary": "text-slate-50",
-      "secondary": "text-slate-400",
-      "muted": "text-slate-500"
+    "primary": {
+      "bg": "bg-emerald-800",
+      "hover": "hover:bg-emerald-900",
+      "text": "text-white"
+    },
+    "neutral": {
+      "background": "bg-stone-50",
+      "surface": "bg-white",
+      "border": "border-stone-200",
+      "text_dark": "text-stone-950",
+      "text_muted": "text-stone-500"
     },
     "accents": {
-      "brand": "bg-blue-600 hover:bg-blue-500 text-white",
-      "high_performer": "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-      "attention": "text-rose-400 bg-rose-400/10 border-rose-400/20",
-      "warning": "text-amber-400 bg-amber-400/10 border-amber-400/20",
-      "esg_charts": [
-        "#3B82F6",
-        "#10B981",
-        "#F59E0B",
-        "#F43F5E",
-        "#8B5CF6"
-      ]
+      "amber": "bg-amber-50 text-amber-700 border-amber-200",
+      "teal": "bg-teal-50 text-teal-700 border-teal-200",
+      "emerald": "bg-emerald-50 text-emerald-700 border-emerald-200"
+    }
+  },
+  "layout_and_modals": {
+    "pattern": "Dialog modal pattern for Add Training and Add/Publish Document",
+    "dialog_specs": {
+      "max_width": "max-w-2xl",
+      "max_height": "max-h-[85vh]",
+      "padding": "p-6",
+      "gap": "gap-4",
+      "grid": "grid gap-4 md:grid-cols-2"
     },
-    "rules": [
-      "BANNED: Purple-dominant palettes (#7351B7) and teal green (#1B93A4).",
-      "Use vivid, saturated colors ONLY for data visualization, risk matrix cells, and status badges to achieve the 'colourful and premium' look.",
-      "Maintain a structural dark slate/navy grayscale to anchor the bright colors."
+    "components": [
+      {
+        "name": "SupplierTrainingAdmin",
+        "file": "/app/frontend/src/modules/supplier-assessment/SupplierTrainingAdmin.jsx",
+        "modal_trigger_testid": "open-add-training-button",
+        "modal_container_testid": "create-training-card",
+        "modal_title_testid": "create-training-heading"
+      },
+      {
+        "name": "SupplierDocumentsAdmin",
+        "file": "/app/frontend/src/modules/supplier-assessment/SupplierDocumentsAdmin.jsx",
+        "modal_trigger_testid": "open-add-supplier-agreement-button",
+        "modal_container_testid": "supplier-agreement-upload-card"
+      }
     ]
-  },
-  "visual_enhancers": {
-    "shadows": "shadow-[0_8px_30px_rgb(0,0,0,0.2)]",
-    "borders": "1px solid border-white/5",
-    "effects": [
-      "Add a subtle ambient glow (blur-3xl opacity-10) behind primary chart components using the dominant chart color.",
-      "Glassmorphism for floating elements (dropdowns, tooltips): bg-[#131B2C]/90 backdrop-blur-2xl border border-white/10."
-    ]
-  },
-  "layouts": {
-    "grid_system": "Bento Grid Protocol - High Density",
-    "spacing": "Generous internal padding: use p-6 or p-8 inside cards to prevent data from feeling cramped.",
-    "structural_classes": "grid grid-cols-1 md:grid-cols-12 gap-6",
-    "rules": [
-      "Never fill 100% of the grid with equal squares. Use col-span-8 for primary charts (ESG Breakdown) and col-span-4 for summaries.",
-      "Risk Matrix should be prominently displayed (col-span-full or large section)."
-    ]
-  },
-  "components": {
-    "cards": "Premium tactile surfaces: rounded-2xl bg-[#131B2C] border border-white/5 hover:border-white/10 transition-colors shadow-sm",
-    "charts": "Use Recharts. Tooltips MUST have a solid dark background (bg-slate-900 border border-slate-700) to avoid text bleeding into underlying charts.",
-    "risk_matrix": "A highly visual 2D grid/heat map. Use rich gradients or solid vivid colors (Emerald, Yellow, Orange, Red) with dark, high-contrast labels inside.",
-    "progress_bars": "Rounded-full, h-2 or h-3, using bright accent colors (e.g., emerald for training completion) on a dark slate track (bg-slate-800).",
-    "tables": "Cardless integration for Supplier Ranking. Left-aligned, subtle border-b on rows (border-slate-800). Highlight top performers with subtle row backgrounds."
   },
   "motion": {
-    "hover": "hover:-translate-y-1 hover:shadow-lg transition-all duration-300",
-    "entrance": "Staggered fade-up for grid items on load.",
-    "interactive": "Active states must slightly scale down (active:scale-95)."
+    "transitions": "transition-[background-color,box-shadow,transform] duration-200",
+    "hover_lift": "hover:-translate-y-px"
   },
   "accessibility": {
-    "contrast": "Ensure APCA contrast compliance, especially for text placed over colored Risk Matrix cells.",
-    "focus": "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F19]",
-    "testing": "CRITICAL: All interactive and key informational elements MUST include a data-testid attribute (e.g., data-testid='esg-score-card')."
+    "data_testid_required": true,
+    "contrast_ratio": "APCA standard >= 4.5:1",
+    "focus_states": "focus:ring-2 focus:ring-emerald-700 focus:outline-none"
   },
-  "instructions_to_main_agent": [
-    "You must write .js files (not .tsx) for all React components.",
-    "Implement the UI as a Dashboard SaaS layout with a premium dark mode.",
-    "Ensure 'Supplier Ranking Overview' feels like a high-end command center: lots of data, cleanly spaced, with pops of vibrant color for scores and risks.",
-    "The Risk Matrix must be the visual centerpiece: vibrant, color-coded cells clearly displaying sustainability risks.",
-    "Include specific sections for ESG Score Breakdown, Document/Training Progress, and Attention Required alerts.",
-    "Do not use default generic styling; elevate the components with the specified spacing, rounded corners, and subtle borders.",
-    "Never use purely transparent backgrounds over content (especially for tooltips, modals, and sticky headers)."
-  ],
-  "universal_guidelines": [
-    "Avoid generic centered layouts. Use optical alignment.",
-    "Create depth through layered design elements with z-index hierarchy and glassmorphism (backdrop-blur).",
-    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
-    "Do NOT apply universal transition (transition: all). Target specific properties to avoid breaking transforms.",
-    "Never use AI emojis (🤖, 💡, etc.) for icons. Use Phosphor or Lucide icons.",
-    "Do NOT center align the app container (.App { text-align: center; })."
+  "image_urls": [],
+  "instructions_to_main_agent": "1. Convert the inline 'Create Training' card in SupplierTrainingAdmin.jsx into a Dialog pop-up modal controlled by showTrainingForm state (open when showTrainingForm is true, onOpenChange updates showTrainingForm).\n2. Convert the inline 'Publish Document' card in SupplierDocumentsAdmin.jsx into a Dialog pop-up modal controlled by showAgreementForm state (open when showAgreementForm is true, onOpenChange updates showAgreementForm).\n3. Maintain all existing form controls, data-testid attributes, event handlers, validation logic, assignment picker, and API submissions without breaking any test or functionality.\n4. Clean up any inline page wrapper styles that previously relied on [&_[data-testid=...]]:hidden CSS selectors.",
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Never use generic centered layouts or unstyled default HTML elements.",
+    "Ensure all buttons and inputs have clear data-testid attributes.",
+    "Do not use transparent header backgrounds or unstyled dropdown containers.",
+    "Maintain contrast standards (minimum WCAG AA / APCA compliant)."
   ]
 }

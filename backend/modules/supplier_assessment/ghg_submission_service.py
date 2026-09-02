@@ -66,9 +66,15 @@ def reporting_period_values(parent_period: str | None) -> list[str]:
     assignment = describe_reporting_period(parent_period)
     if not assignment:
         return []
+    yearly_full_label = None
+    match = re.fullmatch(r"FY\s*(\d{4})\s*-\s*(\d{2}|\d{4})", parent_period.strip(), re.IGNORECASE)
+    if match:
+        start_year, end_year = match.groups()
+        yearly_full_label = f"FY {start_year}-{end_year if len(end_year) == 4 else start_year[:2] + end_year}"
     return list(dict.fromkeys([
         parent_period.strip(),
         assignment["reporting_period"],
+        yearly_full_label,
         *assignment["allowed_months"],
     ]))
 
@@ -127,7 +133,7 @@ def supplier_emission_period_allowed(
     if not assignment or not submission_period:
         return False
     if (frequency_type or "monthly") == "yearly":
-        return submission_period.strip().replace(" ", "").upper() == assignment["reporting_period"].replace(" ", "").upper()
+        return canonical_yearly_period(submission_period) == canonical_yearly_period(assignment["reporting_period"])
     return submission_period.strip() in assignment["allowed_months"]
 
 
@@ -137,6 +143,15 @@ def supplier_period_error(parent_period: str | None, frequency_type: str | None)
     if (frequency_type or "monthly") == "yearly":
         return f"Yearly GHG data must use the assigned reporting period {assigned_label}"
     return f"Monthly GHG data must use a month within the assigned reporting period {assigned_label}"
+
+
+def canonical_yearly_period(value: str | None) -> str:
+    normalized = (value or "").upper().replace("–", "-").replace("—", "-").replace("/", "-")
+    match = re.search(r"(?:FY\s*)?(\d{4})\s*-\s*(\d{2,4})", normalized)
+    if not match:
+        return re.sub(r"\s+", "", normalized)
+    start_year, end_year = match.groups()
+    return f"FY{start_year}-{end_year if len(end_year) == 4 else start_year[:2] + end_year}"
 
 
 async def _hydrate_reporting_year_start(relationship: Dict[str, Any]) -> None:
@@ -184,7 +199,7 @@ def resolve_supplier_submission_period(
     if data_frequency not in {"monthly", "yearly"}:
         raise ValueError("GHG data frequency must be monthly or yearly")
     if data_frequency == "yearly":
-        is_allowed = reporting_period.strip().replace(" ", "").upper() == assignment["reporting_period"].replace(" ", "").upper()
+        is_allowed = canonical_yearly_period(reporting_period) == canonical_yearly_period(assignment["reporting_period"])
     else:
         is_allowed = reporting_period.strip() in assignment["allowed_months"]
     if not is_allowed:
@@ -335,7 +350,7 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             "scope": {"$in": ["scope1", "scope2"]},
             "submitted_to_parent_org": {"$exists": True, "$ne": None},
         },
-        {"_id": 0, "id": 1, "scope": 1, "reporting_period": 1, "total_emissions": 1, "co2e_emissions": 1, "revision_lineage_id": 1, "revision_number": 1, "submitted_to_parent_org": 1, "created_at": 1},
+        {"_id": 0, "id": 1, "scope": 1, "reporting_period": 1, "total_emissions": 1, "co2e_emissions": 1, "revision_lineage_id": 1, "revision_number": 1, "submission_id": 1, "submitted_to_parent_org": 1, "created_at": 1},
     ).to_list(5000)
     today = datetime.now(timezone.utc).date()
     periods = []
@@ -370,6 +385,22 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             "has_unsubmitted_entries": bool(unsubmitted_entry_count),
             "unsubmitted_entry_count": unsubmitted_entry_count,
             "submitted_scope_totals": submitted_scope_totals,
+        })
+    defined_keys = {definition["period_key"] for definition in definitions}
+    for record in stored:
+        if record.get("period_key") in defined_keys or record.get("status") not in {"submitted", "unlocked"}:
+            continue
+        historical_entries = [entry for entry in submitted_entries if entry.get("submission_id") == record.get("id")]
+        periods.append({
+            "id": record.get("id") or record["period_key"], "period_key": record["period_key"],
+            "frequency": record.get("frequency") or "yearly", "label": f"{record['period_key']} (previous cadence)",
+            "period_start": record.get("period_start"), "period_end": record.get("period_end"), "due_date": record.get("due_date"),
+            "month_keys": [], "reporting_year": record.get("reporting_year"), "status": record.get("status"),
+            "revision": int(record.get("revision") or 0), "submitted_at": record.get("submitted_at"), "submitted_by": record.get("submitted_by"),
+            "unlocked_at": record.get("unlocked_at"), "unlocked_by": record.get("unlocked_by"), "unlock_reason": record.get("unlock_reason"),
+            "supplier_instructions": record.get("supplier_instructions") if record.get("status") == "unlocked" else None,
+            "is_overdue": False, "has_unsubmitted_entries": False, "unsubmitted_entry_count": 0,
+            "submitted_scope_totals": period_submitted_scope_totals(historical_entries, [entry.get("reporting_period") for entry in historical_entries]), "is_previous_cadence": True,
         })
     return periods
 
@@ -458,11 +489,8 @@ async def unlock_supplier_ghg_period(
     )
     if not submission or submission.get("status") != "submitted":
         raise ValueError("No submitted GHG period is available to unlock")
-    period = next((item for item in _submission_period_definitions(relationship) if item["period_key"] == period_key), None)
-    if not period:
-        raise ValueError("GHG submission period is not part of this supplier assignment")
     visible_entries = await db.emission_records.find(
-        {**_period_entries_query(relationship, period), "submission_id": submission["id"], "parent_visible": {"$ne": False}}, {"_id": 0},
+        {"source": "supplier", "supplier_relationship_id": relationship["id"], "submission_id": submission["id"], "parent_visible": {"$ne": False}}, {"_id": 0},
     ).to_list(5000)
     if not visible_entries:
         raise ValueError("No submitted GHG entries are available to unlock")

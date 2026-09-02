@@ -16,7 +16,7 @@ def supplier_invitation_email(
     email: str,
     temp_password: Optional[str],
     login_link: str,
-    due_date: Optional[str],
+    access_revoke_date: Optional[str],
     assigned_modules: Optional[List[str]] = None,
 ) -> str:
     """HTML body for supplier invitation email."""
@@ -54,12 +54,12 @@ def supplier_invitation_email(
         </div>
         """
     
-    due_date_section = ""
-    if due_date:
-        due_date_section = f"""
+    access_revoke_section = ""
+    if access_revoke_date:
+        access_revoke_section = f"""
         <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
             <p style="color: #92400e; font-size: 13px; margin: 0;">
-                <strong>Due Date:</strong> Please complete your assessment by {due_date}
+                <strong>Access Revoke Date:</strong> Your supplier assessment access will be revoked after {access_revoke_date}
             </p>
         </div>
         """
@@ -93,7 +93,7 @@ def supplier_invitation_email(
                                     <strong style="color: #2eb67d;">{customer_name}</strong> has invited you to complete a supplier ESG assessment on SustainRepo. This assessment helps evaluate environmental, social, and governance practices.
                                 </p>
                                 
-                                {due_date_section}
+                                {access_revoke_section}
                                 
                                 <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
                                     <strong>What you'll need to provide:</strong>
@@ -135,7 +135,7 @@ def supplier_reminder_email(
     supplier_name: str,
     customer_name: str,
     pending_modules: List[str],
-    due_date: Optional[str],
+    access_revoke_date: Optional[str],
     login_link: str,
     custom_message: Optional[str],
 ) -> str:
@@ -152,12 +152,12 @@ def supplier_reminder_email(
         </ul>
         """
     
-    due_date_section = ""
-    if due_date:
-        due_date_section = f"""
+    access_revoke_section = ""
+    if access_revoke_date:
+        access_revoke_section = f"""
         <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
             <p style="color: #991b1b; font-size: 13px; margin: 0;">
-                <strong>Due Date:</strong> {due_date}
+                <strong>Access Revoke Date:</strong> {access_revoke_date}
             </p>
         </div>
         """
@@ -202,7 +202,7 @@ def supplier_reminder_email(
                                     This is a friendly reminder from <strong style="color: #2eb67d;">{customer_name}</strong> to complete your supplier assessment on SustainRepo.
                                 </p>
                                 
-                                {due_date_section}
+                                {access_revoke_section}
                                 
                                 {custom_section}
                                 

@@ -57,6 +57,11 @@ class _Collection:
         if upsert:
             self.docs.append(deepcopy(update.get("$set", {})))
 
+    async def update_many(self, query, update):
+        for document in self.docs:
+            if self._matches(document, query):
+                document.update(update.get("$set", {}))
+
 
 class _Database:
     def __init__(self, **collections):
@@ -69,10 +74,15 @@ class _Database:
 class _Storage:
     def __init__(self):
         self.uploads = []
+        self.deleted = []
 
     async def upload_file(self, **kwargs):
         self.uploads.append(kwargs)
         return {"success": True, "key": f"supplier-assessment/documents/{len(self.uploads)}.pdf"}
+
+    async def delete_file(self, bucket_type, key):
+        self.deleted.append((bucket_type, key))
+        return True
 
 
 def _relationship(relationship_id, supplier_org_id, program_id="program-1", version=1):
@@ -241,6 +251,26 @@ async def test_document_selection_sync_centralizes_relationship_assignments(monk
     assert "relationship-1" not in first["excluded_supplier_relationship_ids"]
     assert second["supplier_relationship_ids"] == []
     assert second["excluded_supplier_relationship_ids"] == ["relationship-1"]
+
+
+@pytest.mark.asyncio
+async def test_document_delete_removes_the_r2_source_before_soft_deleting_metadata(monkeypatch):
+    database = _Database(
+        supplier_document_requirements=[{"id": "requirement-1", "customer_org_id": "customer-1", "document_version_id": "version-1", "is_active": True}],
+        supplier_document_versions=[{"id": "version-1", "customer_org_id": "customer-1", "bucket_type": "supplier_assessment", "r2_key": "documents/nda.pdf"}],
+        supplier_relationships=[{"id": "relationship-1", "customer_org_id": "customer-1", "is_active": True}],
+    )
+    storage = _Storage()
+    monkeypatch.setattr(documents_service, "db", database)
+    monkeypatch.setattr(documents_service, "get_r2_storage", lambda: storage)
+
+    relationship_ids = await documents_service.archive_document("customer-1", "requirement-1")
+
+    assert storage.deleted == [("supplier_assessment", "documents/nda.pdf")]
+    assert relationship_ids == ["relationship-1"]
+    assert database.supplier_document_requirements.docs[0]["is_active"] is False
+    assert database.supplier_document_versions.docs[0]["is_deleted"] is True
+    assert database.supplier_document_versions.docs[0]["r2_delete_status"] == "deleted"
 
 
 def test_document_api_exposes_only_the_audit_safe_delete_mutation_route():

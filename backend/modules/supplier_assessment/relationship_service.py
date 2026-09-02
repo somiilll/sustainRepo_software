@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from modules.supplier_assessment.email_templates import supplier_invitation_email, supplier_reminder_email
+from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.programs import apply_legacy_request_overrides, bind_current_program, get_or_create_program_revision, resolve_program_context
 from shared.database.mongo import db
@@ -15,6 +16,9 @@ from shared.helpers.passwords import generate_random_password, get_password_hash
 # ========================================================================
 # Supplier Management
 # ========================================================================
+
+def _access_revoke_date(relationship: Dict[str, Any]) -> Optional[str]:
+    return relationship.get("access_revoke_date") or relationship.get("due_date")
 
 @staticmethod
 def _default_reporting_period() -> str:
@@ -38,7 +42,7 @@ async def create_supplier(
     contact_person: str,
     email: str,
     contact_number: Optional[str],
-    due_date: Optional[str],
+    access_revoke_date: Optional[str],
     created_by: str,
     created_by_email: str,
     modules_enabled: Optional[List[str]] = None,
@@ -57,6 +61,7 @@ async def create_supplier(
     3. Generate temp password and send invitation email
     4. Create supplier_relationship record
     """
+    validate_due_date(access_revoke_date)
     company_name = (company_name or "").strip()
     duplicate_supplier = await db.supplier_relationships.find_one(
         {"customer_org_id": customer_org_id, "is_active": True, "company_name": {"$regex": f"^{re.escape(company_name)}$", "$options": "i"}},
@@ -155,7 +160,18 @@ async def create_supplier(
             assigned_questionnaire_ids = list(dict.fromkeys(questionnaire_ids))
             invalid_ids = set(assigned_questionnaire_ids) - active_ids
             if invalid_ids:
-                raise ValueError("Selected ESG questionnaire is unavailable")
+                unavailable = await db.supplier_questionnaires.find({"organization_id": customer_org_id, "id": {"$in": list(invalid_ids)}}, {"_id": 0, "id": 1, "name": 1, "is_active": 1, "is_deleted": 1}).to_list(100)
+                by_id = {questionnaire["id"]: questionnaire for questionnaire in unavailable}
+                labels = []
+                for questionnaire_id in sorted(invalid_ids):
+                    questionnaire = by_id.get(questionnaire_id)
+                    if not questionnaire:
+                        labels.append(f"{questionnaire_id} (not found)")
+                    elif questionnaire.get("is_deleted"):
+                        labels.append(f"{questionnaire.get('name') or questionnaire_id} (deleted)")
+                    else:
+                        labels.append(f"{questionnaire.get('name') or questionnaire_id} (inactive)")
+                raise ValueError(f"Selected ESG questionnaire is unavailable: {', '.join(labels)}")
 
     # Create supplier relationship
     relationship_id = str(uuid.uuid4())
@@ -173,7 +189,7 @@ async def create_supplier(
         "revenue_percentage": None,
         "revenue_required": revenue_required,
         "invitation_status": "pending",
-        "due_date": due_date,
+        "access_revoke_date": access_revoke_date,
         "reporting_period": reporting_period or await self._organization_default_reporting_period(customer_org_id),
         "financial_year_start_month": int(customer_reporting_config.get("financial_year_start_month") or 4),
         "last_reminder_sent": None,
@@ -227,7 +243,7 @@ async def create_supplier(
         email=email,
         temp_password=temp_password,  # Will be None if user already exists
         login_link=login_link,
-        due_date=due_date,
+        access_revoke_date=access_revoke_date,
         assigned_modules=["revenue", *modules_enabled],
     )
     
@@ -290,6 +306,7 @@ async def get_suppliers(
     for assignment in training_assignments:
         training_ids_by_supplier.setdefault(assignment["supplier_relationship_id"], []).append(assignment["training_requirement_id"])
     for supplier in suppliers:
+        supplier["access_revoke_date"] = _access_revoke_date(supplier)
         supplier["questionnaire_assignment_is_implicit"] = "questionnaire_ids" not in supplier
         supplier["document_requirement_ids"] = [requirement["id"] for requirement in document_requirements if _is_requirement_available_to_relationship(requirement, supplier)]
         supplier["training_requirement_ids"] = training_ids_by_supplier.get(supplier["id"], [])
@@ -303,10 +320,13 @@ async def get_suppliers(
 
 async def get_supplier(self, relationship_id: str) -> Optional[Dict[str, Any]]:
     """Get single supplier relationship."""
-    return await db.supplier_relationships.find_one(
+    relationship = await db.supplier_relationships.find_one(
         {"id": relationship_id, "is_active": True},
         {"_id": 0}
     )
+    if relationship:
+        relationship["access_revoke_date"] = _access_revoke_date(relationship)
+    return relationship
 
 async def get_program_context(self, relationship: Dict[str, Any]) -> Dict[str, Any]:
     """Expose the immutable program resolver to transport boundaries."""
@@ -321,6 +341,8 @@ async def update_supplier(
     relationship = await self.get_supplier(relationship_id)
     if not relationship:
         return None
+    if "access_revoke_date" in updates:
+        validate_due_date(updates["access_revoke_date"])
 
     if "modules_enabled" in updates or "ghg_scopes_enabled" in updates:
         context = await resolve_program_context(relationship)
@@ -458,7 +480,7 @@ async def send_reminder(
         supplier_name=relationship["contact_person"],
         customer_name=customer_name,
         pending_modules=pending_modules,
-        due_date=relationship.get("due_date"),
+        access_revoke_date=_access_revoke_date(relationship),
         login_link=login_link,
         custom_message=custom_message,
     )

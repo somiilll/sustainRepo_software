@@ -77,7 +77,7 @@ const createSupplierForm = (reportingPeriod) => ({
   contact_person: '',
   email: '',
   contact_number: '',
-  due_date: '',
+  access_revoke_date: '',
   reporting_period: reportingPeriod,
   modules_enabled: ['esg', 'ghg'],
   ghg_scopes_enabled: ['scope1', 'scope2'],
@@ -187,14 +187,15 @@ export default function SupplierList() {
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
     ]).then(([documentResponse, trainingResponse, questionnaireResponse]) => {
       const availableDocuments = groupAvailableDocuments(documentResponse.data);
-      const availableTrainings = trainingResponse.data || [];
+      const availableTrainings = (trainingResponse.data || []).filter((training) => training.is_active !== false && !training.is_deleted);
       setDocuments(availableDocuments);
       setTrainings(availableTrainings);
-      const availableQuestionnaires = questionnaireResponse.data || [];
+      const availableQuestionnaires = (questionnaireResponse.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted);
       setQuestionnaires(availableQuestionnaires);
       setFormData((current) => ({
         ...current,
-        questionnaire_ids: current.questionnaire_ids.length ? current.questionnaire_ids : availableQuestionnaires.map((questionnaire) => questionnaire.id),
+        modules_enabled: current.modules_enabled.filter((module) => module !== 'esg' || availableQuestionnaires.length > 0),
+        questionnaire_ids: current.questionnaire_ids.length ? current.questionnaire_ids.filter((questionnaireId) => availableQuestionnaires.some((questionnaire) => questionnaire.id === questionnaireId)) : availableQuestionnaires.map((questionnaire) => questionnaire.id),
         document_requirement_ids: availableDocuments.map((document) => document.id),
         training_requirement_ids: availableTrainings.map((training) => training.id),
       }));
@@ -211,13 +212,13 @@ export default function SupplierList() {
       axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/submission-status`, { headers: getAuthHeader() }),
     ]).then(([documentResponse, trainingResponse, questionnaireResponse, statusResponse]) => {
       const availableDocuments = groupAvailableDocuments(documentResponse.data);
-      const availableTrainings = trainingResponse.data || [];
+      const availableTrainings = (trainingResponse.data || []).filter((training) => training.is_active !== false && !training.is_deleted);
       setDocuments(availableDocuments);
       setTrainings(availableTrainings);
       const selectedDocumentIds = availableDocuments.filter((document) => selectedSupplier.document_requirement_ids?.includes(document.id) || document.supplier_relationship_ids?.includes(selectedSupplier.id)).map((document) => document.id);
       const selectedTrainingIds = availableTrainings.filter((training) => selectedSupplier.training_requirement_ids?.includes(training.id) || training.supplier_relationship_ids?.includes(selectedSupplier.id)).map((training) => training.id);
       setFormData((current) => ({ ...current, document_requirement_ids: selectedDocumentIds, training_requirement_ids: selectedTrainingIds }));
-      const availableQuestionnaires = questionnaireResponse.data || [];
+      const availableQuestionnaires = (questionnaireResponse.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted);
       setQuestionnaires(availableQuestionnaires);
       setSubmissionStatus(statusResponse.data);
       if (selectedSupplier.questionnaire_assignment_is_implicit) {
@@ -276,16 +277,16 @@ export default function SupplierList() {
   };
 
   const handleDeactivate = async (supplier) => {
-    if (!window.confirm(`Deactivate supplier "${supplier.company_name}"?`)) return;
+    if (!window.confirm(`Delete supplier "${supplier.company_name}"?`)) return;
     
     try {
       await axios.delete(`${API}/supplier-assessment/suppliers/${supplier.id}`, {
         headers: getAuthHeader(),
       });
-      toast.success('Supplier deactivated');
+      toast.success('Supplier deleted');
       fetchSuppliers();
     } catch (err) {
-      toast.error('Failed to deactivate supplier');
+      toast.error('Failed to delete supplier');
     }
   };
 
@@ -311,7 +312,7 @@ export default function SupplierList() {
       contact_person: supplier.contact_person,
       email: supplier.contact_email,
       contact_number: supplier.contact_number || '',
-      due_date: supplier.due_date || '',
+      access_revoke_date: supplier.access_revoke_date || '',
       reporting_period: supplier.reporting_period || `CY${new Date().getFullYear()}`,
       modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
       ghg_scopes_enabled: supplier.ghg_scopes_enabled || ['scope1', 'scope2'],
@@ -457,7 +458,7 @@ export default function SupplierList() {
             <TableRow className="border-emerald-100 hover:bg-emerald-50/60">
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-company-header">Company</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-contact-header">Contact</TableHead>
-              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-due-date-header">Due Date</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-access-revoke-date-header">Access Revoke Date</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-ledger-login-status-header">Login Status</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-progress-header">Progress</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-score-header">Score</TableHead>
@@ -496,11 +497,11 @@ export default function SupplierList() {
                       <div className="mt-0.5 text-xs text-stone-500" data-testid={`supplier-contact-email-${supplier.id}`}>{supplier.contact_email}</div>
                     </div>
                   </TableCell>
-                  <TableCell className="px-4 py-4" data-testid={`supplier-due-date-${supplier.id}`}>
-                    {supplier.due_date ? (
+                  <TableCell className="px-4 py-4" data-testid={`supplier-access-revoke-date-${supplier.id}`}>
+                    {supplier.access_revoke_date ? (
                       <div className="flex items-center gap-1.5 text-sm text-stone-600">
                         <Calendar className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
-                        {new Date(supplier.due_date).toLocaleDateString()}
+                        {new Date(supplier.access_revoke_date).toLocaleDateString()}
                       </div>
                     ) : (
                       <span className="text-stone-400">-</span>
@@ -666,10 +667,10 @@ export default function SupplierList() {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label>Due Date</Label>
-                  <FieldInfo label="After this date, the supplier assessment will be locked for the supplier." testId="supplier-due-date-info" />
+                  <Label>Access Revoke Date</Label>
+                  <FieldInfo label="After this date, the supplier's assessment access will be revoked." testId="supplier-access-revoke-date-info" />
                 </div>
-                <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} data-testid="supplier-due-date" />
+                <Input type="date" min={new Date().toISOString().slice(0, 10)} value={formData.access_revoke_date} onChange={(e) => setFormData({ ...formData, access_revoke_date: e.target.value })} data-testid="supplier-access-revoke-date" />
               </div>
             <div className="space-y-2">
               <div className="flex items-center gap-1.5">
@@ -693,8 +694,8 @@ export default function SupplierList() {
             <div className="space-y-3 border-t pt-2">
               <Label className="text-base font-medium">Assessment Modules *</Label>
               <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-3 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
+              <div className={`grid gap-4 ${questionnaires.length > 0 ? 'md:grid-cols-2' : ''}`}>
+                {questionnaires.length > 0 && <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-3 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
                   <div className="flex items-center gap-2">
                   <Checkbox
                     id="module-esg"
@@ -725,7 +726,7 @@ export default function SupplierList() {
                       </div>
                     </div>
                   )}
-                </div>
+                </div>}
                 <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-3 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -832,11 +833,13 @@ export default function SupplierList() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Due Date</Label>
+              <Label>Access Revoke Date</Label>
               <Input
                 type="date"
-                value={formData.due_date}
-                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                min={new Date().toISOString().slice(0, 10)}
+                value={formData.access_revoke_date}
+                onChange={(e) => setFormData({ ...formData, access_revoke_date: e.target.value })}
+                data-testid="edit-supplier-access-revoke-date"
               />
             </div>
             <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3">
@@ -1004,10 +1007,10 @@ export default function SupplierList() {
                   </p>
                 </div>
                 <div>
-                  <Label className="text-stone-500">Due Date</Label>
+                  <Label className="text-stone-500">Access Revoke Date</Label>
                   <p className="font-medium">
-                    {selectedSupplier.due_date 
-                      ? new Date(selectedSupplier.due_date).toLocaleDateString() 
+                    {selectedSupplier.access_revoke_date
+                      ? new Date(selectedSupplier.access_revoke_date).toLocaleDateString() 
                       : '-'}
                   </p>
                 </div>

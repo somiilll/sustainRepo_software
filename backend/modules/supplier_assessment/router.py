@@ -165,7 +165,7 @@ async def create_supplier(
             contact_person=data.contact_person,
             email=data.email,
             contact_number=data.contact_number,
-            due_date=data.due_date,
+            access_revoke_date=data.access_revoke_date,
             created_by=current_user["id"],
             created_by_email=current_user["email"],
             modules_enabled=data.modules_enabled,
@@ -256,7 +256,7 @@ async def deactivate_supplier(
         raise HTTPException(status_code=403, detail="Access denied")
     
     await supplier_service.deactivate_supplier(supplier_id)
-    return {"message": "Supplier deactivated"}
+    return {"message": "Supplier deleted"}
 
 
 @router.post("/suppliers/{supplier_id}/remind")
@@ -401,7 +401,10 @@ async def preview_document(requirement_id: str, current_user: dict = Depends(get
 @router.delete("/documents/{requirement_id}")
 async def delete_document(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
     """Remove an agreement from active supplier access while retaining immutable records."""
-    relationship_ids = await documents_service.archive_document(current_user["organization_id"], requirement_id)
+    try:
+        relationship_ids = await documents_service.archive_document(current_user["organization_id"], requirement_id)
+    except ValueError as error:
+        raise HTTPException(status_code=502, detail=str(error))
     if relationship_ids is None:
         raise HTTPException(status_code=404, detail="Agreement not found")
     for relationship_id in relationship_ids:
@@ -422,7 +425,7 @@ async def create_training(file: UploadFile = File(...), title: str = Form(...), 
 async def list_trainings(reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     query = {"organization_id": current_user["organization_id"], "is_deleted": {"$ne": True}}
     if reporting_period:
-        assignment_ids = await db.supplier_training_assignments.distinct("training_requirement_id", {"organization_id": current_user["organization_id"], "reporting_period": reporting_period, "is_active": True})
+        assignment_ids = await db.supplier_training_assignments.distinct("training_requirement_id", {"organization_id": current_user["organization_id"], "reporting_period": reporting_period})
         query["id"] = {"$in": assignment_ids}
     return await db.supplier_training_requirements.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
 
@@ -463,7 +466,11 @@ async def unassign_training_supplier(training_id: str, supplier_id: str, current
 
 @router.delete("/trainings/{training_id}")
 async def delete_training(training_id: str, current_user: dict = Depends(get_customer_admin)):
-    if not await training_service.archive_training(current_user["organization_id"], training_id):
+    try:
+        deleted = await training_service.archive_training(current_user["organization_id"], training_id)
+    except ValueError as error:
+        raise HTTPException(status_code=502, detail=str(error))
+    if not deleted:
         raise HTTPException(status_code=404, detail="Training not found")
     return {"message": "Training deleted"}
 
@@ -1081,6 +1088,7 @@ async def get_my_document_view_url(
     document = await documents_service.get_supplier_document(relationship, requirement_id)
     if not document:
         raise HTTPException(status_code=404, detail="Agreement not found")
+    await documents_service.mark_supplier_document_viewed(relationship, requirement_id, document["version"]["id"], current_user["id"])
     version = document["version"]
     try:
         return {"url": get_r2_storage().generate_presigned_url(
@@ -1228,6 +1236,20 @@ async def upload_my_question_evidence(
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.delete("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/{evidence_id}")
+async def delete_my_question_evidence(questionnaire_id: str, question_id: str, evidence_id: str, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        deleted = await supplier_service.delete_supplier_question_evidence(relationship, questionnaire_id, question_id, evidence_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+    return deleted
 
 
 @router.get("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/{evidence_id}")

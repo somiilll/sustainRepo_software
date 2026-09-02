@@ -653,4 +653,85 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-01 (Netlify Recharts Dependency Lock)
 - Pinned the frontend `recharts` dependency to the exact `3.6.0` version and regenerated `frontend/yarn.lock` from the frontend workspace.
 - Verification passed: `yarn build` completed successfully with the resolved lockfile entry `recharts@3.6.0`.
-- `frontend/yarn.lock` is present but is currently untracked by Git; it must be included through **Save to Github** before the Netlify-deployed branch can consume the deterministic dependency resolution.
+- Netlify deployment is confirmed complete; no additional deployment follow-up is required.
+
+## Latest Changes — 2026-09-01 (Supplier Workspace Desktop Header Spacing)
+- Updated the shared `/supplier-assessment` desktop content wrapper from `lg:pt-0` to `lg:pt-4`, restoring the consistent top spacing visible in the local Supplier workspace across Suppliers, ESG Questionnaires, Supplier GHG Emissions, Documents, Trainings, and Rankings.
+- The user requested no additional testing after this visual adjustment. A production frontend build had already completed successfully immediately after the code update, with pre-existing lint warnings only.
+
+## Latest Changes — 2026-09-01 (Training Disable/Enable Recovery)
+- Disabled trainings now remain visible in the parent Training workspace with a Disabled status and an accessible Enable action. Manage suppliers is unavailable until the training is enabled again.
+- Disabling records an auditable deactivation batch. Re-enabling reactivates the original assignment rows only for suppliers disabled in that batch whose current reporting period still matches, preserving linked progress and completed status.
+- Focused lifecycle tests and frontend static checks passed before the user requested no additional testing. No further tests were run.
+
+## Latest Changes — 2026-09-01 (Training Completion-preserving Re-enable)
+- Re-enabling a training now restores the original eligible assignment records rather than creating replacements. Existing completion, page/slide progress, and training status remain attached to their original assignment IDs and are immediately visible to suppliers.
+- Explicitly unassigned suppliers remain excluded. Legacy disabled trainings use their matching historical assignment only when no deactivation batch exists.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-01 (Create Supplier Assignment Availability)
+- Create Supplier now hides the ESG Questionnaire module entirely when no active ESG questionnaire is available and removes ESG from the submitted module selection in that state.
+- Create and Edit Supplier assignment choices now exclude disabled or deleted trainings, preventing unavailable training requirements from being assigned.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-01 (Muted Disabled Training State)
+- Disabled training cards now use a muted gray surface, softened text, gray completion indicator, and a compact Disabled status pill. The existing Enable action remains available from the overflow menu.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-01 (Physical R2 Asset Deletion)
+- Deleting a Supplier Document now physically deletes its source object from Cloudflare R2 before marking its requirements/version deleted. Deleting a Supplier Training removes its generated viewer-page objects first and source object last, then archives its records.
+- R2 failures return an explicit 502 error and leave the application deletion state unchanged. Deletion audit metadata records the successful storage cleanup without exposing storage URLs.
+
+## Latest Changes — 2026-09-01 (Supplier Access Revoke Date Terminology)
+- Supplier Create and Edit now use the `access_revoke_date` field and label it Access Revoke Date. Existing `due_date` values remain readable through a backward-compatible mapping while all new supplier relationships write the unambiguous field.
+- Parent-side supplier deletion now returns and displays Delete/Supplier deleted terminology rather than Deactivate/Supplier deactivated.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-01 (Compatible ESG Question Scoring)
+- The ESG Question Builder now limits scoring methods by response type: Text → Manual Review; Yes/No → Yes/No Score; Numeric/Percentage → Higher is Better or Lower is Better; Dropdown → Choice Mapping.
+- The Question Ledger scoring dropdown now follows the same filtering rule, so incompatible scoring methods are not offered anywhere in the ESG question authoring UI. Legacy questions with an incompatible scoring rule are normalized to their response type's default when opened for editing. **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-02 (ESG Question Ledger Layout)
+- Reworked the Add Questions ledger with clear desktop column headings and responsive field labels. The delete action remains in the visible row layout rather than requiring horizontal scrolling.
+- Restored Yes/No and dropdown score configuration to an expanded second line, and removed the fixed dialog height that created excessive empty space below the form.
+- Removed the tinted background from expanded score configuration panels while retaining their clear bordered grouping.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-02 (Training and Document Assignment Ledger)
+- Replaced Previous/Next supplier-assignment paging in Add Training and Add Document with a single searchable, scrollable supplier ledger that shows up to 100 matches at once.
+- The assignment selector now uses Supplier and Assign column headings to align visually with the ESG question ledger; no horizontal paging action is required.
+
+## Latest Changes — 2026-09-02 (Document Card Completion Layout)
+- Parent Document cards now mirror Training cards: title, response metadata and completed/assigned count, completion bar with percentage, due date, and action controls in a consistent three-column layout.
+- Completion totals are loaded from existing supplier document response records; no document schema or submission behavior changed.
+- Document summary cards now show Documents published, Supplier assignments, and Responses submitted.
+
+## Latest Changes — 2026-09-02 (Supplier Evidence, Revenue, and Document Controls)
+- Removed location icons from supplier-facing facility banners, added Save as draft to the revenue submission confirmation, and enabled multi-file ESG evidence upload with supplier-initiated permanent R2 removal before final submission.
+- Document responses now require a recorded document view and their submit action is hidden until that view occurs. Historic submitted GHG periods remain eligible for parent unlock after a cadence change.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-02 (Yearly Supplier GHG Period Normalization)
+- Yearly supplier GHG entries now compare the parent-assigned and submitted financial-year values using one canonical key, accepting equivalent labels such as `FY 2026-27`, `FY2026-27`, and dash variants.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-02 (R2 Evidence Deletion Repair)
+- Added the missing R2 `delete_file` storage-helper method. This unblocks supplier evidence removal as well as the previously added permanent Document and Training asset deletion flows.
+- Evidence deletion now resolves its stored R2 metadata directly from the evidence record instead of relying on current-response linkage, supporting legacy and response-revision evidence safely.
+- Evidence deletion now identifies the latest editable draft/reopened questionnaire response that actually references the evidence ID. Submitted response revisions remain immutable and return a clear locked-submission error.
+
+## Latest Changes — 2026-09-02 (GHG Monthly Unit and Form Alignment)
+- Hardened monthly quantity-unit initialization so the active configured fuel unit takes precedence over an allowed-but-stale unit while switching from yearly to monthly entry. Empty monthly rows now store the same configured unit that their selector displays.
+- Confirmed an authenticated Scope 1 Stationary Combustion Yearly → Monthly flow sends `qty.unit`, `quantity_unit`, and the calculation payload unit as `L`. The save request was intentionally aborted after capture, so no test emission was persisted.
+- Supplier-facing empty-state **Add GHG data** uses dark emerald green. The Create Emissions responsibility section now has two aligned desktop rows—Person Responsible/Designation, then Contact Details/Source of Information—with consistent control heights and the simplified Source of Information label.
+- Verification passed: focused 7-test frontend unit suite, frontend ESLint, testing-agent iteration 39 targeted checks, and an authenticated live-browser payload capture. No application APIs are mocked.
+
+## Latest Changes — 2026-09-02 (Supplier ESG Question Type Simplification)
+- Removed `Text` from the Supplier ESG Question response-type choices and removed `Manual Review` from available scoring methods in both the add-question ledger and Edit Question dialog.
+- Legacy text questions safely open using the supported Yes/No response/scoring defaults when edited, preventing retired option values from breaking the editor.
+- **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-02 (Supplier Questionnaire Evidence Deletion Repair)
+- Restored the missing `delete_supplier_question_evidence` delegate on the `SupplierAssessmentService` compatibility facade. Supplier draft-evidence deletion now reaches the existing questionnaire-service implementation instead of raising an `AttributeError` and returning HTTP 500.
+- Corrected the unrelated facade binding for the synchronous legacy answer-score helper, which was exposed while verifying the complete draft evidence workflow and had caused legacy questionnaire submission scoring to return HTTP 500.
+- Verification passed: Python compilation and facade contract checks; live authenticated evidence regression **5/5 passed**, including draft upload → delete → replacement upload → final submission; supplier workspace browser smoke passed. No mocked APIs.

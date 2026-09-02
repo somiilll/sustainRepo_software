@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
+from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.programs import resolve_program_context
 
 # ========================================================================
@@ -27,6 +28,7 @@ async def create_questionnaire(
     assignment_reporting_period: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a new questionnaire template."""
+    validate_due_date(due_date)
     questionnaire_id = str(uuid.uuid4())
     esg_weights = self._validated_weight_config(
         esg_section_weights or section_weights,
@@ -147,6 +149,8 @@ async def update_questionnaire(
     existing = await self.get_questionnaire(questionnaire_id)
     if not existing:
         return None
+    if "due_date" in updates:
+        validate_due_date(updates["due_date"])
     if "esg_section_weights" in updates or "section_weights" in updates:
         updates["esg_section_weights"] = self._validated_weight_config(
             updates.get("esg_section_weights") or updates.get("section_weights"),
@@ -588,6 +592,36 @@ async def upload_supplier_question_evidence(
         {"id": response_doc["id"]}, {"$set": {"question_evidence": question_evidence, "updated_at": now}}
     )
     return {key: value for key, value in evidence.items() if key in {"id", "original_filename", "content_type", "file_size", "uploaded_at"}}
+
+async def delete_supplier_question_evidence(
+    self, relationship: Dict[str, Any], questionnaire_id: str, question_id: str, evidence_id: str,
+) -> Optional[Dict[str, Any]]:
+    evidence = await db.supplier_question_evidence.find_one(
+        {"id": evidence_id, "supplier_relationship_id": relationship["id"], "questionnaire_id": questionnaire_id,
+         "question_id": question_id, "is_deleted": {"$ne": True}}, {"_id": 0}
+    )
+    if not evidence:
+        return None
+    response = await db.supplier_questionnaire_responses.find_one(
+        {"questionnaire_id": questionnaire_id, "supplier_relationship_id": relationship["id"],
+         "reporting_period": evidence.get("reporting_period"), f"question_evidence.{question_id}": evidence_id,
+         "status": {"$in": ["in_progress", "reopened"]}},
+        {"_id": 0}, sort=[("revision", -1)],
+    )
+    if not response:
+        raise ValueError("Evidence is part of a locked submission and cannot be removed")
+    try:
+        deleted = await get_r2_storage().delete_file(evidence["bucket_type"], evidence["r2_key"])
+        if not deleted:
+            raise ValueError("R2 did not confirm evidence deletion")
+    except Exception as error:
+        raise ValueError("Could not delete the evidence file from storage") from error
+    now = datetime.now(timezone.utc).isoformat()
+    await db.supplier_question_evidence.update_one({"id": evidence_id}, {"$set": {"is_deleted": True, "deleted_at": now, "r2_delete_status": "deleted", "r2_deleted_at": now}})
+    question_evidence = dict(response.get("question_evidence") or {})
+    question_evidence[question_id] = [item for item in question_evidence.get(question_id, []) if item != evidence_id]
+    await db.supplier_questionnaire_responses.update_one({"id": response["id"]}, {"$set": {"question_evidence": question_evidence, "updated_at": now}})
+    return {"id": evidence_id, "deleted_at": now}
 
 async def get_question_evidence_file(
     self, relationship: Dict[str, Any], questionnaire_id: str, question_id: str, evidence_id: str,
