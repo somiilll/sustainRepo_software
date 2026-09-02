@@ -292,6 +292,24 @@ def test_05_question_evidence_preview_download_visibility_and_linkage(ctx: Dict[
     evidence_id = upload_payload.get("id")
     assert isinstance(evidence_id, str) and evidence_id
 
+    deleted = requests.delete(
+        f"{ctx['base_url']}/api/supplier-assessment/my-assessment/questionnaires/{ctx['questionnaire_id']}/questions/{ctx['required_question_id']}/evidence/{evidence_id}",
+        headers=_headers(ctx["supplier_token"]),
+        timeout=30,
+    )
+    assert deleted.status_code == 200, deleted.text[:400]
+    assert deleted.json().get("id") == evidence_id
+
+    upload = requests.post(
+        f"{ctx['base_url']}/api/supplier-assessment/my-assessment/questionnaires/{ctx['questionnaire_id']}/questions/{ctx['required_question_id']}/evidence",
+        headers={"Authorization": f"Bearer {ctx['supplier_token']}"},
+        files={"file": (evidence_filename, b"%PDF-1.4\n%replacement test evidence\n", "application/pdf")},
+        timeout=60,
+    )
+    assert upload.status_code == 200, upload.text[:400]
+    evidence_id = upload.json().get("id")
+    assert isinstance(evidence_id, str) and evidence_id
+
     supplier_view = requests.get(
         f"{ctx['base_url']}/api/supplier-assessment/my-assessment/questionnaires/{ctx['questionnaire_id']}/questions/{ctx['required_question_id']}/evidence/{evidence_id}",
         headers=_headers(ctx["supplier_token"]),

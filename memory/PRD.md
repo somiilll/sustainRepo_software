@@ -730,3 +730,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Removed `Text` from the Supplier ESG Question response-type choices and removed `Manual Review` from available scoring methods in both the add-question ledger and Edit Question dialog.
 - Legacy text questions safely open using the supported Yes/No response/scoring defaults when edited, preventing retired option values from breaking the editor.
 - **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-02 (Supplier Questionnaire Evidence Deletion Repair)
+- Restored the missing `delete_supplier_question_evidence` delegate on the `SupplierAssessmentService` compatibility facade. Supplier draft-evidence deletion now reaches the existing questionnaire-service implementation instead of raising an `AttributeError` and returning HTTP 500.
+- Corrected the unrelated facade binding for the synchronous legacy answer-score helper, which was exposed while verifying the complete draft evidence workflow and had caused legacy questionnaire submission scoring to return HTTP 500.
+- Verification passed: Python compilation and facade contract checks; live authenticated evidence regression **5/5 passed**, including draft upload → delete → replacement upload → final submission; supplier workspace browser smoke passed. No mocked APIs.
