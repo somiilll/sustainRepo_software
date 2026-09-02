@@ -136,9 +136,9 @@ export default function SupplierEmissions() {
             Report your Scope 1 and Scope 2 greenhouse gas emissions
           </p>
         </div>
-        <Button onClick={() => setShowDialog(true)} data-testid="add-emission-btn">
+        <Button className="bg-emerald-800 text-white hover:bg-emerald-900" onClick={() => setShowDialog(true)} data-testid="add-emission-btn">
           <Plus className="h-4 w-4 mr-2" />
-          Add Emission
+          Add GHG Data
         </Button>
       </div>
 

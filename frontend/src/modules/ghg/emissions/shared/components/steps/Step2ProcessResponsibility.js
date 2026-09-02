@@ -74,7 +74,7 @@ export const Step2ProcessResponsibility = ({
   setSupplierCode = () => {},
 }) => {
   const responsibilityFields = (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2" data-testid="responsibility-fields-grid">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" data-testid="responsibility-fields-grid">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Label htmlFor="responsible-person-input">Person Responsible</Label>
