@@ -66,9 +66,15 @@ def reporting_period_values(parent_period: str | None) -> list[str]:
     assignment = describe_reporting_period(parent_period)
     if not assignment:
         return []
+    yearly_full_label = None
+    match = re.fullmatch(r"FY\s*(\d{4})\s*-\s*(\d{2}|\d{4})", parent_period.strip(), re.IGNORECASE)
+    if match:
+        start_year, end_year = match.groups()
+        yearly_full_label = f"FY {start_year}-{end_year if len(end_year) == 4 else start_year[:2] + end_year}"
     return list(dict.fromkeys([
         parent_period.strip(),
         assignment["reporting_period"],
+        yearly_full_label,
         *assignment["allowed_months"],
     ]))
 
