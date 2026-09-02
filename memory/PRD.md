@@ -694,4 +694,5 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-02 (ESG Question Ledger Layout)
 - Reworked the Add Questions ledger with clear desktop column headings and responsive field labels. The delete action remains in the visible row layout rather than requiring horizontal scrolling.
 - Restored Yes/No and dropdown score configuration to an expanded second line, and removed the fixed dialog height that created excessive empty space below the form.
+- Removed the tinted background from expanded score configuration panels while retaining their clear bordered grouping.
 - **NOT TESTED**, per the user's explicit instruction.
