@@ -167,6 +167,7 @@ export default function QuestionnaireBuilder() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
+  const [questionDialogMode, setQuestionDialogMode] = useState(null);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [showSubmissionsDialog, setShowSubmissionsDialog] = useState(false);
   const [submissions, setSubmissions] = useState([]);
@@ -404,6 +405,7 @@ export default function QuestionnaireBuilder() {
       }
       toast.success(`${draftQuestions.length} question${draftQuestions.length === 1 ? '' : 's'} added`);
       setShowQuestionDialog(false);
+      setQuestionDialogMode(null);
       fetchQuestions(selectedQuestionnaire.id);
     } catch (err) {
       toast.error('Failed to add question');
@@ -425,6 +427,7 @@ export default function QuestionnaireBuilder() {
       );
       toast.success('Question updated');
       setShowQuestionDialog(false);
+      setQuestionDialogMode(null);
       setEditingQuestion(null);
       resetQuestionForm();
       fetchQuestions(selectedQuestionnaire.id);
@@ -492,6 +495,15 @@ export default function QuestionnaireBuilder() {
     });
   };
 
+  const handleQuestionDialogOpenChange = (open) => {
+    setShowQuestionDialog(open);
+    if (!open) {
+      setQuestionDialogMode(null);
+      setEditingQuestion(null);
+      resetQuestionForm();
+    }
+  };
+
   const validateQuestionnaireWeights = () => {
     const esgTotal = Object.values(questionnaireForm.esg_section_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
     const overallTotal = Object.values(questionnaireForm.overall_supplier_weights || {}).reduce((total, value) => total + Number(value || 0), 0);
@@ -533,6 +545,7 @@ export default function QuestionnaireBuilder() {
       order: question.order,
       scoring,
     });
+    setQuestionDialogMode('edit');
     setShowQuestionDialog(true);
   };
 
@@ -786,6 +799,7 @@ export default function QuestionnaireBuilder() {
                 <div className="flex flex-wrap gap-2"><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openQuestionnaireAssignments} data-testid="manage-questionnaire-assignments-button">Manage suppliers</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
                   resetQuestionForm();
                   setEditingQuestion(null);
+                  setQuestionDialogMode('create');
                   setShowQuestionDialog(true);
                 }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
@@ -1109,7 +1123,7 @@ export default function QuestionnaireBuilder() {
       </Dialog>
 
       {/* Question Dialog */}
-      <Dialog open={showQuestionDialog && Boolean(editingQuestion)} onOpenChange={setShowQuestionDialog}>
+      <Dialog open={showQuestionDialog && questionDialogMode === 'edit'} onOpenChange={handleQuestionDialogOpenChange}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
@@ -1442,9 +1456,7 @@ export default function QuestionnaireBuilder() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
-              setShowQuestionDialog(false);
-              setEditingQuestion(null);
-              resetQuestionForm();
+              handleQuestionDialogOpenChange(false);
             }}>
               Cancel
             </Button>
@@ -1458,7 +1470,7 @@ export default function QuestionnaireBuilder() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <QuestionLedgerDialog open={showQuestionDialog && !editingQuestion} onOpenChange={(open) => { setShowQuestionDialog(open); if (!open) resetQuestionForm(); }} onSave={handleAddLedgerQuestions} saving={submitting} />
+      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleAddLedgerQuestions} saving={submitting} />
       <SupplierQuestionnairePreviewDialog open={showQuestionPreview} onOpenChange={setShowQuestionPreview} questionnaire={selectedQuestionnaire} questions={questions} />
     </div></TooltipProvider>
   );
