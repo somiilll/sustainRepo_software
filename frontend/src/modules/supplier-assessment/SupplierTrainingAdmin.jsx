@@ -5,7 +5,7 @@ import { Archive, CalendarDays, CircleCheck, Eye, GraduationCap, Loader2, MoreHo
 import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
@@ -13,7 +13,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../componen
 import { SupplierAssignmentPicker } from './components/SupplierAssignmentPicker';
 import { ReadOnlyTrainingViewer } from './components/ReadOnlyTrainingViewer';
 import { SupplierAssignmentManagerDialog } from './components/SupplierAssignmentManagerDialog';
-import { Badge } from '../../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../../components/ui/dropdown-menu';
 
@@ -39,7 +38,6 @@ export default function SupplierTrainingAdmin() {
   const [isCreating, setIsCreating] = useState(false);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
   const [isUpdating, setIsUpdating] = useState('');
-  const [dueDates, setDueDates] = useState({});
   const [pendingDelete, setPendingDelete] = useState(null);
   const [previewTraining, setPreviewTraining] = useState(null);
   const [previewViewer, setPreviewViewer] = useState(null);
@@ -110,12 +108,14 @@ export default function SupplierTrainingAdmin() {
       setIsUpdating('');
     }
   };
+
   const openTrainingAssignments = async (training) => {
     setSupplierDialog(training); setAssignmentRows([]); setAssignmentLoading(true);
     try { setAssignmentRows((await axios.get(`${API}/supplier-assessment/trainings/${training.id}/assignments?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() })).data.assignments || []); }
     catch (error) { toast.error(error.response?.data?.detail || 'Could not load training assignments'); setSupplierDialog(null); }
     finally { setAssignmentLoading(false); }
   };
+
   const toggleTrainingAssignment = async (row, assigned) => {
     if (!supplierDialog) return;
     setAssignmentUpdatingId(row.supplier_relationship_id);
@@ -156,25 +156,54 @@ export default function SupplierTrainingAdmin() {
     completed: trainings.reduce((total, training) => total + (training.status || []).filter((item) => item.status === 'completed').length, 0),
   };
 
-  return <div className={`space-y-7 ${showTrainingForm ? '' : '[&_[data-testid=create-training-card]]:hidden'}`} data-testid="training-admin-page">
-    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid="training-admin-header"><div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 shadow-sm" data-testid="training-admin-heading-icon"><GraduationCap className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="training-admin-heading">Supplier {trainingLabel}</h1></div><div className="flex flex-wrap items-end gap-2 rounded-xl border border-stone-200 bg-white p-2 shadow-[0_4px_18px_rgba(28,55,43,0.06)]" data-testid="training-admin-controls"><div className="min-w-40" data-testid="training-admin-period-control"><Label htmlFor="training-admin-reporting-period" className="mb-1 flex items-center gap-1.5 text-xs font-medium text-stone-600" data-testid="training-admin-period-label"><CalendarDays className="h-3.5 w-3.5 text-stone-500" aria-hidden="true" />Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="training-admin-reporting-period" className="h-9 bg-white" data-testid="training-admin-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="training-admin-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`training-admin-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div><Button className="h-9 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowTrainingForm(true)} data-testid="open-add-training-button"><Upload className="h-4 w-4" />Add {trainingLabel}</Button></div></div>
+  return <div className="space-y-7" data-testid="training-admin-page">
+    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid="training-admin-header"><div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 shadow-sm" data-testid="training-admin-heading-icon"><GraduationCap className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="training-admin-heading">Supplier {trainingLabel}</h1></div><div className="flex flex-wrap items-end gap-2 rounded-xl border border-stone-200 bg-white p-2 shadow-[0_4px_18px_rgba(28,55,43,0.06)]" data-testid="training-admin-controls"><div className="min-w-40" data-testid="training-admin-period-control"><Label htmlFor="training-admin-reporting-period" className="mb-1 flex items-center gap-1.5 text-xs font-medium text-stone-600" data-testid="training-admin-period-label"><CalendarDays className="h-3.5 w-3.5 text-stone-500" aria-hidden="true" />Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="training-admin-reporting-period" className="h-9 bg-white" data-testid="training-admin-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="training-admin-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`training-admin-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div><Button className="h-9 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowTrainingForm(true)} data-testid="open-add-training-button"><Upload className="h-4 w-4 mr-2" />Add {trainingLabel}</Button></div></div>
     <div className="grid gap-4 sm:grid-cols-3" data-testid="training-admin-summary-cards"><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-total-card"><CardContent className="flex items-center gap-3 p-5"><GraduationCap className="h-5 w-5 text-amber-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">{trainingLabel} published</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-total-value">{trainingSummary.total}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-assigned-card"><CardContent className="flex items-center gap-3 p-5"><Users className="h-5 w-5 text-stone-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Supplier assignments</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-assigned-value">{trainingSummary.assigned}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-completed-card"><CardContent className="flex items-center gap-3 p-5"><CircleCheck className="h-5 w-5 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Completed</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-completed-value">{trainingSummary.completed}</p></div></CardContent></Card></div>
-    <Card data-testid="create-training-card">
-      <CardHeader><CardTitle className="flex gap-2" data-testid="create-training-heading"><Upload className="h-5 w-5 text-emerald-700" />Create {trainingLabel}</CardTitle></CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2"><Label htmlFor="training-title">Title</Label><Input id="training-title" value={title} onChange={(event) => setTitle(event.target.value)} data-testid="training-title-input" /></div>
-        <div className="space-y-2"><Label htmlFor="training-description">Description</Label><Input id="training-description" value={description} onChange={(event) => setDescription(event.target.value)} data-testid="training-description-input" /></div>
-        <div className="space-y-2"><Label htmlFor="training-due-date">Due date</Label><Input id="training-due-date" type="date" min={new Date().toISOString().slice(0, 10)} value={dueDate} onChange={(event) => setDueDate(event.target.value)} data-testid="training-due-date-input" /></div>
-        <div className="space-y-2"><Label htmlFor="training-file">Content file</Label><Input id="training-file" type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={(event) => setFile(event.target.files?.[0])} data-testid="training-file-input" /></div>
-        <div className="md:col-span-2"><SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" reportingPeriod={reportingPeriod} /></div>
-        <div className="flex items-end"><Button onClick={create} disabled={isCreating} data-testid="create-training-button">{isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isCreating ? 'Creating…' : 'Create and assign'}</Button></div>
-      </CardContent>
-    </Card>
+
+    <Dialog open={showTrainingForm} onOpenChange={setShowTrainingForm}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto" data-testid="create-training-card">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold text-emerald-950" data-testid="create-training-heading">
+            <Upload className="h-5 w-5 text-emerald-700" />
+            Create {trainingLabel}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 md:grid-cols-2 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="training-title">Title</Label>
+            <Input id="training-title" value={title} onChange={(event) => setTitle(event.target.value)} data-testid="training-title-input" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="training-description">Description</Label>
+            <Input id="training-description" value={description} onChange={(event) => setDescription(event.target.value)} data-testid="training-description-input" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="training-due-date">Due date</Label>
+            <Input id="training-due-date" type="date" min={new Date().toISOString().slice(0, 10)} value={dueDate} onChange={(event) => setDueDate(event.target.value)} data-testid="training-due-date-input" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="training-file">Content file</Label>
+            <Input id="training-file" type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={(event) => setFile(event.target.files?.[0])} data-testid="training-file-input" />
+          </div>
+          <div className="md:col-span-2">
+            <SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" reportingPeriod={reportingPeriod} />
+          </div>
+          <div className="md:col-span-2 flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowTrainingForm(false)} data-testid="cancel-create-training-button">Cancel</Button>
+            <Button onClick={create} disabled={isCreating} data-testid="create-training-button">
+              {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isCreating ? 'Creating…' : 'Create and assign'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
     <div className="space-y-4" data-testid="training-admin-list">
       {trainings.map((training) => {
         const progress = trainingProgress(training);
         const isDisabled = !training.is_active;
-        return <Card key={training.id} className={`rounded-xl border ${isDisabled ? 'border-stone-300 bg-stone-100/80 opacity-70 shadow-none' : 'border-stone-200 bg-white shadow-[0_4px_18px_rgba(28,55,43,0.05)]'}`} data-testid={`training-admin-${training.id}`}><CardContent className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(15rem,0.55fr)_auto] xl:items-center"><div className="min-w-0"><p className="text-base font-semibold text-stone-950" data-testid={`training-title-${training.id}`}>{training.title}</p><div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs text-stone-500"><span data-testid={`training-threshold-${training.id}`}>{training.completion_threshold}% completion required</span><span className="text-stone-300" aria-hidden="true">·</span><span data-testid={`training-completion-count-${training.id}`}>{progress.completed} / {progress.total} completed</span>{isDisabled && <span className="rounded-full bg-stone-200 px-2 py-0.5 font-medium text-stone-600" data-testid={`training-disabled-status-${training.id}`}>Disabled</span>}</div></div><div className="min-w-0 space-y-3"><div><div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs"><span className="font-medium text-stone-600">Completion</span><span className="font-semibold text-stone-800" data-testid={`training-completion-percentage-${training.id}`}>{progress.percentage}%</span></div><div className="h-2 overflow-hidden rounded-full bg-stone-100" data-testid={`training-completion-progress-track-${training.id}`}><div className={`h-full rounded-full transition-[width,background-color] duration-300 ${isDisabled ? 'bg-stone-400' : 'bg-emerald-600'}`} style={{ width: `${progress.percentage}%` }} data-testid={`training-completion-progress-bar-${training.id}`} /></div></div><div className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-stone-500" aria-hidden="true" /><div><p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">Due date</p><p className="mt-0.5 text-sm font-semibold text-stone-800" data-testid={`training-due-date-display-${training.id}`}>{formattedDueDate(training.due_date)}</p></div></div></div><div className="flex flex-wrap items-center gap-2 xl:justify-end"><Button variant="outline" size="sm" disabled={isDisabled} onClick={() => openTrainingAssignments(training)} data-testid={`manage-training-assignments-${training.id}`}><Users className="h-3.5 w-3.5" />Manage suppliers</Button><Button variant="outline" size="sm" onClick={() => { setDueDateDialog(training); setDueDateDraft(training.due_date?.slice(0, 10) || ''); }} data-testid={`edit-training-due-date-${training.id}`}><CalendarDays className="h-3.5 w-3.5" />Due date</Button><Button variant="outline" size="sm" disabled={openingPreviewId === training.id} onClick={() => openPreview(training)} data-testid={`preview-training-${training.id}`}>{openingPreviewId === training.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}Preview</Button><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="icon" className="h-8 w-8" aria-label={`More actions for ${training.title}`} data-testid={`training-overflow-menu-${training.id}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-56" data-testid={`training-overflow-menu-content-${training.id}`}><DropdownMenuLabel className="text-xs font-medium text-stone-500">Administrative</DropdownMenuLabel><DropdownMenuItem disabled={isUpdating === training.id} onSelect={() => updateTraining(training.id, { is_active: !training.is_active }, training.is_active ? 'Training disabled' : 'Training enabled')} data-testid={`toggle-training-${training.id}`}>{training.is_active ? <Archive /> : <RotateCcw />}{training.is_active ? 'Disable' : 'Enable'}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem className="text-rose-600 focus:bg-rose-50 focus:text-rose-700" disabled={isUpdating === training.id} onSelect={() => setPendingDelete(training)} data-testid={`delete-training-${training.id}`}><Trash2 />Delete</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></CardContent></Card>;
+        return <Card key={training.id} className={`rounded-xl border ${isDisabled ? 'border-stone-300 bg-stone-100/80 opacity-70 shadow-none' : 'border-stone-200 bg-white shadow-[0_4px_18px_rgba(28,55,43,0.05)]'}`} data-testid={`training-admin-${training.id}`}><CardContent className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(15rem,0.55fr)_auto] xl:items-center"><div className="min-w-0"><p className="text-base font-semibold text-stone-950" data-testid={`training-title-${training.id}`}>{training.title}</p><div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs text-stone-500"><span data-testid={`training-threshold-${training.id}`}>{training.completion_threshold}% completion required</span><span className="text-stone-300" aria-hidden="true">·</span><span data-testid={`training-completion-count-${training.id}`}>{progress.completed} / {progress.total} completed</span>{isDisabled && <span className="rounded-full bg-stone-200 px-2 py-0.5 font-medium text-stone-600" data-testid={`training-disabled-status-${training.id}`}>Disabled</span>}</div></div><div className="min-w-0 space-y-3"><div><div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs"><span className="font-medium text-stone-600">Completion</span><span className="font-semibold text-stone-800" data-testid={`training-completion-percentage-${training.id}`}>{progress.percentage}%</span></div><div className="h-2 overflow-hidden rounded-full bg-stone-100" data-testid={`training-completion-progress-track-${training.id}`}><div className={`h-full rounded-full transition-[width,background-color] duration-300 ${isDisabled ? 'bg-stone-400' : 'bg-emerald-600'}`} style={{ width: `${progress.percentage}%` }} data-testid={`training-completion-progress-bar-${training.id}`} /></div></div><div className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-stone-500" aria-hidden="true" /><div><p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">Due date</p><p className="mt-0.5 text-sm font-semibold text-stone-800" data-testid={`training-due-date-display-${training.id}`}>{formattedDueDate(training.due_date)}</p></div></div></div><div className="flex flex-wrap items-center gap-2 xl:justify-end"><Button variant="outline" size="sm" disabled={isDisabled} onClick={() => openTrainingAssignments(training)} data-testid={`manage-training-assignments-${training.id}`}><Users className="h-3.5 w-3.5 mr-1" />Manage suppliers</Button><Button variant="outline" size="sm" onClick={() => { setDueDateDialog(training); setDueDateDraft(training.due_date?.slice(0, 10) || ''); }} data-testid={`edit-training-due-date-${training.id}`}><CalendarDays className="h-3.5 w-3.5 mr-1" />Due date</Button><Button variant="outline" size="sm" disabled={openingPreviewId === training.id} onClick={() => openPreview(training)} data-testid={`preview-training-${training.id}`}>{openingPreviewId === training.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Eye className="h-3.5 w-3.5 mr-1" />}Preview</Button><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="icon" className="h-8 w-8" aria-label={`More actions for ${training.title}`} data-testid={`training-overflow-menu-${training.id}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-56" data-testid={`training-overflow-menu-content-${training.id}`}><DropdownMenuLabel className="text-xs font-medium text-stone-500">Administrative</DropdownMenuLabel><DropdownMenuItem disabled={isUpdating === training.id} onSelect={() => updateTraining(training.id, { is_active: !training.is_active }, training.is_active ? 'Training disabled' : 'Training enabled')} data-testid={`toggle-training-${training.id}`}>{training.is_active ? <Archive className="mr-2 h-4 w-4" /> : <RotateCcw className="mr-2 h-4 w-4" />}{training.is_active ? 'Disable' : 'Enable'}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem className="text-rose-600 focus:bg-rose-50 focus:text-rose-700" disabled={isUpdating === training.id} onSelect={() => setPendingDelete(training)} data-testid={`delete-training-${training.id}`}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></CardContent></Card>;
       })}
     </div>
     <SupplierAssignmentManagerDialog open={Boolean(supplierDialog)} onOpenChange={(open) => !open && setSupplierDialog(null)} title={supplierDialog?.title || ''} rows={assignmentRows} loading={assignmentLoading} updatingId={assignmentUpdatingId} onToggle={toggleTrainingAssignment} testIdPrefix="training" />
