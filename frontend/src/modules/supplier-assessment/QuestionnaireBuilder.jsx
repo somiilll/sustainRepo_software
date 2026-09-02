@@ -1291,7 +1291,6 @@ export default function QuestionnaireBuilder() {
                       <button
                         key={rule.value}
                         type="button"
-                        data-testid={`question-scoring-rule-${rule.value}`}
                         onClick={() => {
                           const newScoring = { ...questionForm.scoring, rule: rule.value };
                           // Reset rule-specific fields

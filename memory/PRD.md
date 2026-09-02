@@ -696,3 +696,17 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Restored Yes/No and dropdown score configuration to an expanded second line, and removed the fixed dialog height that created excessive empty space below the form.
 - Removed the tinted background from expanded score configuration panels while retaining their clear bordered grouping.
 - **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-02 (Training and Document Assignment Ledger)
+- Replaced Previous/Next supplier-assignment paging in Add Training and Add Document with a single searchable, scrollable supplier ledger that shows up to 100 matches at once.
+- The assignment selector now uses Supplier and Assign column headings to align visually with the ESG question ledger; no horizontal paging action is required.
+
+## Latest Changes — 2026-09-02 (Document Card Completion Layout)
+- Parent Document cards now mirror Training cards: title, response metadata and completed/assigned count, completion bar with percentage, due date, and action controls in a consistent three-column layout.
+- Completion totals are loaded from existing supplier document response records; no document schema or submission behavior changed.
+- Document summary cards now show Documents published, Supplier assignments, and Responses submitted.
+
+## Latest Changes — 2026-09-02 (Supplier Evidence, Revenue, and Document Controls)
+- Removed location icons from supplier-facing facility banners, added Save as draft to the revenue submission confirmation, and enabled multi-file ESG evidence upload with supplier-initiated permanent R2 removal before final submission.
+- Document responses now require a recorded document view and their submit action is hidden until that view occurs. Historic submitted GHG periods remain eligible for parent unlock after a cadence change.
+- **NOT TESTED**, per the user's explicit instruction.

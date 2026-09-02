@@ -335,7 +335,7 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             "scope": {"$in": ["scope1", "scope2"]},
             "submitted_to_parent_org": {"$exists": True, "$ne": None},
         },
-        {"_id": 0, "id": 1, "scope": 1, "reporting_period": 1, "total_emissions": 1, "co2e_emissions": 1, "revision_lineage_id": 1, "revision_number": 1, "submitted_to_parent_org": 1, "created_at": 1},
+        {"_id": 0, "id": 1, "scope": 1, "reporting_period": 1, "total_emissions": 1, "co2e_emissions": 1, "revision_lineage_id": 1, "revision_number": 1, "submission_id": 1, "submitted_to_parent_org": 1, "created_at": 1},
     ).to_list(5000)
     today = datetime.now(timezone.utc).date()
     periods = []
@@ -370,6 +370,22 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             "has_unsubmitted_entries": bool(unsubmitted_entry_count),
             "unsubmitted_entry_count": unsubmitted_entry_count,
             "submitted_scope_totals": submitted_scope_totals,
+        })
+    defined_keys = {definition["period_key"] for definition in definitions}
+    for record in stored:
+        if record.get("period_key") in defined_keys or record.get("status") not in {"submitted", "unlocked"}:
+            continue
+        historical_entries = [entry for entry in submitted_entries if entry.get("submission_id") == record.get("id")]
+        periods.append({
+            "id": record.get("id") or record["period_key"], "period_key": record["period_key"],
+            "frequency": record.get("frequency") or "yearly", "label": f"{record['period_key']} (previous cadence)",
+            "period_start": record.get("period_start"), "period_end": record.get("period_end"), "due_date": record.get("due_date"),
+            "month_keys": [], "reporting_year": record.get("reporting_year"), "status": record.get("status"),
+            "revision": int(record.get("revision") or 0), "submitted_at": record.get("submitted_at"), "submitted_by": record.get("submitted_by"),
+            "unlocked_at": record.get("unlocked_at"), "unlocked_by": record.get("unlocked_by"), "unlock_reason": record.get("unlock_reason"),
+            "supplier_instructions": record.get("supplier_instructions") if record.get("status") == "unlocked" else None,
+            "is_overdue": False, "has_unsubmitted_entries": False, "unsubmitted_entry_count": 0,
+            "submitted_scope_totals": period_submitted_scope_totals(historical_entries, [entry.get("reporting_period") for entry in historical_entries]), "is_previous_cadence": True,
         })
     return periods
 
@@ -458,11 +474,8 @@ async def unlock_supplier_ghg_period(
     )
     if not submission or submission.get("status") != "submitted":
         raise ValueError("No submitted GHG period is available to unlock")
-    period = next((item for item in _submission_period_definitions(relationship) if item["period_key"] == period_key), None)
-    if not period:
-        raise ValueError("GHG submission period is not part of this supplier assignment")
     visible_entries = await db.emission_records.find(
-        {**_period_entries_query(relationship, period), "submission_id": submission["id"], "parent_visible": {"$ne": False}}, {"_id": 0},
+        {"source": "supplier", "supplier_relationship_id": relationship["id"], "submission_id": submission["id"], "parent_visible": {"$ne": False}}, {"_id": 0},
     ).to_list(5000)
     if not visible_entries:
         raise ValueError("No submitted GHG entries are available to unlock")

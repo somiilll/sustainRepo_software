@@ -1038,7 +1038,7 @@ export default function Facilities() {
               )}
             </div>
             <div className="flex items-start gap-1 text-sm text-text-muted mb-2">
-              <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              {!isSupplier && <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />}
               <span>
                 {facility.address}
                 {facility.city && `, ${facility.city}`}

@@ -376,6 +376,7 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
             continue
         response_mode = requirement.get("response_mode", "ACCEPTANCE")
         response = await _current_document_submission(relationship["id"], requirement["id"], version["id"])
+        viewed = await db.supplier_document_views.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"]}, {"_id": 0, "id": 1})
         is_reopened = bool(response and response.get("status") == "reopened")
         documents.append({
             "id": requirement["id"], "title": requirement["title"],
@@ -387,6 +388,7 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
             "selected_response": response.get("response_value") if response_mode == "STATUS" and response and not is_reopened else None,
             "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response_mode == "STATUS" and response and not is_reopened else None,
             "submission_status": "reopened" if is_reopened else ("submitted" if response else "not_started"),
+            "has_been_viewed": bool(viewed),
             "created_at": requirement["created_at"], "due_date": requirement.get("due_date"), "reporting_period": requirement.get("reporting_period") or relationship.get("reporting_period"),
         })
     return documents
@@ -401,6 +403,17 @@ async def get_supplier_document(relationship: Dict[str, Any], requirement_id: st
         return None
     version = await db.supplier_document_versions.find_one({"id": requirement["document_version_id"]}, {"_id": 0})
     return {"requirement": requirement, "version": version} if version else None
+
+
+async def mark_supplier_document_viewed(relationship: Dict[str, Any], requirement_id: str, document_version_id: str, user_id: str) -> None:
+    now = _now()
+    await db.supplier_document_views.update_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id}, {"$set": {"document_version_id": document_version_id, "viewed_by": user_id, "viewed_at": now, "updated_at": now}, "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": now}}, upsert=True)
+
+
+async def _require_supplier_document_view(relationship: Dict[str, Any], requirement_id: str) -> None:
+    viewed = await db.supplier_document_views.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id}, {"_id": 0, "id": 1})
+    if not viewed:
+        raise ValueError("View the document before submitting a response")
 
 
 def _convert_word_document_to_pdf(content: bytes, filename: str) -> bytes:
@@ -444,6 +457,7 @@ async def accept_supplier_document(relationship: Dict[str, Any], requirement_id:
     document = await get_supplier_document(relationship, requirement_id)
     if not document:
         return None
+    await _require_supplier_document_view(relationship, requirement_id)
     requirement, version = document["requirement"], document["version"]
     if requirement.get("response_mode", "ACCEPTANCE") != "ACCEPTANCE":
         raise ValueError("Select one of the configured status responses instead")
@@ -471,6 +485,7 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
     document = await get_supplier_document(relationship, requirement_id)
     if not document:
         return None
+    await _require_supplier_document_view(relationship, requirement_id)
     requirement, version = document["requirement"], document["version"]
     if requirement.get("response_mode", "ACCEPTANCE") != "STATUS":
         raise ValueError("This document requires acceptance")

@@ -1088,6 +1088,7 @@ async def get_my_document_view_url(
     document = await documents_service.get_supplier_document(relationship, requirement_id)
     if not document:
         raise HTTPException(status_code=404, detail="Agreement not found")
+    await documents_service.mark_supplier_document_viewed(relationship, requirement_id, document["version"]["id"], current_user["id"])
     version = document["version"]
     try:
         return {"url": get_r2_storage().generate_presigned_url(
@@ -1235,6 +1236,20 @@ async def upload_my_question_evidence(
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.delete("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/{evidence_id}")
+async def delete_my_question_evidence(questionnaire_id: str, question_id: str, evidence_id: str, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        deleted = await supplier_service.delete_supplier_question_evidence(relationship, questionnaire_id, question_id, evidence_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+    return deleted
 
 
 @router.get("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/{evidence_id}")

@@ -137,6 +137,7 @@ class SupplierDocumentResponse(BaseModel):
     selected_response: Optional[str] = None
     responded_at: Optional[str] = None
     submission_status: Optional[str] = None
+    has_been_viewed: bool = False
     created_at: str
 
 
