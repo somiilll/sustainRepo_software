@@ -690,3 +690,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-01 (Compatible ESG Question Scoring)
 - The ESG Question Builder now limits scoring methods by response type: Text → Manual Review; Yes/No → Yes/No Score; Numeric/Percentage → Higher is Better or Lower is Better; Dropdown → Choice Mapping.
 - The Question Ledger scoring dropdown now follows the same filtering rule, so incompatible scoring methods are not offered anywhere in the ESG question authoring UI. Legacy questions with an incompatible scoring rule are normalized to their response type's default when opened for editing. **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-02 (ESG Question Ledger Layout)
+- Reworked the Add Questions ledger with clear desktop column headings and responsive field labels. The delete action remains in the visible row layout rather than requiring horizontal scrolling.
+- Restored Yes/No and dropdown score configuration to an expanded second line, and removed the fixed dialog height that created excessive empty space below the form.
+- **NOT TESTED**, per the user's explicit instruction.

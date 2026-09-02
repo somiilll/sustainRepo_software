@@ -38,7 +38,7 @@ def test_due_date_rejects_past_and_invalid_dates():
         validate_due_date("not-a-date")
 
 
-# relationship_service: supplier create/update should reject past due_date in service path
+# relationship_service: supplier create/update should reject past access revoke dates in service path
 @pytest.mark.asyncio
 async def test_create_supplier_rejects_past_due_date_before_db_calls(monkeypatch):
     async def _unexpected_find_one(*_args, **_kwargs):
@@ -54,7 +54,7 @@ async def test_create_supplier_rejects_past_due_date_before_db_calls(monkeypatch
             contact_person="Test User",
             email="test@example.com",
             contact_number=None,
-            due_date=_yesterday_iso(),
+            access_revoke_date=_yesterday_iso(),
             created_by="admin",
             created_by_email="admin@example.com",
         )
@@ -72,7 +72,7 @@ async def test_update_supplier_rejects_past_due_date(monkeypatch):
     monkeypatch.setattr(relationship_service.db.supplier_relationships, "update_one", _unexpected_update)
 
     with pytest.raises(ValueError, match="cannot be in the past"):
-        await relationship_service.update_supplier(_DummyService(), "rel-1", {"due_date": _yesterday_iso()})
+        await relationship_service.update_supplier(_DummyService(), "rel-1", {"access_revoke_date": _yesterday_iso()})
 
 
 # questionnaire_service: create/update should reject past due_date in service path
