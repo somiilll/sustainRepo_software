@@ -725,3 +725,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Confirmed an authenticated Scope 1 Stationary Combustion Yearly → Monthly flow sends `qty.unit`, `quantity_unit`, and the calculation payload unit as `L`. The save request was intentionally aborted after capture, so no test emission was persisted.
 - Supplier-facing empty-state **Add GHG data** uses dark emerald green. The Create Emissions responsibility section now has two aligned desktop rows—Person Responsible/Designation, then Contact Details/Source of Information—with consistent control heights and the simplified Source of Information label.
 - Verification passed: focused 7-test frontend unit suite, frontend ESLint, testing-agent iteration 39 targeted checks, and an authenticated live-browser payload capture. No application APIs are mocked.
+
+## Latest Changes — 2026-09-02 (Supplier ESG Question Type Simplification)
+- Removed `Text` from the Supplier ESG Question response-type choices and removed `Manual Review` from available scoring methods in both the add-question ledger and Edit Question dialog.
+- Legacy text questions safely open using the supported Yes/No response/scoring defaults when edited, preventing retired option values from breaking the editor.
+- **NOT TESTED**, per the user's explicit instruction.
