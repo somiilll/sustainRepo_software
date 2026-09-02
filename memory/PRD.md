@@ -711,6 +711,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Document responses now require a recorded document view and their submit action is hidden until that view occurs. Historic submitted GHG periods remain eligible for parent unlock after a cadence change.
 - **NOT TESTED**, per the user's explicit instruction.
 
+## Latest Changes — 2026-09-02 (Yearly Supplier GHG Period Normalization)
+- Yearly supplier GHG entries now compare the parent-assigned and submitted financial-year values using one canonical key, accepting equivalent labels such as `FY 2026-27`, `FY2026-27`, and dash variants.
+- **NOT TESTED**, per the user's explicit instruction.
+
 ## Latest Changes — 2026-09-02 (R2 Evidence Deletion Repair)
 - Added the missing R2 `delete_file` storage-helper method. This unblocks supplier evidence removal as well as the previously added permanent Document and Training asset deletion flows.
 - Evidence deletion now resolves its stored R2 metadata directly from the evidence record instead of relying on current-response linkage, supporting legacy and response-revision evidence safely.

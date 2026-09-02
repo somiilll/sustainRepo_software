@@ -127,7 +127,7 @@ def supplier_emission_period_allowed(
     if not assignment or not submission_period:
         return False
     if (frequency_type or "monthly") == "yearly":
-        return submission_period.strip().replace(" ", "").upper() == assignment["reporting_period"].replace(" ", "").upper()
+        return canonical_yearly_period(submission_period) == canonical_yearly_period(assignment["reporting_period"])
     return submission_period.strip() in assignment["allowed_months"]
 
 
@@ -137,6 +137,15 @@ def supplier_period_error(parent_period: str | None, frequency_type: str | None)
     if (frequency_type or "monthly") == "yearly":
         return f"Yearly GHG data must use the assigned reporting period {assigned_label}"
     return f"Monthly GHG data must use a month within the assigned reporting period {assigned_label}"
+
+
+def canonical_yearly_period(value: str | None) -> str:
+    normalized = (value or "").upper().replace("–", "-").replace("—", "-").replace("/", "-")
+    match = re.search(r"(?:FY\s*)?(\d{4})\s*-\s*(\d{2,4})", normalized)
+    if not match:
+        return re.sub(r"\s+", "", normalized)
+    start_year, end_year = match.groups()
+    return f"FY{start_year}-{end_year if len(end_year) == 4 else start_year[:2] + end_year}"
 
 
 async def _hydrate_reporting_year_start(relationship: Dict[str, Any]) -> None:
@@ -184,7 +193,7 @@ def resolve_supplier_submission_period(
     if data_frequency not in {"monthly", "yearly"}:
         raise ValueError("GHG data frequency must be monthly or yearly")
     if data_frequency == "yearly":
-        is_allowed = reporting_period.strip().replace(" ", "").upper() == assignment["reporting_period"].replace(" ", "").upper()
+        is_allowed = canonical_yearly_period(reporting_period) == canonical_yearly_period(assignment["reporting_period"])
     else:
         is_allowed = reporting_period.strip() in assignment["allowed_months"]
     if not is_allowed:
