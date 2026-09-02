@@ -710,3 +710,6 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Removed location icons from supplier-facing facility banners, added Save as draft to the revenue submission confirmation, and enabled multi-file ESG evidence upload with supplier-initiated permanent R2 removal before final submission.
 - Document responses now require a recorded document view and their submit action is hidden until that view occurs. Historic submitted GHG periods remain eligible for parent unlock after a cadence change.
 - **NOT TESTED**, per the user's explicit instruction.
+
+## Latest Changes — 2026-09-02 (R2 Evidence Deletion Repair)
+- Added the missing R2 `delete_file` storage-helper method. This unblocks supplier evidence removal as well as the previously added permanent Document and Training asset deletion flows.
