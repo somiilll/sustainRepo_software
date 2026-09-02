@@ -398,7 +398,9 @@ export default function QuestionnaireBuilder() {
       for (const [index, question] of draftQuestions.entries()) {
         const values = question.response_type === 'dropdown' ? question.options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
         const options = values.map((value) => ({ value, label: value, score: Number(question.option_scores?.[value]) }));
-        const scoring = { ...getDefaultScoringConfig(question.response_type), rule: question.scoring_rule };
+        const scoring = question.scoring_rule === 'lower_is_better'
+          ? { rule: 'lower_is_better', min: 0, max_acceptable: 100, max_score: 100 }
+          : { ...getDefaultScoringConfig(question.response_type), rule: question.scoring_rule };
         if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
         if (question.response_type === 'yes_no') { scoring.true_score = Number(question.yes_score); scoring.false_score = Number(question.no_score); }
         await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...question, description: '', importance: question.importance, exact_numerical_weight: null, options, scoring, order: questions.length + index }, { headers: getAuthHeader() });
