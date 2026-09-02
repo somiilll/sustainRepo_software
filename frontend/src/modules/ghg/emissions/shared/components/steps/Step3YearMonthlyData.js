@@ -111,9 +111,34 @@ const resolveEffectiveFieldUnit = ({
     || (!isProcessEmissions ? data.unit : '')
     || '';
   const defaultUnit = field.defaultUnit || getFieldDefaultUnit(field, selectedFuel, fieldUnits);
-  return !hasFieldValue(storedValue) && hasFieldValue(defaultValue)
-    ? defaultUnit
-    : (storedUnit || defaultUnit);
+  return !hasFieldValue(storedValue) ? defaultUnit : (storedUnit || defaultUnit);
+};
+
+/** Keep the unit stored in monthly row state identical to the unit shown by the selector. */
+const resolveMonthlyFieldUnit = ({
+  field,
+  data = {},
+  selectedFuel,
+  fieldUnits = [],
+  isProcessEmissions = false,
+}) => {
+  const effectiveUnit = resolveEffectiveFieldUnit({
+    field,
+    data,
+    selectedFuel,
+    fieldUnits,
+    isProcessEmissions,
+  });
+  const valueKey = field?.valueKey || field?.variable || field?.fieldKey;
+  const unitKey = field?.unitKey || `${valueKey}_unit`;
+  const storedValue = getMonthlyFieldValue(field, data);
+  return resolveMonthlySelectableUnit({
+    storedUnit: hasFieldValue(storedValue)
+      ? data[unitKey] || (!isProcessEmissions ? data.unit : '') || ''
+      : '',
+    configuredUnit: effectiveUnit,
+    allowedUnits: fieldUnits,
+  });
 };
 
 /**
@@ -307,6 +332,7 @@ import {
   GHG_FIELD_OPTION_KEYS,
   resolveStandardGhgFieldOptions,
 } from '../../../../config/standardGhgFormConfig';
+import { resolveMonthlySelectableUnit } from '../../utils/monthlyFieldUnits';
 
 // Import FlightDetailsSection for C6 air travel per-month airport selection
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
@@ -417,7 +443,7 @@ export const Step3YearMonthlyData = ({
       ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
       : []
   ), [isProcessEmissions, selectedTemplate]);
-  const resolveFieldUnits = (field) => {
+  const resolveFieldUnits = useCallback((field) => {
     if (!field) return [];
     if (field.source === 'process_template') return field.allowedUnits || [];
     return getFieldUnits({
@@ -432,10 +458,22 @@ export const Step3YearMonthlyData = ({
       biogenicScopeSelection,
       useCustomFuel,
     });
-  };
-  const runtimeConversionFields = isProcessEmissions && normalizedProcessTemplateFields.length > 0
-    ? normalizedProcessTemplateFields
-    : dynamicInputFields;
+  }, [
+    biogenicScopeSelection,
+    centralizedUnits,
+    filteredScope3Activities,
+    requiresSubcategory,
+    scope,
+    scope3ActivityId,
+    scope3Method,
+    selectedFuel,
+    useCustomFuel,
+  ]);
+  const runtimeConversionFields = useMemo(() => (
+    isProcessEmissions && normalizedProcessTemplateFields.length > 0
+      ? normalizedProcessTemplateFields
+      : dynamicInputFields
+  ), [dynamicInputFields, isProcessEmissions, normalizedProcessTemplateFields]);
   const resolveRowDensityState = useCallback((data = {}) => resolveDensityFieldState({
     calculationMethodology,
     fields: runtimeConversionFields,
@@ -443,6 +481,59 @@ export const Step3YearMonthlyData = ({
     selectedFuel: useCustomFuel ? null : selectedFuel,
     centralizedUnits,
   }), [calculationMethodology, centralizedUnits, runtimeConversionFields, selectedFuel, useCustomFuel]);
+
+  useEffect(() => {
+    if (frequencyType !== 'monthly' || useCustomFuel) return;
+
+    const quantityField = runtimeConversionFields.find(isQuantityField);
+    const fieldUnits = resolveFieldUnits(quantityField);
+    const initialUnit = resolveMonthlyFieldUnit({
+      field: quantityField,
+      selectedFuel,
+      fieldUnits,
+      isProcessEmissions,
+    });
+    if (!quantityField || !initialUnit) return;
+
+    const valueKey = quantityField.valueKey || quantityField.variable || quantityField.fieldKey;
+    const unitKey = quantityField.unitKey || `${valueKey}_unit`;
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+
+      activeMonths.forEach((month) => {
+        const monthKey = month.key || month;
+        const current = previousMonths[monthKey] || {};
+        const storedUnit = current[unitKey] || (!isProcessEmissions ? current.unit : '') || '';
+        const storedUnitIsAllowed = fieldUnits.some(
+          (unit) => unit.toLowerCase() === storedUnit.toLowerCase(),
+        );
+        if (
+          storedUnit
+          && (fieldUnits.length === 0 || storedUnitIsAllowed)
+          && storedUnit.toLowerCase() === initialUnit.toLowerCase()
+        ) return;
+
+        nextMonths[monthKey] = {
+          ...current,
+          [unitKey]: initialUnit,
+          ...(!isProcessEmissions && { unit: initialUnit }),
+        };
+        changed = true;
+      });
+
+      return changed ? nextMonths : previousMonths;
+    });
+  }, [
+    activeMonths,
+    frequencyType,
+    isProcessEmissions,
+    resolveFieldUnits,
+    runtimeConversionFields,
+    selectedFuel,
+    setMonthlyData,
+    useCustomFuel,
+  ]);
 
   useEffect(() => {
     if (useCustomFuel) return;
@@ -865,7 +956,6 @@ export const Step3YearMonthlyData = ({
                 const showUnitDropdown = showCustomFuelQuantityUnit
                   || (!hideUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis);
                 const showTextUnit = !hideUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
-                const defaultUnitValue = getFieldDefaultUnit(field, selectedFuel, fieldUnits);
                 const displayedUnit = densityState
                   ? (data.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit)
                   : resolveEffectiveFieldUnit({
@@ -907,7 +997,13 @@ export const Step3YearMonthlyData = ({
                             if (showCustomFuelQuantityUnit) {
                               return data.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '';
                             }
-                            return fieldUnits.find(u => u.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0];
+                            return resolveMonthlyFieldUnit({
+                              field,
+                              data,
+                              selectedFuel,
+                              fieldUnits,
+                              isProcessEmissions,
+                            });
                           })()}
                           onChange={(e) => {
                             if (showCustomFuelQuantityUnit) {

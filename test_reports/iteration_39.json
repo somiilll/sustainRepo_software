@@ -1,0 +1,61 @@
+{
+  "summary": "Ran targeted backend + frontend regression checks for the GHG monthly unit P0 fix and UI styling/layout requests on the public preview URL. Backend calculate contracts passed, supplier Add GHG button styling is dark green, and responsibility field layout/label updates are correct. Mandatory end-to-end save payload verification for stale kg->L remains blocked because clicking Save in admin Create Emission flow produced no POST calls after 3 attempts.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Create Emissions form (admin)",
+        "issue": "After filling monthly row data and clicking Save emissions, no POST requests were dispatched to calc/save APIs across 3 attempts, blocking payload verification of qty unit propagation.",
+        "selector": "[data-testid='emission-form-save-button']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Scope 1 -> Stationary -> Yearly to Monthly -> Save",
+        "issue": "Could not capture /api/calc-engine/execute-by-category or /api/emissions requests from browser after Save click; therefore mandatory verification of saved qty unit=L vs stale kg is inconclusive.",
+        "affected_selectors": [
+          "[data-testid='frequency-type-select']",
+          "[data-testid^='unit-qty-']",
+          "[data-testid='emission-form-save-button']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_p0_monthly_unit_regression_iter43.py",
+    "/app/test_reports/pytest/pytest_results_iter43_p0_monthly_unit.xml",
+    "/app/frontend/src/modules/ghg/emissions/shared/utils/monthlyFieldUnits.js",
+    "/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step3YearMonthlyData.js",
+    "/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step2ProcessResponsibility.js",
+    "/app/frontend/src/modules/supplier-assessment/SupplierGHGSubmission.jsx"
+  ],
+  "action_items": [
+    "Investigate why admin Create Emissions save click does not dispatch API requests in the tested Scope 1 monthly path (check client-side validation/toast gating and click handler path).",
+    "After Save dispatch works, re-run mandatory P0 verification and confirm emitted calc/save payload qty unit remains L after Yearly->Monthly toggle.",
+    "Recheck resolveMonthlySelectableUnit behavior for stale stored kg when both kg and L are allowed; current logic prioritizes storedUnit before configuredUnit."
+  ],
+  "critical_code_review_comments": [
+    "resolveMonthlySelectableUnit currently sets candidate as storedUnit || configuredUnit; if storedUnit='kg' and allowedUnits include both kg and L, stale kg is retained instead of preferring configured L.",
+    "Step3YearMonthlyData initialization updates monthly unit only when stored unit is empty/disallowed; allowed-but-stale stored units are not normalized.",
+    "Step2ProcessResponsibility implementation matches requested desktop two-row order and consistent control height; label is 'Source of Information' (no 'Optional').",
+    "SupplierGHGSubmission empty-state Add GHG button class uses dark green (bg-emerald-800, hover:bg-emerald-900) as requested."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_p0_monthly_unit_regression_iter43.py",
+    "/app/test_reports/iteration_39.json"
+  ],
+  "success_rate": {
+    "backend": "100% (2/2 tests passed)",
+    "frontend": "70% (layout + supplier styling passed; mandatory payload verification blocked)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Used admin and supplier credentials from /app/memory/test_credentials.md with preview URL from frontend/.env. Verified monthly qty selector can show L after Yearly->Monthly switch (unit-qty-04 showed L). Supplier account in this run had empty draft state and displayed dark-green Add GHG data button. No mocked APIs used.",
+  "rca of the issue": "Observed blocker: Save emissions click did not emit calc/save network calls in browser during three repeated admin monthly attempts (with 1 filled month), so payload-level unit regression could not be proved/disproved via UI. Potential causes include client-side validation gate, early-return in submit orchestration, or non-firing click handler in current page state. MOCKED APIs: NONE."
+}

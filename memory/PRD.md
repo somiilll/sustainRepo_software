@@ -719,3 +719,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Added the missing R2 `delete_file` storage-helper method. This unblocks supplier evidence removal as well as the previously added permanent Document and Training asset deletion flows.
 - Evidence deletion now resolves its stored R2 metadata directly from the evidence record instead of relying on current-response linkage, supporting legacy and response-revision evidence safely.
 - Evidence deletion now identifies the latest editable draft/reopened questionnaire response that actually references the evidence ID. Submitted response revisions remain immutable and return a clear locked-submission error.
+
+## Latest Changes — 2026-09-02 (GHG Monthly Unit and Form Alignment)
+- Hardened monthly quantity-unit initialization so the active configured fuel unit takes precedence over an allowed-but-stale unit while switching from yearly to monthly entry. Empty monthly rows now store the same configured unit that their selector displays.
+- Confirmed an authenticated Scope 1 Stationary Combustion Yearly → Monthly flow sends `qty.unit`, `quantity_unit`, and the calculation payload unit as `L`. The save request was intentionally aborted after capture, so no test emission was persisted.
+- Supplier-facing empty-state **Add GHG data** uses dark emerald green. The Create Emissions responsibility section now has two aligned desktop rows—Person Responsible/Designation, then Contact Details/Source of Information—with consistent control heights and the simplified Source of Information label.
+- Verification passed: focused 7-test frontend unit suite, frontend ESLint, testing-agent iteration 39 targeted checks, and an authenticated live-browser payload capture. No application APIs are mocked.

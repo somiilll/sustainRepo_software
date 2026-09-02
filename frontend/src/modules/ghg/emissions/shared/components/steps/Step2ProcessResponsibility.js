@@ -74,14 +74,14 @@ export const Step2ProcessResponsibility = ({
   setSupplierCode = () => {},
 }) => {
   const responsibilityFields = (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" data-testid="responsibility-fields-grid">
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
+    <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2" data-testid="responsibility-fields-grid">
+      <div className="flex flex-col gap-2">
+        <div className="flex h-5 items-center gap-2">
           <Label htmlFor="responsible-person-input">Person Responsible</Label>
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="cursor-help">
+                <span className="cursor-help" data-testid="responsible-person-help-trigger">
                   <Info className="h-4 w-4 text-text-muted transition-colors hover:text-primary" />
                 </span>
               </TooltipTrigger>
@@ -96,42 +96,46 @@ export const Step2ProcessResponsibility = ({
           value={responsiblePerson}
           onChange={(event) => setResponsiblePerson(event.target.value)}
           placeholder="Name of person responsible"
-          className="bg-stone-50"
+          className="h-10 bg-stone-50"
           data-testid="responsible-person-input"
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="responsible-person-designation">Designation</Label>
+      <div className="flex flex-col gap-2">
+        <div className="flex h-5 items-center">
+          <Label htmlFor="responsible-person-designation">Designation</Label>
+        </div>
         <Input
           id="responsible-person-designation"
           value={responsiblePersonDesignation}
           onChange={(event) => setResponsiblePersonDesignation(event.target.value)}
           placeholder="e.g., Environmental Manager"
-          className="bg-stone-50"
+          className="h-10 bg-stone-50"
           data-testid="responsible-person-designation"
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="responsible-person-contact">Contact Details</Label>
+      <div className="flex flex-col gap-2">
+        <div className="flex h-5 items-center">
+          <Label htmlFor="responsible-person-contact">Contact Details</Label>
+        </div>
         <Input
           id="responsible-person-contact"
           value={responsiblePersonContact}
           onChange={(event) => setResponsiblePersonContact(event.target.value)}
           placeholder="Email or phone number"
-          className="bg-stone-50"
+          className="h-10 bg-stone-50"
           data-testid="responsible-person-contact"
         />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="record-source-input">Source of Information <span className="text-xs text-stone-500">(Optional)</span></Label>
+      <div className="flex flex-col gap-2">
+        <div className="flex h-5 items-center gap-2">
+          <Label htmlFor="record-source-input">Source of Information</Label>
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="cursor-help">
+                <span className="cursor-help" data-testid="record-source-help-trigger">
                   <Info className="h-4 w-4 text-text-muted transition-colors hover:text-primary" />
                 </span>
               </TooltipTrigger>
@@ -146,7 +150,7 @@ export const Step2ProcessResponsibility = ({
           value={recordSource}
           onChange={(event) => setRecordSource(event.target.value)}
           placeholder="e.g., Invoice #4521, meter reading from supplier portal"
-          className="bg-stone-50"
+          className="h-10 bg-stone-50"
           data-testid="record-source-input"
         />
       </div>
