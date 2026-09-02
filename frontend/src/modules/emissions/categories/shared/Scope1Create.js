@@ -187,7 +187,7 @@ export function buildDynamicFieldValues(data, ctx) {
     const hasValue = (value) => value !== undefined && value !== null && value !== '';
     const parseValue = (value) => (hasValue(value) ? parseFloat(value) : null);
     const quantity = hasValue(data.qty) ? data.qty : data.quantity;
-    const quantityUnit = data.custom_qty_unit || data.qty_unit || data.quantity_unit || data.unit || ctx.defaultUnit || 'kg';
+    const quantityUnit = data.custom_qty_unit || ctx.defaultUnit || data.qty_unit || data.quantity_unit || data.unit || 'kg';
     const decisionInputs = ctx.buildDecisionInputs?.(data) || {};
     const calculationMethodology = data.calculation_methodology
       || decisionInputs.calculation_methodology
