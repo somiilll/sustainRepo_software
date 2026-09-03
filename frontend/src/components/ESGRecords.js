@@ -1586,10 +1586,10 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
 
     case 'number':
       return (
-        <div>
-          <Label className="text-xs">{label}{required && ' *'}</Label>
+        <div className="flex h-full flex-col">
+          <Label className="min-h-[3rem] text-xs leading-4">{label}{required && ' *'}</Label>
           {hasUnit ? (
-            <div className="flex gap-2 mt-1">
+            <div className="mt-auto flex gap-2 pt-1">
               <Input
                 type="number"
                 value={value ?? ''}
@@ -1615,7 +1615,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
               type="number"
               value={value ?? ''}
               onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-              className="mt-1 border-stone-300"
+              className="mt-auto border-stone-300"
               min={field.validation?.min}
               max={field.validation?.max}
               data-testid={`${testIdPrefix}-${field_key}-input`}

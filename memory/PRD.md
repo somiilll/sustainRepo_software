@@ -746,3 +746,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Added strict shared R2 cleanup for generic uploaded files: storage deletion must succeed before its MongoDB metadata or portal record can disappear.
 - Covered Add Emission evidence removal, saved-emission deletion and rollback, C7 and approval deletions, Sink evidence replacement/deletion, Facilities, ESG evidence, organization logos/attachments, Repo Pilot documents/page replacements, peer benchmark PDFs, OCR temporary uploads, and generic organization cascade cleanup.
 - Verified with live isolated-artifact regression tests (**3/3 passed**), Python compilation, frontend ESLint, and authenticated GHG page smoke. No APIs are mocked.
+
+## Latest Changes — 2026-09-03 (Water Add Metric Field Alignment)
+- Aligned the Water consumption metric controls by reserving an equal label area and anchoring every numeric input/unit pair to the same baseline within its grid row.
+- Verified with frontend ESLint and an authenticated live Water Add Metric browser check. No API or data behavior changed.

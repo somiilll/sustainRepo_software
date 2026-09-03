@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 3, 2026 — Water Add Metric Field Alignment
+- Standardized the label area and input baseline for dynamic numeric metric fields, fixing the visibly staggered Water consumption controls.
+- Verified with frontend ESLint and authenticated live Water Add Metric browser check. No API or data behavior changed.
+
 ## September 3, 2026 — R2 File Lifecycle Integrity
 - Added shared, storage-first R2 cleanup and made generic file deletion fail safely rather than hiding metadata when R2 removal fails.
 - Applied cleanup to emission, sink, ESG, facility, organization, Repo Pilot, benchmark, OCR, and organization-cascade paths.
