@@ -8,7 +8,7 @@ import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Lock, TrendingUp, Loader2, Factory, Target, BarChart3, FileBarChart, Leaf, Users, Mail, Phone, Globe, Calendar, Clock, ChevronDown, ChevronUp, ArrowRight, Briefcase, Eye, Shield, Zap } from 'lucide-react';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, TrendingUp, Loader2, Factory, Target, BarChart3, FileBarChart, Leaf, Users, Mail, Phone, Globe, Calendar, Clock, ChevronDown, ChevronUp, ArrowRight, Briefcase, Eye, Shield, Zap } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
@@ -791,12 +791,6 @@ export default function OrganizationDetails() {
             className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
           >
             Organization Details
-          </TabsTrigger>
-          <TabsTrigger 
-            value="gri" 
-            className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
-          >
-            GRI
           </TabsTrigger>
         </TabsList>
 
@@ -2016,14 +2010,6 @@ export default function OrganizationDetails() {
         </Card>
         </TabsContent>
 
-        {/* GRI Tab */}
-        <TabsContent value="gri" className="mt-6">
-          <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
-            <Lock className="w-10 h-10 mx-auto text-stone-300 mb-4" />
-            <h3 className="text-lg font-semibold text-text-primary mb-2">GRI Reporting</h3>
-            <p className="text-text-muted text-sm">Coming soon</p>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

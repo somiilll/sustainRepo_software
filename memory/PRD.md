@@ -760,3 +760,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Added a reusable title-only module header with consistent left icon alignment, bordered icon badges, and responsive right-side action placement.
 - Applied it to BRSR, Materiality, Environment, Social, Governance, Reporting, Organization, Facilities, GHG Emissions, GHG Sinks, SBTi Targets, Reports, My Tasks, Tracker, User Management, Audit Trails, Profile, and Bulk Upload.
 - Restored the Facilities JSX structure after the broad header refactor; frontend ESLint now passes. Broader visual regression testing remains deferred at user request.
+
+## Latest Changes — 2026-09-03 (Organization GRI Tab Removal)
+- Removed the GRI tab trigger and its empty “Coming soon” panel from the Organization module; GRI reporting remains available from the dedicated Reporting module.
+- **NOT TESTED at user request.**
