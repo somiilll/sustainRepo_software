@@ -1,5 +1,8 @@
 # ESG Platform Changelog
 
+## September 3, 2026 — Deferred P1: Reporting Period Standardization
+- Added the reporting-period and reusable country/calendar reference-data consolidation to the P1 architecture backlog. No code changes were made.
+
 ## September 3, 2026 — Water Add Metric Field Alignment
 - Standardized the label area and input baseline for dynamic numeric metric fields, fixing the visibly staggered Water consumption controls.
 - Verified with frontend ESLint and authenticated live Water Add Metric browser check. No API or data behavior changed.

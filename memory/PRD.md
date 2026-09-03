@@ -750,3 +750,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-03 (Water Add Metric Field Alignment)
 - Aligned the Water consumption metric controls by reserving an equal label area and anchoring every numeric input/unit pair to the same baseline within its grid row.
 - Verified with frontend ESLint and an authenticated live Water Add Metric browser check. No API or data behavior changed.
+
+## Deferred Architecture — P1 (Reporting Period and Reference Data Standardization)
+- Consolidate GHG, ESG, Sinks, BRSR, and GRI reporting periods behind one canonical period contract and storage key while maintaining backward-compatible reads for legacy records.
+- Centralize country options, months, financial-year month order, calendar-year month order, quarters, days/dates, and reporting-year formatting in shared frontend and backend utilities.
+- No code changes have been made for this deferred task.
