@@ -762,7 +762,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Restored the Facilities JSX structure after the broad header refactor; frontend ESLint now passes. Broader visual regression testing remains deferred at user request.
 - Standardized header geometry to exactly mirror Supplier Assessment icon/title centering. Added the same header to GHG Base Year, Peer Benchmarking, and both MIS Reports entry points; removed extra page-shell top padding from Peer Benchmarking and SBTi Targets.
 - Standardized the common route shell to the Supplier Assessment top-padding rule and normalized every converted module’s header-to-content rhythm to `space-y-7`, including Peer Benchmarking and both MIS Reports surfaces.
-- **NOT TESTED at user request.**
+- Removed the Supplier Assessment layout wrapper’s unintended `space-y-6` outlet margin. Its Suppliers header and GHG Base Year header now share the same measured `16px` top baseline at desktop width.
+- Verified with frontend ESLint and a live authenticated header-geometry comparison.
 
 ## Latest Changes — 2026-09-03 (Organization GRI Tab Removal)
 - Removed the GRI tab trigger and its empty “Coming soon” panel from the Organization module; GRI reporting remains available from the dedicated Reporting module.
