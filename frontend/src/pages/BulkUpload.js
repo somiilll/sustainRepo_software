@@ -88,7 +88,7 @@ export default function BulkUpload() {
   if (!anyAvailable) return <AccessDenied />;
 
   return (
-    <div className="space-y-6" data-testid="bulk-upload-page">
+    <div className="space-y-7" data-testid="bulk-upload-page">
       <ModulePageHeader
         title="Bulk Upload"
         icon={History}

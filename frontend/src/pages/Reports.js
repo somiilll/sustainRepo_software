@@ -476,7 +476,7 @@ export default function Reports({ showMISFoundation = false }) {
   }
 
   return (
-    <div className="space-y-6" data-testid="reports-page">
+    <div className="space-y-7" data-testid="reports-page">
       {showMISFoundation ? (
         <MISReportsFoundation onConfigureReport={handleConfigureMISReport} />
       ) : (

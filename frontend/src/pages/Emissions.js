@@ -3069,7 +3069,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // hasScope3Access is computed earlier in the component (via useMemo) for use in filteredEmissions
 
   return (
-    <div className="space-y-6" data-testid="emissions-page">
+    <div className="space-y-7" data-testid="emissions-page">
       <ModulePageHeader
         title="GHG Emissions"
         icon={Cloud}

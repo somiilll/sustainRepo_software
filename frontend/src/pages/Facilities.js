@@ -453,7 +453,7 @@ export default function Facilities() {
   }
 
   return (
-    <div className="space-y-6" data-testid="facilities-page">
+    <div className="space-y-7" data-testid="facilities-page">
       <ModulePageHeader
         title="Facilities"
         icon={Building2}

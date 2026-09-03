@@ -90,7 +90,7 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="space-y-6" data-testid="user-management-page">
+    <div className="space-y-7" data-testid="user-management-page">
       <ModulePageHeader
         title="User Management"
         icon={Users}

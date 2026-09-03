@@ -94,7 +94,7 @@ export default function Reporting() {
 
   if (enabledFrameworks.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-7">
         <ModulePageHeader title="Reporting" icon={FileText} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="reporting" />
         
         <Card className="p-12 text-center">
@@ -133,7 +133,7 @@ export default function Reporting() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <ModulePageHeader
         title="Reporting"
         icon={FileText}

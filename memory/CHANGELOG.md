@@ -7,6 +7,7 @@
 - Added the shared title-only module header across the remaining primary portal and admin modules, using appropriate colored left icons and preserving existing action controls.
 - Fixed the Facilities JSX regression introduced during the broad header refactor; frontend ESLint passes. Broader visual regression testing remains deferred at user request.
 - Matched Supplier Assessment’s centered icon/title geometry and fixed outlier top spacing for GHG Base Year, Peer Benchmarking, MIS Reports, and SBTi Targets. **NOT TESTED at user request.**
+- Unified standard route top padding and module header-to-content spacing with the Supplier Assessment baseline. **NOT TESTED at user request.**
 
 ## September 3, 2026 — Deferred P1: Reporting Period Standardization
 - Added the reporting-period and reusable country/calendar reference-data consolidation to the P1 architecture backlog. No code changes were made.

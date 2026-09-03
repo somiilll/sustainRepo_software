@@ -20,7 +20,7 @@ const PeerBenchmarkingContent = () => {
   const [activeView, setActiveView] = useState('upload');
 
   return (
-    <div className="benchmarking-app-container">
+    <div className="benchmarking-app-container space-y-7">
       <ModulePageHeader
         title="ESG Peer Benchmarking"
         icon={BarChart3}

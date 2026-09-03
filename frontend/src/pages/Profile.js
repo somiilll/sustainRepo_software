@@ -131,7 +131,7 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <ModulePageHeader title="Profile" icon={User} iconClassName="border-rose-200 bg-rose-50 text-rose-700" testId="profile" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

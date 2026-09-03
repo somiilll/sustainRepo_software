@@ -103,7 +103,7 @@ export default function Environment({ preFilterCategory }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <ModulePageHeader
         title={preFilterCategory ? <><span className="text-stone-500">Environment</span><span className="mx-2 text-stone-300">→</span>{preFilterCategory}</> : 'Environment'}
         icon={Sprout}

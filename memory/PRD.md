@@ -761,6 +761,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Applied it to BRSR, Materiality, Environment, Social, Governance, Reporting, Organization, Facilities, GHG Emissions, GHG Sinks, SBTi Targets, Reports, My Tasks, Tracker, User Management, Audit Trails, Profile, and Bulk Upload.
 - Restored the Facilities JSX structure after the broad header refactor; frontend ESLint now passes. Broader visual regression testing remains deferred at user request.
 - Standardized header geometry to exactly mirror Supplier Assessment icon/title centering. Added the same header to GHG Base Year, Peer Benchmarking, and both MIS Reports entry points; removed extra page-shell top padding from Peer Benchmarking and SBTi Targets.
+- Standardized the common route shell to the Supplier Assessment top-padding rule and normalized every converted module’s header-to-content rhythm to `space-y-7`, including Peer Benchmarking and both MIS Reports surfaces.
 - **NOT TESTED at user request.**
 
 ## Latest Changes — 2026-09-03 (Organization GRI Tab Removal)

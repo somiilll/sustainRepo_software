@@ -248,7 +248,7 @@ export default function AuditTrails() {
   }
 
   return (
-    <div className="space-y-6" data-testid="audit-trails-page">
+    <div className="space-y-7" data-testid="audit-trails-page">
       <ModulePageHeader
         title="Audit Trails"
         icon={History}

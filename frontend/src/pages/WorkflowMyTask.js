@@ -56,7 +56,7 @@ export default function WorkflowMyTask() {
   }
 
   return (
-    <div className="space-y-6" data-testid="workflow-my-task">
+    <div className="space-y-7" data-testid="workflow-my-task">
       <ModulePageHeader
         title="My Tasks"
         icon={ScrollText}

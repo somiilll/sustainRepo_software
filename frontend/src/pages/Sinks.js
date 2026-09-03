@@ -662,7 +662,7 @@ export default function Sinks() {
   }
 
   return (
-    <div className="space-y-6" data-testid="sinks-page">
+    <div className="space-y-7" data-testid="sinks-page">
       <ModulePageHeader
         title="GHG Sinks"
         icon={TreeDeciduous}

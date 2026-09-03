@@ -180,7 +180,7 @@ export default function Social() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <ModulePageHeader
         title="Social"
         icon={Users2}

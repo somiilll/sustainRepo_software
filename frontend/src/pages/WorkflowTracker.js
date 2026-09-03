@@ -13,7 +13,7 @@ export default function WorkflowTracker() {
   const [section, setSection] = useState('environment');
 
   return (
-    <div className="space-y-6" data-testid="workflow-tracker">
+    <div className="space-y-7" data-testid="workflow-tracker">
       <ModulePageHeader title="Tracker" icon={ScrollText} iconClassName="border-indigo-200 bg-indigo-50 text-indigo-700" testId="workflow-tracker" />
 
       <Tabs value={section} onValueChange={setSection}>

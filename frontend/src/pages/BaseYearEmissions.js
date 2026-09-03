@@ -1707,7 +1707,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* Page Header */}
       {!hideTopHeader && (
         <ModulePageHeader title="Base Year Emissions" icon={History} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="base-year-emissions" />

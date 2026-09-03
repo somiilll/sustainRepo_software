@@ -53,7 +53,7 @@ export default function Governance() {
 
   // BOD & KMP Ledger Table Component
   const BodKmpLedger = () => (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <div className="flex justify-end">
         <Button size="sm" onClick={saveBodKmpData} disabled={saving}>
           {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
