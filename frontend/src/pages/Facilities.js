@@ -489,7 +489,8 @@ export default function Facilities() {
               Add Facility
             </Button>
           )}
-        </div>
+        </div>}
+      />
         
         {/* Dialog for both Create and Edit - shown when dialogOpen is true */}
         <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
@@ -534,8 +535,8 @@ export default function Facilities() {
                         className="bg-stone-50"
                         placeholder="Enter your facility name"
                       />
-        </div>}
-      />
+                    </div>
+                  </div>
                 ) : (
                   /* Full form for non-suppliers */
                   <>
@@ -975,7 +976,6 @@ export default function Facilities() {
               </form>
             </DialogContent>
           </Dialog>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredFacilities.map((facility) => (
