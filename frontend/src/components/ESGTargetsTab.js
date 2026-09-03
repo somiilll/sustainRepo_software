@@ -46,6 +46,7 @@ import {
 import { isAdmin } from '../utils/roleUtils';
 import ESGTargetForm from './ESGTargetForm';
 import ESGTargetVersionHistory from './ESGTargetVersionHistory';
+import { ModulePageHeader } from './ModulePageHeader';
 
 const TargetProgressChart = lazy(() => import('./TargetProgressChart'));
 
@@ -76,6 +77,12 @@ const TRACKING_MODE_LABELS = {
   yearly: 'Yearly',
 };
 
+const SECTION_HEADERS = {
+  environment: { title: 'Environment Target', iconClassName: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+  social: { title: 'Social Target', iconClassName: 'border-rose-200 bg-rose-50 text-rose-700' },
+  governance: { title: 'Governance Target', iconClassName: 'border-blue-200 bg-blue-50 text-blue-700' },
+};
+
 export default function ESGTargetsTab({ section = 'environment', reportingPeriod }) {
   const { token, user } = useAuth();
   const headers = { Authorization: `Bearer ${token}` };
@@ -102,6 +109,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [expandedTargets, setExpandedTargets] = useState({});
+  const sectionHeader = SECTION_HEADERS[section] || { title: 'ESG Target', iconClassName: 'border-stone-200 bg-stone-50 text-stone-700' };
   
   // Categories for filters
   const [categories, setCategories] = useState([]);
@@ -391,20 +399,13 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
   };
 
   return (
-    <div className="space-y-6" data-testid="esg-targets-tab">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-100 rounded-lg">
-            <Target className="w-5 h-5 text-emerald-600" />
-          </div>
-          <div>
-            <h2 className="text-xl font-heading font-bold text-text-primary">ESG Targets</h2>
-            <p className="text-sm text-text-muted">Manage KPI targets and goals</p>
-          </div>
-        </div>
-        
-        {userIsAdmin && (
+    <div className="space-y-7" data-testid="esg-targets-tab">
+      <ModulePageHeader
+        title={sectionHeader.title}
+        icon={Target}
+        iconClassName={sectionHeader.iconClassName}
+        testId={`${section}-target`}
+        aside={userIsAdmin && (
           <Button 
             onClick={handleCreate}
             className="bg-emerald-600 hover:bg-emerald-700 gap-2"
@@ -414,7 +415,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
             Add Target
           </Button>
         )}
-      </div>
+      />
 
       {/* Search and Filters */}
       <Card className="p-4">

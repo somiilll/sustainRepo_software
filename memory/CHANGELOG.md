@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 3, 2026 — Voluntary Target Section Headings
+- Added section-specific shared headers for Environment Target, Social Target, and Governance Target.
+- Verified with frontend ESLint and authenticated live Environment Target rendering. No API or data behavior changed.
+
 ## September 3, 2026 — Organization GRI Tab Removal
 - Removed the Organization module’s GRI tab and its placeholder panel. **NOT TESTED at user request.**
 

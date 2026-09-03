@@ -768,3 +768,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-03 (Organization GRI Tab Removal)
 - Removed the GRI tab trigger and its empty “Coming soon” panel from the Organization module; GRI reporting remains available from the dedicated Reporting module.
 - **NOT TESTED at user request.**
+
+## Latest Changes — 2026-09-03 (Voluntary Target Section Headings)
+- Replaced the generic ESG Targets heading with section-specific Environment Target, Social Target, and Governance Target headings using the shared module-header layout and appropriate accent colors.
+- Verified with frontend ESLint and authenticated live Environment Target rendering. No API or data behavior changed.
