@@ -481,7 +481,7 @@ export default function SBTiTargetsPage() {
   if (loading) return <div className="flex items-center justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" /></div>;
 
   return (
-    <div className="space-y-8 p-6" data-testid="sbti-targets-page">
+    <div className="space-y-8" data-testid="sbti-targets-page">
       <ModulePageHeader title="SBTi Targets" icon={Target} iconClassName="border-orange-200 bg-orange-50 text-orange-700" testId="sbti-targets" />
 
       {renderSection('Short-Term Targets', 'short_term', targets.short_term)}

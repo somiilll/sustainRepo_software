@@ -12,6 +12,8 @@ import React, { useState } from 'react';
 import { BenchmarkingProvider } from './context/BenchmarkingContext';
 import { UploadView } from './components/UploadView';
 import { ComparisonView } from './components/ComparisonView';
+import { BarChart3 } from 'lucide-react';
+import { ModulePageHeader } from '../../components/ModulePageHeader';
 import './styles/benchmarking.css';
 
 const PeerBenchmarkingContent = () => {
@@ -19,28 +21,28 @@ const PeerBenchmarkingContent = () => {
 
   return (
     <div className="benchmarking-app-container">
-      <div className="benchmarking-nav-header">
-        <div>
-          <h1 className="text-3xl font-bold">
-            <span className="text-gradient">ESG Peer Benchmarking</span>
-          </h1>
-          <p className="text-stone-400 text-sm mt-1">Compare your ESG performance against industry peers</p>
-        </div>
-        <div className="benchmarking-nav-links">
+      <ModulePageHeader
+        title="ESG Peer Benchmarking"
+        icon={BarChart3}
+        iconClassName="border-orange-200 bg-orange-50 text-orange-700"
+        testId="peer-benchmarking"
+        aside={<div className="benchmarking-nav-links">
           <button
             onClick={() => setActiveView('upload')}
             className={`benchmarking-nav-link ${activeView === 'upload' ? 'active' : ''}`}
+            data-testid="peer-benchmarking-upload-tab"
           >
             Upload Reports
           </button>
           <button
             onClick={() => setActiveView('compare')}
             className={`benchmarking-nav-link ${activeView === 'compare' ? 'active' : ''}`}
+            data-testid="peer-benchmarking-comparison-tab"
           >
             Comparison Dashboard
           </button>
-        </div>
-      </div>
+        </div>}
+      />
 
       {activeView === 'upload' && <UploadView />}
       {activeView === 'compare' && <ComparisonView />}
