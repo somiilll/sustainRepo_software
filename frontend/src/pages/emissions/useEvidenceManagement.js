@@ -23,6 +23,10 @@ import { validateFileSize, getUploadErrorMessage } from '../../lib/uploadUtils';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+const getUploadedFileId = (evidence) => (
+  evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1]
+);
+
 const downloadFileHelper = async (url, filename) => {
   const link = document.createElement('a');
   link.href = url;
@@ -77,6 +81,7 @@ export function useEvidenceManagement({
         url: response.data.url,
         filename: response.data.filename || file.name,  // Use original filename
         file_id: response.data.file_id,
+        is_new: true,
       }]);
 
       toast.success('File uploaded successfully');
@@ -89,18 +94,19 @@ export function useEvidenceManagement({
   const handleDeleteExistingEvidence = async (index) => {
     const evidenceToDelete = existingEvidences[index];
 
-    // Try to delete from server if it's an uploaded file
-    if (evidenceToDelete.url.includes('/api/files/')) {
-      const fileIdMatch = evidenceToDelete.url.match(/\/api\/files\/([a-f0-9-]+)/i);
-      if (fileIdMatch) {
+    // New uploads are not yet linked to a saved emission, so remove them now.
+    // Persisted evidence is deleted by the server only after a successful save.
+    const fileId = getUploadedFileId(evidenceToDelete);
+    if (evidenceToDelete.is_new && fileId) {
         try {
-          await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
+          await axios.delete(`${API}/files/${fileId}`, {
             headers: getAuthHeader(),
           });
         } catch (error) {
           console.error('Failed to delete file from server:', error);
+          toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+          return;
         }
-      }
     }
 
     // Remove from existingEvidences state
@@ -117,19 +123,20 @@ export function useEvidenceManagement({
   };
 
   const handleDeleteAllEvidences = async () => {
-    // Try to delete all uploaded files from server
+    // Only delete uncommitted uploads here. Saved evidence is removed after the
+    // update itself succeeds, so canceling an edit preserves the original file.
     for (const evidence of existingEvidences) {
-      if (evidence.url.includes('/api/files/')) {
-        const fileIdMatch = evidence.url.match(/\/api\/files\/([a-f0-9-]+)/i);
-        if (fileIdMatch) {
+      const fileId = getUploadedFileId(evidence);
+      if (evidence.is_new && fileId) {
           try {
-            await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
+            await axios.delete(`${API}/files/${fileId}`, {
               headers: getAuthHeader(),
             });
           } catch (error) {
             console.error('Failed to delete file from server:', error);
+            toast.error(error.response?.data?.detail || 'Could not remove all evidence from storage');
+            return;
           }
-        }
       }
     }
 
@@ -139,9 +146,10 @@ export function useEvidenceManagement({
   };
 
   const handleRemoveEvidence = async () => {
-    if (uploadedEvidence?.file_id) {
+    const fileId = getUploadedFileId(uploadedEvidence);
+    if (fileId) {
       try {
-        await axios.delete(`${API}/files/${uploadedEvidence.file_id}`, {
+        await axios.delete(`${API}/files/${fileId}`, {
           headers: getAuthHeader(),
         });
       } catch (error) {

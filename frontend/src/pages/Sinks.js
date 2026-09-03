@@ -268,7 +268,16 @@ export default function Sinks() {
     setUploadingMonth(null);
   };
 
-  const removeMonthEvidence = (monthIndex, fileIndex) => {
+  const removeMonthEvidence = async (monthIndex, fileIndex) => {
+    const evidence = monthlyData[monthIndex]?.evidence?.[fileIndex];
+    if (!editingSink && evidence?.file_id) {
+      try {
+        await axios.delete(`${API}/files/${evidence.file_id}`, { headers: getAuthHeader() });
+      } catch (error) {
+        toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+        return;
+      }
+    }
     setMonthlyData(prev => {
       const existing = prev[monthIndex];
       if (!existing || typeof existing !== 'object') return prev;
@@ -320,7 +329,16 @@ export default function Sinks() {
     setUploadingYearly(false);
   };
 
-  const removeYearlyEvidence = (fileIndex) => {
+  const removeYearlyEvidence = async (fileIndex) => {
+    const evidence = yearlyData.evidence?.[fileIndex];
+    if (!editingSink && evidence?.file_id) {
+      try {
+        await axios.delete(`${API}/files/${evidence.file_id}`, { headers: getAuthHeader() });
+      } catch (error) {
+        toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+        return;
+      }
+    }
     setYearlyData(prev => ({
       ...prev,
       evidence: prev.evidence.filter((_, i) => i !== fileIndex)

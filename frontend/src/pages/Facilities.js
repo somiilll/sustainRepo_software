@@ -414,7 +414,17 @@ export default function Facilities() {
     setNewAttachment({ type: 'link', name: '', url: '' });
   };
 
-  const removeAttachment = (index) => {
+  const removeAttachment = async (index) => {
+    const attachment = formData.attachments[index];
+    const fileId = attachment?.file_id || attachment?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (fileId) {
+      try {
+        await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
+      } catch (error) {
+        toast.error(error.response?.data?.detail || 'Could not remove attachment from storage');
+        return;
+      }
+    }
     setFormData({
       ...formData,
       attachments: formData.attachments.filter((_, i) => i !== index)

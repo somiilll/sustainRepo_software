@@ -258,7 +258,10 @@ export default function ESGRecordsDataEntry({
   const removeEvidence = async (evidenceId, isEdit = false) => {
     try {
       await axios.delete(`${API}/api/files/${evidenceId}`, { headers });
-    } catch (e) { /* ignore */ }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+      return;
+    }
     if (isEdit) {
       setEditEvidences(prev => prev.filter(e => e.id !== evidenceId));
     } else {

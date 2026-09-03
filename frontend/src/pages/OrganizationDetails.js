@@ -451,7 +451,12 @@ export default function OrganizationDetails() {
     
     // Delete old logo from R2 if it exists (before uploading new one)
     if (formData.logo) {
-      await deleteFileFromR2(formData.logo, getAuthHeader());
+      const deleted = await deleteFileFromR2(formData.logo, getAuthHeader());
+      if (!deleted) {
+        toast.error('Could not replace logo because the old file is still in storage');
+        setUploadingLogo(false);
+        return;
+      }
     }
     
     const uploadFormData = new FormData();
@@ -543,7 +548,11 @@ export default function OrganizationDetails() {
     
     // Delete from R2 storage if it's an uploaded file
     if (attachment?.url) {
-      await deleteFileFromR2(attachment.url, getAuthHeader());
+      const deleted = await deleteFileFromR2(attachment.url, getAuthHeader());
+      if (!deleted) {
+        toast.error('Could not remove attachment from storage');
+        return;
+      }
     }
     
     setFormData({

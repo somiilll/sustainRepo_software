@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 3, 2026 — R2 File Lifecycle Integrity
+- Added shared, storage-first R2 cleanup and made generic file deletion fail safely rather than hiding metadata when R2 removal fails.
+- Applied cleanup to emission, sink, ESG, facility, organization, Repo Pilot, benchmark, OCR, and organization-cascade paths.
+- Live isolated-artifact regression suite passed **3/3**; Python compilation, frontend ESLint, and authenticated GHG smoke passed. No APIs are **MOCKED**.
+
 ## September 3, 2026 — GHG Evidence Tooltip Contrast
 - Updated the attached-evidence filename link in the Add Emission hover tooltip from blue to white, avoiding the blue-on-green clash while retaining clear hover feedback.
 - Verified with frontend ESLint and an authenticated GHG Emissions browser smoke. No APIs or data behavior changed.

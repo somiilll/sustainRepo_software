@@ -99,6 +99,12 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
         raise Exception(f"Failed to upload to R2: {str(e)}")
 
 
+def delete_object(path: str) -> None:
+    if not path:
+        return
+    get_s3_client().delete_object(Bucket=R2_BUCKET_PEER_BENCHMARKING, Key=path)
+
+
 def get_object(path: str) -> tuple:
     """Download file from Cloudflare R2 storage. Returns (content_bytes, content_type)."""
     client = get_s3_client()
@@ -348,6 +354,17 @@ async def delete_competitor(
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization found")
+
+    competitor = await db.competitor_benchmarks.find_one(
+        {"id": competitor_id, "org_id": org_id, "is_deleted": {"$ne": True}},
+        {"_id": 0, "storage_path": 1},
+    )
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    try:
+        delete_object(competitor.get("storage_path") or "")
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not remove the benchmark file from storage. The benchmark was not deleted.") from error
 
     result = await db.competitor_benchmarks.update_one(
         {"id": competitor_id, "org_id": org_id},

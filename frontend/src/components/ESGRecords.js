@@ -688,7 +688,18 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
     setUploading(false);
   };
 
-  const removeEvidence = (fileId) => {
+  const removeEvidence = async (fileId) => {
+    const evidence = formData.evidence_files.find(file => file.id === fileId);
+    const uploadedFileId = evidence?.file_id || evidence?.upload_url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (uploadedFileId) {
+      try {
+        await axios.delete(`${BACKEND_URL}/api/files/${uploadedFileId}`, { headers });
+      } catch (error) {
+        console.error('Failed to delete evidence:', error);
+        alert(error.response?.data?.detail || 'Could not remove evidence from storage.');
+        return;
+      }
+    }
     setFormData(prev => ({
       ...prev,
       evidence_files: prev.evidence_files.filter(f => f.id !== fileId)
@@ -1219,7 +1230,18 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
     setUploading(false);
   };
 
-  const removeEvidence = (fileId) => {
+  const removeEvidence = async (fileId) => {
+    const evidence = formData.evidence_files.find(file => file.id === fileId);
+    const uploadedFileId = evidence?.file_id || evidence?.upload_url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (uploadedFileId) {
+      try {
+        await axios.delete(`${BACKEND_URL}/api/files/${uploadedFileId}`, { headers });
+      } catch (error) {
+        console.error('Failed to delete evidence:', error);
+        alert(error.response?.data?.detail || 'Could not remove evidence from storage.');
+        return;
+      }
+    }
     setFormData(prev => ({ ...prev, evidence_files: prev.evidence_files.filter(f => f.id !== fileId) }));
   };
 

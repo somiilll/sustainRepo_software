@@ -2854,6 +2854,7 @@ async def _validate_base_year_for_report(
 
 # File upload endpoint for evidence documents
 from r2_storage import get_r2_storage, R2Storage
+from shared.helpers.uploaded_files import delete_uploaded_files
 
 @api_router.post("/upload/evidence")
 async def upload_evidence_file(
@@ -3132,20 +3133,11 @@ async def delete_file(
         if uploader and uploader.get("organization_id") != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized to delete this file")
     
-    # Delete file from R2 storage
-    if file_record.get("bucket_type") and file_record.get("r2_key"):
-        try:
-            r2 = get_r2_storage()
-            await r2.delete_file(
-                bucket_type=file_record["bucket_type"],
-                key=file_record["r2_key"]
-            )
-        except Exception as e:
-            logging.error(f"R2 delete error: {e}")
-            # Continue to delete database record even if R2 delete fails
-    
-    # Delete record from database
-    await db.uploaded_files.delete_one({"id": file_id})
+    try:
+        await delete_uploaded_files(db, [file_id])
+    except Exception as error:
+        logging.error(f"R2 delete error: {error}")
+        raise HTTPException(status_code=502, detail="Could not delete the file from storage. The file remains available for retry.") from error
     
     return {"message": "File deleted successfully"}
 

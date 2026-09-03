@@ -1,0 +1,47 @@
+{
+  "summary": "Executed targeted R2 cleanup regression testing (live backend + frontend contract/static checks) for file delete, emission delete linked evidence cleanup, OCR temp upload delete, and UI deletion-failure handling guards.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Add Emission evidence hover removal in shared hook",
+        "issue": "useEvidenceManagement.handleDeleteExistingEvidence/handleDeleteAllEvidences derives file id only from URL regex instead of preferring persisted file_id. If URL shape changes, DELETE /api/files/{id} may be skipped.",
+        "affected_selectors": [
+          "N/A (logic in /frontend/src/pages/emissions/useEvidenceManagement.js)"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_r2_cleanup_regression_iter40.py",
+    "/app/test_reports/pytest/pytest_results_iter40_r2_cleanup.xml"
+  ],
+  "action_items": [
+    "Update useEvidenceManagement delete paths to prefer evidence.file_id fallback before URL parsing, matching EmissionEntryForm behavior.",
+    "Run one focused UI retest for sinks/facilities/esg evidence delete-failure retention after frontend patch."
+  ],
+  "critical_code_review_comments": [
+    "Backend static contract is correctly defensive in reviewed paths: normal emission delete, batch rollback, C7 delete, approval delete, sink update/delete, Repo Pilot delete, benchmarking delete, OCR temp delete, and cascade deletion all gate DB removal behind storage cleanup success.",
+    "delete_uploaded_files helper confirms R2 deletion before removing uploaded_files metadata (validated by live API tests).",
+    "No APIs were MOCKED in this run."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_r2_cleanup_regression_iter40.py",
+    "/app/test_reports/iteration_40.json"
+  ],
+  "success_rate": {
+    "backend": "100% (3/3 targeted tests passed)",
+    "frontend": "80% (smoke + contract checks passed, one hook-level contract gap found)"
+  },
+  "seed_data_creation": "Created isolated temporary artifacts only: uploaded evidence files, one disposable emission record, one OCR upload; all were deleted during tests.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend R2 cleanup paths are green on live environment for targeted scenarios. Remaining work is frontend hook consistency: file_id-first deletion in useEvidenceManagement and quick UI retest for delete-failure retention behavior.",
+  "rca of the issue": "Root cause for remaining frontend contract gap: useEvidenceManagement stores file_id on upload but delete routines rely on URL regex extraction for existing evidences. This creates fragility if evidence URLs are transformed or not in /api/files/{id} format. Mitigation: use evidence.file_id first, then URL regex as fallback; keep current early-return behavior on storage deletion failure to preserve UI item."
+}

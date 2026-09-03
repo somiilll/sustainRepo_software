@@ -741,3 +741,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-03 (GHG Evidence Tooltip Contrast)
 - Updated the attached-evidence filename link in the Add Emission hover tooltip from blue to white, removing the blue-on-green color clash while retaining clear link affordance on hover.
 - Verification passed: frontend ESLint and authenticated GHG Emissions browser smoke. No APIs or data behavior changed.
+
+## Latest Changes — 2026-09-03 (R2 File Lifecycle Integrity)
+- Added strict shared R2 cleanup for generic uploaded files: storage deletion must succeed before its MongoDB metadata or portal record can disappear.
+- Covered Add Emission evidence removal, saved-emission deletion and rollback, C7 and approval deletions, Sink evidence replacement/deletion, Facilities, ESG evidence, organization logos/attachments, Repo Pilot documents/page replacements, peer benchmark PDFs, OCR temporary uploads, and generic organization cascade cleanup.
+- Verified with live isolated-artifact regression tests (**3/3 passed**), Python compilation, frontend ESLint, and authenticated GHG page smoke. No APIs are mocked.
