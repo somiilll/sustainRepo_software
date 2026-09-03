@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 3, 2026 — GHG Evidence Tooltip Contrast
+- Updated the attached-evidence filename link in the Add Emission hover tooltip from blue to white, avoiding the blue-on-green clash while retaining clear hover feedback.
+- Verified with frontend ESLint and an authenticated GHG Emissions browser smoke. No APIs or data behavior changed.
+
 ## August 30, 2026 — Roadmap Update
 - Added P0: a deliberate migration/reassignment workflow for existing suppliers after parent GHG permission changes, preserving immutable issued assessments while allowing explicit alignment with newer program revisions.
 

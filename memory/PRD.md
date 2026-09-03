@@ -489,6 +489,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `/app/test_reports/iteration_31.json` — initial independent migration run; its single queue-isolation finding was fixed and the exact 37-test suite then passed.
 
 ## Current Priorities
+- **P0 (Deferred by user):** Security hardening — hash password-reset tokens before persistence; implement application-level AES-GCM field encryption for approved PII and financial fields, with HMAC blind indexes where equality lookup is required. Preserve plaintext operational GHG metrics needed for aggregation and reporting.
+- **P0 (Verification pending):** Verify the QuestionLedgerDialog `lower_is_better` question payload saves successfully without a 422 validation error.
 - **P0:** Make supplier facility allowance an explicit configurable policy rather than a fallback.
 - **P0:** Add an explicit existing-supplier assessment-program revision migration/reassignment flow so parents can align supplier GHG permissions after changing Custom Fuel, Process Emissions, or Flaring policy.
 - **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.
@@ -735,3 +737,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Restored the missing `delete_supplier_question_evidence` delegate on the `SupplierAssessmentService` compatibility facade. Supplier draft-evidence deletion now reaches the existing questionnaire-service implementation instead of raising an `AttributeError` and returning HTTP 500.
 - Corrected the unrelated facade binding for the synchronous legacy answer-score helper, which was exposed while verifying the complete draft evidence workflow and had caused legacy questionnaire submission scoring to return HTTP 500.
 - Verification passed: Python compilation and facade contract checks; live authenticated evidence regression **5/5 passed**, including draft upload → delete → replacement upload → final submission; supplier workspace browser smoke passed. No mocked APIs.
+
+## Latest Changes — 2026-09-03 (GHG Evidence Tooltip Contrast)
+- Updated the attached-evidence filename link in the Add Emission hover tooltip from blue to white, removing the blue-on-green color clash while retaining clear link affordance on hover.
+- Verification passed: frontend ESLint and authenticated GHG Emissions browser smoke. No APIs or data behavior changed.
