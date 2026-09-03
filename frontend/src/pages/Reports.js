@@ -10,6 +10,7 @@ import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkle
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
 import MISReportsFoundation from '../modules/mis-reports/MISReportsFoundation';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -479,12 +480,7 @@ export default function Reports({ showMISFoundation = false }) {
       {showMISFoundation ? (
         <MISReportsFoundation onConfigureReport={handleConfigureMISReport} />
       ) : (
-        <div className="flex items-start justify-between" data-testid="reports-legacy-header">
-          <div>
-            <h1 className="text-4xl font-heading font-bold text-text-primary mb-2" data-testid="reports-legacy-heading">Reports</h1>
-            <p className="text-text-secondary" data-testid="reports-legacy-subtitle">Download comprehensive GHG emission reports</p>
-          </div>
-        </div>
+        <ModulePageHeader title="Reports" icon={FileText} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="reports" />
       )}
 
       {/* GHG Inventory Report Card - Only show if org has GHG module enabled */}

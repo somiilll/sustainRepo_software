@@ -755,3 +755,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Consolidate GHG, ESG, Sinks, BRSR, and GRI reporting periods behind one canonical period contract and storage key while maintaining backward-compatible reads for legacy records.
 - Centralize country options, months, financial-year month order, calendar-year month order, quarters, days/dates, and reporting-year formatting in shared frontend and backend utilities.
 - No code changes have been made for this deferred task.
+
+## Latest Changes — 2026-09-03 (Portal Module Header Alignment)
+- Added a reusable title-only module header with consistent left icon alignment, bordered icon badges, and responsive right-side action placement.
+- Applied it to BRSR, Materiality, Environment, Social, Governance, Reporting, Organization, Facilities, GHG Emissions, GHG Sinks, SBTi Targets, Reports, My Tasks, Tracker, User Management, Audit Trails, Profile, and Bulk Upload.
+- **NOT TESTED at user request.**

@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Leaf, Users2, Shield, ScrollText, BookOpen } from 'lucide-react';
 import ESGRecordsTracker from '../components/ESGRecordsTracker';
 import ESGTrackingTab from '../components/ESGTrackingTab';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 /**
  * Workflow Tracker — combined tracker for ESG sections + BRSR/GRI disclosures.
@@ -13,10 +14,7 @@ export default function WorkflowTracker() {
 
   return (
     <div className="space-y-6" data-testid="workflow-tracker">
-      <div>
-        <h1 className="text-2xl font-bold text-stone-900">Tracker</h1>
-        <p className="text-sm text-stone-500">Track data collection progress across all ESG sections and reporting frameworks.</p>
-      </div>
+      <ModulePageHeader title="Tracker" icon={ScrollText} iconClassName="border-indigo-200 bg-indigo-50 text-indigo-700" testId="workflow-tracker" />
 
       <Tabs value={section} onValueChange={setSection}>
         <TabsList className="grid w-full max-w-2xl grid-cols-5">

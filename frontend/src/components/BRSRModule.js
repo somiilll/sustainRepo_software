@@ -27,6 +27,7 @@ import ESGQuestionnaire from './ESGQuestionnaire';
 import BRSRSectionC from './BRSRSectionC';
 import BRSRDetailsSection from './BRSRDetailsSection';
 import { BRSRExportButton } from '../modules/brsr-export';
+import { ModulePageHeader } from './ModulePageHeader';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -65,22 +66,20 @@ export default function BRSRModule() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Reporting Period */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">BRSR Framework</h1>
-          <p className="text-text-muted mt-1">Business Responsibility & Sustainability Reporting</p>
-        </div>
-        
-        <div className="flex items-center gap-3">
+      <ModulePageHeader
+        title="BRSR Framework"
+        icon={ClipboardList}
+        iconClassName="border-emerald-200 bg-emerald-50 text-emerald-800"
+        testId="brsr-framework"
+        aside={<>
           <Label className="text-sm whitespace-nowrap">Reporting Period:</Label>
           <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
-            <SelectTrigger className="w-40 bg-white">
+            <SelectTrigger className="w-40 bg-white" data-testid="brsr-reporting-period-selector">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
             <SelectContent>
               {reportingYears.map(year => (
-                <SelectItem key={year} value={year}>{year}</SelectItem>
+                <SelectItem key={year} value={year} data-testid={`brsr-reporting-period-option-${year}`}>{year}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -93,11 +92,11 @@ export default function BRSRModule() {
             size="sm"
             onClick={() => setIsEditing(!isEditing)}
             className={isEditing ? 'border-red-300 text-red-600 hover:bg-red-50' : ''}
-          >
+            data-testid="brsr-edit-toggle-button">
             {isEditing ? <><X className="w-4 h-4 mr-1" /> Done</> : <><Pencil className="w-4 h-4 mr-1" /> Edit</>}
           </Button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>

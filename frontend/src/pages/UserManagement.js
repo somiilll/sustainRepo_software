@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Users, Trash2, Plus } from 'lucide-react';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -90,12 +91,12 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6" data-testid="user-management-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">User Management</h1>
-          <p className="text-text-secondary">Manage organization users</p>
-        </div>
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+      <ModulePageHeader
+        title="User Management"
+        icon={Users}
+        iconClassName="border-blue-200 bg-blue-50 text-blue-700"
+        testId="user-management"
+        aside={<Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6">
               <Plus className="w-4 h-4 mr-2" />
@@ -147,8 +148,8 @@ export default function UserManagement() {
               </div>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+        </Dialog>}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {users.map((user) => (

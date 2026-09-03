@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 3, 2026 — Portal Module Header Alignment
+- Added the shared title-only module header across the remaining primary portal and admin modules, using appropriate colored left icons and preserving existing action controls.
+- **NOT TESTED at user request.**
+
 ## September 3, 2026 — Deferred P1: Reporting Period Standardization
 - Added the reporting-period and reusable country/calendar reference-data consolidation to the P1 architecture backlog. No code changes were made.
 

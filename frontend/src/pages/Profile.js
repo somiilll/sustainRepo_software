@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { User, Lock, Mail, Phone, Calendar, AlertTriangle, Edit2, Check, X, Eye, EyeOff } from 'lucide-react';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -131,10 +132,7 @@ export default function Profile() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Profile</h1>
-        <p className="text-text-secondary">Manage your account settings</p>
-      </div>
+      <ModulePageHeader title="Profile" icon={User} iconClassName="border-rose-200 bg-rose-50 text-rose-700" testId="profile" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6 border border-stone-200 rounded-xl bg-white">

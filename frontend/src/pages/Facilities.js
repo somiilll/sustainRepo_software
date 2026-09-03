@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
@@ -453,15 +454,12 @@ export default function Facilities() {
 
   return (
     <div className="space-y-6" data-testid="facilities-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Facilities</h1>
-          <p className="text-text-secondary">
-            Manage your organization&apos;s facilities ({filteredFacilities.length} active
-            {facilities.length !== filteredFacilities.length && `, ${facilities.length - filteredFacilities.length} inactive`})
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
+      <ModulePageHeader
+        title="Facilities"
+        icon={Building2}
+        iconClassName="border-amber-200 bg-amber-50 text-amber-700"
+        testId="facilities"
+        aside={<div className="flex items-center gap-4">
           {/* Show Inactive Toggle */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -536,8 +534,8 @@ export default function Facilities() {
                         className="bg-stone-50"
                         placeholder="Enter your facility name"
                       />
-                    </div>
-                  </div>
+        </div>}
+      />
                 ) : (
                   /* Full form for non-suppliers */
                   <>

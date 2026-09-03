@@ -11,7 +11,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EmissionFilters from './emissions/EmissionFilters';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Plus, Filter, X, Search } from 'lucide-react';
+import { Plus, Filter, X, Search, Cloud } from 'lucide-react';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { toast } from 'sonner';
 import EmissionEntryForm from '../components/EmissionEntryForm';
 import EmissionEditForm from '../components/EmissionEditForm';
@@ -3069,12 +3070,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
 
   return (
     <div className="space-y-6" data-testid="emissions-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">GHG Emissions</h1>
-          <p className="text-text-secondary">Track and manage GHG emissions</p>
-        </div>
-        <div className="flex gap-3 items-center">
+      <ModulePageHeader
+        title="GHG Emissions"
+        icon={Cloud}
+        iconClassName="border-sky-200 bg-sky-50 text-sky-700"
+        testId="ghg-emissions"
+        aside={<div className="flex gap-3 items-center">
           {/* Search Input */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -3270,8 +3271,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
               </Tooltip>
             </TooltipProvider>
           )}
-        </div>
-      </div>
+        </div>}
+      />
 
       {showFilters && (
         <EmissionFilters

@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '..
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ArrowUpDown, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useGHGAccess } from '../hooks/useKPIAccess';
 
@@ -662,12 +663,12 @@ export default function Sinks() {
 
   return (
     <div className="space-y-6" data-testid="sinks-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">GHG Sinks</h1>
-          <p className="text-text-secondary">Track emissions reduced or captured through carbon removal activities</p>
-        </div>
-        {hasSinkAccess ? (
+      <ModulePageHeader
+        title="GHG Sinks"
+        icon={TreeDeciduous}
+        iconClassName="border-emerald-200 bg-emerald-50 text-emerald-800"
+        testId="ghg-sinks"
+        aside={hasSinkAccess ? (
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 text-white" data-testid="add-sink-btn">
@@ -939,7 +940,7 @@ export default function Sinks() {
             </Tooltip>
           </TooltipProvider>
         )}
-      </div>
+      />
       
       {/* KPI Access Warning */}
       {!hasKPISinksAccess && user?.role !== 'admin' && user?.role !== 'super_admin' && (

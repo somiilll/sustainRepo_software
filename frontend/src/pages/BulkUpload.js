@@ -15,6 +15,7 @@ import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { History, Loader2 } from 'lucide-react';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { useAuth } from '../contexts/AuthContext';
 
 // Module system — importing the barrel boots all scope modules into the registry.
@@ -88,21 +89,18 @@ export default function BulkUpload() {
 
   return (
     <div className="space-y-6" data-testid="bulk-upload-page">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">Bulk Upload</h1>
-          <p className="text-text-muted mt-1">
-            {activeModule?.description || 'Upload GHG emissions data in bulk using Excel'}
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <ModulePageHeader
+        title="Bulk Upload"
+        icon={History}
+        iconClassName="border-teal-200 bg-teal-50 text-teal-700"
+        testId="bulk-upload"
+        aside={<div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowHistory(!showHistory)} data-testid="toggle-history-btn">
             <History className="w-4 h-4 mr-2" />
             {showHistory ? 'Hide History' : 'Upload History'}
           </Button>
-        </div>
-      </div>
+        </div>}
+      />
 
       {/* Scope Tabs */}
       <ScopeTabSelector modules={allModules} activeId={activeScopeId} onSelect={setActiveScopeId} />

@@ -19,6 +19,7 @@ import { Badge } from '../components/ui/badge';
 import { Loader2, FileText, BookOpen, ScrollText } from 'lucide-react';
 import BRSRModule from '../components/BRSRModule';
 import GRIModule from '../components/GRIModule';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -94,10 +95,7 @@ export default function Reporting() {
   if (enabledFrameworks.length === 0) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Reporting</h1>
-          <p className="text-text-muted mt-1">Framework-based sustainability reporting</p>
-        </div>
+        <ModulePageHeader title="Reporting" icon={FileText} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="reporting" />
         
         <Card className="p-12 text-center">
           <FileText className="w-16 h-16 text-stone-300 mx-auto mb-4" />
@@ -136,20 +134,12 @@ export default function Reporting() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <FileText className="w-7 h-7 text-emerald-600" />
-            Reporting
-          </h1>
-          <p className="text-text-muted mt-1">
-            Framework-based sustainability disclosures and reporting
-          </p>
-        </div>
-        
-        {/* Framework badges */}
-        <div className="flex items-center gap-2">
+      <ModulePageHeader
+        title="Reporting"
+        icon={FileText}
+        iconClassName="border-teal-200 bg-teal-50 text-teal-700"
+        testId="reporting"
+        aside={<div className="flex items-center gap-2">
           {enabledFrameworks.map(fw => {
             const meta = FRAMEWORK_META[fw] || {};
             return (
@@ -158,8 +148,8 @@ export default function Reporting() {
               </Badge>
             );
           })}
-        </div>
-      </div>
+        </div>}
+      />
 
       {/* Framework Tabs */}
       <Tabs value={activeFramework} onValueChange={setActiveFramework}>

@@ -11,6 +11,7 @@ import ESGRecordsModule from '../components/ESGRecordsModule';
 import HRWorkforce from './HRWorkforce';
 import FrameworkTabs from '../components/FrameworkTabs';
 import GRIQuestionnaire from '../components/GRIQuestionnaire';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import WorkforceDataTable from '../components/WorkforceDataTable';
 import {
   ALL_WORKFORCE_CONFIGS,
@@ -180,14 +181,12 @@ export default function Social() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-start">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-            <Users2 className="w-5 h-5 text-blue-600" />
-          </div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">Social</h1>
-        </div>
-      </div>
+      <ModulePageHeader
+        title="Social"
+        icon={Users2}
+        iconClassName="border-rose-200 bg-rose-50 text-rose-700"
+        testId="social"
+      />
       <FrameworkTabs moduleType="social" recordsContent={<SocialRecordsContent />} renderFrameworkContent={renderFrameworkContent} />
     </div>
   );

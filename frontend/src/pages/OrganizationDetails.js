@@ -13,6 +13,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -673,18 +674,12 @@ export default function OrganizationDetails() {
 
   return (
     <div className="space-y-6">
-      {/* Page Title & Edit Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organization</h1>
-          <p className="text-text-secondary">
-            {subscriptionExpired 
-              ? 'Your subscription has expired. Editing is disabled.' 
-              : (canEdit ? 'Manage your organization information' : 'View organization information (read-only)')
-            }
-          </p>
-        </div>
-        {user?.role === 'admin' && !editing && activeTab === 'organization' && (
+      <ModulePageHeader
+        title="Organization"
+        icon={Building}
+        iconClassName="border-blue-200 bg-blue-50 text-blue-700"
+        testId="organization"
+        aside={user?.role === 'admin' && !editing && activeTab === 'organization' && (
           <Button 
             onClick={() => {
               if (subscriptionExpired) {
@@ -701,7 +696,7 @@ export default function OrganizationDetails() {
             Edit Details
           </Button>
         )}
-      </div>
+      />
 
       {/* ========== PERSISTENT ORGANIZATION SUMMARY HEADER ========== */}
       {!editing && (

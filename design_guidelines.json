@@ -1,82 +1,68 @@
 {
-  "project_type": "saas_app",
-  "archetype": "ORGANIC & EARTHY",
-  "context": "Supplier Assessment Admin - Training and Document Creation Modals",
-  "component_path": "/app/frontend/src/modules/supplier-assessment/",
-  "typography": {
-    "font_family_heading": "Cabinet Grotesk, sans-serif",
-    "font_family_body": "Inter, sans-serif",
-    "heading_scale": {
-      "h1": "text-3xl font-bold text-emerald-950",
-      "h2": "text-2xl font-bold text-stone-900",
-      "h3": "text-xl font-semibold text-stone-800",
-      "modal_title": "text-xl font-bold text-emerald-950"
-    },
-    "body_scale": {
-      "base": "text-sm text-stone-600",
-      "small": "text-xs text-stone-500",
-      "label": "text-xs font-medium text-stone-700"
-    }
+  "project_metadata": {
+    "app_type": "full-stack ESG management dashboard",
+    "theme": "light",
+    "archetype": "ORGANIC & EARTHY (ESG Enterprise Precision)",
+    "target_audience": "ESG Managers, Sustainability Officers, Supplier Compliance Auditors",
+    "core_task": "Align module page headings across BRSR Framework, Materiality Assessment, GHG, and Core ESG modules with Supplier Assessment standard page headers"
   },
-  "colors": {
-    "primary": {
-      "bg": "bg-emerald-800",
-      "hover": "hover:bg-emerald-900",
-      "text": "text-white"
+  "key_functionalities": [
+    "Reusable module page header component (ModulePageHeader / SupplierPageHeader)",
+    "Color-coded leading icon with rounded border and subtle shadow",
+    "Title-only heading alignment (no extra optional short context lines)",
+    "Consistent layout across BRSR Framework, Materiality Assessment, GHG, and core ESG pages"
+  ],
+  "design_system": {
+    "colors": {
+      "primary_emerald": "#064e3b",
+      "accent_emerald_light": "#ecfdf5",
+      "border_emerald": "#a7f3d0",
+      "text_dark": "#022c22",
+      "text_muted": "#475569",
+      "background_light": "#f8fafc",
+      "surface_card": "#ffffff",
+      "forbidden_colors": ["#1B93A4", "#7351B7"]
     },
-    "neutral": {
-      "background": "bg-stone-50",
-      "surface": "bg-white",
-      "border": "border-stone-200",
-      "text_dark": "text-stone-950",
-      "text_muted": "text-stone-500"
+    "typography": {
+      "font_family_main": "Inter, sans-serif",
+      "font_family_display": "Outfit, sans-serif",
+      "forbidden_fonts": ["space grotesk"],
+      "page_title": "text-3xl font-bold text-emerald-950 tracking-tight",
+      "section_heading": "text-xl sm:text-2xl font-semibold text-stone-900",
+      "body": "text-sm text-stone-700"
     },
-    "accents": {
-      "amber": "bg-amber-50 text-amber-700 border-amber-200",
-      "teal": "bg-teal-50 text-teal-700 border-teal-200",
-      "emerald": "bg-emerald-50 text-emerald-700 border-emerald-200"
-    }
-  },
-  "layout_and_modals": {
-    "pattern": "Dialog modal pattern for Add Training and Add/Publish Document",
-    "dialog_specs": {
-      "max_width": "max-w-2xl",
-      "max_height": "max-h-[85vh]",
-      "padding": "p-6",
-      "gap": "gap-4",
-      "grid": "grid gap-4 md:grid-cols-2"
-    },
-    "components": [
-      {
-        "name": "SupplierTrainingAdmin",
-        "file": "/app/frontend/src/modules/supplier-assessment/SupplierTrainingAdmin.jsx",
-        "modal_trigger_testid": "open-add-training-button",
-        "modal_container_testid": "create-training-card",
-        "modal_title_testid": "create-training-heading"
+    "header_specification": {
+      "container_class": "flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5 mb-6",
+      "icon_badge": {
+        "dimensions": "h-12 w-12 shrink-0",
+        "style": "flex items-center justify-center rounded-lg border shadow-sm",
+        "color_variants": {
+          "emerald": "border-emerald-200 bg-emerald-50 text-emerald-800",
+          "blue": "border-blue-200 bg-blue-50 text-blue-800",
+          "amber": "border-amber-200 bg-amber-50 text-amber-800",
+          "purple": "border-purple-200 bg-purple-50 text-purple-800",
+          "indigo": "border-indigo-200 bg-indigo-50 text-indigo-800"
+        }
       },
-      {
-        "name": "SupplierDocumentsAdmin",
-        "file": "/app/frontend/src/modules/supplier-assessment/SupplierDocumentsAdmin.jsx",
-        "modal_trigger_testid": "open-add-supplier-agreement-button",
-        "modal_container_testid": "supplier-agreement-upload-card"
-      }
-    ]
+      "title_style": "text-3xl font-bold text-emerald-950",
+      "context_line_policy": "NO_EXTRA_DESCRIPTION"
+    }
   },
-  "motion": {
-    "transitions": "transition-[background-color,box-shadow,transform] duration-200",
-    "hover_lift": "hover:-translate-y-px"
-  },
-  "accessibility": {
-    "data_testid_required": true,
-    "contrast_ratio": "APCA standard >= 4.5:1",
-    "focus_states": "focus:ring-2 focus:ring-emerald-700 focus:outline-none"
-  },
-  "image_urls": [],
-  "instructions_to_main_agent": "1. Convert the inline 'Create Training' card in SupplierTrainingAdmin.jsx into a Dialog pop-up modal controlled by showTrainingForm state (open when showTrainingForm is true, onOpenChange updates showTrainingForm).\n2. Convert the inline 'Publish Document' card in SupplierDocumentsAdmin.jsx into a Dialog pop-up modal controlled by showAgreementForm state (open when showAgreementForm is true, onOpenChange updates showAgreementForm).\n3. Maintain all existing form controls, data-testid attributes, event handlers, validation logic, assignment picker, and API submissions without breaking any test or functionality.\n4. Clean up any inline page wrapper styles that previously relied on [&_[data-testid=...]]:hidden CSS selectors.",
+  "instructions_to_main_agent": [
+    "Refactor module headers across BRSR Framework, Materiality Assessment, GHG Emissions, and other core ESG pages to utilize the standardized header format modeled after SupplierPageHeader.",
+    "Ensure each module header renders a color-coded left icon badge (h-12 w-12 rounded-lg border shadow-sm) matching the module domain.",
+    "Omit short context lines / sub-description paragraphs underneath titles where title-only alignment is specified.",
+    "Ensure all header elements include data-testid attributes (e.g., data-testid='{module}-heading', data-testid='{module}-heading-icon').",
+    "Maintain responsive mobile-first behavior and preserve right-aligned action buttons/status badges inside the header layout."
+  ],
   "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "Never use generic centered layouts or unstyled default HTML elements.",
-    "Ensure all buttons and inputs have clear data-testid attributes.",
-    "Do not use transparent header backgrounds or unstyled dropdown containers.",
-    "Maintain contrast standards (minimum WCAG AA / APCA compliant)."
-  ]
+    "Do not use transparent backgrounds on surfaces that have content underneath.",
+    "Always specify text colors explicitly on hover states to guarantee APCA/WCAG contrast.",
+    "Ensure direct parent-child hierarchy in grid layouts.",
+    "Include data-testid on all interactive buttons, inputs, headers, and key informational elements.",
+    "Avoid AI slop, centered text body layouts, and Space Grotesk font family."
+  ],
+  "image_urls": {
+    "hero_sustainability_forest": "https://images.unsplash.com/photo-1768070841554-eae3f3bda452?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwzfHxzdXN0YWluYWJpbGl0eSUyMGRhc2hib2FyZCUyMGdyZWVuJTIwZWNvc3lzdGVtfGVufDB8fHx8MTc4ODQyODA2N3ww&ixlib=rb-4.1.0&q=85"
+  }
 }

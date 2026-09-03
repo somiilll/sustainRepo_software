@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea, ReferenceLine } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, ChevronRight, ArrowUpDown, Filter, TrendingUp, Shield, Leaf, Plus, Trash2, Save, RotateCcw, CheckCircle2, AlertCircle, Loader2, Calendar } from 'lucide-react';
+import { X, Search, ChevronRight, ArrowUpDown, Filter, TrendingUp, Shield, Leaf, Plus, Trash2, Save, RotateCcw, CheckCircle2, AlertCircle, Loader2, Calendar, Target } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -663,12 +664,12 @@ export default function MaterialityAssessment() {
     <div className="space-y-6" data-testid="materiality-assessment">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Materiality Assessment</h1>
-            <p className="text-sm text-stone-500 mt-0.5">{typeConfig.label}</p>
-          </div>
-          <div className="flex items-center gap-3">
+        <ModulePageHeader
+          title="Materiality Assessment"
+          icon={Target}
+          iconClassName="border-amber-200 bg-amber-50 text-amber-700"
+          testId="materiality-assessment"
+          aside={<div className="flex items-center gap-3">
             {/* Reporting Year Selector */}
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-stone-400" />
@@ -688,8 +689,8 @@ export default function MaterialityAssessment() {
               data-testid="add-topics-trigger-btn">
               <Plus className="h-4 w-4" /> Add Topics
             </button>
-          </div>
-        </div>
+          </div>}
+        />
       </motion.div>
       
       {/* Tabs for Traditional vs Double Materiality */}
