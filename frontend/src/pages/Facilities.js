@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
@@ -414,7 +415,17 @@ export default function Facilities() {
     setNewAttachment({ type: 'link', name: '', url: '' });
   };
 
-  const removeAttachment = (index) => {
+  const removeAttachment = async (index) => {
+    const attachment = formData.attachments[index];
+    const fileId = attachment?.file_id || attachment?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (fileId) {
+      try {
+        await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
+      } catch (error) {
+        toast.error(error.response?.data?.detail || 'Could not remove attachment from storage');
+        return;
+      }
+    }
     setFormData({
       ...formData,
       attachments: formData.attachments.filter((_, i) => i !== index)
@@ -442,16 +453,13 @@ export default function Facilities() {
   }
 
   return (
-    <div className="space-y-6" data-testid="facilities-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Facilities</h1>
-          <p className="text-text-secondary">
-            Manage your organization&apos;s facilities ({filteredFacilities.length} active
-            {facilities.length !== filteredFacilities.length && `, ${facilities.length - filteredFacilities.length} inactive`})
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
+    <div className="space-y-7" data-testid="facilities-page">
+      <ModulePageHeader
+        title="Facilities"
+        icon={Building2}
+        iconClassName="border-amber-200 bg-amber-50 text-amber-700"
+        testId="facilities"
+        aside={<div className="flex items-center gap-4">
           {/* Show Inactive Toggle */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -481,7 +489,8 @@ export default function Facilities() {
               Add Facility
             </Button>
           )}
-        </div>
+        </div>}
+      />
         
         {/* Dialog for both Create and Edit - shown when dialogOpen is true */}
         <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
@@ -967,7 +976,6 @@ export default function Facilities() {
               </form>
             </DialogContent>
           </Dialog>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredFacilities.map((facility) => (

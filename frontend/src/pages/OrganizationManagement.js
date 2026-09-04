@@ -425,6 +425,22 @@ export default function OrganizationManagement() {
     setLogoPreviewError(false);
   };
 
+  const deleteLogoFromStorage = async (logoUrl) => {
+    const fileId = logoUrl?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (!fileId) return true;
+    await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
+    return true;
+  };
+
+  const removeLogo = async () => {
+    try {
+      await deleteLogoFromStorage(formData.logo);
+      handleLogoChange('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not remove logo from storage');
+    }
+  };
+
   // Filter organizations based on search
   const filteredOrganizations = useMemo(() => {
     if (!searchTerm) return organizations;
@@ -655,8 +671,15 @@ export default function OrganizationManagement() {
                               const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility&organization_id=${orgId}`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
+                              const nextLogo = `${response.data.url}/view`;
+                              try {
+                                await deleteLogoFromStorage(formData.logo);
+                              } catch (deleteError) {
+                                await deleteLogoFromStorage(nextLogo);
+                                throw deleteError;
+                              }
                               // Store relative path (like evidences) - frontend will prepend BACKEND_URL at display time
-                              handleLogoChange(`${response.data.url}/view`);
+                              handleLogoChange(nextLogo);
                               toast.success('Logo uploaded successfully');
                             } catch (error) {
                               toast.error(getUploadErrorMessage(error, file));
@@ -672,7 +695,7 @@ export default function OrganizationManagement() {
                           variant="ghost" 
                           size="sm"
                           className="text-accent"
-                          onClick={() => handleLogoChange('')}
+                          onClick={removeLogo}
                         >
                           Remove
                         </Button>

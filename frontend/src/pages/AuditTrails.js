@@ -32,6 +32,7 @@ import {
   Database,
   Calculator
 } from 'lucide-react';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -247,16 +248,13 @@ export default function AuditTrails() {
   }
 
   return (
-    <div className="space-y-6" data-testid="audit-trails-page">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Audit Trails</h1>
-          <p className="text-text-secondary">
-            Track and monitor all user and admin activities ({total.toLocaleString()} records)
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="space-y-7" data-testid="audit-trails-page">
+      <ModulePageHeader
+        title="Audit Trails"
+        icon={History}
+        iconClassName="border-amber-200 bg-amber-50 text-amber-700"
+        testId="audit-trails"
+        aside={<div className="flex items-center gap-3">
           <Button 
             variant="outline" 
             onClick={() => { fetchLogs(); fetchSummary(); }}
@@ -278,8 +276,8 @@ export default function AuditTrails() {
               </span>
             )}
           </Button>
-        </div>
-      </div>
+        </div>}
+      />
       
       {/* Summary Cards */}
       {summary && (

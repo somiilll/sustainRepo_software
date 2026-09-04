@@ -1,7 +1,7 @@
 """Organization Pydantic contracts."""
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # Valid ESG frameworks
@@ -70,7 +70,7 @@ class OrganizationCreate(BaseModel):
     multi_level_approval_enabled: Optional[bool] = False
 
     # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
-    esg_frameworks_enabled: Optional[List[str]] = None
+    esg_frameworks_enabled: List[str] = Field(default_factory=list)
     
     # Module enablement flags
     has_ghg: Optional[bool] = True  # Enable GHG module
@@ -95,13 +95,14 @@ class OrganizationCreate(BaseModel):
             raise ValueError('Financial year start month must be between 1 and 12')
         return v
 
-    @field_validator('esg_frameworks_enabled')
+    @field_validator('esg_frameworks_enabled', mode='before')
     @classmethod
     def validate_esg_frameworks(cls, v):
-        if v is not None:
-            invalid = [f for f in v if f not in VALID_ESG_FRAMEWORKS]
-            if invalid:
-                raise ValueError(f'Invalid ESG frameworks: {invalid}. Valid values: {VALID_ESG_FRAMEWORKS}')
+        if v is None:
+            return []
+        invalid = [f for f in v if f not in VALID_ESG_FRAMEWORKS]
+        if invalid:
+            raise ValueError(f'Invalid ESG frameworks: {invalid}. Valid values: {VALID_ESG_FRAMEWORKS}')
         return v
 
 

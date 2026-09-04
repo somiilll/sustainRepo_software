@@ -489,6 +489,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `/app/test_reports/iteration_31.json` — initial independent migration run; its single queue-isolation finding was fixed and the exact 37-test suite then passed.
 
 ## Current Priorities
+- **P0 (Deferred by user):** Security hardening — hash password-reset tokens before persistence; implement application-level AES-GCM field encryption for approved PII and financial fields, with HMAC blind indexes where equality lookup is required. Preserve plaintext operational GHG metrics needed for aggregation and reporting.
+- **P0 (Verification pending):** Verify the QuestionLedgerDialog `lower_is_better` question payload saves successfully without a 422 validation error.
 - **P0:** Make supplier facility allowance an explicit configurable policy rather than a fallback.
 - **P0:** Add an explicit existing-supplier assessment-program revision migration/reassignment flow so parents can align supplier GHG permissions after changing Custom Fuel, Process Emissions, or Flaring policy.
 - **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.
@@ -735,3 +737,53 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Restored the missing `delete_supplier_question_evidence` delegate on the `SupplierAssessmentService` compatibility facade. Supplier draft-evidence deletion now reaches the existing questionnaire-service implementation instead of raising an `AttributeError` and returning HTTP 500.
 - Corrected the unrelated facade binding for the synchronous legacy answer-score helper, which was exposed while verifying the complete draft evidence workflow and had caused legacy questionnaire submission scoring to return HTTP 500.
 - Verification passed: Python compilation and facade contract checks; live authenticated evidence regression **5/5 passed**, including draft upload → delete → replacement upload → final submission; supplier workspace browser smoke passed. No mocked APIs.
+
+## Latest Changes — 2026-09-03 (GHG Evidence Tooltip Contrast)
+- Updated the attached-evidence filename link in the Add Emission hover tooltip from blue to white, removing the blue-on-green color clash while retaining clear link affordance on hover.
+- Verification passed: frontend ESLint and authenticated GHG Emissions browser smoke. No APIs or data behavior changed.
+
+## Latest Changes — 2026-09-03 (R2 File Lifecycle Integrity)
+- Added strict shared R2 cleanup for generic uploaded files: storage deletion must succeed before its MongoDB metadata or portal record can disappear.
+- Covered Add Emission evidence removal, saved-emission deletion and rollback, C7 and approval deletions, Sink evidence replacement/deletion, Facilities, ESG evidence, organization logos/attachments, Repo Pilot documents/page replacements, peer benchmark PDFs, OCR temporary uploads, and generic organization cascade cleanup.
+- Verified with live isolated-artifact regression tests (**3/3 passed**), Python compilation, frontend ESLint, and authenticated GHG page smoke. No APIs are mocked.
+
+## Latest Changes — 2026-09-03 (Water Add Metric Field Alignment)
+- Aligned the Water consumption metric controls by reserving an equal label area and anchoring every numeric input/unit pair to the same baseline within its grid row.
+- Verified with frontend ESLint and an authenticated live Water Add Metric browser check. No API or data behavior changed.
+
+## Deferred Architecture — P1 (Reporting Period and Reference Data Standardization)
+- Consolidate GHG, ESG, Sinks, BRSR, and GRI reporting periods behind one canonical period contract and storage key while maintaining backward-compatible reads for legacy records.
+- Centralize country options, months, financial-year month order, calendar-year month order, quarters, days/dates, and reporting-year formatting in shared frontend and backend utilities.
+- No code changes have been made for this deferred task.
+
+## Latest Changes — 2026-09-03 (Portal Module Header Alignment)
+- Added a reusable title-only module header with consistent left icon alignment, bordered icon badges, and responsive right-side action placement.
+- Applied it to BRSR, Materiality, Environment, Social, Governance, Reporting, Organization, Facilities, GHG Emissions, GHG Sinks, SBTi Targets, Reports, My Tasks, Tracker, User Management, Audit Trails, Profile, and Bulk Upload.
+- Restored the Facilities JSX structure after the broad header refactor; frontend ESLint now passes. Broader visual regression testing remains deferred at user request.
+- Standardized header geometry to exactly mirror Supplier Assessment icon/title centering. Added the same header to GHG Base Year, Peer Benchmarking, and both MIS Reports entry points; removed extra page-shell top padding from Peer Benchmarking and SBTi Targets.
+- Standardized the common route shell to the Supplier Assessment top-padding rule and normalized every converted module’s header-to-content rhythm to `space-y-7`, including Peer Benchmarking and both MIS Reports surfaces.
+- Removed the Supplier Assessment layout wrapper’s unintended `space-y-6` outlet margin. Its Suppliers header and GHG Base Year header now share the same measured `16px` top baseline at desktop width.
+- Verified with frontend ESLint and a live authenticated header-geometry comparison.
+
+## Latest Changes — 2026-09-03 (Organization GRI Tab Removal)
+- Removed the GRI tab trigger and its empty “Coming soon” panel from the Organization module; GRI reporting remains available from the dedicated Reporting module.
+- **NOT TESTED at user request.**
+
+## Latest Changes — 2026-09-03 (Voluntary Target Section Headings)
+- Replaced the generic ESG Targets heading with section-specific Environment Target, Social Target, and Governance Target headings using the shared module-header layout and appropriate accent colors.
+- Verified with frontend ESLint and authenticated live Environment Target rendering. No API or data behavior changed.
+
+## Latest Changes — 2026-09-04 (Energy KPI Logs Polish and Filters)
+- Refined the shared ESG KPI ledger with enterprise table hierarchy: subtle row hover/action emphasis, increased row breathing room, layered off-white surfaces, two-line update timestamps, compact completed badges, and stronger category/subcategory typography.
+- Corrected Status filtering end-to-end and clarified All Facilities as the current organization’s facilities plus organization-level records. Scoped Energy and Water logs no longer show the redundant category dropdown.
+- Updated Energy Logs tabs, KPI cards, filters, bulk-action surface, and table container to the supplied rounded-corner reference treatment. The KPI tiles now use the reference’s left-aligned circular icons and count/label grouping, while tabs are independent compact buttons rather than a full-width control.
+- Add Metric uses its own white workspace surface. Verified with frontend ESLint and authenticated live Energy Logs rendering.
+- Added inclusive Start Period and End Period controls to KPI logs. The API now validates `YYYY-MM` ranges and applies them consistently to native ESG and GHG-imported records; the live Energy KPI range control verified successfully.
+- Added restrained KPI icons, made the Metrics Logs/Add Metric control content-sized rather than page-wide, and placed the Add Metric workspace on a dedicated white surface.
+- Verified with frontend ESLint and authenticated live Energy KPI Logs/Add Metric interaction checks.
+
+## Latest Changes — 2026-09-04 (New Organization Org Config Null-Framework Repair)
+- Fixed `GET /api/sustainability-config/org-config` returning HTTP 500 for newly created organizations whose legacy `esg_frameworks_enabled` value was absent or `null`.
+- Organization-settings normalization now treats an absent or null framework list as `[]`, representing a valid organization with no ESG reporting frameworks enabled.
+- New `OrganizationCreate` payloads default the field to an independent empty list and safely coerce explicitly supplied null values to `[]`, preventing future null persistence through the organization API.
+- Verified with Python compilation, focused unit tests, a live authenticated API response for the existing Testing organization, an authenticated Org Config browser check, and testing-agent iteration 41 (backend/frontend 100%, no mocked APIs).

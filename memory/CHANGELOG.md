@@ -1,5 +1,47 @@
 # ESG Platform Changelog
 
+## September 4, 2026 — New Organization Org Config Null-Framework Repair
+- Fixed the Org Config HTTP 500 caused by iterating over `esg_frameworks_enabled: null` while initializing newly created organizations.
+- Absence of an enabled ESG framework is now represented safely as an empty list for both legacy reads and future organization creation.
+- Verified through focused unit/API checks and the authenticated Testing organization editor; testing-agent iteration 41 passed backend and frontend checks with no mocked APIs.
+
+## September 4, 2026 — Energy KPI Logs Polish and Filters
+- Refined shared ESG KPI tables, Status/All Facilities filtering, and scoped Energy/Water filter visibility.
+- Matched Energy Logs tabs, KPI cards, and page surfaces to the supplied reference: independent compact tabs and left-icon KPI tiles.
+- Added a white Add Metric workspace surface. Verified with frontend ESLint and authenticated live Energy Logs rendering.
+- Added validated Start Period/End Period filtering for native and GHG-imported KPI records; verified with the authenticated live Energy KPI view.
+- Added KPI icons, content-sized metric tabs, and a white Add Metric workspace; verified with frontend ESLint and authenticated live interaction checks.
+
+## September 3, 2026 — Voluntary Target Section Headings
+- Added section-specific shared headers for Environment Target, Social Target, and Governance Target.
+- Verified with frontend ESLint and authenticated live Environment Target rendering. No API or data behavior changed.
+
+## September 3, 2026 — Organization GRI Tab Removal
+- Removed the Organization module’s GRI tab and its placeholder panel. **NOT TESTED at user request.**
+
+## September 3, 2026 — Portal Module Header Alignment
+- Added the shared title-only module header across the remaining primary portal and admin modules, using appropriate colored left icons and preserving existing action controls.
+- Fixed the Facilities JSX regression introduced during the broad header refactor; frontend ESLint passes. Broader visual regression testing remains deferred at user request.
+- Matched Supplier Assessment’s centered icon/title geometry and fixed outlier top spacing for GHG Base Year, Peer Benchmarking, MIS Reports, and SBTi Targets. **NOT TESTED at user request.**
+- Unified standard route top padding and module header-to-content spacing with the Supplier Assessment baseline. **NOT TESTED at user request.**
+- Removed Supplier Assessment’s unintentional 24px outlet gap; live geometry now confirms both Supplier Assessment and GHG Base Year headers begin at 16px. Frontend ESLint passed.
+
+## September 3, 2026 — Deferred P1: Reporting Period Standardization
+- Added the reporting-period and reusable country/calendar reference-data consolidation to the P1 architecture backlog. No code changes were made.
+
+## September 3, 2026 — Water Add Metric Field Alignment
+- Standardized the label area and input baseline for dynamic numeric metric fields, fixing the visibly staggered Water consumption controls.
+- Verified with frontend ESLint and authenticated live Water Add Metric browser check. No API or data behavior changed.
+
+## September 3, 2026 — R2 File Lifecycle Integrity
+- Added shared, storage-first R2 cleanup and made generic file deletion fail safely rather than hiding metadata when R2 removal fails.
+- Applied cleanup to emission, sink, ESG, facility, organization, Repo Pilot, benchmark, OCR, and organization-cascade paths.
+- Live isolated-artifact regression suite passed **3/3**; Python compilation, frontend ESLint, and authenticated GHG smoke passed. No APIs are **MOCKED**.
+
+## September 3, 2026 — GHG Evidence Tooltip Contrast
+- Updated the attached-evidence filename link in the Add Emission hover tooltip from blue to white, avoiding the blue-on-green clash while retaining clear hover feedback.
+- Verified with frontend ESLint and an authenticated GHG Emissions browser smoke. No APIs or data behavior changed.
+
 ## August 30, 2026 — Roadmap Update
 - Added P0: a deliberate migration/reassignment workflow for existing suppliers after parent GHG permission changes, preserving immutable issued assessments while allowing explicit alignment with newer program revisions.
 

@@ -73,7 +73,7 @@ def normalize_organization_settings(value: Optional[Dict[str, Any]]) -> Dict[str
     return {
         "approval_workflow_enabled": bool(supplied.get("approval_workflow_enabled", False)),
         "multi_level_approval_enabled": bool(supplied.get("multi_level_approval_enabled", False)),
-        "esg_frameworks_enabled": [framework for framework in supplied.get("esg_frameworks_enabled", []) if framework in {"BRSR", "GRI"}],
+        "esg_frameworks_enabled": [framework for framework in (supplied.get("esg_frameworks_enabled") or []) if framework in {"BRSR", "GRI"}],
     }
 
 

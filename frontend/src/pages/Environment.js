@@ -8,6 +8,7 @@ import ESGQuestionnaire from '../components/ESGQuestionnaire';
 import FrameworkTabs from '../components/FrameworkTabs';
 import ESGRecordsModule from '../components/ESGRecordsModule';
 import GRIQuestionnaire from '../components/GRIQuestionnaire';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 export default function Environment({ preFilterCategory }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -102,24 +103,13 @@ export default function Environment({ preFilterCategory }) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-start">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-            <Sprout className="w-5 h-5 text-emerald-600" />
-          </div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">
-            {preFilterCategory ? (
-              <>
-                <span className="text-stone-400">Environment</span>
-                <span className="text-stone-300 mx-2">→</span>
-                {preFilterCategory}
-              </>
-            ) : 'Environment'}
-          </h1>
-        </div>
-      </div>
+    <div className="space-y-7">
+      <ModulePageHeader
+        title={preFilterCategory ? <><span className="text-stone-500">Environment</span><span className="mx-2 text-stone-300">→</span>{preFilterCategory}</> : 'Environment'}
+        icon={Sprout}
+        iconClassName="border-emerald-200 bg-emerald-50 text-emerald-800"
+        testId="environment"
+      />
 
       {/* Framework Tabs */}
       <FrameworkTabs

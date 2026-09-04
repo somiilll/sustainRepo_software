@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -480,11 +481,8 @@ export default function SBTiTargetsPage() {
   if (loading) return <div className="flex items-center justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" /></div>;
 
   return (
-    <div className="space-y-8 p-6" data-testid="sbti-targets-page">
-      <div>
-        <h1 className="text-4xl font-heading font-bold text-text-primary mb-1">SBTi Targets</h1>
-        <p className="text-text-secondary">Science Based Targets initiative — set and track emission reduction commitments.</p>
-      </div>
+    <div className="space-y-7" data-testid="sbti-targets-page">
+      <ModulePageHeader title="SBTi Targets" icon={Target} iconClassName="border-orange-200 bg-orange-50 text-orange-700" testId="sbti-targets" />
 
       {renderSection('Short-Term Targets', 'short_term', targets.short_term)}
       {renderSection('Long-Term Targets', 'long_term', targets.long_term)}

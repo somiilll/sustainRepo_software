@@ -275,6 +275,10 @@ async def _regenerate_images_async(document_id: str, org_id: str, doc_id: str, r
     """Download PDF from R2, generate page images, upload to R2."""
     import asyncio
     try:
+        existing = await db[DOCS_COLLECTION].find_one({"id": document_id, "organization_id": org_id}, {"_id": 0, "image_keys": 1})
+        if not existing:
+            return
+        previous_image_keys = set((existing.get("image_keys") or {}).values())
         # Download PDF from R2
         import httpx
         async with httpx.AsyncClient() as client:
@@ -317,6 +321,11 @@ async def _regenerate_images_async(document_id: str, org_id: str, doc_id: str, r
             {"id": document_id},
             {"$set": {"image_urls": image_urls, "image_keys": image_keys, "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
+        for key in previous_image_keys - set(image_keys.values()):
+            try:
+                await r2_storage.delete_file("repo_pilot", key)
+            except Exception as error:
+                logger.error("Could not remove replaced Repo Pilot page image %s: %s", key, error)
         logger.info(f"Regenerated {len(image_urls)} images for {doc_id}")
     except Exception as e:
         logger.error(f"Image regeneration failed for {doc_id}: {e}")
@@ -328,6 +337,20 @@ async def _regenerate_images_async(document_id: str, org_id: str, doc_id: str, r
 async def delete_document(doc_id: str, current_user: dict = Depends(get_current_user)):
     org_id = _get_org(current_user)
     await _check_repo_pilot_access(org_id)
+
+    document = await db[DOCS_COLLECTION].find_one({"organization_id": org_id, "doc_id": doc_id}, {"_id": 0})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    from r2_storage import get_r2_storage
+    storage = get_r2_storage()
+    document_keys = [document.get("r2_key"), *(document.get("image_keys") or {}).values()]
+    try:
+        for key in filter(None, document_keys):
+            deleted = await storage.delete_file("repo_pilot", key)
+            if not deleted:
+                raise RuntimeError("R2 did not confirm document deletion")
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not remove the document from storage. The document remains available for retry.") from error
 
     from . import vector_store
     deleted = await vector_store.delete_document(org_id, doc_id)

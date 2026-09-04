@@ -239,10 +239,13 @@ class RecordListFilters(BaseModel):
     categories: Optional[List[str]] = None  # Support multiple categories (e.g., for "Others")
     subcategory: Optional[str] = None
     reporting_type: Optional[REPORTING_TYPE] = None
+    status: Optional[str] = None
     facility_id: Optional[str] = None
     framework: Optional[str] = None
     year: Optional[int] = None
     month: Optional[str] = None
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
     search: Optional[str] = None
     page: int = 1
     limit: int = 20

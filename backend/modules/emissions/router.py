@@ -48,6 +48,7 @@ from modules.emissions.contracts import (
 )
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
+from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
 logger = logging.getLogger(__name__)
 
@@ -908,13 +909,18 @@ async def rollback_emission_submission_batch(
         "submission_batch_id": batch_id,
         "created_by": created_by,
     }
-    records = await db.emission_records.find(
-        rollback_query,
-        {"_id": 0, "id": 1},
-    ).to_list(100)
+    records = await db.emission_records.find(rollback_query, {"_id": 0}).to_list(100)
     record_ids = [record["id"] for record in records if record.get("id")]
     if not record_ids:
         return {"rolled_back_count": 0}
+
+    try:
+        await delete_uploaded_files(
+            db,
+            set().union(*(extract_uploaded_file_ids(record) for record in records)),
+        )
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not remove submission evidence from storage. The batch was not rolled back.") from error
 
     await db.approval_requests.delete_many({
         "entity_type": "emission_record",
@@ -1502,6 +1508,7 @@ async def update_emission_record(
     update_dict = record_data.model_dump(exclude_unset=True)
     # Ensure frequency_type is preserved
     update_dict["frequency_type"] = existing_frequency
+    removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_dict)
     
     # For Scope 3 emissions: sync sub_category with scope3_activity when activity changes
     if record_data.scope and 'scope3' in record_data.scope.lower():
@@ -1560,6 +1567,11 @@ async def update_emission_record(
     update_dict["version"] = existing.get("version", 0) + 1
 
     # ─── Direct-apply path (admin, super_admin, or workflow disabled) ────
+    try:
+        await delete_uploaded_files(db, removed_file_ids)
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not remove replaced evidence from storage. The emission was not updated.") from error
+
     # Save version history entry for this update with detailed field changes
     history_dict = {
         "id": str(uuid.uuid4()),
@@ -1972,6 +1984,10 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
         return {"message": "Delete request submitted for approval"}
 
     target_collection = (delete_payload or {}).get("target_collection", source_collection)
+    try:
+        await delete_uploaded_files(db, extract_uploaded_file_ids(existing))
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not remove emission evidence from storage. The emission was not deleted.") from error
     result = await db[target_collection].delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Emission record not found")

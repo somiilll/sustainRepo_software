@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '..
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ArrowUpDown, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useGHGAccess } from '../hooks/useKPIAccess';
 
@@ -268,7 +269,16 @@ export default function Sinks() {
     setUploadingMonth(null);
   };
 
-  const removeMonthEvidence = (monthIndex, fileIndex) => {
+  const removeMonthEvidence = async (monthIndex, fileIndex) => {
+    const evidence = monthlyData[monthIndex]?.evidence?.[fileIndex];
+    if (!editingSink && evidence?.file_id) {
+      try {
+        await axios.delete(`${API}/files/${evidence.file_id}`, { headers: getAuthHeader() });
+      } catch (error) {
+        toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+        return;
+      }
+    }
     setMonthlyData(prev => {
       const existing = prev[monthIndex];
       if (!existing || typeof existing !== 'object') return prev;
@@ -320,7 +330,16 @@ export default function Sinks() {
     setUploadingYearly(false);
   };
 
-  const removeYearlyEvidence = (fileIndex) => {
+  const removeYearlyEvidence = async (fileIndex) => {
+    const evidence = yearlyData.evidence?.[fileIndex];
+    if (!editingSink && evidence?.file_id) {
+      try {
+        await axios.delete(`${API}/files/${evidence.file_id}`, { headers: getAuthHeader() });
+      } catch (error) {
+        toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+        return;
+      }
+    }
     setYearlyData(prev => ({
       ...prev,
       evidence: prev.evidence.filter((_, i) => i !== fileIndex)
@@ -643,13 +662,13 @@ export default function Sinks() {
   }
 
   return (
-    <div className="space-y-6" data-testid="sinks-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">GHG Sinks</h1>
-          <p className="text-text-secondary">Track emissions reduced or captured through carbon removal activities</p>
-        </div>
-        {hasSinkAccess ? (
+    <div className="space-y-7" data-testid="sinks-page">
+      <ModulePageHeader
+        title="GHG Sinks"
+        icon={TreeDeciduous}
+        iconClassName="border-emerald-200 bg-emerald-50 text-emerald-800"
+        testId="ghg-sinks"
+        aside={hasSinkAccess ? (
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 text-white" data-testid="add-sink-btn">
@@ -921,7 +940,7 @@ export default function Sinks() {
             </Tooltip>
           </TooltipProvider>
         )}
-      </div>
+      />
       
       {/* KPI Access Warning */}
       {!hasKPISinksAccess && user?.role !== 'admin' && user?.role !== 'super_admin' && (

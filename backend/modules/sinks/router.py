@@ -15,8 +15,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from modules.auth.dependencies import get_current_user
 from modules.sinks.contracts import SinkCreate, SinkResponse
-from r2_storage import get_r2_storage
 from shared.database.mongo import db
+from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
 router = APIRouter()
 
@@ -142,6 +142,11 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
         "monthly_data": sink_data.monthly_data,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+    removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_dict)
+    try:
+        await delete_uploaded_files(db, removed_file_ids)
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not remove replaced evidence from storage. The sink was not updated.") from error
     await db.sinks.update_one({"id": sink_id}, {"$set": update_dict})
     updated = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
     return SinkResponse(**updated)
@@ -153,26 +158,10 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
     if not sink:
         raise HTTPException(status_code=404, detail="Sink record not found")
 
-    # Cleanup R2-hosted evidence files before deleting the record.
-    evidence_files = sink.get("evidence_files", [])
-    if evidence_files:
-        try:
-            r2 = get_r2_storage()
-            for file_info in evidence_files:
-                file_id = file_info.get("file_id")
-                if file_id:
-                    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
-                    if file_record and file_record.get("r2_key"):
-                        try:
-                            await r2.delete_file(
-                                bucket_type=file_record.get("bucket_type", "evidence"),
-                                key=file_record["r2_key"],
-                            )
-                        except Exception as e:
-                            logging.warning(f"Failed to delete R2 file {file_record['r2_key']}: {e}")
-                        await db.uploaded_files.delete_one({"id": file_id})
-        except Exception as e:
-            logging.error(f"Error cleaning up sink files: {e}")
+    try:
+        await delete_uploaded_files(db, extract_uploaded_file_ids(sink))
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not remove sink evidence from storage. The sink was not deleted.") from error
 
     result = await db.sinks.delete_one({"id": sink_id})
     if result.deleted_count == 0:

@@ -12,6 +12,7 @@ import ESGRecordsModule from '../components/ESGRecordsModule';
 import FrameworkTabs from '../components/FrameworkTabs';
 import GRIQuestionnaire from '../components/GRIQuestionnaire';
 import { toast } from 'sonner';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -52,7 +53,7 @@ export default function Governance() {
 
   // BOD & KMP Ledger Table Component
   const BodKmpLedger = () => (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <div className="flex justify-end">
         <Button size="sm" onClick={saveBodKmpData} disabled={saving}>
           {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
@@ -271,14 +272,12 @@ export default function Governance() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-start">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-violet-600" />
-          </div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">Governance</h1>
-        </div>
-      </div>
+      <ModulePageHeader
+        title="Governance"
+        icon={Shield}
+        iconClassName="border-blue-200 bg-blue-50 text-blue-700"
+        testId="governance"
+      />
       <FrameworkTabs moduleType="governance" recordsContent={<RecordsContent />} renderFrameworkContent={renderFrameworkContent} />
     </div>
   );

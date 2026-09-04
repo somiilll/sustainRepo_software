@@ -7,6 +7,7 @@ import { Leaf, ScrollText, BookOpen, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
 import MyTasks from '../components/MyTasks';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -55,15 +56,13 @@ export default function WorkflowMyTask() {
   }
 
   return (
-    <div className="space-y-6" data-testid="workflow-my-task">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-stone-900">My Tasks</h1>
-          <p className="text-sm text-stone-500">View and complete your assigned tasks across all modules.</p>
-        </div>
-        
-        {/* Reporting Period Selector */}
-        <div className="flex items-center gap-2">
+    <div className="space-y-7" data-testid="workflow-my-task">
+      <ModulePageHeader
+        title="My Tasks"
+        icon={ScrollText}
+        iconClassName="border-indigo-200 bg-indigo-50 text-indigo-700"
+        testId="workflow-my-tasks"
+        aside={<div className="flex items-center gap-2">
           <Label className="text-sm whitespace-nowrap text-stone-600">Reporting Period:</Label>
           <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
             <SelectTrigger className="w-40 bg-white" data-testid="reporting-period-selector">
@@ -75,8 +74,8 @@ export default function WorkflowMyTask() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
+        </div>}
+      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="grid w-full max-w-lg grid-cols-3">

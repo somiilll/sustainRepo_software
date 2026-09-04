@@ -8,11 +8,12 @@ import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Lock, TrendingUp, Loader2, Factory, Target, BarChart3, FileBarChart, Leaf, Users, Mail, Phone, Globe, Calendar, Clock, ChevronDown, ChevronUp, ArrowRight, Briefcase, Eye, Shield, Zap } from 'lucide-react';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, TrendingUp, Loader2, Factory, Target, BarChart3, FileBarChart, Leaf, Users, Mail, Phone, Globe, Calendar, Clock, ChevronDown, ChevronUp, ArrowRight, Briefcase, Eye, Shield, Zap } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -451,7 +452,12 @@ export default function OrganizationDetails() {
     
     // Delete old logo from R2 if it exists (before uploading new one)
     if (formData.logo) {
-      await deleteFileFromR2(formData.logo, getAuthHeader());
+      const deleted = await deleteFileFromR2(formData.logo, getAuthHeader());
+      if (!deleted) {
+        toast.error('Could not replace logo because the old file is still in storage');
+        setUploadingLogo(false);
+        return;
+      }
     }
     
     const uploadFormData = new FormData();
@@ -543,7 +549,11 @@ export default function OrganizationDetails() {
     
     // Delete from R2 storage if it's an uploaded file
     if (attachment?.url) {
-      await deleteFileFromR2(attachment.url, getAuthHeader());
+      const deleted = await deleteFileFromR2(attachment.url, getAuthHeader());
+      if (!deleted) {
+        toast.error('Could not remove attachment from storage');
+        return;
+      }
     }
     
     setFormData({
@@ -663,19 +673,13 @@ export default function OrganizationDetails() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Title & Edit Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organization</h1>
-          <p className="text-text-secondary">
-            {subscriptionExpired 
-              ? 'Your subscription has expired. Editing is disabled.' 
-              : (canEdit ? 'Manage your organization information' : 'View organization information (read-only)')
-            }
-          </p>
-        </div>
-        {user?.role === 'admin' && !editing && activeTab === 'organization' && (
+    <div className="space-y-7">
+      <ModulePageHeader
+        title="Organization"
+        icon={Building}
+        iconClassName="border-blue-200 bg-blue-50 text-blue-700"
+        testId="organization"
+        aside={user?.role === 'admin' && !editing && activeTab === 'organization' && (
           <Button 
             onClick={() => {
               if (subscriptionExpired) {
@@ -692,7 +696,7 @@ export default function OrganizationDetails() {
             Edit Details
           </Button>
         )}
-      </div>
+      />
 
       {/* ========== PERSISTENT ORGANIZATION SUMMARY HEADER ========== */}
       {!editing && (
@@ -787,12 +791,6 @@ export default function OrganizationDetails() {
             className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
           >
             Organization Details
-          </TabsTrigger>
-          <TabsTrigger 
-            value="gri" 
-            className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
-          >
-            GRI
           </TabsTrigger>
         </TabsList>
 
@@ -2012,14 +2010,6 @@ export default function OrganizationDetails() {
         </Card>
         </TabsContent>
 
-        {/* GRI Tab */}
-        <TabsContent value="gri" className="mt-6">
-          <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
-            <Lock className="w-10 h-10 mx-auto text-stone-300 mb-4" />
-            <h3 className="text-lg font-semibold text-text-primary mb-2">GRI Reporting</h3>
-            <p className="text-text-muted text-sm">Coming soon</p>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

@@ -42,6 +42,7 @@ import {
   CollapsibleTrigger,
 } from '../components/ui/collapsible';
 import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf, AlertCircle, PlusCircle, ChevronDown, ChevronRight, Search, MapPin, Filter } from 'lucide-react';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -1706,15 +1707,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* Page Header */}
       {!hideTopHeader && (
-        <div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">Base Year Emissions</h1>
-          <p className="text-text-muted mt-1">
-            Set up base year emissions for comparing and tracking GHG reduction progress
-          </p>
-        </div>
+        <ModulePageHeader title="Base Year Emissions" icon={History} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="base-year-emissions" />
       )}
 
       {/* ========== UNIFIED BASE YEAR SECTION ========== */}

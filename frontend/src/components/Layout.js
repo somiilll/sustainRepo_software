@@ -182,7 +182,7 @@ export default function Layout() {
                   ? 'w-full px-4 pt-14 pb-4 lg:px-5 lg:pt-0'
                   : isSupplierAssessmentRoute
                     ? 'w-full px-4 pb-4 pt-14 lg:px-5 lg:pt-4'
-                    : 'w-full px-4 pb-4 pt-14 lg:px-5 lg:py-4'
+                    : 'w-full px-4 pb-4 pt-14 lg:px-5 lg:pt-4'
               }
             >
             {/* Show locked overlay for suppliers on restricted routes */}

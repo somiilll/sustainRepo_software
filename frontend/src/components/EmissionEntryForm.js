@@ -2362,6 +2362,7 @@ export default function EmissionEntryForm({
         const uploadedFile = {
           url: response.data.url,
           filename: file.name,
+          file_id: response.data.file_id,
           uploaded_at: new Date().toISOString()
         };
         if (periodKey === 'yearly') {
@@ -2392,7 +2393,20 @@ export default function EmissionEntryForm({
     }
   };
 
-  const removeEvidence = (periodKey, evidenceIndex) => {
+  const removeEvidence = async (periodKey, evidenceIndex) => {
+    const evidences = periodKey === 'yearly'
+      ? yearlyData.evidences || []
+      : monthlyData[periodKey]?.evidences || [];
+    const evidence = evidences[evidenceIndex];
+    const fileId = evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (fileId) {
+      try {
+        await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
+      } catch (error) {
+        toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+        return;
+      }
+    }
     if (periodKey === 'yearly') {
       setYearlyData(prev => ({
         ...prev,
@@ -2400,9 +2414,8 @@ export default function EmissionEntryForm({
       }));
       return;
     }
-    const currentEvidences = monthlyData[periodKey]?.evidences || [];
     updateMonthData(periodKey, 'evidences',
-      currentEvidences.filter((_, index) => index !== evidenceIndex)
+      evidences.filter((_, index) => index !== evidenceIndex)
     );
   };
 

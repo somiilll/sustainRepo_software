@@ -44,17 +44,17 @@ import { Badge } from './ui/badge';
 import { Textarea } from './ui/textarea';
 import { Checkbox } from './ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { MonthYearPicker } from './ui/month-year-picker';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
 import { ImportedRecordModal, DynamicFieldRenderer } from './ESGRecords';
 import { OperationalStatusBadge, ApprovalStatusBadge } from './tasks/StatusBadge';
-import { useDateFormatter } from '../hooks/useDateFormatter';
 import { 
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
   Trash2, Edit2, Eye, X, Save, FileEdit, RefreshCw,
-  CheckCircle2, Clock, AlertTriangle, Lock, Link2, Paperclip, Download,
+  CheckCircle2, Clock, AlertTriangle, Lock, Link2, Paperclip, Download, TrendingUp, Send,
   ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
@@ -64,16 +64,27 @@ const API = BACKEND_URL;
 // Months for monthly reporting
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+const formatUpdatedAt = (timestamp) => {
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  return {
+    date: date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    time: date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase(),
+  };
+};
+
 // Sortable header component for table columns
 const SortableTableHead = ({ label, sortKey, currentSort, onSort, className = '' }) => {
   const isActive = currentSort.key === sortKey;
   const Icon = isActive ? (currentSort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
   
   return (
-    <TableHead className={className}>
+    <TableHead className={`h-11 px-4 text-[11px] font-semibold uppercase tracking-wider text-stone-500 ${className}`} data-testid={`metrics-${sortKey}-column-heading`}>
       <button
         onClick={() => onSort(sortKey)}
-        className="flex items-center gap-1 hover:text-stone-900 transition-colors"
+        className="flex items-center gap-1 transition-colors hover:text-emerald-800"
+        data-testid={`metrics-sort-${sortKey}-button`}
       >
         <span>{label}</span>
         <Icon className={`w-3 h-3 ${isActive ? 'text-emerald-600' : 'text-stone-400'}`} />
@@ -109,7 +120,6 @@ export default function ESGRecordsDataEntry({
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState([]);
-  const { formatDateTime } = useDateFormatter();
   const [drafts, setDrafts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [facilities, setFacilities] = useState([]);
@@ -118,10 +128,12 @@ export default function ESGRecordsDataEntry({
   
   // Filters - Initialize from URL params if provided
   const [filters, setFilters] = useState({
-    category: preFilterCategory || '',
+    category: preFilterCategory || 'all',
     subcategory: preFilterSubcategory || '',
-    status: '',
-    facility_id: '',
+    status: 'all',
+    facility_id: 'all',
+    period_start: '',
+    period_end: '',
     search: ''
   });
   
@@ -258,7 +270,10 @@ export default function ESGRecordsDataEntry({
   const removeEvidence = async (evidenceId, isEdit = false) => {
     try {
       await axios.delete(`${API}/api/files/${evidenceId}`, { headers });
-    } catch (e) { /* ignore */ }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+      return;
+    }
     if (isEdit) {
       setEditEvidences(prev => prev.filter(e => e.id !== evidenceId));
     } else {
@@ -414,12 +429,14 @@ export default function ESGRecordsDataEntry({
       // Handle "Others" as a virtual category that maps to multiple real categories
       if (isOthersCategory(filters.category) || isOthersCategory(preFilterCategory)) {
         params.categories = OTHERS_CATEGORIES.join(',');
-      } else if (filters.category) {
+      } else if (filters.category && filters.category !== 'all') {
         params.category = filters.category;
       }
       
-      if (filters.status) params.status = filters.status;
-      if (filters.facility_id) params.facility_id = filters.facility_id;
+      if (filters.status && filters.status !== 'all') params.status = filters.status;
+      if (filters.facility_id && filters.facility_id !== 'all') params.facility_id = filters.facility_id;
+      if (filters.period_start) params.period_start = filters.period_start;
+      if (filters.period_end) params.period_end = filters.period_end;
       if (filters.search) params.search = filters.search;
 
       const res = await axios.get(`${API}/api/esg-records/records/${section}`, {
@@ -455,7 +472,7 @@ export default function ESGRecordsDataEntry({
       // Handle "Others" as a virtual category
       if (isOthersCategory(filters.category) || isOthersCategory(preFilterCategory)) {
         params.categories = OTHERS_CATEGORIES.join(',');
-      } else if (filters.category) {
+      } else if (filters.category && filters.category !== 'all') {
         params.category = filters.category;
       }
       if (filters.subcategory) params.subcategory = filters.subcategory;
@@ -909,8 +926,8 @@ export default function ESGRecordsDataEntry({
   const renderRecordStatusBadges = (record, isLocked = false) => {
     if (isLocked) {
       return (
-        <Badge className="bg-emerald-100 text-emerald-700 gap-1">
-          <CheckCircle2 className="w-3 h-3" />
+        <Badge className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200/60 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800 shadow-sm" data-testid={`metric-status-imported-${record.id}`}>
+          <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-100"><CheckCircle2 className="h-3 w-3 text-emerald-700" /></span>
           Imported from GHG Module
         </Badge>
       );
@@ -959,9 +976,16 @@ export default function ESGRecordsDataEntry({
       displayApprovalStatus = approvalStatus || 'not_required';
     }
     
+    const operationalBadge = displayStatus === 'completed' ? (
+      <Badge className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200/60 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800 shadow-sm" data-testid={`metric-status-completed-${record.id}`}>
+        <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-100"><CheckCircle2 className="h-3 w-3 text-emerald-700" /></span>
+        Completed
+      </Badge>
+    ) : <OperationalStatusBadge status={displayStatus} showIcon={true} />;
+
     return (
       <div className="flex items-center gap-1.5 flex-wrap">
-        <OperationalStatusBadge status={displayStatus} showIcon={true} />
+        {operationalBadge}
         <ApprovalStatusBadge approvalStatus={displayApprovalStatus} showIcon={true} />
       </div>
     );
@@ -983,7 +1007,7 @@ export default function ESGRecordsDataEntry({
     const yearLabel = reportingYearType === 'financial_year' ? 'Financial Year' : (formData.reporting_type === 'yearly' && reportingYearType === 'calendar_year' ? 'Calendar Year' : 'Year');
 
     return (
-      <div className="flex gap-6 items-start" data-testid="add-metric-layout">
+      <div className="flex gap-6 items-start rounded-xl bg-white p-5" data-testid="add-metric-layout">
         {/* ── Left Panel: Selection ── */}
         <Card className="w-[320px] shrink-0 p-5 sticky top-4 space-y-4 bg-stone-50/70" data-testid="add-metric-left-panel">
           <h3 className="text-base font-semibold flex items-center gap-2">
@@ -1254,83 +1278,135 @@ export default function ESGRecordsDataEntry({
 
   // Render List View
   return (
-    <div className="space-y-6">
+    <div className="space-y-5" data-testid="esg-metrics-ledger">
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="p-4">
-            <div className="text-2xl font-bold text-text-primary">{stats.total || 0}</div>
-            <div className="text-sm text-text-muted">Total Metrics</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Card className="min-h-[88px] rounded-lg border-stone-200 bg-white p-4 shadow-sm" data-testid="metrics-total-card">
+            <div className="flex h-full items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700" data-testid="metrics-total-icon"><TrendingUp className="h-5 w-5" /></span>
+              <div><div className="text-2xl font-bold leading-none text-emerald-950">{stats.total || 0}</div><div className="mt-1.5 text-xs font-medium text-stone-500">Total Metrics</div></div>
+            </div>
           </Card>
-          <Card className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">{stats.drafts || 0}</div>
-            <div className="text-sm text-text-muted">Drafts</div>
+          <Card className="min-h-[88px] rounded-lg border-stone-200 bg-white p-4 shadow-sm" data-testid="metrics-drafts-card">
+            <div className="flex h-full items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-700" data-testid="metrics-drafts-icon"><FileText className="h-5 w-5" /></span>
+              <div><div className="text-2xl font-bold leading-none text-amber-600">{stats.drafts || 0}</div><div className="mt-1.5 text-xs font-medium text-stone-500">Drafts</div></div>
+            </div>
           </Card>
-          <Card className="p-4">
-            <div className="text-2xl font-bold text-blue-600">{stats.submitted || 0}</div>
-            <div className="text-sm text-text-muted">Submitted</div>
+          <Card className="min-h-[88px] rounded-lg border-stone-200 bg-white p-4 shadow-sm" data-testid="metrics-submitted-card">
+            <div className="flex h-full items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600" data-testid="metrics-submitted-icon"><Send className="h-5 w-5" /></span>
+              <div><div className="text-2xl font-bold leading-none text-blue-600">{stats.submitted || 0}</div><div className="mt-1.5 text-xs font-medium text-stone-500">Submitted</div></div>
+            </div>
           </Card>
-          <Card className="p-4">
-            <div className="text-2xl font-bold text-green-600">{stats.approved || 0}</div>
-            <div className="text-sm text-text-muted">Approved</div>
+          <Card className="min-h-[88px] rounded-lg border-stone-200 bg-white p-4 shadow-sm" data-testid="metrics-approved-card">
+            <div className="flex h-full items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700" data-testid="metrics-approved-icon"><CheckCircle2 className="h-5 w-5" /></span>
+              <div><div className="text-2xl font-bold leading-none text-emerald-600">{stats.approved || 0}</div><div className="mt-1.5 text-xs font-medium text-stone-500">Approved</div></div>
+            </div>
           </Card>
         </div>
       )}
 
       {/* Filters */}
-      <Card className="p-4">
+      <Card className="rounded-xl border border-stone-200/80 bg-stone-50/90 p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-text-muted" />
             <span className="text-sm font-medium">Filters:</span>
           </div>
           
-          <Select value={filters.category} onValueChange={(v) => setFilters(prev => ({ ...prev, category: v }))}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {[...new Set(categories.map(c => c.category))].map(cat => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {(!preFilterCategory || isOthersCategory(preFilterCategory)) && (
+            <Select value={filters.category} onValueChange={(v) => setFilters(prev => ({ ...prev, category: v }))}>
+            <SelectTrigger className="h-9 w-[150px] rounded-lg border-stone-200 bg-white" data-testid="metrics-category-filter">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {[...new Set(categories.map(c => c.category))].map(cat => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           <Select value={filters.status} onValueChange={(v) => setFilters(prev => ({ ...prev, status: v }))}>
-            <SelectTrigger className="w-[130px]">
+            <SelectTrigger className="h-9 w-[130px] rounded-lg border-stone-200 bg-white" data-testid="metrics-status-filter">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="submitted">Submitted</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="awaiting_approval">Awaiting Approval</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
             </SelectContent>
           </Select>
 
           <Select value={filters.facility_id} onValueChange={(v) => setFilters(prev => ({ ...prev, facility_id: v }))}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="h-9 w-[170px] rounded-lg border-stone-200 bg-white" data-testid="metrics-facility-filter">
               <SelectValue placeholder="Facility" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Facilities</SelectItem>
+              <SelectItem value="all">All facilities &amp; org-level</SelectItem>
               {facilities.map(fac => (
                 <SelectItem key={fac.id} value={fac.id}>{fac.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
+          <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="metrics-period-range-filter">
+            <MonthYearPicker
+              value={filters.period_start}
+              onChange={(value) => setFilters(prev => ({
+                ...prev,
+                period_start: value,
+                period_end: prev.period_end && prev.period_end < value ? '' : prev.period_end,
+              }))}
+              maxDate={filters.period_end || undefined}
+              disableFuture={true}
+              placeholder="Start period"
+              className="h-9 w-[180px] rounded-lg border-stone-200 bg-white text-sm hover:border-stone-300 hover:bg-white"
+              data-testid="metrics-period-start-input"
+            />
+            <span className="text-xs font-medium text-stone-400" aria-hidden="true">→</span>
+            <MonthYearPicker
+              value={filters.period_end}
+              onChange={(value) => setFilters(prev => ({ ...prev, period_end: value }))}
+              minDate={filters.period_start || undefined}
+              disableFuture={true}
+              placeholder="End period"
+              className="h-9 w-[180px] rounded-lg border-stone-200 bg-white text-sm hover:border-stone-300 hover:bg-white"
+              data-testid="metrics-period-end-input"
+            />
+            {(filters.period_start || filters.period_end) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setFilters(prev => ({ ...prev, period_start: '', period_end: '' }))}
+                className="h-8 w-8 rounded-md text-stone-400 hover:bg-stone-200/70 hover:text-stone-700"
+                aria-label="Clear period range"
+                title="Clear period range"
+                data-testid="metrics-period-clear-button"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
           <div className="flex-1 max-w-xs">
             <Input
               placeholder="Search..."
               value={filters.search}
               onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-              className="h-9"
+              className="h-9 rounded-lg border-stone-200 bg-white"
+              data-testid="metrics-search-input"
             />
           </div>
 
-          <Button variant="outline" size="sm" onClick={() => { fetchRecords(); fetchDrafts(); }}>
+          <Button variant="outline" size="sm" onClick={() => { fetchRecords(); fetchDrafts(); }} className="rounded-lg" data-testid="metrics-refresh-button">
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
@@ -1339,7 +1415,7 @@ export default function ESGRecordsDataEntry({
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
-        <Card className="p-3 bg-amber-50 border-amber-200 flex items-center justify-between">
+        <Card className="flex items-center justify-between rounded-xl border-amber-200 bg-amber-50 p-3">
           <span className="text-sm text-amber-800">
             {selectedIds.size} record{selectedIds.size > 1 ? 's' : ''} selected
           </span>
@@ -1361,22 +1437,23 @@ export default function ESGRecordsDataEntry({
       )}
 
       {/* Records Table */}
-      <Card>
+      <Card className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm" data-testid="metrics-table-surface">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10">
+          <TableHeader className="bg-stone-50/80">
+            <TableRow className="border-b border-stone-200 hover:bg-transparent">
+              <TableHead className="h-11 w-10 px-4">
                 <Checkbox
                   checked={sortedRecords.length > 0 && selectedIds.size === sortedRecords.length}
                   onCheckedChange={handleSelectAll}
+                  data-testid="metrics-select-all-checkbox"
                 />
               </TableHead>
               <SortableTableHead label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
               <SortableTableHead label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
               <SortableTableHead label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
               <SortableTableHead label="Status" sortKey="status" currentSort={sort} onSort={handleSort} />
-              <SortableTableHead label="Updated" sortKey="updated" currentSort={sort} onSort={handleSort} />
-              <TableHead className="text-right">Actions</TableHead>
+              <SortableTableHead label="Last Updated" sortKey="updated" currentSort={sort} onSort={handleSort} />
+              <TableHead className="h-11 px-4 text-right text-[11px] font-semibold uppercase tracking-wider text-stone-500" data-testid="metrics-actions-column-heading">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1400,6 +1477,7 @@ export default function ESGRecordsDataEntry({
                 const reportingPeriod = record.reporting_period || {};
                 const reportingMonth = reportingPeriod.month;
                 const reportingYear = reportingPeriod.year;
+                const updatedAt = formatUpdatedAt(record.updated_at || record.created_at);
                 
                 // For monthly/quarterly: show simple "Month Year" or "Q1 Year" format
                 // For yearly: show "FY XXXX-XX" or "CY XXXX"
@@ -1417,38 +1495,39 @@ export default function ESGRecordsDataEntry({
                 }
                 
                 return (
-                  <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''} ${selectedIds.has(record.id) ? 'bg-amber-50' : ''}`}>
-                    <TableCell className="w-10">
+                  <TableRow key={record.id} className={`group border-b border-stone-100 transition-colors duration-150 hover:bg-stone-50/80 ${hasDraft ? 'bg-amber-50/55' : ''} ${isImported ? 'bg-emerald-50/20' : ''} ${selectedIds.has(record.id) ? 'bg-amber-50/70' : ''}`} data-testid={`metric-row-${record.id}`}>
+                    <TableCell className="w-10 px-4 py-3.5">
                       <Checkbox
                         checked={selectedIds.has(record.id)}
                         onCheckedChange={() => handleSelectRecord(record.id)}
+                        data-testid={`metric-select-checkbox-${record.id}`}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
                         {isImported && (
-                          <Badge className="bg-emerald-100 text-emerald-700 text-xs flex items-center gap-1">
+                          <Badge className="flex items-center gap-1 rounded-md border border-emerald-200/60 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800">
                             <Link2 className="w-3 h-3" />
                             GHG
                           </Badge>
                         )}
                         <div>
-                          <div className="font-medium">{record.category}</div>
+                          <div className="text-sm font-semibold leading-tight text-emerald-950">{record.category}</div>
                           {record.subcategory && (
-                            <div className="text-xs text-text-muted">{record.subcategory}</div>
+                            <div className="mt-0.5 text-xs leading-tight text-stone-500">{record.subcategory}</div>
                           )}
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-4 py-3.5 text-sm font-medium text-stone-700">
                       {record.facility_name || (
                         <span className="text-text-muted">Org Level</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-4 py-3.5 text-sm font-medium text-stone-700">
                       {periodLabel}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
                         {renderRecordStatusBadges(record, isLocked)}
                         {hasDraft && (
@@ -1458,28 +1537,34 @@ export default function ESGRecordsDataEntry({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-text-muted">
-                      {formatDateTime(record.updated_at || record.created_at) || '-'}
+                    <TableCell className="px-4 py-3.5">
+                      {updatedAt ? (
+                        <div className="flex flex-col leading-snug" data-testid={`metric-updated-${record.id}`}>
+                          <span className="text-xs font-medium text-stone-800">{updatedAt.date}</span>
+                          <span className="text-[11px] text-stone-400">{updatedAt.time}</span>
+                        </div>
+                      ) : <span className="text-sm text-stone-400" data-testid={`metric-updated-${record.id}`}>-</span>}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="px-4 py-3.5 text-right">
                       {isLocked ? (
                         /* Locked record - only view allowed */
-                        <div className="flex justify-end gap-1">
+                        <div className="flex justify-end gap-1 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => viewImportedRecord(record)}
                             title="View Details"
+                            data-testid={`view-imported-metric-button-${record.id}`}
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <div className="flex items-center text-emerald-600 px-2" title="Record locked - imported from GHG module">
+                          <div className="flex items-center px-2 text-emerald-600" title="Record locked - imported from GHG module" data-testid={`metric-locked-indicator-${record.id}`}>
                             <Lock className="w-4 h-4" />
                           </div>
                         </div>
                       ) : record.approval_status === 'rejected' ? (
                         /* Rejected record - show rejection reason, no edit allowed */
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                           <div className="text-right">
                             <div className="text-xs text-red-600 font-medium">Rejected</div>
                             {record.rejection_reason && (
@@ -1493,13 +1578,14 @@ export default function ESGRecordsDataEntry({
                             size="sm"
                             onClick={() => viewVersions(record)}
                             title="View History"
+                            data-testid={`view-metric-history-button-${record.id}`}
                           >
                             <History className="w-4 h-4" />
                           </Button>
                         </div>
                       ) : record.status === 'rejected' ? (
                         /* Legacy rejected status - same treatment */
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                           <div className="text-right">
                             <div className="text-xs text-red-600 font-medium">Rejected</div>
                             {record.rejection_reason && (
@@ -1513,13 +1599,14 @@ export default function ESGRecordsDataEntry({
                             size="sm"
                             onClick={() => viewVersions(record)}
                             title="View History"
+                            data-testid={`view-metric-history-button-${record.id}`}
                           >
                             <History className="w-4 h-4" />
                           </Button>
                         </div>
                       ) : (
                         /* Editable record */
-                        <div className="flex justify-end gap-1">
+                        <div className="flex justify-end gap-1 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1534,6 +1621,7 @@ export default function ESGRecordsDataEntry({
                             size="sm"
                             onClick={() => viewVersions(record)}
                             title="Version History"
+                            data-testid={`view-metric-history-button-${record.id}`}
                           >
                             <History className="w-4 h-4" />
                           </Button>
@@ -1544,6 +1632,7 @@ export default function ESGRecordsDataEntry({
                             disabled={saving[`delete_${record.id}`]}
                             title="Delete"
                             className="text-red-600 hover:text-red-700"
+                            data-testid={`delete-metric-button-${record.id}`}
                           >
                             {saving[`delete_${record.id}`] ? (
                               <Loader2 className="w-4 h-4 animate-spin" />

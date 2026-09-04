@@ -925,14 +925,21 @@ async def delete_upload(
     
     # Delete temp files from R2
     deleted_keys = set()
+    cleanup_failed = False
     for item in line_items:
         temp_key = item.get("temp_file_key")
         if temp_key and temp_key not in deleted_keys:
             try:
-                await r2_storage.delete_file(temp_key, 'ocr_temp')
+                deleted = await r2_storage.delete_file('ocr_temp', temp_key)
+                if not deleted:
+                    raise RuntimeError("R2 did not confirm file deletion")
                 deleted_keys.add(temp_key)
             except Exception as e:
                 logger.warning(f"Failed to delete temp file {temp_key}: {e}")
+                cleanup_failed = True
+
+    if cleanup_failed:
+        raise HTTPException(status_code=502, detail="Could not remove all temporary files from storage. The upload remains available for retry.")
     
     # Delete line items
     await db[OCR_LINE_ITEMS_COLLECTION].delete_many({"upload_id": upload_id})

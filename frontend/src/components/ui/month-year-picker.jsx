@@ -108,6 +108,10 @@ function MonthYearPicker({
     }
   }, [open, viewYear])
 
+  React.useEffect(() => {
+    setViewYear(selectedYear)
+  }, [selectedYear])
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -116,16 +120,23 @@ function MonthYearPicker({
           data-testid={dataTestId}
           variant="outline"
           className={cn(
-            "w-full justify-start text-left font-normal h-10",
+            "w-full min-w-0 justify-start overflow-hidden px-3 text-left font-normal h-10",
             !value && "text-muted-foreground",
             className
           )}
+          title={formatDisplayValue() || placeholder}
         >
-          <Calendar className="mr-2 h-4 w-4" />
-          {formatDisplayValue() || <span className="text-gray-500">{placeholder}</span>}
+          <Calendar className="h-4 w-4 shrink-0" />
+          <span className={cn("min-w-0 truncate", !value && "text-gray-500")}>
+            {formatDisplayValue() || placeholder}
+          </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 bg-white shadow-lg border border-gray-200" align="start">
+      <PopoverContent
+        className="w-auto p-0 bg-white shadow-lg border border-gray-200"
+        align="start"
+        data-testid={dataTestId ? `${dataTestId}-popover` : undefined}
+      >
         <div className="flex bg-white rounded-md">
           {/* Year Column - Compact */}
           <div 
@@ -139,8 +150,10 @@ function MonthYearPicker({
               const isYearDisabled = disableFuture && year > currentYear
               return (
                 <button
+                  type="button"
                   key={year}
                   data-year={year}
+                  data-testid={dataTestId ? `${dataTestId}-year-${year}` : undefined}
                   onClick={() => !isYearDisabled && handleYearChange(year)}
                   disabled={isYearDisabled}
                   className={cn(
@@ -169,7 +182,9 @@ function MonthYearPicker({
                 
                 return (
                   <button
+                    type="button"
                     key={month}
+                    data-testid={dataTestId ? `${dataTestId}-month-${viewYear}-${index + 1}` : undefined}
                     onClick={() => handleMonthSelect(index)}
                     disabled={isDisabled}
                     className={cn(

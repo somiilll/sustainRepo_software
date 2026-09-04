@@ -26,6 +26,7 @@ from shared.helpers.audit_helpers import (
     get_input_label_map_from_db,
     DEFAULT_INPUT_LABEL_MAP,
 )
+from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
 # Collection names
 PENDING_COLLECTION = "pending_records"
@@ -722,6 +723,11 @@ async def approve_request(
         update_data["updated_by"] = approver.get("id")
         update_data["updated_by_email"] = approver.get("email", "")
         update_data["updated_by_name"] = approver.get("full_name", "")
+        removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_data)
+        try:
+            await delete_uploaded_files(db, removed_file_ids)
+        except Exception:
+            return (False, "Could not remove replaced evidence from storage. The record was not updated.")
         
         await db[APPROVED_COLLECTION].update_one(
             {"id": original_id},
@@ -744,6 +750,14 @@ async def approve_request(
         if not original_id:
             return (False, "Missing original_record_id for delete")
         
+        existing = await db[APPROVED_COLLECTION].find_one({"id": original_id}, {"_id": 0})
+        if not existing:
+            return (False, "Original record not found")
+        try:
+            await delete_uploaded_files(db, extract_uploaded_file_ids(existing))
+        except Exception:
+            return (False, "Could not remove emission evidence from storage. The record was not deleted.")
+
         # Record a final "deleted" event in db.emission_history with the
         # original submitter as the requester. Future history reads can
         # still surface the deletion (if the caller knows the deleted id).

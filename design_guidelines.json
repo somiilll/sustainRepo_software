@@ -1,82 +1,85 @@
 {
-  "project_type": "saas_app",
-  "archetype": "ORGANIC & EARTHY",
-  "context": "Supplier Assessment Admin - Training and Document Creation Modals",
-  "component_path": "/app/frontend/src/modules/supplier-assessment/",
-  "typography": {
-    "font_family_heading": "Cabinet Grotesk, sans-serif",
-    "font_family_body": "Inter, sans-serif",
-    "heading_scale": {
-      "h1": "text-3xl font-bold text-emerald-950",
-      "h2": "text-2xl font-bold text-stone-900",
-      "h3": "text-xl font-semibold text-stone-800",
-      "modal_title": "text-xl font-bold text-emerald-950"
+  "project_metadata": {
+    "app_type": "enterprise ESG sustainability data platform dashboard",
+    "theme": "light",
+    "archetype": "ORGANIC & EARTHY (ESG Enterprise SaaS Precision)",
+    "target_audience": "ESG Managers, Sustainability Directors, Compliance Auditors",
+    "domain_focus": "Environment -> Energy -> KPI Data Table"
+  },
+  "key_functionalities": [
+    "Energy KPI data table",
+    "KPI table filtering toolbar",
+    "Row hover behavior and contextual actions",
+    "Sophisticated status badges with subtle check icons",
+    "Clear date/time hierarchy for Last Updated column",
+    "Enhanced Category/Subcategory primary/metadata typography hierarchy",
+    "Layered page background hierarchy for enterprise SaaS character"
+  ],
+  "design_system": {
+    "colors": {
+      "page_background": "#f4f4f2",
+      "surface_card": "#fafafa",
+      "table_surface": "#ffffff",
+      "primary_text": "#064e3b",
+      "primary_text_slate": "#0f172a",
+      "secondary_text": "#64748b",
+      "border_thin": "#e2e8f0",
+      "border_subtle": "#f1f5f9",
+      "status_completed_bg": "#ecfdf5",
+      "status_completed_text": "#065f46",
+      "status_completed_border": "#a7f3d0",
+      "hover_row_bg": "rgba(241, 245, 249, 0.6)",
+      "forbidden_colors": [
+        "#1B93A4",
+        "#7351B7"
+      ]
     },
-    "body_scale": {
-      "base": "text-sm text-stone-600",
-      "small": "text-xs text-stone-500",
-      "label": "text-xs font-medium text-stone-700"
+    "typography": {
+      "font_family_main": "Inter, sans-serif",
+      "font_family_display": "Outfit, sans-serif",
+      "forbidden_fonts": [
+        "space grotesk"
+      ],
+      "table_header": "text-[11px] font-semibold tracking-wider text-stone-500 uppercase",
+      "category_primary": "text-sm font-semibold text-emerald-950 leading-tight",
+      "category_subcategory": "text-xs font-normal text-stone-500 leading-tight mt-0.5",
+      "updated_date": "text-xs font-medium text-stone-800 leading-snug",
+      "updated_time": "text-[11px] font-normal text-stone-400 leading-snug"
+    },
+    "layout_hierarchy": {
+      "layer_1_page_bg": "bg-stone-100/70 border-none min-h-screen",
+      "layer_2_toolbar_card": "bg-stone-50/90 border border-stone-200/80 rounded-md shadow-2xs p-4 mb-4",
+      "layer_3_table_surface": "bg-white border border-stone-200 rounded-md shadow-xs overflow-hidden",
+      "layer_4_rows": "bg-white border-b border-stone-100 hover:bg-emerald-50/20 transition-colors duration-150"
+    },
+    "row_spacing_spec": {
+      "vertical_padding": "py-3.5 px-4",
+      "height_increase": "Increase vertical breathing room by 6-10px compared to standard dense tables",
+      "hover_action_prominence": "opacity-50 group-hover:opacity-100 transition-opacity duration-150"
+    },
+    "status_badge_spec": {
+      "completed": "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60 shadow-2xs",
+      "check_icon": "h-3.5 w-3.5 text-emerald-600"
     }
   },
-  "colors": {
-    "primary": {
-      "bg": "bg-emerald-800",
-      "hover": "hover:bg-emerald-900",
-      "text": "text-white"
-    },
-    "neutral": {
-      "background": "bg-stone-50",
-      "surface": "bg-white",
-      "border": "border-stone-200",
-      "text_dark": "text-stone-950",
-      "text_muted": "text-stone-500"
-    },
-    "accents": {
-      "amber": "bg-amber-50 text-amber-700 border-amber-200",
-      "teal": "bg-teal-50 text-teal-700 border-teal-200",
-      "emerald": "bg-emerald-50 text-emerald-700 border-emerald-200"
-    }
-  },
-  "layout_and_modals": {
-    "pattern": "Dialog modal pattern for Add Training and Add/Publish Document",
-    "dialog_specs": {
-      "max_width": "max-w-2xl",
-      "max_height": "max-h-[85vh]",
-      "padding": "p-6",
-      "gap": "gap-4",
-      "grid": "grid gap-4 md:grid-cols-2"
-    },
-    "components": [
-      {
-        "name": "SupplierTrainingAdmin",
-        "file": "/app/frontend/src/modules/supplier-assessment/SupplierTrainingAdmin.jsx",
-        "modal_trigger_testid": "open-add-training-button",
-        "modal_container_testid": "create-training-card",
-        "modal_title_testid": "create-training-heading"
-      },
-      {
-        "name": "SupplierDocumentsAdmin",
-        "file": "/app/frontend/src/modules/supplier-assessment/SupplierDocumentsAdmin.jsx",
-        "modal_trigger_testid": "open-add-supplier-agreement-button",
-        "modal_container_testid": "supplier-agreement-upload-card"
-      }
-    ]
-  },
-  "motion": {
-    "transitions": "transition-[background-color,box-shadow,transform] duration-200",
-    "hover_lift": "hover:-translate-y-px"
-  },
-  "accessibility": {
-    "data_testid_required": true,
-    "contrast_ratio": "APCA standard >= 4.5:1",
-    "focus_states": "focus:ring-2 focus:ring-emerald-700 focus:outline-none"
-  },
-  "image_urls": [],
-  "instructions_to_main_agent": "1. Convert the inline 'Create Training' card in SupplierTrainingAdmin.jsx into a Dialog pop-up modal controlled by showTrainingForm state (open when showTrainingForm is true, onOpenChange updates showTrainingForm).\n2. Convert the inline 'Publish Document' card in SupplierDocumentsAdmin.jsx into a Dialog pop-up modal controlled by showAgreementForm state (open when showAgreementForm is true, onOpenChange updates showAgreementForm).\n3. Maintain all existing form controls, data-testid attributes, event handlers, validation logic, assignment picker, and API submissions without breaking any test or functionality.\n4. Clean up any inline page wrapper styles that previously relied on [&_[data-testid=...]]:hidden CSS selectors.",
+  "instructions_to_main_agent": [
+    "Apply subtle tonal layer hierarchy: Page background (bg-stone-100/70) -> Toolbar card surface (bg-stone-50) -> Table container (bg-white border-stone-200) -> Rows.",
+    "Increase table row vertical height by 6-10px using py-3.5 px-4 cell padding for comfortable enterprise scanning.",
+    "Implement row hover with an almost imperceptible tint change (hover:bg-emerald-50/20 or hover:bg-stone-50/80) and make action icons/buttons transition from opacity-50 to opacity-100 on hover.",
+    "Format the Last Updated column into a two-line hierarchy: Line 1 (16 Jul 2026, text-xs font-medium text-stone-800) and Line 2 (02:42 pm, text-[11px] text-stone-400).",
+    "Refactor Status badges to use light green background (bg-emerald-50), dark forest green text (text-emerald-800), subtle border (border-emerald-200/60), minimal rounded corners (rounded-md), and a small SVG check icon (✓ / CheckCircle). Avoid overly saturated alerts.",
+    "Enhance Category cell hierarchy: Primary category title in 14px semibold dark forest-green/slate, Subcategory metadata in 12-13px muted grey with tight line height and optional tiny category icon.",
+    "Style table headers with small label typography: uppercase tracking-wider text-[11px] font-semibold text-stone-500 with proper column padding.",
+    "Ensure all interactive buttons, rows, table headers, and status badges include data-testid attributes for testing."
+  ],
   "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "Never use generic centered layouts or unstyled default HTML elements.",
-    "Ensure all buttons and inputs have clear data-testid attributes.",
-    "Do not use transparent header backgrounds or unstyled dropdown containers.",
-    "Maintain contrast standards (minimum WCAG AA / APCA compliant)."
-  ]
+    "Do not use transparent backgrounds on surfaces that have content underneath.",
+    "Always specify text colors explicitly on hover states to guarantee contrast.",
+    "Ensure direct parent-child hierarchy in grid layouts.",
+    "Include data-testid on all interactive buttons, inputs, headers, and key informational elements.",
+    "Avoid generic centered layouts, Space Grotesk font, and heavy gradients."
+  ],
+  "image_urls": {
+    "hero_sustainability_forest": "https://images.unsplash.com/photo-1768070841554-eae3f3bda452?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwzfHxzdXN0YWluYWJpbGl0eSUyMGRhc2hib2FyZCUyMGdyZWVuJTIwZWNvc3lzdGVtfGVufDB8fHx8MTc4ODQyODA2N3ww&ixlib=rb-4.1.0&q=85"
+  }
 }
