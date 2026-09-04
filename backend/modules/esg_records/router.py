@@ -515,6 +515,7 @@ async def list_records(
     categories: Optional[str] = Query(None, description="Comma-separated list of categories (e.g., 'Climate Change,Material,Other Emissions')"),
     subcategory: Optional[str] = None,
     reporting_type: Optional[REPORTING_TYPE] = None,
+    status: Optional[str] = None,
     facility_id: Optional[str] = None,
     framework: Optional[str] = None,
     year: Optional[int] = None,
@@ -605,6 +606,7 @@ async def list_records(
         categories=categories_list,
         subcategory=subcategory,
         reporting_type=reporting_type,
+        status=status,
         facility_id=facility_id,
         framework=framework,
         year=year,
@@ -639,6 +641,20 @@ async def list_records(
             category=category,
             facility_id=facility_id
         )
+
+        if status and imported_records:
+            def matches_status(record: dict) -> bool:
+                operational_status = record.get("status")
+                approval_status = record.get("approval_status")
+                if status == "completed":
+                    return operational_status in {"completed", "saved", "submitted"}
+                if status == "awaiting_approval":
+                    return approval_status == "pending_approval"
+                if status == "approved":
+                    return approval_status == "approved"
+                return operational_status == status
+
+            imported_records = [record for record in imported_records if matches_status(record)]
         
         # Filter by categories list if provided (for "Others" page)
         if categories_list and imported_records:
@@ -696,6 +712,7 @@ async def list_records(
                 category=category,
                 subcategory=subcategory,
                 reporting_type=reporting_type,
+                status=status,
                 facility_id=facility_id,
                 framework=framework,
                 year=year,

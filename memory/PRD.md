@@ -772,3 +772,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Latest Changes — 2026-09-03 (Voluntary Target Section Headings)
 - Replaced the generic ESG Targets heading with section-specific Environment Target, Social Target, and Governance Target headings using the shared module-header layout and appropriate accent colors.
 - Verified with frontend ESLint and authenticated live Environment Target rendering. No API or data behavior changed.
+
+## Latest Changes — 2026-09-04 (Energy KPI Logs Polish and Filters)
+- Refined the shared ESG KPI ledger with enterprise table hierarchy: subtle row hover/action emphasis, increased row breathing room, layered off-white surfaces, two-line update timestamps, compact completed badges, and stronger category/subcategory typography.
+- Corrected Status filtering end-to-end and clarified All Facilities as the current organization’s facilities plus organization-level records. Scoped Energy and Water logs no longer show the redundant category dropdown.
+- Updated Energy Logs tabs, KPI cards, filters, bulk-action surface, and table container to the supplied rounded-corner reference treatment. **NOT TESTED for the latest rounded-surface refinement at user request.**

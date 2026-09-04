@@ -68,19 +68,19 @@ export default function ESGRecordsModule({ section = 'environment', preFilterCat
   };
 
   return (
-    <div className="space-y-4" data-testid={`esg-records-module-${section}`}>
+    <div className="space-y-5" data-testid={`esg-records-module-${section}`}>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={showSetTarget ? "grid w-full max-w-md grid-cols-3" : "grid w-full max-w-xs grid-cols-2"}>
-          <TabsTrigger value="logs" className="gap-2" data-testid="esg-tab-logs">
+        <TabsList className={`${showSetTarget ? 'grid grid-cols-3' : 'grid grid-cols-2'} h-auto w-auto rounded-xl border border-stone-200 bg-stone-50/90 p-1 shadow-sm`}>
+          <TabsTrigger value="logs" className="gap-2 rounded-lg px-4 py-2 text-sm font-medium text-stone-600 transition-colors data-[state=active]:bg-emerald-900 data-[state=active]:text-white data-[state=active]:shadow-sm" data-testid="esg-tab-logs">
             <List className="h-4 w-4" />
             <span className="hidden sm:inline">Metrics Logs</span>
           </TabsTrigger>
-          <TabsTrigger value="add-metric" className="gap-2" data-testid="esg-tab-add-metric">
+          <TabsTrigger value="add-metric" className="gap-2 rounded-lg px-4 py-2 text-sm font-medium text-stone-600 transition-colors data-[state=active]:bg-emerald-900 data-[state=active]:text-white data-[state=active]:shadow-sm" data-testid="esg-tab-add-metric">
             <PlusCircle className="h-4 w-4" />
             <span className="hidden sm:inline">Add Metric</span>
           </TabsTrigger>
           {showSetTarget && (
-            <TabsTrigger value="set-target" className="gap-2" data-testid="esg-tab-set-target">
+            <TabsTrigger value="set-target" className="gap-2 rounded-lg px-4 py-2 text-sm font-medium text-stone-600 transition-colors data-[state=active]:bg-emerald-900 data-[state=active]:text-white data-[state=active]:shadow-sm" data-testid="esg-tab-set-target">
               <Target className="h-4 w-4" />
               <span className="hidden sm:inline">Set Target</span>
             </TabsTrigger>

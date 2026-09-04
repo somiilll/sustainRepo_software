@@ -1,66 +1,83 @@
 {
   "project_metadata": {
-    "app_type": "full-stack ESG management dashboard",
+    "app_type": "enterprise ESG sustainability data platform dashboard",
     "theme": "light",
-    "archetype": "ORGANIC & EARTHY (ESG Enterprise Precision)",
-    "target_audience": "ESG Managers, Sustainability Officers, Supplier Compliance Auditors",
-    "core_task": "Align module page headings across BRSR Framework, Materiality Assessment, GHG, and Core ESG modules with Supplier Assessment standard page headers"
+    "archetype": "ORGANIC & EARTHY (ESG Enterprise SaaS Precision)",
+    "target_audience": "ESG Managers, Sustainability Directors, Compliance Auditors",
+    "domain_focus": "Environment -> Energy -> KPI Data Table"
   },
   "key_functionalities": [
-    "Reusable module page header component (ModulePageHeader / SupplierPageHeader)",
-    "Color-coded leading icon with rounded border and subtle shadow",
-    "Title-only heading alignment (no extra optional short context lines)",
-    "Consistent layout across BRSR Framework, Materiality Assessment, GHG, and core ESG pages"
+    "Energy KPI data table",
+    "KPI table filtering toolbar",
+    "Row hover behavior and contextual actions",
+    "Sophisticated status badges with subtle check icons",
+    "Clear date/time hierarchy for Last Updated column",
+    "Enhanced Category/Subcategory primary/metadata typography hierarchy",
+    "Layered page background hierarchy for enterprise SaaS character"
   ],
   "design_system": {
     "colors": {
-      "primary_emerald": "#064e3b",
-      "accent_emerald_light": "#ecfdf5",
-      "border_emerald": "#a7f3d0",
-      "text_dark": "#022c22",
-      "text_muted": "#475569",
-      "background_light": "#f8fafc",
-      "surface_card": "#ffffff",
-      "forbidden_colors": ["#1B93A4", "#7351B7"]
+      "page_background": "#f4f4f2",
+      "surface_card": "#fafafa",
+      "table_surface": "#ffffff",
+      "primary_text": "#064e3b",
+      "primary_text_slate": "#0f172a",
+      "secondary_text": "#64748b",
+      "border_thin": "#e2e8f0",
+      "border_subtle": "#f1f5f9",
+      "status_completed_bg": "#ecfdf5",
+      "status_completed_text": "#065f46",
+      "status_completed_border": "#a7f3d0",
+      "hover_row_bg": "rgba(241, 245, 249, 0.6)",
+      "forbidden_colors": [
+        "#1B93A4",
+        "#7351B7"
+      ]
     },
     "typography": {
       "font_family_main": "Inter, sans-serif",
       "font_family_display": "Outfit, sans-serif",
-      "forbidden_fonts": ["space grotesk"],
-      "page_title": "text-3xl font-bold text-emerald-950 tracking-tight",
-      "section_heading": "text-xl sm:text-2xl font-semibold text-stone-900",
-      "body": "text-sm text-stone-700"
+      "forbidden_fonts": [
+        "space grotesk"
+      ],
+      "table_header": "text-[11px] font-semibold tracking-wider text-stone-500 uppercase",
+      "category_primary": "text-sm font-semibold text-emerald-950 leading-tight",
+      "category_subcategory": "text-xs font-normal text-stone-500 leading-tight mt-0.5",
+      "updated_date": "text-xs font-medium text-stone-800 leading-snug",
+      "updated_time": "text-[11px] font-normal text-stone-400 leading-snug"
     },
-    "header_specification": {
-      "container_class": "flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5 mb-6",
-      "icon_badge": {
-        "dimensions": "h-12 w-12 shrink-0",
-        "style": "flex items-center justify-center rounded-lg border shadow-sm",
-        "color_variants": {
-          "emerald": "border-emerald-200 bg-emerald-50 text-emerald-800",
-          "blue": "border-blue-200 bg-blue-50 text-blue-800",
-          "amber": "border-amber-200 bg-amber-50 text-amber-800",
-          "purple": "border-purple-200 bg-purple-50 text-purple-800",
-          "indigo": "border-indigo-200 bg-indigo-50 text-indigo-800"
-        }
-      },
-      "title_style": "text-3xl font-bold text-emerald-950",
-      "context_line_policy": "NO_EXTRA_DESCRIPTION"
+    "layout_hierarchy": {
+      "layer_1_page_bg": "bg-stone-100/70 border-none min-h-screen",
+      "layer_2_toolbar_card": "bg-stone-50/90 border border-stone-200/80 rounded-md shadow-2xs p-4 mb-4",
+      "layer_3_table_surface": "bg-white border border-stone-200 rounded-md shadow-xs overflow-hidden",
+      "layer_4_rows": "bg-white border-b border-stone-100 hover:bg-emerald-50/20 transition-colors duration-150"
+    },
+    "row_spacing_spec": {
+      "vertical_padding": "py-3.5 px-4",
+      "height_increase": "Increase vertical breathing room by 6-10px compared to standard dense tables",
+      "hover_action_prominence": "opacity-50 group-hover:opacity-100 transition-opacity duration-150"
+    },
+    "status_badge_spec": {
+      "completed": "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60 shadow-2xs",
+      "check_icon": "h-3.5 w-3.5 text-emerald-600"
     }
   },
   "instructions_to_main_agent": [
-    "Refactor module headers across BRSR Framework, Materiality Assessment, GHG Emissions, and other core ESG pages to utilize the standardized header format modeled after SupplierPageHeader.",
-    "Ensure each module header renders a color-coded left icon badge (h-12 w-12 rounded-lg border shadow-sm) matching the module domain.",
-    "Omit short context lines / sub-description paragraphs underneath titles where title-only alignment is specified.",
-    "Ensure all header elements include data-testid attributes (e.g., data-testid='{module}-heading', data-testid='{module}-heading-icon').",
-    "Maintain responsive mobile-first behavior and preserve right-aligned action buttons/status badges inside the header layout."
+    "Apply subtle tonal layer hierarchy: Page background (bg-stone-100/70) -> Toolbar card surface (bg-stone-50) -> Table container (bg-white border-stone-200) -> Rows.",
+    "Increase table row vertical height by 6-10px using py-3.5 px-4 cell padding for comfortable enterprise scanning.",
+    "Implement row hover with an almost imperceptible tint change (hover:bg-emerald-50/20 or hover:bg-stone-50/80) and make action icons/buttons transition from opacity-50 to opacity-100 on hover.",
+    "Format the Last Updated column into a two-line hierarchy: Line 1 (16 Jul 2026, text-xs font-medium text-stone-800) and Line 2 (02:42 pm, text-[11px] text-stone-400).",
+    "Refactor Status badges to use light green background (bg-emerald-50), dark forest green text (text-emerald-800), subtle border (border-emerald-200/60), minimal rounded corners (rounded-md), and a small SVG check icon (✓ / CheckCircle). Avoid overly saturated alerts.",
+    "Enhance Category cell hierarchy: Primary category title in 14px semibold dark forest-green/slate, Subcategory metadata in 12-13px muted grey with tight line height and optional tiny category icon.",
+    "Style table headers with small label typography: uppercase tracking-wider text-[11px] font-semibold text-stone-500 with proper column padding.",
+    "Ensure all interactive buttons, rows, table headers, and status badges include data-testid attributes for testing."
   ],
   "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
     "Do not use transparent backgrounds on surfaces that have content underneath.",
-    "Always specify text colors explicitly on hover states to guarantee APCA/WCAG contrast.",
+    "Always specify text colors explicitly on hover states to guarantee contrast.",
     "Ensure direct parent-child hierarchy in grid layouts.",
     "Include data-testid on all interactive buttons, inputs, headers, and key informational elements.",
-    "Avoid AI slop, centered text body layouts, and Space Grotesk font family."
+    "Avoid generic centered layouts, Space Grotesk font, and heavy gradients."
   ],
   "image_urls": {
     "hero_sustainability_forest": "https://images.unsplash.com/photo-1768070841554-eae3f3bda452?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwzfHxzdXN0YWluYWJpbGl0eSUyMGRhc2hib2FyZCUyMGdyZWVuJTIwZWNvc3lzdGVtfGVufDB8fHx8MTc4ODQyODA2N3ww&ixlib=rb-4.1.0&q=85"

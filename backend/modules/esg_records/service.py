@@ -1712,6 +1712,15 @@ class ESGRecordsService:
             query["subcategory"] = filters.subcategory
         if filters.reporting_type:
             query["reporting_period.reporting_type"] = filters.reporting_type
+        if filters.status:
+            if filters.status == "completed":
+                query["status"] = {"$in": ["completed", "saved", "submitted"]}
+            elif filters.status == "awaiting_approval":
+                query["approval_status"] = "pending_approval"
+            elif filters.status == "approved":
+                query["approval_status"] = "approved"
+            else:
+                query["status"] = filters.status
         if filters.facility_id:
             query["facility_id"] = filters.facility_id
         if filters.framework:
