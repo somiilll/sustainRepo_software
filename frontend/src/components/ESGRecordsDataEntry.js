@@ -44,6 +44,7 @@ import { Badge } from './ui/badge';
 import { Textarea } from './ui/textarea';
 import { Checkbox } from './ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { MonthYearPicker } from './ui/month-year-picker';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
@@ -1355,28 +1356,44 @@ export default function ESGRecordsDataEntry({
             </SelectContent>
           </Select>
 
-          <div className="flex items-center gap-2" data-testid="metrics-period-range-filter">
-            <Input
-              type="month"
-              aria-label="Start Period"
-              title="Start Period"
+          <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="metrics-period-range-filter">
+            <MonthYearPicker
               value={filters.period_start}
-              max={filters.period_end || undefined}
-              onChange={(e) => setFilters(prev => ({ ...prev, period_start: e.target.value }))}
-              className="h-9 w-[145px] rounded-lg border-stone-200 bg-white text-sm"
+              onChange={(value) => setFilters(prev => ({
+                ...prev,
+                period_start: value,
+                period_end: prev.period_end && prev.period_end < value ? '' : prev.period_end,
+              }))}
+              maxDate={filters.period_end || undefined}
+              disableFuture={true}
+              placeholder="Start period"
+              className="h-9 w-[180px] rounded-lg border-stone-200 bg-white text-sm hover:border-stone-300 hover:bg-white"
               data-testid="metrics-period-start-input"
             />
-            <span className="text-xs font-medium text-stone-400">to</span>
-            <Input
-              type="month"
-              aria-label="End Period"
-              title="End Period"
+            <span className="text-xs font-medium text-stone-400" aria-hidden="true">→</span>
+            <MonthYearPicker
               value={filters.period_end}
-              min={filters.period_start || undefined}
-              onChange={(e) => setFilters(prev => ({ ...prev, period_end: e.target.value }))}
-              className="h-9 w-[145px] rounded-lg border-stone-200 bg-white text-sm"
+              onChange={(value) => setFilters(prev => ({ ...prev, period_end: value }))}
+              minDate={filters.period_start || undefined}
+              disableFuture={true}
+              placeholder="End period"
+              className="h-9 w-[180px] rounded-lg border-stone-200 bg-white text-sm hover:border-stone-300 hover:bg-white"
               data-testid="metrics-period-end-input"
             />
+            {(filters.period_start || filters.period_end) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setFilters(prev => ({ ...prev, period_start: '', period_end: '' }))}
+                className="h-8 w-8 rounded-md text-stone-400 hover:bg-stone-200/70 hover:text-stone-700"
+                aria-label="Clear period range"
+                title="Clear period range"
+                data-testid="metrics-period-clear-button"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
 
           <div className="flex-1 max-w-xs">
