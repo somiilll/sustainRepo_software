@@ -35,6 +35,7 @@
 - Customer organization onboarding wizard.
 - Supplier organization onboarding wizard.
 - BRSR Word export and previous-year columns.
+- Map ESG metrics and GHG results to BRSR/GRI questions as reviewable suggested responses. Users must be able to accept an imported response, reject it and answer manually, or reverse either decision later while preserving immutable response history, source provenance, and stale-source detection.
 - MIS schedule preview and report bookmarks.
 - Canonical RBAC overhaul phases 1–5 — paused until explicit user instruction.
 

@@ -494,6 +494,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - **P0:** Make supplier facility allowance an explicit configurable policy rather than a fallback.
 - **P0:** Add an explicit existing-supplier assessment-program revision migration/reassignment flow so parents can align supplier GHG permissions after changing Custom Fuel, Process Emissions, or Flaring policy.
 - **P1:** Add multi-organization membership/context for suppliers that also operate customer workspaces.
+- **P1:** Add BRSR/GRI response suggestions sourced from mapped ESG metrics and GHG results. Acceptance and rejection must remain reversible; rejected suggestions require a manual response, previously accepted values retain immutable history, and source-data changes mark accepted imports stale rather than silently overwriting them.
 
 ## Latest Changes — 2026-09-01 (Supplier Ranking Overview Reference Layout)
 - Rebuilt the Supplier Assessment → Ranking → Overview tab around the supplied three-column reference hierarchy: score bands, score distribution, and top performers; module coverage, attention-required rows, and overdue follow-up; then the risk matrix, training progress, and document progress.
@@ -787,3 +788,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Organization-settings normalization now treats an absent or null framework list as `[]`, representing a valid organization with no ESG reporting frameworks enabled.
 - New `OrganizationCreate` payloads default the field to an independent empty list and safely coerce explicitly supplied null values to `[]`, preventing future null persistence through the organization API.
 - Verified with Python compilation, focused unit tests, a live authenticated API response for the existing Testing organization, an authenticated Org Config browser check, and testing-agent iteration 41 (backend/frontend 100%, no mocked APIs).
+
+## Roadmap Update — 2026-09-04 (BRSR/GRI Metric Response Suggestions)
+- Deferred ESG/GHG-to-BRSR/GRI question mapping to P1.
+- Planned workflow treats mapped values as reviewable suggestions, supports reversible accept/reject decisions, requires manual answers after rejection, retains immutable decision history and source provenance, and marks accepted responses stale when source records change.
