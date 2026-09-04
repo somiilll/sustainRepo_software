@@ -235,6 +235,8 @@ export function useEmissionSubmit(ctx) {
         calculatedN2O: 0,
         calculatedCO2e: 0,
         resolvedFormulaId: null,
+        formulaVersionId: null,
+        decisionTreeVersionId: null,
         auditLogId: null,
       };
       if (!categoryObj?.id) return result;
@@ -265,6 +267,8 @@ export function useEmissionSubmit(ctx) {
           calculatedN2O: calculated.outputs?.n2o?.value || calculated.n2o_emissions || 0,
           calculatedCO2e: calculated.outputs?.co2e?.value || calculated.co2e_emissions || 0,
           resolvedFormulaId: calculated.resolved_formula?.id || calculated.formula_id || null,
+          formulaVersionId: calculated.resolved_formula?.version_id || calculated.formula_version_id || null,
+          decisionTreeVersionId: calculated.resolved_decision_tree?.version_id || null,
           auditLogId: calculated.audit_log_id || null,
         };
       } catch (error) {
@@ -504,6 +508,8 @@ export function useEmissionSubmit(ctx) {
               overrideJustification: yearlyData.calorificValueJustification || yearlyData.densityJustification || yearlyData.emissionFactorHeatJustification || '',
               calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
               resolvedFormulaId: null,
+              formulaVersionId: null,
+              decisionTreeVersionId: null,
               reportingPeriod: yearlyReportingPeriod,
             };
 
@@ -710,6 +716,8 @@ export function useEmissionSubmit(ctx) {
             overrideJustification: data.calorificValueJustification || data.densityJustification || data.emissionFactorHeatJustification || '',
             calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
             resolvedFormulaId: null,
+            formulaVersionId: null,
+            decisionTreeVersionId: null,
             reportingPeriod,
           };
 

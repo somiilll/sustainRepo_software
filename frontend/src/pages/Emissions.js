@@ -395,7 +395,14 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       setEditFormConfigLoading(true);
       try {
         // Include method and activity in the request for better formula matching
-        let url = `${API}/calc-engine/form-config/${editContext.categoryId}?scope=${editContext.effectiveScope}`;
+        const configParams = new URLSearchParams({ scope: editContext.effectiveScope });
+        if (editingEmission?.decision_tree_version_id) {
+          configParams.set('decision_tree_version_id', editingEmission.decision_tree_version_id);
+        }
+        if (editingEmission?.formula_version_id) {
+          configParams.set('formula_version_id', editingEmission.formula_version_id);
+        }
+        let url = `${API}/calc-engine/form-config/${editContext.categoryId}?${configParams.toString()}`;
         if (scope3Method) url += `&method=${scope3Method}`;
         if (scope3ActivityType) url += `&activity_type=${scope3ActivityType}`;
         
@@ -410,7 +417,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     };
     
     fetchFormConfig();
-  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId]);
+  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId, editingEmission?.decision_tree_version_id, editingEmission?.formula_version_id]);
   
   // ============================================================================
   // EDIT FIELD DERIVATION
@@ -2029,6 +2036,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         },
         user_overrides: userOverrides,
         dry_run: true,
+        ...(editingEmission?.decision_tree_version_id && {
+          decision_tree_version_id: editingEmission.decision_tree_version_id,
+        }),
+        ...(editingEmission?.formula_version_id && {
+          formula_version_id: editingEmission.formula_version_id,
+        }),
         // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
         ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
       };
@@ -2066,6 +2079,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       gwpConfig: gwpConfig,
       dryRun: true,
       calculationMethodology: editCalcMethodology,
+      decisionTreeVersionId: editingEmission?.decision_tree_version_id || null,
+      formulaVersionId: editingEmission?.formula_version_id || null,
     }).then(result => {
       if (result) {
         setBackendCalcResult(result);
@@ -2116,6 +2131,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         n2oOutputUnit: 'tN₂O',
         co2eOutputUnit: 'tCO₂e',
         appliedFormulaName: editingEmission.formula_name,
+        formulaId: editingEmission.formula_id,
+        formulaVersionId: editingEmission.formula_version_id,
+        decisionTreeVersionId: editingEmission.decision_tree_version_id,
       };
     }
     
@@ -2166,6 +2184,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       editUseCustomFuel,
       editCustomFuelName,
       editCalcMethodology,
+      editingEmission,
       getAuthHeader,
     });
     
@@ -2688,6 +2707,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           use_custom_activity: useCustomActivity,
         },
         scope3_ef_id: matchedActivity?.id || null,
+        ...(editingEmission?.decision_tree_version_id && {
+          decision_tree_version_id: editingEmission.decision_tree_version_id,
+        }),
+        ...(editingEmission?.formula_version_id && {
+          formula_version_id: editingEmission.formula_version_id,
+        }),
       };
 
       // Call calc engine
@@ -2715,6 +2740,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           audit_log: auditLog,
           applied_factors: appliedFactors,
           formula_id: response.data.resolved_formula?.id || null,
+          formula_version_id: response.data.resolved_formula?.version_id || null,
+          decision_tree_version_id: response.data.resolved_decision_tree?.version_id || null,
           formula_name: response.data.resolved_formula?.name || '',
           outputs: response.data.outputs,
         };

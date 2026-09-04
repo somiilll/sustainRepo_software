@@ -20,6 +20,7 @@ from modules.entitlements.dependencies import (
     assert_period_row_batch_limit,
     partition_records_by_period_row_limit,
 )
+from calc_engine.versioning import apply_record_version_binding
 from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 logger = logging.getLogger(__name__)
@@ -340,6 +341,11 @@ class UploadProcessor:
                 valid_records,
             )
             all_errors.extend(quota_errors)
+
+            valid_records = [
+                await apply_record_version_binding(self.db, record)
+                for record in valid_records
+            ]
 
             # Counts reflect emission records that can actually be saved.
             success_count = len(valid_records)

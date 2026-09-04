@@ -286,6 +286,8 @@ export function buildCreatePayload(monthData, ctx) {
     calculatedN2O,
     calculatedCO2e,
     resolvedFormulaId,
+    formulaVersionId,
+    decisionTreeVersionId,
   } = ctx;
 
   const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
@@ -313,6 +315,8 @@ export function buildCreatePayload(monthData, ctx) {
     fuel_database_id: isScope3Like ? null : useCustomFuel ? null : fuelId,
 
     formula_id: resolvedFormulaId,
+    formula_version_id: formulaVersionId || null,
+    decision_tree_version_id: decisionTreeVersionId || null,
 
     ...(scope === 'biogenic' && {
       biogenic_scope_selection: biogenicScopeSelection,

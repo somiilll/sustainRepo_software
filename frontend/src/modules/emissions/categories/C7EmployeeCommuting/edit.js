@@ -121,7 +121,7 @@ export function validateEditSubmission({ editEmployees, editingEmission, process
  * @param {Array}   editEmployees
  * @param {boolean} isYearlyMode
  * @param {Object}  editingEmission     used for default formula_id fallback
- * @returns {{ totalCo2e: number, extractedFormulaId: string|null }}
+ * @returns {{ totalCo2e: number, extractedFormulaId: string|null, extractedFormulaVersionId: string|null }}
  */
 export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
   // total CO2e
@@ -140,13 +140,17 @@ export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
 
   // formula_id extraction
   let extractedFormulaId = editingEmission?.formula_id || null;
+  let extractedFormulaVersionId = editingEmission?.formula_version_id || null;
+  const applyCalculationDetails = (details) => {
+    if (!details?.formula_id) return false;
+    extractedFormulaId = details.formula_id;
+    extractedFormulaVersionId = details.formula_version_id || extractedFormulaVersionId;
+    return true;
+  };
   if (isYearlyMode) {
     for (const emp of editEmployees) {
-      const formulaId =
-        emp.yearly_data?.calculation_details?.formula_id ||
-        emp.calculation_details?.formula_id;
-      if (formulaId) {
-        extractedFormulaId = formulaId;
+      const details = emp.yearly_data?.calculation_details || emp.calculation_details;
+      if (applyCalculationDetails(details)) {
         break;
       }
     }
@@ -154,8 +158,7 @@ export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
     for (const emp of editEmployees) {
       for (const monthKey of Object.keys(emp.monthly_data || {})) {
         const monthData = emp.monthly_data[monthKey];
-        if (monthData?.calculation_details?.formula_id) {
-          extractedFormulaId = monthData.calculation_details.formula_id;
+        if (applyCalculationDetails(monthData?.calculation_details)) {
           break;
         }
       }
@@ -165,7 +168,7 @@ export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
     }
   }
 
-  return { totalCo2e, extractedFormulaId };
+  return { totalCo2e, extractedFormulaId, extractedFormulaVersionId };
 }
 
 /**
@@ -204,7 +207,7 @@ export function buildEditPayload(ctx) {
   } = ctx;
 
   const isYearlyMode = editingEmission?.frequency_type === 'yearly';
-  const { totalCo2e, extractedFormulaId } = extractTotals(
+  const { totalCo2e, extractedFormulaId, extractedFormulaVersionId } = extractTotals(
     editEmployees,
     isYearlyMode,
     editingEmission
@@ -245,6 +248,8 @@ export function buildEditPayload(ctx) {
     scope3_ef_id: useCustomActivity ? null : scope3ActivityId || null,
     use_custom_activity: useCustomActivity,
     formula_id: extractedFormulaId,
+    formula_version_id: extractedFormulaVersionId,
+    decision_tree_version_id: editingEmission?.decision_tree_version_id || null,
 
     employees: editEmployees.map((emp) => {
       const baseEmployee = {

@@ -3,9 +3,18 @@
 Lifted verbatim from server.py. Behaviour byte-identical.
 Re-imported back into server.py for legacy callers.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class SuperAdminAccountCreate(BaseModel):
+    """Super Admin request for an organization-scoped team account."""
+
+    email: EmailStr
+    full_name: str = Field(min_length=1, max_length=200)
+    organization_id: str = Field(min_length=1)
+    role: Literal["admin", "user"]
 
 
 class EmissionFactorCreate(BaseModel):

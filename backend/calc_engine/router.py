@@ -29,6 +29,13 @@ from .formulas import (
     update_formula,
     validate_decision_tree,
 )
+from .versioning import (
+    CalculationVersionError,
+    formula_snapshot,
+    get_decision_tree_for_execution,
+    get_formula_for_execution,
+    resolve_formula_version_for_tree,
+)
 from .fuel_import import import_from_fuel_database
 from .transformations import list_transformations
 from .units import resolve_unit
@@ -114,6 +121,8 @@ class ExecuteByCategoryRequest(BaseModel):
     dry_run: bool = True
     emission_record_id: Optional[str] = None  # Link audit log to emission record
     scope3_ef_id: Optional[str] = None  # Reference to scope3_ef record for EF lookup
+    decision_tree_version_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
 
 
 class ExecuteByFormulaRequest(BaseModel):
@@ -694,7 +703,14 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             decision_inputs["spend_currency_conversion_method"] = normalize_currency_method(
                 decision_inputs.get("spend_currency_conversion_method")
             )
-        tree = await get_decision_tree_for_category(db, req.category_id)
+        try:
+            tree = await get_decision_tree_for_execution(
+                db,
+                req.category_id,
+                req.decision_tree_version_id,
+            )
+        except CalculationVersionError as error:
+            raise HTTPException(status_code=409, detail=str(error))
         formula_id = None
         tree_path = []
         
@@ -734,12 +750,15 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                     detail=f"No decision tree or formula configured for category {req.category_id}",
                 )
 
-        formula_doc = await db.ce_formulas.find_one(
-            {"id": formula_id, "is_active": True}, {"_id": 0},
-        )
-        if not formula_doc:
-            raise HTTPException(status_code=404,
-                                detail=f"Formula '{formula_id}' not found or inactive")
+        try:
+            formula_doc = await resolve_formula_version_for_tree(
+                db,
+                tree,
+                formula_id,
+                req.formula_version_id,
+            )
+        except CalculationVersionError as error:
+            raise HTTPException(status_code=409, detail=str(error))
         definition = dict(formula_doc["definition"])
         definition.setdefault("id", formula_doc["id"])
         definition.setdefault("version_id", formula_doc.get("version_id"))
@@ -841,10 +860,24 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             logger.error(f"[CALC ERROR] Formula: {formula_id}, Inputs: {req.inputs}")
             raise HTTPException(status_code=400, detail=str(e))
 
+        if result.get("audit_log_id"):
+            await db.ce_calculation_audit_logs.update_one(
+                {"id": result["audit_log_id"]},
+                {"$set": {
+                    "decision_tree_version_id": tree.get("version_id") if tree else None,
+                    "formula_snapshot": formula_snapshot(formula_doc),
+                }},
+            )
+
         return {
             "ok": True,
             "resolved_formula": {"id": formula_id, "name": formula_doc.get("name"),
                                   "version_id": formula_doc.get("version_id")},
+            "resolved_decision_tree": {
+                "id": tree.get("id"),
+                "version_id": tree.get("version_id"),
+            } if tree else None,
+            "formula_snapshot": formula_snapshot(formula_doc),
             "decision_path": tree_path,
             **result,
         }
@@ -853,6 +886,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
     async def get_form_config_for_category(
         category_id: str,
         scope: str = None,
+        decision_tree_version_id: Optional[str] = None,
+        formula_version_id: Optional[str] = None,
         current_user: dict = Depends(get_current_user),
     ):
         """
@@ -867,7 +902,14 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         based on what the formula actually needs.
         """
         # 1. Get the decision tree for this category
-        tree = await get_decision_tree_for_category(db, category_id)
+        try:
+            tree = await get_decision_tree_for_execution(
+                db,
+                category_id,
+                decision_tree_version_id,
+            )
+        except CalculationVersionError as error:
+            raise HTTPException(status_code=409, detail=str(error))
         
         # 2. Get the category details
         category_doc = await db.emission_categories.find_one(
@@ -886,13 +928,20 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             decision_fields = extract_decision_fields_from_tree(tree.get("tree", {}))
             
             for fid in formula_ids:
-                formula_doc = await db.ce_formulas.find_one(
-                    {"id": fid, "is_active": True}, {"_id": 0}
-                )
+                try:
+                    formula_doc = await resolve_formula_version_for_tree(
+                        db,
+                        tree,
+                        fid,
+                        formula_version_id,
+                    )
+                except CalculationVersionError:
+                    formula_doc = None
                 if formula_doc:
                     formulas_info.append({
                         "id": formula_doc["id"],
                         "name": formula_doc.get("name"),
+                        "version_id": formula_doc.get("version_id"),
                         "inputs": formula_doc.get("definition", {}).get("inputs", []),
                         "outputs": formula_doc.get("definition", {}).get("outputs", []),
                         "properties": formula_doc.get("definition", {}).get("properties", []),
@@ -1000,6 +1049,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "category": category_doc,
             "has_decision_tree": tree is not None,
             "decision_tree_id": tree.get("id") if tree else None,
+            "decision_tree_version_id": tree.get("version_id") if tree else None,
             "decision_tree": tree.get("tree") if tree else None,  # Include actual tree structure
             "decision_fields": decision_fields,  # Fields user must answer to traverse tree
             "formulas": formulas_info,

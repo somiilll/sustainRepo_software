@@ -372,6 +372,8 @@ export function buildCreatePayload(monthData, ctx) {
     calculatedN2O,
     calculatedCO2e,
     resolvedFormulaId,
+    formulaVersionId,
+    decisionTreeVersionId,
   } = ctx;
 
   const dynamicFieldValues = buildDynamicFieldValues(monthData, ctx);
@@ -421,6 +423,8 @@ export function buildCreatePayload(monthData, ctx) {
     process_type: processType,
 
     formula_id: resolvedFormulaId,
+    formula_version_id: formulaVersionId || null,
+    decision_tree_version_id: decisionTreeVersionId || null,
 
     ...(scope === 'biogenic' && {
       biogenic_scope_selection: biogenicScopeSelection,

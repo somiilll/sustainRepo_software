@@ -15,15 +15,19 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [logoUrl, setLogoUrl] = useState(LOGO_FALLBACK);
+  const [backgroundUrl, setBackgroundUrl] = useState('');
 
   useEffect(() => {
-    axios.get(`${API}/api/software-assets/logo`)
-      .then((r) => {
-        const url = r.data?.url;
-        if (url?.startsWith(API)) setLogoUrl(url);
-        if (url?.startsWith('/')) setLogoUrl(`${API}${url}`);
-      })
-      .catch(() => null);
+    const getSoftwareAssetUrl = async (assetName) => {
+      const { data } = await axios.get(`${API}/api/software-assets/${assetName}`);
+      const url = data?.url;
+      if (url?.startsWith(API)) return url;
+      if (url?.startsWith('/')) return `${API}${url}`;
+      return url || '';
+    };
+
+    getSoftwareAssetUrl('logo').then((url) => url && setLogoUrl(url)).catch(() => null);
+    getSoftwareAssetUrl('login-background').then((url) => url && setBackgroundUrl(url)).catch(() => null);
   }, []);
   
   const { login } = useAuth();
@@ -51,12 +55,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundImage: 'url(https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/oemf5qmw_Gemini_Generated_Image_pd3pitpd3pitpd3p.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+    <div className="min-h-screen flex bg-[#10191a]" style={{ backgroundImage: backgroundUrl ? `url(${backgroundUrl})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center' }} data-testid="login-page-background">
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/20">
             <div className="flex items-center justify-center mb-6">
-              <img src={logoUrl} alt="SustainRepo Logo" className="w-16 h-16 rounded-full" />
+              <img src={logoUrl} alt="SustainRepo Logo" className="w-16 h-16 rounded-full" data-testid="login-logo" />
             </div>
             
             <h1 className="text-3xl font-heading font-bold text-center mb-2 text-text-primary">SustainRepo</h1>

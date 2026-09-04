@@ -237,6 +237,10 @@ export function buildEditPayload(ctx) {
     fuel_database_id: isScope3LikeSave ? null : formData.fuel_id,
 
     formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
+    formula_version_id: editingEmission?.formula_version_id
+      ? (effectiveCalculatedEmissions?.formulaVersionId || editingEmission.formula_version_id)
+      : null,
+    decision_tree_version_id: editingEmission?.decision_tree_version_id || null,
 
     ...(formData.scope === 'biogenic' && {
       biogenic_scope_selection: biogenicScopeSelection,

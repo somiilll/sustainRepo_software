@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
+from calc_engine.versioning import CalculationVersionError, apply_record_version_binding
 from modules.auth.dependencies import get_admin_user, get_current_user
 from modules.entitlements.dependencies import assert_period_row_limit
 from modules.emissions.c7_contracts import (
@@ -36,6 +37,13 @@ from shared.helpers.audit_helpers import compute_field_changes, get_input_label_
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
 router = APIRouter()
+
+
+async def _bind_calculation_version(payload: dict, existing: Optional[dict] = None) -> dict:
+    try:
+        return await apply_record_version_binding(db, payload, existing_record=existing)
+    except CalculationVersionError as error:
+        raise HTTPException(status_code=409, detail=str(error))
 
 
 @router.post("/emissions/c7/month", response_model=C7MonthlyEntryResponse)
@@ -149,6 +157,8 @@ async def create_or_update_c7_monthly_entry(
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
@@ -187,6 +197,8 @@ async def create_or_update_c7_monthly_entry(
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
@@ -202,6 +214,7 @@ async def create_or_update_c7_monthly_entry(
             "version": old_version + 1
         }
         
+        update_dict = await _bind_calculation_version(update_dict, existing)
         await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
         
         # Save version history
@@ -254,6 +267,8 @@ async def create_or_update_c7_monthly_entry(
             "scope3_ef_id": entry_data.activity_id,
             "scope3_activity": entry_data.activity_name,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "employees": entry_data.employees,
             "monthly_total": monthly_total,
@@ -274,6 +289,7 @@ async def create_or_update_c7_monthly_entry(
             "created_by_name": current_user.get("full_name", ""),
         }
         
+        new_entry = await _bind_calculation_version(new_entry)
         await db.emission_records.insert_one(new_entry)
         
         # Save creation history for C7
@@ -601,6 +617,8 @@ async def create_or_update_c7_yearly_entry(
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
@@ -616,6 +634,7 @@ async def create_or_update_c7_yearly_entry(
             "version": old_version + 1
         }
         
+        update_dict = await _bind_calculation_version(update_dict, existing)
         await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
         
         # Save update history for C7 yearly (track employee input changes)
@@ -680,6 +699,8 @@ async def create_or_update_c7_yearly_entry(
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "employees": entry_data.employees,
             "yearly_total": yearly_total,
@@ -701,6 +722,7 @@ async def create_or_update_c7_yearly_entry(
             "updated_by": None
         }
         
+        new_record = await _bind_calculation_version(new_record)
         await db.emission_records.insert_one(new_record)
         
         # Save creation history for C7 yearly

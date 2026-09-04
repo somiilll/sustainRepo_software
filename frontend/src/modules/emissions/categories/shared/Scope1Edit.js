@@ -346,6 +346,10 @@ export function buildEditPayload(ctx) {
     process_type: isProcessEmissions ? editProcessType || null : null,
 
     formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
+    formula_version_id: editingEmission?.formula_version_id
+      ? (effectiveCalculatedEmissions?.formulaVersionId || editingEmission.formula_version_id)
+      : null,
+    decision_tree_version_id: editingEmission?.decision_tree_version_id || null,
 
     // (Biogenic spread retained — kept by Scope1Edit only when scope==='biogenic',
     // which only happens for biogenic-scope1 since biogenic-scope3 takes the

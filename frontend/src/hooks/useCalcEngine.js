@@ -107,6 +107,8 @@ export function useCalcEngine(getAuthHeader) {
     calculationMethodology,
     useCustomFuel = false,
     customFuelName = '',
+    decisionTreeVersionId = null,
+    formulaVersionId = null,
   }) => {
     // For custom fuel, we don't need fuel object but we need quantity and category
     if (!quantity || (!fuel && !useCustomFuel) || !category) {
@@ -224,7 +226,9 @@ export function useCalcEngine(getAuthHeader) {
           inputs: inputs,
           context: context,
           user_overrides: userOverrides,
-          dry_run: dryRun
+          dry_run: dryRun,
+          ...(decisionTreeVersionId && { decision_tree_version_id: decisionTreeVersionId }),
+          ...(formulaVersionId && { formula_version_id: formulaVersionId }),
         },
         { headers: getAuthHeader() }
       );
@@ -257,6 +261,9 @@ export function useCalcEngine(getAuthHeader) {
           n2oEmissions: outputs.n2o?.value || 0,
           co2eEmissions: co2eEmissions,
           appliedFormulaName: response.data.resolved_formula?.name || 'Backend Calc Engine',
+          formulaId: response.data.resolved_formula?.id || null,
+          formulaVersionId: response.data.resolved_formula?.version_id || null,
+          decisionTreeVersionId: response.data.resolved_decision_tree?.version_id || null,
           calculationSteps: calculationSteps,
           co2OutputUnit: outputs.co2?.unit || 'tCO₂',
           ch4OutputUnit: outputs.ch4?.unit || 'tCH₄',

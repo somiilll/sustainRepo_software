@@ -17,6 +17,8 @@ class C7MonthlyEntryCreate(BaseModel):
     activity_id: Optional[str] = None
     activity_name: Optional[str] = None
     formula_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
+    decision_tree_version_id: Optional[str] = None
     formula_name: Optional[str] = None
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
@@ -44,6 +46,10 @@ class C7MonthlyEntryResponse(BaseModel):
     activity_type: str
     activity_id: Optional[str] = None
     activity_name: Optional[str] = None
+    formula_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
+    decision_tree_version_id: Optional[str] = None
+    formula_snapshot: Optional[Dict[str, Any]] = None
     employees: List[Dict[str, Any]]
     monthly_total: Dict[str, Any]
     notes: Optional[str] = None
@@ -66,6 +72,8 @@ class C7YearlyEntryCreate(BaseModel):
     activity_id: Optional[str] = None
     activity_name: Optional[str] = None
     formula_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
+    decision_tree_version_id: Optional[str] = None
     formula_name: Optional[str] = None
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
@@ -100,6 +108,10 @@ class C7YearlyEntryResponse(BaseModel):
     activity_type: str
     activity_id: Optional[str] = None
     activity_name: Optional[str] = None
+    formula_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
+    decision_tree_version_id: Optional[str] = None
+    formula_snapshot: Optional[Dict[str, Any]] = None
     employees: List[Dict[str, Any]]
     yearly_total: Dict[str, Any]
     notes: Optional[str] = None

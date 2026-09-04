@@ -15,6 +15,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
+from calc_engine.versioning import CalculationVersionError, apply_record_version_binding
 from modules.approvals.emission_flow_v2 import (
     APPROVED_COLLECTION,
     PENDING_COLLECTION,
@@ -1045,6 +1046,10 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     )
     
     record_dict = record_data.model_dump()
+    try:
+        record_dict = await apply_record_version_binding(db, record_dict)
+    except CalculationVersionError as error:
+        raise HTTPException(status_code=409, detail=str(error))
     record_id = str(uuid.uuid4())
     record_dict["id"] = record_id
     record_dict["created_by"] = current_user["id"]
@@ -1365,6 +1370,20 @@ async def update_emission_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
 
+    try:
+        versioned_record_data = await apply_record_version_binding(
+            db,
+            record_data.model_dump(),
+            existing_record=existing,
+        )
+        versioned_update_data = await apply_record_version_binding(
+            db,
+            record_data.model_dump(exclude_unset=True),
+            existing_record=existing,
+        )
+    except CalculationVersionError as error:
+        raise HTTPException(status_code=409, detail=str(error))
+
     await assert_ghg_scope_access(
         existing.get("organization_id"),
         existing.get("scope"),
@@ -1467,7 +1486,7 @@ async def update_emission_record(
                 await _update_existing_approval_request(
                     request_id=existing_request.get("id"),
                     existing_record=existing,
-                    updated_data=record_data.model_dump(),
+                    updated_data=versioned_record_data,
                     user_id=user_id,
                     current_user=current_user,
                 )
@@ -1477,7 +1496,7 @@ async def update_emission_record(
                 await _create_emission_update_approval_request(
                     org_id=org_id,
                     existing_record=existing,
-                    updated_data=record_data.model_dump(),
+                    updated_data=versioned_record_data,
                     assignment=assignment,
                     user_id=user_id,
                     current_user=current_user,
@@ -1505,7 +1524,7 @@ async def update_emission_record(
             detail=f"Cannot change frequency_type from '{existing_frequency}' to '{new_frequency}'. Delete and recreate the record if needed."
         )
     
-    update_dict = record_data.model_dump(exclude_unset=True)
+    update_dict = versioned_update_data
     # Ensure frequency_type is preserved
     update_dict["frequency_type"] = existing_frequency
     removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_dict)
@@ -1532,7 +1551,7 @@ async def update_emission_record(
     update_dict["total_emissions"] = update_dict["co2e_emissions"]
     
     # Prepare new_values for history with proper emission field names
-    history_new_values = record_data.model_dump()
+    history_new_values = dict(versioned_record_data)
     history_new_values["co2_emissions"] = update_dict["co2_emissions"]
     history_new_values["ch4_emissions"] = update_dict["ch4_emissions"]
     history_new_values["n2o_emissions"] = update_dict["n2o_emissions"]

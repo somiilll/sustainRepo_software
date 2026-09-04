@@ -38,6 +38,7 @@ export async function persistCalcAuditLog(emissionId, ctx) {
     editUseCustomFuel,
     editCustomFuelName,
     editCalcMethodology,
+    editingEmission,
     getAuthHeader,
   } = ctx;
 
@@ -128,6 +129,12 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       user_overrides: userOverrides,
       dry_run: false,
       emission_record_id: emissionId,
+      ...(editingEmission?.decision_tree_version_id && {
+        decision_tree_version_id: editingEmission.decision_tree_version_id,
+      }),
+      ...(editingEmission?.formula_version_id && {
+        formula_version_id: editingEmission.formula_version_id,
+      }),
       ...(formData.scope === 'scope3' && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
     };
 

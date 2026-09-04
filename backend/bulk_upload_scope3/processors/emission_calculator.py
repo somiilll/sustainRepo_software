@@ -45,6 +45,7 @@ def normalize_reporting_period(reporting_period: Optional[str]) -> Optional[str]
     """Normalize template month labels before resolving an effective currency rate."""
     if not reporting_period:
         return None
+
     value = str(reporting_period).strip()
     monthly_match = re.match(r"^([A-Za-z]{3,9})-(\d{4})$", value)
     if not monthly_match:
@@ -124,6 +125,20 @@ class EmissionCalculator:
             return category["id"]
         
         return None
+
+    async def _get_version_binding(self, category_id: str, formula_id: str) -> Dict[str, Any]:
+        formula = await self.db.ce_formulas.find_one(
+            {"id": formula_id, "is_active": True},
+            {"_id": 0, "version_id": 1},
+        )
+        tree = await self.db.ce_decision_trees.find_one(
+            {"category_id": category_id, "is_active": True},
+            {"_id": 0, "version_id": 1},
+        )
+        return {
+            "formula_version_id": (formula or {}).get("version_id"),
+            "decision_tree_version_id": (tree or {}).get("version_id"),
+        }
     
     async def _get_decision_tree(self, category_id: str) -> Optional[Dict]:
         """Get decision tree for a category (with caching)"""
@@ -264,6 +279,7 @@ class EmissionCalculator:
                     if resolved_formula_id:
                         result["formula_id"] = resolved_formula_id
                         result["decision_path"] = tree_path
+                        result.update(await self._get_version_binding(cat_id, resolved_formula_id))
                         # Get formula name
                         formula_doc = await self.db.ce_formulas.find_one(
                             {"id": resolved_formula_id}, {"_id": 0, "name": 1}
@@ -658,6 +674,7 @@ class EmissionCalculator:
                 "unit": output_unit,
                 "calculation_method": method.value,
                 "formula_id": formula_id,
+                **(await self._get_version_binding(category_id, formula_id)),
                 "formula_name": formula_doc.get("name"),
                 "decision_path": tree_path,
                 "inputs": {
@@ -1367,6 +1384,8 @@ class EmissionCalculator:
             "co2e_emissions": co2e_val,
             "total_emissions": co2e_val,  # Ensure total_emissions is always set
             "formula_id": formula_id,
+            "formula_version_id": calculated_emissions.get("formula_version_id"),
+            "decision_tree_version_id": calculated_emissions.get("decision_tree_version_id"),
             "supplier_name": str(row_data.get("supplier_name") or "") if row_data.get("supplier_name") else None,
             "supplier_code": str(row_data.get("supplier_code") or "") if row_data.get("supplier_code") else None,
             "asset_name": str(row_data.get("asset_name") or "") if row_data.get("asset_name") else None,
@@ -1731,6 +1750,8 @@ class EmissionCalculator:
             "scope3_ef_id": first_row.get("activity_match", {}).get("activity_id"),
             "scope3_activity": first_row.get("activity_match", {}).get("activity_name"),
             "formula_id": formula_id,
+            "formula_version_id": first_row.get("calculated_emissions", {}).get("formula_version_id"),
+            "decision_tree_version_id": first_row.get("calculated_emissions", {}).get("decision_tree_version_id"),
             # `formula_name` is set by manual C7 routes; bulk does not currently
             # surface a resolved name from the calc-engine response, so default
             # to None to keep the field present (parity over content).

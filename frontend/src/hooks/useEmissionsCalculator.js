@@ -43,6 +43,8 @@ export function useEmissionsCalculator(getAuthHeader) {
             co2eEmissions: outputs.co2e?.value || response.data.co2e_emissions || 0,
             appliedFormulaName: response.data.resolved_formula?.name || 'Dynamic Calc Engine',
             formulaId: response.data.resolved_formula?.id || response.data.formula_id || null,
+            formulaVersionId: response.data.resolved_formula?.version_id || response.data.formula_version_id || null,
+            decisionTreeVersionId: response.data.resolved_decision_tree?.version_id || null,
             auditLog: response.data.audit_log || [],
             calculationSteps: response.data.audit?.execution_log || {},
             fromBackend: true

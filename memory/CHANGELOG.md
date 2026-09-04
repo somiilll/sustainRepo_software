@@ -1,5 +1,21 @@
 # ESG Platform Changelog
 
+## September 4, 2026 — Immutable Formula and Decision-Tree Versions
+- Added a reusable calculation-version resolver and record-write guard. New emission records pin exact formula/tree versions and store a canonical formula snapshot generated from the server-side catalog.
+- Formula edits append formula versions and automatically append linked decision-tree versions with formula-version maps. Historical edits use pinned form configuration and calculations; switching to newer rules during edit is rejected.
+- Extended version persistence across manual emissions, C7 Employee Commuting, and Scope 1/2/3 Bulk Upload paths. Existing unversioned records are deliberately unchanged pending a separately approved migration.
+- Verified with backend unit tests (7/7), live API regressions (9/9), process-emissions tests (4/4), frontend tests/lint, production build, Python compilation, authenticated API checks, and browser smoke. No mocked APIs.
+
+## September 4, 2026 — R2-Backed Login Background
+- Uploaded the supplied WebP scene to the existing `software-image-dev` R2 bucket at `images/login-background.webp`.
+- Added the private R2 software-asset mapping and switched Login to fetch its signed background URL through `/api/software-assets/login-background`; no public raw asset URL is used by the page.
+- Verified R2 upload, signed URL generation, frontend ESLint, and live Login rendering.
+
+## September 4, 2026 — Super Admin Team Account Creation
+- Super Admins can now create and manage organization-scoped **User** and **Admin** accounts from Team Accounts, with a role selector, organization selector, separate seat-limit enforcement, secure password hashing, and invitation-email rollback on delivery failure.
+- Accounts continue to use the existing `users` collection and standard account fields; no collection or user-data migration was introduced.
+- Verified by production build, browser flow, and focused backend regression checks (13 passed; side-effecting email checks skipped safely). The known edge-proxy CORS override remains infrastructure-blocked.
+
 ## September 4, 2026 — New Organization Org Config Null-Framework Repair
 - Fixed the Org Config HTTP 500 caused by iterating over `esg_frameworks_enabled: null` while initializing newly created organizations.
 - Absence of an enabled ESG framework is now represented safely as an empty list for both legacy reads and future organization creation.

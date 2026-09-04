@@ -20,6 +20,7 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+- Design and approve the older-emission migration for calculation versions: idempotent batches, dry-run mapping report, unresolved-record report, migration status/timestamps, and no silent reinterpretation of legacy `formula_id` values.
 - Add multi-organization membership/context for suppliers that are also standalone customer organizations.
 - Add parent-configurable Supplier GHG dashboard widgets, KPIs, and visibility.
 - Implement a cleaner Supplier-to-Customer conversion architecture.
@@ -57,6 +58,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Added immutable formula and decision-tree version pinning for all new manual/C7/Bulk Upload emissions, historical edit calculation, canonical formula snapshots, and server-side guards against silent upgrades. Older unversioned records remain untouched pending the approved migration design.
 - Added configurable monthly, quarterly, and yearly supplier GHG submission cadence. Period submissions lock independently, parent unlock requires a reason with optional instructions and no secondary confirmation, and the shared backend guard blocks supplier writes to locked periods.
 - Completed the canonical ESG response migration: all runtime reads/writes now use `organization_esg_responses`, immutable history remains in `esg_responses_versions`, the questionnaire queue is source-isolated, and the empty `esg_responses` collection was dropped after 37/37 migration regressions passed.
 - Fixed supplier reminder filtering, completed-item due-date visibility, Annual Revenue required-state retention, and server-side supplier GHG restrictions. Custom fuels, Process Emissions, and Flaring are denied unless the parent program explicitly enables each policy.

@@ -5,7 +5,7 @@
 const superAdminSidebarConfig = [
   { key: 'sa-dashboard', label: 'Dashboard', path: '/super-admin', icon: 'Globe' },
   { key: 'sa-orgs', label: 'Organizations', path: '/super-admin/organizations', icon: 'Building' },
-  { key: 'sa-admins', label: 'Admins', path: '/super-admin/admins', icon: 'UserCog' },
+  { key: 'sa-admins', label: 'Team Accounts', path: '/super-admin/admins', icon: 'UserCog' },
   { key: 'sa-sectors', label: 'Sectors', path: '/super-admin/sectors', icon: 'Layers' },
   { key: 'sa-esg-config', label: 'ESG Config', path: '/super-admin/esg-config', icon: 'Settings2' },
   { key: 'sa-kpi-defs', label: 'KPI Definitions', path: '/super-admin/kpi-definitions', icon: 'Gauge' },

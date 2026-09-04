@@ -7,7 +7,7 @@ Maintain the product roadmap and repository health while fixing backend defects 
 Provide a dependable ESG and GHG management platform where organization configuration controls every supported input path consistently, including manual entry, Bulk Upload, reporting, supplier assessment, and administrative workflows.
 
 ## User Personas
-- **Super Admin:** Configures organization capabilities, module access, plan limits, workflows, and platform-wide controls.
+- **Super Admin:** Configures organization capabilities, module access, plan limits, workflows, organization-scoped Admin/User accounts, and platform-wide controls.
 - **Organization Admin:** Manages facilities, emissions, ESG records, suppliers, documents, training, targets, and reports.
 - **Assigned User:** Enters and manages records allowed by facility, KPI assignment, workflow, and organization entitlements.
 - **Supplier User:** Completes assigned ESG, GHG, document, and training requirements with immutable submissions.
@@ -73,7 +73,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Soft-deleted/deactivated suppliers must not retain platform access.
 
 ## Architecture
-- `/app/backend/modules/sustainability_config/` — canonical organization settings and GHG overrides.
+- `/app/backend/modules/sustainability_config/` — canonical organization settings and GHG overrides; software assets are served from the private R2 `software_images` bucket through signed URLs.
 - `/app/backend/modules/entitlements/` — canonical module access and numeric plan-limit enforcement.
 - `/app/backend/modules/emissions/` — manual GHG create, edit, history, C7, rollback, and response contracts.
 - `/app/backend/bulk_upload_scope3/` — Excel generation, streaming parsing, validation, preview, and record construction for all GHG scopes.
@@ -100,7 +100,7 @@ Provide a dependable ESG and GHG management platform where organization configur
 - `POST /api/bulk-upload/scope3/upload`
 - `POST /api/bulk-upload/scope3/jobs/{job_id}/save`
 - `GET /api/bulk-upload/scope3/template/download`
-- `GET /api/sustainability-config/resolved`
+- `GET /api/sustainability-config/resolved`, `GET /api/software-assets/{asset_name}`, and `POST|GET|DELETE /api/super-admin/accounts`
 
 ## Current Verification Baseline
 - GHG period row-limit focused regression: **7/7 passed** on 2026-08-25.
@@ -792,3 +792,11 @@ Provide a dependable ESG and GHG management platform where organization configur
 ## Roadmap Update — 2026-09-04 (BRSR/GRI Metric Response Suggestions)
 - Deferred ESG/GHG-to-BRSR/GRI question mapping to P1.
 - Planned workflow treats mapped values as reviewable suggestions, supports reversible accept/reject decisions, requires manual answers after rejection, retains immutable decision history and source provenance, and marks accepted responses stale when source records change.
+
+## Latest Changes — 2026-09-04 (Immutable Calculation Version Pinning)
+- Formula definitions and decision trees now append immutable version snapshots. Changing a formula also versions every active decision tree that references it so each calculation release has a coherent formula-version map.
+- New manual, C7, Scope 1/2 bulk, and Scope 3 bulk emission records persist `formula_version_id`, `decision_tree_version_id`, and a backend-generated immutable `formula_snapshot` when a resolved formula is available.
+- Versioned records load their historical form configuration and execute live edit calculations against their pinned versions. Saves cannot silently switch to newer formula/tree versions, and there is intentionally no “Use latest rules” action; users create a new entry for current rules.
+- Existing unversioned emissions remain on the unchanged legacy path. No historical data migration, backfill, or rewrite was performed; a separate dry-run/batch migration remains deferred until the user selects an older-data strategy.
+- Verification passed: 7 focused backend unit tests, 9 live API versioning regressions, process-emissions regression 4/4, frontend C7/payload tests, targeted ESLint, production build, Python compilation, authenticated API checks, and browser login/dashboard smoke. Testing report: `/app/test_reports/iteration_43.json`, followed by successful self-tests for the bulk helper and yearly C7 contract fixes. No APIs were mocked.
+- Known unrelated infrastructure issue remains: the edge proxy overrides auth preflight CORS headers with `Access-Control-Allow-Origin: *`; application code cannot correct that gateway behavior.

@@ -17,6 +17,7 @@ router = APIRouter()
 # Software asset keys stored in R2 (software_images bucket)
 SOFTWARE_ASSETS = {
     "logo": "logos/sustainrepo_logo.png",
+    "login-background": "images/login-background.webp",
 }
 
 
