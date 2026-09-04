@@ -53,7 +53,7 @@ import {
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
   Trash2, Edit2, Eye, X, Save, FileEdit, RefreshCw,
-  CheckCircle2, Clock, AlertTriangle, Lock, Link2, Paperclip, Download,
+  CheckCircle2, Clock, AlertTriangle, Lock, Link2, Paperclip, Download, TrendingUp, Send,
   ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
@@ -1002,7 +1002,7 @@ export default function ESGRecordsDataEntry({
     const yearLabel = reportingYearType === 'financial_year' ? 'Financial Year' : (formData.reporting_type === 'yearly' && reportingYearType === 'calendar_year' ? 'Calendar Year' : 'Year');
 
     return (
-      <div className="flex gap-6 items-start" data-testid="add-metric-layout">
+      <div className="flex gap-6 items-start rounded-xl bg-white p-5" data-testid="add-metric-layout">
         {/* ── Left Panel: Selection ── */}
         <Card className="w-[320px] shrink-0 p-5 sticky top-4 space-y-4 bg-stone-50/70" data-testid="add-metric-left-panel">
           <h3 className="text-base font-semibold flex items-center gap-2">
@@ -1273,25 +1273,33 @@ export default function ESGRecordsDataEntry({
 
   // Render List View
   return (
-    <div className="space-y-7 rounded-xl bg-stone-100/70 p-4 sm:p-5" data-testid="esg-metrics-ledger">
+    <div className="space-y-5" data-testid="esg-metrics-ledger">
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="min-h-[94px] rounded-xl border-stone-200 bg-stone-50/90 p-5 shadow-sm" data-testid="metrics-total-card">
-            <div className="text-2xl font-bold text-text-primary">{stats.total || 0}</div>
-            <div className="text-sm text-text-muted">Total Metrics</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Card className="min-h-[88px] rounded-lg border-stone-200 bg-white p-4 shadow-sm" data-testid="metrics-total-card">
+            <div className="flex h-full items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700" data-testid="metrics-total-icon"><TrendingUp className="h-5 w-5" /></span>
+              <div><div className="text-2xl font-bold leading-none text-emerald-950">{stats.total || 0}</div><div className="mt-1.5 text-xs font-medium text-stone-500">Total Metrics</div></div>
+            </div>
           </Card>
-          <Card className="min-h-[94px] rounded-xl border-stone-200 bg-stone-50/90 p-5 shadow-sm" data-testid="metrics-drafts-card">
-            <div className="text-2xl font-bold text-yellow-600">{stats.drafts || 0}</div>
-            <div className="text-sm text-text-muted">Drafts</div>
+          <Card className="min-h-[88px] rounded-lg border-stone-200 bg-white p-4 shadow-sm" data-testid="metrics-drafts-card">
+            <div className="flex h-full items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-700" data-testid="metrics-drafts-icon"><FileText className="h-5 w-5" /></span>
+              <div><div className="text-2xl font-bold leading-none text-amber-600">{stats.drafts || 0}</div><div className="mt-1.5 text-xs font-medium text-stone-500">Drafts</div></div>
+            </div>
           </Card>
-          <Card className="min-h-[94px] rounded-xl border-stone-200 bg-stone-50/90 p-5 shadow-sm" data-testid="metrics-submitted-card">
-            <div className="text-2xl font-bold text-blue-600">{stats.submitted || 0}</div>
-            <div className="text-sm text-text-muted">Submitted</div>
+          <Card className="min-h-[88px] rounded-lg border-stone-200 bg-white p-4 shadow-sm" data-testid="metrics-submitted-card">
+            <div className="flex h-full items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600" data-testid="metrics-submitted-icon"><Send className="h-5 w-5" /></span>
+              <div><div className="text-2xl font-bold leading-none text-blue-600">{stats.submitted || 0}</div><div className="mt-1.5 text-xs font-medium text-stone-500">Submitted</div></div>
+            </div>
           </Card>
-          <Card className="min-h-[94px] rounded-xl border-stone-200 bg-stone-50/90 p-5 shadow-sm" data-testid="metrics-approved-card">
-            <div className="text-2xl font-bold text-green-600">{stats.approved || 0}</div>
-            <div className="text-sm text-text-muted">Approved</div>
+          <Card className="min-h-[88px] rounded-lg border-stone-200 bg-white p-4 shadow-sm" data-testid="metrics-approved-card">
+            <div className="flex h-full items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700" data-testid="metrics-approved-icon"><CheckCircle2 className="h-5 w-5" /></span>
+              <div><div className="text-2xl font-bold leading-none text-emerald-600">{stats.approved || 0}</div><div className="mt-1.5 text-xs font-medium text-stone-500">Approved</div></div>
+            </div>
           </Card>
         </div>
       )}

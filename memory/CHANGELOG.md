@@ -2,7 +2,9 @@
 
 ## September 4, 2026 — Energy KPI Logs Polish and Filters
 - Refined shared ESG KPI tables, Status/All Facilities filtering, and scoped Energy/Water filter visibility.
-- Matched Energy Logs tabs, KPI cards, and page surfaces to the rounded reference treatment. **NOT TESTED for the latest rounded-surface refinement at user request.**
+- Matched Energy Logs tabs, KPI cards, and page surfaces to the supplied reference: independent compact tabs and left-icon KPI tiles.
+- Added a white Add Metric workspace surface. Verified with frontend ESLint and authenticated live Energy Logs rendering.
+- Added KPI icons, content-sized metric tabs, and a white Add Metric workspace; verified with frontend ESLint and authenticated live interaction checks.
 
 ## September 3, 2026 — Voluntary Target Section Headings
 - Added section-specific shared headers for Environment Target, Social Target, and Governance Target.
