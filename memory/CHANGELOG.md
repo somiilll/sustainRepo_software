@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 4, 2026 — New Organization Org Config Null-Framework Repair
+- Fixed the Org Config HTTP 500 caused by iterating over `esg_frameworks_enabled: null` while initializing newly created organizations.
+- Absence of an enabled ESG framework is now represented safely as an empty list for both legacy reads and future organization creation.
+- Verified through focused unit/API checks and the authenticated Testing organization editor; testing-agent iteration 41 passed backend and frontend checks with no mocked APIs.
+
 ## September 4, 2026 — Energy KPI Logs Polish and Filters
 - Refined shared ESG KPI tables, Status/All Facilities filtering, and scoped Energy/Water filter visibility.
 - Matched Energy Logs tabs, KPI cards, and page surfaces to the supplied reference: independent compact tabs and left-icon KPI tiles.

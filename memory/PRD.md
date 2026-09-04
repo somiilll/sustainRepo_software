@@ -781,3 +781,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Added inclusive Start Period and End Period controls to KPI logs. The API now validates `YYYY-MM` ranges and applies them consistently to native ESG and GHG-imported records; the live Energy KPI range control verified successfully.
 - Added restrained KPI icons, made the Metrics Logs/Add Metric control content-sized rather than page-wide, and placed the Add Metric workspace on a dedicated white surface.
 - Verified with frontend ESLint and authenticated live Energy KPI Logs/Add Metric interaction checks.
+
+## Latest Changes — 2026-09-04 (New Organization Org Config Null-Framework Repair)
+- Fixed `GET /api/sustainability-config/org-config` returning HTTP 500 for newly created organizations whose legacy `esg_frameworks_enabled` value was absent or `null`.
+- Organization-settings normalization now treats an absent or null framework list as `[]`, representing a valid organization with no ESG reporting frameworks enabled.
+- New `OrganizationCreate` payloads default the field to an independent empty list and safely coerce explicitly supplied null values to `[]`, preventing future null persistence through the organization API.
+- Verified with Python compilation, focused unit tests, a live authenticated API response for the existing Testing organization, an authenticated Org Config browser check, and testing-agent iteration 41 (backend/frontend 100%, no mocked APIs).
