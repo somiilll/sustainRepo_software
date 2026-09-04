@@ -6,6 +6,7 @@ Handles business logic for ESG records with versioning support.
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
+import re
 import uuid
 from fastapi import HTTPException
 from shared.database.mongo import db
@@ -1702,6 +1703,37 @@ class ESGRecordsService:
         
         # Build query
         query = {"org_id": org_id, "is_current": True}
+
+        def period_key(period: str) -> int:
+            match = re.fullmatch(r"(\d{4})-(0[1-9]|1[0-2])", period or "")
+            if not match:
+                raise ValueError("Period filters must use YYYY-MM")
+            return int(match.group(1)) * 100 + int(match.group(2))
+
+        month_number = {
+            "$switch": {
+                "branches": [
+                    {"case": {"$isNumber": "$reporting_period.month"}, "then": "$reporting_period.month"},
+                    {"case": {"$in": ["$reporting_period.month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]]}, "then": {"$add": [{"$indexOfArray": [["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], "$reporting_period.month"]}, 1]}},
+                ],
+                "default": {"$convert": {"input": "$reporting_period.month", "to": "int", "onError": 1, "onNull": 1}},
+            }
+        }
+        period_key_expression = {
+            "$add": [
+                {"$multiply": [{"$convert": {"input": "$reporting_period.year", "to": "int", "onError": 0, "onNull": 0}}, 100]},
+                month_number,
+            ]
+        }
+        period_conditions = []
+        if filters.period_start:
+            period_conditions.append({"$gte": [period_key_expression, period_key(filters.period_start)]})
+        if filters.period_end:
+            period_conditions.append({"$lte": [period_key_expression, period_key(filters.period_end)]})
+        if filters.period_start and filters.period_end and period_key(filters.period_start) > period_key(filters.period_end):
+            raise ValueError("Start Period cannot be after End Period")
+        if period_conditions:
+            query["$expr"] = period_conditions[0] if len(period_conditions) == 1 else {"$and": period_conditions}
         
         # Handle single category or multiple categories
         if filters.categories and len(filters.categories) > 0:

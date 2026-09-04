@@ -244,6 +244,8 @@ class RecordListFilters(BaseModel):
     framework: Optional[str] = None
     year: Optional[int] = None
     month: Optional[str] = None
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
     search: Optional[str] = None
     page: int = 1
     limit: int = 20

@@ -131,6 +131,8 @@ export default function ESGRecordsDataEntry({
     subcategory: preFilterSubcategory || '',
     status: 'all',
     facility_id: 'all',
+    period_start: '',
+    period_end: '',
     search: ''
   });
   
@@ -432,6 +434,8 @@ export default function ESGRecordsDataEntry({
       
       if (filters.status && filters.status !== 'all') params.status = filters.status;
       if (filters.facility_id && filters.facility_id !== 'all') params.facility_id = filters.facility_id;
+      if (filters.period_start) params.period_start = filters.period_start;
+      if (filters.period_end) params.period_end = filters.period_end;
       if (filters.search) params.search = filters.search;
 
       const res = await axios.get(`${API}/api/esg-records/records/${section}`, {
@@ -1350,6 +1354,30 @@ export default function ESGRecordsDataEntry({
               ))}
             </SelectContent>
           </Select>
+
+          <div className="flex items-center gap-2" data-testid="metrics-period-range-filter">
+            <Input
+              type="month"
+              aria-label="Start Period"
+              title="Start Period"
+              value={filters.period_start}
+              max={filters.period_end || undefined}
+              onChange={(e) => setFilters(prev => ({ ...prev, period_start: e.target.value }))}
+              className="h-9 w-[145px] rounded-lg border-stone-200 bg-white text-sm"
+              data-testid="metrics-period-start-input"
+            />
+            <span className="text-xs font-medium text-stone-400">to</span>
+            <Input
+              type="month"
+              aria-label="End Period"
+              title="End Period"
+              value={filters.period_end}
+              min={filters.period_start || undefined}
+              onChange={(e) => setFilters(prev => ({ ...prev, period_end: e.target.value }))}
+              className="h-9 w-[145px] rounded-lg border-stone-200 bg-white text-sm"
+              data-testid="metrics-period-end-input"
+            />
+          </div>
 
           <div className="flex-1 max-w-xs">
             <Input

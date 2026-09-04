@@ -778,5 +778,6 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Corrected Status filtering end-to-end and clarified All Facilities as the current organization’s facilities plus organization-level records. Scoped Energy and Water logs no longer show the redundant category dropdown.
 - Updated Energy Logs tabs, KPI cards, filters, bulk-action surface, and table container to the supplied rounded-corner reference treatment. The KPI tiles now use the reference’s left-aligned circular icons and count/label grouping, while tabs are independent compact buttons rather than a full-width control.
 - Add Metric uses its own white workspace surface. Verified with frontend ESLint and authenticated live Energy Logs rendering.
+- Added inclusive Start Period and End Period controls to KPI logs. The API now validates `YYYY-MM` ranges and applies them consistently to native ESG and GHG-imported records; the live Energy KPI range control verified successfully.
 - Added restrained KPI icons, made the Metrics Logs/Add Metric control content-sized rather than page-wide, and placed the Add Metric workspace on a dedicated white surface.
 - Verified with frontend ESLint and authenticated live Energy KPI Logs/Add Metric interaction checks.

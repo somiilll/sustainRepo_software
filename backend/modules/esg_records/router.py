@@ -14,6 +14,7 @@ from typing import Optional, List
 from datetime import datetime, timezone
 import uuid
 import hashlib
+import re
 
 from modules.auth.dependencies import get_current_user
 from modules.entitlements.dependencies import assert_entitlement, assert_monthly_row_limit
@@ -520,6 +521,8 @@ async def list_records(
     framework: Optional[str] = None,
     year: Optional[int] = None,
     month: Optional[str] = None,
+    period_start: Optional[str] = Query(None, description="Inclusive reporting-period start in YYYY-MM format"),
+    period_end: Optional[str] = Query(None, description="Inclusive reporting-period end in YYYY-MM format"),
     search: Optional[str] = None,
     include_imported: bool = Query(True, description="Include GHG module imported records"),
     page: int = Query(1, ge=1),
@@ -600,6 +603,11 @@ async def list_records(
         await _assert_record_category_access(org_id, section, category)
     for selected_category in categories_list or []:
         await _assert_record_category_access(org_id, section, selected_category)
+    for label, value in (("Start Period", period_start), ("End Period", period_end)):
+        if value and not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", value):
+            raise HTTPException(status_code=422, detail=f"{label} must use YYYY-MM format")
+    if period_start and period_end and period_start > period_end:
+        raise HTTPException(status_code=422, detail="Start Period cannot be after End Period")
     
     filters = RecordListFilters(
         category=category,
@@ -611,6 +619,8 @@ async def list_records(
         framework=framework,
         year=year,
         month=month,
+        period_start=period_start,
+        period_end=period_end,
         search=search,
         page=page,
         limit=limit
@@ -655,6 +665,21 @@ async def list_records(
                 return operational_status == status
 
             imported_records = [record for record in imported_records if matches_status(record)]
+
+        if (period_start or period_end) and imported_records:
+            month_numbers = {name: index + 1 for index, name in enumerate(["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])}
+
+            def matches_period(record: dict) -> bool:
+                period = record.get("reporting_period") or {}
+                try:
+                    year_value = int(period.get("year"))
+                    month_value = month_numbers.get(period.get("month"), period.get("month", 1))
+                    record_period = f"{year_value:04d}-{int(month_value):02d}"
+                except (TypeError, ValueError):
+                    return False
+                return (not period_start or record_period >= period_start) and (not period_end or record_period <= period_end)
+
+            imported_records = [record for record in imported_records if matches_period(record)]
         
         # Filter by categories list if provided (for "Others" page)
         if categories_list and imported_records:
@@ -717,6 +742,8 @@ async def list_records(
                 framework=framework,
                 year=year,
                 month=month,
+                period_start=period_start,
+                period_end=period_end,
                 search=search,
                 page=1,
                 limit=999999
