@@ -1,5 +1,12 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Organization GHG Details Layout Polish
+- Aligned Person Responsible, Designation, and Contact Details in one responsive edit row.
+- Moved Reporting Frequency from Basic Details to GHG Details while retaining Reporting Year Type under Basic Details.
+- Replaced the equity-share disclaimer’s yellow warning treatment with neutral supporting text.
+- On saved GHG Details, placed Organizational Boundaries and Uncertainty Assessment in a responsive shared row and removed tinted boundary-approach panels.
+- **NOT TESTED** per the user’s explicit instruction.
+
 ## September 7, 2026 — Organization Summary and All-Years Data View
 - Removed country, timezone, reporting-year type, facility count, target count, and reporting cadence from the Organization summary.
 - Joined the corporate address into one line and removed timezone from the address card.

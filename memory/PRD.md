@@ -24,8 +24,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Organization Details uses four responsive tabs: **Basic Details**, **GHG Details**, **Production Data**, and **Revenue Data**.
 - **GHG Details** is visible only when the organization has opted into the canonical `environment.ghg` entitlement.
 - **Production Data** and **Revenue Data** are visible only when at least one canonical Environment, Social, or Governance entitlement is enabled.
-- **Basic Details** contains company identity, logo, corporate address, organization description, mission, vision, process description, responsible-person contact, reporting cadence/year, attachments, and other organization information.
-- **GHG Details** contains Purpose of the Report, Organizational Boundaries, Uncertainty Assessment, GHG Reduction Initiatives, and Internal Performance Tracking Description.
+- **Basic Details** contains company identity, logo, corporate address, organization description, mission, vision, process description, a responsive responsible-person contact row, reporting year, attachments, and other organization information.
+- **GHG Details** contains Purpose of the Report, reporting frequency, Organizational Boundaries, Uncertainty Assessment, GHG Reduction Initiatives, and Internal Performance Tracking Description.
+- The equity-share facility disclaimer uses neutral supporting text, not a warning treatment. In view mode, Organizational Boundaries and Uncertainty Assessment share a responsive desktop row, and boundary approaches use neutral surfaces.
 - **Production Data** contains Production Quantity only; **Revenue Data** contains Turnover / Revenue only. Both show the five available reporting years together, support monthly or yearly entry per period, and respect the organization calendar/financial reporting year.
 - Organization details do not display a last-updated timestamp or Related Modules navigation cards.
 - The organization summary displays only the organization identity; country, timezone, reporting-year type, facility count, target count, and reporting cadence are omitted.
@@ -98,6 +99,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Arranged Person Responsible, Designation, and Contact Details as one responsive editing row.
+- Moved Reporting Frequency into GHG Details; Reporting Year Type remains in Basic Details.
+- Restyled the equity-share disclaimer and saved Organizational Boundaries content with neutral treatments, and paired Boundaries with Uncertainty Assessment on wide screens.
+- **NOT TESTED** per the user’s standing instruction.
+
+## Previous Change — September 7, 2026
 - Simplified the Organization summary to organization logo and name only.
 - Combined street, city, state, country, and postal code into one corporate-address line without timezone.
 - Replaced the Production/Revenue year dropdown with five simultaneous reporting-year editors, each supporting monthly or yearly data and an independent save action.

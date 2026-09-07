@@ -817,18 +817,18 @@ export default function OrganizationDetails() {
             </div>
 
             {/* Person Responsible */}
-            <div className="space-y-2">
-              <Label>Person Responsible <span className="text-red-500">*</span></Label>
-              <Input 
-                value={formData.person_responsible} 
-                onChange={(e) => setFormData({ ...formData, person_responsible: e.target.value })} 
-                className="bg-stone-50"
-                placeholder="Name of person responsible for GHG reporting"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Person Responsible <span className="text-red-500">*</span></Label>
+                <Input 
+                  value={formData.person_responsible} 
+                  onChange={(e) => setFormData({ ...formData, person_responsible: e.target.value })} 
+                  className="bg-stone-50"
+                  placeholder="Name of person responsible for GHG reporting"
+                  required
+                  data-testid="organization-person-responsible-input"
+                />
+              </div>
               <div className="space-y-2">
                 <Label>Designation</Label>
                 <Input 
@@ -836,6 +836,7 @@ export default function OrganizationDetails() {
                   onChange={(e) => setFormData({ ...formData, person_responsible_designation: e.target.value })} 
                   className="bg-stone-50"
                   placeholder="e.g., Sustainability Director"
+                  data-testid="organization-person-responsible-designation-input"
                 />
               </div>
               <div className="space-y-2">
@@ -845,6 +846,7 @@ export default function OrganizationDetails() {
                   onChange={(e) => setFormData({ ...formData, person_responsible_contact: e.target.value })} 
                   className="bg-stone-50"
                   placeholder="Email or phone number"
+                  data-testid="organization-person-responsible-contact-input"
                 />
               </div>
             </div>
@@ -861,6 +863,20 @@ export default function OrganizationDetails() {
                 className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
                 placeholder="Describe the purpose of the GHG inventory report"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Reporting Frequency</Label>
+              <select
+                value={formData.reporting_frequency}
+                onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })}
+                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                data-testid="organization-reporting-frequency-select"
+              >
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
             </div>
 
             {/* Organizational Boundaries */}
@@ -976,11 +992,11 @@ export default function OrganizationDetails() {
                 </div>
 
                 {formData.org_boundaries_approach === 'equity_share' && (
-                  <div className="ml-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-sm text-amber-800">
+                  <div className="ml-6 border-l-2 border-stone-300 pl-4" data-testid="organization-equity-share-disclaimer">
+                    <p className="text-sm text-text-secondary">
                       <strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.
                     </p>
-                    <p className="text-xs text-amber-700 mt-2">
+                    <p className="mt-2 text-xs text-text-muted">
                       You can specify the equity share percentage for each facility in the Facilities page.
                     </p>
                   </div>
@@ -1143,20 +1159,12 @@ export default function OrganizationDetails() {
 
             <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             <div className="space-y-2">
-              <Label>Reporting Frequency</Label>
-              <select value={formData.reporting_frequency} onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="yearly">Yearly</option>
-              </select>
-            </div>
-
-            <div className="space-y-2">
               <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
               <select 
                 value={formData.reporting_year_type} 
                 onChange={(e) => setFormData({ ...formData, reporting_year_type: e.target.value })} 
                 className={`w-full h-10 bg-stone-50 border rounded-lg px-3 ${!formData.reporting_year_type ? 'border-red-300' : 'border-stone-200'}`}
+                data-testid="organization-reporting-year-type-select"
               >
                 <option value="">Select Year Type</option>
                 <option value="financial_year">Financial Year</option>
@@ -1470,9 +1478,10 @@ export default function OrganizationDetails() {
             </Card>
           )}
 
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {/* === ORGANIZATIONAL BOUNDARIES === */}
           {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
-            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="organization-ghg-boundaries">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 rounded-lg bg-teal-50">
                   <Shield className="w-5 h-5 text-teal-600" />
@@ -1493,33 +1502,33 @@ export default function OrganizationDetails() {
               </div>
               <div className="space-y-3">
                 {organization.org_boundaries_approach === 'control_operational' && (
-                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
-                    <Badge className="bg-teal-100 text-teal-800 mb-2">Operational Control</Badge>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Operational Control</Badge>
                     <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it exercises operational control.</p>
                   </div>
                 )}
                 {organization.org_boundaries_approach === 'control_financial' && (
-                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
-                    <Badge className="bg-teal-100 text-teal-800 mb-2">Financial Control</Badge>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Financial Control</Badge>
                     <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
                   </div>
                 )}
                 {organization.org_boundaries_approach === 'control_both' && (
-                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
-                    <Badge className="bg-teal-100 text-teal-800 mb-2">Operational & Financial Control</Badge>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Operational & Financial Control</Badge>
                     <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it has both operational and financial control.</p>
                   </div>
                 )}
                 {organization.org_boundaries_approach === 'control' && (
-                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
-                    <Badge className="bg-teal-100 text-teal-800 mb-2">Control Approach</Badge>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Control Approach</Badge>
                     <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
                   </div>
                 )}
                 {organization.org_boundaries_approach === 'equity_share' && (
                   <div className="space-y-2">
-                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
-                      <Badge className="bg-amber-100 text-amber-800 mb-2">Equity Share Approach</Badge>
+                    <div className="rounded-lg border border-stone-200 p-3">
+                      <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Equity Share Approach</Badge>
                       <p className="text-sm text-text-secondary">The organization accounts for GHG emissions according to its equity share in each facility.</p>
                     </div>
                     {/* <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded flex items-start gap-2">
@@ -1550,6 +1559,7 @@ export default function OrganizationDetails() {
               </ul>
             </Card>
           )}
+          </div>
 
           {/* === GHG REDUCTION INITIATIVES - FULL WIDTH === */}
           {organization?.ghg_reduction_initiatives && (
