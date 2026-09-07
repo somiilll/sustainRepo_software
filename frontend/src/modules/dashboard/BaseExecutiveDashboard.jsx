@@ -69,6 +69,11 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               category: t.category,
               subcategory: t.subcategory,
               _progressPct: t.progress_percentage,
+              actualValue: t.actual_value,
+              targetValue: t.target_value,
+              goalType: t.goal_type,
+              unit: t.unit,
+              reportingPeriod: t.reporting_period,
             };
           });
           setTargets(ghgTargets);
@@ -187,6 +192,8 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               analytics: stats,
               trends: filteredData.trend,
               previousYear: previousYearTotals,
+              targets,
+              baseYear: baseYearChart,
             }}
             organization={organization}
             dateRange={dateRange}

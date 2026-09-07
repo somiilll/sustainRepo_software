@@ -106,6 +106,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - The GHG dashboard now explicitly requests only active GHG targets, so archived targets cannot appear in its Reduction Target KPI.
 - Added horizontal overflow containment to the GHG dashboard root; mobile document width is verified to match the 390px viewport.
 - Rebuilt GHG PDF report content to render native scope and monthly-trend charts, facility-wise emissions, Scope 3 category emissions (value, share, and records), and current-versus-prior-financial-year comparisons from the active dashboard payload.
+- Added active GHG target progress (current value, target value, and reported completion percentage) to the PDF. Added a Base Year vs Current FY chart and table only when configured base-year records exist.
 - **NOT TESTED** per the user’s explicit instruction.
 - Replaced the standalone no-target placeholder with the established Reduction Target KPI card, including its Add Emission Reduction Targets action.
 - Corrected the GHG dashboard sticky header's mobile-only horizontal overflow.

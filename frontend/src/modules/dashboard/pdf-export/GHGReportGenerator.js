@@ -24,6 +24,8 @@ export class GHGReportGenerator extends BasePDFGenerator {
     this.analytics = options.analytics || {};
     this.trends = Array.isArray(options.trends) ? options.trends : [];
     this.previousYear = options.previousYear || {};
+    this.targets = Array.isArray(options.targets) ? options.targets : [];
+    this.baseYear = options.baseYear || { rows: [] };
     this.scope3Categories = Array.isArray(this.analytics.scope3_by_category)
       ? this.analytics.scope3_by_category
       : [];
@@ -60,6 +62,11 @@ export class GHGReportGenerator extends BasePDFGenerator {
     this.addNewPage();
     this.addEmissionsOverview();
 
+    if (this.targets.length) {
+      this.addNewPage();
+      this.addTargetProgress();
+    }
+
     this.addNewPage();
     this.addFacilityEmissions();
 
@@ -70,6 +77,11 @@ export class GHGReportGenerator extends BasePDFGenerator {
 
     this.addNewPage();
     this.addPriorFinancialYearComparison();
+
+    if (this.baseYear.rows?.length) {
+      this.addNewPage();
+      this.addBaseYearComparison();
+    }
 
     this.addNewPage();
     this.addAppendix(this.getDefinitions());
@@ -149,6 +161,30 @@ export class GHGReportGenerator extends BasePDFGenerator {
     ], '#059669');
   }
 
+  addTargetProgress() {
+    this.addPageTitle('GHG Target Progress', '#D97706');
+    this.addAnalysisBox('Only active GHG reduction targets are included. Progress reflects the current dashboard reporting period and is shown alongside each target’s recorded current and target values.');
+    const targets = this.targets.map((target) => ({
+      label: target.name || 'Untitled target',
+      progress: Math.max(0, Math.min(100, cleanNumber(target._progressPct))),
+      actual: target.actualValue,
+      target: target.targetValue,
+      unit: target.unit || this.getCO2Unit(),
+      period: target.reportingPeriod,
+    }));
+    this.drawTargetProgressChart('Active GHG Target Progress', targets);
+    this.addSubsectionTitle('Target Detail');
+    this.addFullWidthTable([
+      ['Target', 'Current', 'Target Value', 'Progress'],
+      ...targets.map((target) => [
+        this.truncate(target.label, 30),
+        target.actual == null ? 'N/A' : `${this.formatNumber(target.actual)} ${target.unit}`,
+        target.target == null ? 'N/A' : `${this.formatNumber(target.target)} ${target.unit}`,
+        `${target.progress.toFixed(1)}%`,
+      ]),
+    ], '#D97706');
+  }
+
   addScope3CategoryAnalysis() {
     this.addPageTitle('Scope 3 Category Emissions', '#8B5CF6');
     const categories = [...this.scope3Categories]
@@ -194,7 +230,7 @@ export class GHGReportGenerator extends BasePDFGenerator {
     this.addAnalysisBox(previous.total
       ? 'Current reporting-period emissions are compared with the equivalent immediately preceding financial-year period, using the same facility filters.'
       : 'No prior financial-year emissions are available for the selected facility and reporting-period filters. The comparison table will populate when prior-year records exist.');
-    this.drawComparisonChart('Current vs Prior Financial Year', rows);
+    this.drawComparisonChart('Current vs Prior Financial Year', rows, 'Prior FY', 'Current FY');
     this.addSubsectionTitle('Year-over-Year Comparison');
     this.addFullWidthTable([
       ['Scope', 'Current FY', 'Prior FY', 'Change'],
@@ -207,6 +243,38 @@ export class GHGReportGenerator extends BasePDFGenerator {
           change == null ? 'N/A' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`,
         ];
       }),
+    ], '#0F766E');
+  }
+
+  addBaseYearComparison() {
+    this.addPageTitle('Base Year vs Current FY', '#0F766E');
+    const rows = this.baseYear.rows.map((row) => ({
+      label: row.scope || 'Emissions',
+      previous: cleanNumber(row.baseYear),
+      current: cleanNumber(row.reportingYear),
+      color: SCOPE_ROWS.find((scope) => scope.label === row.scope)?.color || '#0F766E',
+      baseYearLabel: row.baseYearLabel || 'Base Year',
+    }));
+    const baseTotal = cleanNumber(this.baseYear.totalBase) || rows.reduce((total, row) => total + row.previous, 0);
+    const currentTotal = cleanNumber(this.baseYear.totalReporting) || rows.reduce((total, row) => total + row.current, 0);
+    const change = baseTotal ? ((currentTotal - baseTotal) / baseTotal) * 100 : null;
+
+    this.addAnalysisBox(`Current FY emissions are compared against the configured base-year records. ${change == null ? 'A percentage change will be available once base-year emissions are recorded.' : `The current FY is ${change >= 0 ? '+' : ''}${change.toFixed(1)}% compared with the recorded base year.`}`);
+    this.drawComparisonChart('Base Year vs Current FY', rows, 'Base year', 'Current FY');
+    this.addSubsectionTitle('Base-Year Comparison');
+    this.addFullWidthTable([
+      ['Scope', 'Base Year', 'Base Emissions', 'Current FY', 'Change'],
+      ...rows.map((row) => {
+        const rowChange = row.previous ? ((row.current - row.previous) / row.previous) * 100 : null;
+        return [
+          row.label,
+          this.truncate(row.baseYearLabel, 12),
+          this.formatNumber(row.previous),
+          this.formatNumber(row.current),
+          rowChange == null ? 'N/A' : `${rowChange >= 0 ? '+' : ''}${rowChange.toFixed(1)}%`,
+        ];
+      }),
+      ['Total', '-', this.formatNumber(baseTotal), this.formatNumber(currentTotal), change == null ? 'N/A' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`],
     ], '#0F766E');
   }
 
@@ -296,7 +364,33 @@ export class GHGReportGenerator extends BasePDFGenerator {
     this.currentY = y + height + 13;
   }
 
-  drawComparisonChart(title, rows) {
+  drawTargetProgressChart(title, targets) {
+    const chartHeight = Math.max(44, targets.length * 11 + 16);
+    this.checkPageBreak(chartHeight + 18);
+    this.addSubsectionTitle(title);
+
+    const startY = this.currentY;
+    const barX = PAGE.margin + 50;
+    const barWidth = 105;
+    targets.forEach((target, index) => {
+      const y = startY + index * 11;
+      const progressWidth = (target.progress / 100) * barWidth;
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setFontSize(7);
+      this.doc.setTextColor(COLORS.text);
+      this.doc.text(this.truncate(target.label, 25), PAGE.margin, y + 6);
+      this.doc.setFillColor('#E7E5E4');
+      this.doc.roundedRect(barX, y + 2, barWidth, 5, 1, 1, 'F');
+      this.doc.setFillColor(target.progress >= 100 ? '#059669' : '#D97706');
+      this.doc.roundedRect(barX, y + 2, Math.max(progressWidth, 1), 5, 1, 1, 'F');
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setTextColor(COLORS.textMuted);
+      this.doc.text(`${target.progress.toFixed(1)}%`, barX + barWidth + 4, y + 6);
+    });
+    this.currentY = startY + targets.length * 11 + 8;
+  }
+
+  drawComparisonChart(title, rows, priorLabel = 'Prior FY', currentLabel = 'Current FY') {
     this.checkPageBreak(72);
     this.addSubsectionTitle(title);
     const maxValue = Math.max(...rows.flatMap((row) => [cleanNumber(row.current), cleanNumber(row.previous)]), 1);
@@ -318,12 +412,12 @@ export class GHGReportGenerator extends BasePDFGenerator {
       this.doc.roundedRect(barX, y + 6, Math.max(currentWidth, 1), 4, 1, 1, 'F');
       this.doc.setFont('helvetica', 'normal');
       this.doc.setTextColor(COLORS.textMuted);
-      this.doc.text(`Prior ${this.formatNumber(row.previous)} | Current ${this.formatNumber(row.current)}`, barX + barWidth + 4, y + 7);
+      this.doc.text(`${priorLabel} ${this.formatNumber(row.previous)} | ${currentLabel} ${this.formatNumber(row.current)}`, barX + barWidth + 4, y + 7);
     });
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(7);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Grey: prior financial year   •   Colour: current financial year', PAGE.margin, startY + rows.length * 14 + 3);
+    this.doc.text(`Grey: ${priorLabel.toLowerCase()}   •   Colour: ${currentLabel.toLowerCase()}`, PAGE.margin, startY + rows.length * 14 + 3);
     this.currentY = startY + rows.length * 14 + 10;
   }
 
