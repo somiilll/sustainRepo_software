@@ -813,3 +813,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Replaced the Reporting period selector with inclusive Start month and End month controls. Defaults continue to cover the active organization FY/CY, including non-calendar financial-year boundaries.
 - Center-aligned every Sinks table heading and its matching cell value, including facility, period, offset, description, evidence, and actions.
 - **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
+
+## Latest Changes — 2026-09-04 (Canonical GHG-Style Sinks Reporting Periods)
+- Sinks now persist the same canonical `reporting_period` contract as GHG: monthly `YYYY-MM`, yearly calendar `CYyyyy`, and yearly financial `FY yyyy-yyyy`, alongside `frequency_type`.
+- New Sinks UI saves canonical periods only. The backend validates the period against the frequency, calculates accurate calendar start/end dates, and continues deriving legacy `reporting_year` / `reporting_month` fields for compatibility with older consumers.
+- Added an idempotent Sinks reporting-period migration. It backfilled 23 existing records with canonical periods, corrected financial-year January–March dates where required, and skipped no records.
+- Updated Sinks display/filtering to prefer the canonical period, so a FY 2026–2027 January record displays and filters as January 2027 rather than the ambiguous legacy `Jan '2026` label. Report output now prefers the canonical period too.
+- **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.

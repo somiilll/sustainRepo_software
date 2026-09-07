@@ -4438,9 +4438,12 @@ class GHGReportGenerator:
                     sink_data = []
                     for s in facility_sinks:
                         desc = s.get('description') or '-'
+                        reporting_period = s.get('reporting_period')
                         month = s.get('reporting_month')
                         year = s.get('reporting_year') or ''
-                        if month is not None and year:
+                        if reporting_period:
+                            period_str = reporting_period
+                        elif month is not None and year:
                             months_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                             period_str = f"{months_short[month]}'{year}"
                         elif s.get('start_date'):
@@ -4555,9 +4558,12 @@ class GHGReportGenerator:
                     sink_data = []
                     for s in facility_sinks:
                         desc = s.get('description') or '-'
+                        reporting_period = s.get('reporting_period')
                         month = s.get('reporting_month')
                         year = s.get('reporting_year') or ''
-                        if month is not None and year:
+                        if reporting_period:
+                            period_str = reporting_period
+                        elif month is not None and year:
                             months_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                             period_str = f"{months_short[month]}'{year}"
                         elif s.get('start_date'):

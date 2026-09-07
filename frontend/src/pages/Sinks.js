@@ -50,6 +50,21 @@ const getCurrentReportingMonthRange = (yearType = 'calendar', fiscalStartMonth =
   };
 };
 
+const getMonthlyReportingPeriod = (monthIndex, reportingYear, yearType, fiscalStartMonth = 4) => {
+  const month = Number(monthIndex) + 1;
+  const baseYear = Number(reportingYear);
+  const actualYear = yearType === 'financial' && month < Number(fiscalStartMonth || 4)
+    ? baseYear + 1
+    : baseYear;
+  return `${actualYear}-${String(month).padStart(2, '0')}`;
+};
+
+const getYearlyReportingPeriod = (reportingYear, yearType) => (
+  yearType === 'financial'
+    ? `FY ${reportingYear}-${Number(reportingYear) + 1}`
+    : `CY${reportingYear}`
+);
+
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthIndex, year, yearType = 'calendar') => {
   const now = new Date();
@@ -70,6 +85,23 @@ const isFutureMonth = (monthIndex, year, yearType = 'calendar') => {
 };
 
 const getSinkMonthRange = (sink, reportingYearType, fiscalStartMonth) => {
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(sink.reporting_period || '')) {
+    return { start: sink.reporting_period, end: sink.reporting_period };
+  }
+  if (/^CY\d{4}$/.test(sink.reporting_period || '')) {
+    const year = sink.reporting_period.slice(2);
+    return { start: `${year}-01`, end: `${year}-12` };
+  }
+  if (/^FY \d{4}-\d{4}$/.test(sink.reporting_period || '')) {
+    const startYear = Number(sink.reporting_period.slice(3, 7));
+    const startMonth = Math.min(12, Math.max(1, Number(fiscalStartMonth || 4)));
+    const endMonth = startMonth === 1 ? 12 : startMonth - 1;
+    return {
+      start: `${startYear}-${String(startMonth).padStart(2, '0')}`,
+      end: `${startMonth === 1 ? startYear : startYear + 1}-${String(endMonth).padStart(2, '0')}`,
+    };
+  }
+
   const reportingYear = Number(sink.reporting_year || sink.start_date?.slice(0, 4));
   if (!reportingYear) return { start: '', end: '' };
 
@@ -456,15 +488,12 @@ export default function Sinks() {
           // Yearly record edit
           const payload = {
             facility_id: formData.facility_id,
-            reporting_year: formData.reporting_year,
-            reporting_month: null, // null indicates yearly
+            reporting_period: getYearlyReportingPeriod(formData.reporting_year, reportingYearType),
             total_emissions_reduced: parseFloat(yearlyData.value) || 0,
             description: formData.description,
             evidence_urls: (yearlyData.evidence || []).map(f => f.url),
             evidence_files: yearlyData.evidence || [],
             frequency_type: 'yearly',
-            start_date: `${formData.reporting_year}-01-01`,
-            end_date: `${formData.reporting_year}-12-31`
           };
 
           await axios.put(`${API}/sinks/${editingSink.id}`, payload, {
@@ -479,15 +508,12 @@ export default function Sinks() {
 
           const payload = {
             facility_id: formData.facility_id,
-            reporting_year: formData.reporting_year,
-            reporting_month: monthIndex,
+            reporting_period: getMonthlyReportingPeriod(monthIndex, formData.reporting_year, reportingYearType, organization?.financial_year_start_month),
             total_emissions_reduced: parseFloat(value) || 0,
             description: formData.description,
             evidence_urls: evidence.map(f => f.url),
             evidence_files: evidence,
             frequency_type: 'monthly',
-            start_date: `${formData.reporting_year}-${String(monthIndex + 1).padStart(2, '0')}-01`,
-            end_date: `${formData.reporting_year}-${String(monthIndex + 1).padStart(2, '0')}-28`
           };
 
           await axios.put(`${API}/sinks/${editingSink.id}`, payload, {
@@ -503,15 +529,12 @@ export default function Sinks() {
           // Create single yearly record
           const payload = {
             facility_id: formData.facility_id,
-            reporting_year: year,
-            reporting_month: null, // null indicates yearly
+            reporting_period: getYearlyReportingPeriod(year, reportingYearType),
             total_emissions_reduced: parseFloat(yearlyData.value) || 0,
             description: formData.description,
             evidence_urls: (yearlyData.evidence || []).map(f => f.url),
             evidence_files: yearlyData.evidence || [],
             frequency_type: 'yearly',
-            start_date: `${year}-01-01`,
-            end_date: `${year}-12-31`
           };
 
           await axios.post(`${API}/sinks`, payload, {
@@ -533,15 +556,12 @@ export default function Sinks() {
 
             const payload = {
               facility_id: formData.facility_id,
-              reporting_year: year,
-              reporting_month: mi,
+              reporting_period: getMonthlyReportingPeriod(mi, year, reportingYearType, organization?.financial_year_start_month),
               total_emissions_reduced: parseFloat(value) || 0,
               description: formData.description,
               evidence_urls: evidence.map(f => f.url),
               evidence_files: evidence,
               frequency_type: 'monthly',
-              start_date: `${year}-${String(mi + 1).padStart(2, '0')}-01`,
-              end_date: `${year}-${String(mi + 1).padStart(2, '0')}-28`
             };
 
             await axios.post(`${API}/sinks`, payload, {
@@ -580,9 +600,19 @@ export default function Sinks() {
     setEditingSink(sink);
     setFormErrors({});
 
-    const year = sink.reporting_year || (sink.start_date ? sink.start_date.split('-')[0] : new Date().getFullYear().toString());
-    const month = sink.reporting_month ?? (sink.start_date ? new Date(sink.start_date).getMonth() : 0);
     const freq = sink.frequency_type || (sink.reporting_month === null ? 'yearly' : 'monthly');
+    let year = sink.reporting_year || (sink.start_date ? sink.start_date.split('-')[0] : currentReportingYear);
+    let month = sink.reporting_month ?? (sink.start_date ? new Date(sink.start_date).getMonth() : 0);
+
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(sink.reporting_period || '')) {
+      const [actualYear, actualMonth] = sink.reporting_period.split('-').map(Number);
+      month = actualMonth - 1;
+      year = String(reportingYearType === 'financial' && actualMonth < Number(organization?.financial_year_start_month || 4)
+        ? actualYear - 1
+        : actualYear);
+    } else if (/^(?:FY )?\d{4}-\d{4}$/.test(sink.reporting_period || '') || /^CY\d{4}$/.test(sink.reporting_period || '')) {
+      year = sink.reporting_period.match(/\d{4}/)?.[0] || year;
+    }
 
     setFormData({
       facility_id: sink.facility_id,
@@ -630,7 +660,13 @@ export default function Sinks() {
   };
 
   const getSinkPeriod = (sink) => {
-    // Check if it's a yearly record (frequency_type === 'yearly' or reporting_month is null)
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(sink.reporting_period || '')) {
+      const [year, month] = sink.reporting_period.split('-');
+      return `${SHORT_MONTHS[Number(month) - 1]} ${year}`;
+    }
+    if (/^CY\d{4}$/.test(sink.reporting_period || '')) return `CY ${sink.reporting_period.slice(2)}`;
+    if (/^FY \d{4}-\d{4}$/.test(sink.reporting_period || '')) return sink.reporting_period;
+
     if (sink.frequency_type === 'yearly' || sink.reporting_month === null) {
       return formatReportingYear(sink.reporting_year);
     }
