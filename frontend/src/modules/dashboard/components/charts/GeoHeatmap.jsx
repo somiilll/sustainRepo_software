@@ -60,6 +60,7 @@ export default function GeoHeatmap({
           attributionControl: true,
           scrollWheelZoom: false,
         }).setView(initial.center, initial.zoom);
+        map.attributionControl.setPrefix(false);
 
         L.tileLayer(
           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',

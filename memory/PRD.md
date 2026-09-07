@@ -102,6 +102,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ## Latest Change — September 7, 2026
 - Repaired the GHG geographic heatmap basemap by replacing the Carto layer that displayed an API-key watermark with OpenStreetMap tiles and visible attribution. The heat overlay remains driven by filtered, facility-level emissions data; it is not static.
+- Removed the Leaflet product label from the heatmap footer while retaining the required OpenStreetMap contributors credit.
 - Replaced the standalone no-target placeholder with the established Reduction Target KPI card, including its Add Emission Reduction Targets action.
 - Corrected the GHG dashboard sticky header's mobile-only horizontal overflow.
 - **VERIFIED:** GHG dashboard heat layer and India/Global controls render correctly; OpenStreetMap tile URLs were confirmed, the no-target KPI state was browser-verified, mobile overflow was empty, and `yarn lint` passed.
