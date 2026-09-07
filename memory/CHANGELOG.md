@@ -1,5 +1,11 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Organization Operational Data Editing
+- Production and Revenue now list only reporting years containing data, with explicit **Add current** and **Add previous** reporting-year actions in edit mode.
+- Moved the operational Cancel and Save Changes actions below the reporting-year editors.
+- A period now accepts exactly one data mode: choosing Monthly clears the annual value, choosing Yearly clears monthly values, and the API ignores any inactive legacy payload values.
+- **NOT TESTED** per the user’s explicit instruction.
+
 ## September 7, 2026 — Organization Facility Count Restored
 - Restored the live **No. of Facilities** count in the saved Organization summary using the existing scoped Facilities API.
 - **NOT TESTED** per the user’s explicit instruction.

@@ -1319,6 +1319,7 @@ export default function OrganizationDetails() {
             </div>
             </div>
 
+            {!['production', 'revenue'].includes(activeTab) && (
             <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
               <AutoSaveStatus 
                 status={saveStatus} 
@@ -1326,10 +1327,11 @@ export default function OrganizationDetails() {
                 errorMessage={errorMessage}
               />
               <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => { setEditing(false); resetAutoSave(); }}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => { setEditing(false); resetAutoSave(); }} data-testid="cancel-org-btn">Cancel</Button>
                 <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="save-org-btn">Save Changes</Button>
               </div>
             </div>
+            )}
           </form>
         </Card>
       ) : (
@@ -1682,7 +1684,10 @@ export default function OrganizationDetails() {
         {showOperationalData && (
           <OrganizationOperationalData
             activeTab={activeTab}
+            canEdit={canEdit}
             getAuthHeader={getAuthHeader}
+            isEditing={editing}
+            onCancel={() => { setEditing(false); resetAutoSave(); }}
             organization={organization}
             subscriptionExpired={subscriptionExpired}
           />

@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { BarChart3, Loader2 } from 'lucide-react';
+import { BarChart3, Loader2, Plus, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '../ui/button';
 import { YearlyMetricEditor } from './YearlyMetricEditor';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -24,19 +25,36 @@ const normalizeYearData = (data) => ({
   production_quantity_monthly: data?.production_quantity_monthly || {},
 });
 
-export const OrganizationOperationalData = ({ activeTab, getAuthHeader, organization, subscriptionExpired }) => {
+const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== '';
+
+const hasMetricData = (data, metric) => {
+  const yearlyValue = metric === 'revenue' ? data?.turnover : data?.production_quantity;
+  const monthlyValues = metric === 'revenue' ? data?.turnover_monthly : data?.production_quantity_monthly;
+  return hasValue(yearlyValue) || Object.values(monthlyValues || {}).some(hasValue);
+};
+
+export const OrganizationOperationalData = ({
+  activeTab,
+  canEdit,
+  getAuthHeader,
+  isEditing,
+  onCancel,
+  organization,
+  subscriptionExpired,
+}) => {
   const [dataByYear, setDataByYear] = useState({});
   const [loading, setLoading] = useState(true);
-  const [savingByYear, setSavingByYear] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [selectedYears, setSelectedYears] = useState([]);
   const isCalendarYear = organization?.reporting_year_type === 'calendar_year';
   const metric = activeTab === 'revenue' ? 'revenue' : 'production';
+  const isEditable = isEditing && canEdit && !subscriptionExpired;
 
-  const reportingYears = useMemo(() => {
+  const availableYears = useMemo(() => {
     if (!organization) return [];
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentPeriodStart = isCalendarYear || now.getMonth() >= 3 ? currentYear : currentYear - 1;
-
     return Array.from({ length: 5 }, (_, index) => {
       const year = currentPeriodStart - index;
       return isCalendarYear ? String(year) : `${year}-${String(year + 1).slice(-2)}`;
@@ -47,33 +65,27 @@ export const OrganizationOperationalData = ({ activeTab, getAuthHeader, organiza
     ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     : ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
 
-  useEffect(() => {
-    if (!reportingYears.length) return undefined;
-    let cancelled = false;
-
-    const loadAllYears = async () => {
-      setLoading(true);
-      const results = await Promise.all(reportingYears.map(async (period) => {
-        try {
-          const response = await axios.get(`${API}/organization/yearly-data/${period}`, {
-            headers: getAuthHeader(),
-          });
-          return [period, normalizeYearData(response.data)];
-        } catch (error) {
-          console.error(`Failed to load organization data for ${period}:`, error);
-          return [period, emptyYearData()];
-        }
-      }));
-
-      if (!cancelled) {
-        setDataByYear(Object.fromEntries(results));
-        setLoading(false);
+  const loadAllYears = useCallback(async () => {
+    if (!availableYears.length) return;
+    setLoading(true);
+    const results = await Promise.all(availableYears.map(async (period) => {
+      try {
+        const response = await axios.get(`${API}/organization/yearly-data/${period}`, { headers: getAuthHeader() });
+        return [period, normalizeYearData(response.data)];
+      } catch (error) {
+        console.error(`Failed to load organization data for ${period}:`, error);
+        return [period, emptyYearData()];
       }
-    };
+    }));
+    const nextData = Object.fromEntries(results);
+    setDataByYear(nextData);
+    setSelectedYears(availableYears.filter((period) => hasMetricData(nextData[period], metric)));
+    setLoading(false);
+  }, [availableYears, getAuthHeader, metric]);
 
+  useEffect(() => {
     loadAllYears();
-    return () => { cancelled = true; };
-  }, [getAuthHeader, reportingYears]);
+  }, [loadAllYears]);
 
   const updateYear = (period, patch) => {
     setDataByYear((current) => ({
@@ -82,39 +94,65 @@ export const OrganizationOperationalData = ({ activeTab, getAuthHeader, organiza
     }));
   };
 
-  const saveYear = async (period) => {
-    if (subscriptionExpired) {
-      toast.error('Subscription expired. Cannot save data.');
-      return;
-    }
+  const addYear = (period) => {
+    setSelectedYears((current) => availableYears.filter((year) => current.includes(year) || year === period));
+  };
 
-    setSavingByYear((current) => ({ ...current, [period]: true }));
+  const saveChanges = async () => {
+    if (!selectedYears.length) return;
+    setSaving(true);
     try {
-      await axios.post(`${API}/organization/yearly-data/${period}`, dataByYear[period], {
-        headers: getAuthHeader(),
-      });
-      toast.success(`Saved data for ${isCalendarYear ? 'CY' : 'FY'} ${period}`);
+      await Promise.all(selectedYears.map((period) => axios.post(
+        `${API}/organization/yearly-data/${period}`,
+        dataByYear[period] || emptyYearData(),
+        { headers: getAuthHeader() },
+      )));
+      toast.success('Operational data saved successfully');
+      await loadAllYears();
     } catch (error) {
-      toast.error('Failed to save yearly data');
+      toast.error('Failed to save operational data');
     } finally {
-      setSavingByYear((current) => ({ ...current, [period]: false }));
+      setSaving(false);
     }
+  };
+
+  const cancelChanges = async () => {
+    await loadAllYears();
+    onCancel();
   };
 
   if (!['production', 'revenue'].includes(activeTab)) return null;
 
+  const periodPrefix = isCalendarYear ? 'CY' : 'FY';
+  const currentYear = availableYears[0];
+  const previousYear = availableYears[1];
+
   return (
     <div className="mt-6" data-testid={`organization-${metric}-all-years`}>
-      <div className="mb-5 flex items-start gap-3">
-        <div className="rounded-md bg-emerald-100 p-2 text-emerald-700">
-          <BarChart3 className="h-5 w-5" />
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-md bg-emerald-100 p-2 text-emerald-700">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-text-primary">{metric === 'revenue' ? 'Revenue Data' : 'Production Data'}</h2>
+            <p className="mt-1 text-sm text-text-muted">Saved reporting years are shown below.</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-lg font-semibold text-text-primary">
-            {metric === 'revenue' ? 'Revenue Data' : 'Production Data'}
-          </h2>
-          <p className="mt-1 text-sm text-text-muted">All reporting years are shown together.</p>
-        </div>
+        {isEditable && (
+          <div className="flex flex-wrap gap-2" data-testid={`organization-${metric}-add-year-actions`}>
+            {!selectedYears.includes(currentYear) && (
+              <Button type="button" variant="outline" onClick={() => addYear(currentYear)} data-testid={`organization-${metric}-add-current-year-button`}>
+                <Plus className="mr-2 h-4 w-4" />Add current {periodPrefix}
+              </Button>
+            )}
+            {!selectedYears.includes(previousYear) && (
+              <Button type="button" variant="outline" onClick={() => addYear(previousYear)} data-testid={`organization-${metric}-add-previous-year-button`}>
+                <Plus className="mr-2 h-4 w-4" />Add previous {periodPrefix}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -123,20 +161,31 @@ export const OrganizationOperationalData = ({ activeTab, getAuthHeader, organiza
         </div>
       ) : (
         <div className="space-y-4">
-          {reportingYears.map((period) => (
+          {selectedYears.map((period) => (
             <YearlyMetricEditor
               key={period}
               data={dataByYear[period] || emptyYearData()}
-              disabled={subscriptionExpired}
-              isSaving={Boolean(savingByYear[period])}
+              disabled={!isEditable}
               metric={metric}
               months={months}
               onChange={(patch) => updateYear(period, patch)}
-              onSave={() => saveYear(period)}
               period={period}
-              periodLabel={`${isCalendarYear ? 'CY' : 'FY'} ${period}`}
+              periodLabel={`${periodPrefix} ${period}`}
             />
           ))}
+          {!selectedYears.length && (
+            <p className="py-8 text-center text-sm text-text-muted" data-testid={`organization-${metric}-empty-state`}>No reporting years have data yet.</p>
+          )}
+        </div>
+      )}
+
+      {isEditable && !loading && (
+        <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-stone-200 pt-4" data-testid={`organization-${metric}-edit-actions`}>
+          <Button type="button" variant="outline" onClick={cancelChanges} disabled={saving} data-testid={`organization-${metric}-cancel-button`}>Cancel</Button>
+          <Button type="button" onClick={saveChanges} disabled={saving || !selectedYears.length} data-testid={`organization-${metric}-save-changes-button`}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saving ? 'Saving' : 'Save Changes'}
+          </Button>
         </div>
       )}
     </div>
