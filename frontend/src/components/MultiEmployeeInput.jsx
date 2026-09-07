@@ -566,75 +566,6 @@ const MultiEmployeeInput = ({
     }
   }, [employees, onCalculateEmployee, calculationMethod, fields]);
 
-  // Calculate all months for an employee
-  const handleCalculateAllMonths = useCallback(async (employeeId) => {
-    const employee = employees.find(emp => emp.id === employeeId);
-    if (!employee) return;
-    
-    // Validate employee name before calculating
-    if (!employee.name || employee.name.trim() === '') {
-      toast.error('Employee Name is required before calculating.');
-      // Also update validation errors state
-      setValidationErrors(prev => ({
-        ...prev,
-        [employeeId]: ['Employee Name is required.']
-      }));
-      return;
-    }
-    
-    // For supplier_basis: validate units are provided for all months with data
-    const isSupplierBasis = calculationMethod === 'supplier_basis';
-    if (isSupplierBasis) {
-      const allMissingUnits = [];
-      
-      for (const monthKey of activeMonths) {
-        const monthData = employee.monthly_data?.[monthKey];
-        const inputs = monthData?.inputs || {};
-        const hasInputData = Object.values(inputs).some(v => v !== '' && v !== null && v !== undefined && v !== 0);
-        
-        if (hasInputData) {
-          fields.forEach(field => {
-            const value = inputs[field.variable];
-            const unit = inputs[`${field.variable}_unit`];
-            if (value && value !== '' && value !== 0) {
-              if (!unit || unit.trim() === '') {
-                const monthLabel = MONTHS.find(m => m.key === monthKey)?.label || monthKey;
-                allMissingUnits.push(`${field.label} in ${monthLabel}`);
-              }
-            }
-          });
-        }
-      }
-      
-      if (allMissingUnits.length > 0) {
-        toast.error(`Units required for: ${allMissingUnits.slice(0, 3).join(', ')}${allMissingUnits.length > 3 ? ` and ${allMissingUnits.length - 3} more...` : ''}`);
-        setValidationErrors(prev => ({
-          ...prev,
-          [employeeId]: allMissingUnits.map(item => `Unit required for ${item}`)
-        }));
-        return;
-      }
-    }
-    
-    // Clear validation error for this employee if all validations pass
-    setValidationErrors(prev => {
-      const newErrors = { ...prev };
-      delete newErrors[employeeId];
-      return newErrors;
-    });
-    
-    if (onCalculateEmployee) {
-      for (const monthKey of activeMonths) {
-        const monthData = employee.monthly_data?.[monthKey];
-        // Check if any input has a value
-        const hasInputData = monthData?.inputs && Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
-        if (hasInputData) {
-          await onCalculateEmployee(employeeId, monthKey, employee);
-        }
-      }
-    }
-  }, [employees, activeMonths, onCalculateEmployee, calculationMethod, fields]);
-
   // Get fields for the current activity type - use fields from parent (already filtered)
   const getFieldsForActivityType = useCallback(() => {
     // Fields are already filtered based on activity type from the parent
@@ -1127,17 +1058,6 @@ const MultiEmployeeInput = ({
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium text-gray-700">Monthly Data</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCalculateAllMonths(employee.id)}
-                          disabled={disabled || isCalculating}
-                          className="text-xs"
-                        >
-                          <Calculator className="h-3 w-3 mr-1" />
-                          Calculate All
-                        </Button>
                       </div>
                       
                       {/* Ledger Table */}

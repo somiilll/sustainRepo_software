@@ -72,6 +72,7 @@ export function useEmissionSubmit(ctx) {
       buildDecisionInputs, editingEmission,
       decisionFieldValues,
       capabilities,
+      calculateC7EmployeesForSave,
       // Optional supplier context
       supplierContext = null,
       assignedReportingPeriod = null,
@@ -135,9 +136,22 @@ export function useEmissionSubmit(ctx) {
     // Prevent duplicate submissions
     if (isSaving) return;
     
-    const validation = canProceedToStep(5); // Final validation
+    let submissionEmployees = employees;
+    if (isC7EmployeeCommuting && employees.length > 0 && calculateC7EmployeesForSave) {
+      setIsSaving(true);
+      const calculation = await calculateC7EmployeesForSave();
+      if (calculation?.error) {
+        toast.error(`Nothing was saved. ${calculation.error}`);
+        setIsSaving(false);
+        return;
+      }
+      submissionEmployees = calculation?.employees || employees;
+    }
+
+    const validation = canProceedToStep(5, { employees: submissionEmployees }); // Final validation
     if (!validation.valid) {
       toast.error(validation.message);
+      setIsSaving(false);
       return;
     }
 
@@ -304,7 +318,7 @@ export function useEmissionSubmit(ctx) {
         }
 
         const c7Ctx = {
-          employees,
+          employees: submissionEmployees,
           frequencyType,
           facilityId,
           reportingYearType,
@@ -392,7 +406,7 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        toast.success(`Saved ${formatSavedMonths(c7Built.payloads.map(({ monthKey }) => monthKey))} for ${employees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
+        toast.success(`Saved ${formatSavedMonths(c7Built.payloads.map(({ monthKey }) => monthKey))} for ${submissionEmployees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
         if (typeof onSuccess === 'function') onSuccess();
 
         setIsSaving(false);

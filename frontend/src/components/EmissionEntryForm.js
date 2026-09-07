@@ -2659,7 +2659,7 @@ export default function EmissionEntryForm({
 
   // F4: Validation dispatcher delegates to extracted utils.
   // The util `canProceedToStep` covers cases 2/3/4 (legacy case 5 default-true preserved).
-  const canProceedToStep = (step) => canProceedToStepUtil(step, {
+  const canProceedToStep = (step, overrides = {}) => canProceedToStepUtil(step, {
     // Step 1 params
     facilityId, scope, category,
     scope3Method, scope3ActivityId, useCustomActivity, scope3CustomActivity,
@@ -2669,7 +2669,7 @@ export default function EmissionEntryForm({
     // Step 2 params
     processNames, responsiblePerson, requiresAssetName, assetName,
     // Step 3 params
-    isC7EmployeeCommuting, employees, dynamicInputFields,
+    isC7EmployeeCommuting, employees: overrides.employees || employees, dynamicInputFields,
     frequencyType,
     yearlyData: submissionYearlyData,
     monthlyData: submissionMonthlyData,
@@ -2683,9 +2683,10 @@ export default function EmissionEntryForm({
   });
 
 
-  const validateFullForm = () => {
+  const validateFullForm = (stepOrOverrides = {}, maybeOverrides = {}) => {
+    const overrides = typeof stepOrOverrides === 'object' ? stepOrOverrides : maybeOverrides;
     for (const step of [2, 3, 4]) {
-      const validation = canProceedToStep(step);
+      const validation = canProceedToStep(step, overrides);
       if (!validation.valid) return validation;
     }
     return { valid: true };
@@ -2764,12 +2765,12 @@ export default function EmissionEntryForm({
       // Build inputs for formula execution - format: { variable: { value, unit } }
       const formulaInputs = {};
       Object.entries(inputData.inputs).forEach(([key, value]) => {
-        if (value !== '' && value !== null && value !== undefined) {
+        if (!key.endsWith('_unit') && value !== '' && value !== null && value !== undefined) {
           // Find the field config to get the unit
           const fieldConfig = dynamicInputFields.find(f => f.variable === key);
           formulaInputs[key] = {
             value: parseFloat(value),
-            unit: fieldConfig?.expectedUnit || fieldConfig?.unit || ''
+            unit: inputData.inputs[`${key}_unit`] || fieldConfig?.expectedUnit || fieldConfig?.unit || ''
           };
         }
       });
@@ -2781,8 +2782,14 @@ export default function EmissionEntryForm({
           ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
           : `CY${reportingYear}`;
       } else {
-        const actualYear = getActualYearForMonth(monthKey);
-        c7ReportingPeriod = `${actualYear}-${monthKey}`;
+        const monthNumber = {
+          jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+          jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+        }[monthKey] || monthKey;
+        const actualYear = reportingYearType === 'financial' && Number(monthNumber) <= 3
+          ? Number(reportingYear) + 1
+          : Number(reportingYear);
+        c7ReportingPeriod = `${actualYear}-${monthNumber}`;
       }
 
       // Build context for additional data
@@ -2938,6 +2945,173 @@ export default function EmissionEntryForm({
     }
   }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, category, dynamicInputFields, getAuthHeader, useCustomActivity, scope3CustomActivity]);
 
+  const calculateC7EmployeesForSave = useCallback(async () => {
+    const monthNumbers = {
+      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+    };
+    const fail = (message) => ({ error: message });
+    if (!scope3Method) return fail('Please select a calculation method first');
+    if (!scope3ActivityType) return fail('Please select an activity type first');
+    if (!useCustomActivity && !scope3ActivityId) {
+      return fail('Please select a specific activity from the dropdown');
+    }
+
+    const matchedActivity = useCustomActivity
+      ? null
+      : filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+    if (!useCustomActivity && !matchedActivity) {
+      return fail('Activity not found. Please select a valid activity from the dropdown.');
+    }
+    const categoryObj = dynamicCategories.find((item) => (
+      item.name === category && item.scope_code === 'scope3'
+    ));
+    if (!categoryObj) return fail('Category not found');
+
+    setIsCalculatingEmployee(true);
+    try {
+      const calculatedEmployees = employees.map((employee) => ({ ...employee }));
+      for (let employeeIndex = 0; employeeIndex < calculatedEmployees.length; employeeIndex += 1) {
+        let employee = calculatedEmployees[employeeIndex];
+        if (!employee.name?.trim()) return fail('Employee Name is required');
+        const periods = frequencyType === 'yearly'
+          ? ['yearly']
+          : Object.entries(employee.monthly_data || {})
+            .filter(([, monthData]) => dynamicInputFields.some((field) => {
+              const value = monthData?.inputs?.[field.variable];
+              return value !== '' && value !== null && value !== undefined;
+            }))
+            .map(([monthKey]) => monthKey);
+
+        for (const periodKey of periods) {
+          const isYearly = periodKey === 'yearly';
+          const inputData = isYearly ? employee.yearly_data : employee.monthly_data?.[periodKey];
+          const inputs = inputData?.inputs || {};
+          for (const field of dynamicInputFields.filter((item) => item.required && !item.isOverride)) {
+            const value = inputs[field.variable];
+            if (value === '' || value === null || value === undefined) {
+              return fail(`${employee.name}: ${field.label} is required`);
+            }
+          }
+
+          const formulaInputs = {};
+          for (const field of dynamicInputFields) {
+            const value = inputs[field.variable];
+            if (value === '' || value === null || value === undefined) continue;
+            const unit = inputs[`${field.variable}_unit`] || field.expectedUnit || field.unit || '';
+            if (scope3Method === 'supplier_basis' && field.unitSource !== 'none' && !String(unit).trim()) {
+              return fail(`${employee.name}: Unit is required for ${field.label}`);
+            }
+            formulaInputs[field.variable] = { value: parseFloat(value), unit };
+          }
+
+          const reportingPeriod = isYearly
+            ? (reportingYearType === 'financial'
+              ? `FY ${reportingYear}-${String(Number(reportingYear) + 1).slice(-2)}`
+              : `CY${reportingYear}`)
+            : (() => {
+              const monthNumber = monthNumbers[periodKey] || periodKey;
+              const actualYear = reportingYearType === 'financial' && Number(monthNumber) <= 3
+                ? Number(reportingYear) + 1
+                : Number(reportingYear);
+              return `${actualYear}-${monthNumber}`;
+            })();
+
+          let response;
+          try {
+            response = await axios.post(`${API}/calc-engine/execute-by-category`, {
+              category_id: categoryObj.id,
+              decision_inputs: {
+                calculation_method_scope3: scope3Method,
+                activity_type: scope3ActivityType,
+              },
+              inputs: formulaInputs,
+              context: {
+                calculation_method_scope3: scope3Method,
+                activity_type: scope3ActivityType,
+                reporting_period: reportingPeriod,
+                activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
+                fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
+                scope3_ef_id: matchedActivity?.id || null,
+                use_custom_activity: useCustomActivity,
+              },
+              scope3_ef_id: matchedActivity?.id || null,
+            }, { headers: getAuthHeader() });
+          } catch (error) {
+            const detail = error.response?.data?.detail;
+            return fail(`${employee.name}: ${typeof detail === 'string' ? detail : 'Failed to calculate emissions'}`);
+          }
+          if (!response.data?.outputs) return fail(`${employee.name}: No calculation results returned`);
+
+          const emissions = {
+            co2: response.data.outputs.co2?.value || 0,
+            ch4: response.data.outputs.ch4?.value || 0,
+            n2o: response.data.outputs.n2o?.value || 0,
+            co2e: response.data.outputs.co2e?.value || 0,
+          };
+          const calculationDetails = {
+            audit_log: response.data.audit_log || [],
+            applied_factors: response.data.applied_factors || {},
+            formula_id: response.data.resolved_formula?.id || null,
+            formula_version_id: response.data.resolved_formula?.version_id || null,
+            decision_tree_version_id: response.data.resolved_decision_tree?.version_id || null,
+            formula_name: response.data.resolved_formula?.name || '',
+            outputs: response.data.outputs,
+          };
+          if (isYearly) {
+            employee = {
+              ...employee,
+              yearly_data: { ...employee.yearly_data, emissions, calculation_details: calculationDetails },
+            };
+          } else {
+            employee = {
+              ...employee,
+              monthly_data: {
+                ...employee.monthly_data,
+                [periodKey]: {
+                  ...employee.monthly_data[periodKey],
+                  emissions,
+                  calculation_details: calculationDetails,
+                },
+              },
+            };
+          }
+          calculatedEmployees[employeeIndex] = employee;
+          if (response.data.resolved_formula?.id) {
+            setC7FormulaId(response.data.resolved_formula.id);
+            setC7FormulaName(response.data.resolved_formula.name || '');
+          }
+        }
+      }
+
+      setEmployees(calculatedEmployees);
+      if (frequencyType === 'yearly') {
+        setEmployeeYearlyTotal({
+          co2e: calculatedEmployees.reduce((total, employee) => (
+            total + (employee.yearly_data?.emissions?.co2e || 0)
+          ), 0),
+        });
+      } else {
+        const totals = {};
+        calculatedEmployees.forEach((employee) => {
+          Object.entries(employee.monthly_data || {}).forEach(([monthKey, monthData]) => {
+            if (monthData?.emissions?.co2e === null || monthData?.emissions?.co2e === undefined) return;
+            totals[monthKey] = {
+              co2e: (totals[monthKey]?.co2e || 0) + monthData.emissions.co2e,
+            };
+          });
+        });
+        setEmployeeMonthlyTotals(totals);
+        setEmployeeYearlyTotal({
+          co2e: Object.values(totals).reduce((total, month) => total + (month.co2e || 0), 0),
+        });
+      }
+      return { employees: calculatedEmployees };
+    } finally {
+      setIsCalculatingEmployee(false);
+    }
+  }, [category, dynamicCategories, dynamicInputFields, employees, filteredScope3Activities, frequencyType, getAuthHeader, reportingYear, reportingYearType, scope3ActivityId, scope3ActivityType, scope3CustomActivity, scope3Method, useCustomActivity]);
+
   // Submit handler - creates emissions for each month with data
   // F6 (Option B): handleSubmit body lifted to useEmissionSubmit hook.
   // Form just assembles the ctx and calls submit().
@@ -3015,6 +3189,7 @@ export default function EmissionEntryForm({
     decisionFieldValues,
     // Editing
     editingEmission,
+    calculateC7EmployeesForSave,
     // Supplier context (optional)
     supplierContext,
     assignedReportingPeriod,

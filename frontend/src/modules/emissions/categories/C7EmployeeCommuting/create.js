@@ -24,8 +24,9 @@ const hasYearlyData = (emp) =>
 const hasAnyMonthData = (emp) =>
   Object.values(emp.monthly_data || {}).some((monthData) => {
     if (!monthData?.inputs) return false;
-    return Object.values(monthData.inputs).some(
-      (v) => v !== '' && v !== null && v !== undefined && v !== 0
+    return Object.entries(monthData.inputs).some(
+      ([key, value]) => !key.endsWith('_unit')
+        && value !== '' && value !== null && value !== undefined && value !== 0
     );
   });
 
@@ -53,12 +54,16 @@ export function validateYearlyCreateSubmission({ employees }) {
     };
   }
 
-  const calculated = employees.some(
-    (emp) =>
-      emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
-  );
-  if (!calculated) {
-    return { valid: false, errorMessage: 'Please calculate emissions for at least one employee' };
+  const uncalculatedEmployees = employees.filter((emp) => (
+    emp.yearly_data?.emissions?.co2e === null || emp.yearly_data?.emissions?.co2e === undefined
+  ));
+  if (uncalculatedEmployees.length > 0) {
+    return {
+      valid: false,
+      errorMessage: `Unable to calculate annual emissions for: ${uncalculatedEmployees
+        .map((employee) => employee.name || 'Unnamed')
+        .join(', ')}`,
+    };
   }
 
   return { valid: true };
@@ -86,13 +91,23 @@ export function validateMonthlyCreateSubmission({ employees }) {
     };
   }
 
-  const calculated = employees.some((emp) =>
-    Object.values(emp.monthly_data || {}).some(
-      (m) => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined
-    )
-  );
-  if (!calculated) {
-    return { valid: false, errorMessage: 'Please calculate emissions for at least one employee/month' };
+  const uncalculatedPeriods = [];
+  employees.forEach((employee) => {
+    Object.entries(employee.monthly_data || {}).forEach(([monthKey, monthData]) => {
+      const hasInput = Object.entries(monthData?.inputs || {}).some(
+        ([key, value]) => !key.endsWith('_unit')
+          && value !== '' && value !== null && value !== undefined && value !== 0,
+      );
+      if (hasInput && (monthData?.emissions?.co2e === null || monthData?.emissions?.co2e === undefined)) {
+        uncalculatedPeriods.push(`${employee.name || 'Unnamed'} (${monthKey})`);
+      }
+    });
+  });
+  if (uncalculatedPeriods.length > 0) {
+    return {
+      valid: false,
+      errorMessage: `Unable to calculate emissions for: ${uncalculatedPeriods.join(', ')}`,
+    };
   }
 
   return { valid: true };
