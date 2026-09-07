@@ -43,6 +43,15 @@ const getApiErrorMessage = (error, fallback) => {
   return typeof detail === 'string' ? detail : fallback;
 };
 
+const formatSavedMonths = (monthKeys) => {
+  const monthNames = monthKeys.map((monthKey) => (
+    MONTHS.find((month) => month.key === monthKey)?.name || String(monthKey)
+  ));
+  if (monthNames.length < 2) return monthNames[0] || 'the selected month';
+  if (monthNames.length === 2) return monthNames.join(' and ');
+  return `${monthNames.slice(0, -1).join(', ')}, and ${monthNames[monthNames.length - 1]}`;
+};
+
 export function useEmissionSubmit(ctx) {
   const submit = async () => {
     const {
@@ -383,7 +392,7 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        toast.success(`Saved ${c7Built.payloads.length} month(s) for ${employees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
+        toast.success(`Saved ${formatSavedMonths(c7Built.payloads.map(({ monthKey }) => monthKey))} for ${employees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
         if (typeof onSuccess === 'function') onSuccess();
 
         setIsSaving(false);
@@ -642,7 +651,7 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        toast.success(`Created ${preparedRows.length} process emission record(s) successfully`);
+        toast.success(`Created emissions for ${formatSavedMonths(preparedRows.map(({ monthKey }) => monthKey))}`);
         onSuccess?.();
         setIsSaving(false);
         return;
@@ -779,7 +788,7 @@ export function useEmissionSubmit(ctx) {
         if (savedEmissionIds.length > 0 && ocrPrefillData?.line_item_id) {
           await finalizeOcrImport(savedEmissionIds);
         }
-        toast.success(`Created ${preparedRows.length} emission record(s) successfully`);
+        toast.success(`Created emissions for ${formatSavedMonths(preparedRows.map(({ monthKey }) => monthKey))}`);
         onSuccess?.();
         setIsSaving(false);
         return;

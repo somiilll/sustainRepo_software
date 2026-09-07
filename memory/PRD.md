@@ -825,3 +825,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Updated the shared Add Emissions evidence upload trigger and its attached-file hover panel to retain a white surface with dark, readable text instead of the prior green/white treatment.
 - Added clear vertical separation before the optional Person Responsible row across the shared Add Emissions form.
 - **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
+
+## Latest Changes — 2026-09-04 (Add Emissions Notes and Multi-month Confirmation)
+- Added separation above the Additional Notes row in the optional Add Emissions area.
+- Consolidated each multi-month create success message into one notification that explicitly lists every saved month for C7, Process Emissions, and all other module-driven emission submissions.
+- Targeted frontend static checks and a page-load smoke were completed before the user’s subsequent `dont test` instruction; no further testing was run.

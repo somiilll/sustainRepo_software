@@ -17,7 +17,7 @@ export const Step4Notes = ({
   setNotes,
 }) => {
   return (
-    <div className="space-y-3">
+    <div className="mt-4 space-y-3">
       <Label className="text-base font-medium">Additional Notes</Label>
       <textarea
         value={notes}
