@@ -1,5 +1,12 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Organization Summary and All-Years Data View
+- Removed country, timezone, reporting-year type, facility count, target count, and reporting cadence from the Organization summary.
+- Joined the corporate address into one line and removed timezone from the address card.
+- Replaced the Production/Revenue year selector with five simultaneous reporting-year editors supporting monthly and yearly entry with per-year saving.
+- Extracted the reporting-year editor into focused reusable components.
+- **NOT TESTED at user request.**
+
 ## September 7, 2026 — Organization Entitlement-Aware Tabs
 - Removed the BRSR/GRI framework badges from the Organization summary.
 - GHG Details now appears only for organizations with the canonical GHG entitlement.

@@ -26,8 +26,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **Production Data** and **Revenue Data** are visible only when at least one canonical Environment, Social, or Governance entitlement is enabled.
 - **Basic Details** contains company identity, logo, corporate address, organization description, mission, vision, process description, responsible-person contact, reporting cadence/year, attachments, and other organization information.
 - **GHG Details** contains Purpose of the Report, Organizational Boundaries, Uncertainty Assessment, GHG Reduction Initiatives, and Internal Performance Tracking Description.
-- **Production Data** contains Production Quantity only; **Revenue Data** contains Turnover / Revenue only. Both respect the organization calendar/financial reporting year.
+- **Production Data** contains Production Quantity only; **Revenue Data** contains Turnover / Revenue only. Both show the five available reporting years together, support monthly or yearly entry per period, and respect the organization calendar/financial reporting year.
 - Organization details do not display a last-updated timestamp or Related Modules navigation cards.
+- The organization summary displays only the organization identity; country, timezone, reporting-year type, facility count, target count, and reporting cadence are omitted.
+- The view-mode corporate address is presented as one joined address line without timezone.
 
 ### GHG Data Entry
 - Support monthly and yearly Scope 1, Scope 2, Scope 3, and approved biogenic entries.
@@ -96,10 +98,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
-- Removed BRSR/GRI framework badges from the Organization summary.
-- Gated GHG Details by the canonical GHG entitlement.
-- Gated Production Data and Revenue Data unless at least one Environment, Social, or Governance entitlement is enabled.
-- Hidden active tabs safely return to Basic Details when their entitlement is unavailable.
+- Simplified the Organization summary to organization logo and name only.
+- Combined street, city, state, country, and postal code into one corporate-address line without timezone.
+- Replaced the Production/Revenue year dropdown with five simultaneous reporting-year editors, each supporting monthly or yearly data and an independent save action.
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities

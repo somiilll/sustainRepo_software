@@ -7,14 +7,14 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, TrendingUp, Loader2, Target, BarChart3, Leaf, Users, Mail, Phone, Globe, Calendar, Clock, ChevronDown, ChevronUp, Briefcase, Eye, Shield, Zap } from 'lucide-react';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Target, BarChart3, Leaf, Users, Mail, Phone, ChevronDown, ChevronUp, Briefcase, Eye, Shield, Zap } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import { ModulePageHeader } from '../components/ModulePageHeader';
+import { OrganizationOperationalData } from '../components/organization/OrganizationOperationalData';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -60,25 +60,6 @@ export default function OrganizationDetails() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
-  
-  // Yearly Data State (Turnover & Production Quantity)
-  const [yearlyDataYear, setYearlyDataYear] = useState('');
-  // Will be set after org loads
-  const [yearlyData, setYearlyData] = useState({ 
-    turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR',
-    production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {},
-    production_unit: 'MT' 
-  });
-  const [yearlyDataLoading, setYearlyDataLoading] = useState(false);
-  const [yearlyDataSaving, setYearlyDataSaving] = useState(false);
-  
-  // Module summary counts for quick navigation cards
-  const [moduleCounts, setModuleCounts] = useState({
-    facilities: 0,
-    targets: 0,
-    ghgRecords: 0,
-    esgRecords: 0
-  });
   
   // Collapsible text states
   const [expandedSections, setExpandedSections] = useState({});
@@ -288,79 +269,12 @@ export default function OrganizationDetails() {
     }
   };
 
-  // Fetch yearly data when year changes
-  const fetchYearlyData = useCallback(async () => {
-    if (!yearlyDataYear) return;
-    setYearlyDataLoading(true);
-    try {
-      const response = await axios.get(
-        `${process.env.REACT_APP_BACKEND_URL}/api/organization/yearly-data/${yearlyDataYear}`,
-        { headers: getAuthHeader() }
-      );
-      if (response.data) {
-        setYearlyData({
-          turnover: response.data.turnover || '',
-          turnover_frequency: response.data.turnover_frequency || 'yearly',
-          turnover_monthly: response.data.turnover_monthly || {},
-          turnover_currency: response.data.turnover_currency || 'INR',
-          production_quantity: response.data.production_quantity || '',
-          production_quantity_frequency: response.data.production_quantity_frequency || 'yearly',
-          production_quantity_monthly: response.data.production_quantity_monthly || {},
-          production_unit: response.data.production_unit || 'MT'
-        });
-      } else {
-        setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR', production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
-      }
-    } catch (error) {
-      console.log('No yearly data found for', yearlyDataYear);
-      setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR', production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
-    } finally {
-      setYearlyDataLoading(false);
-    }
-  }, [yearlyDataYear, getAuthHeader]);
-
-  useEffect(() => {
-    fetchYearlyData();
-  }, [fetchYearlyData]);
-
-  const saveYearlyData = async () => {
-    if (subscriptionExpired) {
-      toast.error('Subscription expired. Cannot save data.');
-      return;
-    }
-    setYearlyDataSaving(true);
-    try {
-      await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/api/organization/yearly-data/${yearlyDataYear}`,
-        yearlyData,
-        { headers: getAuthHeader() }
-      );
-      toast.success(`Saved data for ${organization?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'} ${yearlyDataYear}`);
-    } catch (error) {
-      toast.error('Failed to save yearly data');
-    } finally {
-      setYearlyDataSaving(false);
-    }
-  };
-
   const fetchOrganization = async () => {
     try {
       const response = await axios.get(`${API}/organizations/my`, {
         headers: getAuthHeader()
       });
       setOrganization(response.data);
-      
-      // Set default yearly data year based on org reporting type
-      if (!yearlyDataYear) {
-        const now = new Date();
-        const isCY = response.data.reporting_year_type === 'calendar_year';
-        if (isCY) {
-          setYearlyDataYear(String(now.getFullYear()));
-        } else {
-          const fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-          setYearlyDataYear(`${fyStart}-${String(fyStart + 1).slice(-2)}`);
-        }
-      }
       
       // Reconstruct control_types from org_boundaries_approach
       let controlTypes = response.data.control_types || [];
@@ -417,32 +331,6 @@ export default function OrganizationDetails() {
       setLoading(false);
     }
   };
-
-  // Fetch module counts for quick navigation cards
-  const fetchModuleCounts = useCallback(async () => {
-    try {
-      const headers = getAuthHeader();
-      const [facilitiesRes, targetsRes] = await Promise.all([
-        axios.get(`${API}/facilities`, { headers }).catch(() => ({ data: [] })),
-        axios.get(`${API}/targets`, { headers }).catch(() => ({ data: [] }))
-      ]);
-      
-      setModuleCounts({
-        facilities: Array.isArray(facilitiesRes.data) ? facilitiesRes.data.length : 0,
-        targets: Array.isArray(targetsRes.data) ? targetsRes.data.length : 0,
-        ghgRecords: 0, // Will be populated if needed
-        esgRecords: 0
-      });
-    } catch (error) {
-      console.error('Error fetching module counts:', error);
-    }
-  }, [getAuthHeader]);
-
-  useEffect(() => {
-    if (organization && !editing) {
-      fetchModuleCounts();
-    }
-  }, [organization, editing, fetchModuleCounts]);
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -720,71 +608,27 @@ export default function OrganizationDetails() {
       {/* ========== PERSISTENT ORGANIZATION SUMMARY HEADER ========== */}
       {!editing && (
         <Card className="p-0 border border-stone-200 rounded-xl bg-white overflow-hidden">
-          {/* Top gradient accent bar */}
           <div className="h-2 bg-gradient-to-r from-primary via-emerald-500 to-teal-500" />
-          
           <div className="p-6">
-            <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-              {/* Logo & Name */}
-              <div className="flex items-start gap-4 flex-1">
-                {organization?.logo && !logoError ? (
-                  <img 
-                    src={getFullLogoUrl(organization.logo)} 
-                    alt={organization.name} 
-                    className="w-20 h-20 object-contain rounded-xl border-2 border-stone-100 shadow-sm bg-white"
-                    onError={() => setLogoError(true)} 
-                  />
-                ) : (
-                  <div className="w-20 h-20 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-emerald-50 border border-stone-100">
-                    <Building className="w-10 h-10 text-primary" />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <h1 className="text-2xl lg:text-3xl font-heading font-bold text-text-primary mb-2">
-                    {organization?.name}
-                  </h1>
-                  <div className="flex flex-wrap gap-2">
-                    {organization?.country && (
-                      <Badge variant="outline" className="bg-stone-50 text-stone-700 border-stone-200">
-                        <Globe className="w-3 h-3 mr-1" />
-                        {organization.country}
-                      </Badge>
-                    )}
-                    {organization?.timezone && (
-                      <Badge variant="outline" className="bg-stone-50 text-stone-700 border-stone-200">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {timezones.find(tz => tz.value === organization.timezone)?.label || organization.timezone}
-                      </Badge>
-                    )}
-                    {organization?.reporting_year_type && (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                        <Calendar className="w-3 h-3 mr-1" />
-                        {organization.reporting_year_type === 'financial_year' ? 'Financial Year' : 'Calendar Year'}
-                      </Badge>
-                    )}
-                  </div>
+            <div className="flex items-start gap-4">
+              {organization?.logo && !logoError ? (
+                <img
+                  src={getFullLogoUrl(organization.logo)}
+                  alt={organization.name}
+                  className="h-20 w-20 rounded-xl border-2 border-stone-100 bg-white object-contain shadow-sm"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-stone-100 bg-gradient-to-br from-primary/10 to-emerald-50">
+                  <Building className="h-10 w-10 text-primary" />
                 </div>
-              </div>
-
-              {/* Quick Stats */}
-              <div className="flex flex-wrap lg:flex-nowrap gap-4 lg:gap-6">
-                <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
-                  <div className="text-2xl font-bold text-primary">{moduleCounts.facilities}</div>
-                  <div className="text-xs text-text-muted">Facilities</div>
-                </div>
-                <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
-                  <div className="text-2xl font-bold text-emerald-600">{moduleCounts.targets}</div>
-                  <div className="text-xs text-text-muted">Targets</div>
-                </div>
-                {organization?.reporting_frequency && (
-                  <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
-                    <div className="text-lg font-semibold text-text-primary capitalize">{organization.reporting_frequency}</div>
-                    <div className="text-xs text-text-muted">Reporting</div>
-                  </div>
-                )}
+              )}
+              <div className="min-w-0 flex-1 self-center">
+                <h1 className="break-words font-heading text-2xl font-bold text-text-primary lg:text-3xl" data-testid="organization-summary-name">
+                  {organization?.name}
+                </h1>
               </div>
             </div>
-
           </div>
         </Card>
       )}
@@ -1468,46 +1312,15 @@ export default function OrganizationDetails() {
                 </div>
                 <h3 className="font-semibold text-text-primary">Corporate Address</h3>
               </div>
-              <div className="space-y-3 text-sm">
-                {organization?.corporate_address && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Street</span>
-                    <span className="text-text-primary text-right max-w-[60%]">{organization.corporate_address}</span>
-                  </div>
-                )}
-                {organization?.city && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">City</span>
-                    <span className="text-text-primary">{organization.city}</span>
-                  </div>
-                )}
-                {organization?.state && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">State</span>
-                    <span className="text-text-primary">{organization.state}</span>
-                  </div>
-                )}
-                {organization?.country && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Country</span>
-                    <span className="text-text-primary">{organization.country}</span>
-                  </div>
-                )}
-                {organization?.timezone && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Timezone</span>
-                    <span className="text-text-primary">
-                      {timezones.find(tz => tz.value === organization.timezone)?.label || organization.timezone}
-                    </span>
-                  </div>
-                )}
-                {organization?.pincode && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">PIN Code</span>
-                    <span className="text-text-primary font-mono">{organization.pincode}</span>
-                  </div>
-                )}
-              </div>
+              <p className="text-sm leading-6 text-text-primary" data-testid="organization-corporate-address">
+                {[
+                  organization?.corporate_address,
+                  organization?.city,
+                  organization?.state,
+                  organization?.country,
+                  organization?.pincode,
+                ].filter(Boolean).join(', ') || '—'}
+              </p>
             </Card>
 
             {/* Person Responsible Card */}
@@ -1828,165 +1641,14 @@ export default function OrganizationDetails() {
         </div>
       )}
 
-        {/* Yearly Data Section - Turnover & Production Quantity */}
-        <Card className={`${activeTab === 'production' || activeTab === 'revenue' ? 'block' : 'hidden'} p-6 border border-stone-200 rounded-xl bg-white mt-6`}>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-100 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-text-primary">{activeTab === 'revenue' ? 'Revenue Data' : 'Production Data'}</h3>
-                <p className="text-xs text-text-muted">for {organization?.reporting_year_type === 'calendar_year' ? 'Calendar Year' : 'Financial Year'} {yearlyDataYear}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {(() => {
-                const isCY = organization?.reporting_year_type === 'calendar_year';
-                return (
-                  <Select value={yearlyDataYear} onValueChange={setYearlyDataYear}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder={isCY ? "Select CY" : "Select FY"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => {
-                        const year = new Date().getFullYear() - i;
-                        if (isCY) {
-                          return (
-                            <SelectItem key={year} value={String(year)}>
-                              CY {year}
-                            </SelectItem>
-                          );
-                        }
-                        return (
-                          <SelectItem key={year} value={`${year}-${String(year + 1).slice(-2)}`}>
-                            FY {year}-{String(year + 1).slice(-2)}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                );
-              })()}
-            </div>
-          </div>
-
-          {yearlyDataLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Turnover / Revenue */}
-              <div className={activeTab === 'revenue' ? 'space-y-3 p-4 border border-stone-100 rounded-lg' : 'hidden'}>
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">
-                    Turnover / Revenue
-                    <span className="text-text-muted font-normal ml-1">for {organization?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'} {yearlyDataYear}</span>
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Select value={yearlyData.turnover_currency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, turnover_currency: v }))} disabled={subscriptionExpired}>
-                      <SelectTrigger className="w-24 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {['INR','USD','EUR','GBP','JPY','AUD','CAD','SGD','AED','CHF'].map(c => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={yearlyData.turnover_frequency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, turnover_frequency: v }))} disabled={subscriptionExpired}>
-                      <SelectTrigger className="w-28 h-8 text-xs" data-testid="turnover-frequency">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="yearly">Yearly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {yearlyData.turnover_frequency === 'yearly' ? (
-                  <div>
-                    <Input type="number" value={yearlyData.turnover} onChange={(e) => setYearlyData(prev => ({ ...prev, turnover: e.target.value }))} placeholder="Enter turnover / revenue" disabled={subscriptionExpired} />
-                    {yearlyData.turnover && <p className="text-xs text-text-muted">{yearlyData.turnover_currency} {Number(yearlyData.turnover).toLocaleString()}</p>}
-                  </div>
-                ) : (
-                  <div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {(organization?.reporting_year_type === 'calendar_year'
-                        ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-                        : ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-                      ).map(m => (
-                        <div key={m}>
-                          <Label className="text-[10px] text-text-muted">{m}</Label>
-                          <Input type="number" className="h-8 text-xs" placeholder="0" disabled={subscriptionExpired}
-                            value={yearlyData.turnover_monthly?.[m] || ''}
-                            onChange={(e) => setYearlyData(prev => ({ ...prev, turnover_monthly: { ...prev.turnover_monthly, [m]: e.target.value } }))}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    {Object.values(yearlyData.turnover_monthly || {}).some(v => v) && (
-                      <p className="text-xs text-text-muted mt-1">Total: {yearlyData.turnover_currency} {Object.values(yearlyData.turnover_monthly || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0).toLocaleString()}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Production Quantity */}
-              <div className={activeTab === 'production' ? 'space-y-3 p-4 border border-stone-100 rounded-lg' : 'hidden'}>
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">
-                    Production Quantity
-                    <span className="text-text-muted font-normal ml-1">for {organization?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'} {yearlyDataYear}</span>
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input type="text" value={yearlyData.production_unit} onChange={(e) => setYearlyData(prev => ({ ...prev, production_unit: e.target.value }))} placeholder="Unit" className="w-20 h-8 text-xs" disabled={subscriptionExpired} />
-                    <Select value={yearlyData.production_quantity_frequency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, production_quantity_frequency: v }))} disabled={subscriptionExpired}>
-                      <SelectTrigger className="w-28 h-8 text-xs" data-testid="production-frequency">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="yearly">Yearly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {yearlyData.production_quantity_frequency === 'yearly' ? (
-                  <Input type="number" value={yearlyData.production_quantity} onChange={(e) => setYearlyData(prev => ({ ...prev, production_quantity: e.target.value }))} placeholder="Enter quantity" disabled={subscriptionExpired} />
-                ) : (
-                  <div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {(organization?.reporting_year_type === 'calendar_year'
-                        ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-                        : ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-                      ).map(m => (
-                        <div key={m}>
-                          <Label className="text-[10px] text-text-muted">{m}</Label>
-                          <Input type="number" className="h-8 text-xs" placeholder="0" disabled={subscriptionExpired}
-                            value={yearlyData.production_quantity_monthly?.[m] || ''}
-                            onChange={(e) => setYearlyData(prev => ({ ...prev, production_quantity_monthly: { ...prev.production_quantity_monthly, [m]: e.target.value } }))}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    {Object.values(yearlyData.production_quantity_monthly || {}).some(v => v) && (
-                      <p className="text-xs text-text-muted mt-1">Total: {Object.values(yearlyData.production_quantity_monthly || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0).toLocaleString()} {yearlyData.production_unit}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={saveYearlyData} disabled={yearlyDataSaving || subscriptionExpired} className="bg-primary hover:bg-primary/90">
-                  {yearlyDataSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>) : 'Save Data'}
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
+        {showOperationalData && (
+          <OrganizationOperationalData
+            activeTab={activeTab}
+            getAuthHeader={getAuthHeader}
+            organization={organization}
+            subscriptionExpired={subscriptionExpired}
+          />
+        )}
         </div>
 
       </Tabs>
