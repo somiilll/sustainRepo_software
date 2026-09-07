@@ -877,3 +877,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - For financial years, January–March use the ending calendar year; therefore February in FY 2023-24 allows 29 days, while February in FY 2024-25 allows 28.
 - Applied the same month-aware limits to standard Scope 3 ledgers, C7 multi-employee entry, pre-save validation, and legacy C7 validation.
 - **NOT TESTED** per the user’s explicit `dont test` instruction; code review only.
+
+## Latest Changes — 2026-09-07 (Monthly Day-Limit Runtime Error)
+- Fixed the new monthly maximum error message referencing an undefined `month` variable when rejecting a value above February’s limit.
+- The handler now resolves the display month from `monthKey`, so entering 90 for February 2024 is rejected with a 29-day validation message instead of crashing the page.
+- **NOT TESTED** per the user’s prior explicit instruction; targeted source review found no other invalid reference from this change.

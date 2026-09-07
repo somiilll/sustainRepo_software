@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Monthly Day-Limit Runtime Error Fixed
+- Replaced the undefined `month` reference in Scope 3 monthly day-limit feedback with a month label resolved from `monthKey`.
+- **NOT TESTED at user request.**
+
 ## September 7, 2026 — Scope 3 Monthly Leap-Year Limits
 - Corrected February limits for financial-year monthly entries by mapping January–March to the financial year’s ending calendar year.
 - Standard Scope 3, C7 multi-employee, pre-save, and legacy C7 paths now share the same month/day resolver.

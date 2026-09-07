@@ -1028,6 +1028,7 @@ export const Step3YearMonthlyData = ({
                   ? getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)
                   : undefined;
                 const monthlyFieldMax = monthlyDayLimit ?? field.validationRules?.max;
+                const monthlyPeriodLabel = MONTHS.find((entry) => entry.key === monthKey)?.name || monthKey;
                 const hideUnit = useCustomFuel && isQtyField;
                 const showCustomFuelQuantityUnit = useCustomFuel && isQtyField;
                 const showUnitDropdown = showCustomFuelQuantityUnit
@@ -1060,7 +1061,7 @@ export const Step3YearMonthlyData = ({
                           const val = e.target.value;
                           if (monthlyFieldMax !== undefined && val !== '' && parseFloat(val) > monthlyFieldMax) {
                             toast.error(isMonthlyDayField
-                              ? `${field.label} cannot exceed ${monthlyFieldMax} days for ${month.name}`
+                              ? `${field.label} cannot exceed ${monthlyFieldMax} days for ${monthlyPeriodLabel}`
                               : `${field.label} cannot exceed ${monthlyFieldMax}`);
                             return;
                           }
