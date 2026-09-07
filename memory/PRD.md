@@ -871,3 +871,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Applied 365/366 maximums to Scope 3 `working_days`, `qty_days_travelled`, and legacy C7 `no_of_days` across standard yearly fields, multi-employee C7 entry, validation before save, and legacy category validation.
 - Annual inputs now display the correct maximum for the selected period and reject larger values while preserving existing monthly day-of-month limits.
 - Targeted ESLint passed; 38 reporting-period and validation regression tests passed.
+
+## Latest Changes — 2026-09-07 (Scope 3 Monthly Leap-Year Days)
+- Monthly Scope 3 day-count limits now resolve the actual calendar year represented by each month in the selected reporting period.
+- For financial years, January–March use the ending calendar year; therefore February in FY 2023-24 allows 29 days, while February in FY 2024-25 allows 28.
+- Applied the same month-aware limits to standard Scope 3 ledgers, C7 multi-employee entry, pre-save validation, and legacy C7 validation.
+- **NOT TESTED** per the user’s explicit `dont test` instruction; code review only.

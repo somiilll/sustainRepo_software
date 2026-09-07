@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Scope 3 Monthly Leap-Year Limits
+- Corrected February limits for financial-year monthly entries by mapping January–March to the financial year’s ending calendar year.
+- Standard Scope 3, C7 multi-employee, pre-save, and legacy C7 paths now share the same month/day resolver.
+- **NOT TESTED at user request.**
+
 ## September 7, 2026 — Scope 3 Annual Day Limits
 - Added dynamic 365/366 limits for annual Scope 3 day-count fields based on the selected calendar or financial reporting period.
 - Covered standard Scope 3 yearly entry, C7 multi-employee entry, pre-save validation, and legacy C7 validation.

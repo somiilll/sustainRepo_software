@@ -6,7 +6,10 @@
  */
 
 import { isSupplierBased } from '../../../../../../constants/calculation-methods';
-import { getAnnualReportingPeriodDayLimit } from '../../../shared/utils/reportingPeriodDays';
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+} from '../../../shared/utils/reportingPeriodDays';
 
 /**
  * Validation schema for C7
@@ -102,6 +105,18 @@ export const validateEmployee = (
     
     if (!hasAnyMonthData) {
       errors.monthly_data = 'At least one month must have data entered';
+    }
+    for (const [monthKey, monthData] of Object.entries(monthlyData)) {
+      const value = Number.parseFloat(monthData?.inputs?.no_of_days);
+      const maxDays = getMonthlyReportingPeriodDayLimit(
+        monthKey,
+        reportingYear,
+        reportingYearType,
+      );
+      if (Number.isFinite(value) && value > maxDays) {
+        errors.monthly_data = `Number of days cannot exceed ${maxDays} for ${monthKey}`;
+        break;
+      }
     }
   }
   

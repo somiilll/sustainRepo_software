@@ -25,6 +25,7 @@ import MultiEmployeeInput from '../../../../../../components/MultiEmployeeInput'
 import { MONTHS } from '../../../../../../constants/months';
 import {
   getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
   isAnnualDayCountField,
 } from '../../utils/reportingPeriodDays';
 
@@ -1022,6 +1023,11 @@ export const Step3YearMonthlyData = ({
                 const isTextUnitField = field.unitSource === 'text';
                 const isSupplierBasis = scope3Method === 'supplier_basis';
                 const isQtyField = isQuantityField(field);
+                const isMonthlyDayField = isAnnualDayCountField(field);
+                const monthlyDayLimit = isMonthlyDayField
+                  ? getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)
+                  : undefined;
+                const monthlyFieldMax = monthlyDayLimit ?? field.validationRules?.max;
                 const hideUnit = useCustomFuel && isQtyField;
                 const showCustomFuelQuantityUnit = useCustomFuel && isQtyField;
                 const showUnitDropdown = showCustomFuelQuantityUnit
@@ -1047,12 +1053,15 @@ export const Step3YearMonthlyData = ({
                         type={field.fieldType === 'text' ? 'text' : 'number'}
                         step={field.fieldType === 'number' ? 'any' : undefined}
                         min={field.fieldType === 'number' ? '0' : undefined}
-                        placeholder="—"
+                        max={monthlyFieldMax}
+                        placeholder={isMonthlyDayField ? `≤${monthlyDayLimit}` : '—'}
                         value={displayedValue}
                         onChange={(e) => {
                           const val = e.target.value;
-                          if (field.validationRules?.max !== undefined && val !== '' && parseFloat(val) > field.validationRules.max) {
-                            toast.error(`${field.label} cannot exceed ${field.validationRules.max}`);
+                          if (monthlyFieldMax !== undefined && val !== '' && parseFloat(val) > monthlyFieldMax) {
+                            toast.error(isMonthlyDayField
+                              ? `${field.label} cannot exceed ${monthlyFieldMax} days for ${month.name}`
+                              : `${field.label} cannot exceed ${monthlyFieldMax}`);
                             return;
                           }
                           if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {

@@ -10,6 +10,7 @@ import { isMonthlyEntryStarted } from './monthlyCompletion';
 import { resolveDensityFieldState } from './unitHelpers';
 import {
   getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
   isAnnualDayCountField,
 } from './reportingPeriodDays';
 
@@ -190,6 +191,26 @@ export const validateStep3 = ({
         return { valid: false, message: 'Please calculate emissions for at least one employee' };
       }
     } else {
+      for (const employee of employees) {
+        for (const [monthKey, monthData] of Object.entries(employee.monthly_data || {})) {
+          const inputs = monthData?.inputs || {};
+          const maxDays = getMonthlyReportingPeriodDayLimit(
+            monthKey,
+            reportingYear,
+            reportingYearType,
+          );
+          for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+            const value = Number.parseFloat(inputs[field.variable]);
+            if (Number.isFinite(value) && value > maxDays) {
+              const monthName = MONTHS.find((month) => month.key === monthKey)?.name || monthKey;
+              return {
+                valid: false,
+                message: `${field.label} cannot exceed ${maxDays} days for ${monthName}`,
+              };
+            }
+          }
+        }
+      }
       const hasCalculatedData = employees.some(emp => 
         Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
       );
@@ -289,6 +310,22 @@ export const validateStep3 = ({
             const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
             const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
             return { valid: false, message: `Please fill in "${fieldLabel}" for ${monthName}` };
+          }
+        }
+
+        const maxDays = getMonthlyReportingPeriodDayLimit(
+          monthKey,
+          reportingYear,
+          reportingYearType,
+        );
+        for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+          const value = Number.parseFloat(data[field.variable] ?? data[field.fieldKey]);
+          if (Number.isFinite(value) && value > maxDays) {
+            const monthName = MONTHS.find((month) => month.key === monthKey)?.name || monthKey;
+            return {
+              valid: false,
+              message: `${field.label} cannot exceed ${maxDays} days for ${monthName}`,
+            };
           }
         }
 

@@ -8,6 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './
 import { Plus, Trash2, User, Calculator, Users } from 'lucide-react';
 import {
   getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
   isAnnualDayCountField,
 } from '../modules/ghg/emissions/shared/utils/reportingPeriodDays';
 
@@ -45,20 +46,6 @@ const MONTHS = [
 ];
 
 // Helper to get days in a month for a specific year (handles leap years)
-const getDaysInMonth = (monthKey, year) => {
-  const month = MONTHS.find(m => m.key === monthKey);
-  if (!month) return 31;
-  
-  // Handle February leap year
-  if (monthKey === 'feb' && year) {
-    const yearNum = parseInt(year);
-    const isLeapYear = (yearNum % 4 === 0 && yearNum % 100 !== 0) || (yearNum % 400 === 0);
-    return isLeapYear ? 29 : 28;
-  }
-  
-  return month.days;
-};
-
 const MultiEmployeeInput = ({
   entityLabel = 'Employee',
   fields = [],
@@ -205,6 +192,23 @@ const MultiEmployeeInput = ({
             }
           });
         }
+
+        Object.entries(employee.monthly_data || {}).forEach(([monthKey, monthData]) => {
+          const inputs = monthData?.inputs || {};
+          const maxDays = getMonthlyReportingPeriodDayLimit(
+            monthKey,
+            reportingYear,
+            reportingYearType,
+          );
+          fields.filter(isAnnualDayCountField).forEach((field) => {
+            const value = Number.parseFloat(inputs[field.variable]);
+            if (Number.isFinite(value) && value > maxDays) {
+              const monthLabel = MONTHS.find((month) => month.key === monthKey)?.label || monthKey;
+              empErrors.push(`${field.label} cannot exceed ${maxDays} days for ${monthLabel}.`);
+              isValid = false;
+            }
+          });
+        });
       }
       
       if (empErrors.length > 0) {
@@ -220,7 +224,7 @@ const MultiEmployeeInput = ({
     }
     
     return { isValid, errors };
-  }, [annualDayLimit, employees, onValidationChange, isYearlyMode, calculationMethod, fields]);
+  }, [annualDayLimit, employees, onValidationChange, isYearlyMode, calculationMethod, fields, reportingYear, reportingYearType]);
 
   // Generate unique ID for new employee
   const generateEmployeeId = useCallback(() => {
@@ -340,7 +344,7 @@ const MultiEmployeeInput = ({
     // Validate working_days and qty_days_travelled don't exceed days in month
     if ((variable === 'working_days' || variable === 'qty_days_travelled') && value !== '') {
       const numValue = parseFloat(value);
-      const maxDays = getDaysInMonth(monthKey, reportingYear);
+      const maxDays = getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType);
       if (numValue > maxDays) {
         const fieldLabel = variable === 'working_days' ? 'Working days' : 'No. of days travelled';
         toast.error(`${fieldLabel} cannot exceed ${maxDays} for ${MONTHS.find(m => m.key === monthKey)?.label || monthKey}`);
@@ -394,7 +398,7 @@ const MultiEmployeeInput = ({
       return emp;
     });
     onEmployeesChange(updatedEmployees);
-  }, [employees, onEmployeesChange, reportingYear]);
+  }, [employees, onEmployeesChange, reportingYear, reportingYearType]);
 
   // NEW: Update yearly input value for an employee
   const handleYearlyInputChange = useCallback((employeeId, variable, value) => {
@@ -1222,7 +1226,9 @@ const MultiEmployeeInput = ({
                                           <Input
                                             type="number"
                                             min="0"
-                                            max={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? getDaysInMonth(monthKey, reportingYear) : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
+                                  max={(field.variable === 'working_days' || field.variable === 'qty_days_travelled')
+                                    ? getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)
+                                    : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
                                             step="any"
                                             value={monthData.inputs?.[field.variable] ?? ''}
                                             onChange={(e) => handleMonthlyInputChange(
@@ -1231,7 +1237,9 @@ const MultiEmployeeInput = ({
                                               field.variable, 
                                               e.target.value ? Math.max(0, parseFloat(e.target.value)) : ''
                                             )}
-                                            placeholder={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? `≤${getDaysInMonth(monthKey, reportingYear)}` : '—'}
+                                  placeholder={(field.variable === 'working_days' || field.variable === 'qty_days_travelled')
+                                    ? `≤${getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)}`
+                                    : '—'}
                                             disabled={disabled || isMonthInFuture}
                                             className={`h-8 text-sm ${needsUnitInput ? 'w-20' : 'w-24'}`}
                                             data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
