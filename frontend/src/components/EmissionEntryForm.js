@@ -21,6 +21,7 @@ import {
 import useEmissionFormState from '../modules/ghg/emissions/shared/hooks/useEmissionFormState';
 import useEmissionFormEffects from '../modules/ghg/emissions/shared/hooks/useEmissionFormEffects';
 import useEmissionSubmit from '../modules/ghg/emissions/shared/hooks/useEmissionSubmit';
+import useSpendCurrencyDefaults from '../modules/ghg/emissions/shared/hooks/useSpendCurrencyDefaults';
 import { canProceedToStep as canProceedToStepUtil } from '../modules/ghg/emissions/shared/utils/validation';
 import {
   DynamicFieldRenderer,
@@ -1260,6 +1261,22 @@ export default function EmissionEntryForm({
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
   const currentFormulaId = dynamicInputFieldsResult?.formulaId || null;
+  const spendValueField = dynamicInputFields.find((field) => field.variable === 'spent_value');
+  const spendSourceCurrency = yearlyData.spent_value_unit
+    || Object.values(monthlyData).find((data) => data?.spent_value_unit)?.spent_value_unit
+    || spendValueField?.expectedUnit
+    || spendValueField?.allowedUnits?.[0]
+    || '';
+  const spendCurrencyDefaults = useSpendCurrencyDefaults({
+    enabled: scope3Method === 'spend_basis',
+    sourceCurrency: spendSourceCurrency,
+    conversionMethod: spendCurrencyConversionMethod,
+    reportingYearType,
+    reportingYear,
+    frequencyType,
+    activeMonths,
+    getAuthHeader,
+  });
   
   // Update matched formula ID when it changes
   useEffect(() => {
@@ -3059,6 +3076,8 @@ export default function EmissionEntryForm({
           renderDynamicField={renderDynamicField}
           isC7EmployeeCommuting={isC7EmployeeCommuting}
           scope3Method={scope3Method}
+          spendCurrencyConversionMethod={spendCurrencyConversionMethod}
+          spendCurrencyDefaults={spendCurrencyDefaults}
           scope3ActivityType={scope3ActivityType}
           scope3ActivityId={scope3ActivityId}
           employees={employees}

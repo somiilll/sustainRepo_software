@@ -841,3 +841,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Scope 3 Create now uses a four-column desktop selection grid so Category, Calculation Method, Activity Type when applicable, and Activity remain on one row.
 - Removed forced two-column spans from Scope 3 supplemental selectors while preserving one-column stacking on mobile and two-column layout at medium widths.
 - **NOT TESTED** per the user’s existing `dont test` instruction.
+
+## Latest Changes — 2026-09-07 (Scope 3 Spend Default Rates)
+- Added an authenticated resolved-currency-default endpoint that reuses the calculation engine’s period-aware currency resolver rather than duplicating rate-selection logic in the frontend.
+- Scope 3 Spend Basis now displays database defaults in disabled override fields: PPP and Inflation Rate for PPP conversion, or Exchange Rate for Standard conversion, for both monthly and yearly entry.
+- Existing saved override values continue to take precedence, and unchecking Override Default returns the cell to the resolved database value.
+- Verified targeted frontend ESLint, backend Python compilation, and the resolver API: 2026 INR PPP `20.343`, inflation `1.1486`, and July standard exchange rate `95.0`.

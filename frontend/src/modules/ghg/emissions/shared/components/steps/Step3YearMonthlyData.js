@@ -397,6 +397,8 @@ export const Step3YearMonthlyData = ({
   // Employee commuting (C7)
   isC7EmployeeCommuting,
   scope3Method,
+  spendCurrencyConversionMethod,
+  spendCurrencyDefaults = {},
   scope3ActivityType,
   scope3ActivityId,
   employees,
@@ -480,6 +482,18 @@ export const Step3YearMonthlyData = ({
       ? normalizedProcessTemplateFields
       : dynamicInputFields
   ), [dynamicInputFields, isProcessEmissions, normalizedProcessTemplateFields]);
+  const yearlyReportingPeriod = reportingYearType === 'financial'
+    ? `FY ${reportingYear}-${String(Number(reportingYear) + 1).slice(-2)}`
+    : `CY${reportingYear}`;
+  const resolveSpendDefaultValue = useCallback((field, periodKey) => {
+    if (scope3Method !== 'spend_basis') return undefined;
+    const isApplicable = spendCurrencyConversionMethod === 'standard'
+      ? field.variable === 'exchange_rate'
+      : field.variable === 'ppp' || field.variable === 'inflation_rate';
+    if (!isApplicable) return undefined;
+    const value = spendCurrencyDefaults?.[periodKey]?.values?.[field.variable]?.value;
+    return hasFieldValue(value) ? value : undefined;
+  }, [scope3Method, spendCurrencyConversionMethod, spendCurrencyDefaults]);
   const resolveRowDensityState = useCallback((data = {}) => resolveDensityFieldState({
     calculationMethodology,
     fields: runtimeConversionFields,
@@ -939,7 +953,13 @@ export const Step3YearMonthlyData = ({
                 const isEnabled = densityState
                   ? densityState.required || data[overrideKey]
                   : !isOverrideOrOptional || data[overrideKey];
-                const defaultValue = densityState?.defaultDensity?.value ?? getFieldDefaultValue(field, selectedFuel);
+                const spendDefaultValue = resolveSpendDefaultValue(
+                  field,
+                  `${getActualYearForMonth(monthKey)}-${monthKey}`,
+                );
+                const defaultValue = densityState?.defaultDensity?.value
+                  ?? spendDefaultValue
+                  ?? getFieldDefaultValue(field, selectedFuel);
                 const storedValue = data[field.variable] ?? data[field.fieldKey] ?? '';
                 const displayedValue = hasFieldValue(storedValue) ? storedValue : defaultValue;
                 const renderOverrideToggle = () => (
@@ -1568,7 +1588,8 @@ const YearlyDataEntry = ({
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
                   const isUnitlessCountField = isNoUnitField;
-                  const defaultValue = getFieldDefaultValue(field, selectedFuel);
+                  const defaultValue = resolveSpendDefaultValue(field, yearlyReportingPeriod)
+                    ?? getFieldDefaultValue(field, selectedFuel);
                   const displayedValue = hasFieldValue(yearlyData[field.variable])
                     ? yearlyData[field.variable]
                     : defaultValue;
@@ -1854,7 +1875,9 @@ const YearlyDataEntry = ({
                   const fieldUnits = densityState
                     ? [yearlyData.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit].filter(Boolean)
                     : configuredFieldUnits;
-                  const defaultValue = densityState?.defaultDensity?.value ?? getFieldDefaultValue(field, selectedFuel);
+                  const defaultValue = densityState?.defaultDensity?.value
+                    ?? resolveSpendDefaultValue(field, yearlyReportingPeriod)
+                    ?? getFieldDefaultValue(field, selectedFuel);
                   const displayedValue = hasFieldValue(yearlyData[field.variable])
                     ? yearlyData[field.variable]
                     : defaultValue;

@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Scope 3 Spend Default Rates
+- Displayed period-specific PPP, inflation, and standard exchange-rate defaults in Scope 3 Spend Basis ledgers using the same resolver as backend calculations.
+- Preserved explicit override behavior and existing saved overrides across monthly and yearly entry.
+- Targeted static checks and resolver API verification passed.
+
 ## September 7, 2026 — Scope 3 Create Selection Alignment
 - Aligned Category, Calculation Method, Activity Type when applicable, and Activity in one responsive desktop row while preserving mobile stacking.
 - **NOT TESTED at user request.**

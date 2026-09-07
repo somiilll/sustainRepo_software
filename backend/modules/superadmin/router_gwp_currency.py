@@ -37,6 +37,11 @@ from modules.superadmin.contracts import (
     SectorCreate, SectorResponse,
     UnitCreate, UnitResponse,
 )
+from calc_engine.currency_conversion import (
+    STANDARD_METHOD,
+    normalize_currency_method,
+    resolve_currency_conversion,
+)
 from shared.constants.gwp import GWP_VALUES, GWP_DEFAULT_SOURCE
 from shared.database.mongo import db
 from shared.helpers.email import send_email
@@ -305,6 +310,67 @@ async def get_active_currency_conversion(source_currency: str, year: Optional[in
     if not config:
         return {"message": "No active currency conversion found for this currency", "data": None}
     return config
+
+
+@router.get("/currency-conversion/resolved")
+async def get_resolved_currency_conversion_defaults(
+    source_currency: str,
+    reporting_periods: str,
+    conversion_method: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Resolve the same period-specific spend defaults used by the calculation engine."""
+    del current_user
+    periods = list(dict.fromkeys(
+        period.strip() for period in reporting_periods.split(",") if period.strip()
+    ))
+    if not periods or len(periods) > 24:
+        raise HTTPException(status_code=400, detail="Provide between 1 and 24 reporting periods")
+
+    method = normalize_currency_method(conversion_method)
+    source = source_currency.strip().upper()
+    defaults: Dict[str, Dict[str, Any]] = {}
+    for period in periods:
+        config = await resolve_currency_conversion(
+            db,
+            source_currency=source,
+            reporting_period=period,
+            method=method,
+        )
+        source_name = (config or {}).get("source") or "Default"
+        period_label = (config or {}).get("effective_from") or (config or {}).get("year_applicable")
+        display_source = f"{source_name} ({period_label})" if period_label else source_name
+
+        if method == STANDARD_METHOD:
+            rate = 1.0 if source == "USD" else (config or {}).get("exchange_rate")
+            values = {
+                "exchange_rate": {
+                    "value": float(rate) if rate is not None else None,
+                    "source_name": "Default (USD)" if source == "USD" else display_source,
+                }
+            }
+        else:
+            ppp = 1.0 if source == "USD" else ((config or {}).get("purchase_parity") or 1.0)
+            inflation = 1.0 if source == "USD" else ((config or {}).get("inflation_factor") or 1.0)
+            values = {
+                "ppp": {
+                    "value": float(ppp),
+                    "source_name": "Default (USD)" if source == "USD" else display_source,
+                },
+                "inflation_rate": {
+                    "value": float(inflation),
+                    "source_name": "Default (USD)" if source == "USD" else display_source,
+                },
+            }
+
+        defaults[period] = {
+            "conversion_method": method,
+            "source_currency": source,
+            "target_currency": "USD",
+            "values": values,
+        }
+
+    return {"defaults": defaults}
 
 # Get all currency conversions (SuperAdmin)
 
