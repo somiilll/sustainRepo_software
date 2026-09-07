@@ -35,6 +35,21 @@ const getCurrentReportingYear = (yearType = 'calendar', fiscalStartMonth = 4) =>
   return String(startsLaterThisYear ? now.getFullYear() - 1 : now.getFullYear());
 };
 
+const getCurrentReportingMonthRange = (yearType = 'calendar', fiscalStartMonth = 4) => {
+  const reportingYear = Number(getCurrentReportingYear(yearType, fiscalStartMonth));
+  if (yearType !== 'financial') {
+    return { start: `${reportingYear}-01`, end: `${reportingYear}-12` };
+  }
+
+  const startMonth = Math.min(12, Math.max(1, Number(fiscalStartMonth || 4)));
+  const endMonth = startMonth === 1 ? 12 : startMonth - 1;
+  const endYear = startMonth === 1 ? reportingYear : reportingYear + 1;
+  return {
+    start: `${reportingYear}-${String(startMonth).padStart(2, '0')}`,
+    end: `${endYear}-${String(endMonth).padStart(2, '0')}`,
+  };
+};
+
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthIndex, year, yearType = 'calendar') => {
   const now = new Date();
@@ -52,6 +67,35 @@ const isFutureMonth = (monthIndex, year, yearType = 'calendar') => {
   if (selectedYear > currentYear) return true;
   if (selectedYear === currentYear && selectedMonth > currentMonth) return true;
   return false;
+};
+
+const getSinkMonthRange = (sink, reportingYearType, fiscalStartMonth) => {
+  const reportingYear = Number(sink.reporting_year || sink.start_date?.slice(0, 4));
+  if (!reportingYear) return { start: '', end: '' };
+
+  if (sink.frequency_type === 'yearly' || sink.reporting_month === null) {
+    if (reportingYearType !== 'financial') {
+      return { start: `${reportingYear}-01`, end: `${reportingYear}-12` };
+    }
+    const startMonth = Math.min(12, Math.max(1, Number(fiscalStartMonth || 4)));
+    const endMonth = startMonth === 1 ? 12 : startMonth - 1;
+    return {
+      start: `${reportingYear}-${String(startMonth).padStart(2, '0')}`,
+      end: `${startMonth === 1 ? reportingYear : reportingYear + 1}-${String(endMonth).padStart(2, '0')}`,
+    };
+  }
+
+  if (sink.reporting_month !== null && sink.reporting_month !== undefined) {
+    const month = Number(sink.reporting_month) + 1;
+    const year = reportingYearType === 'financial' && month < Number(fiscalStartMonth || 4)
+      ? reportingYear + 1
+      : reportingYear;
+    const period = `${year}-${String(month).padStart(2, '0')}`;
+    return { start: period, end: period };
+  }
+
+  const start = sink.start_date?.slice(0, 7) || '';
+  return { start, end: sink.end_date?.slice(0, 7) || start };
 };
 
 export default function Sinks() {
@@ -76,7 +120,9 @@ export default function Sinks() {
 
   // Filter and Sort states
   const [filterFacility, setFilterFacility] = useState('all');
-  const [filterYear, setFilterYear] = useState(() => getCurrentReportingYear());
+  const [filterStartMonth, setFilterStartMonth] = useState(() => getCurrentReportingMonthRange().start);
+  const [filterEndMonth, setFilterEndMonth] = useState(() => getCurrentReportingMonthRange().end);
+  const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('date'); // 'date', 'facility', 'emissions'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
   const [formErrors, setFormErrors] = useState({});
@@ -138,12 +184,17 @@ export default function Sinks() {
   const orgReportingYearType = organization?.reporting_year_type; // 'financial_year' or 'calendar_year'
   const reportingYearType = orgReportingYearType === 'financial_year' ? 'financial' : 'calendar';
   const currentReportingYear = getCurrentReportingYear(reportingYearType, organization?.financial_year_start_month);
+  const currentReportingMonthRange = useMemo(
+    () => getCurrentReportingMonthRange(reportingYearType, organization?.financial_year_start_month),
+    [reportingYearType, organization?.financial_year_start_month]
+  );
 
   useEffect(() => {
     if (!organization || editingSink) return;
-    setFilterYear(currentReportingYear);
+    setFilterStartMonth(currentReportingMonthRange.start);
+    setFilterEndMonth(currentReportingMonthRange.end);
     setFormData(prev => ({ ...prev, reporting_year: currentReportingYear }));
-  }, [organization, editingSink, currentReportingYear]);
+  }, [organization, editingSink, currentReportingYear, currentReportingMonthRange]);
 
   // Helper function to format reporting year display
   const formatReportingYear = (year) => {
@@ -601,19 +652,6 @@ export default function Sinks() {
     return 0;
   };
 
-  // Get unique years from sinks data
-  const availableYears = useMemo(() => {
-    const years = new Set([currentReportingYear]);
-    sinks.forEach(sink => {
-      if (sink.reporting_year) {
-        years.add(sink.reporting_year.toString());
-      } else if (sink.start_date) {
-        years.add(new Date(sink.start_date).getFullYear().toString());
-      }
-    });
-    return Array.from(years).sort((a, b) => b - a);
-  }, [sinks, currentReportingYear]);
-
   // Filtered and sorted sinks
   const filteredSinks = useMemo(() => {
     let result = [...sinks];
@@ -629,12 +667,12 @@ export default function Sinks() {
       result = result.filter(sink => sink.facility_id === filterFacility);
     }
 
-    // Filter by year
-    if (filterYear !== 'all') {
+    // Filter by inclusive reporting month range
+    if (filterStartMonth || filterEndMonth) {
       result = result.filter(sink => {
-        const sinkYear = sink.reporting_year?.toString() || 
-          (sink.start_date ? new Date(sink.start_date).getFullYear().toString() : null);
-        return sinkYear === filterYear;
+        const period = getSinkMonthRange(sink, reportingYearType, organization?.financial_year_start_month);
+        return (!filterStartMonth || period.end >= filterStartMonth)
+          && (!filterEndMonth || period.start <= filterEndMonth);
       });
     }
 
@@ -664,12 +702,16 @@ export default function Sinks() {
     });
 
     return result;
-  }, [sinks, filterFacility, filterYear, sortBy, sortOrder, facilities, kpiFilteredFacilities, user?.role]);
+  }, [sinks, filterFacility, filterStartMonth, filterEndMonth, sortBy, sortOrder, facilities, kpiFilteredFacilities, user?.role, reportingYearType, organization?.financial_year_start_month]);
 
   // Filtered total
   const filteredTotalReduction = useMemo(() => {
     return filteredSinks.reduce((sum, s) => sum + s.total_emissions_reduced, 0);
   }, [filteredSinks]);
+
+  const hasCustomFilters = filterFacility !== 'all'
+    || filterStartMonth !== currentReportingMonthRange.start
+    || filterEndMonth !== currentReportingMonthRange.end;
 
   // Determine which months to show in form
   const isEditMode = !!editingSink;
@@ -876,7 +918,6 @@ export default function Sinks() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-xs text-text-muted">Enter the total annual carbon offset for {formatReportingYear(formData.reporting_year)}. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 5MB)</p>
                 </div>
               ) : (
                 /* Monthly Data Entry */
@@ -996,64 +1037,71 @@ export default function Sinks() {
       )}
 
       <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-white p-5 sm:p-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <div className="rounded-xl bg-green-100 p-3">
               <TreeDeciduous className="h-10 w-10 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-text-muted">Total Carbon Offset {(filterFacility !== 'all' || filterYear !== 'all') && '(Filtered)'}</p>
+              <p className="text-sm text-text-muted">Total Carbon Offset {hasCustomFilters && '(Filtered)'}</p>
               <h2 className="text-3xl font-heading font-bold text-green-600" data-testid="total-offset-value">
                 {filteredTotalReduction.toFixed(2)} <span className="text-lg font-normal">tCO2e</span>
               </h2>
               <p className="mt-1 text-xs text-text-muted" data-testid="sink-record-count">
                 {filteredSinks.length} sink record(s)
-                {(filterFacility !== 'all' || filterYear !== 'all') && ` of ${sinks.length} total`}
+                {hasCustomFilters && ` of ${sinks.length} total`}
               </p>
             </div>
           </div>
 
           {sinks.length > 0 && (
-            <div className="grid w-full gap-3 border-t border-green-200 pt-4 sm:grid-cols-2 xl:w-auto xl:grid-cols-[repeat(4,minmax(9rem,1fr))] xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0" data-testid="sink-filter-controls">
-              <div className="space-y-1">
-                <Label htmlFor="sink-facility-filter" className="text-xs text-stone-600">Facility</Label>
-                <select id="sink-facility-filter" value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-facility-filter">
-                  <option value="all">All facilities</option>
-                  {kpiFilteredFacilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="sink-year-filter" className="text-xs text-stone-600">Reporting period</Label>
-                <select id="sink-year-filter" value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-year-filter">
-                  <option value="all">All periods</option>
-                  {availableYears.map(year => <option key={year} value={year}>{formatReportingYear(year)}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="sink-sort-filter" className="text-xs text-stone-600">Sort by</Label>
-                <select id="sink-sort-filter" value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-sort-filter">
-                  <option value="date">Date</option>
-                  <option value="facility">Facility</option>
-                  <option value="emissions">Offset value</option>
-                </select>
-              </div>
-              <div className="flex items-end gap-2">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <Label htmlFor="sink-order-filter" className="text-xs text-stone-600">Order</Label>
-                  <select id="sink-order-filter" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-order-filter">
-                    <option value="desc">Newest first</option>
-                    <option value="asc">Oldest first</option>
-                  </select>
-                </div>
-                {(filterFacility !== 'all' || filterYear !== currentReportingYear) && (
-                  <Button type="button" variant="ghost" size="icon" onClick={() => { setFilterFacility('all'); setFilterYear(currentReportingYear); }} className="h-9 w-9 shrink-0 text-primary" title="Reset filters" data-testid="reset-sink-filters-button">
-                    <Filter className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowFilters(current => !current)} className="shrink-0 gap-2 self-start sm:self-auto" data-testid="toggle-sink-filters-button">
+              <Filter className="h-4 w-4" />
+              {showFilters ? 'Hide filters' : 'Show filters'}
+            </Button>
           )}
         </div>
+        {sinks.length > 0 && showFilters && (
+          <div className="mt-5 grid gap-4 border-t border-green-200 pt-5 sm:grid-cols-2 xl:grid-cols-5" data-testid="sink-filter-controls">
+            <div className="space-y-1">
+              <Label htmlFor="sink-facility-filter" className="text-xs text-stone-600">Facility</Label>
+              <select id="sink-facility-filter" value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-facility-filter">
+                <option value="all">All facilities</option>
+                {kpiFilteredFacilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="sink-start-month-filter" className="text-xs text-stone-600">Start month</Label>
+              <Input id="sink-start-month-filter" type="month" value={filterStartMonth} max={filterEndMonth || undefined} onChange={(e) => setFilterStartMonth(e.target.value)} className="h-9 bg-white" data-testid="sink-start-month-filter" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="sink-end-month-filter" className="text-xs text-stone-600">End month</Label>
+              <Input id="sink-end-month-filter" type="month" value={filterEndMonth} min={filterStartMonth || undefined} onChange={(e) => setFilterEndMonth(e.target.value)} className="h-9 bg-white" data-testid="sink-end-month-filter" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="sink-sort-filter" className="text-xs text-stone-600">Sort by</Label>
+              <select id="sink-sort-filter" value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-sort-filter">
+                <option value="date">Date</option>
+                <option value="facility">Facility</option>
+                <option value="emissions">Offset value</option>
+              </select>
+            </div>
+            <div className="flex items-end gap-2">
+              <div className="min-w-0 flex-1 space-y-1">
+                <Label htmlFor="sink-order-filter" className="text-xs text-stone-600">Order</Label>
+                <select id="sink-order-filter" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-order-filter">
+                  <option value="desc">Newest first</option>
+                  <option value="asc">Oldest first</option>
+                </select>
+              </div>
+              {hasCustomFilters && (
+                <Button type="button" variant="ghost" size="icon" onClick={() => { setFilterFacility('all'); setFilterStartMonth(currentReportingMonthRange.start); setFilterEndMonth(currentReportingMonthRange.end); }} className="h-9 w-9 shrink-0 text-primary" title="Reset filters" data-testid="reset-sink-filters-button">
+                  <Filter className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Sinks Table */}
@@ -1063,37 +1111,37 @@ export default function Sinks() {
             <table className="w-full min-w-[760px]" data-testid="sinks-table">
               <thead className="bg-stone-50 border-b border-stone-200">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">
                     <button 
                       onClick={() => { setSortBy('facility'); setSortOrder(sortBy === 'facility' && sortOrder === 'asc' ? 'desc' : 'asc'); }}
-                      className="flex items-center gap-1 hover:text-primary transition-colors"
+                      className="flex w-full items-center justify-center gap-1 hover:text-primary transition-colors"
                       data-testid="sort-sinks-by-facility"
                     >
                       Facility
                       {sortBy === 'facility' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">
                     <button 
                       onClick={() => { setSortBy('date'); setSortOrder(sortBy === 'date' && sortOrder === 'asc' ? 'desc' : 'asc'); }}
-                      className="flex items-center gap-1 hover:text-primary transition-colors"
+                      className="flex w-full items-center justify-center gap-1 hover:text-primary transition-colors"
                       data-testid="sort-sinks-by-date"
                     >
                       Period
                       {sortBy === 'date' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-right text-sm font-semibold text-text-primary">
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">
                     <button 
                       onClick={() => { setSortBy('emissions'); setSortOrder(sortBy === 'emissions' && sortOrder === 'asc' ? 'desc' : 'asc'); }}
-                      className="flex items-center gap-1 justify-end hover:text-primary transition-colors"
+                      className="flex w-full items-center justify-center gap-1 hover:text-primary transition-colors"
                       data-testid="sort-sinks-by-offset"
                     >
                       Emissions Reduced (tCO2e)
                       {sortBy === 'emissions' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">Description</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Description</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Evidence</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Actions</th>
                 </tr>
@@ -1103,19 +1151,19 @@ export default function Sinks() {
                   const evidenceCount = getEvidenceCount(sink);
                   return (
                     <tr key={sink.id} className="hover:bg-stone-50 transition-colors" data-testid={`sink-row-${sink.id}`}>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-center">
                         <p className="font-medium text-text-primary">{getFacilityName(sink.facility_id)}</p>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
                           <Calendar className="w-4 h-4 text-text-muted" />
                           <span className="text-text-secondary">{getSinkPeriod(sink)}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-center">
                         <span className="text-lg font-semibold text-green-600">{sink.total_emissions_reduced.toFixed(2)}</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-center">
                         <p className="text-sm text-text-secondary">{sink.description || '-'}</p>
                       </td>
                       <td className="px-6 py-4 text-center">

@@ -807,3 +807,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Moved Facility, Reporting period, and sorting controls into the Total Carbon Offset row. The period now defaults to the organization’s active calendar or financial year (including the configured fiscal-year start month) and resets back to that active period.
 - Constrained the table within its own horizontal scroll area on narrow screens, preventing it from pushing the page wider than the viewport. The yearly period label now also respects the organization’s FY/CY setting.
 - Targeted ESLint and production build passed before the user’s later `dont test` instruction. No browser or functional verification was run after this UI change, per request.
+
+## Latest Changes — 2026-09-04 (GHG Sinks Filter and Ledger Alignment)
+- Restored a compact Show/Hide filters action at the far right of the Total Carbon Offset row. Filters now appear in a dedicated expandable panel beneath that row instead of taking permanent space.
+- Replaced the Reporting period selector with inclusive Start month and End month controls. Defaults continue to cover the active organization FY/CY, including non-calendar financial-year boundaries.
+- Center-aligned every Sinks table heading and its matching cell value, including facility, period, offset, description, evidence, and actions.
+- **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
