@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Scope 3 Annual Day Limits
+- Added dynamic 365/366 limits for annual Scope 3 day-count fields based on the selected calendar or financial reporting period.
+- Covered standard Scope 3 yearly entry, C7 multi-employee entry, pre-save validation, and legacy C7 validation.
+- Targeted ESLint and 38 regression tests passed.
+
 ## September 7, 2026 — Scope 3 Category/Method Transition
 - Preserved Spend Basis across category changes only when supported by the destination category; unsupported methods now reset to Select Method.
 - Cleared and reinitialized all downstream category-dependent calculation state to prevent stale activities, units, formulas, and results.

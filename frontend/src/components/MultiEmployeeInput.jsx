@@ -6,6 +6,10 @@ import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { Plus, Trash2, User, Calculator, Users } from 'lucide-react';
+import {
+  getAnnualReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../modules/ghg/emissions/shared/utils/reportingPeriodDays';
 
 /**
  * MultiEmployeeInput - Config-driven component for multi-entity data entry
@@ -88,6 +92,7 @@ const MultiEmployeeInput = ({
 
   // Check if we're in yearly mode
   const isYearlyMode = frequencyType === 'yearly';
+  const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
 
   // Track selected month for calculation details per employee (format: { employeeId: monthKey })
   const [selectedMonthsForDetails, setSelectedMonthsForDetails] = useState({});
@@ -139,6 +144,15 @@ const MultiEmployeeInput = ({
           empErrors.push('Please enter annual data or remove the employee entry.');
           isValid = false;
         }
+
+        const yearlyInputs = employee.yearly_data?.inputs || {};
+        fields.filter(isAnnualDayCountField).forEach((field) => {
+          const value = Number.parseFloat(yearlyInputs[field.variable]);
+          if (Number.isFinite(value) && value > annualDayLimit) {
+            empErrors.push(`${field.label} cannot exceed ${annualDayLimit} days for the reporting period.`);
+            isValid = false;
+          }
+        });
         
         // For supplier_basis: validate units are provided for fields with values
         if (isSupplierBasis && hasYearlyData) {
@@ -206,7 +220,7 @@ const MultiEmployeeInput = ({
     }
     
     return { isValid, errors };
-  }, [employees, onValidationChange, isYearlyMode, calculationMethod, fields]);
+  }, [annualDayLimit, employees, onValidationChange, isYearlyMode, calculationMethod, fields]);
 
   // Generate unique ID for new employee
   const generateEmployeeId = useCallback(() => {
@@ -409,14 +423,12 @@ const MultiEmployeeInput = ({
       }
     }
     
-    // Validate qty_days_travelled doesn't exceed 365 days for yearly mode
-    if (variable === 'qty_days_travelled' && value !== '') {
+    // Day-count fields cannot exceed the selected annual reporting period.
+    if (isAnnualDayCountField(variable) && value !== '') {
       const numValue = parseFloat(value);
-      const yearNum = parseInt(reportingYear) || new Date().getFullYear();
-      const isLeapYear = (yearNum % 4 === 0 && yearNum % 100 !== 0) || (yearNum % 400 === 0);
-      const maxDays = isLeapYear ? 366 : 365;
-      if (numValue > maxDays) {
-        toast.error(`No. of days travelled cannot exceed ${maxDays} days for the year`);
+      if (numValue > annualDayLimit) {
+        const fieldLabel = variable === 'working_days' ? 'Working days' : 'No. of days travelled';
+        toast.error(`${fieldLabel} cannot exceed ${annualDayLimit} days for the reporting period`);
         return;
       }
     }
@@ -455,7 +467,7 @@ const MultiEmployeeInput = ({
       return emp;
     });
     onEmployeesChange(updatedEmployees);
-  }, [employees, onEmployeesChange, reportingYear]);
+  }, [annualDayLimit, employees, onEmployeesChange]);
 
   // NEW: Calculate yearly emissions for an employee
   const handleCalculateYearly = useCallback(async (employeeId) => {
@@ -998,7 +1010,9 @@ const MultiEmployeeInput = ({
                                   type="number"
                                   step="any"
                                   min="0"
-                                  max={field.variable === 'working_hour_per_day' ? 24 : (field.variable === 'qty_days_travelled' ? (((parseInt(reportingYear) || new Date().getFullYear()) % 4 === 0 && (parseInt(reportingYear) || new Date().getFullYear()) % 100 !== 0) || ((parseInt(reportingYear) || new Date().getFullYear()) % 400 === 0) ? 366 : 365) : undefined)}
+                                  max={field.variable === 'working_hour_per_day'
+                                    ? 24
+                                    : isAnnualDayCountField(field) ? annualDayLimit : undefined}
                                   value={employee.yearly_data?.inputs?.[field.variable] || ''}
                                   onChange={(e) => {
                                     const val = e.target.value;
@@ -1006,9 +1020,14 @@ const MultiEmployeeInput = ({
                                       handleYearlyInputChange(employee.id, field.variable, val);
                                     }
                                   }}
-                                  placeholder={field.variable === 'working_hour_per_day' ? 'Max 24 hours' : (field.variable === 'qty_days_travelled' ? 'Max 365 days' : `Enter annual ${field.label.toLowerCase()}`)}
+                                  placeholder={field.variable === 'working_hour_per_day'
+                                    ? 'Max 24 hours'
+                                    : isAnnualDayCountField(field)
+                                      ? `Max ${annualDayLimit} days`
+                                      : `Enter annual ${field.label.toLowerCase()}`}
                                   disabled={disabled}
                                   className="flex-1"
+                                  data-testid={`employee-${employee.id}-yearly-${field.variable}`}
                                 />
                                 {needsUnitInput && (
                                   <Input

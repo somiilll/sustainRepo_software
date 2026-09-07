@@ -865,3 +865,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - The selected method is preserved only when the destination category supports it; otherwise the form returns to Select Method.
 - Every category-dependent value is reinitialized on transition, including activity/type/subcategory/product, custom activity, units and entered ledger values, formula/calculation state, Spend currency defaults, and C7 employee calculation state.
 - **NOT TESTED** per the user’s explicit `dont test` instruction.
+
+## Latest Changes — 2026-09-07 (Scope 3 Annual Day Limits)
+- Added one reporting-period-aware annual day-limit resolver: calendar years use their own February, while financial years use February of the ending year.
+- Applied 365/366 maximums to Scope 3 `working_days`, `qty_days_travelled`, and legacy C7 `no_of_days` across standard yearly fields, multi-employee C7 entry, validation before save, and legacy category validation.
+- Annual inputs now display the correct maximum for the selected period and reject larger values while preserving existing monthly day-of-month limits.
+- Targeted ESLint passed; 38 reporting-period and validation regression tests passed.

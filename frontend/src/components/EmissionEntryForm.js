@@ -2678,6 +2678,8 @@ export default function EmissionEntryForm({
     calculationMethodology: decisionFieldValues.calculation_methodology,
     selectedFuel,
     centralizedUnits,
+    reportingYear,
+    reportingYearType,
   });
 
 

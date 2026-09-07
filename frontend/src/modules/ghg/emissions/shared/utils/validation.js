@@ -8,6 +8,10 @@
 import { MONTHS } from '../../../../../constants/months';
 import { isMonthlyEntryStarted } from './monthlyCompletion';
 import { resolveDensityFieldState } from './unitHelpers';
+import {
+  getAnnualReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from './reportingPeriodDays';
 
 /**
  * Validate Step 1 → Step 2 transition (Basic Selection)
@@ -105,6 +109,8 @@ export const validateStep3 = ({
   calculationMethodology,
   selectedFuel,
   centralizedUnits = [],
+  reportingYear,
+  reportingYearType,
 }) => {
   // For C7 Employee Commuting
   if (isC7EmployeeCommuting) {
@@ -164,6 +170,19 @@ export const validateStep3 = ({
 
     // Check based on frequency type
     if (frequencyType === 'yearly') {
+      const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
+      for (const employee of employees) {
+        const inputs = employee.yearly_data?.inputs || {};
+        for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+          const value = Number.parseFloat(inputs[field.variable]);
+          if (Number.isFinite(value) && value > annualDayLimit) {
+            return {
+              valid: false,
+              message: `${field.label} cannot exceed ${annualDayLimit} days for the reporting period`,
+            };
+          }
+        }
+      }
       const hasYearlyData = employees.some(emp => 
         emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
       );
@@ -198,6 +217,17 @@ export const validateStep3 = ({
       if (!hasValue) {
         const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
         return { valid: false, message: `Please fill in "${fieldLabel}"` };
+      }
+    }
+
+    const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
+    for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+      const value = Number.parseFloat(yearlyData?.[field.variable] ?? yearlyData?.[field.fieldKey]);
+      if (Number.isFinite(value) && value > annualDayLimit) {
+        return {
+          valid: false,
+          message: `${field.label} cannot exceed ${annualDayLimit} days for the reporting period`,
+        };
       }
     }
 

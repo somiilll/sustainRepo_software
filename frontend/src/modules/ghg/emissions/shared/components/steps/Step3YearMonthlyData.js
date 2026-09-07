@@ -23,6 +23,10 @@ import MultiEmployeeInput from '../../../../../../components/MultiEmployeeInput'
 
 // Import month constants
 import { MONTHS } from '../../../../../../constants/months';
+import {
+  getAnnualReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../../utils/reportingPeriodDays';
 
 // Static help text shown next to specific dynamic field labels. Keyed by
 // `field.variable` so it matches regardless of how the label is worded.
@@ -480,6 +484,7 @@ export const Step3YearMonthlyData = ({
   const yearlyReportingPeriod = reportingYearType === 'financial'
     ? `FY ${reportingYear}-${String(Number(reportingYear) + 1).slice(-2)}`
     : `CY${reportingYear}`;
+  const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
   const resolveSpendDefaultValue = useCallback((field, periodKey) => {
     if (scope3Method !== 'spend_basis') return undefined;
     const isApplicable = spendCurrencyConversionMethod === 'standard'
@@ -1584,6 +1589,10 @@ const YearlyDataEntry = ({
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
                   const isUnitlessCountField = isNoUnitField;
+                  const isAnnualDayField = isAnnualDayCountField(field);
+                  const yearlyFieldMax = isAnnualDayField
+                    ? annualDayLimit
+                    : field.validationRules?.max;
                   const defaultValue = resolveSpendDefaultValue(field, yearlyReportingPeriod)
                     ?? getFieldDefaultValue(field, selectedFuel);
                   const displayedValue = hasFieldValue(yearlyData[field.variable])
@@ -1639,11 +1648,20 @@ const YearlyDataEntry = ({
                             type="number"
                             step={isUnitlessCountField ? "1" : "any"}
                             min="0"
-                            placeholder={field.placeholder || `Enter annual ${field.label.toLowerCase()}`}
+                            max={yearlyFieldMax}
+                            placeholder={isAnnualDayField
+                              ? `Max ${annualDayLimit} days`
+                              : field.placeholder || `Enter annual ${field.label.toLowerCase()}`}
                             value={displayedValue}
                             onChange={(e) => {
                               const val = e.target.value;
                               if (val === '' || parseFloat(val) >= 0) {
+                                if (yearlyFieldMax !== undefined && val !== '' && parseFloat(val) > yearlyFieldMax) {
+                                  toast.error(isAnnualDayField
+                                    ? `${field.label} cannot exceed ${yearlyFieldMax} days for the reporting period`
+                                    : `${field.label} cannot exceed ${yearlyFieldMax}`);
+                                  return;
+                                }
                                 if (isUnitlessCountField && val !== '') {
                                   const numVal = parseFloat(val);
                                   if (!Number.isInteger(numVal)) {
@@ -1734,6 +1752,10 @@ const YearlyDataEntry = ({
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
                   const isUnitlessCountField = isNoUnitField;
+                  const isAnnualDayField = isAnnualDayCountField(field);
+                  const yearlyFieldMax = isAnnualDayField
+                    ? annualDayLimit
+                    : field.validationRules?.max;
                   const defaultValue = getFieldDefaultValue(field, selectedFuel);
                   const displayedValue = hasFieldValue(yearlyData[field.variable])
                     ? yearlyData[field.variable]
@@ -1798,11 +1820,20 @@ const YearlyDataEntry = ({
                           type="number"
                           step={isUnitlessCountField ? "1" : "any"}
                           min="0"
-                          placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                          max={yearlyFieldMax}
+                          placeholder={isAnnualDayField
+                            ? `Max ${annualDayLimit} days`
+                            : field.placeholder || `Enter ${field.label.toLowerCase()}`}
                           value={displayedValue}
                           onChange={(e) => {
                             const val = e.target.value;
                             if (val === '' || parseFloat(val) >= 0) {
+                              if (yearlyFieldMax !== undefined && val !== '' && parseFloat(val) > yearlyFieldMax) {
+                                toast.error(isAnnualDayField
+                                  ? `${field.label} cannot exceed ${yearlyFieldMax} days for the reporting period`
+                                  : `${field.label} cannot exceed ${yearlyFieldMax}`);
+                                return;
+                              }
                               if (isUnitlessCountField && val !== '') {
                                 const numVal = parseFloat(val);
                                 if (!Number.isInteger(numVal)) {
@@ -1876,6 +1907,10 @@ const YearlyDataEntry = ({
                     ? [yearlyData.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit].filter(Boolean)
                     : configuredFieldUnits;
                   const isSupplierBasis = scope3Method === 'supplier_basis';
+                  const isAnnualDayField = isAnnualDayCountField(field);
+                  const yearlyFieldMax = isAnnualDayField
+                    ? annualDayLimit
+                    : field.validationRules?.max;
                   const defaultValue = densityState?.defaultDensity?.value
                     ?? resolveSpendDefaultValue(field, yearlyReportingPeriod)
                     ?? getFieldDefaultValue(field, selectedFuel);
@@ -1951,12 +1986,21 @@ const YearlyDataEntry = ({
                           type="number"
                           step="any"
                           min="0"
-                          placeholder={`Enter ${field.label.toLowerCase()}`}
+                          max={yearlyFieldMax}
+                          placeholder={isAnnualDayField
+                            ? `Max ${annualDayLimit} days`
+                            : `Enter ${field.label.toLowerCase()}`}
                           value={displayedValue}
                           disabled={!isOverrideEnabled}
                           onChange={(e) => {
                             const val = e.target.value;
                             if (val === '' || parseFloat(val) >= 0) {
+                              if (yearlyFieldMax !== undefined && val !== '' && parseFloat(val) > yearlyFieldMax) {
+                                toast.error(isAnnualDayField
+                                  ? `${field.label} cannot exceed ${yearlyFieldMax} days for the reporting period`
+                                  : `${field.label} cannot exceed ${yearlyFieldMax}`);
+                                return;
+                              }
                               setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                             }
                           }}
