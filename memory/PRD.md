@@ -101,6 +101,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Repaired the GHG geographic heatmap basemap by replacing the Carto layer that displayed an API-key watermark with OpenStreetMap tiles and visible attribution. The heat overlay remains driven by filtered, facility-level emissions data; it is not static.
+- Replaced the standalone no-target placeholder with the established Reduction Target KPI card, including its Add Emission Reduction Targets action.
+- Corrected the GHG dashboard sticky header's mobile-only horizontal overflow.
+- **VERIFIED:** GHG dashboard heat layer and India/Global controls render correctly; OpenStreetMap tile URLs were confirmed, the no-target KPI state was browser-verified, mobile overflow was empty, and `yarn lint` passed.
+
+## Previous Change — September 7, 2026
 - Standardized Facility form vertical spacing and responsive field-grid gaps for consistent row-to-row rhythm.
 - **NOT TESTED** per the user’s standing instruction.
 
@@ -135,6 +141,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **P0:** Fix deferred token expiry/session-state mismatch that causes random logouts.
 - **P0:** Existing supplier assessment-program revision migration/reassignment flow.
 - **P0:** Explicit supplier facility-limit policy and canonical target-system consolidation.
 - **P0:** Security hardening: hash password-reset tokens and encrypt approved PII/financial data.

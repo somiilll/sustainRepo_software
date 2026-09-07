@@ -205,19 +205,13 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               sparkData={totalSparkData}
               sparkColor="#F59E0B"
             />
-           {!targets.length ? (
-              <div className="flex items-center justify-center h-full text-xs text-stone-500 border border-dashed border-stone-200 rounded-xl p-4">
-                Define a GHG target to enable target tracking
-              </div>
-            ) : (
-              <GaugeCard
-                targets={targets}
-                selectedTarget={selectedTarget}
-                selectedTargetId={selectedTargetId}
-                setSelectedTargetId={setSelectedTargetId}
-                progressPercentage={targetProgressPct}
-              />
-            )}
+            <GaugeCard
+              targets={targets}
+              selectedTarget={selectedTarget}
+              selectedTargetId={selectedTargetId}
+              setSelectedTargetId={setSelectedTargetId}
+              progressPercentage={targetProgressPct}
+            />
           </div>
 
           {/* ROW 2: Trend + Donut */}
