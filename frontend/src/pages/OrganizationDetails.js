@@ -702,7 +702,7 @@ export default function OrganizationDetails() {
 
         <div className="mt-2">
           {editing ? (
-            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+            <Card className={`p-6 border border-stone-200 rounded-xl bg-white ${['production', 'revenue'].includes(activeTab) ? 'hidden' : ''}`}>
               <form onSubmit={handleSubmit} className="space-y-4">
             <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             <div className="grid grid-cols-2 gap-4">

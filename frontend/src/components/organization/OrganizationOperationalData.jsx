@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { BarChart3, Loader2, Plus, Save } from 'lucide-react';
+import { BarChart3, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { YearlyMetricEditor } from './YearlyMetricEditor';
@@ -25,14 +25,6 @@ const normalizeYearData = (data) => ({
   production_quantity_monthly: data?.production_quantity_monthly || {},
 });
 
-const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== '';
-
-const hasMetricData = (data, metric) => {
-  const yearlyValue = metric === 'revenue' ? data?.turnover : data?.production_quantity;
-  const monthlyValues = metric === 'revenue' ? data?.turnover_monthly : data?.production_quantity_monthly;
-  return hasValue(yearlyValue) || Object.values(monthlyValues || {}).some(hasValue);
-};
-
 export const OrganizationOperationalData = ({
   activeTab,
   canEdit,
@@ -45,7 +37,6 @@ export const OrganizationOperationalData = ({
   const [dataByYear, setDataByYear] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [selectedYears, setSelectedYears] = useState([]);
   const isCalendarYear = organization?.reporting_year_type === 'calendar_year';
   const metric = activeTab === 'revenue' ? 'revenue' : 'production';
   const isEditable = isEditing && canEdit && !subscriptionExpired;
@@ -79,7 +70,6 @@ export const OrganizationOperationalData = ({
     }));
     const nextData = Object.fromEntries(results);
     setDataByYear(nextData);
-    setSelectedYears(availableYears.filter((period) => hasMetricData(nextData[period], metric)));
     setLoading(false);
   }, [availableYears, getAuthHeader, metric]);
 
@@ -94,15 +84,10 @@ export const OrganizationOperationalData = ({
     }));
   };
 
-  const addYear = (period) => {
-    setSelectedYears((current) => availableYears.filter((year) => current.includes(year) || year === period));
-  };
-
   const saveChanges = async () => {
-    if (!selectedYears.length) return;
     setSaving(true);
     try {
-      await Promise.all(selectedYears.map((period) => axios.post(
+      await Promise.all(availableYears.map((period) => axios.post(
         `${API}/organization/yearly-data/${period}`,
         dataByYear[period] || emptyYearData(),
         { headers: getAuthHeader() },
@@ -124,8 +109,6 @@ export const OrganizationOperationalData = ({
   if (!['production', 'revenue'].includes(activeTab)) return null;
 
   const periodPrefix = isCalendarYear ? 'CY' : 'FY';
-  const currentYear = availableYears[0];
-  const previousYear = availableYears[1];
 
   return (
     <div className="mt-6" data-testid={`organization-${metric}-all-years`}>
@@ -136,23 +119,9 @@ export const OrganizationOperationalData = ({
           </div>
           <div>
             <h2 className="text-lg font-semibold text-text-primary">{metric === 'revenue' ? 'Revenue Data' : 'Production Data'}</h2>
-            <p className="mt-1 text-sm text-text-muted">Saved reporting years are shown below.</p>
+            <p className="mt-1 text-sm text-text-muted">Current and previous reporting years are available below.</p>
           </div>
         </div>
-        {isEditable && (
-          <div className="flex flex-wrap gap-2" data-testid={`organization-${metric}-add-year-actions`}>
-            {!selectedYears.includes(currentYear) && (
-              <Button type="button" variant="outline" onClick={() => addYear(currentYear)} data-testid={`organization-${metric}-add-current-year-button`}>
-                <Plus className="mr-2 h-4 w-4" />Add current {periodPrefix}
-              </Button>
-            )}
-            {!selectedYears.includes(previousYear) && (
-              <Button type="button" variant="outline" onClick={() => addYear(previousYear)} data-testid={`organization-${metric}-add-previous-year-button`}>
-                <Plus className="mr-2 h-4 w-4" />Add previous {periodPrefix}
-              </Button>
-            )}
-          </div>
-        )}
       </div>
 
       {loading ? (
@@ -161,7 +130,7 @@ export const OrganizationOperationalData = ({
         </div>
       ) : (
         <div className="space-y-4">
-          {selectedYears.map((period) => (
+          {availableYears.map((period) => (
             <YearlyMetricEditor
               key={period}
               data={dataByYear[period] || emptyYearData()}
@@ -173,16 +142,13 @@ export const OrganizationOperationalData = ({
               periodLabel={`${periodPrefix} ${period}`}
             />
           ))}
-          {!selectedYears.length && (
-            <p className="py-8 text-center text-sm text-text-muted" data-testid={`organization-${metric}-empty-state`}>No reporting years have data yet.</p>
-          )}
         </div>
       )}
 
       {isEditable && !loading && (
         <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-stone-200 pt-4" data-testid={`organization-${metric}-edit-actions`}>
           <Button type="button" variant="outline" onClick={cancelChanges} disabled={saving} data-testid={`organization-${metric}-cancel-button`}>Cancel</Button>
-          <Button type="button" onClick={saveChanges} disabled={saving || !selectedYears.length} data-testid={`organization-${metric}-save-changes-button`}>
+          <Button type="button" onClick={saveChanges} disabled={saving} data-testid={`organization-${metric}-save-changes-button`}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saving ? 'Saving' : 'Save Changes'}
           </Button>

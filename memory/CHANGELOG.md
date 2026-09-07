@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Organization Historical Operational Data Access
+- Removed the empty Organization form card that appeared while editing Production or Revenue data.
+- Restored all five available reporting years (current plus four prior), allowing administrators to add missing historical data directly.
+- **NOT TESTED** per the user’s explicit instruction.
+
 ## September 7, 2026 — Organization Operational Data Editing
 - Production and Revenue now list only reporting years containing data, with explicit **Add current** and **Add previous** reporting-year actions in edit mode.
 - Moved the operational Cancel and Save Changes actions below the reporting-year editors.
