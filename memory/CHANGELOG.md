@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Exchange Rate Unit Reset Fixed
+- Removed the startup seed overwrite that repeatedly restored the Exchange Rate mapping unit to `1`.
+- Startup now inserts the mapping only when missing and preserves all later Super Admin edits.
+- Repaired the local catalog and verified a subsequent startup seed leaves Exchange Rate unitless.
+
 ## September 7, 2026 — Scope 3 Spend Default Rates
 - Displayed period-specific PPP, inflation, and standard exchange-rate defaults in Scope 3 Spend Basis ledgers using the same resolver as backend calculations.
 - Preserved explicit override behavior and existing saved overrides across monthly and yearly entry.

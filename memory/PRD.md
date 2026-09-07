@@ -847,3 +847,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Scope 3 Spend Basis now displays database defaults in disabled override fields: PPP and Inflation Rate for PPP conversion, or Exchange Rate for Standard conversion, for both monthly and yearly entry.
 - Existing saved override values continue to take precedence, and unchecking Override Default returns the cell to the resolved database value.
 - Verified targeted frontend ESLint, backend Python compilation, and the resolver API: 2026 INR PPP `20.343`, inflation `1.1486`, and July standard exchange rate `95.0`.
+
+## Latest Changes — 2026-09-07 (Exchange Rate Unit Reset Fix)
+- Identified `seed_calc_engine()` → `seed_properties()` as the recurring writer that reset the `exchange_rate` input mapping to `default_unit: "1"` and `unit_source: "static"` on backend startup.
+- Converted the Exchange Rate mapping seed to insert-only behavior so Super Admin changes are never overwritten during startup or reload.
+- Corrected fresh-catalog defaults and the manual Scope 3 currency seed so Exchange Rate is consistently unitless across `ce_variables`, `ce_properties`, and `ce_input_field_mappings`.
+- Re-applied the unitless migration locally and verified that running the startup seed again leaves the mapping unchanged (`unit_source: none`, no `default_unit`).
