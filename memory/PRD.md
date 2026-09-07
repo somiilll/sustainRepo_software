@@ -830,3 +830,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Added separation above the Additional Notes row in the optional Add Emissions area.
 - Consolidated each multi-month create success message into one notification that explicitly lists every saved month for C7, Process Emissions, and all other module-driven emission submissions.
 - Targeted frontend static checks and a page-load smoke were completed before the user’s subsequent `dont test` instruction; no further testing was run.
+
+## Latest Changes — 2026-09-07 (Local Decision-Tree Version Map Repair)
+- Fixed the immutable record-binding lookup incorrectly reporting an existing legacy decision-tree version as unavailable when its projected `formula_version_map` field was absent.
+- Added an idempotent local catalog migration that reconstructs active maps from current formula versions and historical maps from effective-dated formula versions, while refusing unresolved mappings rather than silently selecting the latest formula.
+- Backfilled 23 current decision trees and 63 decision-tree snapshots in `test_database`. A pre-write backup was created at `/app/.emergent/backups/decision-tree-formula-version-maps-20260907T055459Z.json`.
+- **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction. The migration’s required safety checks completed during the write operation.

@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Local Decision-Tree Formula-Version Map Repair
+- Corrected the record-binding existence check so a legacy snapshot with a missing projected map is no longer mislabeled as a nonexistent decision-tree version.
+- Added and applied a guarded migration for missing `formula_version_map` values across current and historical decision-tree documents. It backfilled 86 documents and created a local pre-write backup.
+- **NOT TESTED at user request.**
+
 ## September 4, 2026 — Immutable Formula and Decision-Tree Versions
 - Added a reusable calculation-version resolver and record-write guard. New emission records pin exact formula/tree versions and store a canonical formula snapshot generated from the server-side catalog.
 - Formula edits append formula versions and automatically append linked decision-tree versions with formula-version maps. Historical edits use pinned form configuration and calculations; switching to newer rules during edit is rejected.

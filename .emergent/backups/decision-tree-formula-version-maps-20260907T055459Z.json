@@ -1,0 +1,4607 @@
+{
+  "database": "test_database",
+  "ce_decision_trees": [
+    {
+      "_id": {
+        "$oid": "69e49fda49589fa9b15b0fde"
+      },
+      "id": "9fa2ca12-36cc-4be1-b7a7-c67526b97e7b",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "next": {
+              "field_name": "cv_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+                },
+                "volume": {
+                  "formula_id": "3a7e4e0d-a46a-42b2-b9ed-abd1750d26be"
+                }
+              }
+            }
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "5ce2ec68-efe9-43b1-a1c2-84c9ca0ccedc",
+      "version_number": 8,
+      "is_active": true,
+      "effective_from": "2026-08-20T17:00:04.336193+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-19T09:26:50.564296+00:00",
+      "updated_at": "2026-08-20T17:00:04.336189+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69e5d99fc1cbdd9e2c29b4b7"
+      },
+      "id": "80dbef24-4430-42f1-bd3a-fe7a76683058",
+      "category_id": "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "next": {
+              "field_name": "cv_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "d5c88230-db1c-4b7d-b357-6fa6c791a938"
+                },
+                "volume": {
+                  "formula_id": "3bb988d6-0434-4ed4-a958-699df95c1a41"
+                }
+              }
+            }
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "1d41b18f-8fac-4c27-8bca-6d10fc6873ab",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-08-20T17:00:04.343721+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-20T07:45:35.161460+00:00",
+      "updated_at": "2026-08-20T17:00:04.343715+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69e5ec1ed703e0a67dfcf527"
+      },
+      "id": "afaed9c6-c65c-4f9b-b46f-b98286a9c5bd",
+      "category_id": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "next": {
+              "field_name": "cv_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20"
+                },
+                "volume": {
+                  "formula_id": "fdad6007-c422-4b8d-94ae-b3ed0e2e9083"
+                }
+              }
+            }
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "13805742-e547-4454-bb70-a0a4e0af9862",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-08-20T17:00:04.339918+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-20T09:04:30.701469+00:00",
+      "updated_at": "2026-08-20T17:00:04.339912+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69e5fedc3cadaac5ff6ccb46"
+      },
+      "id": "158e8396-7907-4fe3-a06b-3b0870dd3ec6",
+      "category_id": "1acae127-2693-4fea-a4ef-84c7568fdc54",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "next": {
+              "field_name": "cv_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20"
+                },
+                "volume": {
+                  "formula_id": "c571ded2-0326-4cac-86d6-14753e601f89"
+                }
+              }
+            }
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "033b3f4a-e4bf-47b2-a02d-10046691e0cf",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-08-20T17:00:04.347357+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-20T10:24:28.977618+00:00",
+      "updated_at": "2026-08-20T17:00:04.347351+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69e737ec9d44e169d2f537f1"
+      },
+      "id": "87ac1938-ecf3-45af-98d7-34836565da15",
+      "category_id": "49eb5676-f90a-4294-aad1-e645dc79ea33",
+      "is_active": true,
+      "tree": {
+        "type": "leaf",
+        "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+      },
+      "created_at": "2026-04-21T08:40:12.494715+00:00",
+      "updated_at": "2026-04-21T08:40:12.494720+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "69e737ec9d44e169d2f537f2"
+      },
+      "id": "5d9c261d-cbe8-42de-bf25-497463e03ad7",
+      "category_id": "cec39c99-70ae-47bd-abfd-1be5462243e3",
+      "is_active": false,
+      "tree": {
+        "type": "leaf",
+        "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991"
+      },
+      "created_at": "2026-04-21T08:40:12.495336+00:00",
+      "updated_at": "2026-04-22T05:08:53.339415+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "69f09b0d12e1aa7ad25f04ed"
+      },
+      "id": "874ba3e2-3167-461d-8be7-51c46abef490",
+      "category_id": "91ec37f6-940e-44c5-8dc1-0e685cfabfab",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          },
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          }
+        }
+      },
+      "version_id": "1c418467-402d-4921-8f3f-2231d355a043",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-04-28T11:34:15.778669+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-28T11:33:33.671946+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f468937070a11b294ad442"
+      },
+      "id": "c664d908-1eee-4dd4-9dc7-58cf7f8e4524",
+      "category_id": "45c38f7b-20f0-4409-ac37-809d049ce7bd",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          },
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          }
+        }
+      },
+      "version_id": "cd8912ed-56fc-49df-96fc-21f7f53cd78b",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-01T08:47:15.098615+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-01T08:47:15.098622+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f468ed7070a11b294ad444"
+      },
+      "id": "4389509a-7967-4122-b494-64dac681cf69",
+      "category_id": "26883677-56c0-447e-84bc-05aa54f250e3",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          },
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          }
+        }
+      },
+      "version_id": "717a9156-6d8d-4f09-9452-b4eec8913638",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-01T08:48:45.699028+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-01T08:48:45.699031+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f8317ee862c502a66509ad"
+      },
+      "id": "daef1629-1738-49aa-b191-33f35ec34a87",
+      "category_id": "477d7fff-3074-4235-8172-6b54f6aa5050",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439"
+          },
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "e70b0f66-1f5a-4239-b169-90c3a8b52450",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-04T05:41:18.752411+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T05:41:18.752414+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f831ace862c502a66509af"
+      },
+      "id": "529b7ba8-fb75-424f-9040-bbc40f2461b5",
+      "category_id": "b1cf4c93-e21b-4a7e-86d8-6cd1380e2fde",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439"
+          },
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "4cb5b85e-8bbb-4613-b730-04cf7e4215c8",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-04T05:42:04.374942+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T05:42:04.374946+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f831f8e862c502a66509b1"
+      },
+      "id": "70147feb-4e84-42cd-bbad-04146d5d7eae",
+      "category_id": "361cd3ec-d500-43d3-bb08-eb0beceb1bcd",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "47cdb8ef-4e5c-476f-b223-32a838403960"
+          },
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "dd033cb4-93c5-4535-b471-4e60e1efd7d4",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-05-04T16:33:25.631476+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T05:43:20.430968+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f83295e862c502a66509b3"
+      },
+      "id": "36b253a9-b428-4da2-86d9-cc9a0d634dad",
+      "category_id": "84e37535-12bd-4f30-abd9-963bfa0a3198",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "47cdb8ef-4e5c-476f-b223-32a838403960"
+          },
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "7393b23c-0727-48d1-8231-9c37563e52ea",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-05-04T16:33:33.666005+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T05:45:57.534426+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f846e6ca5bc383779b2d8d"
+      },
+      "id": "3d142114-64e3-4df2-8fc2-1bea05d8faad",
+      "category_id": "58656681-b8c9-4015-ae29-097898f6d052",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "activity_type",
+              "options": {
+                "air_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "water_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "car_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "bike_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "taxi_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "bus_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "rail_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "hotel_stay": {
+                  "formula_id": "c1531ff6-b7cd-4e86-9be1-f95444ac888a"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "3d89c57e-2ad3-4593-ba4c-2502361d0419",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-05-04T08:50:29.763679+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T07:12:38.689131+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f84771ca5bc383779b2d8f"
+      },
+      "id": "49af479a-0ede-438f-91e1-bae65ca9e048",
+      "category_id": "e805180d-d3cc-4a7f-a71e-bf1d920d8919",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "activity_type",
+              "options": {
+                "car_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "air_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "water_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "bike_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "taxi_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "bus_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "rail_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "wfh": {
+                  "formula_id": "5389f946-6b62-461e-b229-3a0d142885eb"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "7f6999a7-3902-41bd-8301-050676626512",
+      "version_number": 6,
+      "is_active": true,
+      "effective_from": "2026-05-19T12:40:45.542833+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T07:14:57.126620+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f9cc6e8191023636f332e4"
+      },
+      "id": "4639a95a-6a1e-4af9-a4bb-8653d63e99fa",
+      "category_id": "aa482371-de52-43fb-8f59-17229e548d58",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "energy": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          },
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "5d10d969-1edd-40df-84ac-1a3d644b49d2",
+      "version_number": 8,
+      "is_active": true,
+      "effective_from": "2026-05-21T06:34:12.917639+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-05T10:54:38.429586+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f9e41f7dc7910e782b4b7d"
+      },
+      "id": "d9b863a3-663c-47b5-bc69-63085bdb1a16",
+      "category_id": "9f54a99c-ac91-4997-99fc-fe7f714ff453",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "energy": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "b683183c-9751-4b2d-a79b-ecf0b392c1db",
+      "version_number": 7,
+      "is_active": true,
+      "effective_from": "2026-05-21T06:34:38.050226+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-05T12:35:43.716607+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69faccdc624717541aae3e07"
+      },
+      "id": "07196112-e5a8-4113-819a-919b7ab1b6e2",
+      "category_id": "d0ebca6a-61cd-4646-8cf9-2d8501fe4471",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "mobile_combustion": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "energy": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "biogenic": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "fugitive_emissions": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "c37889ec-b877-41f7-b719-3405e5f39dc9"
+                      },
+                      "one_time_use": {
+                        "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "e9326953-1eb0-4fcb-959a-03e4034ba1e0",
+      "version_number": 7,
+      "is_active": true,
+      "effective_from": "2026-05-27T10:51:50.365941+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-06T05:08:44.975251+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69facd5f624717541aae3e09"
+      },
+      "id": "fe0bc8b9-ccbe-427e-a217-d2daa8703a15",
+      "category_id": "87c47db3-89bc-432f-a36d-1f7d1dfacbf5",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "26ca94a6-c558-454a-a781-b265ee40b8e0",
+      "version_number": 5,
+      "is_active": true,
+      "effective_from": "2026-05-21T06:35:18.340166+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-06T05:10:55.781657+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69face11624717541aae3e0d"
+      },
+      "id": "a0ba907f-a8d8-46da-a99c-5bbca06e1a3b",
+      "category_id": "536069ee-251f-4772-9f4b-48b562a2859f",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "energy": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "455e647b-bea2-48d3-a6b5-9881f424ab3d",
+      "version_number": 5,
+      "is_active": true,
+      "effective_from": "2026-05-21T06:35:36.019606+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-06T05:13:53.313614+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69fc1b9df59dc4f5359d54d9"
+      },
+      "id": "dc26189a-ae7b-45b0-8841-2bfb739ee307",
+      "category_id": "522bda53-40e8-40f6-a774-bac643be2714",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          },
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "next": {
+              "field_name": "spend_currency_conversion_method",
+              "options": {
+                "ppp_inflation": {
+                  "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+                },
+                "standard": {
+                  "formula_id": "8a9150c2-ea89-4f53-9f85-2a62f64d1028"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "6276a076-7864-4766-b123-7444dfcfb9f6",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-07T04:57:01.763858+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-07T04:57:01.763861+00:00",
+      "updated_at": "2026-08-26T09:09:53.078968+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "6a7464e856246f252f0ac91d"
+      },
+      "id": "98b9822d-3d9a-478a-9d4c-1049b3a8655b",
+      "category_id": "0d5c5aa7-8bec-4532-be9c-be94869829b9",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+          },
+          "using_qty_basis_ef": {
+            "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "cac3d61e-931b-46c2-a8dd-78c50b26da60",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-08-06T10:41:44.650938+00:00",
+      "effective_to": null,
+      "created_at": "2026-08-06T10:41:44.650941+00:00",
+      "updated_at": "2026-08-06T10:41:44.650943+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "6a747ef09ab502158cd29476"
+      },
+      "id": "d39293e1-f34c-4e9c-803a-6a14f6228a02",
+      "category_id": "8f797a6a-fded-477c-8c3c-8dfa8905293c",
+      "tree": {
+        "field_name": "process_type",
+        "options": {
+          "venting": {
+            "next": {
+              "field_name": "calculation_methodology",
+              "options": {
+                "using_heat_basis_ncv": {
+                  "formula_id": "d3c3c96f-be26-40a5-abed-6770e0da1cb4"
+                },
+                "using_qty_basis_ef": {
+                  "next": {
+                    "field_name": "ef_quantity_basis",
+                    "allowed_values": [
+                      "mass",
+                      "volume"
+                    ],
+                    "options": {
+                      "mass": {
+                        "formula_id": "faefb2c8-affd-4bf4-b722-ecbab3cc7e9e"
+                      },
+                      "volume": {
+                        "formula_id": "06cfeca2-4af7-4958-9231-40c2431f1811"
+                      }
+                    }
+                  }
+                },
+                "using_carbon_composition": {
+                  "formula_id": "ec751e3e-8d41-41d4-8806-b123eb314af3"
+                }
+              }
+            }
+          },
+          "n2o_overall_combustion": {
+            "formula_id": "e3e00ca7-6a5f-4c88-b4b4-a2993ce6dbb8"
+          },
+          "ch4_overall_combustion": {
+            "formula_id": "779782fb-3d57-4a48-a704-cf125d838206"
+          }
+        }
+      },
+      "version_id": "c6d5df77-3497-44f9-ac62-42f56a49358e",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-08-20T12:16:12.026056+00:00",
+      "effective_to": null,
+      "created_at": "2026-08-06T12:32:48.252001+00:00",
+      "updated_at": "2026-08-20T12:16:12.026045+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    }
+  ],
+  "ce_decision_tree_versions": [
+    {
+      "_id": {
+        "$oid": "69e37ff780ab39dfaa3bc4f4"
+      },
+      "id": "6207cfdb-2b5d-4ccb-8b24-4a163846b678",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "method_type",
+        "allowed_values": [
+          "quantity"
+        ],
+        "required": true,
+        "options": {
+          "quantity": {
+            "formula_id": "70f3e76a-4853-4233-b1ca-0b203c36ee7f"
+          }
+        }
+      },
+      "version_id": "4f8d22e9-5738-45bf-9690-1aa8ada95dac",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-04-18T12:58:31.149266+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-18T12:58:31.149270+00:00",
+      "updated_at": "2026-04-18T12:58:31.149279+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69e49fda49589fa9b15b0fdf"
+      },
+      "id": "9fa2ca12-36cc-4be1-b7a7-c67526b97e7b",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "ef_q_co2_provided",
+        "options": {
+          "false": {
+            "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+          },
+          "true": {
+            "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+          }
+        }
+      },
+      "version_id": "71d978cb-3167-4cbe-9e2c-e735ff9dbf21",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-04-19T09:26:50.564293+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-19T09:26:50.564296+00:00",
+      "updated_at": "2026-04-19T09:26:50.564298+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69e49fec49589fa9b15b0fe0"
+      },
+      "id": "8d9dedf5-092c-4d59-89c4-bdf6b450939f",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "ef_q_co2",
+        "options": {
+          "false": {
+            "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+          },
+          "true": {
+            "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+          }
+        }
+      },
+      "version_id": "ffdd0b10-e35a-4bd4-8e40-49e7cd70e715",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-04-19T09:27:08.600148+00:00",
+      "created_at": "2026-04-19T09:26:50.564296+00:00",
+      "updated_at": "2026-04-19T09:27:08.600140+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "9fa2ca12-36cc-4be1-b7a7-c67526b97e7b"
+    },
+    {
+      "_id": {
+        "$oid": "69e4a04f49589fa9b15b0fe1"
+      },
+      "id": "747c5906-8978-4d33-a2e5-05622f202e48",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "ef_q_co2_provided",
+        "options": {
+          "false": {
+            "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+          },
+          "true": {
+            "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+          }
+        }
+      },
+      "version_id": "f4ef0b03-fe0b-4916-a75b-9c17387e8535",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-04-19T09:28:47.733287+00:00",
+      "created_at": "2026-04-19T09:26:50.564296+00:00",
+      "updated_at": "2026-04-19T09:28:47.733279+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "9fa2ca12-36cc-4be1-b7a7-c67526b97e7b"
+    },
+    {
+      "_id": {
+        "$oid": "69e5c56a3aac5ac939d71564"
+      },
+      "id": "ea4404b3-081e-464d-81d8-eee5714e7bbd",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "ef_quantity_provided",
+        "options": {
+          "false": {
+            "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+          },
+          "true": {
+            "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+          }
+        }
+      },
+      "version_id": "8771722a-c97f-490a-a32c-b8abf0ac3192",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-04-20T06:19:22.158007+00:00",
+      "created_at": "2026-04-19T09:26:50.564296+00:00",
+      "updated_at": "2026-04-20T06:19:22.157999+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "9fa2ca12-36cc-4be1-b7a7-c67526b97e7b"
+    },
+    {
+      "_id": {
+        "$oid": "69e5d99fc1cbdd9e2c29b4b8"
+      },
+      "id": "80dbef24-4430-42f1-bd3a-fe7a76683058",
+      "category_id": "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+      "tree": {
+        "field_name": "ef_quantity_provided",
+        "options": {
+          "true": {
+            "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+          },
+          "false": {
+            "formula_id": "d5c88230-db1c-4b7d-b357-6fa6c791a938"
+          }
+        }
+      },
+      "version_id": "bfe5bec8-132f-418e-9a13-c47f21c3c99c",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-04-20T07:45:35.161457+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-20T07:45:35.161460+00:00",
+      "updated_at": "2026-04-20T07:45:35.161462+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69e5ec1ed703e0a67dfcf528"
+      },
+      "id": "afaed9c6-c65c-4f9b-b46f-b98286a9c5bd",
+      "category_id": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+      "tree": {
+        "field_name": "mobile_combustion_selection",
+        "options": {
+          "option1": {
+            "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20"
+          },
+          "option2": {
+            "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+          }
+        }
+      },
+      "version_id": "313a46ba-5087-446c-93dd-2551a014eea4",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-04-20T09:04:30.701465+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-20T09:04:30.701469+00:00",
+      "updated_at": "2026-04-20T09:04:30.701471+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69e5feb73cadaac5ff6ccb45"
+      },
+      "id": "201762e0-3c3f-478d-9115-3f7ebe30f96a",
+      "category_id": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+      "tree": {
+        "field_name": "ef_quantity_provided",
+        "options": {
+          "true": {
+            "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+          },
+          "false": {
+            "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20"
+          }
+        }
+      },
+      "version_id": "6b63e9d9-d5a2-41e7-9f7d-e08213f5abb1",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-04-20T10:23:51.928069+00:00",
+      "created_at": "2026-04-20T09:04:30.701469+00:00",
+      "updated_at": "2026-04-20T10:23:51.928059+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "afaed9c6-c65c-4f9b-b46f-b98286a9c5bd"
+    },
+    {
+      "_id": {
+        "$oid": "69e5fedc3cadaac5ff6ccb47"
+      },
+      "id": "158e8396-7907-4fe3-a06b-3b0870dd3ec6",
+      "category_id": "1acae127-2693-4fea-a4ef-84c7568fdc54",
+      "tree": {
+        "field_name": "ef_quantity_provided",
+        "options": {
+          "true": {
+            "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+          },
+          "false": {
+            "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20"
+          }
+        }
+      },
+      "version_id": "b692aad1-79e2-45c4-bb08-c3d55f28d7c6",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-04-20T10:24:28.977614+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-20T10:24:28.977618+00:00",
+      "updated_at": "2026-04-20T10:24:28.977620+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69e857e59957bf0f658895ea"
+      },
+      "id": "ed31c41f-6d24-4860-950a-10c33c437aba",
+      "category_id": "cec39c99-70ae-47bd-abfd-1be5462243e3",
+      "tree": {
+        "field_name": "qty_energy",
+        "options": {
+          "true": {
+            "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991"
+          }
+        }
+      },
+      "version_id": "a38e7a17-ae7d-42f4-b973-8fed5c23aa90",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-04-22T05:08:53.340102+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-22T05:08:53.340109+00:00",
+      "updated_at": "2026-04-22T05:08:53.340111+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f09b0d12e1aa7ad25f04ee"
+      },
+      "id": "874ba3e2-3167-461d-8be7-51c46abef490",
+      "category_id": "91ec37f6-940e-44c5-8dc1-0e685cfabfab",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spent": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "activity": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          }
+        }
+      },
+      "version_id": "fcb3afc6-0e50-45a3-92b9-b17b54b92d88",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-04-28T11:33:33.671942+00:00",
+      "effective_to": null,
+      "created_at": "2026-04-28T11:33:33.671946+00:00",
+      "updated_at": "2026-04-28T11:33:33.671948+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f09b3712e1aa7ad25f04ef"
+      },
+      "id": "c7a74f8c-fc36-435a-af57-f5dd865f829a",
+      "category_id": "91ec37f6-940e-44c5-8dc1-0e685cfabfab",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          }
+        }
+      },
+      "version_id": "1c418467-402d-4921-8f3f-2231d355a043",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-04-28T11:34:15.778669+00:00",
+      "created_at": "2026-04-28T11:33:33.671946+00:00",
+      "updated_at": "2026-04-28T11:34:15.778659+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "874ba3e2-3167-461d-8be7-51c46abef490"
+    },
+    {
+      "_id": {
+        "$oid": "69f468937070a11b294ad443"
+      },
+      "id": "c664d908-1eee-4dd4-9dc7-58cf7f8e4524",
+      "category_id": "45c38f7b-20f0-4409-ac37-809d049ce7bd",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          },
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          }
+        }
+      },
+      "version_id": "cd8912ed-56fc-49df-96fc-21f7f53cd78b",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-01T08:47:15.098615+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-01T08:47:15.098622+00:00",
+      "updated_at": "2026-05-01T08:47:15.098624+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f468ed7070a11b294ad445"
+      },
+      "id": "4389509a-7967-4122-b494-64dac681cf69",
+      "category_id": "26883677-56c0-447e-84bc-05aa54f250e3",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          },
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          }
+        }
+      },
+      "version_id": "717a9156-6d8d-4f09-9452-b4eec8913638",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-01T08:48:45.699028+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-01T08:48:45.699031+00:00",
+      "updated_at": "2026-05-01T08:48:45.699033+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f8317ee862c502a66509ae"
+      },
+      "id": "daef1629-1738-49aa-b191-33f35ec34a87",
+      "category_id": "477d7fff-3074-4235-8172-6b54f6aa5050",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "e70b0f66-1f5a-4239-b169-90c3a8b52450",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-04T05:41:18.752411+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T05:41:18.752414+00:00",
+      "updated_at": "2026-05-04T05:41:18.752415+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f831ace862c502a66509b0"
+      },
+      "id": "529b7ba8-fb75-424f-9040-bbc40f2461b5",
+      "category_id": "b1cf4c93-e21b-4a7e-86d8-6cd1380e2fde",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "b14ba4cd-0757-4ec9-9e42-19a4dad1b439"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "4cb5b85e-8bbb-4613-b730-04cf7e4215c8",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-04T05:42:04.374942+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T05:42:04.374946+00:00",
+      "updated_at": "2026-05-04T05:42:04.374947+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f831f8e862c502a66509b2"
+      },
+      "id": "70147feb-4e84-42cd-bbad-04146d5d7eae",
+      "category_id": "361cd3ec-d500-43d3-bb08-eb0beceb1bcd",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "fd46aa98-5abd-4563-a62c-34d42946adfb",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-04T05:43:20.430965+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T05:43:20.430968+00:00",
+      "updated_at": "2026-05-04T05:43:20.430969+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f83295e862c502a66509b4"
+      },
+      "id": "36b253a9-b428-4da2-86d9-cc9a0d634dad",
+      "category_id": "84e37535-12bd-4f30-abd9-963bfa0a3198",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "1b9c74ed-4702-4e64-bda2-5fab552deca2",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-04T05:45:57.534423+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T05:45:57.534426+00:00",
+      "updated_at": "2026-05-04T05:45:57.534427+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f846e6ca5bc383779b2d8e"
+      },
+      "id": "3d142114-64e3-4df2-8fc2-1bea05d8faad",
+      "category_id": "58656681-b8c9-4015-ae29-097898f6d052",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "activity_type",
+              "options": {
+                "air_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "hotel_stays": {
+                  "formula_id": "c1531ff6-b7cd-4e86-9be1-f95444ac888a"
+                },
+                "water_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "car_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "bike_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "taxi_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "bus_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "rail_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "91cf925a-44b7-4cbe-b270-a83c4b0ea33d",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-04T07:12:38.689128+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T07:12:38.689131+00:00",
+      "updated_at": "2026-05-04T07:12:38.689133+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f84771ca5bc383779b2d90"
+      },
+      "id": "49af479a-0ede-438f-91e1-bae65ca9e048",
+      "category_id": "e805180d-d3cc-4a7f-a71e-bf1d920d8919",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "activity_type_category7",
+              "options": {
+                "car_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "air_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "water_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "bike_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "taxi_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "bus_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "rail_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "0b76a446-bf5c-4e4f-940c-9a5da568a28f",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-04T07:14:57.126614+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-04T07:14:57.126620+00:00",
+      "updated_at": "2026-05-04T07:14:57.126622+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f8481aca5bc383779b2d95"
+      },
+      "id": "a4f9a208-66bf-4d8e-906d-4f67046f361e",
+      "category_id": "e805180d-d3cc-4a7f-a71e-bf1d920d8919",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "activity_type_category7",
+              "options": {
+                "car_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "air_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "water_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "bike_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "taxi_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "bus_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "rail_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "wfh": {
+                  "formula_id": "5389f946-6b62-461e-b229-3a0d142885eb"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "533ec6ef-ccc6-4b2a-9ace-341407867163",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-05-04T07:17:46.955398+00:00",
+      "created_at": "2026-05-04T07:14:57.126620+00:00",
+      "updated_at": "2026-05-04T07:17:46.955382+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "49af479a-0ede-438f-91e1-bae65ca9e048"
+    },
+    {
+      "_id": {
+        "$oid": "69f85dd546d7970520e2f708"
+      },
+      "id": "03918288-8e40-45fa-8ece-6c54d983cd74",
+      "category_id": "58656681-b8c9-4015-ae29-097898f6d052",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "activity_type",
+              "options": {
+                "air_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "water_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "car_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "bike_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "taxi_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "bus_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "rail_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "hotel_stay": {
+                  "formula_id": "c1531ff6-b7cd-4e86-9be1-f95444ac888a"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "3d89c57e-2ad3-4593-ba4c-2502361d0419",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-05-04T08:50:29.763679+00:00",
+      "created_at": "2026-05-04T07:12:38.689131+00:00",
+      "updated_at": "2026-05-04T08:50:29.763671+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "3d142114-64e3-4df2-8fc2-1bea05d8faad"
+    },
+    {
+      "_id": {
+        "$oid": "69f8633f46d7970520e2f711"
+      },
+      "id": "4fe213e2-6b0b-45f6-b4c9-454343738d3e",
+      "category_id": "e805180d-d3cc-4a7f-a71e-bf1d920d8919",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "activity_type",
+              "options": {
+                "car_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "air_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "water_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "bike_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "taxi_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "bus_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "rail_travel": {
+                  "formula_id": "d1a76a33-2fe1-4b4a-88ff-8bd60142815f"
+                },
+                "wfh": {
+                  "formula_id": "5389f946-6b62-461e-b229-3a0d142885eb"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "1398ae3c-d500-4dbb-8bff-4dcf40257989",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-04T09:13:35.163665+00:00",
+      "created_at": "2026-05-04T07:14:57.126620+00:00",
+      "updated_at": "2026-05-04T09:13:35.163656+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "49af479a-0ede-438f-91e1-bae65ca9e048"
+    },
+    {
+      "_id": {
+        "$oid": "69f8ca556e6ad015bcbdb26a"
+      },
+      "id": "50803495-d9cf-4b32-91d7-6d9459b87dfd",
+      "category_id": "361cd3ec-d500-43d3-bb08-eb0beceb1bcd",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "47cdb8ef-4e5c-476f-b223-32a838403960"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "dd033cb4-93c5-4535-b471-4e60e1efd7d4",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-05-04T16:33:25.631476+00:00",
+      "created_at": "2026-05-04T05:43:20.430968+00:00",
+      "updated_at": "2026-05-04T16:33:25.631468+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "70147feb-4e84-42cd-bbad-04146d5d7eae"
+    },
+    {
+      "_id": {
+        "$oid": "69f8ca5d6e6ad015bcbdb26b"
+      },
+      "id": "ad9e27fa-38dc-4ad3-9db5-66de2cb78e00",
+      "category_id": "84e37535-12bd-4f30-abd9-963bfa0a3198",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "activity_basis": {
+            "formula_id": "47cdb8ef-4e5c-476f-b223-32a838403960"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "7393b23c-0727-48d1-8231-9c37563e52ea",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-05-04T16:33:33.666005+00:00",
+      "created_at": "2026-05-04T05:45:57.534426+00:00",
+      "updated_at": "2026-05-04T16:33:33.665996+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "36b253a9-b428-4da2-86d9-cc9a0d634dad"
+    },
+    {
+      "_id": {
+        "$oid": "69f9cc6e8191023636f332e5"
+      },
+      "id": "4639a95a-6a1e-4af9-a4bb-8653d63e99fa",
+      "category_id": "aa482371-de52-43fb-8f59-17229e548d58",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "fb34065c-3d4b-426d-bdfc-d02558a9662f",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-05T10:54:38.429583+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-05T10:54:38.429586+00:00",
+      "updated_at": "2026-05-05T10:54:38.429588+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69f9e390ca55279ba6e3acdc"
+      },
+      "id": "629921bc-b0c5-4295-8be1-a7b8a30b8f4d",
+      "category_id": "aa482371-de52-43fb-8f59-17229e548d58",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "cec4810e-cc04-41fc-a54c-bfbd0385c8ab",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-05-05T12:33:20.618137+00:00",
+      "created_at": "2026-05-05T10:54:38.429586+00:00",
+      "updated_at": "2026-05-05T12:33:20.618130+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "4639a95a-6a1e-4af9-a4bb-8653d63e99fa"
+    },
+    {
+      "_id": {
+        "$oid": "69f9e41f7dc7910e782b4b7e"
+      },
+      "id": "d9b863a3-663c-47b5-bc69-63085bdb1a16",
+      "category_id": "9f54a99c-ac91-4997-99fc-fe7f714ff453",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "b500f246-c0d6-4ef6-988c-d18c12533e48",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-05T12:35:43.716604+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-05T12:35:43.716607+00:00",
+      "updated_at": "2026-05-05T12:35:43.716609+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69faccdc624717541aae3e08"
+      },
+      "id": "07196112-e5a8-4113-819a-919b7ab1b6e2",
+      "category_id": "d0ebca6a-61cd-4646-8cf9-2d8501fe4471",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "2e808c89-7b9d-48b5-a37b-7cc893be87ec",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-06T05:08:44.975247+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-06T05:08:44.975251+00:00",
+      "updated_at": "2026-05-06T05:08:44.975252+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69facd5f624717541aae3e0a"
+      },
+      "id": "fe0bc8b9-ccbe-427e-a217-d2daa8703a15",
+      "category_id": "87c47db3-89bc-432f-a36d-1f7d1dfacbf5",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "cde78abb-bdc9-496d-b54a-1a1f38213464",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-06T05:10:55.781653+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-06T05:10:55.781657+00:00",
+      "updated_at": "2026-05-06T05:10:55.781659+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69facd73624717541aae3e0b"
+      },
+      "id": "be312fcf-c4d0-4e3b-9b0d-436c0edae868",
+      "category_id": "9f54a99c-ac91-4997-99fc-fe7f714ff453",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "b8e2b0f0-9a6a-4f81-b5e9-3e99ee526b66",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-05-06T05:11:15.525138+00:00",
+      "created_at": "2026-05-05T12:35:43.716607+00:00",
+      "updated_at": "2026-05-06T05:11:15.525132+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "d9b863a3-663c-47b5-bc69-63085bdb1a16"
+    },
+    {
+      "_id": {
+        "$oid": "69facd80624717541aae3e0c"
+      },
+      "id": "50f68216-e8f8-4668-9e58-78f69fd61d0d",
+      "category_id": "aa482371-de52-43fb-8f59-17229e548d58",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "27351fc2-1e11-491a-9461-4e450d9427fa",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-06T05:11:28.892601+00:00",
+      "created_at": "2026-05-05T10:54:38.429586+00:00",
+      "updated_at": "2026-05-06T05:11:28.892594+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "4639a95a-6a1e-4af9-a4bb-8653d63e99fa"
+    },
+    {
+      "_id": {
+        "$oid": "69face11624717541aae3e0e"
+      },
+      "id": "a0ba907f-a8d8-46da-a99c-5bbca06e1a3b",
+      "category_id": "536069ee-251f-4772-9f4b-48b562a2859f",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "e953cff4-c326-4b1c-80a1-9958d1519e9d",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-06T05:13:53.313611+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-06T05:13:53.313614+00:00",
+      "updated_at": "2026-05-06T05:13:53.313616+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "69fae5da971b06b91add8e10"
+      },
+      "id": "3ac4d57e-4ed1-4cef-bfbd-3ab8a683f5a3",
+      "category_id": "9f54a99c-ac91-4997-99fc-fe7f714ff453",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "7e6b9ade-440f-42fa-a3ab-8f2e244d943c",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-06T06:55:22.960032+00:00",
+      "created_at": "2026-05-05T12:35:43.716607+00:00",
+      "updated_at": "2026-05-06T06:55:22.960024+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "d9b863a3-663c-47b5-bc69-63085bdb1a16"
+    },
+    {
+      "_id": {
+        "$oid": "69fae5f3971b06b91add8e11"
+      },
+      "id": "5d7d558f-cb39-4fab-b7d1-3b26019ea283",
+      "category_id": "aa482371-de52-43fb-8f59-17229e548d58",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "ef46dfbd-83d4-4d4f-bd2e-e16cb17e806e",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-05-06T06:55:47.624664+00:00",
+      "created_at": "2026-05-05T10:54:38.429586+00:00",
+      "updated_at": "2026-05-06T06:55:47.624656+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "4639a95a-6a1e-4af9-a4bb-8653d63e99fa"
+    },
+    {
+      "_id": {
+        "$oid": "69fb240740db542382c5b234"
+      },
+      "id": "45bbf8f4-cbad-4aee-a281-4c16aa8aeb6d",
+      "category_id": "aa482371-de52-43fb-8f59-17229e548d58",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "0fe80711-d31e-477e-9df6-3a908db6a141",
+      "version_number": 5,
+      "is_active": true,
+      "effective_from": "2026-05-06T11:20:39.204982+00:00",
+      "created_at": "2026-05-05T10:54:38.429586+00:00",
+      "updated_at": "2026-05-06T11:20:39.204974+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "4639a95a-6a1e-4af9-a4bb-8653d63e99fa"
+    },
+    {
+      "_id": {
+        "$oid": "69fb241f40db542382c5b235"
+      },
+      "id": "b530c164-559f-4ea5-a7ed-ee98a2052b58",
+      "category_id": "9f54a99c-ac91-4997-99fc-fe7f714ff453",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "b85b15f2-2830-41e5-92c3-fda904415c55",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-05-06T11:21:03.815788+00:00",
+      "created_at": "2026-05-05T12:35:43.716607+00:00",
+      "updated_at": "2026-05-06T11:21:03.815771+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "d9b863a3-663c-47b5-bc69-63085bdb1a16"
+    },
+    {
+      "_id": {
+        "$oid": "69fb243340db542382c5b236"
+      },
+      "id": "b5c8b502-db8d-4430-96db-fbf58dec2d1a",
+      "category_id": "d0ebca6a-61cd-4646-8cf9-2d8501fe4471",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "3a4e8cdf-8681-4ace-9696-edc7a1d83eca",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-05-06T11:21:23.093413+00:00",
+      "created_at": "2026-05-06T05:08:44.975251+00:00",
+      "updated_at": "2026-05-06T11:21:23.093405+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "07196112-e5a8-4113-819a-919b7ab1b6e2"
+    },
+    {
+      "_id": {
+        "$oid": "69fb244640db542382c5b237"
+      },
+      "id": "0a03f801-1d9c-4a25-a7d3-4203488dd63a",
+      "category_id": "87c47db3-89bc-432f-a36d-1f7d1dfacbf5",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "0a1cddf7-63df-4b28-81ce-ddae416327c5",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-05-06T11:21:42.348453+00:00",
+      "created_at": "2026-05-06T05:10:55.781657+00:00",
+      "updated_at": "2026-05-06T11:21:42.348445+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "fe0bc8b9-ccbe-427e-a217-d2daa8703a15"
+    },
+    {
+      "_id": {
+        "$oid": "69fb245540db542382c5b238"
+      },
+      "id": "bffaca6f-e065-4260-b460-cf6a95313094",
+      "category_id": "536069ee-251f-4772-9f4b-48b562a2859f",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "cfd58c59-1084-4b2a-9ed4-77be500d8438",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-05-06T11:21:57.523684+00:00",
+      "created_at": "2026-05-06T05:13:53.313614+00:00",
+      "updated_at": "2026-05-06T11:21:57.523674+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "a0ba907f-a8d8-46da-a99c-5bbca06e1a3b"
+    },
+    {
+      "_id": {
+        "$oid": "69fc1b9df59dc4f5359d54da"
+      },
+      "id": "dc26189a-ae7b-45b0-8841-2bfb739ee307",
+      "category_id": "522bda53-40e8-40f6-a774-bac643be2714",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "activity_basis": {
+            "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+          },
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "6276a076-7864-4766-b123-7444dfcfb9f6",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-05-07T04:57:01.763858+00:00",
+      "effective_to": null,
+      "created_at": "2026-05-07T04:57:01.763861+00:00",
+      "updated_at": "2026-05-07T04:57:01.763862+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "6a0c5a4d5be574760fb234f3"
+      },
+      "id": "3059329f-80a8-4066-a15b-21a8a8f0f41e",
+      "category_id": "e805180d-d3cc-4a7f-a71e-bf1d920d8919",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "activity_type",
+              "options": {
+                "car_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "air_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "water_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "bike_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "taxi_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "bus_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "rail_travel": {
+                  "formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f"
+                },
+                "wfh": {
+                  "formula_id": "5389f946-6b62-461e-b229-3a0d142885eb"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "7f6999a7-3902-41bd-8301-050676626512",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-05-19T12:40:45.542833+00:00",
+      "created_at": "2026-05-04T07:14:57.126620+00:00",
+      "updated_at": "2026-05-19T12:40:45.542824+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "49af479a-0ede-438f-91e1-bae65ca9e048"
+    },
+    {
+      "_id": {
+        "$oid": "6a0ea7646aa6d21b360a35fc"
+      },
+      "id": "0c579820-ebba-416a-9e26-b73893bc4ae4",
+      "category_id": "aa482371-de52-43fb-8f59-17229e548d58",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "energy": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          },
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          }
+        }
+      },
+      "version_id": "5d10d969-1edd-40df-84ac-1a3d644b49d2",
+      "version_number": 6,
+      "is_active": true,
+      "effective_from": "2026-05-21T06:34:12.917639+00:00",
+      "created_at": "2026-05-05T10:54:38.429586+00:00",
+      "updated_at": "2026-05-21T06:34:12.917630+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "4639a95a-6a1e-4af9-a4bb-8653d63e99fa"
+    },
+    {
+      "_id": {
+        "$oid": "6a0ea77e6aa6d21b360a35fd"
+      },
+      "id": "1b0ca15e-2eef-45dc-ab26-e74841cb0ed7",
+      "category_id": "9f54a99c-ac91-4997-99fc-fe7f714ff453",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "energy": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "b683183c-9751-4b2d-a79b-ecf0b392c1db",
+      "version_number": 5,
+      "is_active": true,
+      "effective_from": "2026-05-21T06:34:38.050226+00:00",
+      "created_at": "2026-05-05T12:35:43.716607+00:00",
+      "updated_at": "2026-05-21T06:34:38.050219+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "d9b863a3-663c-47b5-bc69-63085bdb1a16"
+    },
+    {
+      "_id": {
+        "$oid": "6a0ea7916aa6d21b360a35fe"
+      },
+      "id": "dc744b0b-dee1-43f3-98d5-08294b85784f",
+      "category_id": "d0ebca6a-61cd-4646-8cf9-2d8501fe4471",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "energy": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "e97696bf-9347-43b0-abdb-02712cd69372",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-21T06:34:57.017930+00:00",
+      "created_at": "2026-05-06T05:08:44.975251+00:00",
+      "updated_at": "2026-05-21T06:34:57.017920+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "07196112-e5a8-4113-819a-919b7ab1b6e2"
+    },
+    {
+      "_id": {
+        "$oid": "6a0ea7a66aa6d21b360a35ff"
+      },
+      "id": "ffcf3afc-e338-470b-a588-a762f36c4143",
+      "category_id": "87c47db3-89bc-432f-a36d-1f7d1dfacbf5",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "26ca94a6-c558-454a-a781-b265ee40b8e0",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-21T06:35:18.340166+00:00",
+      "created_at": "2026-05-06T05:10:55.781657+00:00",
+      "updated_at": "2026-05-21T06:35:18.340157+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "fe0bc8b9-ccbe-427e-a217-d2daa8703a15"
+    },
+    {
+      "_id": {
+        "$oid": "6a0ea7b86aa6d21b360a3600"
+      },
+      "id": "293a37d4-c5db-48ec-a41e-498b02d50cc0",
+      "category_id": "536069ee-251f-4772-9f4b-48b562a2859f",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "electricity": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "mobile_combustion": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                },
+                "electricity": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "biogenic": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                },
+                "energy": {
+                  "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "455e647b-bea2-48d3-a6b5-9881f424ab3d",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-05-21T06:35:36.019606+00:00",
+      "created_at": "2026-05-06T05:13:53.313614+00:00",
+      "updated_at": "2026-05-21T06:35:36.019597+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "a0ba907f-a8d8-46da-a99c-5bbca06e1a3b"
+    },
+    {
+      "_id": {
+        "$oid": "6a1687bb18c0767fc2ceb261"
+      },
+      "id": "115c9576-50b5-4013-8bee-eb54a451b0a2",
+      "category_id": "d0ebca6a-61cd-4646-8cf9-2d8501fe4471",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "mobile_combustion": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "energy": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "biogenic": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "0126a6fd-6d9b-4fb3-bd4d-7b492d952052",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-05-27T05:57:15.726795+00:00",
+      "created_at": "2026-05-06T05:08:44.975251+00:00",
+      "updated_at": "2026-05-27T05:57:15.726780+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "07196112-e5a8-4113-819a-919b7ab1b6e2"
+    },
+    {
+      "_id": {
+        "$oid": "6a16ccc62a2ce7756df3e891"
+      },
+      "id": "5e4ada6e-c656-44c2-bdfe-1ee4819f1cc1",
+      "category_id": "d0ebca6a-61cd-4646-8cf9-2d8501fe4471",
+      "tree": {
+        "field_name": "calculation_method_scope3",
+        "options": {
+          "spend_basis": {
+            "formula_id": "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
+          },
+          "supplier_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "mobile_combustion": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "fugitive_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "process_emissions": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "biogenic": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                },
+                "energy": {
+                  "formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea"
+                }
+              }
+            }
+          },
+          "activity_basis": {
+            "next": {
+              "field_name": "subcategory_selection",
+              "options": {
+                "stationary_combustion": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "mobile_combustion": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "energy": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "biogenic": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "edd2df03-7b34-4b61-93f6-0fba9390da4c"
+                      },
+                      "one_time_use": {
+                        "formula_id": "d2e62393-5666-4d4f-8550-298e8a00ec9f"
+                      }
+                    }
+                  }
+                },
+                "fugitive_emissions": {
+                  "next": {
+                    "field_name": "type_of_product",
+                    "options": {
+                      "continuous_usage": {
+                        "formula_id": "c37889ec-b877-41f7-b719-3405e5f39dc9"
+                      },
+                      "one_time_use": {
+                        "formula_id": "ed2819e3-8c04-4727-b3d3-969c3a1b7ea4"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "version_id": "e9326953-1eb0-4fcb-959a-03e4034ba1e0",
+      "version_number": 5,
+      "is_active": true,
+      "effective_from": "2026-05-27T10:51:50.365941+00:00",
+      "created_at": "2026-05-06T05:08:44.975251+00:00",
+      "updated_at": "2026-05-27T10:51:50.365933+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "07196112-e5a8-4113-819a-919b7ab1b6e2"
+    },
+    {
+      "_id": {
+        "$oid": "6a7454f3746a82857b3101ef"
+      },
+      "id": "43a4a949-4c3d-435b-8a2a-1bc4dd604670",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "calculation_meth",
+        "options": {
+          "using_ncv": {
+            "next": {
+              "field_name": "ef_quantity_provided",
+              "options": {
+                "false": {
+                  "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+                },
+                "true": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "a028c1e1-b420-4d8e-ad69-37b228ab3fe7",
+      "version_number": 5,
+      "is_active": true,
+      "effective_from": "2026-08-06T09:33:39.279590+00:00",
+      "created_at": "2026-04-19T09:26:50.564296+00:00",
+      "updated_at": "2026-08-06T09:33:39.279582+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "9fa2ca12-36cc-4be1-b7a7-c67526b97e7b"
+    },
+    {
+      "_id": {
+        "$oid": "6a74556b746a82857b3101f1"
+      },
+      "id": "5c0f95d0-bad7-472e-ac39-10d3bc341132",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_ncv": {
+            "next": {
+              "field_name": "ef_quantity_provided",
+              "options": {
+                "false": {
+                  "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+                },
+                "true": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "fecf6ee5-d0fd-40b5-aae3-aed695b0f3aa",
+      "version_number": 6,
+      "is_active": true,
+      "effective_from": "2026-08-06T09:35:39.185859+00:00",
+      "created_at": "2026-04-19T09:26:50.564296+00:00",
+      "updated_at": "2026-08-06T09:35:39.185850+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "9fa2ca12-36cc-4be1-b7a7-c67526b97e7b"
+    },
+    {
+      "_id": {
+        "$oid": "6a7464e856246f252f0ac91e"
+      },
+      "id": "98b9822d-3d9a-478a-9d4c-1049b3a8655b",
+      "category_id": "0d5c5aa7-8bec-4532-be9c-be94869829b9",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_ncv": {
+            "next": {
+              "field_name": "ef_quantity_provided",
+              "options": {
+                "false": {
+                  "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+                },
+                "true": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "cac3d61e-931b-46c2-a8dd-78c50b26da60",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-08-06T10:41:44.650938+00:00",
+      "effective_to": null,
+      "created_at": "2026-08-06T10:41:44.650941+00:00",
+      "updated_at": "2026-08-06T10:41:44.650943+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "6a747ef09ab502158cd29477"
+      },
+      "id": "d39293e1-f34c-4e9c-803a-6a14f6228a02",
+      "category_id": "8f797a6a-fded-477c-8c3c-8dfa8905293c",
+      "tree": {
+        "field_name": "process_type",
+        "options": {
+          "venting": {
+            "next": {
+              "field_name": "calculation_methodology",
+              "options": {
+                "using_ncv": {
+                  "next": {
+                    "field_name": "ef_quantity_provided",
+                    "options": {
+                      "false": {
+                        "formula_id": "d3c3c96f-be26-40a5-abed-6770e0da1cb4"
+                      },
+                      "true": {
+                        "formula_id": "faefb2c8-affd-4bf4-b722-ecbab3cc7e9e"
+                      }
+                    }
+                  }
+                },
+                "using_carbon_composition": {
+                  "formula_id": "ec751e3e-8d41-41d4-8806-b123eb314af3"
+                }
+              }
+            }
+          },
+          "N2O from overall combustion": {
+            "formula_id": "e3e00ca7-6a5f-4c88-b4b4-a2993ce6dbb8"
+          },
+          "CH4 from overall combustion": {
+            "formula_id": "779782fb-3d57-4a48-a704-cf125d838206"
+          }
+        }
+      },
+      "version_id": "8889f428-d1c0-4d71-875d-a986cee9663f",
+      "version_number": 1,
+      "is_active": true,
+      "effective_from": "2026-08-06T12:32:48.251994+00:00",
+      "effective_to": null,
+      "created_at": "2026-08-06T12:32:48.252001+00:00",
+      "updated_at": "2026-08-06T12:32:48.252003+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "6a7481a49ab502158cd2947d"
+      },
+      "id": "07fe5f24-ed0f-40cb-b0b2-a821a402be0b",
+      "category_id": "8f797a6a-fded-477c-8c3c-8dfa8905293c",
+      "tree": {
+        "field_name": "process_type",
+        "options": {
+          "venting": {
+            "next": {
+              "field_name": "calculation_methodology",
+              "options": {
+                "using_ncv": {
+                  "next": {
+                    "field_name": "ef_quantity_provided",
+                    "options": {
+                      "false": {
+                        "formula_id": "d3c3c96f-be26-40a5-abed-6770e0da1cb4"
+                      },
+                      "true": {
+                        "formula_id": "faefb2c8-affd-4bf4-b722-ecbab3cc7e9e"
+                      }
+                    }
+                  }
+                },
+                "using_carbon_composition": {
+                  "formula_id": "ec751e3e-8d41-41d4-8806-b123eb314af3"
+                }
+              }
+            }
+          },
+          "n2o_overall_combustion": {
+            "formula_id": "e3e00ca7-6a5f-4c88-b4b4-a2993ce6dbb8"
+          },
+          "ch4_overall_combustion": {
+            "formula_id": "779782fb-3d57-4a48-a704-cf125d838206"
+          }
+        }
+      },
+      "version_id": "0b8c4ff9-eb9f-4f9a-9105-bc19dd1f93ab",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-08-06T12:44:20.559990+00:00",
+      "created_at": "2026-08-06T12:32:48.252001+00:00",
+      "updated_at": "2026-08-06T12:44:20.559982+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "d39293e1-f34c-4e9c-803a-6a14f6228a02"
+    },
+    {
+      "_id": {
+        "$oid": "6a86f00ce0cb9205c62fcf62"
+      },
+      "id": "e15c5f83-f770-4f41-a588-7d14fd247264",
+      "category_id": "8f797a6a-fded-477c-8c3c-8dfa8905293c",
+      "tree": {
+        "field_name": "process_type",
+        "options": {
+          "venting": {
+            "next": {
+              "field_name": "calculation_methodology",
+              "options": {
+                "using_heat_basis_ncv": {
+                  "formula_id": "d3c3c96f-be26-40a5-abed-6770e0da1cb4"
+                },
+                "using_qty_basis_ef": {
+                  "next": {
+                    "field_name": "ef_quantity_basis",
+                    "allowed_values": [
+                      "mass",
+                      "volume"
+                    ],
+                    "options": {
+                      "mass": {
+                        "formula_id": "faefb2c8-affd-4bf4-b722-ecbab3cc7e9e"
+                      },
+                      "volume": {
+                        "formula_id": "06cfeca2-4af7-4958-9231-40c2431f1811"
+                      }
+                    }
+                  }
+                },
+                "using_carbon_composition": {
+                  "formula_id": "ec751e3e-8d41-41d4-8806-b123eb314af3"
+                }
+              }
+            }
+          },
+          "n2o_overall_combustion": {
+            "formula_id": "e3e00ca7-6a5f-4c88-b4b4-a2993ce6dbb8"
+          },
+          "ch4_overall_combustion": {
+            "formula_id": "779782fb-3d57-4a48-a704-cf125d838206"
+          }
+        }
+      },
+      "version_id": "c6d5df77-3497-44f9-ac62-42f56a49358e",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-08-20T12:16:12.026056+00:00",
+      "created_at": "2026-08-06T12:32:48.252001+00:00",
+      "updated_at": "2026-08-20T12:16:12.026045+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "d39293e1-f34c-4e9c-803a-6a14f6228a02"
+    },
+    {
+      "_id": {
+        "$oid": "6a872e5925b3220bc6ee3399"
+      },
+      "id": "311758d6-e7a9-4b6e-bf1a-d8659225f60b",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "49b03ba9-4b2a-4d98-8e32-06a7551ac0f5",
+      "version_number": 7,
+      "is_active": true,
+      "effective_from": "2026-08-20T16:42:01.780745+00:00",
+      "created_at": "2026-04-19T09:26:50.564296+00:00",
+      "updated_at": "2026-08-20T16:42:01.780742+00:00",
+      "created_by": "custom-fuel-volume-routing-migration",
+      "source_tree_id": "9fa2ca12-36cc-4be1-b7a7-c67526b97e7b"
+    },
+    {
+      "_id": {
+        "$oid": "6a872e5925b3220bc6ee339a"
+      },
+      "id": "2df16bd9-717f-4abe-a14e-89a779f928fd",
+      "category_id": "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "formula_id": "d5c88230-db1c-4b7d-b357-6fa6c791a938"
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "472f9b38-1970-4b38-a7da-a932b4c6e1b7",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-08-20T16:42:01.786973+00:00",
+      "created_at": "2026-04-20T07:45:35.161460+00:00",
+      "updated_at": "2026-08-20T16:42:01.786969+00:00",
+      "created_by": "custom-fuel-volume-routing-migration",
+      "source_tree_id": "80dbef24-4430-42f1-bd3a-fe7a76683058"
+    },
+    {
+      "_id": {
+        "$oid": "6a872e5925b3220bc6ee339b"
+      },
+      "id": "cfc44aa6-26f2-4c33-8b14-b21b2376bf9c",
+      "category_id": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20"
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "890acf3b-0df4-401e-be39-fb906bb3dea0",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-08-20T16:42:01.788101+00:00",
+      "created_at": "2026-04-20T09:04:30.701469+00:00",
+      "updated_at": "2026-08-20T16:42:01.788098+00:00",
+      "created_by": "custom-fuel-volume-routing-migration",
+      "source_tree_id": "afaed9c6-c65c-4f9b-b46f-b98286a9c5bd"
+    },
+    {
+      "_id": {
+        "$oid": "6a872e5925b3220bc6ee339c"
+      },
+      "id": "2635f616-71c6-4e69-8a75-0b92f43dd056",
+      "category_id": "1acae127-2693-4fea-a4ef-84c7568fdc54",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20"
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "615b7a33-cc87-40e3-9c40-7b6c4363a260",
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-08-20T16:42:01.789058+00:00",
+      "created_at": "2026-04-20T10:24:28.977618+00:00",
+      "updated_at": "2026-08-20T16:42:01.789055+00:00",
+      "created_by": "custom-fuel-volume-routing-migration",
+      "source_tree_id": "158e8396-7907-4fe3-a06b-3b0870dd3ec6"
+    },
+    {
+      "_id": {
+        "$oid": "6a873294ccce34eadcd26934"
+      },
+      "id": "838af6da-43df-429f-a94b-795cac239bb3",
+      "category_id": "8d62f52d-0ca6-4737-9b14-dd60878c1f27",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "next": {
+              "field_name": "cv_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "b52e732f-c198-4322-9530-7f54afa5d082"
+                },
+                "volume": {
+                  "formula_id": "3a7e4e0d-a46a-42b2-b9ed-abd1750d26be"
+                }
+              }
+            }
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "5ce2ec68-efe9-43b1-a1c2-84c9ca0ccedc",
+      "version_number": 8,
+      "is_active": true,
+      "effective_from": "2026-08-20T17:00:04.336193+00:00",
+      "created_at": "2026-04-19T09:26:50.564296+00:00",
+      "updated_at": "2026-08-20T17:00:04.336189+00:00",
+      "created_by": "custom-fuel-heat-basis-volume-routing-migration",
+      "source_tree_id": "9fa2ca12-36cc-4be1-b7a7-c67526b97e7b"
+    },
+    {
+      "_id": {
+        "$oid": "6a873294ccce34eadcd26937"
+      },
+      "id": "7cbc20b2-1f8c-40e8-8d94-8a30e4a62209",
+      "category_id": "92a11a68-ed7e-4670-b218-d1ede0480eca",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "next": {
+              "field_name": "cv_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20"
+                },
+                "volume": {
+                  "formula_id": "fdad6007-c422-4b8d-94ae-b3ed0e2e9083"
+                }
+              }
+            }
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "13805742-e547-4454-bb70-a0a4e0af9862",
+      "version_number": 4,
+      "is_active": true,
+      "effective_from": "2026-08-20T17:00:04.339918+00:00",
+      "created_at": "2026-04-20T09:04:30.701469+00:00",
+      "updated_at": "2026-08-20T17:00:04.339912+00:00",
+      "created_by": "custom-fuel-heat-basis-volume-routing-migration",
+      "source_tree_id": "afaed9c6-c65c-4f9b-b46f-b98286a9c5bd"
+    },
+    {
+      "_id": {
+        "$oid": "6a873294ccce34eadcd2693a"
+      },
+      "id": "355c8453-9e65-48ae-b559-f42fa696f5a3",
+      "category_id": "3232f8ea-bb14-4e21-86a3-b138368c95fa",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "next": {
+              "field_name": "cv_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "d5c88230-db1c-4b7d-b357-6fa6c791a938"
+                },
+                "volume": {
+                  "formula_id": "3bb988d6-0434-4ed4-a958-699df95c1a41"
+                }
+              }
+            }
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "1d41b18f-8fac-4c27-8bca-6d10fc6873ab",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-08-20T17:00:04.343721+00:00",
+      "created_at": "2026-04-20T07:45:35.161460+00:00",
+      "updated_at": "2026-08-20T17:00:04.343715+00:00",
+      "created_by": "custom-fuel-heat-basis-volume-routing-migration",
+      "source_tree_id": "80dbef24-4430-42f1-bd3a-fe7a76683058"
+    },
+    {
+      "_id": {
+        "$oid": "6a873294ccce34eadcd2693d"
+      },
+      "id": "d0438836-dc8b-4cc9-80e9-dfdaf6c21eb6",
+      "category_id": "1acae127-2693-4fea-a4ef-84c7568fdc54",
+      "tree": {
+        "field_name": "calculation_methodology",
+        "options": {
+          "using_heat_basis_ncv": {
+            "next": {
+              "field_name": "cv_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "a1bfeca8-5174-436b-bc2d-95f2ccbd0a20"
+                },
+                "volume": {
+                  "formula_id": "c571ded2-0326-4cac-86d6-14753e601f89"
+                }
+              }
+            }
+          },
+          "using_qty_basis_ef": {
+            "next": {
+              "field_name": "ef_quantity_basis",
+              "allowed_values": [
+                "mass",
+                "volume"
+              ],
+              "options": {
+                "mass": {
+                  "formula_id": "f863ca67-fc8a-42a8-96dd-3044bde9f57c"
+                },
+                "volume": {
+                  "formula_id": "f883998f-007b-472f-83f1-ee2d3510f04d"
+                }
+              }
+            }
+          },
+          "using_carbon_composition": {
+            "formula_id": "d10c79f4-8638-4826-9b1b-ca6d0b72d16b"
+          }
+        }
+      },
+      "version_id": "033b3f4a-e4bf-47b2-a02d-10046691e0cf",
+      "version_number": 3,
+      "is_active": true,
+      "effective_from": "2026-08-20T17:00:04.347357+00:00",
+      "created_at": "2026-04-20T10:24:28.977618+00:00",
+      "updated_at": "2026-08-20T17:00:04.347351+00:00",
+      "created_by": "custom-fuel-heat-basis-volume-routing-migration",
+      "source_tree_id": "158e8396-7907-4fe3-a06b-3b0870dd3ec6"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aacc20bda1bf18ef29f53"
+      },
+      "id": "72778238-6b18-4445-bcd1-b961ceb6debc",
+      "category_id": "TEST_CAT_VERSIONING_f6a58861",
+      "tree": {
+        "formula_id": "9602ccd0-6928-4b20-b429-57b04518ac7a"
+      },
+      "formula_version_map": {
+        "9602ccd0-6928-4b20-b429-57b04518ac7a": "7170ce01-5c22-4667-bcd9-235f5024c5f0"
+      },
+      "version_id": "72778238-6b18-4445-bcd1-b961ceb6debc",
+      "version_number": 1,
+      "is_active": false,
+      "effective_from": "2026-09-04T11:34:26.611283+00:00",
+      "effective_to": "2026-09-04T11:34:26.682297+00:00",
+      "created_at": "2026-09-04T11:34:26.611283+00:00",
+      "updated_at": "2026-09-04T11:34:26.611283+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "7cf5955e-216f-476f-9cd9-9101c8e3f3a7"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aacc20bda1bf18ef29f55"
+      },
+      "id": "d9ad8adc-19fc-40ce-90c3-cd080d391fb9",
+      "version_id": "d9ad8adc-19fc-40ce-90c3-cd080d391fb9",
+      "source_tree_id": "7cf5955e-216f-476f-9cd9-9101c8e3f3a7",
+      "category_id": "TEST_CAT_VERSIONING_f6a58861",
+      "tree": {
+        "formula_id": "9602ccd0-6928-4b20-b429-57b04518ac7a"
+      },
+      "formula_version_map": {
+        "9602ccd0-6928-4b20-b429-57b04518ac7a": "0e2301f9-02ee-45a0-a472-c834df94f2cb"
+      },
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-09-04T11:34:26.682297+00:00",
+      "effective_to": null,
+      "created_at": "2026-09-04T11:34:26.682297+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aacf1cbb6ef708dd304b7"
+      },
+      "id": "b5a52dc5-6355-427e-84f6-5ce7fa0b2cb6",
+      "category_id": "TEST_CAT_VERSIONING_e88f59fc",
+      "tree": {
+        "formula_id": "6b4c82b4-03da-44b8-8413-df127a03c3b1"
+      },
+      "formula_version_map": {
+        "6b4c82b4-03da-44b8-8413-df127a03c3b1": "10ffe97a-2846-4a0d-8574-063da8a95739"
+      },
+      "version_id": "b5a52dc5-6355-427e-84f6-5ce7fa0b2cb6",
+      "version_number": 1,
+      "is_active": false,
+      "effective_from": "2026-09-04T11:35:13.348618+00:00",
+      "effective_to": "2026-09-04T11:35:13.399140+00:00",
+      "created_at": "2026-09-04T11:35:13.348618+00:00",
+      "updated_at": "2026-09-04T11:35:13.348618+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "dc95400b-5b52-4a88-bc60-eb0ac3157432"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aacf1cbb6ef708dd304b9"
+      },
+      "id": "9d41a01d-0c5d-42d6-8254-7b62519fcbcf",
+      "version_id": "9d41a01d-0c5d-42d6-8254-7b62519fcbcf",
+      "source_tree_id": "dc95400b-5b52-4a88-bc60-eb0ac3157432",
+      "category_id": "TEST_CAT_VERSIONING_e88f59fc",
+      "tree": {
+        "formula_id": "6b4c82b4-03da-44b8-8413-df127a03c3b1"
+      },
+      "formula_version_map": {
+        "6b4c82b4-03da-44b8-8413-df127a03c3b1": "e61c0d35-fcad-489b-8331-3463e91ddc6b"
+      },
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-09-04T11:35:13.399140+00:00",
+      "effective_to": null,
+      "created_at": "2026-09-04T11:35:13.399140+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aad1d3f6659cf5b8a7731"
+      },
+      "id": "71aead93-3417-4ea3-9957-cce4d16be501",
+      "category_id": "TEST_CAT_VERSIONING_ab31bc89",
+      "tree": {
+        "formula_id": "095a43d7-2cd3-4f4b-87f4-c0449989a171"
+      },
+      "formula_version_map": {
+        "095a43d7-2cd3-4f4b-87f4-c0449989a171": "341a487b-bf60-4619-81db-b468a79d24f1"
+      },
+      "version_id": "71aead93-3417-4ea3-9957-cce4d16be501",
+      "version_number": 1,
+      "is_active": false,
+      "effective_from": "2026-09-04T11:35:57.892229+00:00",
+      "effective_to": "2026-09-04T11:35:57.982836+00:00",
+      "created_at": "2026-09-04T11:35:57.892229+00:00",
+      "updated_at": "2026-09-04T11:35:57.892229+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "2317238e-af43-4ffc-8a17-f1a8a861f131"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aad1d3f6659cf5b8a7733"
+      },
+      "id": "1360ee56-3b73-47a1-89f4-268969402f3a",
+      "version_id": "1360ee56-3b73-47a1-89f4-268969402f3a",
+      "source_tree_id": "2317238e-af43-4ffc-8a17-f1a8a861f131",
+      "category_id": "TEST_CAT_VERSIONING_ab31bc89",
+      "tree": {
+        "formula_id": "095a43d7-2cd3-4f4b-87f4-c0449989a171"
+      },
+      "formula_version_map": {
+        "095a43d7-2cd3-4f4b-87f4-c0449989a171": "b3fb013d-5a89-4c7a-86f8-bc24905d8a1e"
+      },
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-09-04T11:35:57.982836+00:00",
+      "effective_to": null,
+      "created_at": "2026-09-04T11:35:57.982836+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aadf91a048b21054333e9"
+      },
+      "id": "2bd4adad-462c-48eb-8594-00d19a8a0689",
+      "category_id": "TEST_CAT_VERSIONING_9d25a861",
+      "tree": {
+        "formula_id": "5540a11c-8c55-4574-a62e-95e69f28cbfb"
+      },
+      "formula_version_map": {
+        "5540a11c-8c55-4574-a62e-95e69f28cbfb": "8f617caa-e11f-448b-85f7-4604e9635ae3"
+      },
+      "version_id": "2bd4adad-462c-48eb-8594-00d19a8a0689",
+      "version_number": 1,
+      "is_active": false,
+      "effective_from": "2026-09-04T11:39:37.988390+00:00",
+      "effective_to": "2026-09-04T11:39:38.068878+00:00",
+      "created_at": "2026-09-04T11:39:37.988390+00:00",
+      "updated_at": "2026-09-04T11:39:37.988390+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "fea939ee-8a5d-4faf-bf60-1c595d58e47f"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aadfa1a048b21054333eb"
+      },
+      "id": "35cfaa9e-9c6b-4a51-b739-976f46d04f23",
+      "version_id": "35cfaa9e-9c6b-4a51-b739-976f46d04f23",
+      "source_tree_id": "fea939ee-8a5d-4faf-bf60-1c595d58e47f",
+      "category_id": "TEST_CAT_VERSIONING_9d25a861",
+      "tree": {
+        "formula_id": "5540a11c-8c55-4574-a62e-95e69f28cbfb"
+      },
+      "formula_version_map": {
+        "5540a11c-8c55-4574-a62e-95e69f28cbfb": "ed051eab-eb0e-4d4e-92fc-92fe1615a7ad"
+      },
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-09-04T11:39:38.068878+00:00",
+      "effective_to": null,
+      "created_at": "2026-09-04T11:39:38.068878+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aaefba3b58aa6f6a13f01"
+      },
+      "id": "f139b1b2-56bb-49bf-823c-2c4149a1b16f",
+      "category_id": "TEST_CAT_VERSIONING_d8719d39",
+      "tree": {
+        "formula_id": "9485220e-f3a1-4c36-8a54-8bfcc09d760e"
+      },
+      "formula_version_map": {
+        "9485220e-f3a1-4c36-8a54-8bfcc09d760e": "0a3ab580-69b7-41f3-902d-925181562cf6"
+      },
+      "version_id": "f139b1b2-56bb-49bf-823c-2c4149a1b16f",
+      "version_number": 1,
+      "is_active": false,
+      "effective_from": "2026-09-04T11:43:55.640199+00:00",
+      "effective_to": "2026-09-04T11:43:55.735960+00:00",
+      "created_at": "2026-09-04T11:43:55.640199+00:00",
+      "updated_at": "2026-09-04T11:43:55.640199+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "source_tree_id": "9ff3c100-28f1-4583-8bde-2271621eb381"
+    },
+    {
+      "_id": {
+        "$oid": "6a9aaefba3b58aa6f6a13f03"
+      },
+      "id": "8ebba4f8-3599-4d9c-ab2c-5fe3e78c5557",
+      "version_id": "8ebba4f8-3599-4d9c-ab2c-5fe3e78c5557",
+      "source_tree_id": "9ff3c100-28f1-4583-8bde-2271621eb381",
+      "category_id": "TEST_CAT_VERSIONING_d8719d39",
+      "tree": {
+        "formula_id": "9485220e-f3a1-4c36-8a54-8bfcc09d760e"
+      },
+      "formula_version_map": {
+        "9485220e-f3a1-4c36-8a54-8bfcc09d760e": "8d4475b1-a42e-47b2-af85-e2321c31539d"
+      },
+      "version_number": 2,
+      "is_active": true,
+      "effective_from": "2026-09-04T11:43:55.735960+00:00",
+      "effective_to": null,
+      "created_at": "2026-09-04T11:43:55.735960+00:00",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+    }
+  ]
+}

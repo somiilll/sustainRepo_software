@@ -179,16 +179,20 @@ async def apply_record_version_binding(
                     {"version_id": effective_tree_version_id},
                 ],
             },
-            {"_id": 0, "formula_version_map": 1},
+            {"_id": 0, "id": 1, "version_id": 1, "formula_version_map": 1},
         )
-        if not tree_version:
+        if tree_version is None:
             tree_version = await db.ce_decision_trees.find_one(
                 {"version_id": effective_tree_version_id},
-                {"_id": 0, "formula_version_map": 1},
+                {"_id": 0, "id": 1, "version_id": 1, "formula_version_map": 1},
             )
-        if not tree_version:
+        if tree_version is None:
             raise CalculationVersionError(
                 f"Decision-tree version '{effective_tree_version_id}' is not available"
+            )
+        if not isinstance(tree_version.get("formula_version_map"), dict):
+            raise CalculationVersionError(
+                f"Decision-tree version '{effective_tree_version_id}' is missing formula-version mappings"
             )
 
     existing_formula_id = (existing_record or {}).get("formula_id")
