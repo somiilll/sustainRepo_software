@@ -57,7 +57,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     (async () => {
       try {
         // Fetch GHG targets from esg_targets where category is "GHG Emissions"
-        const res = await axios.get(`${API}/esg-targets/with-progress?section=environment&category=GHG Emissions`, { headers: getAuthHeader() });
+        const res = await axios.get(`${API}/esg-targets/with-progress?section=environment&category=GHG Emissions&status=active`, { headers: getAuthHeader() });
         if (!cancelled) {
           // Transform esg_targets format to match expected target format for gauge card
           const ghgTargets = (res.data || []).map(t => {
@@ -159,7 +159,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   ) : null;
 
   return (
-    <div className="space-y-6 pb-0" data-testid="executive-dashboard">
+    <div className="w-full max-w-full space-y-6 overflow-x-hidden pb-0" data-testid="executive-dashboard">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · GHG Dashboard` : 'GHG Dashboard'}
         subtitle={`Reporting window: ${dateRangeLabel}`}
