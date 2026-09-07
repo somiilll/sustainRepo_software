@@ -22,6 +22,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ### Organization Module
 - Organization Details uses four responsive tabs: **Basic Details**, **GHG Details**, **Production Data**, and **Revenue Data**.
+- **GHG Details** is visible only when the organization has opted into the canonical `environment.ghg` entitlement.
+- **Production Data** and **Revenue Data** are visible only when at least one canonical Environment, Social, or Governance entitlement is enabled.
 - **Basic Details** contains company identity, logo, corporate address, organization description, mission, vision, process description, responsible-person contact, reporting cadence/year, attachments, and other organization information.
 - **GHG Details** contains Purpose of the Report, Organizational Boundaries, Uncertainty Assessment, GHG Reduction Initiatives, and Internal Performance Tracking Description.
 - **Production Data** contains Production Quantity only; **Revenue Data** contains Turnover / Revenue only. Both respect the organization calendar/financial reporting year.
@@ -94,11 +96,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
-- Reorganized the Organization module into Basic Details, GHG Details, Production Data, and Revenue Data tabs.
-- Moved the five requested GHG questions into GHG Details; kept all remaining organization fields in Basic Details.
-- Separated Turnover / Revenue and Production Quantity into their dedicated reporting-data tabs.
-- Removed Last updated and Related Modules from the Organization screen.
-- **NOT TESTED** per the user’s explicit `dont test` instruction.
+- Removed BRSR/GRI framework badges from the Organization summary.
+- Gated GHG Details by the canonical GHG entitlement.
+- Gated Production Data and Revenue Data unless at least one Environment, Social, or Governance entitlement is enabled.
+- Hidden active tabs safely return to Basic Details when their entitlement is unavailable.
+- **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
 - **P0:** Existing supplier assessment-program revision migration/reassignment flow.

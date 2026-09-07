@@ -1,5 +1,11 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Organization Entitlement-Aware Tabs
+- Removed the BRSR/GRI framework badges from the Organization summary.
+- GHG Details now appears only for organizations with the canonical GHG entitlement.
+- Production Data and Revenue Data now appear only when at least one Environment, Social, or Governance entitlement is enabled; inaccessible active tabs fall back to Basic Details.
+- **NOT TESTED at user request.**
+
 ## September 7, 2026 — Organization Details Tab Structure
 - Replaced the single Organization Details view with Basic Details, GHG Details, Production Data, and Revenue Data tabs.
 - Moved Purpose of the Report, Organizational Boundaries, Uncertainty Assessment, GHG Reduction Initiatives, and Internal Performance Tracking Description into GHG Details.

@@ -13,6 +13,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import { useModuleAccess } from '../hooks/useModuleAccess';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -84,6 +85,24 @@ export default function OrganizationDetails() {
   const toggleSection = (section) => setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
+  const { hasAccess, loading: moduleAccessLoading } = useModuleAccess();
+
+  const showGhgDetails = !moduleAccessLoading && hasAccess('environment.ghg');
+  const showOperationalData = !moduleAccessLoading && [
+    'environment',
+    'social',
+    'governance'
+  ].some(hasAccess);
+
+  useEffect(() => {
+    const activeTabIsAvailable = activeTab === 'basic'
+      || (activeTab === 'ghg' && showGhgDetails)
+      || (['production', 'revenue'].includes(activeTab) && showOperationalData);
+
+    if (!activeTabIsAvailable) {
+      setActiveTab('basic');
+    }
+  }, [activeTab, showGhgDetails, showOperationalData]);
 
   // Check if user is Admin (can edit) or User (read-only)
   // Also block editing if subscription is expired
@@ -737,12 +756,6 @@ export default function OrganizationDetails() {
                         {timezones.find(tz => tz.value === organization.timezone)?.label || organization.timezone}
                       </Badge>
                     )}
-                    {organization?.esg_frameworks_enabled?.map((framework) => (
-                      <Badge key={framework} className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
-                        <Shield className="w-3 h-3 mr-1" />
-                        {framework}
-                      </Badge>
-                    ))}
                     {organization?.reporting_year_type && (
                       <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                         <Calendar className="w-3 h-3 mr-1" />
@@ -786,27 +799,33 @@ export default function OrganizationDetails() {
           >
             Basic Details
           </TabsTrigger>
-          <TabsTrigger
-            value="ghg"
-            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
-            data-testid="organization-tab-ghg"
-          >
-            GHG Details
-          </TabsTrigger>
-          <TabsTrigger
-            value="production"
-            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
-            data-testid="organization-tab-production"
-          >
-            Production Data
-          </TabsTrigger>
-          <TabsTrigger
-            value="revenue"
-            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
-            data-testid="organization-tab-revenue"
-          >
-            Revenue Data
-          </TabsTrigger>
+          {showGhgDetails && (
+            <TabsTrigger
+              value="ghg"
+              className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+              data-testid="organization-tab-ghg"
+            >
+              GHG Details
+            </TabsTrigger>
+          )}
+          {showOperationalData && (
+            <>
+              <TabsTrigger
+                value="production"
+                className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+                data-testid="organization-tab-production"
+              >
+                Production Data
+              </TabsTrigger>
+              <TabsTrigger
+                value="revenue"
+                className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+                data-testid="organization-tab-revenue"
+              >
+                Revenue Data
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <div className="mt-2">
