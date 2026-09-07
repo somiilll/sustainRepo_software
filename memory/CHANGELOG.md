@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Facility Form Spacing Consistency
+- Standardized the Facility edit form to one vertical spacing scale across sections, field rows, Address, and Attachments.
+- Made each field grid responsive so rows retain even spacing when the dialog narrows.
+- **NOT TESTED** per the user’s explicit instruction.
+
 ## September 7, 2026 — Facility Form Layout Polish
 - Replaced the Facility Equity Share Percentage warning panel and saved Equity badge with neutral styling.
 - Aligned Facility Person Responsible, Designation, and Contact Details in a responsive three-column row.

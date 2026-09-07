@@ -32,6 +32,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - The organization summary displays organization identity and a live No. of Facilities count; country, timezone, reporting-year type, target count, and reporting cadence are omitted.
 - The view-mode corporate address is presented as one joined address line without timezone.
 - Facility equity-share guidance uses neutral supporting text instead of a yellow warning panel. Facility Person Responsible, Designation, and Contact Details appear in one responsive row.
+- The Facility edit form uses a consistent section and field-row gap throughout, with responsive grids that prevent uneven wrapping.
 
 ### GHG Data Entry
 - Support monthly and yearly Scope 1, Scope 2, Scope 3, and approved biogenic entries.
@@ -100,30 +101,34 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
-- Updated Facility editing: the equity-share panel and display badge now use neutral styling, and responsible-person fields share one responsive row.
+- Standardized Facility form vertical spacing and responsive field-grid gaps for consistent row-to-row rhythm.
 - **NOT TESTED** per the user’s standing instruction.
 
 ## Previous Change — September 7, 2026
+- Updated Facility editing: the equity-share panel and display badge now use neutral styling, and responsible-person fields share one responsive row.
+- **NOT TESTED** per the user’s standing instruction.
+
+## Earlier Change — September 7, 2026
 - Hid the otherwise empty Organization edit card for Production and Revenue tabs.
 - Restored all five available reporting years so administrators can enter data for an older FY/CY directly.
 - **NOT TESTED** per the user’s standing instruction.
 
-## Earlier Change — September 7, 2026
+## Prior Change — September 7, 2026
 - Production and Revenue editing introduced a dedicated bottom action area and mutually exclusive monthly/yearly entry modes. The temporary saved-years-only filter was superseded by the five-year view above.
 - Their Cancel and Save Changes controls now appear after the reporting-year entries; selecting Monthly or Yearly clears the inactive data mode and the API persists only the selected mode.
 - **NOT TESTED** per the user’s standing instruction.
 
-## Prior Change — September 7, 2026
+## Previous Organization Change — September 7, 2026
 - Restored the live No. of Facilities count in the saved Organization summary.
 - **NOT TESTED** per the user’s standing instruction.
 
-## Previous Organization Change — September 7, 2026
+## Earlier Organization Change — September 7, 2026
 - Arranged Person Responsible, Designation, and Contact Details as one responsive editing row.
 - Moved Reporting Frequency into GHG Details; Reporting Year Type remains in Basic Details.
 - Restyled the equity-share disclaimer and saved Organizational Boundaries content with neutral treatments, and paired Boundaries with Uncertainty Assessment on wide screens.
 - **NOT TESTED** per the user’s standing instruction.
 
-## Earlier Organization Change — September 7, 2026
+## Prior Organization Change — September 7, 2026
 - Simplified the Organization summary to organization logo and name only.
 - Combined street, city, state, country, and postal code into one corporate-address line without timezone.
 - Replaced the Production/Revenue year dropdown with five simultaneous reporting-year editors, each supporting monthly or yearly data and an independent save action.

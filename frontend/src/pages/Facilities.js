@@ -498,7 +498,7 @@ export default function Facilities() {
               <DialogHeader>
                 <DialogTitle>{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Same as Organization Checkbox - only show when adding new facility (not for suppliers) */}
                 {!editingFacility && organization && !isSupplier && (
                   <div className="p-4 border border-green-200 rounded-lg bg-green-50">
@@ -519,7 +519,7 @@ export default function Facilities() {
                 
                 {/* Supplier simplified form - only name */}
                 {isSupplier ? (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
                       <p className="text-sm text-blue-800">
                         As a supplier, you only need to provide the facility name. Additional details can be added later.
@@ -540,7 +540,7 @@ export default function Facilities() {
                 ) : (
                   /* Full form for non-suppliers */
                   <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="name">Facility Name *</Label>
                     <Input
@@ -580,7 +580,7 @@ export default function Facilities() {
                 </div>
 
                 {/* Address Section */}
-                <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+                <div className="space-y-6 rounded-lg border border-stone-200 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                     <MapPin className="w-4 h-4" />
                     Address Details
@@ -595,7 +595,7 @@ export default function Facilities() {
                       className="bg-stone-50"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="city">City *</Label>
                       <Input
@@ -617,7 +617,7 @@ export default function Facilities() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="country">Country *</Label>
                       <select
@@ -683,7 +683,7 @@ export default function Facilities() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="responsible_person">Person Responsible <span className="text-red-500">*</span></Label>
                     <Input
@@ -751,7 +751,7 @@ export default function Facilities() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="monitoring_frequency">Monitoring Frequency</Label>
                     <select
@@ -783,7 +783,7 @@ export default function Facilities() {
                 </div>
 
                 {/* Attachments Section */}
-                <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+                <div className="space-y-6 rounded-lg border border-stone-200 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                     <Paperclip className="w-4 h-4" />
                     Attachments
