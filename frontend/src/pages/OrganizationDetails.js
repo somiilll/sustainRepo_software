@@ -60,6 +60,7 @@ export default function OrganizationDetails() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
+  const [facilityCount, setFacilityCount] = useState(0);
   
   // Collapsible text states
   const [expandedSections, setExpandedSections] = useState({});
@@ -331,6 +332,27 @@ export default function OrganizationDetails() {
       setLoading(false);
     }
   };
+
+  const fetchFacilityCount = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/facilities`, {
+        headers: getAuthHeader(),
+      });
+      const facilities = Array.isArray(response.data)
+        ? response.data
+        : response.data?.facilities || [];
+      setFacilityCount(facilities.length);
+    } catch (error) {
+      console.error('Failed to load facility count:', error);
+      setFacilityCount(0);
+    }
+  }, [getAuthHeader]);
+
+  useEffect(() => {
+    if (organization && !editing) {
+      fetchFacilityCount();
+    }
+  }, [editing, fetchFacilityCount, organization]);
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -610,7 +632,8 @@ export default function OrganizationDetails() {
         <Card className="p-0 border border-stone-200 rounded-xl bg-white overflow-hidden">
           <div className="h-2 bg-gradient-to-r from-primary via-emerald-500 to-teal-500" />
           <div className="p-6">
-            <div className="flex items-start gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
               {organization?.logo && !logoError ? (
                 <img
                   src={getFullLogoUrl(organization.logo)}
@@ -627,6 +650,11 @@ export default function OrganizationDetails() {
                 <h1 className="break-words font-heading text-2xl font-bold text-text-primary lg:text-3xl" data-testid="organization-summary-name">
                   {organization?.name}
                 </h1>
+              </div>
+              </div>
+              <div className="self-start rounded-lg bg-stone-50 px-4 py-2 text-center sm:self-auto" data-testid="organization-facility-count">
+                <div className="text-2xl font-bold text-primary">{facilityCount}</div>
+                <div className="text-xs text-text-muted">No. of Facilities</div>
               </div>
             </div>
           </div>

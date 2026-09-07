@@ -29,7 +29,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - The equity-share facility disclaimer uses neutral supporting text, not a warning treatment. In view mode, Organizational Boundaries and Uncertainty Assessment share a responsive desktop row, and boundary approaches use neutral surfaces.
 - **Production Data** contains Production Quantity only; **Revenue Data** contains Turnover / Revenue only. Both show the five available reporting years together, support monthly or yearly entry per period, and respect the organization calendar/financial reporting year.
 - Organization details do not display a last-updated timestamp or Related Modules navigation cards.
-- The organization summary displays only the organization identity; country, timezone, reporting-year type, facility count, target count, and reporting cadence are omitted.
+- The organization summary displays organization identity and a live No. of Facilities count; country, timezone, reporting-year type, target count, and reporting cadence are omitted.
 - The view-mode corporate address is presented as one joined address line without timezone.
 
 ### GHG Data Entry
@@ -99,12 +99,16 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Restored the live No. of Facilities count in the saved Organization summary.
+- **NOT TESTED** per the user’s standing instruction.
+
+## Previous Change — September 7, 2026
 - Arranged Person Responsible, Designation, and Contact Details as one responsive editing row.
 - Moved Reporting Frequency into GHG Details; Reporting Year Type remains in Basic Details.
 - Restyled the equity-share disclaimer and saved Organizational Boundaries content with neutral treatments, and paired Boundaries with Uncertainty Assessment on wide screens.
 - **NOT TESTED** per the user’s standing instruction.
 
-## Previous Change — September 7, 2026
+## Earlier Change — September 7, 2026
 - Simplified the Organization summary to organization logo and name only.
 - Combined street, city, state, country, and postal code into one corporate-address line without timezone.
 - Replaced the Production/Revenue year dropdown with five simultaneous reporting-year editors, each supporting monthly or yearly data and an independent save action.

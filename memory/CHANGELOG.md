@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Organization Facility Count Restored
+- Restored the live **No. of Facilities** count in the saved Organization summary using the existing scoped Facilities API.
+- **NOT TESTED** per the user’s explicit instruction.
+
 ## September 7, 2026 — Organization GHG Details Layout Polish
 - Aligned Person Responsible, Designation, and Contact Details in one responsive edit row.
 - Moved Reporting Frequency from Basic Details to GHG Details while retaining Reporting Year Type under Basic Details.
