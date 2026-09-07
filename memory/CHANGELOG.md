@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Facility Form Layout Polish
+- Replaced the Facility Equity Share Percentage warning panel and saved Equity badge with neutral styling.
+- Aligned Facility Person Responsible, Designation, and Contact Details in a responsive three-column row.
+- **NOT TESTED** per the user’s explicit instruction.
+
 ## September 7, 2026 — Organization Historical Operational Data Access
 - Removed the empty Organization form card that appeared while editing Production or Revenue data.
 - Restored all five available reporting years (current plus four prior), allowing administrators to add missing historical data directly.
