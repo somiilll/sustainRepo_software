@@ -23,6 +23,7 @@ import Scope3Hotspots from './components/charts/Scope3Hotspots';
 import EmissionCategoriesChart from './components/charts/EmissionCategoriesChart';
 import GeoHeatmap from './components/charts/GeoHeatmap';
 import BaseYearComparisonChart from './components/charts/BaseYearChart';
+import { DashboardExportButton } from './pdf-export';
 import {
   buildSparklineSeries,
   deriveTrendDeltas,
@@ -172,6 +173,26 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         esgSection={data.esgSection}
         setEsgSection={data.setEsgSection}
         showDashboardToggle={data.showDashboardToggle}
+        showExport
+        exportButton={
+          <DashboardExportButton
+            dashboardType="ghg"
+            data={{
+              emissions: {
+                scope1: totals.scope1,
+                scope2: totals.scope2,
+                scope3: hasScope3 ? totals.scope3 : 0,
+                biogenic: totals.biogenic,
+              },
+              analytics: stats,
+              trends: filteredData.trend,
+              previousYear: previousYearTotals,
+            }}
+            organization={organization}
+            dateRange={dateRange}
+            facilities={facilities}
+          />
+        }
       />
 
       {loading ? (
