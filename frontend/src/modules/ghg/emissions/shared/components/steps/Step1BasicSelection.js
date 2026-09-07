@@ -161,9 +161,11 @@ export const Step1BasicSelection = ({
     ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-3'
     : usesIndirectBiogenicLayout
       ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-3'
-      : scope === 'scope3' || scope === 'scope2'
-      ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2'
-      : 'min-w-0';
+      : scope === 'scope3'
+        ? 'grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-2 lg:grid-cols-4'
+        : scope === 'scope2'
+          ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2'
+          : 'min-w-0';
 
   // Filter facilities based on selected scope (if KPI access is restricted)
   const filteredFacilities = useMemo(() => {
@@ -620,7 +622,7 @@ export const Step1BasicSelection = ({
 
           {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
           {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (
-            <div className="min-w-0 space-y-2 lg:col-span-2">
+            <div className="min-w-0 space-y-2">
               <Label>Sub-category <span className="text-red-500">*</span></Label>
               <select
                 value={scope3Subcategory}
@@ -644,7 +646,7 @@ export const Step1BasicSelection = ({
           {(() => {
             if (!ghgUiState.showTypeOfProduct) return null;
             return (
-              <div className="min-w-0 space-y-2 lg:col-span-2">
+              <div className="min-w-0 space-y-2">
                 <Label>Type of Product <span className="text-red-500">*</span></Label>
                 <select
                   value={typeOfProduct || ''}
@@ -662,7 +664,7 @@ export const Step1BasicSelection = ({
 
           {/* Activity Selection (from Scope 3 EF) */}
           {scope3Method && (
-            <div className={`min-w-0 ${availableScope3ActivityTypes.length > 0 ? 'flex flex-col gap-2' : 'space-y-2 lg:col-span-2'}`}>
+            <div className={`min-w-0 ${availableScope3ActivityTypes.length > 0 ? 'flex flex-col gap-2' : 'space-y-2'}`}>
               <div className="flex items-center justify-between">
                 <Label>Activity <span className="text-red-500">*</span></Label>
                 {scope3Method === 'supplier_basis' && scope3ActivityType !== 'others' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
@@ -679,6 +681,7 @@ export const Step1BasicSelection = ({
                         }
                       }}
                       className="rounded border-stone-300"
+                      data-testid="scope3-custom-activity-toggle"
                     />
                     <span className="text-text-secondary">Use Custom Activity</span>
                   </label>
@@ -720,6 +723,7 @@ export const Step1BasicSelection = ({
                         type="button"
                         onClick={() => setFuelSearchTerm('')}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                        data-testid="clear-activity-search-button"
                       >
                         <X className="w-4 h-4" />
                       </button>

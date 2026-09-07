@@ -836,3 +836,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Added an idempotent local catalog migration that reconstructs active maps from current formula versions and historical maps from effective-dated formula versions, while refusing unresolved mappings rather than silently selecting the latest formula.
 - Backfilled 23 current decision trees and 63 decision-tree snapshots in `test_database`. A pre-write backup was created at `/app/.emergent/backups/decision-tree-formula-version-maps-20260907T055459Z.json`.
 - **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction. The migration’s required safety checks completed during the write operation.
+
+## Latest Changes — 2026-09-07 (Scope 3 Create Selection Row)
+- Scope 3 Create now uses a four-column desktop selection grid so Category, Calculation Method, Activity Type when applicable, and Activity remain on one row.
+- Removed forced two-column spans from Scope 3 supplemental selectors while preserving one-column stacking on mobile and two-column layout at medium widths.
+- **NOT TESTED** per the user’s existing `dont test` instruction.

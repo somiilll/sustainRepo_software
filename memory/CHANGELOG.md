@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Scope 3 Create Selection Alignment
+- Aligned Category, Calculation Method, Activity Type when applicable, and Activity in one responsive desktop row while preserving mobile stacking.
+- **NOT TESTED at user request.**
+
 ## September 7, 2026 — Local Decision-Tree Formula-Version Map Repair
 - Corrected the record-binding existence check so a legacy snapshot with a missing projected map is no longer mislabeled as a nonexistent decision-tree version.
 - Added and applied a guarded migration for missing `formula_version_map` values across current and historical decision-tree documents. It backfilled 86 documents and created a local pre-write backup.
