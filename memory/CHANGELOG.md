@@ -1,5 +1,11 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Organization Details Tab Structure
+- Replaced the single Organization Details view with Basic Details, GHG Details, Production Data, and Revenue Data tabs.
+- Moved Purpose of the Report, Organizational Boundaries, Uncertainty Assessment, GHG Reduction Initiatives, and Internal Performance Tracking Description into GHG Details.
+- Kept all remaining organization fields in Basic Details, separated Turnover / Revenue from Production Quantity, and removed Last updated plus Related Modules.
+- **NOT TESTED at user request.**
+
 ## September 7, 2026 — Monthly Day-Limit Runtime Error Fixed
 - Replaced the undefined `month` reference in Scope 3 monthly day-limit feedback with a month label resolved from `monthKey`.
 - **NOT TESTED at user request.**

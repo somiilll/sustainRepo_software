@@ -6,9 +6,9 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, TrendingUp, Loader2, Factory, Target, BarChart3, FileBarChart, Leaf, Users, Mail, Phone, Globe, Calendar, Clock, ChevronDown, ChevronUp, ArrowRight, Briefcase, Eye, Shield, Zap } from 'lucide-react';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, TrendingUp, Loader2, Target, BarChart3, Leaf, Users, Mail, Phone, Globe, Calendar, Clock, ChevronDown, ChevronUp, Briefcase, Eye, Shield, Zap } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
@@ -58,7 +58,7 @@ export default function OrganizationDetails() {
   const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
-  const [activeTab, setActiveTab] = useState('organization');
+  const [activeTab, setActiveTab] = useState('basic');
   
   // Yearly Data State (Turnover & Production Quantity)
   const [yearlyDataYear, setYearlyDataYear] = useState('');
@@ -679,7 +679,7 @@ export default function OrganizationDetails() {
         icon={Building}
         iconClassName="border-blue-200 bg-blue-50 text-blue-700"
         testId="organization"
-        aside={user?.role === 'admin' && !editing && activeTab === 'organization' && (
+        aside={user?.role === 'admin' && !editing && activeTab === 'basic' && (
           <Button 
             onClick={() => {
               if (subscriptionExpired) {
@@ -772,33 +772,48 @@ export default function OrganizationDetails() {
               </div>
             </div>
 
-            {/* Last Updated */}
-            {organization?.created_at && (
-              <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-text-muted">
-                <Clock className="w-3 h-3" />
-                <span>Last updated: {new Date(organization.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              </div>
-            )}
           </div>
         </Card>
       )}
 
       {/* Framework Tabs - with increased top spacing */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-stone-100 p-1 rounded-lg">
+        <TabsList className="h-auto max-w-full justify-start overflow-x-auto bg-stone-100 p-1 rounded-lg">
           <TabsTrigger 
-            value="organization" 
-            className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
+            value="basic" 
+            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+            data-testid="organization-tab-basic"
           >
-            Organization Details
+            Basic Details
+          </TabsTrigger>
+          <TabsTrigger
+            value="ghg"
+            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+            data-testid="organization-tab-ghg"
+          >
+            GHG Details
+          </TabsTrigger>
+          <TabsTrigger
+            value="production"
+            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+            data-testid="organization-tab-production"
+          >
+            Production Data
+          </TabsTrigger>
+          <TabsTrigger
+            value="revenue"
+            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+            data-testid="organization-tab-revenue"
+          >
+            Revenue Data
           </TabsTrigger>
         </TabsList>
 
-        {/* Organization Details Tab */}
-        <TabsContent value="organization" className="mt-2">
+        <div className="mt-2">
           {editing ? (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
               <form onSubmit={handleSubmit} className="space-y-4">
+            <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Organization Name (Read-only)</Label>
@@ -970,7 +985,9 @@ export default function OrganizationDetails() {
                 />
               </div>
             </div>
+            </div>
 
+            <div className={activeTab === 'ghg' ? 'space-y-4' : 'hidden'}>
             {/* Purpose of the Report */}
             <div className="space-y-2">
               <Label>Purpose of the Report</Label>
@@ -1259,7 +1276,9 @@ export default function OrganizationDetails() {
                 placeholder="Describe how internal GHG performance is tracked and monitored"
               />
             </div>
+            </div>
 
+            <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             <div className="space-y-2">
               <Label>Reporting Frequency</Label>
               <select value={formData.reporting_frequency} onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
@@ -1284,7 +1303,9 @@ export default function OrganizationDetails() {
                 <p className="text-xs text-red-500">This field is required</p>
               )}
             </div>
+            </div>
 
+            <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             {/* Attachments Section */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
@@ -1397,6 +1418,7 @@ export default function OrganizationDetails() {
                 placeholder="Add any additional information about this organization..."
               />
             </div>
+            </div>
 
             <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
               <AutoSaveStatus 
@@ -1415,6 +1437,7 @@ export default function OrganizationDetails() {
         /* ========== PREMIUM VIEW-ONLY ORGANIZATION PROFILE ========== */
         <div className="flex flex-col gap-4" data-testid="org-view-mode">
 
+          <div className={activeTab === 'basic' ? 'flex flex-col gap-4' : 'hidden'}>
           {/* === QUICK INFO GRID - 2 columns === */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
@@ -1599,7 +1622,9 @@ export default function OrganizationDetails() {
               </div>
             </Card>
           )}
+          </div>
 
+          <div className={activeTab === 'ghg' ? 'flex flex-col gap-4' : 'hidden'}>
           {/* === PURPOSE OF REPORT === */}
           {organization?.report_purpose && (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
@@ -1678,6 +1703,22 @@ export default function OrganizationDetails() {
             </Card>
           )}
 
+          {organization?.uncertainty_assessment?.length > 0 && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="organization-ghg-uncertainty">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-amber-50">
+                  <Info className="w-5 h-5 text-amber-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Uncertainty Assessment</h3>
+              </div>
+              <ul className="space-y-2 text-sm text-text-secondary list-disc pl-5">
+                {organization.uncertainty_assessment.map((assessment) => (
+                  <li key={assessment}>{assessment.replaceAll('_', ' ')}</li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
           {/* === GHG REDUCTION INITIATIVES - FULL WIDTH === */}
           {organization?.ghg_reduction_initiatives && (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
@@ -1703,7 +1744,9 @@ export default function OrganizationDetails() {
               <p className="text-text-secondary leading-relaxed">{organization.internal_performance_tracking}</p>
             </Card>
           )}
+          </div>
 
+          <div className={activeTab === 'basic' ? 'flex flex-col gap-4' : 'hidden'}>
           {/* === ATTACHMENTS === */}
           {organization?.attachments?.length > 0 && (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
@@ -1762,103 +1805,20 @@ export default function OrganizationDetails() {
               <p className="text-text-secondary leading-relaxed">{organization.other_information || organization.remarks}</p>
             </Card>
           )}
-
-          {/* === RELATED MODULES QUICK NAVIGATION === */}
-          <div>
-            <h3 className="text-lg font-semibold text-text-primary mb-4">Related Modules</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {/* Facilities */}
-              <a href="/facilities" className="block">
-                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="p-3 rounded-full bg-blue-50 group-hover:bg-blue-100 transition-colors mb-3">
-                      <Factory className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <h4 className="font-semibold text-text-primary text-sm">Facilities</h4>
-                    {moduleCounts.facilities > 0 && (
-                      <p className="text-xs text-text-muted mt-1">{moduleCounts.facilities} Facilities</p>
-                    )}
-                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Card>
-              </a>
-
-              {/* GHG */}
-              {organization?.has_ghg !== false && (
-                <a href="/ghg" className="block">
-                  <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                    <div className="flex flex-col items-center text-center">
-                      <div className="p-3 rounded-full bg-emerald-50 group-hover:bg-emerald-100 transition-colors mb-3">
-                        <Leaf className="w-6 h-6 text-emerald-600" />
-                      </div>
-                      <h4 className="font-semibold text-text-primary text-sm">GHG</h4>
-                      <p className="text-xs text-text-muted mt-1">Emissions Data</p>
-                      <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                    </div>
-                  </Card>
-                </a>
-              )}
-
-              {/* Dashboard */}
-              <a href="/dashboard" className="block">
-                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="p-3 rounded-full bg-teal-50 group-hover:bg-teal-100 transition-colors mb-3">
-                      <BarChart3 className="w-6 h-6 text-teal-600" />
-                    </div>
-                    <h4 className="font-semibold text-text-primary text-sm">Dashboard</h4>
-                    <p className="text-xs text-text-muted mt-1">Analytics & Insights</p>
-                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Card>
-              </a>
-
-              {/* Targets */}
-              <a href="/targets/voluntary/ghg" className="block">
-                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="p-3 rounded-full bg-amber-50 group-hover:bg-amber-100 transition-colors mb-3">
-                      <Target className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <h4 className="font-semibold text-text-primary text-sm">Targets</h4>
-                    {moduleCounts.targets > 0 ? (
-                      <p className="text-xs text-text-muted mt-1">{moduleCounts.targets} Targets</p>
-                    ) : (
-                      <p className="text-xs text-text-muted mt-1">Set Goals</p>
-                    )}
-                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Card>
-              </a>
-
-              {/* Reports */}
-              <a href="/reports" className="block">
-                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="p-3 rounded-full bg-purple-50 group-hover:bg-purple-100 transition-colors mb-3">
-                      <FileBarChart className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <h4 className="font-semibold text-text-primary text-sm">Reports</h4>
-                    <p className="text-xs text-text-muted mt-1">Generate Reports</p>
-                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Card>
-              </a>
-            </div>
           </div>
         </div>
       )}
 
         {/* Yearly Data Section - Turnover & Production Quantity */}
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white mt-6">
+        <Card className={`${activeTab === 'production' || activeTab === 'revenue' ? 'block' : 'hidden'} p-6 border border-stone-200 rounded-xl bg-white mt-6`}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-100 rounded-lg">
                 <TrendingUp className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-text-primary">Organization Data</h3>
-                <p className="text-xs text-text-muted">Financial turnover and production quantity</p>
+                <h3 className="font-semibold text-text-primary">{activeTab === 'revenue' ? 'Revenue Data' : 'Production Data'}</h3>
+                <p className="text-xs text-text-muted">for {organization?.reporting_year_type === 'calendar_year' ? 'Calendar Year' : 'Financial Year'} {yearlyDataYear}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -1899,7 +1859,7 @@ export default function OrganizationDetails() {
           ) : (
             <div className="space-y-6">
               {/* Turnover / Revenue */}
-              <div className="space-y-3 p-4 border border-stone-100 rounded-lg">
+              <div className={activeTab === 'revenue' ? 'space-y-3 p-4 border border-stone-100 rounded-lg' : 'hidden'}>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">
                     Turnover / Revenue
@@ -1956,7 +1916,7 @@ export default function OrganizationDetails() {
               </div>
 
               {/* Production Quantity */}
-              <div className="space-y-3 p-4 border border-stone-100 rounded-lg">
+              <div className={activeTab === 'production' ? 'space-y-3 p-4 border border-stone-100 rounded-lg' : 'hidden'}>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">
                     Production Quantity
@@ -2008,7 +1968,7 @@ export default function OrganizationDetails() {
             </div>
           )}
         </Card>
-        </TabsContent>
+        </div>
 
       </Tabs>
     </div>

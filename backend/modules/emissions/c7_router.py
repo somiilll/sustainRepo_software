@@ -33,7 +33,11 @@ from modules.emissions.c7_contracts import (
     C7YearlyEntryResponse,
 )
 from shared.database.mongo import db
-from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
+from shared.helpers.audit_helpers import (
+    compute_field_changes,
+    compute_user_input_changes,
+    get_input_label_map_from_db,
+)
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
 router = APIRouter()
@@ -108,6 +112,7 @@ async def create_or_update_c7_monthly_entry(
         # Compute field changes for version history - track all fields being updated
         # Also track individual employee input changes
         employee_input_changes = []
+        input_label_map = await get_input_label_map_from_db(db)
         old_employees = existing.get("employees", [])
         # Convert Pydantic models to dicts if needed (supports both Pydantic v1 and v2)
         new_employees = []
@@ -120,36 +125,22 @@ async def create_or_update_c7_monthly_entry(
                 new_employees.append(emp)
         
         # Create maps for comparison
-        old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
+        old_emp_map = {emp.get("employee_id") or emp.get("id", ""): emp for emp in old_employees}
         
         for new_emp in new_employees:
-            emp_id = new_emp.get("id") or new_emp.get("employee_id", "")
+            emp_id = new_emp.get("employee_id") or new_emp.get("id", "")
             emp_name = new_emp.get("name", "Unknown")
             old_emp = old_emp_map.get(emp_id, {})
             
             new_inputs = new_emp.get("inputs", {})
             old_inputs = old_emp.get("inputs", {})
             
-            # Track specific input field changes
-            input_fields_to_track = [
-                ("km_travelled", "Distance Travelled (km)"),
-                ("qty_passengers", "No. of Passengers"),
-                ("qty_days_travelled", "No. of Days Travelled"),
-                ("working_days", "Working Days"),
-                ("working_hour_per_day", "Working Hours per Day"),
-                ("activity_value_supplier_based", "Quantity (Supplier Based)"),
-                ("emission_factor_supplier_based", "Emission Factor (Supplier Based)"),
-            ]
-            
-            for field_key, field_label in input_fields_to_track:
-                old_val = old_inputs.get(field_key)
-                new_val = new_inputs.get(field_key)
-                if old_val != new_val and (old_val is not None or new_val is not None):
-                    employee_input_changes.append({
-                        "field": f"{emp_name} - {field_label}",
-                        "old_value": old_val,
-                        "new_value": new_val
-                    })
+            employee_input_changes.extend(compute_user_input_changes(
+                old_inputs,
+                new_inputs,
+                input_label_map,
+                employee_name=emp_name,
+            ))
         
         new_values = {
             "activity_type": entry_data.activity_type,
@@ -176,9 +167,6 @@ async def create_or_update_c7_monthly_entry(
             "responsible_person",
             "responsible_person_designation", "responsible_person_contact", "total_emissions"
         ]
-        
-        # Fetch input labels from DB for field change display
-        input_label_map = await get_input_label_map_from_db(db)
         
         field_changes = compute_field_changes(existing, new_values, fields_to_track=c7_monthly_fields, input_label_map=input_label_map)
         
@@ -562,6 +550,7 @@ async def create_or_update_c7_yearly_entry(
         
         # Track individual employee input changes for yearly
         employee_input_changes = []
+        input_label_map = await get_input_label_map_from_db(db)
         old_employees = existing.get("employees", [])
         # Convert Pydantic models to dicts if needed (supports both Pydantic v1 and v2)
         new_employees = []
@@ -574,36 +563,22 @@ async def create_or_update_c7_yearly_entry(
                 new_employees.append(emp)
         
         # Create maps for comparison
-        old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
+        old_emp_map = {emp.get("employee_id") or emp.get("id", ""): emp for emp in old_employees}
         
         for new_emp in new_employees:
-            emp_id = new_emp.get("id") or new_emp.get("employee_id", "")
+            emp_id = new_emp.get("employee_id") or new_emp.get("id", "")
             emp_name = new_emp.get("name", "Unknown")
             old_emp = old_emp_map.get(emp_id, {})
             
             new_inputs = new_emp.get("inputs", {})
             old_inputs = old_emp.get("inputs", {})
             
-            # Track specific input field changes
-            input_fields_to_track = [
-                ("km_travelled", "Distance Travelled (km)"),
-                ("qty_passengers", "No. of Passengers"),
-                ("qty_days_travelled", "No. of Days Travelled"),
-                ("working_days", "Working Days"),
-                ("working_hour_per_day", "Working Hours per Day"),
-                ("activity_value_supplier_based", "Quantity (Supplier Based)"),
-                ("emission_factor_supplier_based", "Emission Factor (Supplier Based)"),
-            ]
-            
-            for field_key, field_label in input_fields_to_track:
-                old_val = old_inputs.get(field_key)
-                new_val = new_inputs.get(field_key)
-                if old_val != new_val and (old_val is not None or new_val is not None):
-                    employee_input_changes.append({
-                        "field": f"{emp_name} - {field_label}",
-                        "old_value": old_val,
-                        "new_value": new_val
-                    })
+            employee_input_changes.extend(compute_user_input_changes(
+                old_inputs,
+                new_inputs,
+                input_label_map,
+                employee_name=emp_name,
+            ))
         
         update_dict = {
             "organization_id": org_id,  # Ensure organization_id is always set

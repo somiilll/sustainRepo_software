@@ -55,8 +55,6 @@ const MultiEmployeeInput = ({
   onEmployeesChange,
   activeMonths = [],
   onCalculateEmployee,
-  monthlyTotals = {},
-  yearlyTotal = {},
   isCalculating = false,
   disabled = false,
   reportingYear = '', // New: for showing year in totals
@@ -709,16 +707,10 @@ const MultiEmployeeInput = ({
       {/* Summary Stats - Simplified for edit mode */}
       {employees.length > 0 && !isEditMode && (
         <Card className="p-4 bg-emerald-50 border-emerald-200">
-          <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="text-center">
             <div>
               <p className="text-sm text-gray-600">Total {entityLabel}s</p>
               <p className="text-xl font-bold text-emerald-700">{employees.length}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Emissions</p>
-              <p className="text-xl font-bold text-emerald-700">
-                {formatNumber(employees.reduce((sum, emp) => sum + getEmployeeTotalEmissions(emp), 0))} tCO<sub>2</sub>e
-              </p>
             </div>
           </div>
         </Card>
@@ -791,16 +783,17 @@ const MultiEmployeeInput = ({
                           {isYearlyMode ? (
                             <>
                               <span className="text-purple-600 mr-2">Annual Entry</span>
-                              {hasYearlyEmissions && <span className="text-emerald-600">• Calculated</span>}
+                              {isEditMode && hasYearlyEmissions && <span className="text-emerald-600">• Calculated</span>}
                             </>
                           ) : (
                             <>
                               {filledCount} / {activeMonths.length} months with data
-                              {calculatedCount > 0 && ` • ${calculatedCount} calculated`}
+                              {isEditMode && calculatedCount > 0 && ` • ${calculatedCount} calculated`}
                             </>
                           )}
-                          {' • '}
-                          {formatNumber(getEmployeeTotalEmissions(employee))} tCO2e
+                          {isEditMode && (
+                            <>{' • '}{formatNumber(getEmployeeTotalEmissions(employee))} tCO2e</>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -902,17 +895,20 @@ const MultiEmployeeInput = ({
                         <Label className="text-sm font-medium text-gray-700">
                           Annual Data for {getYearDisplay()}
                         </Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCalculateYearly(employee.id)}
-                          disabled={disabled || isCalculating}
-                          className="text-xs"
-                        >
-                          <Calculator className="h-3 w-3 mr-1" />
-                          Calculate
-                        </Button>
+                        {isEditMode && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCalculateYearly(employee.id)}
+                            disabled={disabled || isCalculating}
+                            className="text-xs"
+                            data-testid={`calculate-yearly-employee-${empIndex}`}
+                          >
+                            <Calculator className="h-3 w-3 mr-1" />
+                            Calculate
+                          </Button>
+                        )}
                       </div>
                       
                       <Card className={`p-4 ${employee.yearly_data?.emissions?.co2e ? 'border-emerald-300 bg-emerald-50/50' : 'border-gray-200'}`}>
@@ -984,7 +980,7 @@ const MultiEmployeeInput = ({
                         </div>
                         
                         {/* Yearly emissions result */}
-                        {employee.yearly_data?.emissions?.co2e !== null && employee.yearly_data?.emissions?.co2e !== undefined && (
+                        {isEditMode && employee.yearly_data?.emissions?.co2e !== null && employee.yearly_data?.emissions?.co2e !== undefined && (
                           <div className="pt-3 border-t border-emerald-200">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-gray-600">Annual Emissions:</span>
@@ -1081,7 +1077,9 @@ const MultiEmployeeInput = ({
                                   </th>
                                 );
                               })}
-                              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-28">Emissions</th>
+                              {isEditMode && (
+                                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-28">Emissions</th>
+                              )}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
@@ -1186,21 +1184,23 @@ const MultiEmployeeInput = ({
                                   })}
                                   
                                   {/* Emissions Column */}
-                                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                                    {isMonthInFuture ? (
-                                      <span className="text-xs text-gray-400">—</span>
-                                    ) : hasEmissions ? (
-                                      <span className="text-sm font-semibold text-emerald-600">
-                                        {formatNumber(monthData.emissions.co2e)} tCO₂e
-                                      </span>
-                                    ) : hasData ? (
-                                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
-                                        Pending
-                                      </span>
-                                    ) : (
-                                      <span className="text-xs text-gray-400">—</span>
-                                    )}
-                                  </td>
+                                  {isEditMode && (
+                                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                                      {isMonthInFuture ? (
+                                        <span className="text-xs text-gray-400">—</span>
+                                      ) : hasEmissions ? (
+                                        <span className="text-sm font-semibold text-emerald-600">
+                                          {formatNumber(monthData.emissions.co2e)} tCO₂e
+                                        </span>
+                                      ) : hasData ? (
+                                        <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                                          Pending
+                                        </span>
+                                      ) : (
+                                        <span className="text-xs text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                  )}
                                 </tr>
                               );
                             })}
@@ -1286,6 +1286,7 @@ const MultiEmployeeInput = ({
 
 
                   {/* Employee Summary */}
+                  {isEditMode && (
                   <div className="mt-4 p-3 bg-emerald-50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700">{entityLabel} Total Emissions:</span>
@@ -1294,6 +1295,7 @@ const MultiEmployeeInput = ({
                       </span>
                     </div>
                   </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
             );
@@ -1301,34 +1303,6 @@ const MultiEmployeeInput = ({
         </Accordion>
       )}
 
-      {/* Aggregated Monthly Totals Table with Year Label (#4) - Hide in edit mode and yearly mode */}
-      {employees.length > 0 && Object.keys(monthlyTotals).length > 0 && !isEditMode && !isYearlyMode && (
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-gray-700">
-              Aggregated Monthly Totals
-              {reportingYear && (
-                <span className="ml-2 text-xs font-normal text-gray-500">
-                  ({getYearDisplay()})
-                </span>
-              )}
-            </h4>
-            <span className="text-sm font-semibold text-emerald-700">
-              Total: {formatNumber(yearlyTotal?.co2e || 0)} tCO2e
-            </span>
-          </div>
-          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
-            {MONTHS.filter(m => activeMonths.includes(m.key)).map((month) => (
-              <div key={month.key} className="text-center p-2 bg-gray-50 rounded">
-                <p className="text-xs text-gray-500">{month.label.substring(0, 3)}</p>
-                <p className="text-sm font-semibold text-emerald-700">
-                  {formatNumber(monthlyTotals[month.key]?.co2e || 0, 2)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
     </div>
   );
 };

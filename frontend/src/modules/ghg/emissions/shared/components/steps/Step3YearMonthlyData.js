@@ -1300,9 +1300,6 @@ export const Step3YearMonthlyData = ({
                                   <span className="mb-2 text-sm text-stone-600" data-testid={`month-${monthKey}-dynamic-density-unit`}>
                                     {dynamicDensityRequirement.densityUnit}
                                   </span>
-                                  <p className="col-span-2 text-xs text-amber-700" data-testid={`month-${monthKey}-dynamic-density-conversion-hint`}>
-                                    Conversion required: {quantityUnit} → {calculationMethodology === 'using_carbon_composition' ? 'kg' : getUnitDenominator(referenceUnit)}
-                                  </p>
                                 </div>
                               )}
 
@@ -1422,6 +1419,9 @@ export const Step3YearMonthlyData = ({
           customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={calculationMethodology}
           isFugitiveCustomFuel={isFugitiveCustomFuel}
+          annualDayLimit={annualDayLimit}
+          yearlyReportingPeriod={yearlyReportingPeriod}
+          resolveSpendDefaultValue={resolveSpendDefaultValue}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
           backendUrl={BACKEND_URL}
@@ -1460,6 +1460,9 @@ const YearlyDataEntry = ({
   customFuelQtyUnit,
   calculationMethodology,
   isFugitiveCustomFuel,
+  annualDayLimit,
+  yearlyReportingPeriod,
+  resolveSpendDefaultValue,
   handleEvidenceUpload,
   removeEvidence,
   backendUrl,
@@ -1746,9 +1749,6 @@ const YearlyDataEntry = ({
                 <span className="mb-2 text-sm text-stone-600" data-testid="yearly-process-density-unit">
                   {yearlyData.density_unit || yearlyDensityState.defaultDensity?.unit || yearlyDensityState.densityUnit}
                 </span>
-                <p className="col-span-2 text-xs text-amber-700" data-testid="yearly-process-density-conversion-hint">
-                  Conversion required: {yearlyDensityState.quantityUnit} → {yearlyDensityState.referenceUnit}
-                </p>
               </div>
             )}
 

@@ -2198,14 +2198,24 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         return;
       }
 
+      setIsSaving(true);
+      const calculation = await calculateC7EditEmployeesForSave();
+      if (calculation?.error) {
+        toast.error(`Nothing was saved. ${calculation.error}`);
+        setIsSaving(false);
+        return;
+      }
+      const employeesForSave = calculation.employees;
+
       // 1. Validate via module
       const validation = c7Module.validateEditSubmission({
-        editEmployees,
+        editEmployees: employeesForSave,
         editingEmission,
         processNames: formData.process_names,
       });
       if (!validation.valid) {
         toast.error(validation.errorMessage);
+        setIsSaving(false);
         return;
       }
 
@@ -2213,7 +2223,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       const builtPayload = c7Module.buildEditPayload({
         formData,
         editingEmission,
-        editEmployees,
+        editEmployees: employeesForSave,
         scope3Method,
         spendCurrencyConversionMethod,
         scope3ActivityId,
@@ -2221,8 +2231,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         scope3CustomActivity,
         useCustomActivity,
         filteredScope3Activities,
-        editEmployeeMonthlyTotals,
-        editEmployeeYearlyTotal,
+        editEmployeeMonthlyTotals: calculation.monthlyTotals,
+        editEmployeeYearlyTotal: calculation.yearlyTotal,
         validProcessNames: validation.validProcessNames,
       });
       const totalCo2e = builtPayload.__totalCo2e;
@@ -2231,13 +2241,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       delete payload.__totalCo2e;
 
       try {
-        setIsSaving(true);
         const response = await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
           headers: getAuthHeader()
         });
         
         if (response.data) {
-          toast.success(`Updated ${editEmployees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
+          toast.success(`Updated ${employeesForSave.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
           // NOTE: Audit log persistence (POST /calc-engine/execute-by-category)
           // is intentionally skipped for C7. The calc-engine endpoint expects
           // aggregated `dynamicFieldValues`-based inputs; C7's per-employee
@@ -2824,6 +2833,165 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       setIsCalculatingEditEmployee(false);
     }
   }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, formData.category, dynamicInputFields, getAuthHeader, useCustomActivity, scope3CustomActivity]);
+
+  const calculateC7EditEmployeesForSave = useCallback(async () => {
+    const fail = (message) => ({ error: message });
+    if (!scope3Method) return fail('Please select a calculation method first');
+    if (!scope3ActivityType) return fail('Please select an activity type first');
+    if (!useCustomActivity && !scope3ActivityId) {
+      return fail('Please select a specific activity from the dropdown');
+    }
+
+    const normalizeActivityType = (value) => (
+      value ? value.toLowerCase().replace(/\s+/g, '_') : ''
+    );
+    const normalizedActivityType = normalizeActivityType(scope3ActivityType);
+    const matchedActivity = useCustomActivity
+      ? null
+      : filteredScope3Activities.find((activity) => activity.id === scope3ActivityId)
+        || filteredScope3Activities.find((activity) => (
+          activity.activity_type === scope3ActivityType
+          || normalizeActivityType(activity.activity_type) === normalizedActivityType
+        ));
+    if (!useCustomActivity && !matchedActivity) {
+      return fail('Activity not found. Please select a valid activity from the dropdown.');
+    }
+    const categoryObj = dynamicCategories.find((item) => (
+      item.name === formData.category && item.scope_code === 'scope3'
+    ));
+    if (!categoryObj) return fail('Category not found');
+
+    setIsCalculatingEditEmployee(true);
+    try {
+      const calculatedEmployees = editEmployees.map((employee) => ({ ...employee }));
+      for (let employeeIndex = 0; employeeIndex < calculatedEmployees.length; employeeIndex += 1) {
+        let employee = calculatedEmployees[employeeIndex];
+        if (!employee.name?.trim()) return fail('Employee Name is required');
+        const isYearly = editingEmission?.frequency_type === 'yearly';
+        const periods = isYearly
+          ? ['yearly']
+          : Object.entries(employee.monthly_data || {})
+            .filter(([, monthData]) => dynamicInputFields.some((field) => {
+              const value = monthData?.inputs?.[field.variable];
+              return value !== '' && value !== null && value !== undefined;
+            }))
+            .map(([monthKey]) => monthKey);
+        if (periods.length === 0) return fail(`${employee.name}: enter at least one input value`);
+
+        for (const periodKey of periods) {
+          const inputData = isYearly ? employee.yearly_data : employee.monthly_data?.[periodKey];
+          const inputs = inputData?.inputs || {};
+          for (const field of dynamicInputFields.filter((item) => item.required && !item.isOverride)) {
+            const value = inputs[field.variable];
+            if (value === '' || value === null || value === undefined) {
+              return fail(`${employee.name}: ${field.label} is required`);
+            }
+          }
+
+          const formulaInputs = {};
+          for (const field of dynamicInputFields) {
+            const value = inputs[field.variable];
+            if (value === '' || value === null || value === undefined) continue;
+            const unit = inputs[`${field.variable}_unit`] || field.expectedUnit || field.unit || '';
+            if (scope3Method === 'supplier_basis' && field.unitSource !== 'none' && !String(unit).trim()) {
+              return fail(`${employee.name}: Unit is required for ${field.label}`);
+            }
+            formulaInputs[field.variable] = { value: parseFloat(value), unit };
+          }
+
+          let response;
+          try {
+            response = await axios.post(`${API}/calc-engine/execute-by-category`, {
+              category_id: categoryObj.id,
+              decision_inputs: {
+                calculation_method_scope3: scope3Method,
+                activity_type: normalizedActivityType || scope3ActivityType,
+              },
+              inputs: formulaInputs,
+              context: {
+                calculation_method_scope3: scope3Method,
+                activity_type: normalizedActivityType || scope3ActivityType,
+                reporting_period: editingEmission.reporting_period || formData.reporting_period_start,
+                activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
+                fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
+                scope3_ef_id: matchedActivity?.id || null,
+                use_custom_activity: useCustomActivity,
+              },
+              scope3_ef_id: matchedActivity?.id || null,
+              ...(editingEmission?.decision_tree_version_id && {
+                decision_tree_version_id: editingEmission.decision_tree_version_id,
+              }),
+              ...(editingEmission?.formula_version_id && {
+                formula_version_id: editingEmission.formula_version_id,
+              }),
+            }, { headers: getAuthHeader() });
+          } catch (error) {
+            const detail = error.response?.data?.detail;
+            return fail(`${employee.name}: ${typeof detail === 'string' ? detail : 'Failed to calculate emissions'}`);
+          }
+          if (!response.data?.outputs) return fail(`${employee.name}: No calculation results returned`);
+
+          const emissions = {
+            co2: response.data.outputs.co2?.value ?? 0,
+            ch4: response.data.outputs.ch4?.value ?? 0,
+            n2o: response.data.outputs.n2o?.value ?? 0,
+            co2e: response.data.outputs.co2e?.value ?? 0,
+          };
+          const calculationDetails = {
+            audit_log: response.data.audit_log || [],
+            applied_factors: response.data.applied_factors || {},
+            formula_id: response.data.resolved_formula?.id || null,
+            formula_version_id: response.data.resolved_formula?.version_id || null,
+            decision_tree_version_id: response.data.resolved_decision_tree?.version_id || null,
+            formula_name: response.data.resolved_formula?.name || '',
+            outputs: response.data.outputs,
+          };
+          employee = isYearly ? {
+            ...employee,
+            yearly_data: {
+              ...employee.yearly_data,
+              emissions,
+              calculation_details: calculationDetails,
+            },
+          } : {
+            ...employee,
+            monthly_data: {
+              ...employee.monthly_data,
+              [periodKey]: {
+                ...employee.monthly_data[periodKey],
+                emissions,
+                calculation_details: calculationDetails,
+              },
+            },
+          };
+          calculatedEmployees[employeeIndex] = employee;
+        }
+      }
+
+      const monthlyTotals = {};
+      calculatedEmployees.forEach((employee) => {
+        Object.entries(employee.monthly_data || {}).forEach(([monthKey, monthData]) => {
+          if (monthData?.emissions?.co2e === null || monthData?.emissions?.co2e === undefined) return;
+          monthlyTotals[monthKey] = {
+            co2e: (monthlyTotals[monthKey]?.co2e || 0) + monthData.emissions.co2e,
+          };
+        });
+      });
+      const yearlyTotal = {
+        co2e: editingEmission?.frequency_type === 'yearly'
+          ? calculatedEmployees.reduce((total, employee) => (
+            total + (employee.yearly_data?.emissions?.co2e || 0)
+          ), 0)
+          : Object.values(monthlyTotals).reduce((total, month) => total + (month.co2e || 0), 0),
+      };
+      setEditEmployees(calculatedEmployees);
+      setEditEmployeeMonthlyTotals(monthlyTotals);
+      setEditEmployeeYearlyTotal(yearlyTotal);
+      return { employees: calculatedEmployees, monthlyTotals, yearlyTotal };
+    } finally {
+      setIsCalculatingEditEmployee(false);
+    }
+  }, [dynamicCategories, dynamicInputFields, editEmployees, editingEmission, filteredScope3Activities, formData.category, formData.reporting_period_start, getAuthHeader, scope3ActivityId, scope3ActivityType, scope3CustomActivity, scope3Method, useCustomActivity]);
 
   // Get unique categories from emissions for filtering
   const getCategories = useMemo(() => {

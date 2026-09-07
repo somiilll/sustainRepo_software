@@ -1220,9 +1220,6 @@ export default function EmissionEditForm(props) {
                         <span className="mb-2 text-sm text-stone-600" data-testid="edit-process-density-unit">
                           {virtualDensityRequirement.densityUnit}
                         </span>
-                        <p className="col-span-2 text-xs text-amber-700" data-testid="edit-process-density-conversion-hint">
-                          Conversion required: {getSavedFieldUnit(virtualDensityQuantityField)} → {editCalcMethodology === 'using_carbon_composition' ? 'kg' : getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField))}
-                        </p>
                       </div>
                     )}
                     

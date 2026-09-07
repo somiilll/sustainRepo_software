@@ -144,9 +144,6 @@ const CustomFuelMonthFields = ({
           unitTestId={`month-${monthKey}-density-unit`}
           annualRow={isYearlyEntry}
         />
-        <p className="text-xs text-amber-700" data-testid={`month-${monthKey}-density-conversion-hint`}>
-          Conversion required: {qtyUnit} → {referenceUnit}
-        </p>
       </div>
     );
   };

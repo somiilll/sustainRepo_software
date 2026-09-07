@@ -511,7 +511,7 @@ export default function Facilities() {
                       />
                       <div>
                         <p className="font-medium text-green-800">Same as Organization</p>
-                        <p className="text-xs text-green-600">Auto-fill facility details from organization (still editable)</p>
+                        <p className="text-xs text-green-600">Auto-fill facility details from organization (editable)</p>
                       </div>
                     </label>
                   </div>
