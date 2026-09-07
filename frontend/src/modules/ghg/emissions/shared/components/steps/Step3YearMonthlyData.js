@@ -176,7 +176,7 @@ const EvidenceIconCell = ({
           <TooltipTrigger asChild>
             <label
               htmlFor={`evidence-${monthKey}`}
-              className={`relative inline-flex cursor-pointer items-center justify-center rounded-md text-stone-500 transition-colors hover:bg-stone-100 hover:text-emerald-600 ${showLabel ? 'h-10 gap-2 border border-stone-200 bg-white px-3 text-sm font-medium' : 'h-8 w-8'}`}
+              className={`relative inline-flex cursor-pointer items-center justify-center rounded-md border border-stone-200 bg-white text-stone-900 transition-colors hover:bg-white hover:text-stone-900 ${showLabel ? 'h-10 gap-2 px-3 text-sm font-medium' : 'h-8 w-8'}`}
               data-testid={`month-${monthKey}-evidence-upload-trigger`}
             >
               <Upload className="h-4 w-4" />
@@ -188,7 +188,7 @@ const EvidenceIconCell = ({
               )}
             </label>
           </TooltipTrigger>
-          <TooltipContent side="bottom" align="center" className="max-w-xs">
+          <TooltipContent side="bottom" align="center" className="max-w-xs bg-white text-stone-900 shadow-lg">
             {count === 0 ? (
               <span className="text-xs">Upload evidence (PDF, image, Excel, Word)</span>
             ) : (
@@ -201,7 +201,7 @@ const EvidenceIconCell = ({
                   return (
                     <div key={`${evidence.url || evidence.filename}-${index}`} className="flex items-center gap-1.5">
                       <FileText className="h-3 w-3 shrink-0 text-green-600" />
-                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-white underline decoration-white/70 underline-offset-2 transition-colors hover:text-white/85" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>
+                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>
                         {evidence.filename}
                       </a>
                       <button type="button" onClick={(e) => { e.stopPropagation(); removeEvidence(monthKey, index); }} className="shrink-0 text-red-400 hover:text-red-600" title="Remove" data-testid={`month-${monthKey}-evidence-remove-${index}`}>
@@ -210,7 +210,7 @@ const EvidenceIconCell = ({
                     </div>
                   );
                 })}
-                <span className="text-stone-400">Click icon to add more</span>
+                <span className="text-stone-500">Click icon to add more</span>
               </div>
             )}
           </TooltipContent>

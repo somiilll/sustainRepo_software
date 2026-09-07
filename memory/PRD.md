@@ -820,3 +820,8 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Added an idempotent Sinks reporting-period migration. It backfilled 23 existing records with canonical periods, corrected financial-year January–March dates where required, and skipped no records.
 - Updated Sinks display/filtering to prefer the canonical period, so a FY 2026–2027 January record displays and filters as January 2027 rather than the ambiguous legacy `Jan '2026` label. Report output now prefers the canonical period too.
 - **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
+
+## Latest Changes — 2026-09-04 (Add Emissions Evidence and Optional Fields Polish)
+- Updated the shared Add Emissions evidence upload trigger and its attached-file hover panel to retain a white surface with dark, readable text instead of the prior green/white treatment.
+- Added clear vertical separation before the optional Person Responsible row across the shared Add Emissions form.
+- **NOT TESTED** after implementation, per the user’s explicit `dont test` instruction.
