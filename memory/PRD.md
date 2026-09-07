@@ -800,3 +800,10 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Existing unversioned emissions remain on the unchanged legacy path. No historical data migration, backfill, or rewrite was performed; a separate dry-run/batch migration remains deferred until the user selects an older-data strategy.
 - Verification passed: 7 focused backend unit tests, 9 live API versioning regressions, process-emissions regression 4/4, frontend C7/payload tests, targeted ESLint, production build, Python compilation, authenticated API checks, and browser login/dashboard smoke. Testing report: `/app/test_reports/iteration_43.json`, followed by successful self-tests for the bulk helper and yearly C7 contract fixes. No APIs were mocked.
 - Known unrelated infrastructure issue remains: the edge proxy overrides auth preflight CORS headers with `Access-Control-Allow-Origin: *`; application code cannot correct that gateway behavior.
+
+## Latest Changes — 2026-09-04 (GHG Sinks Form and Filter Refinement)
+- Widened the Add/Edit Sink dialog to a responsive desktop workspace while retaining safe mobile margins and viewport-bounded scrolling.
+- Added field-level validation messages for Facility, Reporting Year, Annual Carbon Offset, and the required monthly offset. Errors are highlighted at the exact field, summarized accessibly, and clear when corrected.
+- Moved Facility, Reporting period, and sorting controls into the Total Carbon Offset row. The period now defaults to the organization’s active calendar or financial year (including the configured fiscal-year start month) and resets back to that active period.
+- Constrained the table within its own horizontal scroll area on narrow screens, preventing it from pushing the page wider than the viewport. The yearly period label now also respects the organization’s FY/CY setting.
+- Targeted ESLint and production build passed before the user’s later `dont test` instruction. No browser or functional verification was run after this UI change, per request.

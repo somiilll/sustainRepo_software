@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ArrowUpDown, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
@@ -28,6 +28,12 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const getCurrentReportingYear = (yearType = 'calendar', fiscalStartMonth = 4) => {
+  const now = new Date();
+  const startsLaterThisYear = yearType === 'financial' && (now.getMonth() + 1) < Number(fiscalStartMonth || 4);
+  return String(startsLaterThisYear ? now.getFullYear() - 1 : now.getFullYear());
+};
 
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthIndex, year, yearType = 'calendar') => {
@@ -69,15 +75,15 @@ export default function Sinks() {
   } = useGHGAccess();
 
   // Filter and Sort states
-  const [showFilters, setShowFilters] = useState(false);
   const [filterFacility, setFilterFacility] = useState('all');
-  const [filterYear, setFilterYear] = useState('all');
+  const [filterYear, setFilterYear] = useState(() => getCurrentReportingYear());
   const [sortBy, setSortBy] = useState('date'); // 'date', 'facility', 'emissions'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
+  const [formErrors, setFormErrors] = useState({});
 
   const [formData, setFormData] = useState({
     facility_id: '',
-    reporting_year: new Date().getFullYear().toString(),
+    reporting_year: getCurrentReportingYear(),
     description: ''
   });
 
@@ -131,6 +137,13 @@ export default function Sinks() {
   // Determine reporting year type from organization settings
   const orgReportingYearType = organization?.reporting_year_type; // 'financial_year' or 'calendar_year'
   const reportingYearType = orgReportingYearType === 'financial_year' ? 'financial' : 'calendar';
+  const currentReportingYear = getCurrentReportingYear(reportingYearType, organization?.financial_year_start_month);
+
+  useEffect(() => {
+    if (!organization || editingSink) return;
+    setFilterYear(currentReportingYear);
+    setFormData(prev => ({ ...prev, reporting_year: currentReportingYear }));
+  }, [organization, editingSink, currentReportingYear]);
 
   // Helper function to format reporting year display
   const formatReportingYear = (year) => {
@@ -216,12 +229,21 @@ export default function Sinks() {
     return entry.evidence || [];
   };
 
+  const clearFormError = (field) => {
+    setFormErrors(prev => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
   const updateMonthValue = (monthIndex, value) => {
     setMonthlyData(prev => {
       const existing = prev[monthIndex];
       const evidence = (typeof existing === 'object' && existing !== null) ? (existing.evidence || []) : [];
       return { ...prev, [monthIndex]: { value, evidence } };
     });
+    clearFormError('monthly_value');
   };
 
   const handleMonthFileUpload = async (e, monthIndex) => {
@@ -349,31 +371,32 @@ export default function Sinks() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.facility_id || !formData.reporting_year) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+    const errors = {};
+    if (!formData.facility_id) errors.facility_id = 'Select the facility for this sink record.';
+    if (!formData.reporting_year) errors.reporting_year = 'Select the reporting year.';
 
-    // Validation based on frequency type
     if (frequencyType === 'yearly') {
-      // Yearly mode validation
       if (!yearlyData.value || parseFloat(yearlyData.value) <= 0) {
-        toast.error('Please enter the annual offset value');
-        return;
+        errors.yearly_value = 'Enter an annual carbon offset greater than zero.';
       }
     } else {
-      // Monthly mode validation
       const monthsWithData = Object.entries(monthlyData).filter(([, entry]) => {
         const val = typeof entry === 'object' && entry !== null ? entry.value : entry;
         return parseFloat(val) > 0;
       });
 
       if (monthsWithData.length === 0) {
-        toast.error('Please enter at least one monthly value');
-        return;
+        errors.monthly_value = 'Enter a carbon offset greater than zero for at least one month.';
       }
     }
 
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      toast.error(Object.values(errors)[0]);
+      return;
+    }
+
+    setFormErrors({});
     setSubmitting(true);
     try {
       if (editingSink) {
@@ -504,6 +527,7 @@ export default function Sinks() {
 
   const handleEdit = (sink) => {
     setEditingSink(sink);
+    setFormErrors({});
 
     const year = sink.reporting_year || (sink.start_date ? sink.start_date.split('-')[0] : new Date().getFullYear().toString());
     const month = sink.reporting_month ?? (sink.start_date ? new Date(sink.start_date).getMonth() : 0);
@@ -541,11 +565,12 @@ export default function Sinks() {
   };
 
   const resetForm = () => {
-    setFormData({ facility_id: '', reporting_year: new Date().getFullYear().toString(), description: '' });
+    setFormData({ facility_id: '', reporting_year: currentReportingYear, description: '' });
     setMonthlyData({});
     setYearlyData({ value: '', evidence: [] });
     setFrequencyType('monthly');
     setEditingSink(null);
+    setFormErrors({});
   };
 
   const getFacilityName = (facilityId) => {
@@ -556,7 +581,7 @@ export default function Sinks() {
   const getSinkPeriod = (sink) => {
     // Check if it's a yearly record (frequency_type === 'yearly' or reporting_month is null)
     if (sink.frequency_type === 'yearly' || sink.reporting_month === null) {
-      return `FY ${sink.reporting_year}`;
+      return formatReportingYear(sink.reporting_year);
     }
     if (sink.reporting_month !== null && sink.reporting_month !== undefined && sink.reporting_year) {
       return `${SHORT_MONTHS[sink.reporting_month]}'${sink.reporting_year}`;
@@ -576,11 +601,9 @@ export default function Sinks() {
     return 0;
   };
 
-  const totalSinksReduction = sinks.reduce((sum, s) => sum + s.total_emissions_reduced, 0);
-
   // Get unique years from sinks data
   const availableYears = useMemo(() => {
-    const years = new Set();
+    const years = new Set([currentReportingYear]);
     sinks.forEach(sink => {
       if (sink.reporting_year) {
         years.add(sink.reporting_year.toString());
@@ -589,7 +612,7 @@ export default function Sinks() {
       }
     });
     return Array.from(years).sort((a, b) => b - a);
-  }, [sinks]);
+  }, [sinks, currentReportingYear]);
 
   // Filtered and sorted sinks
   const filteredSinks = useMemo(() => {
@@ -676,22 +699,30 @@ export default function Sinks() {
                 Add Sink Record
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[calc(100%-2rem)] max-w-4xl max-h-[calc(100dvh-2rem)] overflow-y-auto" data-testid="sink-record-dialog">
               <DialogHeader>
                 <DialogTitle className="text-xl font-heading">
                   {editingSink ? 'Edit Sink Record' : 'Add New Sink Record'}
                 </DialogTitle>
               </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="space-y-5 py-4" noValidate data-testid="sink-record-form">
+              {Object.keys(formErrors).length > 0 && (
+                <div className="border-l-4 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" data-testid="sink-form-validation-summary">
+                  Please correct the highlighted field{Object.keys(formErrors).length > 1 ? 's' : ''} before saving.
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Facility *</Label>
+                  <Label>Facility <span className="text-red-600">*</span></Label>
                   <Select
                     value={formData.facility_id}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, facility_id: value }))}
+                    onValueChange={(value) => {
+                      setFormData(prev => ({ ...prev, facility_id: value }));
+                      clearFormError('facility_id');
+                    }}
                     disabled={isEditMode}
                   >
-                    <SelectTrigger className="bg-stone-50" data-testid="sink-facility-select">
+                    <SelectTrigger className={`bg-stone-50 ${formErrors.facility_id ? 'border-red-500 ring-1 ring-red-200' : ''}`} aria-invalid={Boolean(formErrors.facility_id)} data-testid="sink-facility-select">
                       <SelectValue placeholder="Select a facility" />
                     </SelectTrigger>
                     <SelectContent>
@@ -700,15 +731,19 @@ export default function Sinks() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {formErrors.facility_id && <p className="text-xs font-medium text-red-600" data-testid="sink-facility-error">{formErrors.facility_id}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>{reportingYearType === 'financial' ? 'Financial Year *' : 'Reporting Year *'}</Label>
+                  <Label>{reportingYearType === 'financial' ? 'Financial Year' : 'Reporting Year'} <span className="text-red-600">*</span></Label>
                   <Select
                     value={formData.reporting_year}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, reporting_year: value }))}
+                    onValueChange={(value) => {
+                      setFormData(prev => ({ ...prev, reporting_year: value }));
+                      clearFormError('reporting_year');
+                    }}
                     disabled={isEditMode}
                   >
-                    <SelectTrigger className="bg-stone-50" data-testid="sink-year-select">
+                    <SelectTrigger className={`bg-stone-50 ${formErrors.reporting_year ? 'border-red-500 ring-1 ring-red-200' : ''}`} aria-invalid={Boolean(formErrors.reporting_year)} data-testid="sink-year-select">
                       <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
@@ -724,17 +759,20 @@ export default function Sinks() {
                       })}
                     </SelectContent>
                   </Select>
+                  {formErrors.reporting_year && <p className="text-xs font-medium text-red-600" data-testid="sink-year-error">{formErrors.reporting_year}</p>}
                 </div>
               </div>
 
               {/* Data Entry Frequency Selection */}
               <div className="space-y-2">
-                <Label>Data Entry Frequency *</Label>
+                <Label>Data Entry Frequency <span className="text-red-600">*</span></Label>
                 <select
                   value={frequencyType}
                   onChange={(e) => {
                     const newFreq = e.target.value;
                     setFrequencyType(newFreq);
+                    clearFormError('yearly_value');
+                    clearFormError('monthly_value');
                     if (newFreq === 'monthly') {
                       setYearlyData({ value: '', evidence: [] });
                     } else {
@@ -755,13 +793,6 @@ export default function Sinks() {
 
               {/* Frequency Badge */}
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                  frequencyType === 'yearly' 
-                    ? 'bg-purple-100 text-purple-700' 
-                    : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {frequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
-                </span>
                 <span className="text-sm text-stone-600">
                   {formatReportingYear(formData.reporting_year)}
                 </span>
@@ -772,32 +803,37 @@ export default function Sinks() {
                 /* Yearly Data Entry */
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>Annual Carbon Offset (tCO2e) *</Label>
+                    <Label>Annual Carbon Offset (tCO2e) <span className="text-red-600">*</span></Label>
                   </div>
-                  <div className="bg-purple-50 rounded-lg border border-purple-200 p-4 space-y-4">
+                  <div className="bg-stone-50 rounded-lg border border-stone-200 p-3 space-y-4">
                     <div>
-                      <Label className="text-xs text-purple-700 mb-1">Offset Value (tCO2e)</Label>
+                      <Label className="text-xs text-stone-500 mb-1">Offset Value (tCO2e)</Label>
                       <Input
                         type="number"
                         step="0.01"
                         min="0"
                         value={yearlyData.value}
-                        onChange={(e) => setYearlyData(prev => ({ ...prev, value: e.target.value }))}
+                        onChange={(e) => {
+                          setYearlyData(prev => ({ ...prev, value: e.target.value }));
+                          clearFormError('yearly_value');
+                        }}
                         placeholder={`Enter ${formatReportingYear(formData.reporting_year)} annual offset`}
-                        className="bg-white"
+                        className={`bg-white ${formErrors.yearly_value ? 'border-red-500 ring-1 ring-red-200' : ''}`}
+                        aria-invalid={Boolean(formErrors.yearly_value)}
                         data-testid="yearly-value-input"
                       />
+                      {formErrors.yearly_value && <p className="mt-2 text-xs font-medium text-red-600" data-testid="sink-yearly-value-error">{formErrors.yearly_value}</p>}
                     </div>
 
                     {/* Yearly Evidence Files */}
                     {yearlyData.evidence && yearlyData.evidence.length > 0 && (
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-purple-700">Evidence Files</Label>
+                        <Label className="text-xs text-stone-500">Evidence Files</Label>
                         {yearlyData.evidence.map((file, fileIdx) => (
                           <div key={fileIdx} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200" data-testid={`yearly-evidence-file-${fileIdx}`}>
                             <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
                             <span className="flex-1 text-xs text-green-800 truncate" title={file.name}>{file.name}</span>
-                            <a href={`${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View">
+                            <a href={`${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-yearly-evidence-${fileIdx}`}>
                               <Eye className="w-3.5 h-3.5" />
                             </a>
                             <button 
@@ -808,10 +844,11 @@ export default function Sinks() {
                               }}
                               className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
                               title="Download"
+                              data-testid={`download-yearly-evidence-${fileIdx}`}
                             >
                               <Download className="w-3.5 h-3.5" />
                             </button>
-                            <button type="button" onClick={() => removeYearlyEvidence(fileIdx)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50" title="Remove">
+                            <button type="button" onClick={() => removeYearlyEvidence(fileIdx)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50" title="Remove" data-testid={`remove-yearly-evidence-${fileIdx}`}>
                               <X className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -830,11 +867,11 @@ export default function Sinks() {
                         multiple
                         data-testid="yearly-upload-evidence"
                       />
-                      <div className="flex items-center justify-center gap-2 p-2.5 border border-dashed border-purple-300 rounded hover:border-purple-500 hover:bg-white transition-colors">
+                      <div className="flex items-center justify-center gap-2 p-2.5 border border-dashed border-stone-300 rounded hover:border-primary hover:bg-white transition-colors">
                         {uploadingYearly ? (
-                          <><Loader2 className="w-4 h-4 animate-spin text-purple-600" /><span className="text-xs text-purple-600">Uploading...</span></>
+                          <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Uploading...</span></>
                         ) : (
-                          <><Upload className="w-4 h-4 text-purple-400" /><span className="text-xs text-purple-600">Upload Evidence</span></>
+                          <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload Evidence</span></>
                         )}
                       </div>
                     </div>
@@ -845,7 +882,7 @@ export default function Sinks() {
                 /* Monthly Data Entry */
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>{isEditMode ? `${MONTHS[editMonth]} Offset (tCO2e) *` : 'Monthly Carbon Offset (tCO2e) *'}</Label>
+                    <Label>{isEditMode ? `${MONTHS[editMonth]} Offset (tCO2e)` : 'Monthly Carbon Offset (tCO2e)'} <span className="text-red-600">*</span></Label>
                     {!isEditMode && (
                       <span className="text-sm font-medium text-green-600" data-testid="sink-total-value">
                         Total: {totalFromMonthly.toFixed(2)} tCO2e
@@ -887,6 +924,7 @@ export default function Sinks() {
                       </Accordion>
                     )}
                   </div>
+                  {formErrors.monthly_value && <p className="text-xs font-medium text-red-600" data-testid="sink-monthly-value-error">{formErrors.monthly_value}</p>}
                   {!isEditMode && (
                     <p className="text-xs text-text-muted">Each month with data will create a separate sink record. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 5MB)</p>
                   )}
@@ -957,127 +995,79 @@ export default function Sinks() {
         </Card>
       )}
 
-      {/* Summary Card */}
-      <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-green-100 rounded-xl">
-            <TreeDeciduous className="w-10 h-10 text-green-600" />
-          </div>
-          <div>
-            <p className="text-sm text-text-muted">Total Carbon Offset {(filterFacility !== 'all' || filterYear !== 'all') && '(Filtered)'}</p>
-            <h2 className="text-3xl font-heading font-bold text-green-600" data-testid="total-offset-value">
-              {filteredTotalReduction.toFixed(2)} <span className="text-lg font-normal">tCO2e</span>
-            </h2>
-            <p className="text-xs text-text-muted mt-1">
-              {filteredSinks.length} sink record(s)
-              {(filterFacility !== 'all' || filterYear !== 'all') && ` of ${sinks.length} total`}
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Filters Section */}
-      {sinks.length > 0 && (
-        <Card className="p-4 border border-stone-200 rounded-xl bg-white">
-          <div className="flex items-center justify-between mb-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
-            >
-              <Filter className="w-4 h-4" />
-              {showFilters ? 'Hide Filters' : 'Show Filters'}
-            </Button>
-            {(filterFacility !== 'all' || filterYear !== 'all') && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setFilterFacility('all');
-                  setFilterYear('all');
-                }}
-                className="text-primary"
-              >
-                Clear Filters
-              </Button>
-            )}
+      <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-white p-5 sm:p-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="rounded-xl bg-green-100 p-3">
+              <TreeDeciduous className="h-10 w-10 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-text-muted">Total Carbon Offset {(filterFacility !== 'all' || filterYear !== 'all') && '(Filtered)'}</p>
+              <h2 className="text-3xl font-heading font-bold text-green-600" data-testid="total-offset-value">
+                {filteredTotalReduction.toFixed(2)} <span className="text-lg font-normal">tCO2e</span>
+              </h2>
+              <p className="mt-1 text-xs text-text-muted" data-testid="sink-record-count">
+                {filteredSinks.length} sink record(s)
+                {(filterFacility !== 'all' || filterYear !== 'all') && ` of ${sinks.length} total`}
+              </p>
+            </div>
           </div>
 
-          {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3 border-t border-stone-100">
-              {/* Filter by Facility */}
+          {sinks.length > 0 && (
+            <div className="grid w-full gap-3 border-t border-green-200 pt-4 sm:grid-cols-2 xl:w-auto xl:grid-cols-[repeat(4,minmax(9rem,1fr))] xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0" data-testid="sink-filter-controls">
               <div className="space-y-1">
-                <Label className="text-xs text-stone-500">Filter by Facility</Label>
-                <select
-                  value={filterFacility}
-                  onChange={(e) => setFilterFacility(e.target.value)}
-                  className="w-full h-9 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                >
-                  <option value="all">All Facilities</option>
-                  {facilities.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
+                <Label htmlFor="sink-facility-filter" className="text-xs text-stone-600">Facility</Label>
+                <select id="sink-facility-filter" value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-facility-filter">
+                  <option value="all">All facilities</option>
+                  {kpiFilteredFacilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
               </div>
-
-              {/* Filter by Year */}
               <div className="space-y-1">
-                <Label className="text-xs text-stone-500">Filter by Year</Label>
-                <select
-                  value={filterYear}
-                  onChange={(e) => setFilterYear(e.target.value)}
-                  className="w-full h-9 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                >
-                  <option value="all">All Years</option>
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
+                <Label htmlFor="sink-year-filter" className="text-xs text-stone-600">Reporting period</Label>
+                <select id="sink-year-filter" value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-year-filter">
+                  <option value="all">All periods</option>
+                  {availableYears.map(year => <option key={year} value={year}>{formatReportingYear(year)}</option>)}
                 </select>
               </div>
-
-              {/* Sort By */}
               <div className="space-y-1">
-                <Label className="text-xs text-stone-500">Sort By</Label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full h-9 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                >
+                <Label htmlFor="sink-sort-filter" className="text-xs text-stone-600">Sort by</Label>
+                <select id="sink-sort-filter" value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-sort-filter">
                   <option value="date">Date</option>
                   <option value="facility">Facility</option>
-                  <option value="emissions">Emissions Reduced</option>
+                  <option value="emissions">Offset value</option>
                 </select>
               </div>
-
-              {/* Sort Order */}
-              <div className="space-y-1">
-                <Label className="text-xs text-stone-500">Sort Order</Label>
-                <select
-                  value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value)}
-                  className="w-full h-9 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                >
-                  <option value="desc">Descending</option>
-                  <option value="asc">Ascending</option>
-                </select>
+              <div className="flex items-end gap-2">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Label htmlFor="sink-order-filter" className="text-xs text-stone-600">Order</Label>
+                  <select id="sink-order-filter" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-order-filter">
+                    <option value="desc">Newest first</option>
+                    <option value="asc">Oldest first</option>
+                  </select>
+                </div>
+                {(filterFacility !== 'all' || filterYear !== currentReportingYear) && (
+                  <Button type="button" variant="ghost" size="icon" onClick={() => { setFilterFacility('all'); setFilterYear(currentReportingYear); }} className="h-9 w-9 shrink-0 text-primary" title="Reset filters" data-testid="reset-sink-filters-button">
+                    <Filter className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           )}
-        </Card>
-      )}
+        </div>
+      </Card>
 
       {/* Sinks Table */}
       {filteredSinks.length > 0 ? (
-        <Card className="border border-stone-200 rounded-xl bg-white overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full" data-testid="sinks-table">
+        <Card className="max-w-full overflow-hidden border border-stone-200 rounded-xl bg-white">
+          <div className="max-w-full overflow-x-auto" data-testid="sinks-table-scroll-area">
+            <table className="w-full min-w-[760px]" data-testid="sinks-table">
               <thead className="bg-stone-50 border-b border-stone-200">
                 <tr>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">
                     <button 
                       onClick={() => { setSortBy('facility'); setSortOrder(sortBy === 'facility' && sortOrder === 'asc' ? 'desc' : 'asc'); }}
                       className="flex items-center gap-1 hover:text-primary transition-colors"
+                      data-testid="sort-sinks-by-facility"
                     >
                       Facility
                       {sortBy === 'facility' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
@@ -1087,6 +1077,7 @@ export default function Sinks() {
                     <button 
                       onClick={() => { setSortBy('date'); setSortOrder(sortBy === 'date' && sortOrder === 'asc' ? 'desc' : 'asc'); }}
                       className="flex items-center gap-1 hover:text-primary transition-colors"
+                      data-testid="sort-sinks-by-date"
                     >
                       Period
                       {sortBy === 'date' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
@@ -1096,6 +1087,7 @@ export default function Sinks() {
                     <button 
                       onClick={() => { setSortBy('emissions'); setSortOrder(sortBy === 'emissions' && sortOrder === 'asc' ? 'desc' : 'asc'); }}
                       className="flex items-center gap-1 justify-end hover:text-primary transition-colors"
+                      data-testid="sort-sinks-by-offset"
                     >
                       Emissions Reduced (tCO2e)
                       {sortBy === 'emissions' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
@@ -1159,8 +1151,9 @@ export default function Sinks() {
           <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No Matching Records</h3>
           <p className="text-text-secondary mb-4">No sink records match your current filters.</p>
           <Button 
-            onClick={() => { setFilterFacility('all'); setFilterYear('all'); }} 
+            onClick={() => { setFilterFacility('all'); setFilterYear(currentReportingYear); }} 
             className="bg-primary hover:bg-primary/90 text-white"
+            data-testid="clear-sink-empty-state-filters-button"
           >
             Clear Filters
           </Button>
@@ -1177,16 +1170,6 @@ export default function Sinks() {
         </Card>
       )}
 
-      {/* Info Card */}
-      <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-        <h3 className="text-lg font-heading font-bold text-text-primary mb-3">About Carbon Sinks</h3>
-        <ul className="space-y-2 text-sm text-text-secondary">
-          <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">*</span><span>Carbon sinks are natural or artificial reservoirs that absorb and store carbon dioxide from the atmosphere</span></li>
-          <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">*</span><span>Examples include forests, soil carbon sequestration, and carbon capture technologies</span></li>
-          <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">*</span><span>Sink records will be automatically deducted from your total emissions in GHG reports</span></li>
-          <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">*</span><span>Each month with data creates a separate sink record for granular tracking</span></li>
-        </ul>
-      </Card>
     </div>
   );
 }

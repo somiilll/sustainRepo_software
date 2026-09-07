@@ -78,9 +78,9 @@ const TRACKING_MODE_LABELS = {
 };
 
 const SECTION_HEADERS = {
-  environment: { title: 'Environment Target', iconClassName: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
-  social: { title: 'Social Target', iconClassName: 'border-rose-200 bg-rose-50 text-rose-700' },
-  governance: { title: 'Governance Target', iconClassName: 'border-blue-200 bg-blue-50 text-blue-700' },
+  environment: { title: 'Environment Targets', iconClassName: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+  social: { title: 'Social Targets', iconClassName: 'border-rose-200 bg-rose-50 text-rose-700' },
+  governance: { title: 'Governance Targets', iconClassName: 'border-blue-200 bg-blue-50 text-blue-700' },
 };
 
 export default function ESGTargetsTab({ section = 'environment', reportingPeriod }) {
