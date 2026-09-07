@@ -68,6 +68,7 @@ export const Step1BasicSelection = ({
   disabledScopes = [],
   hasScope3Access,
   setCategory,
+  onCategoryChange,
   setFuelId,
   setScope3Method,
   setScope3ActivityType,
@@ -403,6 +404,10 @@ export const Step1BasicSelection = ({
             value={category}
             onChange={(event) => {
               const value = event.target.value;
+              if (onCategoryChange) {
+                onCategoryChange(value);
+                return;
+              }
               setCategory(value);
               setFuelId('');
               setScope3Method('');

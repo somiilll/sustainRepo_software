@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Scope 3 Category/Method Transition
+- Preserved Spend Basis across category changes only when supported by the destination category; unsupported methods now reset to Select Method.
+- Cleared and reinitialized all downstream category-dependent calculation state to prevent stale activities, units, formulas, and results.
+- **NOT TESTED at user request.**
+
 ## September 7, 2026 — Scope 3 Unit Controls Fixed
 - Supplier Basis free-text units now start blank instead of inheriting the first global unit (`2022_USD`).
 - Monthly and yearly unit choices now persist when typed or selected; valid non-default dropdown options are no longer overwritten.

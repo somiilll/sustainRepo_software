@@ -333,6 +333,10 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
     return { fields: [], formulaId: null, matchedFormula: null };
   }
 
+  if (context.isScope3Like && !context.scope3Method) {
+    return { fields: [], formulaId: null, matchedFormula: null };
+  }
+
   let matchedFormula = null;
   if (context.isScope3Like && context.scope3Method && formConfig.formulas?.length) {
     matchedFormula = resolveScope3Formula(formConfig, context);

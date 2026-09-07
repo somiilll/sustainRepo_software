@@ -859,3 +859,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Changed monthly unit resolution to prioritize a stored user selection over the configured default, including when the quantity value has not been entered yet.
 - Stopped the monthly synchronization effect from resetting a valid alternative dropdown choice back to the first/default option.
 - Added the missing free-text unit control for yearly Supplier Basis override fields. Targeted ESLint and 8 focused unit tests passed.
+
+## Latest Changes — 2026-09-07 (Scope 3 Category/Method Transition)
+- Replaced the unconditional Scope 3 method reset on category change with a shared configuration-driven method resolver.
+- The selected method is preserved only when the destination category supports it; otherwise the form returns to Select Method.
+- Every category-dependent value is reinitialized on transition, including activity/type/subcategory/product, custom activity, units and entered ledger values, formula/calculation state, Spend currency defaults, and C7 employee calculation state.
+- **NOT TESTED** per the user’s explicit `dont test` instruction.

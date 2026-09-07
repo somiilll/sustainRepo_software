@@ -56,6 +56,7 @@ import {
   resolveGhgFormArchitecture,
   resolveGhgCategoryOptions,
   resolveGhgScope3Options,
+  resolveScope3MethodsForCategory,
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
@@ -1050,6 +1051,95 @@ export default function EmissionEntryForm({
   // Get available methods for selected category from Scope 3 EF
   // Always include supplier_basis as an option (except for biogenic)
   const availableScope3Methods = scope3PresentationOptions.methods;
+  const handleCategoryChange = useCallback((nextCategory) => {
+    if (nextCategory === category) return;
+
+    const supportedMethods = resolveScope3MethodsForCategory({
+      scope,
+      biogenicScopeSelection,
+      category: nextCategory,
+      scope3EFData,
+    });
+    const nextScope3Method = supportedMethods.includes(scope3Method) ? scope3Method : '';
+
+    setCategory(nextCategory);
+    setScope3Method(nextScope3Method);
+    setSpendCurrencyConversionMethod('ppp_inflation');
+    setFuelId('');
+    setUseCustomFuel(false);
+    setCustomFuelName('');
+    setCustomEmissionFactor('');
+    setCustomEmissionFactorUnit('');
+    setCustomSource('');
+    setScope3ActivityType('');
+    setScope3Subcategory('');
+    setTypeOfProduct('');
+    setScope3ActivityId('');
+    setUseCustomActivity(false);
+    setScope3CustomActivity('');
+    setFuelSearchTerm('');
+    setAssetName('');
+    setFromLocation('');
+    setToLocation('');
+    setSupplierName('');
+    setSupplierCode('');
+    setEmployees([]);
+    setEmployeeMonthlyTotals({});
+    setEmployeeYearlyTotal({});
+    setC7FormulaId(null);
+    setC7FormulaName('');
+    setDecisionFieldValues(nextScope3Method ? {
+      calculation_method_scope3: nextScope3Method,
+      ...(nextScope3Method === 'spend_basis' && {
+        spend_currency_conversion_method: 'ppp_inflation',
+      }),
+    } : {});
+    setMonthlyData({});
+    setYearlyData({});
+    setCalcEngineResult(null);
+    setYearlyCalcResult(null);
+    setMatchedFormulaId(null);
+    setFormConfig(null);
+  }, [
+    biogenicScopeSelection,
+    category,
+    scope,
+    scope3EFData,
+    scope3Method,
+    setAssetName,
+    setC7FormulaId,
+    setC7FormulaName,
+    setCalcEngineResult,
+    setCategory,
+    setCustomEmissionFactor,
+    setCustomEmissionFactorUnit,
+    setCustomFuelName,
+    setCustomSource,
+    setDecisionFieldValues,
+    setEmployeeMonthlyTotals,
+    setEmployeeYearlyTotal,
+    setEmployees,
+    setFormConfig,
+    setFromLocation,
+    setFuelId,
+    setFuelSearchTerm,
+    setMatchedFormulaId,
+    setMonthlyData,
+    setScope3ActivityId,
+    setScope3ActivityType,
+    setScope3CustomActivity,
+    setScope3Method,
+    setScope3Subcategory,
+    setSpendCurrencyConversionMethod,
+    setSupplierCode,
+    setSupplierName,
+    setToLocation,
+    setTypeOfProduct,
+    setUseCustomActivity,
+    setUseCustomFuel,
+    setYearlyCalcResult,
+    setYearlyData,
+  ]);
 
   const emissionFactorUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.EMISSION_FACTOR_UNIT] || [];
   const customFuelUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_EMISSION_FACTOR_UNIT] || [];
@@ -1261,6 +1351,29 @@ export default function EmissionEntryForm({
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
   const currentFormulaId = dynamicInputFieldsResult?.formulaId || null;
+  const supplierBasisUnitResetRef = useRef(false);
+  useEffect(() => {
+    if (scope3Method !== 'supplier_basis') {
+      supplierBasisUnitResetRef.current = false;
+      return;
+    }
+    if (editingEmission || supplierBasisUnitResetRef.current || dynamicInputFields.length === 0) return;
+
+    const unitKeys = dynamicInputFields
+      .filter((field) => !field.variable?.endsWith('_unit'))
+      .map((field) => `${field.variable}_unit`);
+    const clearUnits = (data = {}) => {
+      const next = { ...data };
+      unitKeys.forEach((key) => delete next[key]);
+      return next;
+    };
+
+    setMonthlyData((previousMonths) => Object.fromEntries(
+      Object.entries(previousMonths).map(([monthKey, data]) => [monthKey, clearUnits(data)]),
+    ));
+    setYearlyData((previous) => clearUnits(previous));
+    supplierBasisUnitResetRef.current = true;
+  }, [dynamicInputFields, editingEmission, scope3Method, setMonthlyData, setYearlyData]);
   const spendValueField = dynamicInputFields.find((field) => field.variable === 'spent_value');
   const spendSourceCurrency = yearlyData.spent_value_unit
     || Object.values(monthlyData).find((data) => data?.spent_value_unit)?.spent_value_unit
@@ -2971,6 +3084,7 @@ export default function EmissionEntryForm({
           disabledScopes={ghgFormArchitecture.organizationUiConfig.disabledScopes}
           hasScope3Access={hasScope3Access}
           setCategory={setCategory}
+          onCategoryChange={handleCategoryChange}
           setFuelId={setFuelId}
           setScope3Method={setScope3Method}
           spendCurrencyConversionMethod={spendCurrencyConversionMethod}

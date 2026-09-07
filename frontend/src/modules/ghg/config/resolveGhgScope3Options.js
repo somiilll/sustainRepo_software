@@ -9,6 +9,31 @@ const matchesCategory = (entry, category) => (
 
 const uniqueSorted = (values) => Array.from(new Set(values.filter(Boolean))).sort();
 
+export const resolveScope3MethodsForCategory = ({
+  scope,
+  biogenicScopeSelection,
+  category,
+  scope3EFData = [],
+} = {}) => {
+  const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+  const isScope3Like = scope === 'scope3' || isBiogenicScope3;
+  if (!isScope3Like || !category) return [];
+
+  const scopedRecords = isBiogenicScope3
+    ? scope3EFData.filter((entry) => entry.sub_scope === 'biogenic')
+    : scope3EFData.filter((entry) => entry.sub_scope !== 'biogenic');
+  const methods = new Set(
+    scopedRecords
+      .filter((entry) => matchesCategory(entry, category))
+      .map((entry) => entry.method),
+  );
+  methods.add('supplier_basis');
+  return [
+    ...METHOD_ORDER.filter((method) => methods.has(method)),
+    ...Array.from(methods).filter((method) => !METHOD_ORDER.includes(method)),
+  ];
+};
+
 /**
  * Presentation-only Scope 3 option resolver shared by Create and Edit.
  * It consumes existing EF records and resolved capabilities; it never changes
@@ -40,12 +65,12 @@ export const resolveGhgScope3Options = ({
     ? scope3EFData.filter((entry) => entry.sub_scope === 'biogenic')
     : scope3EFData.filter((entry) => entry.sub_scope !== 'biogenic');
   const categoryRecords = scopedRecords.filter((entry) => matchesCategory(entry, category));
-  const methods = new Set(categoryRecords.map((entry) => entry.method));
-  methods.add('supplier_basis');
-  const orderedMethods = [
-    ...METHOD_ORDER.filter((method) => methods.has(method)),
-    ...Array.from(methods).filter((method) => !METHOD_ORDER.includes(method)),
-  ];
+  const orderedMethods = resolveScope3MethodsForCategory({
+    scope,
+    biogenicScopeSelection,
+    category,
+    scope3EFData,
+  });
 
   const activityTypes = scope === 'scope3' && capabilities.activityType
     ? uniqueSorted([
