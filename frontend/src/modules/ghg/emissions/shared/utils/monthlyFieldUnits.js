@@ -9,7 +9,7 @@ export const resolveMonthlySelectableUnit = ({
   );
   const configuredMatch = findAllowedUnit(configuredUnit);
   const storedMatch = findAllowedUnit(storedUnit);
-  return configuredMatch || storedMatch || allowedUnits[0] || configuredUnit || storedUnit;
+  return storedMatch || configuredMatch || allowedUnits[0] || storedUnit || configuredUnit;
 };
 
 export default resolveMonthlySelectableUnit;

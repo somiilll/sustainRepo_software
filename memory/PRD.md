@@ -853,3 +853,9 @@ Provide a dependable ESG and GHG management platform where organization configur
 - Converted the Exchange Rate mapping seed to insert-only behavior so Super Admin changes are never overwritten during startup or reload.
 - Corrected fresh-catalog defaults and the manual Scope 3 currency seed so Exchange Rate is consistently unitless across `ce_variables`, `ce_properties`, and `ce_input_field_mappings`.
 - Re-applied the unitless migration locally and verified that running the startup seed again leaves the mapping unchanged (`unit_source: none`, no `default_unit`).
+
+## Latest Changes — 2026-09-07 (Scope 3 Unit Selection Persistence)
+- Removed the `2022_USD` fallback from blank Supplier Basis Quantity of Activity and Emission Factor unit fields; these free-text units now start empty and use only the user-entered value.
+- Changed monthly unit resolution to prioritize a stored user selection over the configured default, including when the quantity value has not been entered yet.
+- Stopped the monthly synchronization effect from resetting a valid alternative dropdown choice back to the first/default option.
+- Added the missing free-text unit control for yearly Supplier Basis override fields. Targeted ESLint and 8 focused unit tests passed.

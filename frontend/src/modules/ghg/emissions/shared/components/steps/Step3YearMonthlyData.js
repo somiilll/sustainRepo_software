@@ -107,13 +107,11 @@ const resolveEffectiveFieldUnit = ({
   if (!field) return '';
   const valueKey = field.valueKey || field.variable || field.fieldKey;
   const unitKey = field.unitKey || `${valueKey}_unit`;
-  const storedValue = getMonthlyFieldValue(field, data) ?? '';
-  const defaultValue = getFieldDefaultValue(field, selectedFuel);
   const storedUnit = data[unitKey]
     || (!isProcessEmissions ? data.unit : '')
     || '';
   const defaultUnit = field.defaultUnit || getFieldDefaultUnit(field, selectedFuel, fieldUnits);
-  return !hasFieldValue(storedValue) ? defaultUnit : (storedUnit || defaultUnit);
+  return storedUnit || defaultUnit;
 };
 
 /** Keep the unit stored in monthly row state identical to the unit shown by the selector. */
@@ -133,11 +131,8 @@ const resolveMonthlyFieldUnit = ({
   });
   const valueKey = field?.valueKey || field?.variable || field?.fieldKey;
   const unitKey = field?.unitKey || `${valueKey}_unit`;
-  const storedValue = getMonthlyFieldValue(field, data);
   return resolveMonthlySelectableUnit({
-    storedUnit: hasFieldValue(storedValue)
-      ? data[unitKey] || (!isProcessEmissions ? data.unit : '') || ''
-      : '',
+    storedUnit: data[unitKey] || (!isProcessEmissions ? data.unit : '') || '',
     configuredUnit: effectiveUnit,
     allowedUnits: fieldUnits,
   });
@@ -531,7 +526,6 @@ export const Step3YearMonthlyData = ({
         if (
           storedUnit
           && (fieldUnits.length === 0 || storedUnitIsAllowed)
-          && storedUnit.toLowerCase() === initialUnit.toLowerCase()
         ) return;
 
         nextMonths[monthKey] = {
@@ -1030,6 +1024,8 @@ export const Step3YearMonthlyData = ({
                 const showTextUnit = !hideUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                 const displayedUnit = densityState
                   ? (data.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit)
+                  : isSupplierBasis
+                    ? (data[`${field.variable}_unit`] || '')
                   : resolveEffectiveFieldUnit({
                     field,
                     data,
@@ -1593,13 +1589,15 @@ const YearlyDataEntry = ({
                   const displayedValue = hasFieldValue(yearlyData[field.variable])
                     ? yearlyData[field.variable]
                     : defaultValue;
-                  const displayedUnit = resolveEffectiveFieldUnit({
-                    field,
-                    data: yearlyData,
-                    selectedFuel,
-                    fieldUnits,
-                    isProcessEmissions,
-                  });
+                  const displayedUnit = isSupplierBasis
+                    ? (yearlyData[`${field.variable}_unit`] || '')
+                    : resolveEffectiveFieldUnit({
+                      field,
+                      data: yearlyData,
+                      selectedFuel,
+                      fieldUnits,
+                      isProcessEmissions,
+                    });
                   const showUnitSelector = showCustomFuelQuantityUnit
                     || (!hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis);
                   const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
@@ -1740,13 +1738,15 @@ const YearlyDataEntry = ({
                   const displayedValue = hasFieldValue(yearlyData[field.variable])
                     ? yearlyData[field.variable]
                     : defaultValue;
-                  const displayedUnit = resolveEffectiveFieldUnit({
-                    field,
-                    data: yearlyData,
-                    selectedFuel,
-                    fieldUnits,
-                    isProcessEmissions,
-                  });
+                  const displayedUnit = isSupplierBasis
+                    ? (yearlyData[`${field.variable}_unit`] || '')
+                    : resolveEffectiveFieldUnit({
+                      field,
+                      data: yearlyData,
+                      selectedFuel,
+                      fieldUnits,
+                      isProcessEmissions,
+                    });
                   const showUnitSelector = !hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
                   const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   const overrideKey = `override_${field.variable}`;
@@ -1875,6 +1875,7 @@ const YearlyDataEntry = ({
                   const fieldUnits = densityState
                     ? [yearlyData.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit].filter(Boolean)
                     : configuredFieldUnits;
+                  const isSupplierBasis = scope3Method === 'supplier_basis';
                   const defaultValue = densityState?.defaultDensity?.value
                     ?? resolveSpendDefaultValue(field, yearlyReportingPeriod)
                     ?? getFieldDefaultValue(field, selectedFuel);
@@ -1883,6 +1884,8 @@ const YearlyDataEntry = ({
                     : defaultValue;
                   const displayedUnit = densityState
                     ? (yearlyData.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit)
+                    : isSupplierBasis
+                      ? (yearlyData[`${field.variable}_unit`] || '')
                     : resolveEffectiveFieldUnit({
                       field,
                       data: yearlyData,
@@ -1890,7 +1893,10 @@ const YearlyDataEntry = ({
                       fieldUnits,
                       isProcessEmissions,
                     });
-                  const showStandardExpectedUnit = (densityState?.visible || field.expectedUnit) && !(useCustomFuel && isQuantityField(field));
+                  const showTextUnitInput = isSupplierBasis && !field.variable?.endsWith('_unit');
+                  const showStandardExpectedUnit = !showTextUnitInput
+                    && (densityState?.visible || field.expectedUnit)
+                    && !(useCustomFuel && isQuantityField(field));
                   
                   return (
                     <div key={field.variable} className="min-w-0">
@@ -1940,7 +1946,7 @@ const YearlyDataEntry = ({
                         )}
                       </div>
                       
-                      <div className={showStandardExpectedUnit ? "flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
+                      <div className={showStandardExpectedUnit || showTextUnitInput ? "flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
                         <Input
                           type="number"
                           step="any"
@@ -1954,7 +1960,7 @@ const YearlyDataEntry = ({
                               setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                             }
                           }}
-                          className={`${showStandardExpectedUnit ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : 'bg-white'} ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                          className={`${showStandardExpectedUnit || showTextUnitInput ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : 'bg-white'} ${!isOverrideEnabled ? 'opacity-50' : ''}`}
                           data-testid={`yearly-${field.fieldKey || field.variable}-override-input`}
                         />
                         {showStandardExpectedUnit && (
@@ -1972,6 +1978,20 @@ const YearlyDataEntry = ({
                               <span>{displayedUnit}</span>
                             </div>
                           )
+                        )}
+                        {showTextUnitInput && (
+                          <Input
+                            type="text"
+                            placeholder="Unit"
+                            value={displayedUnit}
+                            disabled={!isOverrideEnabled}
+                            onChange={(e) => setYearlyData(prev => ({
+                              ...prev,
+                              [`${field.variable}_unit`]: e.target.value,
+                            }))}
+                            className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                            data-testid={`yearly-${field.fieldKey || field.variable}-override-unit-text`}
+                          />
                         )}
                       </div>
                     </div>

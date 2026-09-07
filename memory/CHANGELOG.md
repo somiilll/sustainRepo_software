@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 7, 2026 — Scope 3 Unit Controls Fixed
+- Supplier Basis free-text units now start blank instead of inheriting the first global unit (`2022_USD`).
+- Monthly and yearly unit choices now persist when typed or selected; valid non-default dropdown options are no longer overwritten.
+- Targeted ESLint and 8 unit-control regression tests passed.
+
 ## September 7, 2026 — Exchange Rate Unit Reset Fixed
 - Removed the startup seed overwrite that repeatedly restored the Exchange Rate mapping unit to `1`.
 - Startup now inserts the mapping only when missing and preserves all later Super Admin edits.

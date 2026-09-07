@@ -24,12 +24,12 @@ describe('Process Emissions monthly field normalization', () => {
     })).toBe('kL');
   });
 
-  it('prefers the active configured unit over a stale allowed monthly unit', () => {
+  it('keeps the user-selected unit when the configured default is also allowed', () => {
     expect(resolveMonthlySelectableUnit({
       storedUnit: 'kg',
       configuredUnit: 'L',
       allowedUnits: ['kg', 'L'],
-    })).toBe('L');
+    })).toBe('kg');
   });
 
   it('gives the rendered Quantity field one canonical state identity', () => {
