@@ -109,6 +109,17 @@ export function extractInputsForCalcEngine(data, ctx) {
     }
   });
 
+  // Scope 2 currently has a generic source configuration rather than an
+  // input-field mapping. Preserve its ledger quantity in the canonical input
+  // contract until that configuration is fully data-driven.
+  if (dynamicInputFields.length === 0 && hasNumericValue(data.quantity)) {
+    const unit = data.unit || ctx.selectedFuel?.allowed_units?.[0] || ctx.defaultUnit || '';
+    const value = parseFloat(data.quantity);
+    inputs.qty = { value, unit };
+    primaryQuantity = value;
+    primaryUnit = unit;
+  }
+
   // Process Emissions creates Density at runtime when its selected units need
   // a mass/volume conversion. That virtual field is not always part of the
   // configured mapping list, but the calc engine must still receive it as a
@@ -168,6 +179,13 @@ export function buildDynamicFieldValues(data, ctx) {
       out[field.variable] = { value: parsedValue, unit };
     }
   });
+
+  if (dynamicInputFields.length === 0 && hasNumericValue(data.quantity)) {
+    out.qty = {
+      value: parseFloat(data.quantity),
+      unit: data.unit || ctx.selectedFuel?.allowed_units?.[0] || ctx.defaultUnit || '',
+    };
+  }
 
   // Persist runtime Density controls even when the process configuration has
   // no density mapping. This keeps Edit hydration and the calculation audit

@@ -40,6 +40,7 @@ const FUEL_DEFAULT_VALUE_KEYS = {
   ch4_ef: 'emission_factor_ch4',
   n2o_ef: 'emission_factor_n2o',
   emission_factor_basis_quantity: 'emission_factor_basis_quantity',
+  ef_quantity_electricity_co2: 'emission_factor_basis_quantity',
   co2_gwp_fugitives: 'gwp_fugitives',
 };
 
@@ -47,6 +48,7 @@ const FUEL_DEFAULT_UNIT_KEYS = {
   cv: 'calorific_value_unit',
   density: 'density_unit',
   emission_factor_basis_quantity: 'emission_factor_basis_unit',
+  ef_quantity_electricity_co2: 'emission_factor_basis_unit',
 };
 
 const hasFieldValue = (value) => value !== undefined && value !== null && value !== '';
@@ -254,6 +256,7 @@ const deriveLedgerColumns = (
   useCustomFuel,
   calculationMethodology,
   isFugitiveCustomFuel,
+  scope,
 ) => {
   if (isProcessEmissions && selectedTemplate?.input_fields?.length > 0) {
     return selectedTemplate.input_fields.map(f => ({
@@ -266,7 +269,7 @@ const deriveLedgerColumns = (
   if (formConfig && dynamicInputFields.length > 0) {
     const primaryColumns = dynamicInputFields.map(f => ({
       key: f.variable,
-      label: f.label,
+      label: scope === 'scope2' && f.variable === 'qty_energy' ? 'Quantity' : f.label,
       unit: null,
       required: (f.required && !f.isOverride)
         || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives'),
@@ -279,6 +282,9 @@ const deriveLedgerColumns = (
   }
   // Legacy fallback
   const primaryColumns = [{ key: 'quantity', label: 'Quantity', unit: null, required: true }];
+  if (scope === 'scope2' && !useCustomFuel) {
+    primaryColumns.push({ key: 'scope2_default_factor', label: 'Emission Factor', unit: null, scope2DefaultFactor: true });
+  }
   return useCustomFuel
     ? [...primaryColumns, ...getCustomFuelLedgerColumns(calculationMethodology, isFugitiveCustomFuel)]
     : primaryColumns;
@@ -536,6 +542,32 @@ export const Step3YearMonthlyData = ({
   ]);
 
   useEffect(() => {
+    const sourceUnit = selectedFuel?.allowed_units?.[0];
+    if (scope !== 'scope2' || formConfig || !sourceUnit) return;
+
+    if (frequencyType === 'monthly') {
+      setMonthlyData((previousMonths) => {
+        let changed = false;
+        const nextMonths = { ...previousMonths };
+        activeMonths.forEach((month) => {
+          const monthKey = month.key || month;
+          const current = previousMonths[monthKey] || {};
+          if (selectedFuel.allowed_units.includes(current.unit)) return;
+          nextMonths[monthKey] = { ...current, unit: sourceUnit };
+          changed = true;
+        });
+        return changed ? nextMonths : previousMonths;
+      });
+    } else {
+      setYearlyData((previous) => (
+        selectedFuel.allowed_units.includes(previous.unit)
+          ? previous
+          : { ...previous, unit: sourceUnit }
+      ));
+    }
+  }, [activeMonths, formConfig, frequencyType, scope, selectedFuel, setMonthlyData, setYearlyData]);
+
+  useEffect(() => {
     if (useCustomFuel) return;
     if (!['using_heat_basis_ncv', 'using_qty_basis_ef', 'using_carbon_composition'].includes(calculationMethodology)) return;
 
@@ -731,6 +763,7 @@ export const Step3YearMonthlyData = ({
               useCustomFuel,
               calculationMethodology,
               isFugitiveCustomFuel,
+              scope,
             ).filter((column) => (
               !densityField
               || column.key !== densityField.variable
@@ -744,6 +777,25 @@ export const Step3YearMonthlyData = ({
 
             // Compact cell input renderer — no labels, just input + unit
             const renderCellInput = (col, monthKey, data) => {
+              if (col.scope2DefaultFactor) {
+                const factor = selectedFuel?.emission_factor_basis_quantity;
+                const factorUnit = selectedFuel?.emission_factor_basis_unit || 'tCO₂/MWh';
+                return (
+                  <div className="flex overflow-hidden rounded border border-stone-200 bg-stone-50" data-testid={`month-${monthKey}-scope2-default-factor`}>
+                    <Input
+                      readOnly
+                      value={factor ?? ''}
+                      placeholder="Select energy source"
+                      className="h-8 min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-stone-700 shadow-none focus-visible:ring-0"
+                      data-testid={`month-${monthKey}-scope2-default-factor-value`}
+                    />
+                    <span className="flex h-8 min-w-[4.5rem] items-center border-l border-l-stone-200 px-2 text-xs text-stone-600" data-testid={`month-${monthKey}-scope2-default-factor-unit`}>
+                      {factorUnit}
+                    </span>
+                  </div>
+                );
+              }
+
               // Process emissions path
               if (isProcessEmissions && selectedTemplate) {
                 const field = normalizedProcessTemplateFields.find((candidate) => candidate.valueKey === col.key);
@@ -1035,6 +1087,12 @@ export const Step3YearMonthlyData = ({
               }
 
               // Legacy quantity path
+              const legacyQuantityUnits = scope === 'scope2' && selectedFuel?.allowed_units?.length
+                ? selectedFuel.allowed_units
+                : allowedUnits;
+              const legacyQuantityUnit = scope === 'scope2'
+                ? (data.unit || legacyQuantityUnits[0] || '')
+                : (data.unit || defaultUnit);
               return (
                 <div className="flex items-center gap-1">
                   <Input
@@ -1052,14 +1110,14 @@ export const Step3YearMonthlyData = ({
                     data-testid={`month-${monthKey}-quantity`}
                   />
                   <select
-                    value={useCustomFuel ? (data.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '') : (data.unit || defaultUnit)}
+                    value={useCustomFuel ? (data.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '') : legacyQuantityUnit}
                     onChange={(e) => {
                       if (useCustomFuel) updateMonthData(monthKey, 'custom_qty_unit', e.target.value);
                       updateMonthData(monthKey, 'unit', e.target.value);
                     }}
                     className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
                     data-testid={useCustomFuel ? `month-${monthKey}-custom-qty-unit` : `month-${monthKey}-unit`}
-                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(useCustomFuel ? customQuantityUnitOptions : allowedUnits) }}
+                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(useCustomFuel ? customQuantityUnitOptions : legacyQuantityUnits) }}
                   />
                 </div>
               );
@@ -1319,6 +1377,7 @@ export const Step3YearMonthlyData = ({
           setYearlyData={setYearlyData}
           scope3Method={scope3Method}
           scope3ActivityType={scope3ActivityType}
+          scope={scope}
           category={category}
           selectedFuel={selectedFuel}
           capabilities={capabilities}
@@ -1356,6 +1415,7 @@ const YearlyDataEntry = ({
   setYearlyData,
   scope3Method,
   scope3ActivityType,
+  scope,
   category,
   selectedFuel,
   capabilities = {},
@@ -1378,6 +1438,12 @@ const YearlyDataEntry = ({
   const customQuantityUnitOptions = isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
     ? customFugitiveQuantityUnits
     : customFuelQuantityUnits;
+  const scope2QuantityUnits = scope === 'scope2' && selectedFuel?.allowed_units?.length
+    ? selectedFuel.allowed_units
+    : [];
+  const selectedScope2QuantityUnit = scope2QuantityUnits.includes(yearlyData.unit)
+    ? yearlyData.unit
+    : (scope2QuantityUnits[0] || '');
   const yearlyDensityFields = isProcessEmissions && selectedTemplate?.input_fields?.length
     ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
     : dynamicInputFields;
@@ -1894,7 +1960,7 @@ const YearlyDataEntry = ({
         ) : (
           /* Legacy mode: Simple quantity/unit input for yearly */
           <div className="space-y-4">
-            <div className={useCustomFuel ? "" : "max-w-xl"}>
+            <div className={scope === 'scope2' && !useCustomFuel ? 'grid max-w-3xl grid-cols-1 gap-4 md:grid-cols-2' : useCustomFuel ? '' : 'max-w-xl'}>
               <div className="space-y-2">
                 <Label>Annual Quantity <span className="text-red-500">*</span></Label>
                 <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
@@ -1914,7 +1980,9 @@ const YearlyDataEntry = ({
                   <select
                     value={useCustomFuel
                       ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '')
-                      : (yearlyData.unit || defaultUnit)}
+                      : scope === 'scope2'
+                        ? selectedScope2QuantityUnit
+                        : (yearlyData.unit || defaultUnit)}
                     onChange={(e) => setYearlyData(prev => ({
                       ...prev,
                       ...(useCustomFuel ? { custom_qty_unit: e.target.value } : {}),
@@ -1925,6 +1993,8 @@ const YearlyDataEntry = ({
                     dangerouslySetInnerHTML={{
                       __html: useCustomFuel
                         ? buildNativeOptionsHtml(customQuantityUnitOptions)
+                      : scope === 'scope2'
+                        ? buildNativeOptionsHtml(scope2QuantityUnits)
                         : buildNativeOptionsHtml(centralizedUnits, {
                           getValue: (unit) => unit.symbol,
                           getLabel: (unit) => `${unit.symbol} (${unit.name})`,
@@ -1933,6 +2003,23 @@ const YearlyDataEntry = ({
                   />
                 </div>
               </div>
+              {scope === 'scope2' && !useCustomFuel && (
+                <div className="space-y-2" data-testid="yearly-scope2-default-factor">
+                  <Label>Default Emission Factor</Label>
+                  <div className="flex overflow-hidden rounded-md border border-stone-200 bg-stone-50">
+                    <Input
+                      readOnly
+                      value={selectedFuel?.emission_factor_basis_quantity ?? ''}
+                      placeholder="Select energy source"
+                      className="h-10 min-w-0 flex-1 rounded-none border-0 bg-transparent text-stone-700 shadow-none focus-visible:ring-0"
+                      data-testid="yearly-scope2-default-factor-value"
+                    />
+                    <span className="flex h-10 min-w-28 items-center border-l border-l-stone-200 px-3 text-sm text-stone-600" data-testid="yearly-scope2-default-factor-unit">
+                      {selectedFuel?.emission_factor_basis_unit || 'tCO₂/MWh'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {useCustomFuel && (
