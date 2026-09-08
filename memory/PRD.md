@@ -100,7 +100,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET /api/organizations/my`, `PUT /api/organizations/my`
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
-## Latest Change — September 7, 2026
+## Latest Change — September 8, 2026
+- Scope 1 Bulk Upload now stores Carbon Content and Oxidation Factor as standard required calculation inputs, matching manual entry, without adding `is_override: true`.
+- Genuine override fields such as Calorific Value and Density retain their override metadata.
+- **VERIFIED:** Focused payload-shape regressions passed 2/2 before the user requested no further testing.
+
+## Previous Change — September 7, 2026
 - Bulk-uploaded Scope 1 records now persist the derived `calculation_methodology` in `dynamic_field_values`, matching manual emission entry and edit payloads.
 - **VERIFIED:** Processor compiles and the dynamic-field persistence path is present.
 
@@ -216,6 +221,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **P0:** Existing Scope 1 records uploaded before September 8 may retain incorrect override metadata; migrate only after explicit approval.
 - **P0:** Fix deferred token expiry/session-state mismatch that causes random logouts.
 - **P0:** Existing supplier assessment-program revision migration/reassignment flow.
 - **P0:** Explicit supplier facility-limit policy and canonical target-system consolidation.

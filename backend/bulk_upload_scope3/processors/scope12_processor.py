@@ -148,6 +148,50 @@ class Scope12RowProcessor:
         if self._has_value(row_data.get("ef_quantity")):
             return "using_qty_basis_ef"
         return "using_heat_basis_ncv"
+
+    @staticmethod
+    def _add_carbon_composition_inputs(row_data: Dict, inputs: Dict) -> None:
+        inputs["carbon_content"] = {
+            "value": float(row_data.get("carbon_content", 0)),
+            "unit": "%",
+        }
+        inputs["oxidation_factor"] = {
+            "value": float(row_data.get("oxidation_factor", 0)),
+            "unit": "",
+        }
+
+    @staticmethod
+    def _build_scope1_dynamic_field_values(
+        row_data: Dict,
+        inputs: Dict,
+        user_overrides: Dict,
+        derived_methodology: str,
+    ) -> Dict:
+        dynamic_field_values = {
+            "qty": inputs["qty"],
+        }
+        if derived_methodology:
+            dynamic_field_values["calculation_methodology"] = {
+                "value": derived_methodology,
+                "unit": "",
+            }
+        if row_data.get("cv"):
+            dynamic_field_values["cv"] = user_overrides.get("cv", {})
+        if row_data.get("density"):
+            dynamic_field_values["density"] = user_overrides.get("density", {})
+        if row_data.get("ef_quantity"):
+            ef_key = "ef_co2" if derived_methodology == "using_heat_basis_ncv" else "ef_quantity"
+            dynamic_field_values[ef_key] = user_overrides.get(
+                ef_key,
+                user_overrides.get("ef_quantity", inputs.get("ef_quantity", {})),
+            )
+        if row_data.get("co2_gwp_fugitives"):
+            dynamic_field_values["co2_gwp_fugitives"] = user_overrides.get("co2_gwp_fugitives", {})
+        if row_data.get("carbon_content"):
+            dynamic_field_values["carbon_content"] = inputs.get("carbon_content", {})
+        if row_data.get("oxidation_factor"):
+            dynamic_field_values["oxidation_factor"] = inputs.get("oxidation_factor", {})
+        return dynamic_field_values
     
     async def process_scope1_row(self, row_data: Dict, row_num: int,
                                   existing_keys: set, bulk_job_id: str) -> tuple:
@@ -811,12 +855,7 @@ class Scope12RowProcessor:
         if is_custom_fuel and derived_methodology:
             # ── Custom Fuel: build inputs/overrides per auto-derived methodology ──
             if derived_methodology == "using_carbon_composition":
-                carbon_content = float(row_data.get("carbon_content", 0))
-                oxidation_factor = float(row_data.get("oxidation_factor", 0))
-                inputs["carbon_content"] = {"value": carbon_content, "unit": "%"}
-                inputs["oxidation_factor"] = {"value": oxidation_factor, "unit": ""}
-                user_overrides["carbon_content"] = {"value": carbon_content, "unit": "%", "is_override": True}
-                user_overrides["oxidation_factor"] = {"value": oxidation_factor, "unit": "", "is_override": True}
+                self._add_carbon_composition_inputs(row_data, inputs)
                 
             elif derived_methodology == "using_heat_basis_ncv" and self._has_value(row_data.get("cv")):
                 cv_value = float(row_data.get("cv"))
@@ -861,14 +900,8 @@ class Scope12RowProcessor:
                 user_overrides["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg", "is_override": True}
             
             # Carbon content + oxidation factor for standard stationary combustion
-            if row_data.get("carbon_content"):
-                cc_value = float(row_data.get("carbon_content"))
-                inputs["carbon_content"] = {"value": cc_value, "unit": "%"}
-                user_overrides["carbon_content"] = {"value": cc_value, "unit": "%", "is_override": True}
-            if row_data.get("oxidation_factor"):
-                of_value = float(row_data.get("oxidation_factor"))
-                inputs["oxidation_factor"] = {"value": of_value, "unit": ""}
-                user_overrides["oxidation_factor"] = {"value": of_value, "unit": "", "is_override": True}
+            if row_data.get("carbon_content") or row_data.get("oxidation_factor"):
+                self._add_carbon_composition_inputs(row_data, inputs)
         
         # GWP for fugitives - user override OR from fuel_database
         if row_data.get("co2_gwp_fugitives"):
@@ -916,28 +949,14 @@ class Scope12RowProcessor:
         else:
             logger.warning(f"[SCOPE1_BULK] No formula found for category_id={category_id}, formula_id={formula_id}")
         
-        # Build dynamic_field_values matching manual upload structure
-        dynamic_field_values = {
-            "qty": {"value": qty, "unit": unit_qty},
-        }
-        if derived_methodology:
-            dynamic_field_values["calculation_methodology"] = {
-                "value": derived_methodology,
-                "unit": "",
-            }
-        if row_data.get("cv"):
-            dynamic_field_values["cv"] = user_overrides.get("cv", {})
-        if row_data.get("density"):
-            dynamic_field_values["density"] = user_overrides.get("density", {})
-        if row_data.get("ef_quantity"):
-            ef_key = "ef_co2" if derived_methodology == "using_heat_basis_ncv" else "ef_quantity"
-            dynamic_field_values[ef_key] = user_overrides.get(ef_key, user_overrides.get("ef_quantity", {}))
-        if row_data.get("co2_gwp_fugitives"):
-            dynamic_field_values["co2_gwp_fugitives"] = user_overrides.get("co2_gwp_fugitives", {})
-        if row_data.get("carbon_content"):
-            dynamic_field_values["carbon_content"] = user_overrides.get("carbon_content", {})
-        if row_data.get("oxidation_factor"):
-            dynamic_field_values["oxidation_factor"] = user_overrides.get("oxidation_factor", {})
+        # Build dynamic_field_values matching manual upload structure.
+        # Carbon Composition inputs are required formula inputs, not overrides.
+        dynamic_field_values = self._build_scope1_dynamic_field_values(
+            row_data=row_data,
+            inputs=inputs,
+            user_overrides=user_overrides,
+            derived_methodology=derived_methodology,
+        )
         
         # Build emission record matching manual upload structure
         # Flaring records are stored with category "Flaring" (or the DB name)

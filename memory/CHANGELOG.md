@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 8, 2026 — Scope 1 Bulk Carbon Input Alignment
+- Removed incorrect override classification from bulk-uploaded Carbon Content and Oxidation Factor fields.
+- Bulk Upload now persists these required formula inputs using the same `value` and `unit` shape as manual entry, while genuine Calorific Value and Density overrides remain unchanged.
+- Focused payload-shape tests passed 2/2 before the user requested no further testing.
+
 ## September 7, 2026 — Facility Form Spacing Consistency
 - Standardized the Facility edit form to one vertical spacing scale across sections, field rows, Address, and Attachments.
 - Made each field grid responsive so rows retain even spacing when the dialog narrows.

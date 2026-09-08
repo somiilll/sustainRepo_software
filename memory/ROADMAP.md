@@ -58,6 +58,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Aligned Scope 1 Bulk Upload Carbon Content and Oxidation Factor persistence with manual entry by removing incorrect `is_override` metadata while preserving genuine override fields.
 - Added immutable formula and decision-tree version pinning for all new manual/C7/Bulk Upload emissions, historical edit calculation, canonical formula snapshots, and server-side guards against silent upgrades. Older unversioned records remain untouched pending the approved migration design.
 - Added configurable monthly, quarterly, and yearly supplier GHG submission cadence. Period submissions lock independently, parent unlock requires a reason with optional instructions and no secondary confirmation, and the shared backend guard blocks supplier writes to locked periods.
 - Completed the canonical ESG response migration: all runtime reads/writes now use `organization_esg_responses`, immutable history remains in `esg_responses_versions`, the questionnaire queue is source-isolated, and the empty `esg_responses` collection was dropped after 37/37 migration regressions passed.
