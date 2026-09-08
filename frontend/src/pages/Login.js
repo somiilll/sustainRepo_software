@@ -69,15 +69,14 @@ export default function Login() {
         )}
       </section>
 
-      <section className="flex items-center justify-center bg-white px-6 py-12 sm:px-10 lg:min-h-screen lg:px-14" data-testid="login-form-panel">
+      <section className="flex items-center justify-center bg-[#ccefe8] px-6 py-12 sm:px-10 lg:min-h-screen lg:px-14" data-testid="login-form-panel">
         <div className="w-full max-w-md" data-testid="login-form-container">
-          <div className="border border-[#d9e6e0] bg-white p-6 shadow-[0_18px_45px_rgba(19,56,45,0.10)] sm:p-9">
-            <div className="mb-7 flex items-center justify-start">
+          <div className="border border-[#d9e6e0] bg-white p-6 shadow-[0_18px_45px_rgba(19,87,87,0.13)] sm:p-9" data-testid="login-card">
+            <div className="mb-8 flex flex-col items-center text-center" data-testid="login-brand-block">
               <img src={logoUrl} alt="SustainRepo Logo" className="w-16 h-16 rounded-full" data-testid="login-logo" />
+              <h1 className="mb-2 mt-5 text-4xl font-heading font-bold text-text-primary" data-testid="login-title">SustainRepo</h1>
+              <p className="text-sm text-text-secondary" data-testid="login-subtitle">Carbon Emissions Management Platform</p>
             </div>
-            
-            <h1 className="mb-2 text-4xl font-heading font-bold text-text-primary" data-testid="login-title">SustainRepo</h1>
-            <p className="mb-8 text-sm text-text-secondary" data-testid="login-subtitle">Carbon Emissions Management Platform</p>
             
             <form onSubmit={handleLogin} className="space-y-5" data-testid="login-form">
               <div className="space-y-2">
@@ -90,7 +89,7 @@ export default function Login() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   data-testid="login-email-input"
-                  className="h-12 bg-stone-50"
+                  className="h-12 border-[#b9dada] bg-white/90"
                 />
               </div>
               
@@ -104,7 +103,7 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   data-testid="login-password-input"
-                  className="h-12 bg-stone-50"
+                  className="h-12 border-[#b9dada] bg-white/90"
                 />
               </div>
               
