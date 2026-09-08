@@ -40,7 +40,7 @@ export default function Login() {
     setLoading(true);
     try {
       const userData = await login(email, password);
-      toast.success('Login successful!');
+      toast.success('Sign in successful!');
       // Redirect based on user role
       if (userData.role === 'super_admin') {
         navigate('/super-admin');
@@ -50,7 +50,7 @@ export default function Login() {
         navigate('/dashboard');
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Login failed');
+      toast.error(error.response?.data?.detail || 'Sign in failed');
     } finally {
       setLoading(false);
     }
@@ -126,7 +126,7 @@ export default function Login() {
                 disabled={loading}
                 data-testid="login-submit-button"
               >
-                {loading ? 'Logging in...' : 'Login'}
+                {loading ? 'Signing in...' : 'Sign in'}
               </Button>
             </form>
             

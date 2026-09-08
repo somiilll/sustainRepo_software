@@ -101,6 +101,14 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Updated Supplier Assessment ranking KPI cards so each icon sits to the left of its heading, including **Suppliers assessed**.
+- **NOT TESTED:** Per the user’s explicit instruction.
+
+## Previous Change — September 7, 2026
+- Replaced login-page user-facing authentication wording with **Sign in**, including loading, success, and fallback error messages.
+- **VERIFIED:** Live login screen renders the primary **Sign in** button correctly.
+
+## Previous Change — September 7, 2026
 - Polished the login page with a balanced pale-green-to-blue form-panel gradient, softened white form card, refined input focus/hover states, and a more tactile sign-in button.
 - Added an accessible Show/Hide Password control, preserving the existing sign-in behavior and all login routes.
 - Centered and clarified the account-recovery/contact actions beneath a subtle divider.
