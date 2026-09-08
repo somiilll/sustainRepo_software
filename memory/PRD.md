@@ -102,7 +102,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ## Latest Change — September 8, 2026
 - Scope 3 Spend Basis Bulk Upload now infers Standard Currency Conversion when only Spent Amount is supplied. Providing Purchase Power Value and/or Inflation Rate selects PPP and Inflation Rate, and each supplied value is retained as an override.
-- The Excel selector remains **Currency Conversion Method**; standard-rate overrides use **Exchange Rate (Override)**.
+- The Excel column is **Standard Currency Conversion**; the legacy **Currency Conversion Method** header remains accepted when importing existing workbooks. Standard-rate overrides use **Exchange Rate (Override)**.
 - **NOT TESTED:** Per the user’s standing instruction.
 
 ## Previous Change — September 8, 2026
