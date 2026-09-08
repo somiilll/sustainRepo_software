@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Per user confirmation, permanently deleted all 14 Scope 1 emission records for ORG1 (`9067d872-8a3a-4ed9-8494-e3ef04952f7c`), plus 14 directly linked emission-history rows and 14 calculation-audit rows.
+- **VERIFIED:** No matching Scope 1 records remain for ORG1. Follow-ups on organization-type conversion and duplicate-email organization checks are deferred.
+
+## Previous Change — September 7, 2026
 - Bulk-upload reporting-month parsing now removes harmless whitespace around hyphens, accepting values such as `2026 - 06` and normalizing them to `2026-06` across Scope 1, Scope 2, and Scope 3.
 - **VERIFIED:** Parser accepts spaced and standard month formats while rejecting invalid months.
 
