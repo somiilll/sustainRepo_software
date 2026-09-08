@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Softened the Excellent, Good, and Overdue follow-up status-card colors in Supplier Assessment ranking and removed their decorative line artwork.
+- **NOT TESTED:** Per the user’s explicit instruction.
+
+## Previous Change — September 7, 2026
 - Updated Supplier Assessment ranking KPI cards so each icon sits to the left of its heading, including **Suppliers assessed**.
 - **NOT TESTED:** Per the user’s explicit instruction.
 
