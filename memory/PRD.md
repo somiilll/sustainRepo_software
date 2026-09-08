@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Bulk-upload reporting-month parsing now removes harmless whitespace around hyphens, accepting values such as `2026 - 06` and normalizing them to `2026-06` across Scope 1, Scope 2, and Scope 3.
+- **VERIFIED:** Parser accepts spaced and standard month formats while rejecting invalid months.
+
+## Previous Change — September 7, 2026
 - Removed the Assessment module coverage filter; the chart now consistently shows all configured modules.
 - Increased vertical separation between the Attributed emissions by scope `Total` caption and the center value to prevent overlap.
 - **NOT TESTED:** Per the user’s explicit instruction.

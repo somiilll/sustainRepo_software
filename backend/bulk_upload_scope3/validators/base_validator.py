@@ -103,7 +103,7 @@ class BaseValidator:
         if not value:
             return None, "Reporting month is required"
         
-        value = str(value).strip()
+        value = re.sub(r'\s*-\s*', '-', str(value).strip())
         
         # Month name to number mapping
         month_map = {
