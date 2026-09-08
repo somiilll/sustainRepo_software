@@ -2,7 +2,7 @@
 Base validator class for Scope 3 Bulk Upload
 """
 from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 
 from ..models import (
@@ -140,6 +140,12 @@ class BaseValidator:
                         year = int(parts[0])
                         month = int(parts[1])
                         if 1900 <= year <= 2100 and 1 <= month <= 12:
+                            current_date = datetime.now(timezone.utc)
+                            if (year, month) > (current_date.year, current_date.month):
+                                return None, (
+                                    f"Reporting month '{result}' cannot be in the future. "
+                                    f"Use {current_date.strftime('%Y-%m')} or an earlier period."
+                                )
                             return result, None
                 except (ValueError, AttributeError, IndexError):
                     pass
@@ -184,6 +190,14 @@ class BaseValidator:
             if int(end_year) != int(start_year) + 1:
                 return None, None, f"Invalid FY year range: end year should be {int(start_year) + 1}"
             
+            current_date = datetime.now(timezone.utc)
+            current_fy_start_year = current_date.year if current_date.month >= 4 else current_date.year - 1
+            if int(start_year) > current_fy_start_year:
+                return None, None, (
+                    f"Reporting year 'FY {start_year}-{end_year}' cannot be in the future. "
+                    f"Use FY {current_fy_start_year}-{current_fy_start_year + 1} or an earlier year."
+                )
+
             standardized = f"FY {start_year}-{end_year}"
             return standardized, "financial_year", None
         
@@ -193,6 +207,12 @@ class BaseValidator:
         
         if cy_match:
             year = cy_match.group(1)
+            current_year = datetime.now(timezone.utc).year
+            if int(year) > current_year:
+                return None, None, (
+                    f"Reporting year 'CY {year}' cannot be in the future. "
+                    f"Use CY {current_year} or an earlier year."
+                )
             standardized = f"CY {year}"
             return standardized, "calendar_year", None
         

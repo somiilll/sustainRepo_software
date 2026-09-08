@@ -650,7 +650,7 @@ class Scope12RowProcessor:
             if month_error:
                 errors.append(ValidationError(
                     sheet=sheet_name, row=row_num, column="Reporting Month",
-                    error_type="INVALID_REPORTING_MONTH",
+                    error_type="FUTURE_REPORTING_MONTH" if "cannot be in the future" in month_error else "INVALID_REPORTING_MONTH",
                     message=month_error,
                     severity=ErrorSeverity.ERROR
                 ))
@@ -662,7 +662,7 @@ class Scope12RowProcessor:
             if year_error:
                 errors.append(ValidationError(
                     sheet=sheet_name, row=row_num, column="Reporting Year",
-                    error_type="INVALID_REPORTING_YEAR",
+                    error_type="FUTURE_REPORTING_YEAR" if "cannot be in the future" in year_error else "INVALID_REPORTING_YEAR",
                     message=year_error,
                     severity=ErrorSeverity.ERROR
                 ))

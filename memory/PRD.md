@@ -101,6 +101,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- Bulk Upload now rejects future Reporting Month, CY Reporting Year, and FY Reporting Year values across Scope 1, Scope 2, and Scope 3. The current calendar month/current financial year remain valid.
 - Scope 3 Spend Basis Bulk Upload now infers Standard Currency Conversion when only Spent Amount is supplied. Providing Purchase Power Value and/or Inflation Rate selects PPP and Inflation Rate, and each supplied value is retained as an override.
 - The Excel column is **Standard Currency Conversion**; the legacy **Currency Conversion Method** header remains accepted when importing existing workbooks. Standard-rate overrides use **Exchange Rate (Override)**.
 - **NOT TESTED:** Per the user’s standing instruction.
