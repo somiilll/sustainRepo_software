@@ -16,7 +16,7 @@ const summaryScoreTone = (value) => {
 const DistributionCenterLabel = ({ count, viewBox }) => {
   const { cx, cy } = viewBox || {};
   if (cx === undefined || cy === undefined) return null;
-  return <text x={cx} y={cy} textAnchor="middle" data-testid="esg-score-distribution-center-label"><tspan x={cx} dy="-0.2em" className="fill-stone-950 text-xl font-semibold">{count}</tspan><tspan x={cx} dy="1.45em" className="fill-stone-500 text-[10px]">suppliers assessed</tspan></text>;
+  return <text x={cx} textAnchor="middle" data-testid="esg-score-distribution-center-label"><tspan x={cx} y={cy - 6} fill="#0c0a09" fontSize="22" fontWeight="600">{count}</tspan><tspan x={cx} y={cy + 14} fill="#78716c" fontSize="10">suppliers assessed</tspan></text>;
 };
 
 const EsgScoreBreakdown = ({ averages, suppliersAssessed }) => {
