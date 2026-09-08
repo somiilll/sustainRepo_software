@@ -920,6 +920,11 @@ class Scope12RowProcessor:
         dynamic_field_values = {
             "qty": {"value": qty, "unit": unit_qty},
         }
+        if derived_methodology:
+            dynamic_field_values["calculation_methodology"] = {
+                "value": derived_methodology,
+                "unit": "",
+            }
         if row_data.get("cv"):
             dynamic_field_values["cv"] = user_overrides.get("cv", {})
         if row_data.get("density"):

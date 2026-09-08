@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Bulk-uploaded Scope 1 records now persist the derived `calculation_methodology` in `dynamic_field_values`, matching manual emission entry and edit payloads.
+- **VERIFIED:** Processor compiles and the dynamic-field persistence path is present.
+
+## Previous Change — September 7, 2026
 - Per user confirmation, permanently deleted all 14 Scope 1 emission records for ORG1 (`9067d872-8a3a-4ed9-8494-e3ef04952f7c`), plus 14 directly linked emission-history rows and 14 calculation-audit rows.
 - **VERIFIED:** No matching Scope 1 records remain for ORG1. Follow-ups on organization-type conversion and duplicate-email organization checks are deferred.
 
