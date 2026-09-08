@@ -103,6 +103,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## Latest Change — September 8, 2026
 - Scope 3 Spend Basis Bulk Upload now treats **Standard Currency Conversion** as the numeric exchange-rate column. The separate **Exchange Rate (Override)** column was removed from newly generated templates; its old header remains accepted as an import alias.
 - A supplied Standard Currency Conversion value is validated, used as the standard-rate override, and persisted in `dynamic_field_values.exchange_rate`. A blank value continues to use the configured effective standard rate for the reporting period.
+- Standard-method records always include `dynamic_field_values.exchange_rate`: supplied values persist with `is_override: true`; blank cells persist as `value: null`, `is_override: false`, with an empty unit and justification.
 - Standard conversion values cannot be combined with Purchase Power Value or Inflation Rate in the same row.
 - Scope 3 Bulk Upload now extracts each successful calculation trace into `ce_calculation_audit_logs` when records are saved, linking it by emission-record ID so the Edit form can display **Calculation Details** like manual records.
 - Calculation-audit persistence is covered in both immediate-save and validate-then-confirm save paths, with compensating cleanup if audit persistence fails. No historical backfill was added because the user confirmed there are no existing affected records.

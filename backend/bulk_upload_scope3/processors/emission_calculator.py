@@ -1281,12 +1281,13 @@ class EmissionCalculator:
                 }
             currency_method = resolve_bulk_currency_method(row_data)
             dynamic_field_values["spend_currency_conversion_method"] = {"value": currency_method, "unit": ""}
-            if currency_method == STANDARD_METHOD and row_data.get("exchange_rate"):
+            if currency_method == STANDARD_METHOD:
+                has_exchange_rate_override = row_data.get("exchange_rate") not in (None, "")
                 dynamic_field_values["exchange_rate"] = {
-                    "value": float(row_data.get("exchange_rate")),
+                    "value": float(row_data.get("exchange_rate")) if has_exchange_rate_override else None,
                     "unit": "",
-                    "is_override": True,
-                    "justification": "Provided through Scope 3 Bulk Upload",
+                    "is_override": has_exchange_rate_override,
+                    "justification": "",
                 }
         
         elif method == CalculationMethod.SUPPLIER_BASIS:
