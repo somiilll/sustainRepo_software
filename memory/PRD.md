@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Added the total attributed-emissions value and `tCO₂e` unit to the center of the Attributed emissions by scope donut, and removed its segment spacing.
+- **NOT TESTED:** Per the user’s explicit instruction.
+
+## Previous Change — September 7, 2026
 - Corrected the ESG score-distribution donut center label so the assessed supplier count renders visibly above the `suppliers assessed` caption.
 - **NOT TESTED:** Per the user’s explicit instruction.
 
