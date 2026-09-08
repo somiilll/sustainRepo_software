@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 8, 2026 — Scope 3 Bulk Spend Currency Inference
+- Spent Amount without PPP/Inflation values now defaults Bulk Upload to Standard Currency Conversion.
+- Providing Purchase Power Value or Inflation Rate selects PPP and Inflation Rate; when both are present, both are retained as overrides.
+- Updated the Excel column guidance for **Currency Conversion Method** and **Exchange Rate (Override)**. **NOT TESTED** per user instruction.
+
 ## September 8, 2026 — Scope 1 Bulk Carbon Input Alignment
 - Removed incorrect override classification from bulk-uploaded Carbon Content, Oxidation Factor, and Quantity Basis EF fields.
 - Bulk Upload now persists these required formula inputs using the same `value` and `unit` shape as manual entry, while genuine Calorific Value and Density overrides remain unchanged.

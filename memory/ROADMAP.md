@@ -58,6 +58,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Added Scope 3 Bulk Upload currency-method inference: spend-only rows use Standard Currency Conversion, while supplied PPP/Inflation values select PPP and Inflation Rate and remain overrides.
 - Aligned Scope 1 Bulk Upload Carbon Content, Oxidation Factor, and Quantity Basis EF persistence with manual entry by removing incorrect `is_override` metadata while preserving genuine override fields.
 - Added immutable formula and decision-tree version pinning for all new manual/C7/Bulk Upload emissions, historical edit calculation, canonical formula snapshots, and server-side guards against silent upgrades. Older unversioned records remain untouched pending the approved migration design.
 - Added configurable monthly, quarterly, and yearly supplier GHG submission cadence. Period submissions lock independently, parent unlock requires a reason with optional instructions and no secondary confirmation, and the shared backend guard blocks supplier writes to locked periods.

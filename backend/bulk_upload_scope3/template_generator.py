@@ -537,7 +537,7 @@ class TemplateGenerator:
             "unit_quantity": "Select the unit of measurement.\nMust be compatible with selected activity.",
             "spent_amount": "Enter amount spent in INR.\nRequired for Spend Based method.",
             "spent_currency": "Optional source currency for the spent amount. Defaults to INR when omitted.",
-            "spend_currency_conversion_method": "Optional for legacy compatibility. Select standard for the market rate effective in the reporting period, or ppp_inflation for PPP and inflation adjustment.",
+            "spend_currency_conversion_method": "Optional. If blank, Spent Amount alone uses standard; providing Purchase Power Value or Inflation Rate uses ppp_inflation. You may also select standard or ppp_inflation explicitly.",
             "exchange_rate": "Optional standard-rate override. Leave blank to use the configured effective rate.",
             "distance_travelled": "Enter distance in kilometers.\nRequired for transportation activities.",
             "quantity_goods": "Enter quantity of goods transported.\nRequired for freight activities.",

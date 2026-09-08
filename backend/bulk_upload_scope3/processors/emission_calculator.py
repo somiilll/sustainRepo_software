@@ -58,6 +58,22 @@ def normalize_reporting_period(reporting_period: Optional[str]) -> Optional[str]
     return f"{monthly_match.group(2)}-{month}" if month else value
 
 
+def resolve_bulk_currency_method(row_data: Dict) -> str:
+    """Infer the Scope 3 Bulk Upload spend conversion method from row values."""
+    has_ppp_override = row_data.get("ppp") not in (None, "")
+    has_inflation_override = row_data.get("inflation_rate") not in (None, "")
+    if has_ppp_override or has_inflation_override:
+        return PPP_INFLATION_METHOD
+
+    explicit_method = (
+        row_data.get("spend_currency_conversion_method")
+        or row_data.get("currency_conversion_method")
+    )
+    if explicit_method:
+        return normalize_currency_method(explicit_method)
+    return STANDARD_METHOD
+
+
 # Mapping from bulk upload category codes to emission_categories codes
 CATEGORY_CODE_TO_CATEGORY_ID_MAP = {
     "C1": "purchased_goods_and_services",
@@ -451,9 +467,7 @@ class EmissionCalculator:
             "calculation_method_scope3": method.value,
         }
         if method == CalculationMethod.SPEND_BASIS:
-            decision_inputs["spend_currency_conversion_method"] = normalize_currency_method(
-                row_data.get("spend_currency_conversion_method") or row_data.get("currency_conversion_method")
-            )
+            decision_inputs["spend_currency_conversion_method"] = resolve_bulk_currency_method(row_data)
         
         # Add activity_type for C6/C7 - NORMALIZE to lowercase with underscores for decision tree matching
         if row_data.get("activity_type"):
@@ -564,7 +578,7 @@ class EmissionCalculator:
             reporting_period = normalize_reporting_period(
                 row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
             )
-            currency_method = normalize_currency_method(row_data.get("spend_currency_conversion_method") or row_data.get("currency_conversion_method"))
+            currency_method = resolve_bulk_currency_method(row_data)
             currency_conversion = await resolve_currency_conversion(
                 self.db, source_currency=spent_currency, reporting_period=reporting_period, method=currency_method,
             )
@@ -1250,7 +1264,7 @@ class EmissionCalculator:
                     "unit": "",
                     "is_override": True
                 }
-            currency_method = normalize_currency_method(row_data.get("spend_currency_conversion_method") or row_data.get("currency_conversion_method"))
+            currency_method = resolve_bulk_currency_method(row_data)
             dynamic_field_values["spend_currency_conversion_method"] = {"value": currency_method, "unit": ""}
             if currency_method == STANDARD_METHOD and row_data.get("exchange_rate"):
                 dynamic_field_values["exchange_rate"] = {"value": float(row_data.get("exchange_rate")), "unit": "", "is_override": True}

@@ -101,6 +101,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- Scope 3 Spend Basis Bulk Upload now infers Standard Currency Conversion when only Spent Amount is supplied. Providing Purchase Power Value and/or Inflation Rate selects PPP and Inflation Rate, and each supplied value is retained as an override.
+- The Excel selector remains **Currency Conversion Method**; standard-rate overrides use **Exchange Rate (Override)**.
+- **NOT TESTED:** Per the user’s standing instruction.
+
+## Previous Change — September 8, 2026
 - Scope 1 Bulk Upload now stores Carbon Content, Oxidation Factor, and Quantity Basis EF as standard required calculation inputs, matching manual entry, without adding `is_override: true`.
 - Genuine override fields such as Calorific Value and Density retain their override metadata.
 - Carbon Content/Oxidation Factor regressions passed 2/2 before the user requested no further testing; EF Quantity was not tested per that instruction.

@@ -773,9 +773,9 @@ CATEGORY_COLUMNS = {
     },
 }
 
-# Spend-basis rows use a legacy-safe PPP default when this optional selector is
-# absent. The normalized columns are injected for every category that supports
-# spend basis so generated templates and uploaded records share one contract.
+# Spend-basis rows infer Standard Currency Conversion when only spend is given,
+# and PPP/Inflation when either corresponding override is supplied. The optional
+# selector remains available for explicit selection in generated templates.
 for _category_config in CATEGORY_COLUMNS.values():
     if CalculationMethod.SPEND_BASIS not in _category_config.get("supported_methods", []):
         continue
