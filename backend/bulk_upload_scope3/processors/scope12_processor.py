@@ -181,10 +181,7 @@ class Scope12RowProcessor:
             dynamic_field_values["density"] = user_overrides.get("density", {})
         if row_data.get("ef_quantity"):
             ef_key = "ef_co2" if derived_methodology == "using_heat_basis_ncv" else "ef_quantity"
-            dynamic_field_values[ef_key] = user_overrides.get(
-                ef_key,
-                user_overrides.get("ef_quantity", inputs.get("ef_quantity", {})),
-            )
+            dynamic_field_values[ef_key] = inputs.get(ef_key, inputs.get("ef_quantity", {}))
         if row_data.get("co2_gwp_fugitives"):
             dynamic_field_values["co2_gwp_fugitives"] = user_overrides.get("co2_gwp_fugitives", {})
         if row_data.get("carbon_content"):
@@ -894,11 +891,6 @@ class Scope12RowProcessor:
                 density_unit = row_data.get("density_unit", "")
                 user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
             
-            # Emission factor override - only if user provides it in bulk upload
-            if ef_quantity_provided:
-                ef_value = float(row_data.get("ef_quantity"))
-                user_overrides["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg", "is_override": True}
-            
             # Carbon content + oxidation factor for standard stationary combustion
             if row_data.get("carbon_content") or row_data.get("oxidation_factor"):
                 self._add_carbon_composition_inputs(row_data, inputs)
@@ -950,7 +942,8 @@ class Scope12RowProcessor:
             logger.warning(f"[SCOPE1_BULK] No formula found for category_id={category_id}, formula_id={formula_id}")
         
         # Build dynamic_field_values matching manual upload structure.
-        # Carbon Composition inputs are required formula inputs, not overrides.
+        # Carbon Composition and Quantity Basis EF values are required formula
+        # inputs, not persisted overrides.
         dynamic_field_values = self._build_scope1_dynamic_field_values(
             row_data=row_data,
             inputs=inputs,

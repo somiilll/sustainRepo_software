@@ -46,3 +46,33 @@ def test_genuine_override_fields_keep_override_metadata():
 
     assert dynamic_values["cv"]["is_override"] is True
     assert dynamic_values["density"]["is_override"] is True
+
+
+def test_ef_quantity_matches_manual_entry_shape():
+    row_data = {
+        "ef_quantity": 2.5,
+    }
+    inputs = {
+        "qty": {"value": 300, "unit": "L"},
+        "ef_quantity": {"value": 2.5, "unit": "kgCO2/L"},
+    }
+    user_overrides = {
+        "ef_quantity": {
+            "value": 2.5,
+            "unit": "kgCO2/L",
+            "is_override": True,
+        },
+    }
+
+    dynamic_values = Scope12RowProcessor._build_scope1_dynamic_field_values(
+        row_data=row_data,
+        inputs=inputs,
+        user_overrides=user_overrides,
+        derived_methodology="using_qty_basis_ef",
+    )
+
+    assert dynamic_values["ef_quantity"] == {
+        "value": 2.5,
+        "unit": "kgCO2/L",
+    }
+    assert "is_override" not in dynamic_values["ef_quantity"]
