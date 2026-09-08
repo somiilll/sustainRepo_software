@@ -257,11 +257,77 @@ async def _formula_version_map(db, tree: Dict[str, Any]) -> Dict[str, str]:
         {"id": {"$in": formula_ids}},
         {"_id": 0, "id": 1, "version_id": 1},
     ).to_list(len(formula_ids))
+    missing_formulas = set(formula_ids) - {formula.get("id") for formula in formulas}
+    if missing_formulas:
+        raise DecisionTreeError(
+            f"Decision tree references missing formulas: {', '.join(sorted(missing_formulas))}"
+        )
+
+    version_ids = [formula.get("version_id") for formula in formulas if formula.get("version_id")]
+    versions = await db.ce_formula_versions.find(
+        {"id": {"$in": version_ids}},
+        {"_id": 0, "id": 1, "formula_id": 1},
+    ).to_list(len(version_ids)) if version_ids else []
+    versions_by_id = {version.get("id"): version for version in versions}
+    invalid_versions = []
+    for formula in formulas:
+        version_id = formula.get("version_id")
+        version = versions_by_id.get(version_id)
+        if not version_id or not version or version.get("formula_id") != formula.get("id"):
+            invalid_versions.append(formula.get("id"))
+    if invalid_versions:
+        raise DecisionTreeError(
+            "Decision tree formulas do not have valid, formula-specific versions: "
+            + ", ".join(sorted(invalid_versions))
+        )
+
     return {
         formula["id"]: formula["version_id"]
         for formula in formulas
-        if formula.get("id") and formula.get("version_id")
     }
+
+
+async def ensure_formula_current_version(
+    db,
+    formula_id: str,
+    *,
+    created_by: str,
+) -> Tuple[dict, bool]:
+    """Ensure a current formula points to its own immutable definition snapshot."""
+    formula = await db.ce_formulas.find_one({"id": formula_id, "is_active": True}, {"_id": 0})
+    if not formula:
+        raise ValueError(f"Active formula '{formula_id}' was not found")
+
+    version_id = formula.get("version_id")
+    version = await db.ce_formula_versions.find_one(
+        {
+            "formula_id": formula_id,
+            "$or": [{"id": version_id}, {"version_id": version_id}],
+        },
+        {"_id": 0},
+    ) if version_id else None
+    version_definition = (version or {}).get("definition_snapshot") or (version or {}).get("definition")
+    if version and version_definition == formula.get("definition"):
+        return formula, False
+
+    version = await _bump_formula_version(
+        db,
+        formula_id,
+        formula.get("definition") or {},
+        created_by,
+    )
+    result = await db.ce_formulas.update_one(
+        {"id": formula_id, "version_id": version_id},
+        {"$set": {
+            "version_id": version["id"],
+            "version_number": version["version_number"],
+            "updated_at": _now(),
+        }},
+    )
+    if result.modified_count != 1:
+        raise RuntimeError(f"Concurrent formula update detected for '{formula_id}'")
+    repaired = await db.ce_formulas.find_one({"id": formula_id}, {"_id": 0})
+    return repaired, True
 
 
 async def _append_decision_tree_version(
@@ -314,6 +380,50 @@ async def _append_decision_tree_version(
         }},
     )
     return snapshot
+
+
+async def ensure_decision_tree_current_snapshot(
+    db,
+    tree_id: str,
+    *,
+    created_by: str,
+) -> Tuple[dict, bool]:
+    """Publish the current tree when its active immutable snapshot or map is stale."""
+    current = await db.ce_decision_trees.find_one(
+        {"id": tree_id, "is_active": True},
+        {"_id": 0},
+    )
+    if not current:
+        raise ValueError(f"Active decision tree '{tree_id}' was not found")
+    validate_decision_tree(current.get("tree"))
+    expected_map = await _formula_version_map(db, current["tree"])
+    current_version_id = current.get("version_id")
+    snapshot = await db.ce_decision_tree_versions.find_one(
+        {
+            "$or": [
+                {"id": current_version_id},
+                {"version_id": current_version_id},
+            ]
+        },
+        {"_id": 0},
+    ) if current_version_id else None
+    snapshot_matches = bool(
+        snapshot
+        and snapshot.get("tree") == current.get("tree")
+        and snapshot.get("formula_version_map") == expected_map
+        and snapshot.get("category_id") == current.get("category_id")
+    )
+    if snapshot_matches and current.get("formula_version_map") == expected_map:
+        return current, False
+
+    await _append_decision_tree_version(
+        db,
+        current,
+        tree=current["tree"],
+        created_by=created_by,
+    )
+    repaired = await db.ce_decision_trees.find_one({"id": tree_id}, {"_id": 0})
+    return repaired, True
 
 
 async def _bump_linked_decision_tree_versions(

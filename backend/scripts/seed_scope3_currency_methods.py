@@ -5,10 +5,16 @@ from __future__ import annotations
 import asyncio
 import copy
 import os
+from pathlib import Path
+import sys
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from calc_engine.catalog_integrity import repair_scope3_spend_currency_catalog
 
 
 PPP_FORMULA_ID = "6a3c49f2-3cd0-4a6e-ab9a-8ec2f4e1eecb"
@@ -131,33 +137,18 @@ async def seed() -> None:
             "created_at": now,
             "updated_at": now,
         })
+        new_formula.pop("version_id", None)
+        new_formula.pop("version_number", None)
         await db.ce_formulas.insert_one(new_formula)
 
-    cursor = db.ce_decision_trees.find({"tree.options.spend_basis": {"$exists": True}}, {"_id": 0})
-    updated_count = 0
-    async for tree_doc in cursor:
-        tree = copy.deepcopy(tree_doc["tree"])
-        spend_node = tree["options"]["spend_basis"]
-        if spend_node.get("next", {}).get("field_name") == "spend_currency_conversion_method":
-            options = spend_node["next"].setdefault("options", {})
-            options["ppp_inflation"] = {"formula_id": PPP_FORMULA_ID}
-            options["standard"] = {"formula_id": STANDARD_FORMULA_ID}
-        else:
-            tree["options"]["spend_basis"] = {
-                "next": {
-                    "field_name": "spend_currency_conversion_method",
-                    "options": {
-                        "ppp_inflation": {"formula_id": PPP_FORMULA_ID},
-                        "standard": {"formula_id": STANDARD_FORMULA_ID},
-                    },
-                }
-            }
-        await db.ce_decision_trees.update_one(
-            {"id": tree_doc["id"]},
-            {"$set": {"tree": tree, "version_number": int(tree_doc.get("version_number") or 0) + 1, "updated_at": now}},
-        )
-        updated_count += 1
-    print(f"Standard formula ready; updated {updated_count} Scope 3 decision trees.")
+    repair = await repair_scope3_spend_currency_catalog(
+        db,
+        created_by="seed-scope3-currency-methods",
+    )
+    print(
+        "Standard formula ready; published "
+        f"{len(repair['published_tree_ids'])} Scope 3 decision-tree versions."
+    )
     client.close()
 
 

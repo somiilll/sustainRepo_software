@@ -53,6 +53,19 @@ async def get_formula_for_execution(
     )
     if not version:
         if current.get("version_id") == formula_version_id:
+            conflicting_version = await db.ce_formula_versions.find_one(
+                {
+                    "$or": [
+                        {"id": formula_version_id},
+                        {"version_id": formula_version_id},
+                    ]
+                },
+                {"_id": 0, "formula_id": 1},
+            )
+            if conflicting_version and conflicting_version.get("formula_id") != formula_id:
+                raise CalculationVersionError(
+                    f"Formula version '{formula_version_id}' belongs to a different formula"
+                )
             return current
         raise CalculationVersionError(
             f"Formula version '{formula_version_id}' is not available for formula '{formula_id}'"

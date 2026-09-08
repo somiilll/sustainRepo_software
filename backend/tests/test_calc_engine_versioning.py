@@ -8,6 +8,7 @@ from calc_engine.versioning import (
     apply_record_version_binding,
     get_formula_for_execution,
 )
+from calc_engine.formulas import DecisionTreeError, _formula_version_map
 from bulk_upload_scope3.models import CalculationMethod
 from bulk_upload_scope3.processors.emission_calculator import EmissionCalculator
 from modules.emissions.c7_contracts import C7YearlyEntryCreate
@@ -15,6 +16,31 @@ from modules.emissions.c7_contracts import C7YearlyEntryCreate
 
 def _db(**collections):
     return SimpleNamespace(**collections)
+
+
+@pytest.mark.asyncio
+async def test_formula_version_map_rejects_cross_formula_version_ids():
+    formula_cursor = SimpleNamespace(to_list=AsyncMock(return_value=[
+        {"id": "PPP", "version_id": "PPP-v1"},
+        {"id": "STANDARD", "version_id": "PPP-v1"},
+    ]))
+    formulas = SimpleNamespace(find=lambda *args, **kwargs: formula_cursor)
+    version_cursor = SimpleNamespace(to_list=AsyncMock(return_value=[
+        {"id": "PPP-v1", "formula_id": "PPP"},
+    ]))
+    versions = SimpleNamespace(find=lambda *args, **kwargs: version_cursor)
+
+    with pytest.raises(DecisionTreeError, match="formula-specific versions"):
+        await _formula_version_map(
+            _db(ce_formulas=formulas, ce_formula_versions=versions),
+            {
+                "field_name": "method",
+                "options": {
+                    "ppp": {"formula_id": "PPP"},
+                    "standard": {"formula_id": "STANDARD"},
+                },
+            },
+        )
 
 
 @pytest.mark.asyncio
@@ -42,6 +68,28 @@ async def test_pinned_formula_uses_historical_definition_after_current_changes()
 
     assert resolved["version_id"] == "F1-v1"
     assert resolved["definition"]["expression"] == "qty * 10"
+
+
+@pytest.mark.asyncio
+async def test_pinned_formula_rejects_version_owned_by_another_formula():
+    formulas = SimpleNamespace(find_one=AsyncMock(return_value={
+        "id": "STANDARD",
+        "name": "Standard",
+        "version_id": "PPP-v1",
+        "is_active": True,
+        "definition": {"expression": "standard"},
+    }))
+    versions = SimpleNamespace(find_one=AsyncMock(side_effect=[
+        None,
+        {"id": "PPP-v1", "formula_id": "PPP"},
+    ]))
+
+    with pytest.raises(CalculationVersionError, match="different formula"):
+        await get_formula_for_execution(
+            _db(ce_formulas=formulas, ce_formula_versions=versions),
+            "STANDARD",
+            "PPP-v1",
+        )
 
 
 @pytest.mark.asyncio
