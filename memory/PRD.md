@@ -101,6 +101,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Replaced custom donut-center numeric text with native Recharts labels so the ESG assessed-supplier count reliably renders.
+- Updated the Attributed emissions by scope center value to calculate and show **Scope 1 + Scope 2** attributed emissions with the `tCO₂e` unit.
+- **NOT TESTED:** Per the user’s explicit instruction.
+
+## Previous Change — September 7, 2026
 - Added the total attributed-emissions value and `tCO₂e` unit to the center of the Attributed emissions by scope donut, and removed its segment spacing.
 - **NOT TESTED:** Per the user’s explicit instruction.
 
