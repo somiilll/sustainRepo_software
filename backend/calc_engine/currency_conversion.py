@@ -35,6 +35,20 @@ def normalize_currency_method(method: Optional[str]) -> str:
     return STANDARD_METHOD if method == STANDARD_METHOD else PPP_INFLATION_METHOD
 
 
+def currency_conversion_source_name(record: Optional[dict], method: Optional[str]) -> str:
+    """Format provenance consistently for resolved currency-conversion properties."""
+    if not record:
+        return "Default"
+    source = record.get("source") or "Currency conversion"
+    normalized_method = normalize_currency_method(method)
+    period = (
+        record.get("effective_from") or record.get("year_applicable")
+        if normalized_method == STANDARD_METHOD
+        else record.get("year_applicable")
+    )
+    return f"{source} ({period})" if period else source
+
+
 async def resolve_currency_conversion(
     db,
     *,

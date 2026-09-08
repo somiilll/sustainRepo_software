@@ -17,6 +17,7 @@ from calc_engine.units import convert
 from calc_engine.currency_conversion import (
     PPP_INFLATION_METHOD,
     STANDARD_METHOD,
+    currency_conversion_source_name,
     extract_currency_period,
     normalize_currency_method,
     resolve_currency_conversion,
@@ -853,9 +854,21 @@ class EmissionCalculator:
             }
             
             if currency_method == STANDARD_METHOD:
-                exchange_rate = row_data.get("exchange_rate") or (currency_conversion or {}).get("exchange_rate")
-                if exchange_rate:
-                    calc_inputs["exchange_rate"] = {"value": float(exchange_rate), "unit": ""}
+                if row_data.get("exchange_rate") not in (None, ""):
+                    calc_inputs["exchange_rate"] = {
+                        "value": float(row_data["exchange_rate"]),
+                        "unit": "",
+                        "is_override": True,
+                    }
+                elif (currency_conversion or {}).get("exchange_rate"):
+                    calc_inputs["exchange_rate"] = {
+                        "value": float(currency_conversion["exchange_rate"]),
+                        "unit": "",
+                        "source_name": currency_conversion_source_name(
+                            currency_conversion,
+                            currency_method,
+                        ),
+                    }
                 return calc_inputs
 
             # Priority: Template override > Currency conversion table > Default 1.0
@@ -870,13 +883,18 @@ class EmissionCalculator:
             elif currency_conversion and currency_conversion.get("inflation_factor"):
                 calc_inputs["inflation_rate"] = {
                     "value": float(currency_conversion.get("inflation_factor")),
-                    "unit": ""
+                    "unit": "",
+                    "source_name": currency_conversion_source_name(
+                        currency_conversion,
+                        currency_method,
+                    ),
                 }
             else:
                 # Default to 1.0 to avoid division by zero
                 calc_inputs["inflation_rate"] = {
                     "value": 1.0,
-                    "unit": ""
+                    "unit": "",
+                    "source_name": "Default",
                 }
             
             # PPP (Purchase Power Parity)
@@ -889,13 +907,18 @@ class EmissionCalculator:
             elif currency_conversion and currency_conversion.get("purchase_parity"):
                 calc_inputs["ppp"] = {
                     "value": float(currency_conversion.get("purchase_parity")),
-                    "unit": ""
+                    "unit": "",
+                    "source_name": currency_conversion_source_name(
+                        currency_conversion,
+                        currency_method,
+                    ),
                 }
             else:
                 # Default to 1.0 to avoid division by zero
                 calc_inputs["ppp"] = {
                     "value": 1.0,
-                    "unit": ""
+                    "unit": "",
+                    "source_name": "Default",
                 }
         
         elif method == CalculationMethod.SUPPLIER_BASIS:

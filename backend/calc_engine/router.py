@@ -43,6 +43,7 @@ import re
 from .currency_conversion import (
     PPP_INFLATION_METHOD,
     STANDARD_METHOD,
+    currency_conversion_source_name,
     extract_currency_period,
     normalize_currency_method,
     resolve_currency_conversion,
@@ -805,16 +806,12 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 if currency_conversion:
                     logger.info(f"[SPEND BASIS] Found: ppp={currency_conversion.get('purchase_parity')}, inflation={currency_conversion.get('inflation_factor')}, year={currency_conversion.get('year_applicable')}")
                 
-                # Get the source from currency_conversion record
-                currency_source = currency_conversion.get("source") if currency_conversion else "Default"
-                year_used = currency_conversion.get("year_applicable") if currency_conversion else None
-                
                 if currency_method == PPP_INFLATION_METHOD and "inflation_rate" not in merged_user_overrides:
                     if currency_conversion and currency_conversion.get("inflation_factor"):
                         merged_user_overrides["inflation_rate"] = {
                             "value": float(currency_conversion.get("inflation_factor")),
                             "unit": "",
-                            "source_name": f"{currency_source} ({year_used})" if year_used else currency_source
+                            "source_name": currency_conversion_source_name(currency_conversion, currency_method),
                         }
                     else:
                         # Default to 1.0
@@ -825,7 +822,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                         merged_user_overrides["ppp"] = {
                             "value": float(currency_conversion.get("purchase_parity")),
                             "unit": "",
-                            "source_name": f"{currency_source} ({year_used})" if year_used else currency_source
+                            "source_name": currency_conversion_source_name(currency_conversion, currency_method),
                         }
                     else:
                         # Default to 1.0
@@ -833,11 +830,10 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 if currency_method == STANDARD_METHOD and "exchange_rate" not in merged_user_overrides:
                     if not currency_conversion or not currency_conversion.get("exchange_rate"):
                         raise HTTPException(status_code=400, detail=f"No active standard currency rate found for {input_currency} and {reporting_period or 'the requested period'}")
-                    period_label = currency_conversion.get("effective_from") or currency_conversion.get("year_applicable")
                     merged_user_overrides["exchange_rate"] = {
                         "value": float(currency_conversion["exchange_rate"]),
                         "unit": "",
-                        "source_name": f"{currency_conversion.get('source') or 'Currency conversion'} ({period_label})",
+                        "source_name": currency_conversion_source_name(currency_conversion, currency_method),
                     }
             else:
                 # USD has a one-to-one standard rate; legacy PPP remains unchanged.

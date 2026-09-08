@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- Corrected Scope 3 Bulk Upload calculation provenance for spend-currency properties. Database-resolved Standard Exchange Rate, Inflation Rate, and Purchase Power Value now carry the configured currency-record source (for example, `RBI (2025)`) into the calculation audit instead of appearing as `User Specified`.
+- Spreadsheet-supplied currency values continue to display `User Specified`. Calculation formulas and resolved values were not changed. Manual and Bulk Upload paths now share the same currency-source label formatter.
+- Testing was not performed for this provenance adjustment, per explicit user instruction.
 - Repaired immutable Scope 3 Spend Basis catalog versioning across **C1-C15**. Each active decision tree now has a matching immutable snapshot containing both `standard` and `ppp_inflation` currency branches.
 - Corrected the cross-formula version collision: PPP retains its valid version `c837d08d-584d-4c8a-a0f8-1eedd2e50ee6`, while Standard Currency Conversion now owns distinct version `208c20e3-4305-4081-9d2e-716b7037f953`.
 - Published and activated a new decision-tree version for every C1-C15 category. New manual and Bulk Upload calculations now resolve and persist these active tree/formula version IDs.
