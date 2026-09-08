@@ -11,7 +11,7 @@ const formatEmissions = (value) => Number(value || 0).toLocaleString(undefined, 
 const ScopeEmissionsCenterLabel = ({ viewBox }) => {
   const { cx, cy } = viewBox || {};
   if (cx === undefined || cy === undefined) return null;
-  return <text x={cx} y={cy - 13} textAnchor="middle" fill="#78716c" fontSize="10" data-testid="supplier-emissions-scope-total-label">Total</text>;
+  return <text x={cx} y={cy - 22} textAnchor="middle" fill="#78716c" fontSize="10" data-testid="supplier-emissions-scope-total-label">Total</text>;
 };
 
 export const RankingEmissionsTab = ({ emissions, emissionsAnalytics, reportingPeriod, scopeTotals }) => {
