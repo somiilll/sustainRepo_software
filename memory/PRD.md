@@ -253,6 +253,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **P0:** Security hardening: hash password-reset tokens and encrypt approved PII/financial data.
 - **P1:** Verify QuestionLedgerDialog `lower_is_better` save mapping; fix Sinks mobile table overflow.
 - **P1:** Map ESG/GHG results to reviewable BRSR/GRI suggested responses; add multi-organization membership and onboarding/version-publishing flows.
+- **P2:** Design and execute the production legacy-emission migration for records created before calculation versioning. Preserve stored outputs, infer missing Scope 1 methodologies, bind old Scope 3 Spend Basis records to the legacy PPP/Inflation formula where unambiguous, create legacy formula/tree snapshots, report unresolved records for review, and prevent historical recalculation during migration.
 - **P2:** Repair GHG cadence-change save state and refactor oversized GHG form components.
 
 ## Supporting Documents

@@ -20,7 +20,6 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
-- Design and approve the older-emission migration for calculation versions: idempotent batches, dry-run mapping report, unresolved-record report, migration status/timestamps, and no silent reinterpretation of legacy `formula_id` values.
 - Add multi-organization membership/context for suppliers that are also standalone customer organizations.
 - Add parent-configurable Supplier GHG dashboard widgets, KPIs, and visibility.
 - Implement a cleaner Supplier-to-Customer conversion architecture.
@@ -41,6 +40,13 @@
 - Canonical RBAC overhaul phases 1–5 — paused until explicit user instruction.
 
 ## P2 — Later
+- Design and execute the production legacy-emission migration for records created before calculation versioning:
+  - Preserve stored inputs, outputs, totals, reporting periods, and timestamps without recalculation.
+  - Infer missing Scope 1 methodologies from saved field signatures; send ambiguous records to manual review.
+  - Treat old Scope 3 Spend Basis records without a currency-method choice as legacy PPP/Inflation where supported by their saved fields/formula lineage.
+  - Create immutable legacy formula and decision-tree snapshots, then backfill only calculation metadata and migration provenance.
+  - Keep unresolved records calculation-locked and never fabricate historical calculation audit details.
+  - Use an idempotent dry-run report, pre-migration backup, aggregate/hash comparisons, and rollback support.
 - Database-level Bulk Upload duplicate detection across separate uploads.
 - Effective Settings read-only summary for Super Admins.
 - Repair pre-existing non-golden backend suite failures, including `test_supplier_training_focused.py`, when testing is unblocked.
