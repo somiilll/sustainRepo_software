@@ -101,6 +101,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Moved Supplier ESG score comparison and Scope 1 category comparison legends below their charts; their bar spacing now adapts to supplier count and remains within the available chart width for large datasets.
+- Added the total assessed-supplier count to the center of the ESG score-distribution donut and removed the intentional color-segment gaps.
+- Reduced Supplier Assessment ranking KPI-card height while preserving their content hierarchy.
+- **NOT TESTED:** Per the user’s explicit instruction.
+
+## Previous Change — September 7, 2026
 - Removed the leading colon from hover tooltips in the Attributed emissions by scope and ESG score distribution donut charts.
 - **NOT TESTED:** Per the user’s prior explicit instruction.
 
