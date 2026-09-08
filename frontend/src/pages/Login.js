@@ -55,20 +55,33 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#10191a]" style={{ backgroundImage: backgroundUrl ? `url(${backgroundUrl})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center' }} data-testid="login-page-background">
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
-          <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/20">
-            <div className="flex items-center justify-center mb-6">
+    <main className="min-h-screen bg-[#f7fbf9] lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(25rem,0.85fr)]" data-testid="login-page">
+      <section className="flex min-h-[42vh] items-center justify-center overflow-hidden bg-[#ccefe8] p-5 sm:p-8 lg:min-h-screen lg:p-12" data-testid="login-visual-panel">
+        {backgroundUrl ? (
+          <img
+            src={backgroundUrl}
+            alt="Platform for Smarter Sustainability Management"
+            className="h-auto w-full max-w-4xl object-contain"
+            data-testid="login-sustainability-image"
+          />
+        ) : (
+          <div className="h-full min-h-[16rem] w-full bg-[linear-gradient(135deg,#f9fffd_0%,#c7efea_55%,#8dd9b2_100%)]" data-testid="login-image-loading-placeholder" />
+        )}
+      </section>
+
+      <section className="flex items-center justify-center bg-white px-6 py-12 sm:px-10 lg:min-h-screen lg:px-14" data-testid="login-form-panel">
+        <div className="w-full max-w-md" data-testid="login-form-container">
+          <div className="border border-[#d9e6e0] bg-white p-6 shadow-[0_18px_45px_rgba(19,56,45,0.10)] sm:p-9">
+            <div className="mb-7 flex items-center justify-start">
               <img src={logoUrl} alt="SustainRepo Logo" className="w-16 h-16 rounded-full" data-testid="login-logo" />
             </div>
             
-            <h1 className="text-3xl font-heading font-bold text-center mb-2 text-text-primary">SustainRepo</h1>
-            <p className="text-center text-text-secondary mb-8">Carbon Emissions Management Platform</p>
+            <h1 className="mb-2 text-4xl font-heading font-bold text-text-primary" data-testid="login-title">SustainRepo</h1>
+            <p className="mb-8 text-sm text-text-secondary" data-testid="login-subtitle">Carbon Emissions Management Platform</p>
             
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-5" data-testid="login-form">
               <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
+                <Label htmlFor="login-email" data-testid="login-email-label">Email</Label>
                 <Input
                   id="login-email"
                   type="email"
@@ -82,7 +95,7 @@ export default function Login() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="login-password">Password</Label>
+                <Label htmlFor="login-password" data-testid="login-password-label">Password</Label>
                 <Input
                   id="login-password"
                   type="password"
@@ -97,7 +110,7 @@ export default function Login() {
               
               <Button
                 type="submit"
-                className="w-full h-12 bg-primary hover:bg-primary/90 text-white rounded-full transition-all active:scale-95"
+                className="h-12 w-full rounded-lg bg-primary text-white transition-colors hover:bg-primary/90"
                 disabled={loading}
                 data-testid="login-submit-button"
               >
@@ -105,11 +118,11 @@ export default function Login() {
               </Button>
             </form>
             
-            <div className="mt-6 text-center space-y-3">
-              <Link to="/forgot-password" className="text-sm text-primary hover:text-primary/80 transition-colors block">
+            <div className="mt-6 space-y-3 text-left" data-testid="login-account-links">
+              <Link to="/forgot-password" className="block text-sm text-primary transition-colors hover:text-primary/80" data-testid="login-forgot-password-link">
                 Forgot your password?
               </Link>
-              <p className="text-sm text-text-muted">
+              <p className="text-sm text-text-muted" data-testid="login-contact-signup-text">
                 Haven&apos;t registered yet? Contact us to sign up{' '}
                 <a 
                   href="https://sustainrepo.com/contact"
@@ -124,7 +137,7 @@ export default function Login() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

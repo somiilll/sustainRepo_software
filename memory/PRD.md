@@ -101,6 +101,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Replaced the login-page background with the supplied “Platform for Smarter Sustainability Management” visual. The new PNG is stored in the configured Cloudflare R2 software-images bucket, displayed as the left-side login visual on desktop, and stacked above the form on mobile.
+- Deleted the previous `images/login-background.webp` R2 object. No corresponding legacy database metadata record existed in either `software_assets` or `uploaded_files` (both were confirmed empty and cleared).
+- Moved the sign-in form to the right-hand panel on desktop while preserving a responsive, no-horizontal-overflow mobile layout.
+- **VERIFIED:** R2 new-object existence, R2 old-object removal, software asset URL endpoint, frontend lint, and desktop/mobile browser rendering all passed.
+
+## Previous Change — September 7, 2026
 - Repaired the GHG geographic heatmap basemap by replacing the Carto layer that displayed an API-key watermark with OpenStreetMap tiles and visible attribution. The heat overlay remains driven by filtered, facility-level emissions data; it is not static.
 - Removed the Leaflet product label from the heatmap footer while retaining the required OpenStreetMap contributors credit.
 - The GHG dashboard now explicitly requests only active GHG targets, so archived targets cannot appear in its Reduction Target KPI.
