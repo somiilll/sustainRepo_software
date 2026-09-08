@@ -264,6 +264,9 @@ class RowProcessor:
             ("nights", "Nights"),
             ("working_days", "Working Days"),
             ("working_hours", "Working Hours"),
+            ("exchange_rate", "Standard Currency Conversion"),
+            ("inflation_rate", "Inflation Rate"),
+            ("ppp", "Purchase Power Value"),
             # C11 continuous_usage extras
             ("units_produced", "No. of products Manufactured"),
             ("products_expected_usage", "Lifetime Expected Usage of the product"),
@@ -285,6 +288,33 @@ class RowProcessor:
                     ))
                 else:
                     row_data[field_key] = parsed_value
+
+        if method == CalculationMethod.SPEND_BASIS:
+            has_standard_rate = row_data.get("exchange_rate") not in (None, "")
+            has_ppp_values = any(
+                row_data.get(key) not in (None, "")
+                for key in ("ppp", "inflation_rate")
+            )
+            if has_standard_rate and row_data.get("exchange_rate") <= 0:
+                errors.append(ValidationError(
+                    sheet=sheet_name,
+                    row=row_num,
+                    column="Standard Currency Conversion",
+                    error_type="INVALID_STANDARD_CURRENCY_CONVERSION",
+                    message="Standard Currency Conversion must be greater than zero",
+                    suggestion="Enter a positive exchange rate or leave the cell blank to use the configured rate",
+                    severity=ErrorSeverity.ERROR,
+                ))
+            if has_standard_rate and has_ppp_values:
+                errors.append(ValidationError(
+                    sheet=sheet_name,
+                    row=row_num,
+                    column="Standard Currency Conversion",
+                    error_type="CONFLICTING_CURRENCY_CONVERSION",
+                    message="Standard Currency Conversion cannot be combined with Inflation Rate or Purchase Power Value",
+                    suggestion="Use either Standard Currency Conversion or the PPP/Inflation fields for this row",
+                    severity=ErrorSeverity.ERROR,
+                ))
         
         # If there are errors at this point, don't proceed with activity/formula validation
         if errors:

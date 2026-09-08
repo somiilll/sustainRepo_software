@@ -773,10 +773,10 @@ CATEGORY_COLUMNS = {
     },
 }
 
-# Spend-basis rows infer Standard Currency Conversion when only spend is given,
-# and PPP/Inflation when either corresponding override is supplied. The optional
-# Standard Currency Conversion column remains available for explicit selection in
-# generated templates. The former label remains an import alias for existing files.
+# Spend-basis rows infer the standard method when only spend is given and the
+# PPP/Inflation method when either corresponding value is supplied. The optional
+# Standard Currency Conversion column contains the numeric exchange rate itself.
+# Its former override label remains accepted when importing older workbooks.
 for _category_config in CATEGORY_COLUMNS.values():
     if CalculationMethod.SPEND_BASIS not in _category_config.get("supported_methods", []):
         continue
@@ -792,10 +792,9 @@ for _category_config in CATEGORY_COLUMNS.values():
         _spent_amount_aliases.append(_legacy_spent_amount_header)
     _new_columns = [
         {"name": "Spent Currency", "key": "spent_currency", "mandatory": False, "type": "dropdown"},
-        {"name": "Standard Currency Conversion", "key": "spend_currency_conversion_method", "mandatory": False, "type": "dropdown", "aliases": ["Currency Conversion Method"]},
-        {"name": "Exchange Rate (Override)", "key": "exchange_rate", "mandatory": False, "type": "number"},
+        {"name": "Standard Currency Conversion", "key": "exchange_rate", "mandatory": False, "type": "number", "aliases": ["Exchange Rate (Override)"]},
     ]
-    if not any(column["key"] == "spend_currency_conversion_method" for column in _columns):
+    if not any(column["key"] == "exchange_rate" for column in _columns):
         _columns[_spent_index + 1:_spent_index + 1] = _new_columns
 
 

@@ -60,6 +60,8 @@ def normalize_reporting_period(reporting_period: Optional[str]) -> Optional[str]
 
 def resolve_bulk_currency_method(row_data: Dict) -> str:
     """Infer the Scope 3 Bulk Upload spend conversion method from row values."""
+    if row_data.get("exchange_rate") not in (None, ""):
+        return STANDARD_METHOD
     has_ppp_override = row_data.get("ppp") not in (None, "")
     has_inflation_override = row_data.get("inflation_rate") not in (None, "")
     if has_ppp_override or has_inflation_override:
@@ -582,7 +584,11 @@ class EmissionCalculator:
             currency_conversion = await resolve_currency_conversion(
                 self.db, source_currency=spent_currency, reporting_period=reporting_period, method=currency_method,
             )
-            if currency_method == STANDARD_METHOD and not (currency_conversion or {}).get("exchange_rate"):
+            if (
+                currency_method == STANDARD_METHOD
+                and row_data.get("exchange_rate") in (None, "")
+                and not (currency_conversion or {}).get("exchange_rate")
+            ):
                 return {"co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0, "calculation_method": "error", "error": f"No active standard currency rate found for {spent_currency} and {reporting_period}"}
         
         # Build calc_engine inputs based on method and formula requirements
@@ -699,9 +705,18 @@ class EmissionCalculator:
                     "activity_id": activity_id,
                     "emission_factor": ef_data.get("emission_factor")
                 },
+                "calculation_inputs": result.get("inputs", calc_inputs),
+                "calculation_context": result.get("context", context),
                 "audit_log": result.get("audit_log", []),
                 "applied_factors": result.get("applied_factors", {}),
-                "outputs": result.get("outputs", {})
+                "outputs": result.get("outputs", {}),
+                "resolved_exchange_rate": (
+                    float(row_data.get("exchange_rate"))
+                    if row_data.get("exchange_rate") not in (None, "")
+                    else float((currency_conversion or {}).get("exchange_rate"))
+                    if currency_method == STANDARD_METHOD and (currency_conversion or {}).get("exchange_rate")
+                    else None
+                ),
             }
             
         except (CalculationError, Exception) as e:
@@ -1267,7 +1282,12 @@ class EmissionCalculator:
             currency_method = resolve_bulk_currency_method(row_data)
             dynamic_field_values["spend_currency_conversion_method"] = {"value": currency_method, "unit": ""}
             if currency_method == STANDARD_METHOD and row_data.get("exchange_rate"):
-                dynamic_field_values["exchange_rate"] = {"value": float(row_data.get("exchange_rate")), "unit": "", "is_override": True}
+                dynamic_field_values["exchange_rate"] = {
+                    "value": float(row_data.get("exchange_rate")),
+                    "unit": "",
+                    "is_override": True,
+                    "justification": "Provided through Scope 3 Bulk Upload",
+                }
         
         elif method == CalculationMethod.SUPPLIER_BASIS:
             dynamic_field_values["activity_value_supplier_based"] = {
@@ -1444,6 +1464,13 @@ class EmissionCalculator:
             "audit_log": calculated_emissions.get("audit_log", []),
             "applied_factors": calculated_emissions.get("applied_factors", {}),
             "formula_name": calculated_emissions.get("formula_name"),
+            "_calculation_audit": {
+                "inputs": calculated_emissions.get("calculation_inputs", {}),
+                "context": calculated_emissions.get("calculation_context", {}),
+                "outputs": calculated_emissions.get("outputs", {}),
+                "applied_factors": calculated_emissions.get("applied_factors", {}),
+                "audit_log": calculated_emissions.get("audit_log", []),
+            },
             # Version tracking - embedded in record like manual upload
             "version": 1,
             "version_history": [{

@@ -3377,6 +3377,7 @@ from bulk_upload_scope3.processors import UploadProcessor
 from bulk_upload_scope3.report_generator import ReportGenerator
 from bulk_upload_scope3.models import ValidationError, ErrorSeverity, UploadSummary, UploadStatus
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
+from bulk_upload_scope3.calculation_audit import prepare_bulk_calculation_audits, persist_bulk_calculation_audits
 from modules.entitlements.dependencies import assert_period_row_batch_limit
 
 scope3_bulk_router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
@@ -3505,14 +3506,20 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
             database=db,
         )
         created_ids = []
+        calculation_audits = prepare_bulk_calculation_audits(records_to_save)
         try:
             await db.emission_records.insert_many(records_to_save)
             created_ids = [r["id"] for r in records_to_save]
+            await persist_bulk_calculation_audits(db, calculation_audits)
             logger.info(f"[BULK_SAVE] Job {job_id}: Inserted {len(created_ids)} emission records")
         except Exception as insert_err:
             # Compensating rollback: remove any partially inserted records
             partial_ids = [r["id"] for r in records_to_save]
             rollback_result = await db.emission_records.delete_many({"id": {"$in": partial_ids}})
+            if calculation_audits:
+                await db.ce_calculation_audit_logs.delete_many({
+                    "id": {"$in": [audit["id"] for audit in calculation_audits]}
+                })
             logger.error(
                 f"[BULK_SAVE] Job {job_id}: insert_many failed ({insert_err}). "
                 f"Rolled back {rollback_result.deleted_count}/{len(partial_ids)} partial records."

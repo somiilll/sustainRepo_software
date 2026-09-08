@@ -16,6 +16,7 @@ from .models import UploadSummary, UploadStatus
 from .ghg_config_resolver import resolve_ghg_capabilities
 from modules.entitlements.dependencies import assert_period_row_batch_limit
 from shared.utils.emission_records import normalize_reporting_period_for_storage
+from .calculation_audit import prepare_bulk_calculation_audits, persist_bulk_calculation_audits
 
 logger = logging.getLogger(__name__)
 
@@ -218,8 +219,18 @@ async def save_valid_rows(
             records_to_save,
             database=db,
         )
-        await db.emission_records.insert_many(records_to_save)
         created_ids = [r["id"] for r in records_to_save]
+        calculation_audits = prepare_bulk_calculation_audits(records_to_save)
+        try:
+            await db.emission_records.insert_many(records_to_save)
+            await persist_bulk_calculation_audits(db, calculation_audits)
+        except Exception:
+            await db.emission_records.delete_many({"id": {"$in": created_ids}})
+            if calculation_audits:
+                await db.ce_calculation_audit_logs.delete_many({
+                    "id": {"$in": [audit["id"] for audit in calculation_audits]}
+                })
+            raise
         logger.info(f"[BULK_UPLOAD_SAVE] Inserted {len(created_ids)} emission records for job {job_id}")
         
         # Create emission_history entries for version tracking

@@ -22,6 +22,7 @@ from modules.entitlements.dependencies import (
 )
 from calc_engine.versioning import apply_record_version_binding
 from shared.utils.emission_records import normalize_reporting_period_for_storage
+from ..calculation_audit import prepare_bulk_calculation_audits, persist_bulk_calculation_audits
 
 logger = logging.getLogger(__name__)
 
@@ -389,8 +390,18 @@ class UploadProcessor:
                     valid_records,
                     database=self.db,
                 )
-                await self.db.emission_records.insert_many(valid_records)
+                calculation_audits = prepare_bulk_calculation_audits(valid_records)
                 created_ids = [r["id"] for r in valid_records]
+                try:
+                    await self.db.emission_records.insert_many(valid_records)
+                    await persist_bulk_calculation_audits(self.db, calculation_audits)
+                except Exception:
+                    await self.db.emission_records.delete_many({"id": {"$in": created_ids}})
+                    if calculation_audits:
+                        await self.db.ce_calculation_audit_logs.delete_many({
+                            "id": {"$in": [audit["id"] for audit in calculation_audits]}
+                        })
+                    raise
                 
                 # Create emission_history entries for version tracking
                 now = datetime.now(timezone.utc)

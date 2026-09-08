@@ -12,6 +12,10 @@ def test_spent_amount_only_defaults_to_standard_currency_conversion():
     assert resolve_bulk_currency_method({"spent_amount": 1000}) == STANDARD_METHOD
 
 
+def test_numeric_standard_currency_conversion_selects_standard_method():
+    assert resolve_bulk_currency_method({"spent_amount": 1000, "exchange_rate": 83.25}) == STANDARD_METHOD
+
+
 def test_ppp_or_inflation_value_selects_ppp_inflation():
     assert resolve_bulk_currency_method({"spent_amount": 1000, "ppp": 24.5}) == PPP_INFLATION_METHOD
     assert resolve_bulk_currency_method({"spent_amount": 1000, "inflation_rate": 1.08}) == PPP_INFLATION_METHOD
@@ -57,3 +61,15 @@ def test_spent_amount_header_accepts_current_and_legacy_template_labels():
 
     assert c1_spent_amount_column["name"] == "Spent Amount"
     assert "Spent Amount (INR)" in c1_spent_amount_column["aliases"]
+
+
+def test_standard_currency_conversion_column_is_numeric_exchange_rate():
+    columns = CATEGORY_COLUMNS["C1"]["columns"]
+    standard_conversion = next(
+        column for column in columns if column["name"] == "Standard Currency Conversion"
+    )
+
+    assert standard_conversion["key"] == "exchange_rate"
+    assert standard_conversion["type"] == "number"
+    assert "Exchange Rate (Override)" in standard_conversion["aliases"]
+    assert not any(column["name"] == "Exchange Rate (Override)" for column in columns)

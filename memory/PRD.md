@@ -101,6 +101,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- Scope 3 Spend Basis Bulk Upload now treats **Standard Currency Conversion** as the numeric exchange-rate column. The separate **Exchange Rate (Override)** column was removed from newly generated templates; its old header remains accepted as an import alias.
+- A supplied Standard Currency Conversion value is validated, used as the standard-rate override, and persisted in `dynamic_field_values.exchange_rate`. A blank value continues to use the configured effective standard rate for the reporting period.
+- Standard conversion values cannot be combined with Purchase Power Value or Inflation Rate in the same row.
+- Scope 3 Bulk Upload now extracts each successful calculation trace into `ce_calculation_audit_logs` when records are saved, linking it by emission-record ID so the Edit form can display **Calculation Details** like manual records.
+- Calculation-audit persistence is covered in both immediate-save and validate-then-confirm save paths, with compensating cleanup if audit persistence fails. No historical backfill was added because the user confirmed there are no existing affected records.
+- **VERIFIED BEFORE USER STOPPED FURTHER TESTING:** Python compilation passed; 21 focused backend regression tests passed; the live generated template check passed. Full end-to-end upload/edit browser verification was not continued per user instruction.
 - Restored compatibility for prior Scope 3 workbooks: both **Spent Amount** and **Spent Amount (INR)** now map to the required Spend Basis value, preventing false missing-value errors.
 - Bulk Upload now rejects future Reporting Month, CY Reporting Year, and FY Reporting Year values across Scope 1, Scope 2, and Scope 3. The current calendar month/current financial year remain valid.
 - Scope 3 Spend Basis Bulk Upload now infers Standard Currency Conversion when only Spent Amount is supplied. Providing Purchase Power Value and/or Inflation Rate selects PPP and Inflation Rate, and each supplied value is retained as an override.
