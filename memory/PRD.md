@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Removed the leading colon from hover tooltips in the Attributed emissions by scope and ESG score distribution donut charts.
+- **NOT TESTED:** Per the user’s prior explicit instruction.
+
+## Previous Change — September 7, 2026
 - Refined Supplier Assessment Ranking → GHG charts: removed the redundant Attributed emissions legend and added `tCO₂e` Y-axis labels to emissions comparison, Scope 1 category, and month-on-month charts.
 - Added a dynamic emissions-intensity Y-axis unit, such as `tCO₂e/INR`, with a neutral `tCO₂e/currency` label if multiple currencies are present.
 - **NOT TESTED:** Per the user’s explicit instruction.
