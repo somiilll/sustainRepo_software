@@ -101,6 +101,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 7, 2026
+- Polished the login page with a balanced pale-green-to-blue form-panel gradient, softened white form card, refined input focus/hover states, and a more tactile sign-in button.
+- Added an accessible Show/Hide Password control, preserving the existing sign-in behavior and all login routes.
+- Centered and clarified the account-recovery/contact actions beneath a subtle divider.
+- **VERIFIED:** Desktop and 390px mobile views render without horizontal overflow; the password visibility control changes input state correctly.
+
+## Previous Change — September 7, 2026
 - Replaced the login-page background with the supplied “Platform for Smarter Sustainability Management” visual. The new PNG is stored in the configured Cloudflare R2 software-images bucket, displayed as the left-side login visual on desktop, and stacked above the form on mobile.
 - Deleted the previous `images/login-background.webp` R2 object. No corresponding legacy database metadata record existed in either `software_assets` or `uploaded_files` (both were confirmed empty and cleared).
 - Moved the sign-in form to the right-hand panel on desktop while preserving a responsive, no-horizontal-overflow mobile layout.
