@@ -1,4 +1,5 @@
 from bulk_upload_scope3.models import CalculationMethod
+from bulk_upload_scope3.models import CATEGORY_COLUMNS
 from bulk_upload_scope3.processors.emission_calculator import (
     EmissionCalculator,
     PPP_INFLATION_METHOD,
@@ -47,3 +48,12 @@ def test_row_overrides_take_priority_over_explicit_standard_selection():
         "ppp": 24.5,
     }
     assert resolve_bulk_currency_method(row_data) == PPP_INFLATION_METHOD
+
+
+def test_spent_amount_header_accepts_current_and_legacy_template_labels():
+    c1_spent_amount_column = next(
+        column for column in CATEGORY_COLUMNS["C1"]["columns"] if column["key"] == "spent_amount"
+    )
+
+    assert c1_spent_amount_column["name"] == "Spent Amount"
+    assert "Spent Amount (INR)" in c1_spent_amount_column["aliases"]

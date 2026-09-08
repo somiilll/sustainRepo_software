@@ -784,7 +784,12 @@ for _category_config in CATEGORY_COLUMNS.values():
     _spent_index = next((index for index, column in enumerate(_columns) if column["key"] == "spent_amount"), None)
     if _spent_index is None:
         continue
-    _columns[_spent_index]["name"] = "Spent Amount"
+    _spent_column = _columns[_spent_index]
+    _legacy_spent_amount_header = _spent_column["name"]
+    _spent_column["name"] = "Spent Amount"
+    _spent_amount_aliases = _spent_column.setdefault("aliases", [])
+    if _legacy_spent_amount_header not in _spent_amount_aliases:
+        _spent_amount_aliases.append(_legacy_spent_amount_header)
     _new_columns = [
         {"name": "Spent Currency", "key": "spent_currency", "mandatory": False, "type": "dropdown"},
         {"name": "Standard Currency Conversion", "key": "spend_currency_conversion_method", "mandatory": False, "type": "dropdown", "aliases": ["Currency Conversion Method"]},
