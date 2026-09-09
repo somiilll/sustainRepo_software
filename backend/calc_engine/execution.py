@@ -67,6 +67,20 @@ class CalculationError(RuntimeError):
     pass
 
 
+def _add_conversion_audit(audit: AuditTrail, conversion_audit: Dict[str, Any]) -> None:
+    """Record property resolution separately without changing conversion behaviour."""
+    property_resolutions = list(conversion_audit.get("property_resolutions") or [])
+    if conversion_audit.get("property_resolution"):
+        property_resolutions.append(conversion_audit["property_resolution"])
+    for resolution in property_resolutions:
+        audit.add(resolution)
+    audit.add({
+        key: value
+        for key, value in conversion_audit.items()
+        if key not in {"property_resolution", "property_resolutions"}
+    })
+
+
 class CalcEngine:
     def __init__(self, db):
         self.db = db
@@ -373,6 +387,10 @@ class CalcEngine:
                             self.db, raw_value, base_in, target_base, context
                         )
                         raw_value = converted_value
+                        for resolution in base_audit.get("property_resolutions") or []:
+                            audit.add(resolution)
+                        if base_audit.get("property_resolution"):
+                            audit.add(base_audit["property_resolution"])
                         audit.add({
                             "step": "compound_base_conversion",
                             "variable": var,
@@ -408,7 +426,7 @@ class CalcEngine:
             try:
                 value, c_audit = await convert(self.db, raw_value, raw_unit, target_unit, context, user_overrides)
                 env[var] = value
-                audit.add(c_audit)
+                _add_conversion_audit(audit, c_audit)
                 continue
             except ValueError as conv_err:
                 # Dimension mismatch — attempt a transformation
@@ -465,7 +483,7 @@ class CalcEngine:
                             audit.add(a)
                         # Now convert to target_unit (same dim post-transformation)
                         final_val, final_audit = await convert(self.db, val, new_unit, target_unit, context)
-                        audit.add(final_audit)
+                        _add_conversion_audit(audit, final_audit)
                         env[var] = final_val
                         transformation_applied = True
                         break
@@ -520,7 +538,7 @@ class CalcEngine:
             # Only convert if we have both units and they differ
             if expected_unit and unit and unit != expected_unit:
                 value, c_audit = await convert(self.db, value, unit, expected_unit, context)
-                audit.add(c_audit)
+                _add_conversion_audit(audit, c_audit)
                 applied_factors[var]["converted_to"] = expected_unit
                 applied_factors[var]["converted_value"] = value
             env[var] = value

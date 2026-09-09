@@ -35,19 +35,42 @@ const propertyPresentation = (entry) => {
   return { Icon: Calculator, iconClass: 'text-purple-500' };
 };
 
-const propertyValueState = (entry) => {
-  if (entry.property !== 'density') return null;
-  return entry.source === 'user_override' ? 'Overridden value' : 'Default value';
+const legacyDensityEntry = (entry) => {
+  if (entry.step !== 'convert' || entry.property_key !== 'density') return null;
+  const isReverse = entry.method?.includes('reverse');
+  const inputUnit = entry.input?.unit || '';
+  const outputUnit = entry.output?.unit || '';
+  const factor = Number(entry.factor);
+  return {
+    step: 'resolve_property',
+    property: 'density',
+    property_label: 'Density',
+    value: isReverse && factor ? 1 / factor : factor,
+    unit: isReverse ? `${inputUnit}/${outputUnit}` : `${outputUnit}/${inputUnit}`,
+    source_name: entry.method?.includes('user_override') ? 'User Specified' : 'Fuel Database',
+  };
 };
 
-const SourceBadge = ({ source }) => source ? (
-  <span className="ml-auto shrink-0 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700" data-testid="calculation-source-badge">
+const calculationEntries = (auditLog) => {
+  const hasCanonicalDensity = auditLog.some(
+    (entry) => entry.step === 'resolve_property' && entry.property === 'density',
+  );
+  if (hasCanonicalDensity) return auditLog;
+  return auditLog.flatMap((entry) => {
+    const densityEntry = legacyDensityEntry(entry);
+    return densityEntry ? [densityEntry, entry] : [entry];
+  });
+};
+
+const SourceBadge = ({ source, testId }) => source ? (
+  <span className="ml-auto shrink-0 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700" data-testid={testId}>
     Source · {source}
   </span>
 ) : null;
 
 export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3Like }) => {
   const auditLog = calculation.auditLog || [];
+  const displayAuditLog = calculationEntries(auditLog);
 
   return (
     <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="calculated-emissions-summary">
@@ -91,18 +114,17 @@ export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3L
             </AccordionTrigger>
             <AccordionContent>
               <div className="rounded-lg border border-stone-200 bg-white px-4" data-testid="calculation-audit-entries">
-                {auditLog.map((entry, index) => {
+                {displayAuditLog.map((entry, index) => {
                   if (entry.step === 'input') {
                     const finalConvert = entry.variable === 'qty' || entry.variable === 'qty_energy'
-                      ? auditLog.find((candidate) => candidate.step === 'convert' && candidate.output?.unit === 'kg' && candidate.output?.value !== entry.value)
+                      ? displayAuditLog.find((candidate) => candidate.step === 'convert' && candidate.output?.unit === 'kg' && candidate.output?.value !== entry.value)
                       : null;
                     return <div key={index} className="flex items-start gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-input-entry-${index}`}><ArrowUpFromLine className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">Input:</span> <span className="text-blue-700">{entry.variable_label || entry.variable}</span> = {entry.value}{!UNIT_LESS_COUNT_FIELDS.has(entry.variable) && entry.unit ? ` ${entry.unit}` : ''}{finalConvert ? <span className="ml-2 text-emerald-700">→ {formatNumber(finalConvert.output.value, 2)} {finalConvert.output.unit}</span> : null}</p></div>;
                   }
                   if (entry.step === 'resolve_property') {
                     const { Icon, iconClass } = propertyPresentation(entry);
                     const sourceName = entry.source_name || entry.source || '';
-                    const valueState = propertyValueState(entry);
-                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}{valueState ? <span className="ml-2 text-xs font-medium text-stone-500" data-testid={`calculation-density-value-state-${index}`}>({valueState})</span> : null}</p><SourceBadge source={sourceName} /></div>;
+                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}</p><SourceBadge source={sourceName} testId={`calculation-source-badge-${index}`} /></div>;
                   }
                   if (entry.step === 'formula_step') {
                     const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());

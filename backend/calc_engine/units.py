@@ -368,6 +368,7 @@ async def _try_compound_conversion(
     # Calculate total conversion factor
     total_factor = 1.0
     component_conversions = []
+    property_resolutions = []
     
     for fc in from_components:
         from_unit_key = fc.get("unit_key")
@@ -402,6 +403,8 @@ async def _try_compound_conversion(
                 _, conv_audit = await _convert_component(db, from_unit_key, to_unit_key, context, user_overrides)
                 comp_factor = conv_audit.get("factor", 1.0)
                 conv_method = conv_audit.get("method", "unknown")
+                if conv_audit.get("property_resolution"):
+                    property_resolutions.append(conv_audit["property_resolution"])
             except ValueError:
                 return None  # No conversion path found
         
@@ -419,7 +422,7 @@ async def _try_compound_conversion(
     if not math.isfinite(converted):
         return None
     
-    return converted, {
+    conversion_audit = {
         "step": "convert",
         "input": {"value": value, "unit": from_unit},
         "output": {"value": converted, "unit": to_unit},
@@ -427,6 +430,9 @@ async def _try_compound_conversion(
         "method": "compound_same_dimension",
         "component_conversions": component_conversions,
     }
+    if property_resolutions:
+        conversion_audit["property_resolutions"] = property_resolutions
+    return converted, conversion_audit
 
 
 async def _convert_component(db, from_unit: str, to_unit: str, context: dict = None, user_overrides: dict = None) -> Tuple[float, dict]:
@@ -442,6 +448,23 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
     """
     context = context or {}
     user_overrides = user_overrides or {}
+
+    def property_resolution_audit(
+        property_key: str,
+        value: float,
+        unit: str,
+        source: str,
+        source_name: str,
+    ) -> dict:
+        return {
+            "step": "resolve_property",
+            "property": property_key,
+            "property_label": property_key.replace("_", " ").title(),
+            "value": value,
+            "unit": unit,
+            "source": source,
+            "source_name": source_name,
+        }
 
     async def normalize_density_factor(value: float, unit: str, expected_unit: str) -> float:
         """Normalize a density or its reciprocal to a requested conversion factor unit."""
@@ -483,34 +506,63 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                 override_val = user_overrides[property_key]
                 # Handle both dict format {"value": x, "unit": y} and raw value
                 if isinstance(override_val, dict):
-                    factor = float(override_val.get("value", 0))
+                    property_value = float(override_val.get("value", 0))
+                    factor = property_value
                     override_unit = override_val.get("unit", "")
+                    source_name = override_val.get("source_name") or "User Specified"
                     
                     # Normalize to the directional conversion factor (e.g. kg/L for L → kg).
                     if override_unit and "/" in override_unit and property_key == "density":
                         expected_density_unit = f"{to_unit}/{from_unit}"
                         factor = await normalize_density_factor(factor, override_unit, expected_density_unit)
                 else:
-                    factor = float(override_val)
+                    property_value = float(override_val)
+                    factor = property_value
+                    override_unit = f"{to_unit}/{from_unit}"
+                    source_name = "User Specified"
                 if factor and factor != 0:
                     return factor, {
                         "factor": factor,
                         "method": "property_based_user_override",
                         "property_key": property_key,
-                        "source": "user_overrides"
+                        "source": "user_overrides",
+                        "property_resolution": property_resolution_audit(
+                            property_key,
+                            property_value,
+                            override_unit,
+                            "user_override",
+                            source_name,
+                        ),
                     }
             
             # Fallback to fuel database
             fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code") or context.get("fuel_id")
             if fuel_db_id:
-                fuel = await db.fuel_database.find_one({"id": fuel_db_id}, {"_id": 0, property_key: 1})
+                property_unit_key = f"{property_key}_unit"
+                fuel = await db.fuel_database.find_one(
+                    {"id": fuel_db_id},
+                    {
+                        "_id": 0,
+                        property_key: 1,
+                        property_unit_key: 1,
+                        "source": 1,
+                        "source_of_information": 1,
+                    },
+                )
                 if fuel and fuel.get(property_key):
                     factor = float(fuel[property_key])
                     return factor, {
                         "factor": factor,
                         "method": "property_based",
                         "property_key": property_key,
-                        "fuel_database_id": fuel_db_id
+                        "fuel_database_id": fuel_db_id,
+                        "property_resolution": property_resolution_audit(
+                            property_key,
+                            factor,
+                            fuel.get(property_unit_key) or f"{to_unit}/{from_unit}",
+                            "fuel_database_fallback",
+                            fuel.get("source") or fuel.get("source_of_information") or "Fuel Database",
+                        ),
                     }
     
     # Priority 2: Reverse DB conversion
@@ -533,8 +585,10 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
             if user_overrides.get(property_key):
                 override_val = user_overrides[property_key]
                 if isinstance(override_val, dict):
-                    base_factor = float(override_val.get("value", 0))
+                    property_value = float(override_val.get("value", 0))
+                    base_factor = property_value
                     override_unit = override_val.get("unit", "")
+                    source_name = override_val.get("source_name") or "User Specified"
                     
                     # The requested conversion is kg → L, so accept L/kg directly.
                     # A conventional physical density (kg/L) is also accepted and inverted.
@@ -542,26 +596,53 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                         expected_density_unit = f"{to_unit}/{from_unit}"
                         base_factor = await normalize_density_factor(base_factor, override_unit, expected_density_unit)
                 else:
-                    base_factor = float(override_val)
+                    property_value = float(override_val)
+                    base_factor = property_value
+                    override_unit = f"{from_unit}/{to_unit}"
+                    source_name = "User Specified"
                 if base_factor and base_factor != 0:
                     return base_factor, {
                         "factor": base_factor,
                         "method": "property_based_reverse_user_override",
                         "property_key": property_key,
-                        "source": "user_overrides"
+                        "source": "user_overrides",
+                        "property_resolution": property_resolution_audit(
+                            property_key,
+                            property_value,
+                            override_unit,
+                            "user_override",
+                            source_name,
+                        ),
                     }
             
             # Fallback to fuel database
             fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code") or context.get("fuel_id")
             if fuel_db_id:
-                fuel = await db.fuel_database.find_one({"id": fuel_db_id}, {"_id": 0, property_key: 1})
+                property_unit_key = f"{property_key}_unit"
+                fuel = await db.fuel_database.find_one(
+                    {"id": fuel_db_id},
+                    {
+                        "_id": 0,
+                        property_key: 1,
+                        property_unit_key: 1,
+                        "source": 1,
+                        "source_of_information": 1,
+                    },
+                )
                 if fuel and fuel.get(property_key) and float(fuel[property_key]) != 0:
                     factor = 1.0 / float(fuel[property_key])
                     return factor, {
                         "factor": factor,
                         "method": "property_based_reverse",
                         "property_key": property_key,
-                        "fuel_database_id": fuel_db_id
+                        "fuel_database_id": fuel_db_id,
+                        "property_resolution": property_resolution_audit(
+                            property_key,
+                            float(fuel[property_key]),
+                            fuel.get(property_unit_key) or f"{from_unit}/{to_unit}",
+                            "fuel_database_fallback",
+                            fuel.get("source") or fuel.get("source_of_information") or "Fuel Database",
+                        ),
                     }
     
     # Priority 3: Chained conversion

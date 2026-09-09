@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Consistent density calculation audit (manual and Bulk Upload):** Property-based direct, reverse, and compound unit conversions now attach additive density resolution metadata without changing conversion factors, formula selection, or numerical outputs. The shared execution layer records this metadata as the same canonical `resolve_property` audit step already produced by the volume-to-mass transformation path, so future manual and Bulk Upload records retain consistent density value, unit, and source details.
+- Calculation Details now recognizes the earlier direct-conversion audit shape (`convert` + `property_key: density`) for existing manual and Bulk Upload records, displaying the density that was already used without rewriting immutable history. Removed the unwanted Default/Overridden density labels.
+- **NOT TESTED** per the user’s explicit instruction.
+-
 - **September 9, 2026 — Calculation Details density clarity:** When a calculation uses density, its property row now explicitly identifies whether the displayed amount is the **Overridden value** or the resolved **Default value**, while retaining its calculation-data source badge.
 - **NOT TESTED** per the user’s standing instruction.
 -
