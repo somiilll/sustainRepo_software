@@ -105,7 +105,6 @@ export const validateStep3 = ({
   monthlyData,
   filledMonthsCount,
   isProcessEmissions,
-  selectedTemplate,
   updateMonthData,
   calculationMethodology,
   selectedFuel,

@@ -13,7 +13,7 @@
  *  - Module dispatch via `categoryRegistry` (Scope 1/2 generic + per-category
  *    Scope 3 modules + biogenic + Stationary/Mobile/Fugitive)
  *  - `editingEmission` update path (PUT /emissions/{id})
- *  - Process Emissions branch (POST /emissions with template inputs)
+ *  - Process Emissions through the configuration-driven module dispatch
  *  - Final fallback toast for unsupported categories
  *
  * Behaviour byte-identical: validation gate, toast messages, axios endpoints,
@@ -24,7 +24,6 @@ import { toast } from 'sonner';
 
 import { categoryRegistry } from '../../../../emissions';
 import { MONTHS } from '../constants/emission-form-constants';
-import { buildLegacyProcessTemplatePayload } from '../utils/processTemplateSavePayload';
 import { resolveDensityFieldState } from '../utils/unitHelpers';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -64,11 +63,10 @@ export function useEmissionSubmit(ctx) {
       monthlyData, yearlyData, processNames, responsiblePerson,
       responsiblePersonDesignation, responsiblePersonContact, notes, supplierName,
       supplierCode, employeeName, employeeId, assetName,
-      fromLocation, toLocation, selectedSubIndustry, selectedTemplate,
-      templateInputValues, dynamicCategories, setIsSaving, isC7EmployeeCommuting,
+      fromLocation, toLocation, dynamicCategories, setIsSaving, isC7EmployeeCommuting,
       isProcessEmissions = false, requiresSubcategory, selectedFuel, filteredScope3Activities,
       dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
-      onSuccess, getActualYearForMonth, evaluateFormula,
+      onSuccess, getActualYearForMonth,
       buildDecisionInputs, editingEmission,
       decisionFieldValues,
       capabilities,
@@ -424,11 +422,7 @@ export function useEmissionSubmit(ctx) {
         
         // Validate yearly data has at least one value
         let hasYearlyData = false;
-        if (isProcessEmissions && selectedTemplate) {
-          hasYearlyData = selectedTemplate.input_fields?.some(f => 
-            yearlyData[f.key] && parseFloat(yearlyData[f.key]) > 0
-          );
-        } else if (dynamicInputFields.length > 0) {
+        if (dynamicInputFields.length > 0) {
           const requiredFields = dynamicInputFields.filter(f => !f.isOverride && !f.presentationOnly);
           hasYearlyData = requiredFields.some(f => {
             const value = yearlyData[f.variable] || yearlyData[f.fieldKey];
@@ -445,29 +439,7 @@ export function useEmissionSubmit(ctx) {
         }
         
         try {
-          if (isProcessEmissions && selectedTemplate) {
-            const payload = buildLegacyProcessTemplatePayload({
-              data: yearlyData,
-              reportingPeriod: yearlyReportingPeriod,
-              frequencyType: 'yearly',
-              facilityId,
-              category,
-              categoryCode,
-              selectedSubIndustry,
-              selectedTemplate,
-              templateInputValues,
-              evaluateFormula,
-              recordSource,
-              notes,
-              responsiblePerson,
-              responsiblePersonDesignation,
-              responsiblePersonContact,
-            });
-            
-            await axios.post(apiBase, payload, { headers: getAuthHeader() });
-            toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
-            onSuccess?.();
-          } else if (dynamicInputFields.length > 0) {
+          if (dynamicInputFields.length > 0) {
             // ============================================================
             // YEARLY DISPATCH (post-Phase F: module-driven, single record)
             // ============================================================
@@ -577,15 +549,9 @@ export function useEmissionSubmit(ctx) {
       // ===========================================
       // MONTHLY FREQUENCY HANDLING (Existing)
       // ===========================================
-      // For process emissions, filter months that have template input data
-      // For regular emissions, filter months with dynamic field data
+      // Filter months with configuration-driven dynamic field data.
       let monthsWithData;
-      if (isProcessEmissions && selectedTemplate) {
-        const inputFields = selectedTemplate.input_fields || [];
-        monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
-          return inputFields.some(field => data?.[field.key] && parseFloat(data[field.key]) > 0);
-        });
-      } else if (dynamicInputFields.length > 0) {
+      if (dynamicInputFields.length > 0) {
         // For dynamic form config, check if any required field (non-override) has value
         const requiredFields = dynamicInputFields.filter(f => !f.isOverride && !f.presentationOnly);
         monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
@@ -601,72 +567,6 @@ export function useEmissionSubmit(ctx) {
 
       if (monthsWithData.length === 0) {
         toast.error('Please enter data for at least one month');
-        setIsSaving(false);
-        return;
-      }
-
-      // PROCESS EMISSIONS HANDLING
-      if (isProcessEmissions && selectedTemplate) {
-        const submissionBatchId = createSubmissionBatchId();
-        const preparedRows = [];
-        for (const [monthKey, data] of monthsWithData) {
-          const actualYear = getActualYearForMonth(monthKey);
-          const reportingPeriod = `${actualYear}-${monthKey}`;
-          try {
-            preparedRows.push({
-              monthKey,
-              reportingPeriod,
-              payload: {
-                ...buildLegacyProcessTemplatePayload({
-                  data,
-                  reportingPeriod,
-                  frequencyType: 'monthly',
-                  facilityId,
-                  category,
-                  categoryCode,
-                  selectedSubIndustry,
-                  selectedTemplate,
-                  templateInputValues,
-                  evaluateFormula,
-                  recordSource,
-                  notes,
-                  responsiblePerson,
-                  responsiblePersonDesignation,
-                  responsiblePersonContact,
-                }),
-                submission_batch_id: submissionBatchId,
-              },
-            });
-          } catch (err) {
-            const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-            toast.error(`Nothing was saved. ${monthName}: ${getApiErrorMessage(err, 'Unable to prepare this month')}. Fix the issue and try again.`, { duration: 10000 });
-            setIsSaving(false);
-            return;
-          }
-        }
-
-        let saveError = null;
-        for (const { monthKey, payload } of preparedRows) {
-          try {
-            await axios.post(apiBase, payload, { headers: getAuthHeader() });
-          } catch (err) {
-            const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-            saveError = `${monthName}: ${getApiErrorMessage(err, 'Unable to save this month')}`;
-            break;
-          }
-        }
-        if (saveError) {
-          const rollback = await rollbackSubmissionBatch(submissionBatchId);
-          const rollbackMessage = rollback.error
-            ? `Rollback issue: ${rollback.error}`
-            : `${rollback.rolledBackCount} saved month(s) were reverted.`;
-          toast.error(`Nothing was saved. ${saveError}. ${rollbackMessage} Fix the issue and try again.`, { duration: 10000 });
-          setIsSaving(false);
-          return;
-        }
-
-        toast.success(`Created emissions for ${formatSavedMonths(preparedRows.map(({ monthKey }) => monthKey))}`);
-        onSuccess?.();
         setIsSaving(false);
         return;
       }

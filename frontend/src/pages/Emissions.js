@@ -78,7 +78,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const {
     emissions, facilities, organization, fuelDatabase,
     formulaDefinitions, formulaParameters, emissionConfigurations,
-    loading, centralizedUnits, gwpConfig, processTemplates,
+    loading, centralizedUnits, gwpConfig,
     dynamicScopes, dynamicCategories, configLabels, organizationGhgOverrides: resolvedOrganizationGhgOverrides,
     scope3EFData: initialScope3EFData,
     fugitiveEmissionsData: initialFugitiveData,
@@ -3347,7 +3347,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   formulaParameters={formulaParameters}
                   emissionConfigurations={emissionConfigurations}
                   gwpConfig={gwpConfig}
-                  processTemplates={processTemplates}
                   dynamicScopes={visibleScopes}
                   dynamicCategories={dynamicCategories}
                   hasScope3Access={hasScope3Access}

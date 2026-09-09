@@ -251,21 +251,11 @@ const getCustomFuelLedgerColumns = (calculationMethodology, isFugitiveCustomFuel
 const deriveLedgerColumns = (
   dynamicInputFields,
   formConfig,
-  isProcessEmissions,
-  selectedTemplate,
   useCustomFuel,
   calculationMethodology,
   isFugitiveCustomFuel,
   scope,
 ) => {
-  if (isProcessEmissions && selectedTemplate?.input_fields?.length > 0) {
-    return selectedTemplate.input_fields.map(f => ({
-      key: f.key,
-      label: f.label,
-      unit: null,
-      required: !f.is_optional,
-    }));
-  }
   if (formConfig && dynamicInputFields.length > 0) {
     const primaryColumns = dynamicInputFields.map(f => ({
       key: f.variable,
@@ -331,7 +321,6 @@ import {
   resolveDensityFieldState,
   resolveDensityRequirement,
 } from '../../utils/unitHelpers';
-import { normalizeProcessTemplateMonthlyField } from '../../utils/processTemplateMonthlyFields';
 import { buildNativeOptionsHtml } from '../../utils/nativeSelectOptions';
 import { getFieldUnits } from '../DynamicFieldRenderer';
 import {
@@ -413,7 +402,6 @@ export const Step3YearMonthlyData = ({
   
   // Process emissions
   isProcessEmissions,
-  selectedTemplate,
   
   // Override/fuel props
   scope,
@@ -446,14 +434,8 @@ export const Step3YearMonthlyData = ({
   const customQuantityUnitOptions = isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
     ? customFugitiveQuantityUnits
     : customFuelQuantityUnits;
-  const normalizedProcessTemplateFields = useMemo(() => (
-    isProcessEmissions && selectedTemplate?.input_fields?.length
-      ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
-      : []
-  ), [isProcessEmissions, selectedTemplate]);
   const resolveFieldUnits = useCallback((field) => {
     if (!field) return [];
-    if (field.source === 'process_template') return field.allowedUnits || [];
     return getFieldUnits({
       field,
       scope,
@@ -477,11 +459,7 @@ export const Step3YearMonthlyData = ({
     selectedFuel,
     useCustomFuel,
   ]);
-  const runtimeConversionFields = useMemo(() => (
-    isProcessEmissions && normalizedProcessTemplateFields.length > 0
-      ? normalizedProcessTemplateFields
-      : dynamicInputFields
-  ), [dynamicInputFields, isProcessEmissions, normalizedProcessTemplateFields]);
+  const runtimeConversionFields = dynamicInputFields;
   const yearlyReportingPeriod = reportingYearType === 'financial'
     ? `FY ${reportingYear}-${String(Number(reportingYear) + 1).slice(-2)}`
     : `CY${reportingYear}`;
@@ -772,8 +750,6 @@ export const Step3YearMonthlyData = ({
             const ledgerColumns = deriveLedgerColumns(
               dynamicInputFields,
               formConfig,
-              isProcessEmissions,
-              selectedTemplate,
               useCustomFuel,
               calculationMethodology,
               isFugitiveCustomFuel,
@@ -806,43 +782,6 @@ export const Step3YearMonthlyData = ({
                     <span className="flex h-8 min-w-[4.5rem] items-center border-l border-l-stone-200 px-2 text-xs text-stone-600" data-testid={`month-${monthKey}-scope2-default-factor-unit`}>
                       {factorUnit}
                     </span>
-                  </div>
-                );
-              }
-
-              // Process emissions path
-              if (isProcessEmissions && selectedTemplate) {
-                const field = normalizedProcessTemplateFields.find((candidate) => candidate.valueKey === col.key);
-                if (!field) return null;
-                const fieldUnits = resolveFieldUnits(field);
-                const displayedUnit = resolveEffectiveFieldUnit({
-                  field,
-                  data,
-                  selectedFuel,
-                  fieldUnits,
-                  isProcessEmissions: true,
-                });
-                return (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type={field.data_type === 'number' ? 'number' : 'text'}
-                      step={field.data_type === 'number' ? 'any' : undefined}
-                      min="0"
-                      placeholder="—"
-                      value={getMonthlyFieldValue(field, data) || ''}
-                      onChange={(e) => updateMonthData(monthKey, field.valueKey, e.target.value)}
-                      className="h-8 w-full text-sm"
-                      data-testid={`month-${monthKey}-${field.valueKey}`}
-                    />
-                    {fieldUnits.length > 0 && (
-                      <select
-                        value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0]}
-                        onChange={(e) => updateMonthData(monthKey, field.unitKey, e.target.value)}
-                        className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
-                        data-testid={`month-${monthKey}-${field.valueKey}-unit`}
-                        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
-                      />
-                    )}
                   </div>
                 );
               }
@@ -1398,7 +1337,6 @@ export const Step3YearMonthlyData = ({
           reportingYearType={reportingYearType}
           reportingYear={reportingYear}
           isProcessEmissions={isProcessEmissions}
-          selectedTemplate={selectedTemplate}
           formConfig={formConfig}
           dynamicInputFields={dynamicInputFields}
           yearlyData={yearlyData}
@@ -1439,7 +1377,6 @@ const YearlyDataEntry = ({
   reportingYearType,
   reportingYear,
   isProcessEmissions,
-  selectedTemplate,
   formConfig,
   dynamicInputFields,
   yearlyData,
@@ -1478,9 +1415,7 @@ const YearlyDataEntry = ({
   const selectedScope2QuantityUnit = scope2QuantityUnits.includes(yearlyData.unit)
     ? yearlyData.unit
     : (scope2QuantityUnits[0] || '');
-  const yearlyDensityFields = isProcessEmissions && selectedTemplate?.input_fields?.length
-    ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
-    : dynamicInputFields;
+  const yearlyDensityFields = dynamicInputFields;
   const configuredDensityField = yearlyDensityFields.find(isDensityField);
   const yearlyDensityState = resolveDensityFieldState({
     calculationMethodology,
@@ -1547,37 +1482,7 @@ const YearlyDataEntry = ({
           />
         )}
 
-        {/* For Process Emissions: Show template required input field with fixed unit */}
-        {isProcessEmissions && selectedTemplate ? (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4" data-testid="yearly-process-fields-grid">
-            {selectedTemplate.input_fields?.map((field) => (
-              <div key={field.key} className="min-w-0 space-y-2">
-                <Label className="flex min-h-6 items-center justify-center text-center leading-snug">
-                  {field.label} (Annual Total) {!field.is_optional && '*'}
-                </Label>
-                <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
-                  <Input
-                    type={field.data_type === 'number' ? 'number' : 'text'}
-                    step={field.data_type === 'number' ? 'any' : undefined}
-                    min="0"
-                    placeholder={`Enter annual ${field.label.toLowerCase()}`}
-                    value={yearlyData[field.key] || ''}
-                    onChange={(e) => setYearlyData(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-                    data-testid={`yearly-${field.key}`}
-                  />
-                  <select
-                    value={yearlyData[`${field.key}_unit`] || field.unit || 'kg'}
-                    onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.key}_unit`]: e.target.value }))}
-                    className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
-                    data-testid={`yearly-${field.key}-unit`}
-                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : formConfig && dynamicInputFields.length > 0 ? (
+        {formConfig && dynamicInputFields.length > 0 ? (
           /* Dynamic Fields from ce_input_field_mappings for yearly */
           <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-x-4 gap-y-6" data-testid="yearly-data-fields-grid">
             {/* Supplier Method Disclaimer */}

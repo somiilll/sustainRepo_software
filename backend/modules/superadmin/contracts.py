@@ -340,44 +340,6 @@ class SectorResponse(BaseModel):
     description: Optional[str] = None
     created_at: str
 
-class ProcessTemplateInputField(BaseModel):
-    key: str  # unique key for the field
-    label: str
-    unit: str
-    data_type: str = "number"  # number, text, percentage
-    is_optional: bool = False
-    default_value: Optional[str] = None  # default if user doesn't provide
-
-class ProcessTemplatePredefinedInput(BaseModel):
-    key: str  # unique key
-    label: str
-    unit: str
-    data_type: str = "number"
-    value: str  # the predefined value
-    can_override: bool = True  # whether user can override
-
-class ProcessTemplateCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    sub_industry: Optional[str] = None
-    formula: str  # formula expression using input keys
-    input_fields: List[Dict[str, Any]] = []  # required input fields
-    predefined_inputs: List[Dict[str, Any]] = []  # predefined inputs with values
-    is_active: bool = True
-
-class ProcessTemplateResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    name: str
-    description: Optional[str] = None
-    sub_industry: Optional[str] = None
-    formula: str
-    input_fields: List[Dict[str, Any]] = []
-    predefined_inputs: List[Dict[str, Any]] = []
-    is_active: bool = True
-    created_at: str
-    updated_at: Optional[str] = None
-
 class GWPConfigCreate(BaseModel):
     source_name: str  # e.g., "IPCC AR6", "IPCC AR5", "Custom"
     source_year: Optional[int] = None  # e.g., 2021 for AR6

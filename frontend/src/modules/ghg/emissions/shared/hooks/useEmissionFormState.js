@@ -80,13 +80,6 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   const [decisionFieldValues, setDecisionFieldValues] = useState({});
 
   // ============================================================================
-  // PROCESS EMISSIONS STATE
-  // ============================================================================
-  const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templateInputValues, setTemplateInputValues] = useState({});
-
-  // ============================================================================
   // DYNAMIC FORM CONFIG STATE (Calc Engine Integration)
   // ============================================================================
   const [formConfig, setFormConfig] = useState(null);
@@ -276,11 +269,6 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
 
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
-
-    // Process Emissions
-    selectedSubIndustry, setSelectedSubIndustry,
-    selectedTemplate, setSelectedTemplate,
-    templateInputValues, setTemplateInputValues,
 
     // Dynamic Form Config
     formConfig, setFormConfig,

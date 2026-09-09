@@ -22,7 +22,6 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
     emissionConfigurations: [],
     centralizedUnits: [],
     gwpConfig: null,
-    processTemplates: [],
     dynamicScopes: [],
     dynamicCategories: [],
     scope3EFData: [],
@@ -45,8 +44,8 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
       const headers = { headers: getAuthHeader() };
       const [
         emissionsRes, facilitiesRes, fuelDbRes, formulasRes, 
-        paramsRes, unitsRes, configsRes, gwpRes, 
-        templatesRes, orgRes, scopesRes, catsRes, labelsRes,
+        paramsRes, unitsRes, configsRes, gwpRes,
+        orgRes, scopesRes, catsRes, labelsRes,
         scope3EfRes, resolvedConfigRes, supplierConfigRes
       ] = await Promise.all([
         axios.get(`${API}/emissions`, headers),
@@ -57,7 +56,6 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
         axios.get(`${API}/calc-engine/units`, headers).catch(() => ({ data: { simple: [], compound: [] } })),
         axios.get(`${API}/emission-configurations`, headers).catch(() => ({ data: [] })),
         axios.get(`${API}/gwp-config`, headers).catch(() => ({ data: null })),
-        axios.get(`${API}/process-templates`, headers).catch(() => ({ data: [] })),
         axios.get(`${API}/organizations/my`, headers).catch(() => ({ data: null })),
         axios.get(`${API}/scopes`, headers).catch(() => ({ data: [] })),
         axios.get(`${API}/categories`, headers).catch(() => ({ data: [] })),
@@ -99,7 +97,6 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
         centralizedUnits: [...(unitsRes.data?.simple || []), ...(unitsRes.data?.compound || [])],
         emissionConfigurations: configsRes.data || [],
         gwpConfig: gwpRes.data || null,
-        processTemplates: templatesRes.data || [],
         organization: orgRes.data,
         dynamicScopes: scopesRes.data || [],
         dynamicCategories: catsRes.data || [],

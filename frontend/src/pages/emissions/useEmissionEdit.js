@@ -86,9 +86,6 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
   const [editFormConfigLoading, setEditFormConfigLoading] = useState(false);
   
   // Process emissions state
-  const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templateInputValues, setTemplateInputValues] = useState({});
   
   // Calculation results
   const [calculatedEmissions, setCalculatedEmissions] = useState(null);
@@ -165,9 +162,6 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
     setExistingEvidences([]);
     setUploadedEvidence(null);
     setIsFormDirty(false);
-    setSelectedSubIndustry('');
-    setSelectedTemplate(null);
-    setTemplateInputValues({});
   }, []);
   
   // Handle dialog open/close
@@ -357,14 +351,6 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
     setEditFormConfig,
     editFormConfigLoading,
     setEditFormConfigLoading,
-    
-    // Process emissions state
-    selectedSubIndustry,
-    setSelectedSubIndustry,
-    selectedTemplate,
-    setSelectedTemplate,
-    templateInputValues,
-    setTemplateInputValues,
     
     // Calculation results
     calculatedEmissions,

@@ -90,7 +90,6 @@ export default function EmissionEntryForm({
   formulaParameters = [],
   emissionConfigurations = [],
   gwpConfig = null,
-  processTemplates = [],
   dynamicScopes = [],
   dynamicCategories = [],
   hasScope3Access = false,
@@ -187,8 +186,6 @@ export default function EmissionEntryForm({
     c7FormulaName, setC7FormulaName,
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
-    // Process emissions
-    selectedTemplate,
     // Dynamic Form Config (Calc Engine)
     formConfig, setFormConfig,
     loadingFormConfig, setLoadingFormConfig,
@@ -2011,27 +2008,6 @@ export default function EmissionEntryForm({
     }
   }, [formConfig, frequencyType, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, yearlyData, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, reportingYearType, reportingYear]);
 
-  // Evaluate formula with given values
-  const evaluateFormula = useCallback((formula, values) => {
-    try {
-      // Replace variable names with values
-      let expression = formula;
-      Object.keys(values).forEach(key => {
-        const value = parseFloat(values[key]) || 0;
-        // Replace both exact matches and parenthesized matches
-        expression = expression.replace(new RegExp(`\\b${key}\\b`, 'g'), value);
-      });
-      // Handle special characters in formula
-      expression = expression.replace(/×/g, '*').replace(/x/g, '*').replace(/–/g, '-');
-      // Safely evaluate the expression
-      const result = Function('"use strict"; return (' + expression + ')')();
-      return isNaN(result) ? 0 : result;
-    } catch (e) {
-      console.error('Formula evaluation error:', e);
-      return 0;
-    }
-  }, []);
-
   // Get fuels for selected category and scope with region + year priority
   const fuelsForCategory = useMemo(() => {
     let filtered = fuelDatabase.filter(f => {
@@ -3183,7 +3159,7 @@ export default function EmissionEntryForm({
     matchedFormula: dynamicInputFieldsResult?.matchedFormula,
     // Helpers
     canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
-    evaluateFormula, buildDecisionInputs,
+    buildDecisionInputs,
     // Decision state for custom fuel methodology
     decisionFieldValues,
     // Editing
@@ -3396,7 +3372,6 @@ export default function EmissionEntryForm({
           removeEvidence={removeEvidence}
           BACKEND_URL={BACKEND_URL}
           isProcessEmissions={ghgFormContext.isProcessCategory}
-          selectedTemplate={selectedTemplate}
           category={category}
           capabilities={resolvedCapabilities}
           fieldOptions={resolvedGhgFieldOptions}

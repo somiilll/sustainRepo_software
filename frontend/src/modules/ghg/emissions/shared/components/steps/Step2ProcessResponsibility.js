@@ -13,16 +13,12 @@ import { Plus, Trash2, Info } from 'lucide-react';
 /**
  * Step 2 Process & Responsibility Component
  * @param {Object} props
- * @param {boolean} props.isProcessEmissions - Whether category is Process Emissions
- * @param {Object} props.selectedTemplate - Selected process template
  * @param {string} props.responsiblePerson - Person responsible name
  * @param {Function} props.setResponsiblePerson - Setter for responsible person
  * @param {string} props.responsiblePersonDesignation - Person designation
  * @param {Function} props.setResponsiblePersonDesignation - Setter for designation
  * @param {string} props.responsiblePersonContact - Person contact
  * @param {Function} props.setResponsiblePersonContact - Setter for contact
- * @param {Object} props.templateInputValues - Template input values
- * @param {Function} props.setTemplateInputValues - Setter for template input values
  * @param {Array} props.processNames - Process names array
  * @param {Function} props.addProcessName - Function to add process name
  * @param {Function} props.removeProcessName - Function to remove process name
@@ -38,16 +34,12 @@ import { Plus, Trash2, Info } from 'lucide-react';
  * @param {Function} props.setToLocation - Setter for to location
  */
 export const Step2ProcessResponsibility = ({
-  isProcessEmissions,
-  selectedTemplate,
   responsiblePerson,
   setResponsiblePerson,
   responsiblePersonDesignation,
   setResponsiblePersonDesignation,
   responsiblePersonContact,
   setResponsiblePersonContact,
-  templateInputValues,
-  setTemplateInputValues,
   processNames,
   addProcessName,
   removeProcessName,
@@ -159,61 +151,7 @@ export const Step2ProcessResponsibility = ({
 
   return (
     <div className="space-y-8">
-      {/* For Process Emissions: Show Person Responsible and Override Default Values */}
-      {isProcessEmissions && selectedTemplate ? (
-        <>
-          {responsibilityFields}
-
-          {/* Modify Values - Only show predefined inputs that can be overridden */}
-          {selectedTemplate.predefined_inputs?.filter(f => f.can_override).length > 0 && (
-            <div className="space-y-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Label className="text-amber-800 font-medium">Modify Values (if available)</Label>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {selectedTemplate.predefined_inputs.filter(f => f.can_override).map((field) => (
-                  <div key={field.key} className="space-y-1">
-                    <Label className="text-sm">
-                      {field.label}
-                      {field.unit && <span className="text-text-muted ml-1">({field.unit})</span>}
-                    </Label>
-                    <Input
-                      type={field.data_type === 'number' ? 'number' : 'text'}
-                      step={field.data_type === 'number' ? 'any' : undefined}
-                      value={templateInputValues[field.key] || ''}
-                      onChange={(e) => setTemplateInputValues(prev => ({
-                        ...prev,
-                        [field.key]: e.target.value
-                      }))}
-                      placeholder={`Default: ${field.value}`}
-                      className="bg-white"
-                      data-testid={`override-${field.key}`}
-                    />
-                    <p className="text-xs text-amber-600">Default: {field.value} {field.unit}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Show locked predefined values (non-overridable) for info */}
-          {selectedTemplate.predefined_inputs?.filter(f => !f.can_override).length > 0 && (
-            <div className="space-y-3 p-4 bg-stone-50 border border-stone-200 rounded-lg">
-              <Label className="text-stone-600 font-medium">Fixed Values (Cannot be changed)</Label>
-              <div className="grid grid-cols-2 gap-3">
-                {selectedTemplate.predefined_inputs.filter(f => !f.can_override).map((field) => (
-                  <div key={field.key} className="flex justify-between items-center p-2 bg-white rounded border">
-                    <span className="text-sm text-stone-600">{field.label}</span>
-                    <span className="text-sm font-medium">{field.value} {field.unit}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        /* Regular emissions: Show Process Names and Person Responsible */
-        <>
+      <>
           {/* Process Names */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -337,8 +275,7 @@ export const Step2ProcessResponsibility = ({
               </div>
             </div>
           )}
-        </>
-      )}
+      </>
 
       {scope === 'scope3' && category && (
         <div className="space-y-4 border-t border-stone-100 pt-6" data-testid="supplier-information-section">

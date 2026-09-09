@@ -1,4 +1,4 @@
-"""Phase B9b: Split sub-router — Super-Admin Dashboard + Sectors + Process Templates.
+"""Phase B9b: Split sub-router — Super-Admin Dashboard + Sectors.
 
 Auto-extracted from modules/superadmin/router.py (Feb 2026).
 Behaviour byte-identical: route bodies preserved verbatim.
@@ -39,7 +39,6 @@ from modules.superadmin.contracts import (
     FormulaParameterCreate, FormulaParameterResponse,
     FuelDatabaseCreate, FuelDatabaseResponse,
     GWPConfigCreate, GWPConfigUpdate,
-    ProcessTemplateCreate, ProcessTemplateResponse,
     Scope3EFCreate, Scope3EFResponse,
     SectorCreate, SectorResponse,
     UnitCreate, UnitResponse,
@@ -204,67 +203,6 @@ async def seed_default_sectors(current_user: dict = Depends(get_super_admin_user
             added_count += 1
     
     return {"message": f"Seeded {added_count} default sectors", "added": added_count}
-
-
-# Process Template CRUD endpoints
-
-# Process Template CRUD endpoints
-@router.get("/super-admin/process-templates", response_model=List[ProcessTemplateResponse])
-async def get_process_templates(current_user: dict = Depends(get_super_admin_user)):
-    templates = await db.process_templates.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return [ProcessTemplateResponse(**t) for t in templates]
-
-@router.post("/super-admin/process-templates", response_model=ProcessTemplateResponse)
-async def create_process_template(data: ProcessTemplateCreate, current_user: dict = Depends(get_super_admin_user)):
-    template_dict = {
-        "id": str(uuid.uuid4()),
-        "name": data.name,
-        "description": data.description,
-        "sub_industry": data.sub_industry,
-        "formula": data.formula,
-        "input_fields": data.input_fields,
-        "predefined_inputs": data.predefined_inputs,
-        "is_active": data.is_active,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": None
-    }
-    await db.process_templates.insert_one(template_dict)
-    return ProcessTemplateResponse(**template_dict)
-
-@router.put("/super-admin/process-templates/{template_id}", response_model=ProcessTemplateResponse)
-async def update_process_template(template_id: str, data: ProcessTemplateCreate, current_user: dict = Depends(get_super_admin_user)):
-    existing = await db.process_templates.find_one({"id": template_id}, {"_id": 0})
-    if not existing:
-        raise HTTPException(status_code=404, detail="Process template not found")
-    
-    update_dict = {
-        "name": data.name,
-        "description": data.description,
-        "sub_industry": data.sub_industry,
-        "formula": data.formula,
-        "input_fields": data.input_fields,
-        "predefined_inputs": data.predefined_inputs,
-        "is_active": data.is_active,
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    await db.process_templates.update_one({"id": template_id}, {"$set": update_dict})
-    updated = await db.process_templates.find_one({"id": template_id}, {"_id": 0})
-    return ProcessTemplateResponse(**updated)
-
-@router.delete("/super-admin/process-templates/{template_id}")
-async def delete_process_template(template_id: str, current_user: dict = Depends(get_super_admin_user)):
-    result = await db.process_templates.delete_one({"id": template_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Process template not found")
-    return {"message": "Process template deleted successfully"}
-
-# Public endpoint for admins/users to fetch active templates
-
-# Public endpoint for admins/users to fetch active templates
-@router.get("/process-templates", response_model=List[ProcessTemplateResponse])
-async def get_active_process_templates(current_user: dict = Depends(get_current_user)):
-    templates = await db.process_templates.find({"is_active": True}, {"_id": 0}).sort("name", 1).to_list(1000)
-    return [ProcessTemplateResponse(**t) for t in templates]
 
 
 # Emission records endpoints

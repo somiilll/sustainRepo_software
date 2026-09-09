@@ -1243,7 +1243,7 @@ async def get_config_labels():
 # /super-admin/*, /units, /fuel-database, /scope3-ef, /emission-categories,
 # /base-year/*, /gwp-config(s), /currency-conversion, /formula-*,
 # /emission-configurations, /emission-factors, /custom-emission-factors,
-# /calculation-formulas, /sectors, /process-templates)
+# /calculation-formulas, /sectors)
 # moved to modules/superadmin/router.py.
 
 # Phase B4: DELETE /emissions/{id} moved to modules/emissions/router.py

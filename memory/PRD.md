@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Removed disconnected Process Templates module:** Deleted the Super Admin Process Templates page, navigation route, CRUD/public backend endpoints, contracts, frontend fetch/state plumbing, dormant template-specific form state, renderer branches, save payload builders, utility files, and obsolete endpoint/unit tests.
+- Active Scope 1 Process Emissions remain available through the canonical configuration-driven form, decision tree, calculation engine, and module dispatch. Existing `process_templates` database rows were intentionally left untouched; they are no longer read or written by application code.
+- **NOT TESTED** per the user’s standing instruction; a reference-only sweep found no remaining Process Templates code references.
+-
 - **September 9, 2026 — Removed unused emissions repository wrapper:** Deleted `backend/repositories/emissions_repository.py` after confirming it had no imports or runtime consumers. Active emissions routes and processors continue using the existing MongoDB access paths directly.
 - Super Admin Process Templates investigation: CRUD and active-template fetch endpoints exist, but the emissions form does not currently select or assign a fetched template. `selectedTemplate` remains `null`, leaving the template-specific rendering and save branches dormant; active Process Emissions use the configuration-driven calculation flow instead.
 - **NOT TESTED** per the user’s standing instruction.

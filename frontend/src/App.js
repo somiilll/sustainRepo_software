@@ -26,7 +26,6 @@ import Units from './pages/Units';
 import Sectors from './pages/Sectors';
 import GWPConfiguration from './pages/GWPConfiguration';
 import CurrencyConversion from './pages/CurrencyConversion';
-import ProcessTemplates from './pages/ProcessTemplates';
 import ScopeCategoryManagement from './pages/ScopeCategoryManagement';
 import CalculationSandbox from './pages/CalculationSandbox';
 import VariableRegistry from './pages/VariableRegistry';
@@ -225,11 +224,6 @@ const AppRoutes = () => {
             <Route path="currency-conversion" element={
               <SuperAdminRoute>
                 <CurrencyConversion />
-              </SuperAdminRoute>
-            } />
-            <Route path="process-templates" element={
-              <SuperAdminRoute>
-                <ProcessTemplates />
               </SuperAdminRoute>
             } />
             <Route path="scopes-categories" element={

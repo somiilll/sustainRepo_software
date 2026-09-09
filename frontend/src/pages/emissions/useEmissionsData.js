@@ -21,7 +21,6 @@ export function useEmissionsData(getAuthHeader) {
   const [emissionConfigurations, setEmissionConfigurations] = useState([]);
   const [centralizedUnits, setCentralizedUnits] = useState([]);
   const [gwpConfig, setGwpConfig] = useState(null);
-  const [processTemplates, setProcessTemplates] = useState([]);
   const [organization, setOrganization] = useState(null);
   const [dynamicScopes, setDynamicScopes] = useState([]);
   const [dynamicCategories, setDynamicCategories] = useState([]);
@@ -72,8 +71,7 @@ export function useEmissionsData(getAuthHeader) {
         paramsRes, 
         unitsRes, 
         configsRes, 
-        gwpRes, 
-        templatesRes, 
+        gwpRes,
         orgRes, 
         scopesRes, 
         catsRes, 
@@ -87,7 +85,6 @@ export function useEmissionsData(getAuthHeader) {
         axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }).catch(() => ({ data: { simple: [], compound: [] } })),
         axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
-        axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/organizations/my`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
         axios.get(`${API}/scopes`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/categories`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
@@ -106,7 +103,6 @@ export function useEmissionsData(getAuthHeader) {
       
       setEmissionConfigurations(configsRes.data || []);
       setGwpConfig(gwpRes.data || null);
-      setProcessTemplates(templatesRes.data || []);
       setOrganization(orgRes.data);
       setDynamicScopes(scopesRes.data || []);
       setDynamicCategories(catsRes.data || []);
@@ -126,7 +122,6 @@ export function useEmissionsData(getAuthHeader) {
       setCentralizedUnits([]);
       setEmissionConfigurations([]);
       setGwpConfig(null);
-      setProcessTemplates([]);
       setOrganization(null);
       setDynamicScopes([]);
       setDynamicCategories([]);
@@ -237,7 +232,6 @@ export function useEmissionsData(getAuthHeader) {
     emissionConfigurations,
     centralizedUnits,
     gwpConfig,
-    processTemplates,
     organization,
     dynamicScopes,
     dynamicCategories,

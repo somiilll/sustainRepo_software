@@ -218,38 +218,6 @@ export const buildScope3Payload = ({
 };
 
 /**
- * Build Process Emissions payload
- */
-export const buildProcessEmissionsPayload = ({
-  basePayload,
-  reportingPeriod,
-  frequencyType,
-  selectedTemplate,
-  selectedSubIndustry,
-  templateInputValues,
-  yearlyData,
-  monthlyData,
-  monthKey,
-}) => {
-  const isYearly = frequencyType === 'yearly';
-  const data = isYearly ? yearlyData : (monthlyData?.[monthKey] || {});
-
-  return {
-    ...basePayload,
-    reporting_period: reportingPeriod,
-    frequency_type: frequencyType,
-    emission_type: 'process',
-    sub_industry: selectedSubIndustry,
-    template_id: selectedTemplate?.id,
-    template_name: selectedTemplate?.template_name,
-    approach: selectedTemplate?.approach,
-    formula: selectedTemplate?.formula,
-    input_fields: selectedTemplate?.input_fields,
-    input_values: templateInputValues || data,
-  };
-};
-
-/**
  * Build regular fuel-based emission payload (Scope 1, 2, Biogenic)
  */
 export const buildFuelEmissionPayload = ({
@@ -333,7 +301,6 @@ export default {
   buildC7MonthlyPayload,
   buildC7YearlyPayload,
   buildScope3Payload,
-  buildProcessEmissionsPayload,
   buildFuelEmissionPayload,
   groupEmployeesByMonth,
 };

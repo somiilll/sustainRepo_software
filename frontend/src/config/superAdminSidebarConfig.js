@@ -43,7 +43,6 @@ const superAdminSidebarConfig = [
           { key: 'sa-sandbox', label: 'Calculation Sandbox', path: '/super-admin/calc-sandbox', icon: 'Beaker' },
         ],
       },
-      { key: 'sa-proc-tpl', label: 'Process Templates', path: '/super-admin/process-templates', icon: 'FileCode2' },
     ],
   },
 ];

@@ -32,7 +32,6 @@ from modules.superadmin.contracts import (
     FormulaParameterCreate, FormulaParameterResponse,
     FuelDatabaseCreate, FuelDatabaseResponse,
     GWPConfigCreate, GWPConfigUpdate,
-    ProcessTemplateCreate, ProcessTemplateResponse,
     Scope3EFCreate, Scope3EFResponse,
     SectorCreate, SectorResponse,
     UnitCreate, UnitResponse,
