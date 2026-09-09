@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Scope 1/2 category contribution:** Added a `% Contribution` column to the Scope 1 and Scope 2 Category Analysis table. Each category’s percentage is calculated against combined Scope 1 + Scope 2 emissions for the selected reporting period.
+- **NOT TESTED** per the user’s standing instruction to avoid testing during rapid iteration.
+-
 - **September 9, 2026 — Scope 1/2 analysis visualization:** Renamed the report section to **Scope 1 and Scope 2 Category Analysis** and added a horizontal bar chart for stationary combustion, mobile combustion, fugitive emissions, and non-renewable electricity.
 - **Data finding:** ORG1 has qualifying Scope 3 spend-basis records for C1 only; it has no C2 spend-basis record, which is why the methodology table correctly shows C1 alone. Method-breakdown percentages are calculated as each method’s Scope 3 tCO₂e total divided by the report’s total Scope 3 tCO₂e, then rounded to one decimal place.
 - **NOT TESTED** per the user’s standing instruction to avoid testing during rapid iteration.

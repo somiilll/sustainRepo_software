@@ -5488,13 +5488,17 @@ class GHGReportGenerator:
                 'Fugitive Emissions': fugitive,
                 'Non-renewable Electricity': nonrenewable_electricity,
             }
+            scope1_2_total = org_totals['scope1'] + org_totals['scope2']
+            category_rows = [
+                [
+                    category,
+                    self._format_number(emissions),
+                    f"{(emissions / scope1_2_total * 100):.1f}%" if scope1_2_total else '0.0%',
+                ]
+                for category, emissions in scope1_2_category_data.items()
+            ]
             self._add_styled_heading(doc, "Scope 1 and Scope 2 Category Analysis", level=3)
-            self._create_styled_table(doc, ['Category', 'Emissions (tCO₂e)'], [
-                ['Stationary Combustion', self._format_number(stationary)],
-                ['Mobile Combustion', self._format_number(mobile)],
-                ['Fugitive Emissions', self._format_number(fugitive)],
-                ['Non-renewable Electricity', self._format_number(nonrenewable_electricity)],
-            ])
+            self._create_styled_table(doc, ['Category', 'Emissions (tCO₂e)', '% Contribution'], category_rows)
             chart_buf = self._create_category_analysis_chart(
                 scope1_2_category_data,
                 'Scope 1 and Scope 2 Category Analysis',
