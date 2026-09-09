@@ -1777,17 +1777,22 @@ class GHGReportGenerator:
                 return True
         return False
 
-    def _scope3_spend_currency_methods(self, start_period: str, end_period: str) -> set[str]:
-        methods = set()
+    def _scope3_spend_currency_methods_by_category(self, start_period: str, end_period: str) -> Dict[str, set[str]]:
+        methods_by_category = {}
         for emission in self._get_methodology_source_emissions(start_period, end_period):
             scope = (emission.get('scope') or '').lower()
-            calculation_method = str(self._get_emission_value(emission, 'calculation_method_scope3') or '').lower()
+            calculation_method = str(
+                self._get_emission_value(emission, 'calculation_method_scope3')
+                or self._get_emission_value(emission, 'calculation_method')
+                or ''
+            ).lower()
             if not ('scope3' in scope or 'scope 3' in scope or scope == '3') or 'spend' not in calculation_method:
                 continue
             method = str(self._get_emission_value(emission, 'spend_currency_conversion_method') or '').lower()
             if method in {'ppp_inflation', 'standard'}:
-                methods.add(method)
-        return methods
+                category = self._get_category_from_emission(emission)
+                methods_by_category.setdefault(category, set()).add(method)
+        return methods_by_category
     
     def _get_process_names_from_emission(self, em: Dict) -> List[str]:
         """Get process names from emission record"""
@@ -4083,7 +4088,7 @@ class GHGReportGenerator:
         # Check if this is a Scope 3 report
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         uses_carbon_content = self._uses_carbon_content_methodology(reporting_period_start, reporting_period_end)
-        spend_currency_methods = self._scope3_spend_currency_methods(reporting_period_start, reporting_period_end)
+        spend_currency_methods_by_category = self._scope3_spend_currency_methods_by_category(reporting_period_start, reporting_period_end)
         
         if is_scope3_report:
             # Use tabular methodology format for Scope 1,2,3 reports - 4 columns
@@ -4095,7 +4100,7 @@ class GHGReportGenerator:
             data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Calorific Value × Emission Factor (Heat Basis) × Density (if applicable)'])
             data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Emission Factor (Quantity Basis)'])
             if uses_carbon_content:
-                data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', 'Carbon Content - Based Approach', 'Emissions = Quantity of Fuel Consumed × Carbon Content (%) / 100 × Oxidation Factor'])
+                data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Carbon Content (%) / 100 × Oxidation Factor'])
             data.append(['Scope 1', 'Fugitive Emissions', '-', 'Emissions = Quantity of Gas Consumed × GWP'])
             
             # Scope 2 methodology
@@ -4159,11 +4164,11 @@ class GHGReportGenerator:
             # Only disclose spend-currency equations that were used by at least one
             # organization facility during this reporting period.
             scope3_data = [row for row in scope3_data if row[2] != 'Spend Based']
-            spend_category = 'Scope 3 Spend-Based Categories (where applicable)'
-            if 'ppp_inflation' in spend_currency_methods:
-                scope3_data.append(['Scope 3', spend_category, 'Spend Based (PPP and Inflation)', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'])
-            if 'standard' in spend_currency_methods:
-                scope3_data.append(['Scope 3', spend_category, 'Spend Based (Standard Currency Conversion)', 'Emissions = Amount Spent × Emission Factor / Currency Exchange Rate'])
+            for category, methods in sorted(spend_currency_methods_by_category.items()):
+                if 'ppp_inflation' in methods:
+                    scope3_data.append(['Scope 3', category, 'Spend Based (PPP and Inflation)', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'])
+                if 'standard' in methods:
+                    scope3_data.append(['Scope 3', category, 'Spend Based (Standard Currency Conversion)', 'Emissions = Amount Spent × Emission Factor / Currency Exchange Rate'])
             data.extend(scope3_data)
             
             # Biogenic Emissions
@@ -5477,14 +5482,13 @@ class GHGReportGenerator:
             mobile = category_total('scope1', ('mobile',))
             fugitive = category_total('scope1', ('fugitive',))
             nonrenewable_electricity = category_total('scope2', ('non-renewable electricity', 'non renewable electricity'))
-            p = doc.add_paragraph()
-            p.add_run(
-                "Scope 1 and Scope 2 category contribution: "
-                f"Stationary Combustion {self._format_number(stationary)} tCO₂e; "
-                f"Mobile Combustion {self._format_number(mobile)} tCO₂e; "
-                f"Fugitive Emissions {self._format_number(fugitive)} tCO₂e; and "
-                f"Non-renewable Electricity {self._format_number(nonrenewable_electricity)} tCO₂e."
-            )
+            self._add_styled_heading(doc, "Scope 1 and Scope 2 Category Breakdown", level=3)
+            self._create_styled_table(doc, ['Category', 'Emissions (tCO₂e)'], [
+                ['Stationary Combustion', self._format_number(stationary)],
+                ['Mobile Combustion', self._format_number(mobile)],
+                ['Fugitive Emissions', self._format_number(fugitive)],
+                ['Non-renewable Electricity', self._format_number(nonrenewable_electricity)],
+            ])
         
         # Mathematical validation
         p = doc.add_paragraph()

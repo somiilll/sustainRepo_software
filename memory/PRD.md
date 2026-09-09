@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — GHG methodology-table refinement:** Scope 1/2/3 reports retain the carbon-content formula when applicable but no longer show `Carbon Content - Based Approach` in the Subcategory/Methodology column. Scope 3 spend-based methodology rows are now emitted beneath each actual category (such as C1 or C2) using PPP/inflation, standard conversion, or both according to the methods used in the reporting period.
+- Scope 1/2 organization analysis now contains a dedicated table showing Stationary Combustion, Mobile Combustion, Fugitive Emissions, and Non-renewable Electricity totals in tCO₂e, making those four requested amounts explicit.
+- **NOT TESTED** per the user’s standing instruction to avoid testing during rapid iteration.
+-
 - **September 9, 2026 — GHG report accuracy and methodology update:** Missing record-level responsible-person names now fall back to the relevant facility’s responsible person. Report base-year messaging now requires an exact FY/CY reporting-window match, preventing a different reporting period from being described as the base year.
 - Scope 1/2 reports now disclose the Carbon Content - Based Approach and its explanatory definitions when any organization facility used it during the reporting period. Scope 1/2/3 methodology tables conditionally include the carbon-content formula and only the spend-currency formulas actually used by organization facilities (PPP/inflation, standard currency conversion, or both). The reference source list now includes RBI.
 - Carbon intensity now consistently uses Scope 1 + Scope 2 emissions divided by production quantity. Scope 1/2 organization analysis now includes stationary combustion, mobile combustion, fugitive emissions, and non-renewable electricity totals. Scope 1/2/3 reports now contain separate Scope 1, Scope 3, and overall category-wise analyses.
