@@ -238,7 +238,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             onReset={resetDashboardFilters}
             onRetry={retryDashboardStats}
           />
-          <div className="space-y-6">
+          <div className="space-y-0">
           {(dataState === 'data' || dataState === 'confirmed-zero') && <>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" data-testid="ghg-kpi-row">
             <KpiCard
@@ -277,7 +277,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             />
           </div>
           {canShowAnalysis && <>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+          <div className="mt-8 grid grid-cols-1 gap-3 lg:grid-cols-4">
              <SectionCard
               className="lg:col-span-3"
               title={hasScope3 ? 'Scope 1, 2 & 3 Emissions Trend' : 'Scope 1 & 2 Emissions Trend'}
@@ -298,7 +298,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             </SectionCard>
           </div>
 
-          <div className={`grid grid-cols-1 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-3`}>
+          <div className={`mt-8 grid grid-cols-1 gap-3 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
             <SectionCard title="Facility-wise Emissions" subtitle="Ranked by emissions and share" accent="#34D399" testId="section-facility">
               <FacilityChart facilities={facilitySeries} />
             </SectionCard>
@@ -314,7 +314,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             </SectionCard>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+          <div className="mt-8 grid grid-cols-1 gap-3 lg:grid-cols-5">
             <SectionCard
               className="lg:col-span-3"
               title="Base year vs selected window"
