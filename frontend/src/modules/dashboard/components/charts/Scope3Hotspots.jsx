@@ -22,10 +22,10 @@ export default function Scope3Hotspots({ data = [] }) {
   }
 
   return (
-    <div className="space-y-5" data-testid="scope3-hotspots">
+    <div className="space-y-6" data-testid="scope3-hotspots">
       {chartData.map((category, index) => (
         <div key={category.id} data-testid={`scope3-hotspot-row-${index + 1}`}>
-          <div className="mb-1.5 flex items-start justify-between gap-3">
+          <div className="mb-1 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-2">
               <span className="w-5 shrink-0 text-xs font-bold tabular-nums text-stone-400" data-testid={`scope3-hotspot-rank-${index + 1}`}>{String(index + 1).padStart(2, '0')}</span>
               <p className="text-xs font-semibold leading-5 text-stone-800" data-testid={`scope3-hotspot-name-${index + 1}`}>{category.name}</p>

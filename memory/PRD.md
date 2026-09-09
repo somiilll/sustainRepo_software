@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — GHG ranking rhythm refinement:** Reduced the label-to-bar spacing within each facility, Scope 3 hotspot, and emission-category ranking entry, while increasing the separation between distinct ranking entries.
+- **NOT TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration.
+-
 - **September 9, 2026 — Dashboard P0 follow-up:** KPI cards now use a rounder `rounded-xl` frame. The shared sticky filter header exactly matches the dashboard content wrapper on mobile and desktop, using calculated full-width sizing so no left/right inset remains.
 - Added an explicit 24px space after the sticky filter before dashboard KPI rows. Increased the vertical separation between items in Facility-wise Emissions, Scope 3 Emission Hotspots, and Emission Categories.
 - KPI deltas now compact the percentage and reporting period into one line, for example `131.9% vs Apr 2025 – Mar 2026`, removing the redundant `change` and `Compared with` copy.

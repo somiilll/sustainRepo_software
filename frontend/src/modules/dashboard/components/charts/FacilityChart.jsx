@@ -23,10 +23,10 @@ export default function FacilityChart({ facilities = [] }) {
   }
 
   return (
-    <div className="space-y-5" data-testid="facility-chart">
+    <div className="space-y-6" data-testid="facility-chart">
       {data.map((facility, index) => (
         <div key={facility.id || facility.name} data-testid={`facility-ranking-row-${index + 1}`}>
-          <div className="mb-1.5 flex items-start justify-between gap-3">
+          <div className="mb-1 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-2">
               <span className="w-5 shrink-0 text-xs font-bold tabular-nums text-stone-400" data-testid={`facility-ranking-rank-${index + 1}`}>{String(index + 1).padStart(2, '0')}</span>
               <p className="text-xs font-semibold leading-5 text-stone-800" data-testid={`facility-ranking-name-${index + 1}`}>{facility.name || 'Unnamed facility'}</p>
