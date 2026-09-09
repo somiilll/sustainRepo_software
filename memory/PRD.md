@@ -101,6 +101,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — GHG report accuracy and methodology update:** Missing record-level responsible-person names now fall back to the relevant facility’s responsible person. Report base-year messaging now requires an exact FY/CY reporting-window match, preventing a different reporting period from being described as the base year.
+- Scope 1/2 reports now disclose the Carbon Content - Based Approach and its explanatory definitions when any organization facility used it during the reporting period. Scope 1/2/3 methodology tables conditionally include the carbon-content formula and only the spend-currency formulas actually used by organization facilities (PPP/inflation, standard currency conversion, or both). The reference source list now includes RBI.
+- Carbon intensity now consistently uses Scope 1 + Scope 2 emissions divided by production quantity. Scope 1/2 organization analysis now includes stationary combustion, mobile combustion, fugitive emissions, and non-renewable electricity totals. Scope 1/2/3 reports now contain separate Scope 1, Scope 3, and overall category-wise analyses.
+- Confirmed reporting policy: partial FY windows proportionally allocate annual emissions and production data; the existing report footnote identifies these rows. This explains the reported 10.77 tCO₂e C1 and 414.60 MT figures for an Apr–Sep report, while a full Apr–Mar FY report uses 15.76 tCO₂e and 829.2 MT.
+- **NOT TESTED** per the user’s explicit instruction. A prior Python import/proration sanity check completed before this instruction; no further test was run.
+-
 - **September 9, 2026 — GHG report download authentication fix:** The Reports-page GHG inventory flow now retrieves the generated file through an Axios blob request carrying the existing bearer token, rather than navigating directly to the protected download URL. The browser then downloads the authenticated blob with the returned report filename.
 - Root cause: report generation (`POST /api/reports/ghg-inventory`) succeeded, but the follow-up direct `GET /api/reports/download/{token}` returned 401 without an `Authorization` header. Added the focused authenticated-report regression procedure to `/app/auth_testing.md`.
 - **NOT TESTED** per the user’s explicit instruction. No authentication configuration or credentials were changed.
