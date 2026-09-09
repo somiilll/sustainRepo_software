@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — GHG sticky-filter inset:** Increased the shared sticky-filter header’s horizontal padding so the GHG logo/title begins with more space from the left edge and the Show filters control has matching right-side space.
+- **NOT UI TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration.
+-
 - **September 9, 2026 — Contextual KPI comparisons:** GHG KPI delta labels now read `vs previous FY` for the current financial-year window, `vs previous CY` for the current calendar-year window, and `vs previous month` for any single-month window. Custom multi-month windows continue to show the equivalent prior-year dates.
 - The comparison query now fetches the immediately preceding calendar month for a one-month selection, rather than the same month last year, so the displayed label and underlying KPI delta use the same comparison period.
 - **NOT UI TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration.
