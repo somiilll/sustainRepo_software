@@ -240,16 +240,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           />
           <div className="space-y-0">
           {(dataState === 'data' || dataState === 'confirmed-zero') && <>
-          <div className="mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4" data-testid="ghg-kpi-row">
-            <KpiCard
-              title="Net Emissions"
-              value={netEmissions}
-              deltaPct={trendDeltas.netDelta}
-              sparkData={totalSparkData}
-              sparkColor="#059669"
-              comparisonLabel={comparisonLabel}
-              featured
-            />
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" data-testid="ghg-kpi-row">
             <KpiCard
               title="Total Emissions"
               value={totals.total}
@@ -267,6 +258,14 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               invertedColor
               comparisonLabel={comparisonLabel}
             />
+            <KpiCard
+              title="Net Emissions"
+              value={netEmissions}
+              deltaPct={trendDeltas.netDelta}
+              sparkData={totalSparkData}
+              sparkColor="#F59E0B"
+              comparisonLabel={comparisonLabel}
+            />
             <GaugeCard
               targets={targets}
               selectedTarget={selectedTarget}
@@ -278,7 +277,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             />
           </div>
           {canShowAnalysis && <>
-          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-4">
+          <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-4">
              <SectionCard
               className="lg:col-span-3"
               title={hasScope3 ? 'Scope 1, 2 & 3 Emissions Trend' : 'Scope 1 & 2 Emissions Trend'}
@@ -299,7 +298,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             </SectionCard>
           </div>
 
-          <div className={`mt-6 grid grid-cols-1 gap-4 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
+          <div className={`mt-5 grid grid-cols-1 gap-3 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
             <SectionCard title="Facility-wise Emissions" subtitle="Ranked by emissions and share" accent="#34D399" testId="section-facility">
               <FacilityChart facilities={facilitySeries} />
             </SectionCard>
@@ -315,7 +314,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             </SectionCard>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-5">
+          <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-5">
             <SectionCard
               className="lg:col-span-3"
               title="Base year vs selected window"
@@ -333,11 +332,11 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               header={
                 <div className="flex items-start justify-between w-full">
                   <div>
-                    <h3 className="font-heading text-base font-bold text-stone-900">
+                    <h3 className="text-sm font-semibold text-stone-900">
                       Geographic Heatmap
                     </h3>
 
-                    <p className="mt-1 text-xs font-medium text-stone-500">
+                    <p className="text-xs text-stone-500 mt-0.5">
                       Facility emission concentration
                     </p>
                   </div>

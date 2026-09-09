@@ -25,7 +25,7 @@ export const ScopeBreakdownCard = ({
     >
       <div className="mb-3 flex items-start justify-between">
         <div>
-          <h3 className="font-heading text-base font-bold text-stone-900">Scope Breakdown</h3>
+          <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Scope Breakdown</h3>
         </div>
         <button 
           type="button" 
@@ -68,7 +68,7 @@ export const ScopeBreakdownCard = ({
             {/* Center Total Text */}
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-[10px] uppercase text-stone-400">Total</span>
-              <span className="font-heading text-base font-bold text-stone-900 tabular-nums">
+              <span className="text-base font-bold text-stone-900 dark:text-stone-100">
                 {total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
               <span className="text-[10px] text-stone-400">tCO₂e</span>

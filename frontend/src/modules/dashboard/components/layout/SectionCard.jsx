@@ -19,13 +19,13 @@ export default function SectionCard({ title, subtitle, action, children, classNa
               <div className="flex items-start justify-between">
                 <div>
                   {title && (
-                    <h3 className="font-heading text-base font-bold text-stone-900">
+                    <h3 className="text-sm font-semibold text-stone-800">
                       {title}
                     </h3>
                   )}
 
                   {subtitle && (
-                    <p className="mt-1 text-xs font-medium text-stone-500">
+                    <p className="text-xs text-stone-500 mt-0.5">
                       {subtitle}
                     </p>
                   )}

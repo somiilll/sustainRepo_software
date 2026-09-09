@@ -9,7 +9,7 @@ export default function Scope3Hotspots({ data = [] }) {
     return [...data]
       .filter((item) => Number(item.value || 0) > 0)
       .sort((a, b) => Number(b.value || 0) - Number(a.value || 0))
-      .slice(0, 5)
+      .slice(0, 6)
       .map((item, index) => ({
         ...item,
         fill: PALETTE[index % PALETTE.length],
@@ -22,12 +22,11 @@ export default function Scope3Hotspots({ data = [] }) {
   }
 
   return (
-    <div className="space-y-6" data-testid="scope3-hotspots">
+    <div className="space-y-4" data-testid="scope3-hotspots">
       {chartData.map((category, index) => (
         <div key={category.id} data-testid={`scope3-hotspot-row-${index + 1}`}>
-          <div className="mb-1 flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-2">
-              <span className="w-5 shrink-0 text-xs font-bold tabular-nums text-stone-400" data-testid={`scope3-hotspot-rank-${index + 1}`}>{String(index + 1).padStart(2, '0')}</span>
+          <div className="mb-1.5 flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <p className="text-xs font-semibold leading-5 text-stone-800" data-testid={`scope3-hotspot-name-${index + 1}`}>{category.name}</p>
             </div>
             <p className="shrink-0 text-xs font-semibold tabular-nums text-stone-900" data-testid={`scope3-hotspot-value-${index + 1}`}>{Number(category.value).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e <span className="text-stone-500" data-testid={`scope3-hotspot-share-${index + 1}`}>({category.percentage.toFixed(1)}%)</span></p>

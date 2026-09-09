@@ -20,7 +20,6 @@ export default function KpiCard({
   loading = false,
   ariaLabel,
   comparisonLabel,
-  featured = false,
 }) {
   const trend =
     deltaPct == null ? 'flat' :
@@ -37,17 +36,17 @@ export default function KpiCard({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-stone-300 hover:shadow-md sm:p-5 ${featured ? 'border-emerald-700 bg-emerald-50/50' : 'border-stone-200'}`}
+      className="relative overflow-hidden rounded-xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm transition-[box-shadow,border-color] duration-300 hover:border-stone-300 hover:shadow-md p-3 sm:p-4"
       data-testid={`kpi-card-${title.toLowerCase().replace(/\s+/g, '-')}`}
       aria-label={ariaLabel || title}
     >
-      <div className="mb-3 flex items-start justify-between">
-        <p className={`text-xs font-semibold ${featured ? 'text-emerald-800' : 'text-stone-600'}`}>{title}</p>
+      <div className="flex items-start justify-between mb-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{title}</p>
         {rightSlot}
       </div>
       <div className="flex items-end justify-between gap-2">
         <div className="min-w-0">
-          <div className={`flex items-baseline gap-1 font-heading font-bold tracking-normal text-stone-900 tabular-nums ${featured ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl'}`} data-testid={`kpi-value-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+          <div className="flex items-baseline gap-1 text-2xl font-bold tracking-normal text-stone-900 tabular-nums sm:text-3xl" data-testid={`kpi-value-${title.toLowerCase().replace(/\s+/g, '-')}`}>
             {loading ? (
               <span className="inline-block h-8 w-24 bg-stone-200 rounded animate-pulse" />
             ) : (
@@ -58,9 +57,9 @@ export default function KpiCard({
         </div>
       </div>
       {(deltaPct != null || comparisonLabel) && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid={`kpi-comparison-row-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid={`kpi-comparison-row-${title.toLowerCase().replace(/\s+/g, '-')}`}>
           {deltaPct != null && <span className={`flex items-center gap-1 font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}><TrendIcon className="h-3.5 w-3.5" /><span>{Math.abs(deltaPct).toFixed(1)}%{comparisonLabel ? ` vs ${comparisonLabel.replace(/^Compared with\s*/i, '')}` : ''}</span></span>}
-          {comparisonLabel && deltaPct == null && <span className="text-xs leading-4 text-stone-500" data-testid={`kpi-comparison-window-${title.toLowerCase().replace(/\s+/g, '-')}`}>{comparisonLabel}</span>}
+          {comparisonLabel && deltaPct == null && <span className="text-[10px] leading-4 text-stone-500" data-testid={`kpi-comparison-window-${title.toLowerCase().replace(/\s+/g, '-')}`}>{comparisonLabel}</span>}
         </div>
       )}
     </div>

@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Selective dashboard restore:** Restored the dashboard styling, sticky-filter appearance, KPI ordering/emphasis, grid rhythm, and ranking-card density that existed before today’s dashboard iterations. The C3 category migration and all non-dashboard work remain intact.
+- Retained only the requested KPI comparison copy improvement, which now renders percentage comparisons as `9.3% vs Apr 2025 – Mar 2026` rather than separate `change` and `Compared with` phrases.
+- **NOT UI TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration; whitespace validation passed.
+-
 - **September 9, 2026 — C3 title correction:** Standardized the final C3 title to **`C3 - Fuel and energy-related activities`** across the application, bulk-upload output, reports, dashboards, and configuration controls.
 - Re-ran the idempotent C3 migration with a new BSON backup at `/app/.emergent/backups/c3-category-label-20260909T071920Z.json`, updating 23 current emission records, 29 pending uploads, 51 Scope 3 factors, and 1 category definition. No prior live C3 label remains; only source-code compatibility aliases retain it for externally imported legacy input.
 - **VERIFIED:** Migration dry run, apply result, post-migration MongoDB counts, and whitespace check passed. No UI testing was performed per the user’s standing instruction.

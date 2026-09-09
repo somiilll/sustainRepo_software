@@ -27,9 +27,6 @@ export default function PremiumKpiCard({
   loading = false,
   actionSlot,
   invertedTrend = true,
-  featured = false,
-  testId,
-  className = '',
 }) {
   const displayValue = showIntensity && intensityValue != null ? intensityValue : value;
   const displayUnit = showIntensity && intensityUnit ? intensityUnit : unit;
@@ -46,17 +43,22 @@ export default function PremiumKpiCard({
 
   return (
     <Card 
-      className={`group relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-stone-300 hover:shadow-md sm:p-5 ${featured ? 'border-emerald-700 bg-emerald-50/50' : 'border-stone-200'} ${className}`}
-      data-testid={testId || `kpi-${title.toLowerCase().replace(/\s+/g, '-')}`}
+      className="relative overflow-hidden p-5 bg-white border border-stone-200/60 rounded-2xl hover:shadow-lg transition-all duration-300 group"
+      data-testid={`kpi-${title.toLowerCase().replace(/\s+/g, '-')}`}
     >
       {actionSlot && (
         <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
           {actionSlot}
         </div>
       )}
-      <div className="mb-4 flex items-center gap-2">
-        {Icon && <Icon className="h-4 w-4 shrink-0" style={{ color: accentColor }} />}
-        <p className={`text-xs font-semibold ${featured ? 'text-emerald-800' : 'text-stone-600'}`}>{title}</p>
+      <div className="flex items-center gap-3 mb-4">
+        <div
+          className="p-2.5 rounded-xl transition-transform group-hover:scale-105"
+          style={{ backgroundColor: `${accentColor}15` }}
+        >
+          <Icon className="w-5 h-5" style={{ color: accentColor }} />
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">{title}</p>
       </div>
 
       <div className="flex items-end justify-between gap-2">
@@ -65,7 +67,7 @@ export default function PremiumKpiCard({
             <div className="h-9 w-28 bg-stone-100 rounded animate-pulse" />
           ) : (
             <div className="flex items-baseline gap-2">
-              <span className={`font-heading font-bold tracking-normal text-stone-900 tabular-nums ${featured ? 'text-3xl sm:text-4xl' : 'text-3xl'}`}>
+              <span className="text-3xl font-bold text-stone-900 tabular-nums tracking-tight">
                 <AnimatedNumber value={displayValue || 0} decimals={displayValue >= 100 ? 0 : 2} />
               </span>
               <span className="text-sm text-stone-500 font-medium">{displayUnit}</span>
