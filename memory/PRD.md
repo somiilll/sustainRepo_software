@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — GHG dashboard compactness follow-up:** Added deliberate inner horizontal padding to the full-width sticky filter header, retaining its edge-to-edge surface while giving the title and controls comfortable breathing room. Facility, Scope 3 hotspot, and emission-category rankings now show the top five entries only.
+- **NOT TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration.
+-
 - **September 9, 2026 — GHG ranking rhythm refinement:** Reduced the label-to-bar spacing within each facility, Scope 3 hotspot, and emission-category ranking entry, while increasing the separation between distinct ranking entries.
 - **NOT TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration.
 -

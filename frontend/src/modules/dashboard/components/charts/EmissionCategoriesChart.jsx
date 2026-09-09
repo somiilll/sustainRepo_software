@@ -18,7 +18,7 @@ export default function EmissionCategoriesChart({ data = [] }) {
     return [...data]
       .filter((category) => Number(category.value || 0) > 0)
       .sort((a, b) => Number(b.value || 0) - Number(a.value || 0))
-      .slice(0, 6)
+      .slice(0, 5)
       .map((category) => ({ ...category, share: total > 0 ? (Number(category.value || 0) / total) * 100 : 0 }));
   }, [data]);
 

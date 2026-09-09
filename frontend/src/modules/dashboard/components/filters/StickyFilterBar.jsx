@@ -27,7 +27,7 @@ export default function StickyFilterBar({
 }) {
   return (
     <div
-      className="sticky top-0 z-30 -mx-4 w-[calc(100%+2rem)] border-b border-stone-200 bg-white px-4 py-4 shadow-sm lg:-mx-5 lg:w-[calc(100%+2.5rem)] lg:px-5"
+      className="sticky top-0 z-30 -mx-4 w-[calc(100%+2rem)] border-b border-stone-200 bg-white px-6 py-4 shadow-sm lg:-mx-5 lg:w-[calc(100%+2.5rem)] lg:px-8"
       data-testid="sticky-filter-bar"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">

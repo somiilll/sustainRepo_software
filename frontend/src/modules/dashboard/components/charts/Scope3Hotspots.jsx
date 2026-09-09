@@ -9,7 +9,7 @@ export default function Scope3Hotspots({ data = [] }) {
     return [...data]
       .filter((item) => Number(item.value || 0) > 0)
       .sort((a, b) => Number(b.value || 0) - Number(a.value || 0))
-      .slice(0, 6)
+      .slice(0, 5)
       .map((item, index) => ({
         ...item,
         fill: PALETTE[index % PALETTE.length],

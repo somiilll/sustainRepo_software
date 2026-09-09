@@ -12,7 +12,7 @@ export default function FacilityChart({ facilities = [] }) {
     return [...facilities]
       .filter((facility) => Number(facility.total || 0) > 0)
       .sort((a, b) => Number(b.total || 0) - Number(a.total || 0))
-      .slice(0, 6)
+      .slice(0, 5)
       .map((facility) => ({ ...facility, share: total > 0 ? (Number(facility.total || 0) / total) * 100 : 0 }));
   }, [facilities]);
 
