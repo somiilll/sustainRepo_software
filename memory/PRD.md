@@ -101,6 +101,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Dashboard P0 follow-up:** KPI cards now use a rounder `rounded-xl` frame. The shared sticky filter header exactly matches the dashboard content wrapper on mobile and desktop, using calculated full-width sizing so no left/right inset remains.
+- Added an explicit 24px space after the sticky filter before dashboard KPI rows. Increased the vertical separation between items in Facility-wise Emissions, Scope 3 Emission Hotspots, and Emission Categories.
+- KPI deltas now compact the percentage and reporting period into one line, for example `131.9% vs Apr 2025 – Mar 2026`, removing the redundant `change` and `Compared with` copy.
+- **NOT TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration.
+-
 - **September 9, 2026 — Dashboard P0 visual-system pass:** Rebuilt the shared sticky filter header as a full-width, solid-white sticky surface with restrained border and shadow separation. Dashboard rows now use a consistent 24px separation, while internal grids use 16px gaps.
 - Made **Net Emissions** the first and featured KPI across the dedicated GHG dashboard and the Executive ESG dashboard. It has a stronger, calm emerald emphasis, larger tabular metric treatment, and remains full-width across the compact two-column mobile KPI grid.
 - Unified dashboard cards around white surfaces, stone 1px borders, 8px radii, restrained shadows, and focused hover transitions. Headings now use the existing Manrope display face; supporting text and numerical metrics have clearer weights and tabular alignment without adding decorative treatments.

@@ -22,7 +22,7 @@ export default function Scope3Hotspots({ data = [] }) {
   }
 
   return (
-    <div className="space-y-4" data-testid="scope3-hotspots">
+    <div className="space-y-5" data-testid="scope3-hotspots">
       {chartData.map((category, index) => (
         <div key={category.id} data-testid={`scope3-hotspot-row-${index + 1}`}>
           <div className="mb-1.5 flex items-start justify-between gap-3">

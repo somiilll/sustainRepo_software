@@ -240,7 +240,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           />
           <div className="space-y-0">
           {(dataState === 'data' || dataState === 'confirmed-zero') && <>
-          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4" data-testid="ghg-kpi-row">
+          <div className="mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4" data-testid="ghg-kpi-row">
             <KpiCard
               title="Net Emissions"
               value={netEmissions}

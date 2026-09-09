@@ -29,7 +29,7 @@ export default function EmissionCategoriesChart({ data = [] }) {
   }
 
   return (
-    <div className="space-y-4" data-testid="emission-categories-chart">
+    <div className="space-y-5" data-testid="emission-categories-chart">
       {chartData.map((category, index) => (
         <div key={`${category.scope}-${category.name}`} data-testid={`category-ranking-row-${index + 1}`}>
           <div className="mb-1.5 flex items-start justify-between gap-3">

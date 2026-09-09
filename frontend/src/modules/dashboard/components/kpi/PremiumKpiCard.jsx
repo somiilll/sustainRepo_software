@@ -46,7 +46,7 @@ export default function PremiumKpiCard({
 
   return (
     <Card 
-      className={`group relative overflow-hidden rounded-lg border bg-white p-4 shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-stone-300 hover:shadow-md sm:p-5 ${featured ? 'border-emerald-700 bg-emerald-50/50' : 'border-stone-200'} ${className}`}
+      className={`group relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-stone-300 hover:shadow-md sm:p-5 ${featured ? 'border-emerald-700 bg-emerald-50/50' : 'border-stone-200'} ${className}`}
       data-testid={testId || `kpi-${title.toLowerCase().replace(/\s+/g, '-')}`}
     >
       {actionSlot && (

@@ -241,7 +241,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       />
 
       {/* ── Row 1: Top KPI Cards ── */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6" data-testid="top-kpi-row">
+      <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6" data-testid="top-kpi-row">
         <PremiumKpiCard title="Total Emissions" value={totalEmissions} unit="tCO₂e" icon={Leaf} accentColor="#15803D" loading={analyticsLoading} />
         <PremiumKpiCard title="Net Emissions" value={netEmissions} unit="tCO₂e" icon={Leaf} accentColor="#059669" loading={analyticsLoading} featured testId="kpi-card-net-emissions" className="order-first col-span-2" />
         <PremiumKpiCard title="GHG Intensity (Production)" value={ghgIntensity} unit={`tCO₂e/${productionUnit || 'unit produced'}`} icon={Leaf} accentColor="#0F766E" loading={analyticsLoading} />

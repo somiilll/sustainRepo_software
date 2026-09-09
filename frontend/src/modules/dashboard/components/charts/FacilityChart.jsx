@@ -23,7 +23,7 @@ export default function FacilityChart({ facilities = [] }) {
   }
 
   return (
-    <div className="space-y-4" data-testid="facility-chart">
+    <div className="space-y-5" data-testid="facility-chart">
       {data.map((facility, index) => (
         <div key={facility.id || facility.name} data-testid={`facility-ranking-row-${index + 1}`}>
           <div className="mb-1.5 flex items-start justify-between gap-3">

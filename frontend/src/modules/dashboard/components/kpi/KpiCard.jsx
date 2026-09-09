@@ -37,7 +37,7 @@ export default function KpiCard({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-lg border bg-white p-4 shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-stone-300 hover:shadow-md sm:p-5 ${featured ? 'border-emerald-700 bg-emerald-50/50' : 'border-stone-200'}`}
+      className={`relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-stone-300 hover:shadow-md sm:p-5 ${featured ? 'border-emerald-700 bg-emerald-50/50' : 'border-stone-200'}`}
       data-testid={`kpi-card-${title.toLowerCase().replace(/\s+/g, '-')}`}
       aria-label={ariaLabel || title}
     >
@@ -59,8 +59,8 @@ export default function KpiCard({
       </div>
       {(deltaPct != null || comparisonLabel) && (
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid={`kpi-comparison-row-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-          {deltaPct != null && <span className={`flex items-center gap-1 font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}><TrendIcon className="h-3.5 w-3.5" /><span>{Math.abs(deltaPct).toFixed(1)}% change</span></span>}
-          {comparisonLabel && <span className="text-xs leading-4 text-stone-500" data-testid={`kpi-comparison-window-${title.toLowerCase().replace(/\s+/g, '-')}`}>{comparisonLabel}</span>}
+          {deltaPct != null && <span className={`flex items-center gap-1 font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}><TrendIcon className="h-3.5 w-3.5" /><span>{Math.abs(deltaPct).toFixed(1)}%{comparisonLabel ? ` vs ${comparisonLabel.replace(/^Compared with\s*/i, '')}` : ''}</span></span>}
+          {comparisonLabel && deltaPct == null && <span className="text-xs leading-4 text-stone-500" data-testid={`kpi-comparison-window-${title.toLowerCase().replace(/\s+/g, '-')}`}>{comparisonLabel}</span>}
         </div>
       )}
     </div>
