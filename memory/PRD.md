@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — GHG dashboard reset repair:** Restored the `getCurrentFinancialYear` helper connection from `useDashboardData` through `BaseExecutiveDashboard` into `DashboardFilters`. Reset to Default can again clear facilities and restore the current FY without calling an undefined callback.
+- **NOT TESTED** per the user’s explicit instruction.
+-
 - **September 9, 2026 — GHG methodology-table refinement:** Scope 1/2/3 reports retain the carbon-content formula when applicable but no longer show `Carbon Content - Based Approach` in the Subcategory/Methodology column. Scope 3 spend-based methodology rows are now emitted beneath each actual category (such as C1 or C2) using PPP/inflation, standard conversion, or both according to the methods used in the reporting period.
 - Scope 1/2 organization analysis now contains a dedicated table showing Stationary Combustion, Mobile Combustion, Fugitive Emissions, and Non-renewable Electricity totals in tCO₂e, making those four requested amounts explicit.
 - **NOT TESTED** per the user’s standing instruction to avoid testing during rapid iteration.

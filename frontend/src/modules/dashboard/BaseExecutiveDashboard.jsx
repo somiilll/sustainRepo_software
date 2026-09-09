@@ -47,7 +47,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     showFilters, setShowFilters,
     showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
     filteredData, baseYearComparison,
-    isLive, lastLiveUpdateAt, getPreviousFinancialYear,
+    isLive, lastLiveUpdateAt, getCurrentFinancialYear,
   } = data;
 
   const [heatmapView, setHeatmapView] = useState('india');
@@ -181,7 +181,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     facilities, selectedFacilities, setSelectedFacilities,
     dateRange, setDateRange,
     showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
-    getPreviousFinancialYear,
+    getCurrentFinancialYear,
   };
 
   const liveBadge = isLive ? (
