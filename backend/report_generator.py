@@ -5482,13 +5482,27 @@ class GHGReportGenerator:
             mobile = category_total('scope1', ('mobile',))
             fugitive = category_total('scope1', ('fugitive',))
             nonrenewable_electricity = category_total('scope2', ('non-renewable electricity', 'non renewable electricity'))
-            self._add_styled_heading(doc, "Scope 1 and Scope 2 Category Breakdown", level=3)
+            scope1_2_category_data = {
+                'Stationary Combustion': stationary,
+                'Mobile Combustion': mobile,
+                'Fugitive Emissions': fugitive,
+                'Non-renewable Electricity': nonrenewable_electricity,
+            }
+            self._add_styled_heading(doc, "Scope 1 and Scope 2 Category Analysis", level=3)
             self._create_styled_table(doc, ['Category', 'Emissions (tCO₂e)'], [
                 ['Stationary Combustion', self._format_number(stationary)],
                 ['Mobile Combustion', self._format_number(mobile)],
                 ['Fugitive Emissions', self._format_number(fugitive)],
                 ['Non-renewable Electricity', self._format_number(nonrenewable_electricity)],
             ])
+            chart_buf = self._create_category_analysis_chart(
+                scope1_2_category_data,
+                'Scope 1 and Scope 2 Category Analysis',
+            )
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.add_run().add_picture(chart_buf, width=Inches(5.5))
+            self._add_figure_caption(doc, "Figure: Scope 1 and Scope 2 Category Analysis")
         
         # Mathematical validation
         p = doc.add_paragraph()
