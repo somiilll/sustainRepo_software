@@ -111,6 +111,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **September 9, 2026 — Remaining dashboard design pass:** Simplified the shared GHG/ESG dashboard header and card surfaces by removing decorative icons, gradient/colored stripes, excessive rounding, and heavy shadow treatments. The filter panel is now denser and accessible, with a semantic facility button and no redundant filter-summary strip.
 - Added consistent, specific empty states for GHG trend, scope breakdown, facility ranking, category ranking, Scope 3 hotspots, and geographic heatmap. Reduced GHG chart height and card padding to improve mobile information density while preserving hierarchy.
 - **NOT TESTED** per the user’s explicit instruction.
+- **September 9, 2026 — Sticky filter refinement:** Added a subtle emerald background and larger responsive horizontal padding to the shared GHG/ESG filter header. Increased control spacing and added a visible gap before the Show/Hide filters control.
+- **NOT TESTED** per the user’s explicit instruction.
 - **September 9, 2026 — Annual trend allocation and KPI compacting:** Dashboard statistics now distribute eligible FY/CY yearly emission records evenly across each month in the selected reporting window for the emissions trend. The trend subtitle discloses this allocation whenever it occurs; selected-window totals remain governed by the existing proration rules.
 - Reduced GHG inter-row spacing from 32px to 20px. KPI values now render with their unit on one baseline, and percentage change plus prior-period comparison share one responsive metadata line.
 - **NOT TESTED** per the user’s explicit instruction.

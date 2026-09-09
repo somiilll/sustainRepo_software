@@ -27,7 +27,7 @@ export default function StickyFilterBar({
 }) {
   return (
     <div
-      className="-mx-4 mb-4 border-b border-stone-200 bg-white px-4 py-3 sm:-mx-8 sm:px-8"
+      className="-mx-4 mb-5 border-b border-emerald-100 bg-emerald-50/70 px-5 py-4 sm:-mx-8 sm:px-10 lg:px-12"
       data-testid="sticky-filter-bar"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -36,7 +36,7 @@ export default function StickyFilterBar({
           {subtitle && <p className="mt-0.5 text-[11px] text-stone-500 truncate" data-testid="dashboard-page-subtitle">{subtitle}</p>}
           {liveBadge}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-3">
           {/* Dashboard Type Toggle */}
           {showDashboardToggle && (
             <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-0.5" data-testid="dashboard-type-toggle">
@@ -97,7 +97,7 @@ export default function StickyFilterBar({
           )}
           <button
             onClick={() => setShowFilters((s) => !s)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 transition-[background-color,border-color] duration-200 hover:border-stone-300 hover:bg-stone-50"
+            className="ml-1 inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 transition-[background-color,border-color] duration-200 hover:border-stone-300 hover:bg-stone-50"
             data-testid="toggle-filters-btn"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
