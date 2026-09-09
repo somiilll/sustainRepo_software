@@ -395,11 +395,6 @@ export function buildCreatePayload(monthData, ctx) {
   } = ctx;
 
   const dynamicFieldValues = buildDynamicFieldValues(monthData, ctx);
-  const quantityField = ctx.dynamicInputFields?.find((field) => (
-    /^(qty|quantity)(_|$)/i.test(field.variable || '')
-    || /^(qty|quantity)(_|$)/i.test(field.fieldKey || '')
-  ));
-  const quantityValue = quantityField ? dynamicFieldValues[quantityField.variable] : null;
   const decisionInputs = buildDecisionInputs ? buildDecisionInputs(monthData) : {};
   const isScope1Like = scope === 'scope1'
     || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
@@ -454,10 +449,6 @@ export function buildCreatePayload(monthData, ctx) {
         biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },
       }),
     },
-
-    quantity: quantityValue?.value ?? null,
-    quantity_unit: quantityValue?.unit ?? null,
-    unit: quantityValue?.unit ?? null,
 
     outputs,
 

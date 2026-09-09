@@ -5,12 +5,13 @@
  * V2 schema (flat fields on the pending_records doc):
  * - approval_status: 'pending_create' | 'pending_update' | 'pending_delete'
  *                  | 'rejected_create' | 'rejected_update' | 'rejected_delete'
- * - All emission fields (scope, category, quantity, etc.) live at the top
- *   level of the record.
+ * - Activity inputs live in `dynamic_field_values`; flat fields contain
+ *   identity, workflow, and calculated-output metadata.
  * - `original_snapshot` carries pre-edit values for update requests.
  * - `edit_history` carries edits made while pending.
  */
 import React, { useEffect, useState } from 'react';
+import { resolveEmissionQuantity } from '../emissions/shared/utils/emissionQuantity';
 import {
   Dialog,
   DialogContent,
@@ -43,8 +44,6 @@ import {
 } from '../utils/approvalSchema';
 
 const FIELDS_TO_COMPARE = [
-  'quantity',
-  'quantity_unit',
   'category',
   'sub_category',
   'fuel_type',
@@ -60,8 +59,6 @@ const FIELDS_TO_COMPARE = [
 ];
 
 const FIELD_LABELS = {
-  quantity: 'Quantity',
-  quantity_unit: 'Unit',
   category: 'Category',
   sub_category: 'Activity',
   fuel_type: 'Fuel Type',
@@ -134,6 +131,18 @@ export default function ViewApprovalDialog({
   const fieldChanges = (() => {
     if (!isUpdateRequest || !originalSnap || Object.keys(originalSnap).length === 0) return [];
     const changes = [];
+    const oldQuantity = resolveEmissionQuantity(originalSnap);
+    const newQuantity = resolveEmissionQuantity(snap);
+    const oldQuantityComparable = `${oldQuantity.value ?? ''}|${oldQuantity.unit || ''}`;
+    const newQuantityComparable = `${newQuantity.value ?? ''}|${newQuantity.unit || ''}`;
+    if (oldQuantityComparable !== newQuantityComparable) {
+      changes.push({
+        field: 'dynamic_quantity',
+        label: 'Quantity Used',
+        oldValue: oldQuantity.value == null ? null : `${oldQuantity.value} ${oldQuantity.unit}`.trim(),
+        newValue: newQuantity.value == null ? null : `${newQuantity.value} ${newQuantity.unit}`.trim(),
+      });
+    }
     FIELDS_TO_COMPARE.forEach((field) => {
       const oldVal = originalSnap[field];
       const newVal = snap[field];
@@ -149,6 +158,7 @@ export default function ViewApprovalDialog({
     return changes;
   })();
 
+  const displayedQuantity = resolveEmissionQuantity(snap);
   const titleText = isDeleteRequest
     ? 'Deletion Request'
     : isUpdateRequest
@@ -288,8 +298,8 @@ export default function ViewApprovalDialog({
             total != null ? Number(total).toFixed(4) : null,
           )}
           {snap.fuel_name && renderField('Fuel', snap.fuel_name)}
-          {snap.quantity != null &&
-            renderField('Quantity', `${snap.quantity} ${snap.quantity_unit || ''}`)}
+          {displayedQuantity.value != null &&
+            renderField('Quantity', `${displayedQuantity.value} ${displayedQuantity.unit}`.trim())}
           {snap.calculation_method_scope3 &&
             renderField('Calculation Method', snap.calculation_method_scope3)}
           {snap.supplier_name && renderField('Supplier', snap.supplier_name)}

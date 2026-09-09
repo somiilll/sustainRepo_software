@@ -23,6 +23,7 @@ import useEmissionFormEffects from '../modules/ghg/emissions/shared/hooks/useEmi
 import useEmissionSubmit from '../modules/ghg/emissions/shared/hooks/useEmissionSubmit';
 import useSpendCurrencyDefaults from '../modules/ghg/emissions/shared/hooks/useSpendCurrencyDefaults';
 import { canProceedToStep as canProceedToStepUtil } from '../modules/ghg/emissions/shared/utils/validation';
+import { resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
 import {
   DynamicFieldRenderer,
   getFieldUnits as getFieldUnitsShared,
@@ -379,8 +380,7 @@ export default function EmissionEntryForm({
             const savedQty = dfv.qty;
             const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
             monthData.custom_qty_unit = savedQtyUnit
-              || editingEmission.unit
-              || editingEmission.quantity_unit
+              || resolveEmissionQuantity(editingEmission).unit
               || 'kg';
           }
           
@@ -432,8 +432,7 @@ export default function EmissionEntryForm({
           const savedQty = dfv.qty;
           const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
           yearData.custom_qty_unit = savedQtyUnit
-            || editingEmission.unit
-            || editingEmission.quantity_unit
+            || resolveEmissionQuantity(editingEmission).unit
             || 'kg';
         }
         

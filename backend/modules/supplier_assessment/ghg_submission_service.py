@@ -5,6 +5,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from shared.database.mongo import db
+from shared.utils.emission_records import without_legacy_quantity_fields
 from modules.supplier_assessment.programs import resolve_program_context
 
 
@@ -498,7 +499,7 @@ async def unlock_supplier_ghg_period(
     copies = []
     for entry in visible_entries:
         lineage_id = entry.get("revision_lineage_id") or entry["id"]
-        draft = {key: value for key, value in entry.items() if key not in {"_id", "id", "submitted_to_parent_org", "submission_id", "submitted_by", "parent_visible", "replaced_at", "replaced_by_submission_id"}}
+        draft = without_legacy_quantity_fields({key: value for key, value in entry.items() if key not in {"_id", "id", "submitted_to_parent_org", "submission_id", "submitted_by", "parent_visible", "replaced_at", "replaced_by_submission_id"}})
         draft.update({
             "id": str(uuid.uuid4()), "status": "draft", "approval_status": "draft", "submitted_to_parent_org": None,
             "submission_id": None, "submitted_by": None, "resubmission_of": submission["id"], "reopened_at": now,

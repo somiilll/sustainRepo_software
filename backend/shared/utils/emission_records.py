@@ -17,6 +17,16 @@ _SCOPE_ALIASES = {
     "scope_3": "scope3",
     "biogenic": "biogenic",
 }
+_LEGACY_QUANTITY_FIELDS = frozenset({"quantity", "quantity_unit", "unit"})
+
+
+def without_legacy_quantity_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return a write payload whose activity quantity exists only in dynamic fields."""
+    return {
+        key: value
+        for key, value in payload.items()
+        if key not in _LEGACY_QUANTITY_FIELDS
+    }
 
 
 def eligible_ghg_record_filter() -> dict[str, Any]:

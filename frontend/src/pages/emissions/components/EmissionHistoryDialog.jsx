@@ -323,6 +323,7 @@ export default function EmissionHistoryDialog({
                 'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
                 'scope3_subcategory', 'scope3_activity_type', 'ppp', 'inflation_rate',
                 'scope3_activity', 'biogenic_scope_selection',
+                'quantity', 'quantity_unit', 'unit',
                 // Skip CO₂e emissions for Scope 3 (redundant with total_emissions)
                 'co2e_emissions'
               ];

@@ -89,7 +89,8 @@ class EmissionRecordCreate(BaseModel):
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
     outputs: Optional[Dict[str, Dict[str, Any]]] = {}
 
-    # Primary activity values are mirrored for ledger and export compatibility.
+    # Legacy request compatibility only. Write handlers discard these fields;
+    # dynamic_field_values is the canonical activity-input store.
     quantity: Optional[float] = None
     quantity_unit: Optional[str] = None
     unit: Optional[str] = None

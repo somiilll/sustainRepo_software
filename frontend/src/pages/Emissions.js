@@ -31,6 +31,7 @@ import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/ut
 import { buildCustomFuelCalculationPayload } from './emissions/utils/customFuelCalcAdapter';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
 import { categoryRegistry } from '../modules/emissions';
+import { formatEmissionQuantity, resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
 import {
   deriveGhgFields,
   resolveGhgFormContext,
@@ -810,9 +811,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           // Top-level fields are retained only for records saved before that contract.
           const savedQty = savedDynamicValues.qty;
           const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
+          const primaryQuantity = resolveEmissionQuantity(editingEmission);
           values.custom_qty_unit = savedQtyUnit
-            || editingEmission.unit
-            || editingEmission.quantity_unit
+            || primaryQuantity.unit
             || 'kg';
           // Density from dynamic_field_values
           if (savedDynamicValues.density) {
@@ -3571,7 +3572,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                         <div className="mt-2 p-2 bg-stone-50 rounded text-sm">
                           <strong>Facility:</strong> {facilities.find(f => f.id === emissionToDelete.facility_id)?.name || 'Unknown'}<br/>
                           <strong>Category:</strong> {emissionToDelete.category}<br/>
-                          <strong>Quantity:</strong> {emissionToDelete.quantity} {emissionToDelete.quantity_unit}
+                          <strong>Quantity:</strong> {formatEmissionQuantity(emissionToDelete)}
                         </div>
                       )}
                     </div>

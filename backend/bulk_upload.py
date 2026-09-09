@@ -612,8 +612,12 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                 "category": data.get("category"),
                 "activity": data.get("activity"),
                 "method": data.get("method"),
-                "quantity": data.get("quantity"),
-                "quantity_unit": data.get("quantity_unit"),
+                "dynamic_field_values": {
+                    "qty": {
+                        "value": data.get("quantity"),
+                        "unit": data.get("quantity_unit"),
+                    }
+                },
                 "emission_factor": data.get("emission_factor"),
                 "ef_unit": data.get("ef_unit"),
                 "evidence_reference": data.get("evidence_reference"),

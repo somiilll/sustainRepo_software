@@ -5,6 +5,7 @@ Emissions repository — DB access for `emission_records` and
 from typing import Any, Dict, List, Optional
 
 from shared.database.mongo import db
+from shared.utils.emission_records import without_legacy_quantity_fields
 
 
 class EmissionsRepository:
@@ -29,10 +30,13 @@ class EmissionsRepository:
         return await self._db.emission_records.find({}, {"_id": 0}).to_list(10000)
 
     async def insert(self, record_dict: Dict[str, Any]) -> None:
-        await self._db.emission_records.insert_one(record_dict)
+        await self._db.emission_records.insert_one(without_legacy_quantity_fields(record_dict))
 
     async def update(self, record_id: str, update: Dict[str, Any]) -> None:
-        await self._db.emission_records.update_one({"id": record_id}, {"$set": update})
+        await self._db.emission_records.update_one(
+            {"id": record_id},
+            {"$set": without_legacy_quantity_fields(update)},
+        )
 
     async def delete(self, record_id: str) -> int:
         result = await self._db.emission_records.delete_one({"id": record_id})

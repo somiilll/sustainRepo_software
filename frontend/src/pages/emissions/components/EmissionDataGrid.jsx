@@ -4,6 +4,7 @@ import { Checkbox } from '../../../components/ui/checkbox';
 import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
+import { formatEmissionQuantity, resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
 
 /**
  * EmissionDataGrid
@@ -142,12 +143,7 @@ export default function EmissionDataGrid({
   
   // Get quantity value for sorting
   const getQuantityValue = (emission) => {
-    const dfv = emission.dynamic_field_values || {};
-    const qtyField = dfv.qty || dfv.qty_energy;
-    if (qtyField?.value !== null && qtyField?.value !== undefined) {
-      return parseFloat(qtyField.value) || 0;
-    }
-    return parseFloat(emission.quantity) || 0;
+    return parseFloat(resolveEmissionQuantity(emission).value) || 0;
   };
   
   // Sorted emissions
@@ -373,13 +369,7 @@ export default function EmissionDataGrid({
           const methodDisplay = getMethodLabel(calcMethod, true);
 
           // Get quantity display for Scope 1/2
-          const getQuantityDisplay = () => {
-            let qtyField = dfv.qty || dfv.qty_energy;
-            if (qtyField?.value !== null && qtyField?.value !== undefined) {
-              return `${qtyField.value} ${qtyField.unit || 'kg'}`;
-            }
-            return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
-          };
+          const getQuantityDisplay = () => formatEmissionQuantity(emission);
 
           // Extract year from reporting period
           const reportingYear = emission.reporting_period?.match(/\d{4}/)?.[0] || emission.reporting_year || '-';

@@ -3,6 +3,7 @@ import { Download, Eye, FileText, Lock } from 'lucide-react';
 import EmissionEditForm from '../../../components/EmissionEditForm';
 import { Button } from '../../../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
+import { resolveEmissionQuantity } from '../../ghg/emissions/shared/utils/emissionQuantity';
 
 const titleCase = (value = '') => String(value).replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const readOnlyFieldLabel = (variable, mapping) => mapping?.field_label || mapping?.label || titleCase(variable);
@@ -13,11 +14,12 @@ const buildReadOnlyDraft = (emission) => {
   const defaults = emission.resolved_default_inputs || {};
   const data = Object.fromEntries(Object.entries(emission.dynamic_field_values || {}).map(([key, value]) => [key, value && typeof value === 'object' && value.value === null && defaults[key] ? { ...value, value: defaults[key].value, unit: value.unit || defaults[key].unit, default_source: defaults[key].source } : value]));
   const dynamicValues = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, fieldValue(value)]));
+  const primaryQuantity = resolveEmissionQuantity(emission);
   return {
     values: {
       facility_id: emission.facility_id || 'supplier-submission-facility', scope: emission.scope || 'scope1', category: emission.category || '',
       sub_category: emission.sub_category || emission.fuel_type || '', fuel_id: emission.fuel_database_id || 'supplier-submission-fuel', fuel_type: emission.fuel_type || '',
-      quantity: fieldValue(data.qty) || emission.quantity || '', quantity_unit: fieldUnit(data.qty) || emission.quantity_unit || '',
+      quantity: primaryQuantity.value ?? '', quantity_unit: primaryQuantity.unit,
       source_of_information: emission.source_of_information || '', record_source: emission.record_source || emission.source_of_information || '', notes: emission.notes || '',
       justification: emission.justification || '', responsible_person: emission.responsible_person || '',
       responsible_person_designation: emission.responsible_person_designation || '', responsible_person_contact: emission.responsible_person_contact || '',

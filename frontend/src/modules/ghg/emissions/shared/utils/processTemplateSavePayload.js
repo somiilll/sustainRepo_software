@@ -50,9 +50,6 @@ export const buildLegacyProcessTemplatePayload = ({
     category_code: categoryCode || null,
     sub_category: selectedSubIndustry,
     fuel_type: selectedTemplate.name,
-    quantity,
-    quantity_unit: unit,
-    unit,
     emission_factor: 1,
     emission_factor_ch4: null,
     emission_factor_n2o: null,
@@ -81,11 +78,10 @@ export const buildLegacyProcessTemplatePayload = ({
     co2e_unit: 'tCO2e',
     template_id: selectedTemplate.id,
     template_inputs: formulaValues,
-    ...(density && {
-      dynamic_field_values: {
-        density: { ...density, is_override: true },
-      },
-    }),
+    dynamic_field_values: {
+      [primaryInputKey || 'qty']: { value: quantity, unit },
+      ...(density && { density: { ...density, is_override: true } }),
+    },
   };
 };
 

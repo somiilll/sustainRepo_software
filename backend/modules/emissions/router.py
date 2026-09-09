@@ -50,6 +50,7 @@ from modules.emissions.contracts import (
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
+from shared.utils.emission_records import without_legacy_quantity_fields
 
 logger = logging.getLogger(__name__)
 
@@ -1045,7 +1046,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         reporting_period,
     )
     
-    record_dict = record_data.model_dump()
+    record_dict = without_legacy_quantity_fields(record_data.model_dump())
     try:
         record_dict = await apply_record_version_binding(db, record_dict)
     except CalculationVersionError as error:
@@ -1304,7 +1305,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     
     # Create initial version history entry for creation
     # Include both input data and calculated emission values for proper history display
-    history_new_values = record_data.model_dump()
+    history_new_values = without_legacy_quantity_fields(record_data.model_dump())
     # Add the calculated/stored emission fields that the frontend expects in history
     history_new_values["co2_emissions"] = record_dict["co2_emissions"]
     history_new_values["ch4_emissions"] = record_dict["ch4_emissions"]
@@ -1373,12 +1374,12 @@ async def update_emission_record(
     try:
         versioned_record_data = await apply_record_version_binding(
             db,
-            record_data.model_dump(),
+            without_legacy_quantity_fields(record_data.model_dump()),
             existing_record=existing,
         )
         versioned_update_data = await apply_record_version_binding(
             db,
-            record_data.model_dump(exclude_unset=True),
+            without_legacy_quantity_fields(record_data.model_dump(exclude_unset=True)),
             existing_record=existing,
         )
     except CalculationVersionError as error:

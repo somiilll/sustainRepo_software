@@ -101,6 +101,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Canonical dynamic quantity storage:** Removed top-level `quantity`, `quantity_unit`, and `unit` from active manual-create, edit, process-template, legacy Bulk Upload, approval, and repository write paths. Backend write boundaries now discard these compatibility fields so `dynamic_field_values` is the single source of truth for activity inputs.
+- Emissions tables, sorting, edit hydration, delete confirmation, supplier read-only views, approval details, and approval comparisons now resolve quantity from dynamic fields. Existing top-level values remain read-only fallbacks for records that predate dynamic inputs; edits do not mutate or synchronize those legacy fields.
+- Version History no longer tracks or renders duplicate top-level Quantity/Unit changes. Existing saved duplicate entries are suppressed, while the canonical dynamic input change remains visible as Quantity Used.
+- **NOT TESTED** per the user’s explicit instruction.
+-
 - **September 9, 2026 — Consistent density calculation audit (manual and Bulk Upload):** Property-based direct, reverse, and compound unit conversions now attach additive density resolution metadata without changing conversion factors, formula selection, or numerical outputs. The shared execution layer records this metadata as the same canonical `resolve_property` audit step already produced by the volume-to-mass transformation path, so future manual and Bulk Upload records retain consistent density value, unit, and source details.
 - Calculation Details now recognizes the earlier direct-conversion audit shape (`convert` + `property_key: density`) for existing manual and Bulk Upload records, displaying the density that was already used without rewriting immutable history. Removed the unwanted Default/Overridden density labels.
 - **NOT TESTED** per the user’s explicit instruction.

@@ -312,10 +312,6 @@ export function buildEditPayload(ctx) {
 
   // Dynamic values
   const dynamicValues = buildDynamicValues(ctx);
-  const primaryQuantity = dynamicValues.qty || dynamicValues.quantity || {};
-  const parsedQuantity = Number.parseFloat(primaryQuantity.value ?? formData.quantity);
-  const quantity = Number.isFinite(parsedQuantity) ? parsedQuantity : null;
-  const quantityUnit = primaryQuantity.unit || formData.quantity_unit || formData.unit || null;
   const isProcessEmissions = categoryCode === 'process_emissions';
   const savedCalculationMethodology = dynamicValues.calculation_methodology;
   const calculationMethodology = typeof savedCalculationMethodology === 'object'
@@ -348,10 +344,6 @@ export function buildEditPayload(ctx) {
     custom_fuel_name: editUseCustomFuel ? editCustomFuelName : null,
     calculation_methodology: calculationMethodology,
     process_type: isProcessEmissions ? editProcessType || null : null,
-    // Keep the primary activity values at the record root for audit/history parity.
-    quantity,
-    quantity_unit: quantityUnit,
-    unit: quantityUnit,
 
     formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
     formula_version_id: editingEmission?.formula_version_id

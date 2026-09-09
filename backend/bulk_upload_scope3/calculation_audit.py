@@ -4,11 +4,16 @@ from datetime import datetime, timezone
 from typing import Dict, Iterable, List
 import uuid
 
+from shared.utils.emission_records import without_legacy_quantity_fields
+
 
 def prepare_bulk_calculation_audits(records: Iterable[Dict]) -> List[Dict]:
     """Extract transient calculation traces before emission-record insertion."""
     audit_documents: List[Dict] = []
     for record in records:
+        canonical_record = without_legacy_quantity_fields(record)
+        record.clear()
+        record.update(canonical_record)
         calculation_audit = record.pop("_calculation_audit", None) or {}
         audit_log = calculation_audit.get("audit_log") or record.get("audit_log") or []
         if not audit_log:
