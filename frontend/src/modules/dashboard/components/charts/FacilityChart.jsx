@@ -4,13 +4,16 @@
  * trend arrow icon at the top-right of each row).
  */
 import React, { useMemo } from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
 
-const BAR_GRADIENT_FROM = '#34D399';
-const BAR_GRADIENT_TO = '#10B981';
-
-export default function FacilityChart({ facilities = [], height = 400 }) {
-  const data = useMemo(() => facilities.slice(0, 10), [facilities]);
+export default function FacilityChart({ facilities = [] }) {
+  const data = useMemo(() => {
+    const total = facilities.reduce((sum, facility) => sum + Number(facility.total || 0), 0);
+    return [...facilities]
+      .filter((facility) => Number(facility.total || 0) > 0)
+      .sort((a, b) => Number(b.total || 0) - Number(a.total || 0))
+      .slice(0, 6)
+      .map((facility) => ({ ...facility, share: total > 0 ? (Number(facility.total || 0) / total) * 100 : 0 }));
+  }, [facilities]);
 
   if (!data.length) {
     return (
@@ -21,40 +24,19 @@ export default function FacilityChart({ facilities = [], height = 400 }) {
   }
 
   return (
-    <div data-testid="facility-chart">
-      <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
-          <defs>
-            <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={BAR_GRADIENT_FROM} stopOpacity={0.95} />
-              <stop offset="100%" stopColor={BAR_GRADIENT_TO} stopOpacity={0.7} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E7E5E4" vertical={false} />
-          <XAxis dataKey="name" stroke="#A8A29E" fontSize={10} tickLine={false} axisLine={false} angle={-30} textAnchor="end" interval={0} />
-          <YAxis stroke="#A8A29E" fontSize={11} tickLine={false} axisLine={false} label={{
-              value: 'tCO₂e',
-              angle: -90,
-              position: 'insideLeft',
-              offset: 15,
-              style: {
-                textAnchor: 'middle',
-                fill: '#78716C',
-                fontSize: 10,
-                fontWeight: 600,
-              },
-            }} />
-          <Tooltip
-            contentStyle={{ borderRadius: 10, border: '1px solid #E7E5E4', boxShadow: '0 6px 14px rgba(0,0,0,0.08)', fontSize: 12 }}
-            formatter={(v) => [`${Number(v).toFixed(2)} tCO₂e`, 'Total']}
-          />
-          <Bar dataKey="total" radius={[6, 6, 0, 0]}>
-            {data.map((entry, idx) => (
-              <Cell key={entry.id || idx} fill="url(#bar-grad)" />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+    <div className="space-y-4" data-testid="facility-chart">
+      {data.map((facility, index) => (
+        <div key={facility.id || facility.name} data-testid={`facility-ranking-row-${index + 1}`}>
+          <div className="mb-1.5 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold leading-5 text-stone-800" data-testid={`facility-ranking-name-${index + 1}`}>{facility.name || 'Unnamed facility'}</p>
+              <p className="text-[10px] text-stone-500" data-testid={`facility-ranking-share-${index + 1}`}>{facility.share.toFixed(1)}% of selected emissions</p>
+            </div>
+            <p className="shrink-0 text-xs font-semibold tabular-nums text-stone-900" data-testid={`facility-ranking-value-${index + 1}`}>{Number(facility.total).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</p>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${facility.share}%` }} /></div>
+        </div>
+      ))}
     </div>
   );
 }

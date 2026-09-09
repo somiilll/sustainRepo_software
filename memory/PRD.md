@@ -101,6 +101,14 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — GHG dashboard trust and clarity pass:** Fixed the `Reset to Default` runtime error by consistently passing `getCurrentFinancialYear` into the shared filter component. Reset now clears facility selection and restores the current financial year.
+- Dashboard statistics now return an explicit `record_count`, allowing the frontend to distinguish **confirmed zero emissions** (submitted records total 0 tCO₂e), **no reported data**, **no results for the selected filters**, and **load errors**. These states are shown as distinct, user-facing dashboard notices; filter-empty and error notices offer Reset or Retry actions.
+- KPI comparison calculations now request the exact equivalent prior-year date window and preserve repeated facility filters. KPI wording shows the actual prior comparison window instead of the ambiguous “vs previous period.” A dashboard-level line identifies both selected and equivalent prior-year windows.
+- Replaced GHG dashboard decorative graph-shaped KPI arrows with meaningful inline change indicators. Scope 3 hotspots, facility emissions, and emission categories now use ranked horizontal bars with full readable labels, emissions values, and percentage shares.
+- Target cards now state whether a target applies organization-wide or to named/selected facilities, and show the target reporting period where available. The mobile GHG KPI layout is now a compact two-column grid so the emissions analysis appears earlier.
+- **Build verification completed before the later user instruction to stop testing:** frontend production build and Python compilation passed. No post-change browser/API testing was performed after the user said “dont test.”
+
+## Previous Change — September 8, 2026
 - Corrected Scope 3 Bulk Upload calculation provenance for spend-currency properties. Database-resolved Standard Exchange Rate, Inflation Rate, and Purchase Power Value now carry the configured currency-record source (for example, `RBI (2025)`) into the calculation audit instead of appearing as `User Specified`.
 - Spreadsheet-supplied currency values continue to display `User Specified`. Calculation formulas and resolved values were not changed. Manual and Bulk Upload paths now share the same currency-source label formatter.
 - Testing was not performed for this provenance adjustment, per explicit user instruction.

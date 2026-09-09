@@ -42,6 +42,8 @@ export default function GaugeCard({
   selectedTargetId,
   setSelectedTargetId,
   progressPercentage,
+  applicabilityLabel,
+  reportingPeriodLabel,
 }) {
   const navigate = useNavigate();
   const targetLabel = (target) => target?.name || target?.kpi_name || target?.subcategory || 'Untitled target';
@@ -51,10 +53,10 @@ export default function GaugeCard({
     return (
       <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
         <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 mb-2">Reduction Target Achieved</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 mb-2">Target progress</p>
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-3">
           <TargetIcon className="w-7 h-7 text-amber-500" />
-          <p className="text-xs text-stone-600">No reduction targets configured</p>
+          <p className="text-xs text-stone-600">No active organization-wide or facility-level targets</p>
           <Button
             size="sm"
             className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
@@ -80,7 +82,7 @@ export default function GaugeCard({
       <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
         <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
         <div className="flex items-start justify-between mb-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Reduction Target Achieved</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Target progress</p>
           {targets.length > 1 && (
             <select
               value={selectedTarget?.id}
@@ -95,6 +97,8 @@ export default function GaugeCard({
         <p className="text-[11px] font-medium text-stone-700 truncate" title={selectedTargetLabel} data-testid="kpi-selected-target-name">
           {selectedTargetLabel}
         </p>
+        <p className="mt-1 text-[10px] text-stone-500" data-testid="kpi-target-applicability">{applicabilityLabel || 'Applies to organization'}</p>
+        {reportingPeriodLabel && <p className="text-[10px] text-stone-400" data-testid="kpi-target-reporting-period">Target period: {reportingPeriodLabel}</p>}
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-2">
           <TargetIcon className="w-7 h-7 text-amber-500" />
           <p className="text-xs text-stone-600 leading-snug">Target progress is not available for this reporting period.</p>
@@ -116,7 +120,7 @@ export default function GaugeCard({
     <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
       <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-200 via-emerald-400 to-emerald-200 opacity-70" />
       <div className="flex items-start justify-between mb-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Reduction Target Achieved</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Target progress</p>
         {targets.length > 1 && (
           <select
             value={selectedTarget?.id}
@@ -137,6 +141,8 @@ export default function GaugeCard({
       <p className="text-[11px] font-medium text-stone-700 mt-0.5 truncate" title={selectedTargetLabel} data-testid="kpi-selected-target-name">
         {selectedTargetLabel}
       </p>
+      <p className="mt-1 text-[10px] text-stone-500" data-testid="kpi-target-applicability">{applicabilityLabel || 'Applies to organization'}</p>
+      {reportingPeriodLabel && <p className="text-[10px] text-stone-400" data-testid="kpi-target-reporting-period">Target period: {reportingPeriodLabel}</p>}
       <div className="mt-3">
         <GaugeArc pct={clamped} />
       </div>

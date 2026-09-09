@@ -69,6 +69,7 @@ export default function DashboardFilters({
                 });
               }}
               className="px-2 py-0.5 text-[10px] bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors font-medium"
+              data-testid="filter-current-financial-year-button"
             >
               Current FY
             </button>
@@ -83,6 +84,7 @@ export default function DashboardFilters({
                 });
               }}
               className="px-2 py-0.5 text-[10px] bg-stone-100 hover:bg-stone-200 rounded transition-colors font-medium"
+              data-testid="filter-previous-financial-year-button"
             >
               Previous FY
             </button>
@@ -112,6 +114,7 @@ export default function DashboardFilters({
                         setSelectedFacilities(prev => prev.filter(id => id !== fid));
                       }}
                       className="hover:text-red-500"
+                      data-testid={`remove-facility-filter-${fid}`}
                     >
                       ×
                     </button>
@@ -128,6 +131,7 @@ export default function DashboardFilters({
                   setSelectedFacilities([]);
                   setShowFacilityDropdown(false);
                 }}
+                data-testid="facility-filter-all-option"
               >
                 {selectedFacilities.length === 0 && <Check className="w-3.5 h-3.5 text-primary" />}
                 <span>All Facilities</span>
@@ -143,6 +147,7 @@ export default function DashboardFilters({
                         : [...prev, f.id]
                     );
                   }}
+                  data-testid={`facility-filter-option-${f.id}`}
                 >
                   {selectedFacilities.includes(f.id) && <Check className="w-3.5 h-3.5 text-primary" />}
                   <span className={selectedFacilities.includes(f.id) ? 'font-medium' : ''}>{f.name}</span>

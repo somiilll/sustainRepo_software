@@ -1,56 +1,39 @@
 import React, { useMemo } from 'react';
-import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis, Tooltip } from 'recharts';
 
-const PALETTE = ['#F59E0B', '#F43F5E', '#8B5CF6', '#3B82F6'];
+const PALETTE = ['#F59E0B', '#F43F5E', '#8B5CF6', '#3B82F6', '#0EA5E9', '#10B981'];
 
-export default function Scope3Hotspots({ data = [], height = 320 }) {
+export default function Scope3Hotspots({ data = [] }) {
   const chartData = useMemo(() => {
-    const total = data.reduce((s, x) => s + (x.value || 0), 0);
-    return data.map((d, i) => ({
-      ...d,
-      fill: PALETTE[i % PALETTE.length],
-      // This is the value we want to display (0-100)
-      percentage: total > 0 ? (d.value / total) * 100 : 0,
-    }));
+    const total = data.reduce((sum, item) => sum + Number(item.value || 0), 0);
+    return [...data]
+      .filter((item) => Number(item.value || 0) > 0)
+      .sort((a, b) => Number(b.value || 0) - Number(a.value || 0))
+      .slice(0, 6)
+      .map((item, index) => ({
+        ...item,
+        fill: PALETTE[index % PALETTE.length],
+        percentage: total > 0 ? (Number(item.value || 0) / total) * 100 : 0,
+      }));
   }, [data]);
 
-  const formatLabel = (name, max = 20) =>
-    name.length > max ? name.slice(0, max) + '…' : name;
+  if (!chartData.length) {
+    return <div className="flex h-48 items-center justify-center text-sm text-stone-500" data-testid="scope3-hotspots-empty">No Scope 3 emissions reported for this window</div>;
+  }
 
   return (
-    <div data-testid="scope3-hotspots">
-      <ResponsiveContainer width="100%" height={height}>
-        <RadialBarChart 
-          innerRadius="40%" 
-          outerRadius="80%" 
-          data={chartData} 
-          startAngle={90} 
-          endAngle={-270}
-        >
-          {/* CRITICAL: Define the scale as 0 to 100 */}
-          <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-          
-          <RadialBar 
-            dataKey="percentage" 
-            clockWise 
-            cornerRadius={8} 
-            background={{ fill: '#F5F5F4' }} 
-          />
-          <Tooltip
-            formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Contribution']}
-          />
-        </RadialBarChart>
-      </ResponsiveContainer>
-      
-      <div className="flex flex-wrap justify-center gap-4 mt-2">
-        {[...chartData].reverse().map((c) => (
-          <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-stone-600">
-            <span className="w-2 h-2 rounded-full" style={{ background: c.fill }} />
-            <span>{formatLabel(c.name)}</span>
-            <span className="text-stone-400 font-medium">{c.percentage.toFixed(0)}%</span>
+    <div className="space-y-4" data-testid="scope3-hotspots">
+      {chartData.map((category, index) => (
+        <div key={category.id} data-testid={`scope3-hotspot-row-${index + 1}`}>
+          <div className="mb-1.5 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold leading-5 text-stone-800" data-testid={`scope3-hotspot-name-${index + 1}`}>{category.name}</p>
+              <p className="text-[10px] text-stone-500" data-testid={`scope3-hotspot-share-${index + 1}`}>{category.percentage.toFixed(1)}% of reported Scope 3</p>
+            </div>
+            <p className="shrink-0 text-xs font-semibold tabular-nums text-stone-900" data-testid={`scope3-hotspot-value-${index + 1}`}>{Number(category.value).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</p>
           </div>
-        ))}
-      </div>
+          <div className="h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${category.percentage}%`, backgroundColor: category.fill }} /></div>
+        </div>
+      ))}
     </div>
   );
 }

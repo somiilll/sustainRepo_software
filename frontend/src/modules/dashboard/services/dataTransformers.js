@@ -86,9 +86,7 @@ function detectScopeForCategory(c) {
   return 'scope1';
 }
 
-// ---- Scope 3 hotspots: pick categories where detected scope === scope3 ----
-// Returns only the TOP 3 by emissions; everything else gets aggregated into
-// a single "Others" bucket so the executive view stays leadership-focused.
+// ---- Scope 3 hotspots: pick the largest named categories by emissions. ----
 export function buildScope3Hotspots(categories = []) {
   const s3 = (categories || [])
     .filter((c) => detectScopeForCategory(c) === 'scope3')
@@ -102,21 +100,7 @@ export function buildScope3Hotspots(categories = []) {
 
   const total = s3.reduce((sum, item) => sum + item.value, 0);
   
-  // Sort by value DESC to identify top 3
-  const sorted = [...s3].sort((a, b) => b.value - a.value);
-  const top = sorted.slice(0, 3);
-  const remaining = sorted.slice(3);
-
-  if (remaining.length > 0) {
-    top.push({
-      id: 'others',
-      name: 'Others',
-      value: remaining.reduce((sum, item) => sum + item.value, 0),
-    });
-  }
-
-  // Sort ASC for rendering (Innermost to Outermost)
-  return top.sort((a, b) => a.value - b.value);
+  return [...s3].sort((a, b) => b.value - a.value).slice(0, 6);
 }
 
 // ---- Emission categories breakdown (TOP 3 across scopes, stacked) ----

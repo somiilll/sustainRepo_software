@@ -949,6 +949,7 @@ async def get_dashboard_stats(
     return DashboardStats(
         total_facilities=len(facilities),
         total_emissions=round(total_emissions, 2),
+        record_count=len(deduplicated_emissions),
         scope1_emissions=round(scope1_emissions, 2),
         scope2_emissions=round(scope2_emissions, 2),
         scope3_emissions=round(scope3_emissions, 2),
