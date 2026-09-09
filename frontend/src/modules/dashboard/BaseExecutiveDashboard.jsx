@@ -277,11 +277,11 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             />
           </div>
           {canShowAnalysis && <>
-          <div className="mt-8 grid grid-cols-1 gap-3 lg:grid-cols-4">
+          <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-4">
              <SectionCard
               className="lg:col-span-3"
               title={hasScope3 ? 'Scope 1, 2 & 3 Emissions Trend' : 'Scope 1 & 2 Emissions Trend'}
-              subtitle="Emissions over reporting period"
+              subtitle={filteredData.annualRecordsAllocated ? 'Annual records are evenly allocated across covered months' : 'Emissions over reporting period'}
               accent="#10B981"
               testId="section-scope-trend"
             >
@@ -298,7 +298,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             </SectionCard>
           </div>
 
-          <div className={`mt-8 grid grid-cols-1 gap-3 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
+          <div className={`mt-5 grid grid-cols-1 gap-3 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
             <SectionCard title="Facility-wise Emissions" subtitle="Ranked by emissions and share" accent="#34D399" testId="section-facility">
               <FacilityChart facilities={facilitySeries} />
             </SectionCard>
@@ -314,7 +314,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             </SectionCard>
           </div>
 
-          <div className="mt-8 grid grid-cols-1 gap-3 lg:grid-cols-5">
+          <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-5">
             <SectionCard
               className="lg:col-span-3"
               title="Base year vs selected window"

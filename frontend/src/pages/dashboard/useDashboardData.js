@@ -214,7 +214,13 @@ export function useDashboardData() {
     };
     totals.total = totals.scope1 + totals.scope2 + totals.biogenic + (hasScope3Access ? totals.scope3 : 0);
     const filteredSinks = stats.sinks_total || 0;
-    return { trend: filteredTrend, facilities: filteredFacilities, totals, filteredSinks };
+    return {
+      trend: filteredTrend,
+      facilities: filteredFacilities,
+      totals,
+      filteredSinks,
+      annualRecordsAllocated: Boolean(stats.annual_records_allocated),
+    };
   }, [stats, hasScope3Access]);
 
   const dataState = useMemo(() => {
