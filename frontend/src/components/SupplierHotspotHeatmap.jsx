@@ -39,7 +39,8 @@ const colorPalette = [
 const categoryColors = {
   'Purchased Goods and Services': '#ef4444',
   'Capital Goods': '#f97316',
-  'Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2': '#eab308',
+  'Fuel- and energy-related activities': '#eab308',
+  'C3 Fuel- and energy-related activities': '#eab308',
   'Upstream Transportation and Distribution': '#84cc16',
   'Waste Generated in Operations': '#22c55e',
   'Business Travel': '#10b981',

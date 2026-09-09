@@ -378,7 +378,7 @@ class RowProcessor:
         
         # Get category name from config (guaranteed to exist) with database fallback
         category_config = CATEGORY_COLUMNS.get(category_code, {})
-        category_name = f"{category_code} - {category_config.get('name', 'Unknown')}"
+        category_name = category_config.get("record_category_name") or f"{category_code} - {category_config.get('name', 'Unknown')}"
         
         if category:
             form_config = await self.formula_validator.get_form_config(category.get("id"))

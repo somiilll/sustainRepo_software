@@ -827,7 +827,7 @@ class GHGReportGenerator:
             scope3_display_names = getattr(self, 'scope3_category_display', {
                 'c1': 'C1 - Purchased Goods and Services',
                 'c2': 'C2 - Capital Goods',
-                'c3': 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
+                'c3': 'C3 Fuel- and energy-related activities',
                 'c4': 'C4 - Upstream Transportation and Distribution',
                 'c5': 'C5 - Waste Generated in Operations',
                 'c6': 'C6 - Business Travel',
@@ -1310,7 +1310,7 @@ class GHGReportGenerator:
             scope3_display_names = getattr(self, 'scope3_category_display', {
                 'c1': 'C1 - Purchased Goods and Services',
                 'c2': 'C2 - Capital Goods',
-                'c3': 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
+                'c3': 'C3 Fuel- and energy-related activities',
                 'c4': 'C4 - Upstream Transportation and Distribution',
                 'c5': 'C5 - Waste Generated in Operations',
                 'c6': 'C6 - Business Travel',
@@ -2030,7 +2030,7 @@ class GHGReportGenerator:
         self.scope3_category_display = {
             'c1': 'C1 - Purchased Goods and Services',
             'c2': 'C2 - Capital Goods',
-            'c3': 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
+            'c3': 'C3 Fuel- and energy-related activities',
             'c4': 'C4 - Upstream Transportation and Distribution',
             'c5': 'C5 - Waste Generated in Operations',
             'c6': 'C6 - Business Travel',
@@ -4072,8 +4072,8 @@ class GHGReportGenerator:
                 ['Scope 3', 'C2 - Capital Goods', 'Average Data Based', 'Emissions = Quantity Used × Emission Factor'],
                 ['Scope 3', 'C2 - Capital Goods', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C3
-                ['Scope 3', 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2', 'Average Data Based', 'Emissions = Quantity Used × (WTT Emission Factor + T&D Loss)'],
-                ['Scope 3', 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
+                ['Scope 3', 'C3 Fuel- and energy-related activities', 'Average Data Based', 'Emissions = Quantity Used × (WTT Emission Factor + T&D Loss)'],
+                ['Scope 3', 'C3 Fuel- and energy-related activities', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C4
                 ['Scope 3', 'C4 - Upstream Transportation and Distribution', 'Spend Based', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'],
                 ['Scope 3', 'C4 - Upstream Transportation and Distribution', 'Average Data Based', 'Emissions = Emission Factor × Distance travelled × Quantity of Goods travelled'],

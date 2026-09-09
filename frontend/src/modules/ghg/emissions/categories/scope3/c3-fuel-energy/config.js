@@ -1,11 +1,11 @@
 /**
- * C3 - Fuel and Energy Related Activities
+ * C3 Fuel- and energy-related activities
  * Category Module
  */
 
 export const config = {
   code: 'c3',
-  name: 'C3 - Fuel and Energy Related Activities',
+  name: 'C3 Fuel- and energy-related activities',
   scope: 'scope3',
   requiresSubcategory: false,
   requiresAssetName: false,

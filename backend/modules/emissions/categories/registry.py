@@ -81,7 +81,14 @@ _SEED: List[CategoryDescriptor] = [
     # Scope 3 (C1–C15) — capabilities mirror frontend scope3-definitions.
     _s3("c1", "Purchased Goods and Services"),
     _s3("c2", "Capital Goods"),
-    _s3("c3", "Fuel and Energy Related Activities"),
+    _s3(
+        "c3",
+        "Fuel- and energy-related activities",
+        aliases=(
+            "C3 Fuel- and energy-related activities",
+            "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+        ),
+    ),
     _s3("c4", "Upstream Transportation and Distribution", CAP_JOURNEY_LOCATIONS),
     _s3("c5", "Waste Generated in Operations"),
     _s3("c6", "Business Travel", CAP_JOURNEY_LOCATIONS),
