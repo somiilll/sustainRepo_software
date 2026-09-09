@@ -991,6 +991,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
 
   // Handle fuel selection from database
   const handleFuelSelect = (fuelId) => {
+    // A fuel change affects the calculation inputs even when Quantity itself is unchanged.
+    // Mark the edit as changed so the calculation effect replaces the persisted result.
+    setIsFormDirty(true);
     // Clear dynamic field values when fuel changes to reset units and values
     setDynamicFieldValues({});
     
