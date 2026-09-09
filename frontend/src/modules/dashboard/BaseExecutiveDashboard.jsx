@@ -161,12 +161,12 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     : null;
   const facilityNameById = useMemo(() => new Map(facilities.map((facility) => [facility.id, facility.name])), [facilities]);
   const targetApplicabilityLabel = useMemo(() => {
-    if (!selectedTarget) return 'Applies to organization';
+    if (!selectedTarget) return null;
     const ids = [...new Set([selectedTarget.facilityId, ...selectedTarget.facilityIds].filter(Boolean))];
-    if (!ids.length && /facility/i.test(String(selectedTarget.targetScope || ''))) return 'Applies to facility-level reporting';
-    if (!ids.length) return 'Applies to organization-wide reporting';
+    if (!ids.length && /facility/i.test(String(selectedTarget.targetScope || ''))) return 'Facility target';
+    if (!ids.length) return null;
     const names = ids.map((id) => facilityNameById.get(id) || 'selected facility');
-    return names.length === 1 ? `Applies to: ${names[0]}` : `Applies to: ${names.length} facilities`;
+    return names.length === 1 ? `Facility: ${names[0]}` : `${names.length} facilities`;
   }, [facilityNameById, selectedTarget]);
   const canShowAnalysis = dataState === 'data';
 
@@ -238,7 +238,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             onReset={resetDashboardFilters}
             onRetry={retryDashboardStats}
           />
-          <div className="space-y-4">
+          <div className="space-y-6">
           {(dataState === 'data' || dataState === 'confirmed-zero') && <>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" data-testid="ghg-kpi-row">
             <KpiCard

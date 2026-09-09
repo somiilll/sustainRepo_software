@@ -29,9 +29,8 @@ export default function FacilityChart({ facilities = [] }) {
           <div className="mb-1.5 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold leading-5 text-stone-800" data-testid={`facility-ranking-name-${index + 1}`}>{facility.name || 'Unnamed facility'}</p>
-              <p className="text-[10px] text-stone-500" data-testid={`facility-ranking-share-${index + 1}`}>{facility.share.toFixed(1)}% of selected emissions</p>
             </div>
-            <p className="shrink-0 text-xs font-semibold tabular-nums text-stone-900" data-testid={`facility-ranking-value-${index + 1}`}>{Number(facility.total).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</p>
+            <p className="shrink-0 text-xs font-semibold tabular-nums text-stone-900" data-testid={`facility-ranking-value-${index + 1}`}>{Number(facility.total).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e <span className="text-stone-500" data-testid={`facility-ranking-share-${index + 1}`}>({facility.share.toFixed(1)}%)</span></p>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${facility.share}%` }} /></div>
         </div>

@@ -28,9 +28,8 @@ export default function Scope3Hotspots({ data = [] }) {
           <div className="mb-1.5 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold leading-5 text-stone-800" data-testid={`scope3-hotspot-name-${index + 1}`}>{category.name}</p>
-              <p className="text-[10px] text-stone-500" data-testid={`scope3-hotspot-share-${index + 1}`}>{category.percentage.toFixed(1)}% of reported Scope 3</p>
             </div>
-            <p className="shrink-0 text-xs font-semibold tabular-nums text-stone-900" data-testid={`scope3-hotspot-value-${index + 1}`}>{Number(category.value).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</p>
+            <p className="shrink-0 text-xs font-semibold tabular-nums text-stone-900" data-testid={`scope3-hotspot-value-${index + 1}`}>{Number(category.value).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e <span className="text-stone-500" data-testid={`scope3-hotspot-share-${index + 1}`}>({category.percentage.toFixed(1)}%)</span></p>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${category.percentage}%`, backgroundColor: category.fill }} /></div>
         </div>

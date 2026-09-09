@@ -111,6 +111,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **September 9, 2026 — Remaining dashboard design pass:** Simplified the shared GHG/ESG dashboard header and card surfaces by removing decorative icons, gradient/colored stripes, excessive rounding, and heavy shadow treatments. The filter panel is now denser and accessible, with a semantic facility button and no redundant filter-summary strip.
 - Added consistent, specific empty states for GHG trend, scope breakdown, facility ranking, category ranking, Scope 3 hotspots, and geographic heatmap. Reduced GHG chart height and card padding to improve mobile information density while preserving hierarchy.
 - **NOT TESTED** per the user’s explicit instruction.
+- **September 9, 2026 — GHG density refinement:** Increased spacing between GHG dashboard rows. Removed duplicate selected-target names from target cards; organization-wide applicability is no longer shown, while facility applicability is a compact header badge when relevant. Scope 3, facility, and category rankings now show each emissions value and percentage share on one line.
+- **NOT TESTED** per the user’s explicit instruction.
 
 ## Previous Change — September 8, 2026
 - Corrected Scope 3 Bulk Upload calculation provenance for spend-currency properties. Database-resolved Standard Exchange Rate, Inflation Rate, and Purchase Power Value now carry the configured currency-record source (for example, `RBI (2025)`) into the calculation audit instead of appearing as `User Specified`.
