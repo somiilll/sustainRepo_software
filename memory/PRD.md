@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — ORG1 Scope 2 local-data deletion:** With explicit user confirmation, created and executed `backend/scripts/delete_org_scope2_records.py ORG1 --apply`. The scoped deletion removed 6 current Scope 2 emission records, 8 linked `emission_history` entries, and 7 linked `ce_calculation_audit_logs` entries for ORG1 only.
+- Automatic BSON backup: `/app/.emergent/backups/org1-scope2-delete-20260909T092221Z.json`. **VERIFIED:** ORG1 now has 0 Scope 2 records and 0 linked history/audit records for the deleted IDs; 11 other-scope records remain unchanged.
+-
 - **September 9, 2026 — GHG sticky-filter inset:** Increased the shared sticky-filter header’s horizontal padding so the GHG logo/title begins with more space from the left edge and the Show filters control has matching right-side space.
 - **NOT UI TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration.
 -
