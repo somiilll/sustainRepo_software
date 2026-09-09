@@ -35,6 +35,11 @@ const propertyPresentation = (entry) => {
   return { Icon: Calculator, iconClass: 'text-purple-500' };
 };
 
+const propertyValueState = (entry) => {
+  if (entry.property !== 'density') return null;
+  return entry.source === 'user_override' ? 'Overridden value' : 'Default value';
+};
+
 const SourceBadge = ({ source }) => source ? (
   <span className="ml-auto shrink-0 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700" data-testid="calculation-source-badge">
     Source · {source}
@@ -96,7 +101,8 @@ export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3L
                   if (entry.step === 'resolve_property') {
                     const { Icon, iconClass } = propertyPresentation(entry);
                     const sourceName = entry.source_name || entry.source || '';
-                    return <div key={index} className="flex items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}</p><SourceBadge source={sourceName} /></div>;
+                    const valueState = propertyValueState(entry);
+                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}{valueState ? <span className="ml-2 text-xs font-medium text-stone-500" data-testid={`calculation-density-value-state-${index}`}>({valueState})</span> : null}</p><SourceBadge source={sourceName} /></div>;
                   }
                   if (entry.step === 'formula_step') {
                     const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());

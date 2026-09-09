@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Calculation Details density clarity:** When a calculation uses density, its property row now explicitly identifies whether the displayed amount is the **Overridden value** or the resolved **Default value**, while retaining its calculation-data source badge.
+- **NOT TESTED** per the user’s standing instruction.
+-
 - **September 9, 2026 — Scope 1 fuel-edit recalculation and history repair:** Changing a fuel while editing a Scope 1 emission now marks the form as changed, allowing the existing calculation flow to replace the stored result immediately after the new fuel inputs hydrate.
 - Scope 1 edit submissions now mirror the calculated primary quantity and its unit to the record-level `quantity`, `quantity_unit`, and `unit` fields. Version history therefore compares the edited quantity against its real stored value rather than the Pydantic default of `null` / `(empty)`.
 - **NOT TESTED** per the user’s explicit instruction.
