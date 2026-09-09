@@ -149,8 +149,29 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
 
   const comparisonLabel = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return null;
-    const previousFrom = new Date(dateRange.from);
-    const previousTo = new Date(dateRange.to);
+    const currentFrom = new Date(dateRange.from);
+    const currentTo = new Date(dateRange.to);
+    const isSingleMonth = currentFrom.getFullYear() === currentTo.getFullYear()
+      && currentFrom.getMonth() === currentTo.getMonth();
+
+    if (isSingleMonth) return 'Compared with previous month';
+
+    const now = new Date();
+    const currentFinancialYearStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const isCurrentFinancialYear = currentFrom.getFullYear() === currentFinancialYearStart
+      && currentFrom.getMonth() === 3
+      && currentTo.getFullYear() === currentFinancialYearStart + 1
+      && currentTo.getMonth() === 2;
+    if (isCurrentFinancialYear) return 'Compared with previous FY';
+
+    const isCurrentCalendarYear = currentFrom.getFullYear() === now.getFullYear()
+      && currentFrom.getMonth() === 0
+      && currentTo.getFullYear() === now.getFullYear()
+      && currentTo.getMonth() === 11;
+    if (isCurrentCalendarYear) return 'Compared with previous CY';
+
+    const previousFrom = new Date(currentFrom);
+    const previousTo = new Date(currentTo);
     previousFrom.setFullYear(previousFrom.getFullYear() - 1);
     previousTo.setFullYear(previousTo.getFullYear() - 1);
     return `Compared with ${format(previousFrom, 'MMM yyyy')} – ${format(previousTo, 'MMM yyyy')}`;
