@@ -1,75 +1,210 @@
 {
-  "project_metadata": {
-    "app_type": "saas_app",
-    "page": "Login Page (/app/frontend/src/pages/Login.js)",
-    "review_role": "Senior Product Designer & UX Strategist",
-    "theme": "light",
-    "archetype": "ORGANIC & EARTHY (ESG Enterprise SaaS Precision)",
-    "user_directive": "Feedback only - do not alter code"
+  "meta": {
+    "title": "GHG Executive Dashboard UI/UX Critique & Design Guidelines",
+    "role": "Top-tier E1 SaaS Product & Systems Designer",
+    "review_date": "July 2026",
+    "target_app": "GHG Sustainability Dashboard",
+    "framework_context": "FastAPI + React.js + Tailwind CSS + Lucide React + Recharts"
   },
-  "login_page_design_audit": {
-    "overall_assessment": "The current login page is clean and functional with solid baseline branding and accessibility tags. However, it suffers from a critical mobile layout issue (CTA below fold), lacks essential SaaS login features (Remember Me, SSO, Security Trust signals, Legal footer), and exhibits minor background color vibration.",
-    "prioritized_feedback": [
+  "ui_ux_critique": {
+    "summary": "The current GHG dashboard establishes a functional data baseline but suffers from high visual noise, inconsistent visual hierarchy, low contrast in critical indicators, and cramped component margins. Key sustainability metrics (Scope breakdown, Net vs Sinks, Targets) require stronger cognitive separation so executive decision-makers can parse high-level posture in under 5 seconds.",
+    "must_fix_decision_clarity": [
       {
-        "priority": "P0 - Critical Bug",
-        "category": "Mobile Responsive & Viewport Fold",
-        "issue": "Vertical stacking on mobile screens (390x844) cuts off the main 'Login' button below the fold.",
-        "details": "The left graphic panel takes up ~42vh (~390px) on mobile viewports. This pushes the login card downwards, forcing users to scroll down just to see and tap the primary CTA button.",
-        "recommendation": "On screens smaller than desktop (`< lg`), hide the top visual panel (`hidden lg:flex`) or compress it into a small horizontal logo banner (~10-15vh). The login form card must be 100% visible above the fold on all mobile devices."
+        "category": "KPI Cards & Hierarchy",
+        "issue": "Total Emissions, Sinks, Net Emissions, and Target Gauge look visually homogeneous despite having distinct data models.",
+        "what_to_change": "Differentiate Net Emissions as the dominant summary KPI and elevate the Reduction Target progress card to have clear target contextual callouts.",
+        "why": "Net Emissions is the core executive reporting figure. Giving all 4 cards equal width, weight, and treatment forces users to read text labels rather than quickly scanning visual hierarchy.",
+        "replacement_pattern": "Use a 4-column responsive grid with Net Emissions highlighted using an anchor subtle border accent (e.g. emerald-800/10 with elevated container depth) or 1.5x width emphasis. Provide explicit 'vs. Prior Period' labels with absolute delta values alongside percentages."
       },
       {
-        "priority": "P1 - Essential Missing SaaS Features",
-        "category": "Functionality & User Convenience",
-        "issue": "Missing standard enterprise authentication patterns.",
-        "details": "1. 'Remember Me' / 'Keep me logged in' checkbox is missing.\n2. Enterprise Single Sign-On (SSO) button (e.g. 'Sign in with SSO' / Okta / Azure AD) is missing.\n3. Legal & Compliance footer links (Privacy Policy, Terms of Service, System Status) are missing.",
-        "recommendation": "Add a 'Remember Me' checkbox alongside the 'Forgot Password?' link. Include an 'Or continue with SSO' button for enterprise corporate clients. Add a discrete footer with Privacy Policy and Terms of Service."
+        "category": "KPI Deltas & Color Semantics",
+        "issue": "Delta percentages lack direction clarity (e.g., whether an increase in Total Sinks is positive or negative) and use tiny 10px subtitle text that is hard to read.",
+        "what_to_change": "Standardize trend indicators with semantic badge pills (e.g., green pill for positive sink growth, soft red pill for scope emission increase) and raise baseline font size to 11px/12px font-medium with APCA-compliant contrast.",
+        "why": "In carbon accounting, increase in sinks is GOOD (+Sinks = green), while increase in emissions is BAD (+Emissions = red). Universal rules create misleading visual signals.",
+        "replacement_pattern": "Wrap trend deltas in tinted badge pills (`bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40` or `bg-rose-50 text-rose-700`) with explicit trend directional arrow icons and descriptive micro-copy like '+12.4% vs FY25'."
       },
       {
-        "priority": "P1 - Visual Hierarchy & Color Harmony",
-        "category": "Surface Strategy & Background Contrast",
-        "issue": "Background gradient vibration and unanchored card styling.",
-        "details": "The right panel uses a multi-stop pastel aqua gradient (`bg-[linear-gradient(145deg,#dff7ed_0%,#cbeee8_45%,#c8e7f0_100%)]`). Combined with the left panel's `#ccefe8` background, it creates color saturation overload and reduces contrast around the white card.",
-        "recommendation": "Use a subtle, neutral off-white background with warm organic undertones (`bg-[#f8faf9]` or `bg-slate-50`) behind the card. Replace flat card borders (`border-white/80`) with a crisp 1px border (`border-emerald-900/10` or `border-slate-200/80`) for better edge definition."
+        "category": "Information Hierarchy & Chart Layout",
+        "issue": "Scope Trend chart and Emissions by Scope Donut chart are placed side-by-side in a 3:1 column split where the donut is vertically squished and legend items collide.",
+        "what_to_change": "Rebalance the trend vs donut grid ratio to 2:1 or 8:4 columns, increasing vertical height and providing horizontal legend placement under the donut chart.",
+        "why": "The donut chart center metric ('Total tCO₂e') overlaps with pie slices when hover tooltips trigger, and legend boxes below have constrained 2-column inline wrapping.",
+        "replacement_pattern": "Set chart container height to 260px minimum. Place legend items in a clean single-column or balanced 2x2 grid with distinct color dots, percentage tags, and formatted absolute tCO₂e metrics."
       },
       {
-        "priority": "P2 - Trust & Conversion Signals",
-        "category": "Brand Identity & Trust Building",
-        "issue": "Lack of security and enterprise trust indicators.",
-        "details": "In an ESG & enterprise carbon accounting platform handling sensitive corporate environmental data, the login page lacks security assurance badges.",
-        "recommendation": "Add a small, subtle security badge near the bottom of the card (e.g., '🔒 256-Bit Encrypted • Enterprise ESG Security')."
+        "category": "Data Density & Ranking Component Readability",
+        "issue": "Facility Emissions, Scope 3 Hotspots, and Category Rankings use identical horizontal progress bars with generic 2px high tracks and tight line height.",
+        "what_to_change": "Introduce visual diversity across ranking sections: Facility rankings should use custom rounded progress bars with location badges; Scope 3 hotspots should feature category tag badges and color-coded GHG Protocol scope indicators; Category rankings should use stacked or distinct bar treatments.",
+        "why": "Having three adjacent cards with identical thin gray tracks and progress fill creates visual monotony ('dashboard fatigue') and makes it difficult to distinguish facility data from category data.",
+        "replacement_pattern": "Upgrade ranking bars to 6px-8px height with smooth rounded corners (`rounded-full`), add subtle rank numbers (#1, #2, #3), and display both percentage share and absolute values cleanly aligned on the right with `tabular-nums`."
       },
       {
-        "priority": "P2 - Accessibility & Typography Polish",
-        "category": "Typography & Accessibility (WCAG)",
-        "issue": "Placeholder text contrast and focus ring definition.",
-        "details": "Placeholder text (`#7e9997`) is slightly faint. Input focus rings use a soft opacity ring which can be hard to see under bright direct light.",
-        "recommendation": "Increase placeholder contrast to `#64748b` (Slate-500). Standardize focus ring to a high-contrast emerald focus indicator (`focus-visible:ring-2 focus-visible:ring-emerald-600`)."
+        "category": "Base Year vs Selected Window Comparison",
+        "issue": "Base year comparison chart lacks clear baseline baseline target markers and comparison delta pills.",
+        "what_to_change": "Enhance BaseYearComparisonChart to display side-by-side bar pairs (Base Year vs Current Window) with variance badges showing percentage reduction/increase directly above each scope group.",
+        "why": "Executive reporting required by CSRD/SEC/GRI relies heavily on base-year progress verification. Raw numbers without clear baseline callouts force mental math.",
+        "replacement_pattern": "Grouped bar chart layout with contrasting fill colors (e.g. muted slate-400 for Base Year, rich emerald-600 for Current Period) and floating micro variance badges (+% / -%) above each bar group."
+      },
+      {
+        "category": "Geographic Heatmap Integration",
+        "issue": "Geographic Heatmap section is rendered at fixed 280px height with minimal map interaction indicators and toggle buttons that lack active depth.",
+        "what_to_change": "Upgrade GeoHeatmap container with standard aspect ratio (320px height min), sleek Segmented Control pill toggle ('India' vs 'Global'), hover tooltips showing facility name + tCO₂e, and proper map controls.",
+        "why": "Heatmaps are high-value visual anchors for facility distribution; a static or cramped map window reduces executive engagement.",
+        "replacement_pattern": "Segmented pill control in card header, rounded map viewport with subtle inset border, interactive marker pins with pulsing halo effect for high-emission facilities, and floating legend."
+      }
+    ],
+    "polish_and_enhancements": [
+      {
+        "category": "Header & Sticky Filter Bar",
+        "issue": "Sticky filter bar uses flat background (`bg-emerald-50/70`) that blends into page body when scrolling, with weak filter toggle affordance.",
+        "what_to_change": "Apply Glassmorphism styling (`backdrop-blur-xl bg-white/85 dark:bg-stone-900/85 border-b border-stone-200/80 shadow-sm`), elevate header spacing, and refine filter buttons.",
+        "why": "A sticky header must clearly float over content with optical separation without obscuring lower cards.",
+        "replacement_pattern": "Glassmorphism bar with `backdrop-blur-xl`, structured trigger buttons with active state badges, and smooth accordion transitions for filter options."
+      },
+      {
+        "category": "Colors & Typography System",
+        "issue": "Excessive reliance on generic system sans-serif fonts for section titles and primary metrics; color palette mixes conflicting emerald, blue, amber, and purple hues without strict semantic roles.",
+        "what_to_change": "Introduce a curated typography pairing (e.g., Plus Jakarta Sans or Outfit for Headings, DM Sans/Inter for UI body, JetBrains Mono/Tabular Sans for metrics) and tighten color palette around Archetype 1: Organic & Earthy Executive.",
+        "why": "Distinct font pairing eliminates the 'AI slop / default template' look and builds high-brand authority.",
+        "replacement_pattern": "Headings in medium-weight display sans (`font-heading font-bold tracking-tight text-stone-900`), body in clean neutral (`text-stone-600`), and numerical metrics in high-clarity tabular figures (`font-mono` or `tabular-nums`)."
+      },
+      {
+        "category": "Empty States & Load Error States",
+        "issue": "Empty chart states and state banners use basic text boxes without interactive recovery actions or illustration vectors.",
+        "what_to_change": "Replace plain text empty alerts with rich, actionable empty state cards featuring context icons, clear primary CTA buttons, and explanatory microcopy.",
+        "why": "When filters yield zero records or data is pending, users need clear pathways to reset filters or import records.",
+        "replacement_pattern": "Centered empty state component with subtle icon container, primary CTA ('Reset Filters' or 'Configure Reporting Window'), and secondary help link."
+      },
+      {
+        "category": "Micro-Interactions & Animation",
+        "issue": "Static card hover states with generic shadow effects.",
+        "what_to_change": "Add subtle motion using Framer Motion or tailored CSS transitions: hover lift (`-translate-y-0.5`), subtle border tint transition, smooth gauge needle sweep, and staggered entrance for ranking bars.",
+        "why": "Micro-interactions make data feel live, responsive, and tactile.",
+        "replacement_pattern": "CSS transition class `transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md hover:border-emerald-200`."
       }
     ]
   },
   "design_system": {
-    "colors": {
-      "page_background": "#f8faf9",
-      "visual_panel_bg": "#123d33",
-      "card_background": "#ffffff",
-      "primary_brand": "#10b981",
-      "primary_hover": "#059669",
-      "text_primary": "#0f172a",
-      "text_secondary": "#475569",
-      "text_placeholder": "#64748b",
-      "border_default": "#e2e8f0"
-    },
+    "theme": "Light mode primary (Executive Organic Clean) with full high-contrast accessibility",
     "typography": {
-      "font_family": "Inter, system-ui, sans-serif",
-      "headline_style": "text-3xl font-bold tracking-tight text-slate-900",
-      "body_style": "text-sm text-slate-600"
+      "font_family_headings": "Outfit, Plus Jakarta Sans, sans-serif",
+      "font_family_body": "Inter, system-ui, sans-serif",
+      "font_family_numbers": "JetBrains Mono, tabular-nums, monospace",
+      "hierarchy": {
+        "page_title": "text-2xl sm:text-3xl font-bold tracking-tight text-stone-900",
+        "section_heading": "text-base sm:text-lg font-semibold tracking-tight text-stone-800",
+        "card_title": "text-xs font-semibold uppercase tracking-wider text-stone-500",
+        "metric_hero": "text-3xl sm:text-4xl font-bold tracking-normal text-stone-900 tabular-nums",
+        "metric_sub": "text-xs font-medium text-stone-500",
+        "body_text": "text-xs sm:text-sm text-stone-600 leading-relaxed"
+      }
+    },
+    "colors": {
+      "palette_archetype": "Organic & Earthy Executive",
+      "background": {
+        "page": "bg-stone-50/60",
+        "card": "bg-white",
+        "card_subtle": "bg-stone-50/80",
+        "header_glass": "bg-white/85 backdrop-blur-xl border-b border-stone-200/80"
+      },
+      "brand_sustainability": {
+        "emerald_primary": "#059669",
+        "emerald_light": "#ECFDF5",
+        "emerald_dark": "#064E3B",
+        "stone_dark": "#1C1917"
+      },
+      "scope_semantics": {
+        "scope1": "#059669",
+        "scope1_bg": "#ECFDF5",
+        "scope2": "#2563EB",
+        "scope2_bg": "#EFF6FF",
+        "scope3": "#7C3AED",
+        "scope3_bg": "#F5F3FF",
+        "biogenic": "#D97706",
+        "biogenic_bg": "#FFFBEB",
+        "sinks": "#0EA5E9",
+        "sinks_bg": "#F0F9FF"
+      },
+      "status": {
+        "success": { "text": "text-emerald-700", "bg": "bg-emerald-50", "border": "border-emerald-200" },
+        "warning": { "text": "text-amber-700", "bg": "bg-amber-50", "border": "border-amber-200" },
+        "error": { "text": "text-rose-700", "bg": "bg-rose-50", "border": "border-rose-200" },
+        "info": { "text": "text-sky-700", "bg": "bg-sky-50", "border": "border-sky-200" }
+      }
+    },
+    "layout_and_spacing": {
+      "spacing_scale": "Tailwind standard p-3, p-4, p-6, gap-4, gap-6",
+      "grid_rules": {
+        "kpi_grid": "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4",
+        "charts_hero_grid": "grid grid-cols-1 lg:grid-cols-12 gap-6",
+        "charts_rankings_grid": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6",
+        "comparison_heatmap_grid": "grid grid-cols-1 lg:grid-cols-12 gap-6"
+      },
+      "card_surface_rules": "Use SectionCard with rounded-xl, border border-stone-200/80, bg-white, shadow-sm, p-5. Internal text padding mandatory."
+    },
+    "dropdown_and_overlay_rules": {
+      "CRITICAL_RULE": "DO NOT use complete transparent backgrounds in headers, dropdowns, popovers, or floating panels. Always provide non-transparent background (bg-white or bg-stone-900) with backdrop blur and subtle border to guarantee text contrast against underlying charts."
     }
   },
+  "testing_and_accessibility": {
+    "data_testid_convention": "kebab-case, role-based, explicit element identifier",
+    "mandatory_test_ids": [
+      "executive-dashboard",
+      "sticky-filter-bar",
+      "dashboard-page-title",
+      "dashboard-page-subtitle",
+      "export-btn",
+      "toggle-filters-btn",
+      "ghg-kpi-row",
+      "kpi-card-total-emissions",
+      "kpi-card-total-sinks",
+      "kpi-card-net-emissions",
+      "kpi-card-reduction-target-achieved",
+      "section-scope-trend",
+      "section-emissions-by-scope",
+      "section-facility",
+      "section-scope3-hotspots",
+      "section-categories",
+      "section-base-comparison",
+      "section-heatmap",
+      "scope-trend-chart",
+      "emissions-by-scope-donut",
+      "facility-chart",
+      "scope3-hotspots",
+      "emission-categories-chart",
+      "heatmap-toggle-india",
+      "heatmap-toggle-global"
+    ],
+    "accessibility_guidelines": {
+      "contrast_ratio": "Minimum 4.5:1 for standard text, 3:1 for large display figures",
+      "focus_indicators": "focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2",
+      "hover_contrast_rule": "Explicitly set hover text color whenever background changes on hover (e.g. hover:bg-emerald-700 hover:text-white)."
+    }
+  },
+  "component_path_mapping": {
+    "/app/frontend/src/modules/dashboard/BaseExecutiveDashboard.jsx": "Rebalance section spacing (gap-6), refine section composition, ensure clear row gaps.",
+    "/app/frontend/src/modules/dashboard/components/filters/StickyFilterBar.jsx": "Apply backdrop-blur-xl bg-white/85 glassmorphism, elevate trigger buttons and toggle badges.",
+    "/app/frontend/src/modules/dashboard/components/kpi/KpiCard.jsx": "Add semantic delta status pills, explicit comparison label styling, tabular-nums font formatting.",
+    "/app/frontend/src/modules/dashboard/components/kpi/GaugeCard.jsx": "Polish speedometer arc, clean up target select dropdown background, improve empty state action button.",
+    "/app/frontend/src/modules/dashboard/components/layout/SectionCard.jsx": "Standardize card frame with rounded-xl, subtle border, header actions slot, p-5 inner padding.",
+    "/app/frontend/src/modules/dashboard/components/charts/ScopeTrendChart.jsx": "Smooth area gradients, responsive container height 260px, custom styled tooltip.",
+    "/app/frontend/src/modules/dashboard/components/charts/EmissionsByScopeDonut.jsx": "Refine inner/outer radius, center metric stack, 2x2 structured legend with absolute tCO₂e + share %.",
+    "/app/frontend/src/modules/dashboard/components/charts/FacilityChart.jsx": "Thicker progress bar track (6px-8px), rounded-full fill, facility rank badges (#1-#6), right-aligned tabular metrics.",
+    "/app/frontend/src/modules/dashboard/components/charts/Scope3Hotspots.jsx": "Distinct category progress colors, scope badges, percentage + absolute value display.",
+    "/app/frontend/src/modules/dashboard/components/charts/EmissionCategoriesChart.jsx": "Category rank rows, scope color tags, clean spacing.",
+    "/app/frontend/src/modules/dashboard/components/shared/DashboardDataState.jsx": "Refine alert panel background, actionable recovery buttons, crisp icons."
+  },
+  "instructions_to_main_agent": [
+    "Read this design_guidelines.json completely.",
+    "Prioritize implementation of MUST-FIX decision-clarity recommendations before visual polish.",
+    "Ensure all interactive elements retain or add kebab-case data-testid attributes.",
+    "Do NOT use pure #000000 or generic unstyled select elements. Selects and dropdowns must have solid white background and proper borders.",
+    "Test all components for responsiveness across mobile, tablet (md), and desktop (xl/2xl) screen sizes."
+  ],
   "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "Do not modify user code when feedback-only is requested.",
-    "Ensure login CTA buttons remain above the fold on mobile viewports (390px width).",
-    "Always provide 'Remember Me' and SSO options for enterprise SaaS login interfaces.",
-    "Maintain accessible color contrast (4.5:1 ratio) on placeholders and form inputs.",
-    "Ensure all interactive elements feature data-testid attributes."
+    "Never use generic centered layouts or unstyled default HTML select boxes.",
+    "Avoid transition: all; always specify transitioning properties like transition-[background-color,border-color,transform].",
+    "Ensure 2x-3x generous spacing between dashboard cards to avoid cramped UI.",
+    "Maintain strict color semantics: Scope 1 (Emerald #059669), Scope 2 (Blue #2563EB), Scope 3 (Purple #7C3AED), Sinks (Sky #0EA5E9), Biogenic (Amber #D97706).",
+    "All numerical metrics must use tabular-nums font styling to prevent layout jitter during number animation."
   ]
 }
