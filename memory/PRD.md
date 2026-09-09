@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Removed unused emissions repository wrapper:** Deleted `backend/repositories/emissions_repository.py` after confirming it had no imports or runtime consumers. Active emissions routes and processors continue using the existing MongoDB access paths directly.
+- Super Admin Process Templates investigation: CRUD and active-template fetch endpoints exist, but the emissions form does not currently select or assign a fetched template. `selectedTemplate` remains `null`, leaving the template-specific rendering and save branches dormant; active Process Emissions use the configuration-driven calculation flow instead.
+- **NOT TESTED** per the user’s standing instruction.
+-
 - **September 9, 2026 — Canonical dynamic quantity storage:** Removed top-level `quantity`, `quantity_unit`, and `unit` from active manual-create, edit, process-template, legacy Bulk Upload, approval, and repository write paths. Backend write boundaries now discard these compatibility fields so `dynamic_field_values` is the single source of truth for activity inputs.
 - Emissions tables, sorting, edit hydration, delete confirmation, supplier read-only views, approval details, and approval comparisons now resolve quantity from dynamic fields. Existing top-level values remain read-only fallbacks for records that predate dynamic inputs; edits do not mutate or synchronize those legacy fields.
 - Version History no longer tracks or renders duplicate top-level Quantity/Unit changes. Existing saved duplicate entries are suppressed, while the canonical dynamic input change remains visible as Quantity Used.
