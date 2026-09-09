@@ -236,6 +236,23 @@ export default function Reports({ showMISFoundation = false }) {
     });
   };
 
+  const downloadAuthenticatedReport = async (downloadToken, filename) => {
+    const response = await axios.get(`${API}/reports/download/${downloadToken}`, {
+      headers: getAuthHeader(),
+      responseType: 'blob',
+    });
+    const objectUrl = window.URL.createObjectURL(new Blob([response.data], {
+      type: response.headers['content-type'],
+    }));
+    const downloadLink = document.createElement('a');
+    downloadLink.href = objectUrl;
+    downloadLink.download = filename || 'GHG_Inventory_Report.docx';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 0);
+  };
+
   const handleGenerateGhgReport = async () => {
     if (ghgReportConfig.facility_ids.length === 0) {
       toast.error('Please select at least one facility to generate the report');
@@ -284,10 +301,9 @@ export default function Reports({ showMISFoundation = false }) {
         }
       );
       
-      // Get download token and trigger download
+      // Download through Axios so the current bearer token is included.
       const { download_token, filename } = response.data;
-      const downloadUrl = `${API}/reports/download/${download_token}`;
-      window.location.href = downloadUrl;
+      await downloadAuthenticatedReport(download_token, filename);
       toast.success('GHG Inventory Report download started!');
     } catch (error) {
       console.error('Error generating GHG report:', error);

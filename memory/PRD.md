@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — GHG report download authentication fix:** The Reports-page GHG inventory flow now retrieves the generated file through an Axios blob request carrying the existing bearer token, rather than navigating directly to the protected download URL. The browser then downloads the authenticated blob with the returned report filename.
+- Root cause: report generation (`POST /api/reports/ghg-inventory`) succeeded, but the follow-up direct `GET /api/reports/download/{token}` returned 401 without an `Authorization` header. Added the focused authenticated-report regression procedure to `/app/auth_testing.md`.
+- **NOT TESTED** per the user’s explicit instruction. No authentication configuration or credentials were changed.
+-
 - **September 9, 2026 — ORG1 Scope 2 local-data deletion:** With explicit user confirmation, created and executed `backend/scripts/delete_org_scope2_records.py ORG1 --apply`. The scoped deletion removed 6 current Scope 2 emission records, 8 linked `emission_history` entries, and 7 linked `ce_calculation_audit_logs` entries for ORG1 only.
 - Automatic BSON backup: `/app/.emergent/backups/org1-scope2-delete-20260909T092221Z.json`. **VERIFIED:** ORG1 now has 0 Scope 2 records and 0 linked history/audit records for the deleted IDs; 11 other-scope records remain unchanged.
 -
