@@ -85,6 +85,7 @@ _SEED: List[CategoryDescriptor] = [
         "c3",
         "Fuel- and energy-related activities",
         aliases=(
+            "C3 - Fuel and energy-related activities",
             "C3 Fuel- and energy-related activities",
             "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
         ),

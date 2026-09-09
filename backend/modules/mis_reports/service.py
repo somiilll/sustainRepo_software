@@ -1251,7 +1251,7 @@ async def build_executive_summary_data(report: Dict[str, Any], filters: Dict[str
 SCOPE3_CANONICAL = [
     "C1 - Purchased Goods and Services",
     "C2 - Capital Goods",
-    "C3 Fuel- and energy-related activities",
+    "C3 - Fuel and energy-related activities",
     "C4 - Upstream Transportation and Distribution",
     "C5 - Waste Generated in Operations",
     "C6 - Business Travel",

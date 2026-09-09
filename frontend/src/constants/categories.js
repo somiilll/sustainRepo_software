@@ -7,7 +7,7 @@
 export const SCOPE3_CATEGORIES = {
   C1: 'C1 - Purchased Goods and Services',
   C2: 'C2 - Capital Goods',
-  C3: 'C3 Fuel- and energy-related activities',
+  C3: 'C3 - Fuel and energy-related activities',
   C4: 'C4 - Upstream Transportation and Distribution',
   C5: 'C5 - Waste Generated in Operations',
   C6: 'C6 - Business Travel',

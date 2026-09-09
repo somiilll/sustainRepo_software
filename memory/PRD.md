@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — C3 title correction:** Standardized the final C3 title to **`C3 - Fuel and energy-related activities`** across the application, bulk-upload output, reports, dashboards, and configuration controls.
+- Re-ran the idempotent C3 migration with a new BSON backup at `/app/.emergent/backups/c3-category-label-20260909T071920Z.json`, updating 23 current emission records, 29 pending uploads, 51 Scope 3 factors, and 1 category definition. No prior live C3 label remains; only source-code compatibility aliases retain it for externally imported legacy input.
+- **VERIFIED:** Migration dry run, apply result, post-migration MongoDB counts, and whitespace check passed. No UI testing was performed per the user’s standing instruction.
+-
 - **September 9, 2026 — C3 category-title migration:** Renamed C3 to **`C3 Fuel- and energy-related activities`** in the frontend catalogue, Scope 3 Bulk Upload output, dashboards, reporting, and GHG capability settings. The immutable category/formula IDs remain unchanged, so C3 calculations continue to use their existing version bindings.
 - Added and executed `backend/scripts/migrate_c3_category_label.py`. After a dry run and automatic BSON backup at `/app/.emergent/backups/c3-category-label-20260909T071532Z.json`, it migrated 22 current emission records, 29 pending bulk-upload records, 51 Scope 3 emission-factor records, and the active C3 category definition. Verification confirmed no legacy live values remain.
 - `emission_history` was deliberately not modified so calculation/audit history remains immutable; the legacy label is retained only as a backwards-compatible registry alias.

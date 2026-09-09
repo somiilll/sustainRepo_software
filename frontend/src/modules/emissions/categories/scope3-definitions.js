@@ -83,7 +83,7 @@ const CATEGORY_METADATA = {
   },
   c3: {
     id: 'c3',
-    name: 'C3 Fuel- and energy-related activities',
+    name: 'C3 - Fuel and energy-related activities',
     description: 'Emissions from production of fuels and energy purchased and consumed',
     methods: ['activity_basis', 'supplier_basis'],
   },

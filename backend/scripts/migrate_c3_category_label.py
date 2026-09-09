@@ -13,8 +13,11 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 
 
-OLD_LABEL = "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2"
-NEW_LABEL = "C3 Fuel- and energy-related activities"
+LEGACY_LABELS = (
+    "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "C3 Fuel- and energy-related activities",
+)
+NEW_LABEL = "C3 - Fuel and energy-related activities"
 MIGRATIONS = (
     ("emission_records", "category"),
     ("bulk_upload_pending_records", "category"),
@@ -30,10 +33,10 @@ async def migrate(*, apply: bool) -> None:
 
     try:
         counts = {
-            collection: await db[collection].count_documents({field: OLD_LABEL})
+            collection: await db[collection].count_documents({field: {"$in": LEGACY_LABELS}})
             for collection, field in MIGRATIONS
         }
-        print(json_util.dumps({"old_label": OLD_LABEL, "new_label": NEW_LABEL, "matches": counts}, indent=2))
+        print(json_util.dumps({"legacy_labels": LEGACY_LABELS, "new_label": NEW_LABEL, "matches": counts}, indent=2))
         if not apply:
             print("Dry run only. Re-run with --apply to persist this label migration.")
             return
@@ -41,10 +44,10 @@ async def migrate(*, apply: bool) -> None:
         backup = {
             "database": db.name,
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "old_label": OLD_LABEL,
+            "legacy_labels": LEGACY_LABELS,
             "new_label": NEW_LABEL,
             "documents": {
-                collection: await db[collection].find({field: OLD_LABEL}).to_list(None)
+                collection: await db[collection].find({field: {"$in": LEGACY_LABELS}}).to_list(None)
                 for collection, field in MIGRATIONS
             },
         }
@@ -56,7 +59,7 @@ async def migrate(*, apply: bool) -> None:
 
         updated = {}
         for collection, field in MIGRATIONS:
-            result = await db[collection].update_many({field: OLD_LABEL}, {"$set": {field: NEW_LABEL}})
+            result = await db[collection].update_many({field: {"$in": LEGACY_LABELS}}, {"$set": {field: NEW_LABEL}})
             updated[collection] = result.modified_count
 
         print(json_util.dumps({"updated": updated, "backup": str(backup_path)}, indent=2))
