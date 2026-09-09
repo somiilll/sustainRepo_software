@@ -7,14 +7,10 @@ import React from 'react';
 export default function SectionCard({ title, subtitle, action, children, className = '', accent = '#10B981', testId, contentClassName = '', header }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/70 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300 ${className}`}
+      className={`overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-stone-300 hover:shadow-md ${className}`}
       data-testid={testId}
     >
-      <div
-        className="absolute inset-x-0 top-0 h-[2px] opacity-70"
-        style={{ background: `linear-gradient(90deg, ${accent}00 0%, ${accent} 50%, ${accent}00 100%)` }}
-      />
-      <div className={`p-5 ${contentClassName}`}>
+      <div className={`p-4 sm:p-5 ${contentClassName}`}>
         {(title || action || header) && (
           <div className="mb-3">
             {header ? (

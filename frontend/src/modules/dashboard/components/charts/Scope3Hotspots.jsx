@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import ChartEmptyState from '../shared/ChartEmptyState';
 
 const PALETTE = ['#F59E0B', '#F43F5E', '#8B5CF6', '#3B82F6', '#0EA5E9', '#10B981'];
 
@@ -17,7 +18,7 @@ export default function Scope3Hotspots({ data = [] }) {
   }, [data]);
 
   if (!chartData.length) {
-    return <div className="flex h-48 items-center justify-center text-sm text-stone-500" data-testid="scope3-hotspots-empty">No Scope 3 emissions reported for this window</div>;
+    return <ChartEmptyState testId="scope3-hotspots-empty" title="No Scope 3 hotspots to rank" description="No non-zero Scope 3 category emissions are reported for this window." />;
   }
 
   return (

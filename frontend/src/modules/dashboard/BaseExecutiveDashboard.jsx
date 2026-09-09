@@ -285,7 +285,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               accent="#10B981"
               testId="section-scope-trend"
             >
-              <ScopeTrendChart data={filteredData.trend} hasScope3={hasScope3} />
+              <ScopeTrendChart data={filteredData.trend} hasScope3={hasScope3} height={240} />
             </SectionCard>
 
             <SectionCard
@@ -294,7 +294,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               accent="#3B82F6"
               testId="section-emissions-by-scope"
             >
-              <EmissionsByScopeDonut data={donutData} />
+              <EmissionsByScopeDonut data={donutData} height={180} />
             </SectionCard>
           </div>
 
@@ -372,6 +372,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               <GeoHeatmap
                 points={heatPoints}
                 view={heatmapView}
+                height={280}
               />
             </SectionCard>
 

@@ -40,11 +40,6 @@ export default function KpiCard({
       data-testid={`kpi-card-${title.toLowerCase().replace(/\s+/g, '-')}`}
       aria-label={ariaLabel || title}
     >
-      {/* gradient stripe */}
-      <div
-        className="absolute inset-x-0 top-0 h-[3px] opacity-80"
-        style={{ background: `linear-gradient(90deg, ${sparkColor}40 0%, ${sparkColor} 50%, ${sparkColor}40 100%)` }}
-      />
       <div className="flex items-start justify-between mb-2">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{title}</p>
         {rightSlot}

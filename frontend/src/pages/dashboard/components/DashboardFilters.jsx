@@ -22,9 +22,8 @@ export default function DashboardFilters({
   getCurrentFinancialYear,
 }) {
   return (
-    <Card className="p-3 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
-      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start"> */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.2fr_180px] gap-3 items-start">
+    <Card className="border border-stone-200 bg-stone-50/70 p-3 shadow-none" data-testid="filter-panel">
+      <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_10rem]">
         {/* Month/Year Range Picker */}
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Date Range</Label>
@@ -94,8 +93,10 @@ export default function DashboardFilters({
         {/* Facility Filter */}
         <div className="space-y-1.5 relative" ref={facilityDropdownRef}>
           <Label className="text-xs font-medium">Facility</Label>
-          <div
-            className="w-full h-10 bg-stone-50 border border-stone-200 hover:border-stone-300 rounded-lg px-3 cursor-pointer flex flex-wrap gap-1 items-center transition-colors"
+          <button
+            type="button"
+            aria-expanded={showFacilityDropdown}
+            className="flex h-10 w-full flex-wrap items-center gap-1 rounded-md border border-stone-200 bg-white px-3 text-left transition-[border-color,background-color] duration-200 hover:border-stone-300 hover:bg-stone-50"
             onClick={() => setShowFacilityDropdown(!showFacilityDropdown)}
             data-testid="facility-filter"
           >
@@ -122,7 +123,7 @@ export default function DashboardFilters({
                 );
               })
             )}
-          </div>
+          </button>
           {showFacilityDropdown && (
             <div className="absolute z-30 w-full mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
               <div
@@ -159,7 +160,6 @@ export default function DashboardFilters({
 
         {/* Clear Filters */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium">&nbsp;</Label>
           <Button
             onClick={() => {
               setSelectedFacilities([]);
@@ -168,23 +168,13 @@ export default function DashboardFilters({
             }}
             variant="outline"
             size="sm"
-            className="w-full h-10"
+            className="h-10 w-full"
             data-testid="clear-filters-btn"
           >
             Reset to Default
           </Button>
         </div>
       </div>
-      {(selectedFacilities.length > 0 || dateRange.from || dateRange.to) && (
-        <div className="mt-2 px-2 py-1 bg-blue-50 rounded-lg">
-          <p className="text-xs text-blue-800">
-            Filters:
-            {dateRange.from && ` From: ${format(dateRange.from, 'MMM yyyy')}`}
-            {dateRange.to && ` To: ${format(dateRange.to, 'MMM yyyy')}`}
-            {selectedFacilities.length > 0 && ` | ${selectedFacilities.map(fid => facilities.find(f => f.id === fid)?.name).join(', ')}`}
-          </p>
-        </div>
-      )}
     </Card>
   );
 }

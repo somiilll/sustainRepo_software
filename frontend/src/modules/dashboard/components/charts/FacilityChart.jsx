@@ -4,6 +4,7 @@
  * trend arrow icon at the top-right of each row).
  */
 import React, { useMemo } from 'react';
+import ChartEmptyState from '../shared/ChartEmptyState';
 
 export default function FacilityChart({ facilities = [] }) {
   const data = useMemo(() => {
@@ -17,9 +18,7 @@ export default function FacilityChart({ facilities = [] }) {
 
   if (!data.length) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-stone-400" data-testid="facility-empty">
-        No facility data
-      </div>
+      <ChartEmptyState testId="facility-empty" title="No facility emissions to rank" description="No facilities have non-zero emissions in the selected reporting window." />
     );
   }
 

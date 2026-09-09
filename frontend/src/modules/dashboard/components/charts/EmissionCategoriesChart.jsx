@@ -3,6 +3,7 @@
  * breakdown by scope (visual diversity from the vertical facility bars).
  */
 import React, { useMemo } from 'react';
+import ChartEmptyState from '../shared/ChartEmptyState';
 
 const SCOPE_COLORS = {
   scope1: '#10B981',
@@ -23,9 +24,7 @@ export default function EmissionCategoriesChart({ data = [] }) {
 
   if (!chartData.length) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-stone-400" data-testid="categories-empty">
-        No category data
-      </div>
+      <ChartEmptyState testId="categories-empty" title="No emission categories to rank" description="No non-zero category values are available in the selected reporting window." />
     );
   }
 

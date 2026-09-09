@@ -52,7 +52,6 @@ export default function GaugeCard({
   if (!targets.length) {
     return (
       <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
-        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 mb-2">Target progress</p>
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-3">
           <TargetIcon className="w-7 h-7 text-amber-500" />
@@ -80,7 +79,6 @@ export default function GaugeCard({
   if (!canComputeProgress) {
     return (
       <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
-        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
         <div className="flex items-start justify-between mb-1">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Target progress</p>
           {targets.length > 1 && (
@@ -118,7 +116,6 @@ export default function GaugeCard({
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
-      <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-200 via-emerald-400 to-emerald-200 opacity-70" />
       <div className="flex items-start justify-between mb-2">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Target progress</p>
         {targets.length > 1 && (
