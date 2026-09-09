@@ -107,6 +107,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Replaced GHG dashboard decorative graph-shaped KPI arrows with meaningful inline change indicators. Scope 3 hotspots, facility emissions, and emission categories now use ranked horizontal bars with full readable labels, emissions values, and percentage shares.
 - Target cards now state whether a target applies organization-wide or to named/selected facilities, and show the target reporting period where available. The mobile GHG KPI layout is now a compact two-column grid so the emissions analysis appears earlier.
 - **Build verification completed before the later user instruction to stop testing:** frontend production build and Python compilation passed. No post-change browser/API testing was performed after the user said “dont test.”
+- **September 9, 2026 — Follow-up copy refinement:** Removed the redundant selected/equivalent-window line below the KPI cards. Unavailable comparison copy now reads `Prior reporting period: [window] (no reported data)`.
 
 ## Previous Change — September 8, 2026
 - Corrected Scope 3 Bulk Upload calculation provenance for spend-currency properties. Database-resolved Standard Exchange Rate, Inflation Rate, and Purchase Power Value now carry the configured currency-record source (for example, `RBI (2025)`) into the calculation audit instead of appearing as `User Specified`.

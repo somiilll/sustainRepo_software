@@ -157,7 +157,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   const comparisonLabel = previousWindowLabel
     ? previousYearData.status === 'available'
       ? `Compared with ${previousWindowLabel}`
-      : `Prior equivalent window: ${previousWindowLabel} (no reported data)`
+      : `Prior reporting period: ${previousWindowLabel} (no reported data)`
     : null;
   const facilityNameById = useMemo(() => new Map(facilities.map((facility) => [facility.id, facility.name])), [facilities]);
   const targetApplicabilityLabel = useMemo(() => {
@@ -276,12 +276,6 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               reportingPeriodLabel={selectedTarget?.reportingPeriod}
             />
           </div>
-          {previousWindowLabel && (
-            <p className="text-xs text-stone-500" data-testid="dashboard-comparison-window">
-              Selected window: <span className="font-semibold text-stone-700">{dateRangeLabel}</span> · Equivalent prior-year window: <span className="font-semibold text-stone-700">{previousWindowLabel}</span>
-            </p>
-          )}
-
           {canShowAnalysis && <>
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
              <SectionCard
