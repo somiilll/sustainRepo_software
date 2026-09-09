@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
-import { Loader2, RadioTower } from 'lucide-react';
+import { Loader2, Activity, RadioTower } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
 import StickyFilterBar from './components/filters/StickyFilterBar';
@@ -23,10 +23,10 @@ import Scope3Hotspots from './components/charts/Scope3Hotspots';
 import EmissionCategoriesChart from './components/charts/EmissionCategoriesChart';
 import GeoHeatmap from './components/charts/GeoHeatmap';
 import BaseYearComparisonChart from './components/charts/BaseYearChart';
-import DashboardDataState from './components/shared/DashboardDataState';
 import { DashboardExportButton } from './pdf-export';
 import {
   buildSparklineSeries,
+  deriveTrendDeltas,
   buildEmissionsByScope,
   buildFacilitySeries,
   buildScope3Hotspots,
@@ -47,8 +47,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     showFilters, setShowFilters,
     showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
     filteredData, baseYearComparison,
-    isLive, lastLiveUpdateAt, getCurrentFinancialYear,
-    dataState, resetDashboardFilters, retryDashboardStats,
+    isLive, lastLiveUpdateAt, getPreviousFinancialYear,
   } = data;
 
   const [heatmapView, setHeatmapView] = useState('india');
@@ -75,9 +74,6 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               goalType: t.goal_type,
               unit: t.unit,
               reportingPeriod: t.reporting_period,
-              facilityId: t.facility_id || t.target_facility_id || null,
-              facilityIds: Array.isArray(t.facility_ids) ? t.facility_ids : [],
-              targetScope: t.target_scope || t.applies_to || t.entity_type || null,
             };
           });
           setTargets(ghgTargets);
@@ -87,16 +83,17 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     return () => { cancelled = true; };
   }, [getAuthHeader]);
 
-  const previousYearData = usePreviousYearData({
+  const previousYearTotals = usePreviousYearData({
     dateRange,
     selectedFacilities,
     getAuthHeader,
   });
-  const previousYearTotals = previousYearData.totals;
   // --- derived chart data ---
   const totals = filteredData.totals;
   // const trendDeltas = useMemo(() => deriveTrendDeltas(filteredData.trend), [filteredData.trend]);
   const totalSparkData = useMemo(() => buildSparklineSeries(filteredData.trend, 'total'), [filteredData.trend]);
+  const scope1Spark = useMemo(() => buildSparklineSeries(filteredData.trend, 'scope1'), [filteredData.trend]);
+  const scope2Spark = useMemo(() => buildSparklineSeries(filteredData.trend, 'scope2'), [filteredData.trend]);
   const donutData = useMemo(() => buildEmissionsByScope(totals, hasScope3), [totals, hasScope3]);
   const facilitySeries = useMemo(() => buildFacilitySeries(filteredData.facilities), [filteredData.facilities]);
   const scope3Hotspots = useMemo(() => buildScope3Hotspots(stats?.emissions_by_category), [stats]);
@@ -119,24 +116,23 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         (previousYearTotals?.totalEmissions || 0) -
         (previousYearTotals?.totalSinks || 0);
 
-      const hasComparablePriorPeriod = previousYearData.status === 'available';
       return {
         totalDelta: computePct(
           totals.total,
-          hasComparablePriorPeriod ? previousYearTotals?.totalEmissions : 0
+          previousYearTotals?.totalEmissions || 0
         ),
 
         sinksDelta: computePct(
           filteredData.filteredSinks || 0,
-          hasComparablePriorPeriod ? previousYearTotals?.totalSinks : 0
+          previousYearTotals?.totalSinks || 0
         ),
 
         netDelta: computePct(
           currentNetEmissions,
-          hasComparablePriorPeriod ? previousNetEmissions : 0
+          previousNetEmissions
         ),
       };
-  }, [totals, filteredData, previousYearData.status, previousYearTotals]);
+  }, [totals, filteredData, previousYearTotals]);
 
   const sinksTotal = filteredData.filteredSinks || 0;
   const netEmissions = (totals.total || 0) - sinksTotal;
@@ -151,30 +147,20 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     ? `${format(dateRange.from, 'MMM yyyy')} – ${format(dateRange.to, 'MMM yyyy')}`
     : 'All time';
 
-  const previousWindowLabel = previousYearData.window
-    ? `${format(previousYearData.window.from, 'MMM yyyy')} – ${format(previousYearData.window.to, 'MMM yyyy')}`
-    : null;
-  const comparisonLabel = previousWindowLabel
-    ? previousYearData.status === 'available'
-      ? `Compared with ${previousWindowLabel}`
-      : `Prior reporting period: ${previousWindowLabel} (no reported data)`
-    : null;
-  const facilityNameById = useMemo(() => new Map(facilities.map((facility) => [facility.id, facility.name])), [facilities]);
-  const targetApplicabilityLabel = useMemo(() => {
-    if (!selectedTarget) return null;
-    const ids = [...new Set([selectedTarget.facilityId, ...selectedTarget.facilityIds].filter(Boolean))];
-    if (!ids.length && /facility/i.test(String(selectedTarget.targetScope || ''))) return 'Facility target';
-    if (!ids.length) return null;
-    const names = ids.map((id) => facilityNameById.get(id) || 'selected facility');
-    return names.length === 1 ? `Facility: ${names[0]}` : `${names.length} facilities`;
-  }, [facilityNameById, selectedTarget]);
-  const canShowAnalysis = dataState === 'data';
+  const comparisonLabel = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return null;
+    const previousFrom = new Date(dateRange.from);
+    const previousTo = new Date(dateRange.to);
+    previousFrom.setFullYear(previousFrom.getFullYear() - 1);
+    previousTo.setFullYear(previousTo.getFullYear() - 1);
+    return `Compared with ${format(previousFrom, 'MMM yyyy')} – ${format(previousTo, 'MMM yyyy')}`;
+  }, [dateRange]);
 
   const filterProps = {
     facilities, selectedFacilities, setSelectedFacilities,
     dateRange, setDateRange,
     showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
-    getCurrentFinancialYear,
+    getPreviousFinancialYear,
   };
 
   const liveBadge = isLive ? (
@@ -231,16 +217,9 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         </div>
       ) : (
         <>
-          <DashboardDataState
-            state={dataState}
-            recordCount={stats?.record_count}
-            windowLabel={dateRangeLabel}
-            onReset={resetDashboardFilters}
-            onRetry={retryDashboardStats}
-          />
-          <div className="space-y-0">
-          {(dataState === 'data' || dataState === 'confirmed-zero') && <>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" data-testid="ghg-kpi-row">
+          <div className="space-y-4">
+          {/* ROW 1: KPI cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             <KpiCard
               title="Total Emissions"
               value={totals.total}
@@ -272,20 +251,19 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               selectedTargetId={selectedTargetId}
               setSelectedTargetId={setSelectedTargetId}
               progressPercentage={targetProgressPct}
-              applicabilityLabel={targetApplicabilityLabel}
-              reportingPeriodLabel={selectedTarget?.reportingPeriod}
             />
           </div>
-          {canShowAnalysis && <>
-          <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-4">
+
+          {/* ROW 2: Trend + Donut */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
              <SectionCard
               className="lg:col-span-3"
               title={hasScope3 ? 'Scope 1, 2 & 3 Emissions Trend' : 'Scope 1 & 2 Emissions Trend'}
-              subtitle={filteredData.annualRecordsAllocated ? 'Annual records are evenly allocated across covered months' : 'Emissions over reporting period'}
+              subtitle="Emissions over reporting period"
               accent="#10B981"
               testId="section-scope-trend"
             >
-              <ScopeTrendChart data={filteredData.trend} hasScope3={hasScope3} height={240} />
+              <ScopeTrendChart data={filteredData.trend} hasScope3={hasScope3} />
             </SectionCard>
 
             <SectionCard
@@ -294,31 +272,33 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               accent="#3B82F6"
               testId="section-emissions-by-scope"
             >
-              <EmissionsByScopeDonut data={donutData} height={180} />
+              <EmissionsByScopeDonut data={donutData} />
             </SectionCard>
           </div>
 
-          <div className={`mt-5 grid grid-cols-1 gap-3 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
-            <SectionCard title="Facility-wise Emissions" subtitle="Ranked by emissions and share" accent="#34D399" testId="section-facility">
+          {/* ROW 3: Operational hotspots */}
+          <div className={`grid grid-cols-1 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-3`}>
+            <SectionCard title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility" contentClassName="pb-0">
               <FacilityChart facilities={facilitySeries} />
             </SectionCard>
 
             {hasScope3 && (
-              <SectionCard title="Scope 3 Emission Hotspots" subtitle="Ranked category contribution" accent="#8B5CF6" testId="section-scope3-hotspots">
+              <SectionCard title="Scope 3 Emission Hotspots" subtitle="By category" accent="#8B5CF6" testId="section-scope3-hotspots" contentClassName="pb-0">
                 <Scope3Hotspots data={scope3Hotspots} />
               </SectionCard>
             )}
 
-            <SectionCard title="Emission Categories" subtitle="Ranked by emissions and share" accent="#F59E0B" testId="section-categories">
+            <SectionCard title="Emission Categories" subtitle="Top categories across scopes" accent="#F59E0B" testId="section-categories" contentClassName="pr-2">
               <EmissionCategoriesChart data={categoryBreakdown} />
             </SectionCard>
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-5">
+          {/* ROW 4: BaseYearChart + Heatmap */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
             <SectionCard
               className="lg:col-span-3"
-              title="Base year vs selected window"
-              subtitle={`Selected reporting window: ${dateRangeLabel}`}
+              title="Base Year vs Current Year"
+              subtitle="Emissions comparison by scope"
               accent="#0F766E"
               testId="section-base-comparison"
             >
@@ -372,13 +352,10 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               <GeoHeatmap
                 points={heatPoints}
                 view={heatmapView}
-                height={280}
               />
             </SectionCard>
 
           </div>
-          </>}
-          </>}
           </div>
         </>
       )}

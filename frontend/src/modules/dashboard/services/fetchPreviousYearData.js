@@ -9,13 +9,12 @@ export default function usePreviousYearData({
   selectedFacilities,
   getAuthHeader,
 }) {
-  const [previousYearData, setPreviousYearData] = useState({ status: 'idle', totals: null, window: null });
+  const [previousYearTotals, setPreviousYearTotals] = useState(null);
 
   useEffect(() => {
     const fetchPreviousYearData = async () => {
       try {
         if (!dateRange?.from || !dateRange?.to) return;
-        setPreviousYearData({ status: 'loading', totals: null, window: null });
 
         const fromDate = new Date(dateRange.from);
         const toDate = new Date(dateRange.to);
@@ -27,35 +26,34 @@ export default function usePreviousYearData({
         const prevTo = new Date(toDate);
         prevTo.setFullYear(prevTo.getFullYear() - 1);
 
-        const params = new URLSearchParams({
+        const params = {
           start_period: format(prevFrom, 'yyyy-MM'),
           end_period: format(prevTo, 'yyyy-MM'),
-        });
-        selectedFacilities?.forEach((facilityId) => params.append('facility_id', facilityId));
-        const res = await axios.get(`${API}/dashboard/stats?${params.toString()}`, {
+        };
+
+        if (selectedFacilities?.length > 0) {
+          params.facility_id = selectedFacilities;
+        }
+
+        const res = await axios.get(`${API}/dashboard/stats`, {
           headers: getAuthHeader(),
+          params,
         });
-        const totals = {
+
+        setPreviousYearTotals({
           totalEmissions: res.data?.total_emissions || 0,
           totalSinks: res.data?.sinks_total || 0,
           scope1: res.data?.scope1_emissions || 0,
           scope2: res.data?.scope2_emissions || 0,
           scope3: res.data?.scope3_emissions || 0,
-          recordCount: res.data?.record_count || 0,
-        };
-        setPreviousYearData({
-          status: totals.recordCount > 0 ? 'available' : 'no-data',
-          totals,
-          window: { from: prevFrom, to: prevTo },
         });
       } catch (err) {
         console.error('Failed to fetch previous FY totals', err);
-        setPreviousYearData({ status: 'error', totals: null, window: null });
       }
     };
 
     fetchPreviousYearData();
   }, [dateRange, selectedFacilities, getAuthHeader]);
 
-  return previousYearData;
+  return previousYearTotals;
 }

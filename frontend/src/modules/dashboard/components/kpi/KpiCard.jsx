@@ -6,6 +6,8 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Minus, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import AnimatedNumber from '../shared/AnimatedNumber';
+import GlowSparkline from '../shared/GlowSparkline';
+import TrendArrow from '../shared/TrendArrow';
 
 export default function KpiCard({
   title,
@@ -36,30 +38,50 @@ export default function KpiCard({
 
   return (
     <div
-      className="relative overflow-hidden rounded-xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm transition-[box-shadow,border-color] duration-300 hover:border-stone-300 hover:shadow-md p-3 sm:p-4"
+      className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 p-4 group"
       data-testid={`kpi-card-${title.toLowerCase().replace(/\s+/g, '-')}`}
       aria-label={ariaLabel || title}
     >
-      <div className="flex items-start justify-between mb-2">
+      {/* gradient stripe */}
+      <div
+        className="absolute inset-x-0 top-0 h-[3px] opacity-80"
+        style={{ background: `linear-gradient(90deg, ${sparkColor}40 0%, ${sparkColor} 50%, ${sparkColor}40 100%)` }}
+      />
+      <div className="flex items-start justify-between mb-3">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{title}</p>
         {rightSlot}
       </div>
       <div className="flex items-end justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-baseline gap-1 text-2xl font-bold tracking-normal text-stone-900 tabular-nums sm:text-3xl" data-testid={`kpi-value-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+          <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums" data-testid={`kpi-value-${title.toLowerCase().replace(/\s+/g, '-')}`}>
             {loading ? (
               <span className="inline-block h-8 w-24 bg-stone-200 rounded animate-pulse" />
             ) : (
               <AnimatedNumber value={value} decimals={decimals} />
             )}
-            <span className="text-xs font-medium text-stone-500 sm:text-sm" data-testid={`kpi-unit-${title.toLowerCase().replace(/\s+/g, '-')}`}>{unit}</span>
           </div>
+          <div className="text-[11px] text-stone-500 mt-0.5">{unit}</div>
         </div>
+        {trend !== 'flat' && (
+          <TrendArrow
+            trend={trend}
+            color={
+              invertedColor
+                ? trend === 'up'
+                  ? '#10B981'
+                  : '#EF4444'
+                : trend === 'up'
+                  ? '#EF4444'
+                  : '#10B981'
+            }
+          />
+        )}
       </div>
-      {(deltaPct != null || comparisonLabel) && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid={`kpi-comparison-row-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-          {deltaPct != null && <span className={`flex items-center gap-1 font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}><TrendIcon className="h-3.5 w-3.5" /><span>{Math.abs(deltaPct).toFixed(1)}%{comparisonLabel ? ` vs ${comparisonLabel.replace(/^Compared with\s*/i, '')}` : ''}</span></span>}
-          {comparisonLabel && deltaPct == null && <span className="text-[10px] leading-4 text-stone-500" data-testid={`kpi-comparison-window-${title.toLowerCase().replace(/\s+/g, '-')}`}>{comparisonLabel}</span>}
+      {deltaPct != null && (
+        <div className={`mt-3 flex items-center gap-1 text-xs font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+          <TrendIcon className="w-3.5 h-3.5" />
+          <span>{Math.abs(deltaPct).toFixed(1)}%</span>
+          <span className="text-stone-400 font-normal">{comparisonLabel ? `vs ${comparisonLabel.replace(/^Compared with\s*/i, '')}` : 'vs previous period'}</span>
         </div>
       )}
     </div>

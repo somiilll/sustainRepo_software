@@ -40,8 +40,6 @@ export function useDashboardData() {
   const { getAuthHeader, token } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [dashboardFetchState, setDashboardFetchState] = useState('loading');
-  const [hasAnyEmissionRecords, setHasAnyEmissionRecords] = useState(null);
   const [facilities, setFacilities] = useState([]);
   const [selectedFacilities, setSelectedFacilities] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
@@ -130,7 +128,6 @@ export function useDashboardData() {
     try {
       const response = await axios.get(`${API}/emissions`, { headers: getAuthHeader() });
       const emissions = response.data || [];
-      setHasAnyEmissionRecords(emissions.length > 0);
       if (emissions.length > 0) {
         const monthlyPeriods = emissions
           .map(e => e.reporting_period)
@@ -152,13 +149,11 @@ export function useDashboardData() {
       }
     } catch (error) {
       console.error('Error fetching latest period:', error);
-      setHasAnyEmissionRecords(null);
       setDateRange(getCurrentFinancialYear());
     }
   };
 
   const fetchStats = async () => {
-    setDashboardFetchState('loading');
     try {
       const params = new URLSearchParams();
       if (selectedFacilities.length > 0) selectedFacilities.forEach(fid => params.append('facility_id', fid));
@@ -168,19 +163,17 @@ export function useDashboardData() {
       const url = queryString ? `${API}/dashboard/stats?${queryString}` : `${API}/dashboard/stats`;
       const response = await axios.get(url, { headers: getAuthHeader() });
       setStats(response.data);
-      setDashboardFetchState('success');
     } catch (error) {
       console.error('Dashboard fetch error:', error);
-      setDashboardFetchState('error');
+      setStats({
+        total_facilities: 0, total_emissions: 0, scope1_emissions: 0, scope2_emissions: 0,
+        biogenic_emissions: 0, recent_records: [], emissions_by_facility: [], emissions_trend: [],
+        emissions_by_category: [], emissions_by_fuel: [], yearly_fuel_analysis: [],
+        yearly_facility_analysis: [], monthly_comparison: [], sinks_total: 0, sinks_by_facility: [],
+      });
     } finally {
       setLoading(false);
     }
-  };
-
-  const resetDashboardFilters = () => {
-    setSelectedFacilities([]);
-    setDateRange(getCurrentFinancialYear());
-    setShowFacilityDropdown(false);
   };
 
   const fetchFacilities = async () => {
@@ -214,22 +207,8 @@ export function useDashboardData() {
     };
     totals.total = totals.scope1 + totals.scope2 + totals.biogenic + (hasScope3Access ? totals.scope3 : 0);
     const filteredSinks = stats.sinks_total || 0;
-    return {
-      trend: filteredTrend,
-      facilities: filteredFacilities,
-      totals,
-      filteredSinks,
-      annualRecordsAllocated: Boolean(stats.annual_records_allocated),
-    };
+    return { trend: filteredTrend, facilities: filteredFacilities, totals, filteredSinks };
   }, [stats, hasScope3Access]);
-
-  const dataState = useMemo(() => {
-    if (dashboardFetchState === 'error') return 'error';
-    if (dashboardFetchState !== 'success') return 'loading';
-    const matchedRecords = Number(stats?.record_count || 0);
-    if (matchedRecords > 0) return filteredData.totals.total === 0 ? 'confirmed-zero' : 'data';
-    return hasAnyEmissionRecords === false ? 'no-data' : 'filtered-empty';
-  }, [dashboardFetchState, filteredData.totals.total, hasAnyEmissionRecords, stats]);
 
   // Derived: baseYearComparison
   const baseYearComparison = useMemo(() => {
@@ -292,7 +271,7 @@ export function useDashboardData() {
 
   return {
     // raw
-    stats, loading, organization, hasScope3Access, dataState,
+    stats, loading, organization, hasScope3Access,
     // filter state
     facilities, selectedFacilities, setSelectedFacilities,
     dateRange, setDateRange,
@@ -305,8 +284,5 @@ export function useDashboardData() {
     isLive, lastLiveUpdateAt,
     // helpers
     getCurrentFinancialYear,
-    getPreviousFinancialYear,
-    resetDashboardFilters,
-    retryDashboardStats: fetchStats,
   };
 }

@@ -42,19 +42,19 @@ export default function GaugeCard({
   selectedTargetId,
   setSelectedTargetId,
   progressPercentage,
-  applicabilityLabel,
-  reportingPeriodLabel,
 }) {
   const navigate = useNavigate();
   const targetLabel = (target) => target?.name || target?.kpi_name || target?.subcategory || 'Untitled target';
+  const selectedTargetLabel = targetLabel(selectedTarget);
   // No targets configured → empty state CTA.
   if (!targets.length) {
     return (
       <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 mb-2">Target progress</p>
+        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 mb-2">Reduction Target Achieved</p>
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-3">
           <TargetIcon className="w-7 h-7 text-amber-500" />
-          <p className="text-xs text-stone-600">No active organization-wide or facility-level targets</p>
+          <p className="text-xs text-stone-600">No reduction targets configured</p>
           <Button
             size="sm"
             className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
@@ -78,21 +78,23 @@ export default function GaugeCard({
   if (!canComputeProgress) {
     return (
       <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
-        <div className="mb-1 flex flex-wrap items-center gap-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Target progress</p>
-          {applicabilityLabel && <span className="max-w-24 truncate rounded bg-stone-100 px-1.5 py-0.5 text-[9px] font-medium text-stone-500" title={applicabilityLabel} data-testid="kpi-target-applicability">{applicabilityLabel}</span>}
+        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
+        <div className="flex items-start justify-between mb-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Reduction Target Achieved</p>
           {targets.length > 1 && (
             <select
               value={selectedTarget?.id}
               onChange={(e) => setSelectedTargetId(e.target.value)}
-              className="ml-auto max-w-[110px] rounded-md border border-stone-200 bg-white py-0.5 pl-1 pr-1.5 text-[10px]"
+              className="text-[10px] border border-stone-200 rounded-md pr-1.5 pl-1 py-0.5 bg-white max-w-[110px]"
               data-testid="kpi-target-selector"
             >
               {targets.map((t) => (<option key={t.id} value={t.id}>{targetLabel(t)}</option>))}
             </select>
           )}
         </div>
-        {reportingPeriodLabel && <p className="text-[10px] text-stone-400" data-testid="kpi-target-reporting-period">Target period: {reportingPeriodLabel}</p>}
+        <p className="text-[11px] font-medium text-stone-700 truncate" title={selectedTargetLabel} data-testid="kpi-selected-target-name">
+          {selectedTargetLabel}
+        </p>
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-2">
           <TargetIcon className="w-7 h-7 text-amber-500" />
           <p className="text-xs text-stone-600 leading-snug">Target progress is not available for this reporting period.</p>
@@ -112,14 +114,14 @@ export default function GaugeCard({
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
-      <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Target progress</p>
-        {applicabilityLabel && <span className="max-w-24 truncate rounded bg-stone-100 px-1.5 py-0.5 text-[9px] font-medium text-stone-500" title={applicabilityLabel} data-testid="kpi-target-applicability">{applicabilityLabel}</span>}
+      <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-200 via-emerald-400 to-emerald-200 opacity-70" />
+      <div className="flex items-start justify-between mb-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Reduction Target Achieved</p>
         {targets.length > 1 && (
           <select
             value={selectedTarget?.id}
             onChange={(e) => setSelectedTargetId(e.target.value)}
-            className="ml-auto max-w-[110px] rounded-md border border-stone-200 bg-white py-0.5 pl-0 pr-1.5 text-[10px]"
+            className="text-[10px] border border-stone-200 rounded-md pr-1.5 pl-0 py-0.5 bg-white max-w-[110px]"
             title="Switch target"
             data-testid="kpi-target-selector"
           >
@@ -132,7 +134,9 @@ export default function GaugeCard({
       <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums">
         <AnimatedNumber value={clamped} decimals={1} suffix="%" />
       </div>
-      {reportingPeriodLabel && <p className="text-[10px] text-stone-400" data-testid="kpi-target-reporting-period">Target period: {reportingPeriodLabel}</p>}
+      <p className="text-[11px] font-medium text-stone-700 mt-0.5 truncate" title={selectedTargetLabel} data-testid="kpi-selected-target-name">
+        {selectedTargetLabel}
+      </p>
       <div className="mt-3">
         <GaugeArc pct={clamped} />
       </div>

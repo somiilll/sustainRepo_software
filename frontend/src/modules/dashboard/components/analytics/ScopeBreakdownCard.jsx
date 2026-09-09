@@ -13,24 +13,26 @@ export const ScopeBreakdownCard = ({
   totals, 
   activeScopes, 
   onToggleScope, 
-  onFullscreen 
+  onFullscreen
 }) => {
   const data = useMemo(() => scopes.map((scope) => ({ ...scope, value: totals[scope.key] || 0 })).filter((item) => item.value > 0), [totals]);
   const total = data.reduce((sum, item) => sum + item.value, 0);
-  
+
   return (
-    <section 
-      className={`flex min-w-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white p-4 shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-stone-300 hover:shadow-md sm:p-5 ${className}`} 
+    <section
+      className={`relative flex flex-col min-w-0 overflow-hidden rounded-lg border border-stone-200 bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:border-stone-700 dark:bg-stone-900 ${className}`}
       data-testid="scope-breakdown-card"
     >
+      <div className="absolute inset-x-0 top-0 h-1 bg-[#2563EB]" />
+
       <div className="mb-3 flex items-start justify-between">
         <div>
           <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Scope Breakdown</h3>
         </div>
-        <button 
-          type="button" 
-          onClick={onFullscreen} 
-          className="rounded-md p-1.5 text-stone-400 transition-colors duration-200 hover:bg-stone-100" 
+        <button
+          type="button"
+          onClick={onFullscreen}
+          className="rounded-md p-1.5 text-stone-400 transition-colors duration-200 hover:bg-stone-100"
           data-testid="scope-breakdown-fullscreen-button"
         >
           <Expand className="h-4 w-4" />

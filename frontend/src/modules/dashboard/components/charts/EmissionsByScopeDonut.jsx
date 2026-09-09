@@ -3,7 +3,6 @@
  */
 import React, { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import ChartEmptyState from '../shared/ChartEmptyState';
 
 const COLOR_MAP = {
   scope1: '#10B981',
@@ -19,7 +18,9 @@ export default function EmissionsByScopeDonut({ data = [], height = 200 }) {
 
   if (!total) {
     return (
-      <ChartEmptyState testId="donut-empty" title="No non-zero emissions to break down" description="This selected window has no non-zero Scope 1, Scope 2, Scope 3, or biogenic emissions." />
+      <div className="flex items-center justify-center h-48 text-sm text-stone-400" data-testid="donut-empty">
+        No emissions data
+      </div>
     );
   }
 

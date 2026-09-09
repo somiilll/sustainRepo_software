@@ -26,7 +26,7 @@ export default function DashboardScope12({ data }) {
     facilityDropdownRef,
     filteredData, baseYearComparison,
     isLive, lastLiveUpdateAt,
-    getCurrentFinancialYear,
+    getPreviousFinancialYear,
   } = data;
 
   const [esgSummary, setEsgSummary] = useState(null);
@@ -66,7 +66,7 @@ export default function DashboardScope12({ data }) {
           showFacilityDropdown={showFacilityDropdown}
           setShowFacilityDropdown={setShowFacilityDropdown}
           facilityDropdownRef={facilityDropdownRef}
-          getCurrentFinancialYear={getCurrentFinancialYear}
+          getPreviousFinancialYear={getPreviousFinancialYear}
         />
       )}
 

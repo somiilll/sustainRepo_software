@@ -6,7 +6,6 @@
  */
 import React from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import ChartEmptyState from '../shared/ChartEmptyState';
 
 const SCOPE_COLORS = {
   scope1: '#10B981',
@@ -27,7 +26,9 @@ function GradientDef({ id, color }) {
 export default function ScopeTrendChart({ data = [], hasScope3 = false, height = 280 }) {
   if (!data?.length) {
     return (
-      <ChartEmptyState testId="scope-trend-empty" title="No monthly trend available" description="Add monthly emissions records in the selected reporting window to view changes over time." />
+      <div className="flex items-center justify-center h-[260px] text-sm text-stone-400" data-testid="scope-trend-empty">
+        No emissions trend data
+      </div>
     );
   }
 

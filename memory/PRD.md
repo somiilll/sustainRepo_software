@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Complete same-day GHG dashboard restore:** Restored all 21 GHG dashboard files changed today to the pre-today dashboard baseline. This removes the same-day changes to filtering, empty states, charts, rankings, KPI layout/visual styling, targets, and GHG data presentation; the C3 work remains unaffected.
+- Retained only the requested KPI comparison behavior: KPI deltas now show the selected prior-year window in a single phrase, e.g. **`9.3% vs Apr 2025 – Mar 2026`**. Its minimal changes are limited to `BaseExecutiveDashboard.jsx` and `KpiCard.jsx`; non-visible whitespace cleanup was retained in three shared files.
+- **NOT UI TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration; source whitespace validation passed.
+-
 - **September 9, 2026 — Selective dashboard restore:** Restored the dashboard styling, sticky-filter appearance, KPI ordering/emphasis, grid rhythm, and ranking-card density that existed before today’s dashboard iterations. The C3 category migration and all non-dashboard work remain intact.
 - Retained only the requested KPI comparison copy improvement, which now renders percentage comparisons as `9.3% vs Apr 2025 – Mar 2026` rather than separate `change` and `Compared with` phrases.
 - **NOT UI TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration; whitespace validation passed.

@@ -8,7 +8,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
-import ChartEmptyState from '../shared/ChartEmptyState';
 
 const INDIA_VIEW = {
   center: [22.5937, 80.9629],
@@ -146,7 +145,21 @@ export default function GeoHeatmap({
       data-testid="geo-heatmap"
       className="relative"
     >
-      {points.length ? <div ref={containerRef} style={{ height, borderRadius: 8, overflow: 'hidden', border: '1px solid #E7E5E4' }} /> : <ChartEmptyState testId="geo-heatmap-empty" title="No mapped facility emissions" description="Add facility locations and emissions within the selected window to show geographic concentration." />}
+      <div
+        ref={containerRef}
+        style={{
+          height,
+          borderRadius: 12,
+          overflow: 'hidden',
+          border: '1px solid #E7E5E4',
+        }}
+      />
+
+      {!points.length && (
+        <p className="text-[11px] text-stone-400 mt-2">
+          No facility location data available for heatmap.
+        </p>
+      )}
     </div>
   );
 }

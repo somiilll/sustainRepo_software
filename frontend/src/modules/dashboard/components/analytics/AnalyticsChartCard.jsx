@@ -160,8 +160,8 @@ export const AnalyticsChartCard = ({
       </Chart>
     </ResponsiveContainer>
   ) : (
-    <div className="flex h-full items-center justify-center px-5 text-center text-sm text-stone-500" data-testid={`${testId}-empty`}>
-      No reported data in the selected window
+    <div className="flex h-full items-center justify-center text-sm text-stone-400">
+      No reported data for these filters
     </div>
   );
 
@@ -169,8 +169,13 @@ export const AnalyticsChartCard = ({
     <>
       <section
         data-testid={testId}
-        className={`flex flex-col overflow-hidden rounded-lg border border-stone-200 bg-white p-4 shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-stone-300 hover:shadow-md sm:p-5 ${className}`}
+        className={`relative flex flex-col overflow-hidden rounded-lg border border-stone-200 bg-white p-5 shadow-sm hover:shadow-lg ${className}`}
       >
+        <div
+          className="absolute inset-x-0 top-0 h-1"
+          style={{ background: accent }}
+        />
+
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h3 className="text-sm font-semibold">{title}</h3>
@@ -183,8 +188,6 @@ export const AnalyticsChartCard = ({
             <button
               onClick={() => setFullscreen(true)}
               className="rounded-md p-1.5 hover:bg-stone-100"
-              aria-label={`Expand ${title}`}
-              data-testid={`${testId}-expand-button`}
             >
               <Expand className="h-4 w-4" />
             </button>
@@ -196,12 +199,10 @@ export const AnalyticsChartCard = ({
 
       {fullscreen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
-          <div className="flex h-[90vh] w-[95vw] flex-col rounded-lg bg-white p-4 sm:p-6" data-testid={`${testId}-fullscreen-dialog`}>
+          <div className="flex h-[90vh] w-[95vw] flex-col rounded-xl bg-white p-6">
             <button
               onClick={() => setFullscreen(false)}
               className="absolute right-8 top-8 rounded-md p-2 hover:bg-stone-100"
-              aria-label={`Close ${title} fullscreen view`}
-              data-testid={`${testId}-fullscreen-close-button`}
             >
               <X className="h-5 w-5" />
             </button>

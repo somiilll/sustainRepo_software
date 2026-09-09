@@ -46,6 +46,7 @@ export default function PremiumKpiCard({
       className="relative overflow-hidden p-5 bg-white border border-stone-200/60 rounded-2xl hover:shadow-lg transition-all duration-300 group"
       data-testid={`kpi-${title.toLowerCase().replace(/\s+/g, '-')}`}
     >
+      <div className="absolute inset-x-0 top-0 h-1 opacity-100" style={{ background: accentColor }} />
       {actionSlot && (
         <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
           {actionSlot}
