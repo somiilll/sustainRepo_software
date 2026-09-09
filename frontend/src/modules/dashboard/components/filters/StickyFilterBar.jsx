@@ -27,16 +27,16 @@ export default function StickyFilterBar({
 }) {
   return (
     <div
-      className="-mx-4 mb-5 border-b border-emerald-100 bg-emerald-50/70 px-5 py-4 sm:-mx-8 sm:px-10 lg:px-12"
+      className="sticky top-0 z-30 -mx-4 border-b border-stone-200 bg-white px-4 py-4 shadow-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
       data-testid="sticky-filter-bar"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-lg font-heading font-bold text-stone-900 truncate" data-testid="dashboard-page-title">{title}</h1>
-          {subtitle && <p className="mt-0.5 text-[11px] text-stone-500 truncate" data-testid="dashboard-page-subtitle">{subtitle}</p>}
+          <h1 className="truncate font-heading text-lg font-bold text-stone-900" data-testid="dashboard-page-title">{title}</h1>
+          {subtitle && <p className="mt-1 truncate text-xs font-medium text-stone-500" data-testid="dashboard-page-subtitle">{subtitle}</p>}
           {liveBadge}
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
           {/* Dashboard Type Toggle */}
           {showDashboardToggle && (
             <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-0.5" data-testid="dashboard-type-toggle">

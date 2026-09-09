@@ -101,6 +101,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Dashboard P0 visual-system pass:** Rebuilt the shared sticky filter header as a full-width, solid-white sticky surface with restrained border and shadow separation. Dashboard rows now use a consistent 24px separation, while internal grids use 16px gaps.
+- Made **Net Emissions** the first and featured KPI across the dedicated GHG dashboard and the Executive ESG dashboard. It has a stronger, calm emerald emphasis, larger tabular metric treatment, and remains full-width across the compact two-column mobile KPI grid.
+- Unified dashboard cards around white surfaces, stone 1px borders, 8px radii, restrained shadows, and focused hover transitions. Headings now use the existing Manrope display face; supporting text and numerical metrics have clearer weights and tabular alignment without adding decorative treatments.
+- Improved GHG facility, Scope 3 hotspot, and category ranking scans with fixed-width `01`–`06` rank labels and consistent right-aligned value/share metadata.
+- **NOT TESTED** per the user’s explicit standing instruction to avoid UI testing during rapid iteration.
+-
 - **September 9, 2026 — GHG dashboard trust and clarity pass:** Fixed the `Reset to Default` runtime error by consistently passing `getCurrentFinancialYear` into the shared filter component. Reset now clears facility selection and restores the current financial year.
 - Dashboard statistics now return an explicit `record_count`, allowing the frontend to distinguish **confirmed zero emissions** (submitted records total 0 tCO₂e), **no reported data**, **no results for the selected filters**, and **load errors**. These states are shown as distinct, user-facing dashboard notices; filter-empty and error notices offer Reset or Retry actions.
 - KPI comparison calculations now request the exact equivalent prior-year date window and preserve repeated facility filters. KPI wording shows the actual prior comparison window instead of the ambiguous “vs previous period.” A dashboard-level line identifies both selected and equivalent prior-year windows.

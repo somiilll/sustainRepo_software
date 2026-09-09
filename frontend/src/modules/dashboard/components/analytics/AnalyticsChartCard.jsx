@@ -173,8 +173,8 @@ export const AnalyticsChartCard = ({
       >
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h3 className="text-sm font-semibold">{title}</h3>
-            <p className="mt-1 text-xs text-stone-500">{subtitle}</p>
+            <h3 className="font-heading text-base font-bold text-stone-900">{title}</h3>
+            <p className="mt-1 text-xs font-medium text-stone-500">{subtitle}</p>
           </div>
 
           <div className="flex items-center gap-3">

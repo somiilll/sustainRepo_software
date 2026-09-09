@@ -139,6 +139,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   const emissionData = metrics?.emissions?.ghg_emissions || {};
   const scope12 = (emissionData.total_scope1 || 0) + (emissionData.total_scope2 || 0);
   const totalEmissions = emissionData.total ?? totals.total ?? 0;
+  const netEmissions = totalEmissions - (filteredData?.filteredSinks || 0);
   const totalEnergy = metrics?.energy?.total || 0;
   const energyIntensity = productionQty ? totalEnergy / productionQty : null;
   const ghgIntensity = productionQty ? scope12 / productionQty : null;
@@ -240,8 +241,9 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       />
 
       {/* ── Row 1: Top KPI Cards ── */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5" data-testid="top-kpi-row">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6" data-testid="top-kpi-row">
         <PremiumKpiCard title="Total Emissions" value={totalEmissions} unit="tCO₂e" icon={Leaf} accentColor="#15803D" loading={analyticsLoading} />
+        <PremiumKpiCard title="Net Emissions" value={netEmissions} unit="tCO₂e" icon={Leaf} accentColor="#059669" loading={analyticsLoading} featured testId="kpi-card-net-emissions" className="order-first col-span-2" />
         <PremiumKpiCard title="GHG Intensity (Production)" value={ghgIntensity} unit={`tCO₂e/${productionUnit || 'unit produced'}`} icon={Leaf} accentColor="#0F766E" loading={analyticsLoading} />
         <PremiumKpiCard title="Energy Intensity (Production)" value={energyIntensity} unit={`MWh/${productionUnit || 'unit produced'}`} icon={Zap} accentColor="#F59E0B" loading={analyticsLoading} />
         <PremiumKpiCard title="Renewable Energy" value={metrics?.energy?.renewable_pct} unit="%" icon={Zap} accentColor="#84CC16" loading={analyticsLoading} />
@@ -259,7 +261,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       </div>
 
       {/* ── Row 2: GHG Emissions + Scope Breakdown ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 items-stretch">
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-12">
         
         {/* Left Chart (8 columns) */}
         <div className="xl:col-span-8 flex flex-col">
@@ -307,25 +309,25 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       </div>
 
       {/* ── Row 3: Energy ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <AnalyticsChartCard title="Energy Mix" subtitle="Renewable and non-renewable consumption" data={energyRows} series={ENERGY_SERIES} chartType="bar" stacked accent="#F97316" unit="MWh" testId="energy-mix-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
         <AnalyticsChartCard title="Renewable % & Energy Intensity" subtitle="Renewable share and energy intensity trend" data={renewableIntensityRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D' }, { key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316' }]} accent="#65A30D" testId="renewable-intensity-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 4: Water & Waste ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <AnalyticsChartCard title="Water Flow" subtitle="Water volumes by operational stage" data={waterRows} series={WATER_SERIES} chartType="area" accent="#0284C7" unit="KL" testId="water-flow-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
         <AnalyticsChartCard title="Waste Management" subtitle="Generated, recovered, and disposed" data={wasteRows} series={WASTE_SERIES} chartType="area" accent="#57534E" unit="MT" testId="waste-management-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 5: LTIFR & AP Days ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <AnalyticsChartCard title="LTIFR Trend" subtitle="Lost-time injury frequency rate" data={workforceRows} series={[{ key: 'ltifr', label: 'LTIFR', color: '#DC2626' }]} accent="#DC2626" testId="ltifr-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
         <AnalyticsChartCard title="Accounts Payable Days" subtitle="Days payable outstanding" data={financeRows} series={[{ key: 'apDays', label: 'AP Days', color: '#4F46E5' }]} accent="#4F46E5" unit="days" testId="ap-days-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 6: Incidents Trend ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-1">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-1">
         <AnalyticsChartCard title="Incidents Trend" subtitle="Data breaches, health & safety incidents, and violations over time" data={incidentsRows} series={[{ key: 'dataBreaches', label: 'Data Breaches', color: '#DC2626' }, { key: 'healthSafety', label: 'Health & Safety', color: '#F97316' }, { key: 'violations', label: 'Violations', color: '#7C3AED' }]} chartType="bar" accent="#DC2626" testId="incidents-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
