@@ -157,9 +157,9 @@ export const Step1BasicSelection = ({
     hasCategory: Boolean(category),
   });
   const CategoryIcon = getCategoryIcon(category);
-  const isC8ActivityBased = scope === 'scope3'
+  const isC8AllocationApplicable = scope === 'scope3'
     && /^c8\b/i.test(category || '')
-    && scope3Method === 'activity_basis';
+    && ['activity_basis', 'supplier_basis'].includes(scope3Method);
   const usesDirectFuelLayout = scope === 'scope1'
     || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
   const usesIndirectBiogenicLayout = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
@@ -614,7 +614,7 @@ export const Step1BasicSelection = ({
             </div>
           )}
 
-          {isC8ActivityBased && (
+          {isC8AllocationApplicable && (
             <div className="min-w-0 space-y-2" data-testid="c8-allocation-method-section">
               <Label>Allocation Method <span className="text-red-500">*</span></Label>
               <Select value={allocationMethod} onValueChange={onC8AllocationMethodChange}>
@@ -647,7 +647,7 @@ export const Step1BasicSelection = ({
           )}
 
           {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
-          {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (!isC8ActivityBased || allocationMethod) && (
+          {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (!isC8AllocationApplicable || allocationMethod) && (
             <div className="min-w-0 space-y-2">
               <Label>Sub-category <span className="text-red-500">*</span></Label>
               <select

@@ -129,10 +129,10 @@ export function validateEditSubmission(ctx) {
   if (!scope3Method) {
     return { valid: false, errorMessage: 'Please select a calculation method' };
   }
-  const isC8ActivityBased = formData?.scope === 'scope3'
+  const isC8AllocationApplicable = formData?.scope === 'scope3'
     && /^c8\b/i.test(formData?.category || '')
-    && scope3Method === 'activity_basis';
-  if (isC8ActivityBased && !allocationMethod) {
+    && ['activity_basis', 'supplier_basis'].includes(scope3Method);
+  if (isC8AllocationApplicable && !allocationMethod) {
     return { valid: false, errorMessage: 'Please select an allocation method' };
   }
   if (scope3Method === 'supplier_basis' && useCustomActivity) {

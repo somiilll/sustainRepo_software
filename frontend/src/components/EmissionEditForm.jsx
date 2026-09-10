@@ -264,9 +264,9 @@ export default function EmissionEditForm(props) {
     hasCategory: Boolean(selectedCategory || formData.category),
   });
   const CategoryIcon = getCategoryIcon(selectedCategory || formData.category);
-  const isC8ActivityBased = formData.scope === 'scope3'
+  const isC8AllocationApplicable = formData.scope === 'scope3'
     && /^c8\b/i.test(selectedCategory || formData.category || '')
-    && scope3Method === 'activity_basis';
+    && ['activity_basis', 'supplier_basis'].includes(scope3Method);
   const isProcessEmission = Boolean(capabilities.processType)
     || (formData.category || selectedCategory || '').toLowerCase().includes('process');
   const hasConfiguredDensityField = dynamicInputFields.some((field) => field.variable === 'density');
@@ -492,7 +492,7 @@ export default function EmissionEditForm(props) {
                                 </select>
                               </div>
                             )}
-                            {isC8ActivityBased && (
+                            {isC8AllocationApplicable && (
                               <div className="space-y-1.5" data-testid="edit-c8-allocation-method-section">
                                 <Label htmlFor="edit-c8-allocation-method-select">Allocation Method *</Label>
                                 <select
@@ -666,7 +666,7 @@ export default function EmissionEditForm(props) {
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
                         <div className="space-y-3">
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
-                          {requiresSubcategory && availableSubcategories.length > 0 && (!isC8ActivityBased || allocationMethod) && (
+                          {requiresSubcategory && availableSubcategories.length > 0 && (!isC8AllocationApplicable || allocationMethod) && (
                             <div className="space-y-1.5">
                               <Label htmlFor="scope3_subcategory_filter">Subcategory *</Label>
                               <select

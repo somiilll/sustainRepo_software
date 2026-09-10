@@ -1839,10 +1839,10 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         setBackendCalcResult(null);
         return;
       }
-      const isC8ActivityBased = formData.scope === 'scope3'
+      const isC8AllocationApplicable = formData.scope === 'scope3'
         && /^c8\b/i.test(selectedCategory || formData.category || '')
-        && scope3Method === 'activity_basis';
-      if (isC8ActivityBased && !editDraft.allocationMethod) {
+        && ['activity_basis', 'supplier_basis'].includes(scope3Method);
+      if (isC8AllocationApplicable && !editDraft.allocationMethod) {
         setBackendCalcResult(null);
         return;
       }
