@@ -538,9 +538,8 @@ export default function EmissionEditForm(props) {
                             )}
                           </>
                         ) : !ghgUiState.showFuelSelection ? null : (
-                          <div className="relative flex min-w-0 flex-col gap-1.5">
-                            {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
-                            <Label htmlFor="fuel_select" className="whitespace-nowrap">Select Fuel Type *</Label>
+                          <div className="relative min-w-0">
+                            <Label htmlFor="fuel_select">Select Fuel Type *</Label>
                             {ghgUiState.showCustomFuel && (
                               <label className="absolute right-0 top-0 flex items-center gap-1.5 cursor-pointer">
                                 <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
@@ -562,9 +561,9 @@ export default function EmissionEditForm(props) {
                                 <span className="text-xs text-amber-700 font-medium">Use Custom Fuel</span>
                               </label>
                             )}
-                            
+
                             {!editUseCustomFuel ? (
-                              <div className="min-w-0">
+                              <div className="mt-1.5 min-w-0">
                                 {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <SearchableSelect
                                   value={formData.fuel_id}
                                   options={getFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
@@ -576,7 +575,7 @@ export default function EmissionEditForm(props) {
                                 />}
                               </div>
                             ) : (
-                              <div className="space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
+                              <div className="mt-1.5 space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
                                 <div className="flex items-center gap-2">
                                   <Flame className="h-4 w-4 text-amber-600" aria-hidden="true" />
                                   <Label htmlFor="edit-custom-fuel-name-input">Fuel Name <span className="text-red-500">*</span></Label>
