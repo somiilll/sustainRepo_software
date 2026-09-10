@@ -667,32 +667,30 @@ export const Step1BasicSelection = ({
 
           {/* Activity Selection (from Scope 3 EF) */}
           {scope3Method && (
-            <div className={`min-w-0 ${availableScope3ActivityTypes.length > 0 ? 'flex flex-col gap-2' : 'space-y-2'}`}>
-              <div className="flex items-center justify-between">
-                <Label>Activity <span className="text-red-500">*</span></Label>
-                {scope3Method === 'supplier_basis' && scope3ActivityType !== 'others' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={useCustomActivity}
-                      onChange={(e) => {
-                        setUseCustomActivity(e.target.checked);
-                        if (e.target.checked) {
-                          setScope3ActivityId('');
-                        } else {
-                          setScope3CustomActivity('');
-                        }
-                      }}
-                      className="rounded border-stone-300"
-                      data-testid="scope3-custom-activity-toggle"
-                    />
-                    <span className="text-text-secondary">Use Custom Activity</span>
-                  </label>
-                )}
-              </div>
-              
+            <div className="relative min-w-0">
+              <Label>Activity <span className="text-red-500">*</span></Label>
+              {scope3Method === 'supplier_basis' && scope3ActivityType !== 'others' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
+                <label className="absolute right-0 top-0 flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useCustomActivity}
+                    onChange={(e) => {
+                      setUseCustomActivity(e.target.checked);
+                      if (e.target.checked) {
+                        setScope3ActivityId('');
+                      } else {
+                        setScope3CustomActivity('');
+                      }
+                    }}
+                    className="rounded border-stone-300"
+                    data-testid="scope3-custom-activity-toggle"
+                  />
+                  <span className="text-text-secondary">Use Custom Activity</span>
+                </label>
+              )}
+
               {scope3Method === 'supplier_basis' && (useCustomActivity || scope3ActivityType === 'others') && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
-                <div className="space-y-2">
+                <div className="mt-2 space-y-2">
                   <Input
                     type="text"
                     value={scope3CustomActivity}
@@ -708,26 +706,28 @@ export const Step1BasicSelection = ({
                   </p>
                 </div>
               ) : (
-                <SearchableSelect
-                  value={scope3ActivityId}
-                  options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity }))}
-                  onValueChange={(value) => {
-                    setScope3ActivityId(value);
-                    setFuelSearchTerm('');
-                  }}
-                  placeholder={
-                    availableScope3ActivityTypes.length > 0 && !scope3ActivityType
-                      ? 'Select activity type first'
-                      : requiresSubcategory && !scope3Subcategory
-                        ? 'Select sub-category first'
-                        : ghgUiState.requiresTypeOfProduct && !typeOfProduct
-                          ? 'Select type of product first'
-                          : 'Search or select activity'
-                  }
-                  searchPlaceholder="Search activities..."
-                  disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
-                  testId="scope3-activity-select"
-                />
+                <div className="mt-2 min-w-0">
+                  <SearchableSelect
+                    value={scope3ActivityId}
+                    options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity }))}
+                    onValueChange={(value) => {
+                      setScope3ActivityId(value);
+                      setFuelSearchTerm('');
+                    }}
+                    placeholder={
+                      availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                        ? 'Select activity type first'
+                        : requiresSubcategory && !scope3Subcategory
+                          ? 'Select sub-category first'
+                          : ghgUiState.requiresTypeOfProduct && !typeOfProduct
+                            ? 'Select type of product first'
+                            : 'Search or select activity'
+                    }
+                    searchPlaceholder="Search activities..."
+                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
+                    testId="scope3-activity-select"
+                  />
+                </div>
               )}
               {loadingScope3EF && (
                 <p className="text-xs text-blue-600">Loading activities...</p>
@@ -773,7 +773,7 @@ export const Step1BasicSelection = ({
 
       {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3, non-Process Emissions */}
       {ghgUiState.showFuelSelection && (
-        <div className={`relative min-w-0 space-y-2 ${usesDirectFuelLayout || scope === 'scope2' ? '' : 'mt-4 border-b border-stone-200 pb-6'}`}>
+        <div className={`relative min-w-0 ${usesDirectFuelLayout || scope === 'scope2' ? '' : 'mt-4 border-b border-stone-200 pb-6'}`}>
             <Label>Fuel Type <span className="text-red-500">*</span></Label>
             {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
             {ghgUiState.showCustomFuel && (
@@ -800,19 +800,21 @@ export const Step1BasicSelection = ({
               </label>
             )}
           {!useCustomFuel ? (
-            <SearchableSelect
-              value={fuelId}
-              options={filteredFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
-              onValueChange={(value) => {
-                setFuelId(value);
-                setFuelSearchTerm('');
-              }}
-              placeholder="Search or select fuel type"
-              searchPlaceholder="Search fuel types..."
-              testId="emission-fuel-select"
-            />
+            <div className="mt-2 min-w-0">
+              <SearchableSelect
+                value={fuelId}
+                options={filteredFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
+                onValueChange={(value) => {
+                  setFuelId(value);
+                  setFuelSearchTerm('');
+                }}
+                placeholder="Search or select fuel type"
+                searchPlaceholder="Search fuel types..."
+                testId="emission-fuel-select"
+              />
+            </div>
           ) : (
-            <div className="mt-1.5" data-testid="custom-fuel-name-section">
+            <div className="mt-2" data-testid="custom-fuel-name-section">
               <div>
                 <Input
                   id="custom-fuel-name-input"

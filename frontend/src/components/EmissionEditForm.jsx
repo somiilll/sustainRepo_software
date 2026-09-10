@@ -710,31 +710,31 @@ export default function EmissionEditForm(props) {
                           })()}
                           
                           {/* Activity Selection */}
-                          <div className="flex min-w-0 flex-col gap-1.5" data-testid="scope3-activity-section">
-                            <div className="flex min-h-4 items-center justify-between">
+                          <div className="relative flex min-w-0 flex-col gap-1.5" data-testid="scope3-activity-section">
+                            <div className="flex min-h-4 items-center">
                               <Label htmlFor="scope3_activity_select">Activity *</Label>
-                              {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
-                              {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
-                                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={useCustomActivity}
-                                    onChange={(e) => {
-                                      setUseCustomActivity(e.target.checked);
-                                      setActivitySearchTerm(''); // Clear activity search
-                                      if (e.target.checked) {
-                                        setScope3ActivityId('');
-                                      } else {
-                                        setScope3CustomActivity('');
-                                      }
-                                    }}
-                                    className="rounded border-stone-300"
-                                  />
-                                  <span className="text-text-secondary">Use Custom Activity</span>
-                                </label>
-                              )}
                             </div>
-                          
+                            {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
+                            {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
+                              <label className="absolute right-0 top-0 flex min-h-4 items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={useCustomActivity}
+                                  onChange={(e) => {
+                                    setUseCustomActivity(e.target.checked);
+                                    setActivitySearchTerm(''); // Clear activity search
+                                    if (e.target.checked) {
+                                      setScope3ActivityId('');
+                                    } else {
+                                      setScope3CustomActivity('');
+                                    }
+                                  }}
+                                  className="rounded border-stone-300"
+                                />
+                                <span className="text-text-secondary">Use Custom Activity</span>
+                              </label>
+                            )}
+
                             {/* For supplier_basis with custom activity toggle ON: Show text field */}
                             {scope3Method === 'supplier_basis' && useCustomActivity && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                               <div className="space-y-1.5">
@@ -751,27 +751,29 @@ export default function EmissionEditForm(props) {
                                 </p>
                               </div>
                             ) : (
-                              <SearchableSelect
-                                value={scope3ActivityId}
-                                options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity }))}
-                                onValueChange={(value) => {
-                                  setScope3ActivityId(value);
-                                  setActivitySearchTerm('');
-                                  markFormDirty();
-                                }}
-                                placeholder={
-                                  !scope3Method
-                                    ? 'Select method first'
-                                    : availableScope3ActivityTypes.length > 0 && !scope3ActivityType
-                                      ? 'Select activity type first'
-                                      : requiresSubcategory && !scope3Subcategory
-                                        ? 'Select subcategory first'
-                                        : 'Search or select activity'
-                                }
-                                searchPlaceholder="Search activities..."
-                                disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                testId="scope3-activity-select"
-                              />
+                              <div className="min-w-0">
+                                <SearchableSelect
+                                  value={scope3ActivityId}
+                                  options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity }))}
+                                  onValueChange={(value) => {
+                                    setScope3ActivityId(value);
+                                    setActivitySearchTerm('');
+                                    markFormDirty();
+                                  }}
+                                  placeholder={
+                                    !scope3Method
+                                      ? 'Select method first'
+                                      : availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                                        ? 'Select activity type first'
+                                        : requiresSubcategory && !scope3Subcategory
+                                          ? 'Select subcategory first'
+                                          : 'Search or select activity'
+                                  }
+                                  searchPlaceholder="Search activities..."
+                                  disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                  testId="scope3-activity-select"
+                                />
+                              </div>
                             )}
                             {/* Activity loading indicator only - no error message shown to users */}
                             {loadingScope3EF && (
