@@ -434,8 +434,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     () => ({
       calculation_methodology: editCalcMethodology || 'using_heat_basis_ncv',
       ...(editProcessType ? { process_type: editProcessType } : {}),
+      ...(editDraft.allocationMethod ? { allocation_method: editDraft.allocationMethod } : {}),
     }),
-    [editCalcMethodology, editProcessType],
+    [editCalcMethodology, editProcessType, editDraft.allocationMethod],
   );
 
   const editGhgFormContext = useMemo(
@@ -449,6 +450,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         scopes: dynamicScopes,
         scope3Method,
         spendCurrencyConversionMethod,
+        allocationMethod: editDraft.allocationMethod,
         scope3ActivityType,
         scope3Subcategory,
         typeOfProduct,
@@ -467,6 +469,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       dynamicScopes,
       scope3Method,
       spendCurrencyConversionMethod,
+      editDraft.allocationMethod,
       scope3ActivityType,
       scope3Subcategory,
       typeOfProduct,
@@ -562,6 +565,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     // For Scope 3 (or biogenic scope3), add calculation_method_scope3 from the selected method
     if (isScope3Like && scope3Method) {
       decisionInputs['calculation_method_scope3'] = scope3Method;
+      if (editDraft.allocationMethod) {
+        decisionInputs['allocation_method'] = editDraft.allocationMethod;
+      }
       if (scope3Method === 'spend_basis') {
         decisionInputs['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'ppp_inflation';
       }
@@ -647,7 +653,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel, editDraft.allocationMethod]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -1792,6 +1798,18 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   } = useEmissionsCalculator(getAuthHeader);
   
   const [useBackendCalc, setUseBackendCalc] = useState(true);
+
+  const handleC8AllocationMethodChange = useCallback((allocationMethod) => {
+    setEditDraft((currentDraft) => ({
+      ...currentDraft,
+      allocationMethod,
+      scope3Subcategory: '',
+      scope3ActivityId: '',
+      dynamicFieldValues: {},
+    }));
+    setBackendCalcResult(null);
+    setIsFormDirty(true);
+  }, [setBackendCalcResult]);
   
   // Effect to trigger backend calculations when inputs change
   // Uses dynamic input fields from calculation engine configuration
@@ -1818,6 +1836,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     // For other scopes, we need fuel selected
     if (isScope3LikeEdit) {
       if (!scope3Method) {
+        setBackendCalcResult(null);
+        return;
+      }
+      const isC8ActivityBased = formData.scope === 'scope3'
+        && /^c8\b/i.test(selectedCategory || formData.category || '')
+        && scope3Method === 'activity_basis';
+      if (isC8ActivityBased && !editDraft.allocationMethod) {
         setBackendCalcResult(null);
         return;
       }
@@ -2105,7 +2130,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, spendCurrencyConversionMethod, scope3ActivityId, filteredScope3Activities,
-    useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection,
+    useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection, editDraft.allocationMethod,
     editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel
   ]);
   
@@ -2230,6 +2255,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         editEmployees: employeesForSave,
         scope3Method,
         spendCurrencyConversionMethod,
+        allocationMethod: editDraft.allocationMethod,
         scope3ActivityId,
         scope3ActivityType,
         scope3CustomActivity,
@@ -2318,6 +2344,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           // Scope 3 props
           scope3Method,
           spendCurrencyConversionMethod,
+          allocationMethod: editDraft.allocationMethod,
           scope3ActivityId,
           scope3ActivityType,
           scope3Subcategory,
@@ -3399,6 +3426,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   effectiveCalculatedEmissions={effectiveCalculatedEmissions}
                   isCalculating={isCalculating}
                   isSaving={isSaving}
+                  onC8AllocationMethodChange={handleC8AllocationMethodChange}
                   setActivitySearchTerm={setActivitySearchTerm}
                   // ---------- core data ----------
                   facilities={facilities}

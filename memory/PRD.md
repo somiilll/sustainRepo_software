@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **C8 Allocation Method UI (P1):** Added a C8 Activity Based-only Allocation Method selector before Sub-category in Add and Edit Emission. `allocation_method` is passed to Decision Tree execution and stored with new C8 records. Changing it clears the downstream Sub-category/activity choice and calculation preview. Existing C8 records are intentionally not migrated or defaulted; Bulk Upload is intentionally unchanged. Formula Builder variable, input-field mapping, and Decision Tree branches remain user-owned configuration work.
+- **NOT TESTED** per the user’s standing instruction.
+-
 - **September 9, 2026 — Scope 3 currency-method terminology:** Renamed the visible `PPP and Inflation Rate` dropdown option to **`Reporting Year & PPP Adjustment`** in Scope 3 Add Emission, edit emission, and Super Admin currency-configuration controls. The stored `ppp_inflation` value and all calculation behavior remain unchanged.
 - **NOT TESTED** per the user’s standing instruction.
 -
@@ -372,6 +375,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **P0:** Security hardening: hash password-reset tokens and encrypt approved PII/financial data.
 - **P1:** Verify QuestionLedgerDialog `lower_is_better` save mapping; fix Sinks mobile table overflow.
 - **P1:** Persist and display Repo Pilot/Internal Data AI chat history through unified conversation sessions.
+- **P1:** Complete C8 Floor Area Share Formula Builder variable, input mapping, and Decision Tree configuration; leave Bulk Upload unchanged until separately scoped.
 - **P1:** Map ESG/GHG results to reviewable BRSR/GRI suggested responses; add multi-organization membership and onboarding/version-publishing flows.
 - **P2:** Design and execute the production legacy-emission migration for records created before calculation versioning. Preserve stored outputs, infer missing Scope 1 methodologies, bind old Scope 3 Spend Basis records to the legacy PPP/Inflation formula where unambiguous, create legacy formula/tree snapshots, report unresolved records for review, and prevent historical recalculation during migration.
 - **P2:** Repair GHG cadence-change save state and refactor oversized GHG form components.

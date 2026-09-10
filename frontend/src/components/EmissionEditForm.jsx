@@ -140,6 +140,7 @@ export default function EmissionEditForm(props) {
     effectiveCalculatedEmissions,
     isCalculating,
     isSaving,
+    onC8AllocationMethodChange,
 
     setActivitySearchTerm,
 
@@ -233,6 +234,7 @@ export default function EmissionEditForm(props) {
   const setBiogenicScopeSelection = (value) => setDraftField('biogenicScopeSelection', value);
   const setScope3Method = (value) => setDraftField('scope3Method', value);
   const setSpendCurrencyConversionMethod = (value) => setDraftField('spendCurrencyConversionMethod', value);
+  const allocationMethod = draft.allocationMethod || '';
   const setScope3ActivityType = (value) => setDraftField('scope3ActivityType', value);
   const setScope3ActivityId = (value) => setDraftField('scope3ActivityId', value);
   const setScope3Subcategory = (value) => setDraftField('scope3Subcategory', value);
@@ -262,6 +264,9 @@ export default function EmissionEditForm(props) {
     hasCategory: Boolean(selectedCategory || formData.category),
   });
   const CategoryIcon = getCategoryIcon(selectedCategory || formData.category);
+  const isC8ActivityBased = formData.scope === 'scope3'
+    && /^c8\b/i.test(selectedCategory || formData.category || '')
+    && scope3Method === 'activity_basis';
   const isProcessEmission = Boolean(capabilities.processType)
     || (formData.category || selectedCategory || '').toLowerCase().includes('process');
   const hasConfiguredDensityField = dynamicInputFields.some((field) => field.variable === 'density');
@@ -443,6 +448,7 @@ export default function EmissionEditForm(props) {
                                   onChange={(e) => {
                                     const newMethod = e.target.value;
                                     setScope3Method(newMethod);
+                                    setDraftField('allocationMethod', '');
                                     setScope3ActivityType('');
                                     setScope3Subcategory('');
                                     setTypeOfProduct('');
@@ -483,6 +489,22 @@ export default function EmissionEditForm(props) {
                                 >
                                   <option value="standard">Standard Currency Conversion</option>
                                   <option value="ppp_inflation">Reporting Year &amp; PPP Adjustment</option>
+                                </select>
+                              </div>
+                            )}
+                            {isC8ActivityBased && (
+                              <div className="space-y-1.5" data-testid="edit-c8-allocation-method-section">
+                                <Label htmlFor="edit-c8-allocation-method-select">Allocation Method *</Label>
+                                <select
+                                  id="edit-c8-allocation-method-select"
+                                  value={allocationMethod}
+                                  onChange={(event) => onC8AllocationMethodChange(event.target.value)}
+                                  className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3"
+                                  data-testid="edit-c8-allocation-method-select"
+                                >
+                                  <option value="" data-testid="edit-c8-allocation-method-option-placeholder">Select allocation method...</option>
+                                  <option value="entire_quantity" data-testid="edit-c8-allocation-method-option-entire-quantity">Entire Quantity</option>
+                                  <option value="floor_area_share" data-testid="edit-c8-allocation-method-option-floor-area-share">Floor Area Share</option>
                                 </select>
                               </div>
                             )}
@@ -644,7 +666,7 @@ export default function EmissionEditForm(props) {
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
                         <div className="space-y-3">
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
-                          {requiresSubcategory && availableSubcategories.length > 0 && (
+                          {requiresSubcategory && availableSubcategories.length > 0 && (!isC8ActivityBased || allocationMethod) && (
                             <div className="space-y-1.5">
                               <Label htmlFor="scope3_subcategory_filter">Subcategory *</Label>
                               <select

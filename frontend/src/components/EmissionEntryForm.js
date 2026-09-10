@@ -161,6 +161,7 @@ export default function EmissionEntryForm({
     // Scope 3
     scope3Method, setScope3Method,
     spendCurrencyConversionMethod, setSpendCurrencyConversionMethod,
+    allocationMethod, setAllocationMethod,
     scope3EFData, setScope3EFData,
     scope3ActivityId, setScope3ActivityId,
     scope3ActivityType, setScope3ActivityType,
@@ -1061,6 +1062,7 @@ export default function EmissionEntryForm({
     setCategory(nextCategory);
     setScope3Method(nextScope3Method);
     setSpendCurrencyConversionMethod('ppp_inflation');
+    setAllocationMethod('');
     setFuelId('');
     setUseCustomFuel(false);
     setCustomFuelName('');
@@ -1125,6 +1127,7 @@ export default function EmissionEntryForm({
     setScope3ActivityType,
     setScope3CustomActivity,
     setScope3Method,
+    setAllocationMethod,
     setScope3Subcategory,
     setSpendCurrencyConversionMethod,
     setSupplierCode,
@@ -1135,6 +1138,24 @@ export default function EmissionEntryForm({
     setUseCustomFuel,
     setYearlyCalcResult,
     setYearlyData,
+  ]);
+
+  const handleC8AllocationMethodChange = useCallback((nextAllocationMethod) => {
+    setAllocationMethod(nextAllocationMethod);
+    setScope3Subcategory('');
+    setScope3ActivityId('');
+    setFuelSearchTerm('');
+    setCalcEngineResult(null);
+    setYearlyCalcResult(null);
+    setMatchedFormulaId(null);
+  }, [
+    setAllocationMethod,
+    setScope3Subcategory,
+    setScope3ActivityId,
+    setFuelSearchTerm,
+    setCalcEngineResult,
+    setYearlyCalcResult,
+    setMatchedFormulaId,
   ]);
 
   const emissionFactorUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.EMISSION_FACTOR_UNIT] || [];
@@ -1315,6 +1336,7 @@ export default function EmissionEntryForm({
         scopes: dynamicScopes,
         scope3Method,
         spendCurrencyConversionMethod,
+        allocationMethod,
         scope3ActivityType,
         scope3Subcategory,
         typeOfProduct,
@@ -1330,6 +1352,7 @@ export default function EmissionEntryForm({
       dynamicScopes,
       scope3Method,
       spendCurrencyConversionMethod,
+      allocationMethod,
       scope3ActivityType,
       scope3Subcategory,
       typeOfProduct,
@@ -3142,7 +3165,7 @@ export default function EmissionEntryForm({
   const { submit: handleSubmit } = useEmissionSubmit({
     // State
     facilityId, scope, category, fuelId, useCustomFuel, customFuelName,
-    customEmissionFactor, customSource, isSaving, scope3Method, spendCurrencyConversionMethod, scope3ActivityId,
+    customEmissionFactor, customSource, isSaving, scope3Method, spendCurrencyConversionMethod, allocationMethod, scope3ActivityId,
     scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
     biogenicScopeSelection, employees, frequencyType, reportingYearType, reportingYear,
     monthlyData: submissionMonthlyData, yearlyData: submissionYearlyData, processNames, responsiblePerson,
@@ -3239,6 +3262,8 @@ export default function EmissionEntryForm({
           onCategoryChange={handleCategoryChange}
           setFuelId={setFuelId}
           setScope3Method={setScope3Method}
+          allocationMethod={allocationMethod}
+          onC8AllocationMethodChange={handleC8AllocationMethodChange}
           spendCurrencyConversionMethod={spendCurrencyConversionMethod}
           setSpendCurrencyConversionMethod={setSpendCurrencyConversionMethod}
           setScope3ActivityType={setScope3ActivityType}

@@ -88,6 +88,8 @@ export const Step1BasicSelection = ({
   
   // Scope 3 Method props
   scope3Method,
+  allocationMethod,
+  onC8AllocationMethodChange,
   spendCurrencyConversionMethod = 'ppp_inflation',
   setSpendCurrencyConversionMethod,
   availableScope3Methods,
@@ -155,6 +157,9 @@ export const Step1BasicSelection = ({
     hasCategory: Boolean(category),
   });
   const CategoryIcon = getCategoryIcon(category);
+  const isC8ActivityBased = scope === 'scope3'
+    && /^c8\b/i.test(category || '')
+    && scope3Method === 'activity_basis';
   const usesDirectFuelLayout = scope === 'scope1'
     || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
   const usesIndirectBiogenicLayout = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
@@ -554,6 +559,7 @@ export const Step1BasicSelection = ({
               value={scope3Method || undefined}
               onValueChange={(value) => {
                 setScope3Method(value);
+                onC8AllocationMethodChange?.('');
                 setScope3ActivityType('');
                 setScope3Subcategory('');
                 setTypeOfProduct?.('');
@@ -608,6 +614,21 @@ export const Step1BasicSelection = ({
             </div>
           )}
 
+          {isC8ActivityBased && (
+            <div className="min-w-0 space-y-2" data-testid="c8-allocation-method-section">
+              <Label>Allocation Method <span className="text-red-500">*</span></Label>
+              <Select value={allocationMethod} onValueChange={onC8AllocationMethodChange}>
+                <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-stone-50 text-left" data-testid="c8-allocation-method-select">
+                  <SelectValue placeholder="Select allocation method" />
+                </SelectTrigger>
+                <SelectContent data-testid="c8-allocation-method-options">
+                  <SelectItem value="entire_quantity" data-testid="c8-allocation-method-option-entire-quantity">Entire Quantity</SelectItem>
+                  <SelectItem value="floor_area_share" data-testid="c8-allocation-method-option-floor-area-share">Floor Area Share</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Activity Type Filter (only for C6/C7) */}
           {scope3Method && availableScope3ActivityTypes.length > 0 && (
             <div className="min-w-0 space-y-2">
@@ -626,7 +647,7 @@ export const Step1BasicSelection = ({
           )}
 
           {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
-          {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (
+          {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (!isC8ActivityBased || allocationMethod) && (
             <div className="min-w-0 space-y-2">
               <Label>Sub-category <span className="text-red-500">*</span></Label>
               <select

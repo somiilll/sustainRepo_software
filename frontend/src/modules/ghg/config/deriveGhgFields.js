@@ -73,6 +73,7 @@ const resolveScope3Formula = (formConfig, context) => {
   const {
     scope3Method,
     spendCurrencyConversionMethod,
+    allocationMethod,
     scope3ActivityType,
     scope3Subcategory,
     typeOfProduct,
@@ -84,6 +85,7 @@ const resolveScope3Formula = (formConfig, context) => {
     const formulaId = traverseDecisionTree(formConfig.decision_tree, {
       calculation_method_scope3: scope3Method,
       spend_currency_conversion_method: spendCurrencyConversionMethod,
+      allocation_method: allocationMethod || undefined,
       activity_type: scope3ActivityType || undefined,
       subcategory_selection: scope3Subcategory || undefined,
       type_of_product: typeOfProduct || undefined,

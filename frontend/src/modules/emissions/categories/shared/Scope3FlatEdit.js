@@ -97,6 +97,7 @@ export function validateEditSubmission(ctx) {
     module,
     scope3Method,
     spendCurrencyConversionMethod = 'ppp_inflation',
+    allocationMethod,
     scope3ActivityId,
     scope3CustomActivity,
     useCustomActivity,
@@ -127,6 +128,12 @@ export function validateEditSubmission(ctx) {
   // Method + activity selection
   if (!scope3Method) {
     return { valid: false, errorMessage: 'Please select a calculation method' };
+  }
+  const isC8ActivityBased = formData?.scope === 'scope3'
+    && /^c8\b/i.test(formData?.category || '')
+    && scope3Method === 'activity_basis';
+  if (isC8ActivityBased && !allocationMethod) {
+    return { valid: false, errorMessage: 'Please select an allocation method' };
   }
   if (scope3Method === 'supplier_basis' && useCustomActivity) {
     if (!scope3CustomActivity?.trim()) {
@@ -196,6 +203,7 @@ export function buildEditPayload(ctx) {
     editingEmission,
     scope3Method,
     spendCurrencyConversionMethod = 'ppp_inflation',
+    allocationMethod,
     scope3ActivityId,
     scope3ActivityType,
     scope3Subcategory,
@@ -274,6 +282,9 @@ export function buildEditPayload(ctx) {
         calculation_method_scope3: { value: scope3Method, unit: '' },
         ...(scope3Method === 'spend_basis' && {
           spend_currency_conversion_method: { value: spendCurrencyConversionMethod, unit: '' },
+        }),
+        ...(allocationMethod && {
+          allocation_method: { value: allocationMethod, unit: '' },
         }),
         scope3_ef_id: {
           value:

@@ -24,6 +24,7 @@ export const resolveGhgFormContext = ({
   scopes,
   scope3Method = '',
   spendCurrencyConversionMethod = 'ppp_inflation',
+  allocationMethod = '',
   scope3ActivityType = '',
   scope3Subcategory = '',
   typeOfProduct = '',
@@ -65,6 +66,7 @@ export const resolveGhgFormContext = ({
 
     scope3Method,
     spendCurrencyConversionMethod,
+    allocationMethod,
     scope3ActivityType,
     scope3Subcategory,
     typeOfProduct,
