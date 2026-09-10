@@ -112,6 +112,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **Searchable picker opacity (P1):** Set the new picker’s popover and command list to explicit opaque white backgrounds, preventing underlying form content from showing through an open menu.
 - **Scope 3 source-row alignment and picker scrolling (P1):** Made Add Emission source rows decision-aware: C8 and C11 use three desktop columns, keeping their dependent fields together (C8 Subcategory / Activity / Asset). The shared searchable picker now uses a viewport-limited, touch-safe scrolling option list for long Fuel or Activity lists.
 - **Searchable picker field alignment fix (P1):** Added a real DOM layout wrapper around the shared searchable picker. This allows surrounding form spacing to apply correctly, aligning the Activity picker with Category/Calculation Method and fixing the same alignment issue for Scope 1 Fuel Type.
+- **Edit-form picker and Asset Name layout follow-up (P1):** Removed the remaining extra vertical offset around the Scope 1 Fuel Type searchable picker. All Scope 3 categories with the `asset-name` capability now render Asset Name in the same responsive source-details grid as Activity (and Subcategory where applicable), using the standard neutral field treatment instead of the legacy yellow Asset Information panel.
+- **SOURCE REVIEW ONLY:** Automated and browser testing were not run per the user’s standing instruction; live user verification remains pending.
 - **NOT TESTED** per the user’s standing instruction.
 - **NOT TESTED** per the user’s standing instruction.
 - **NOT TESTED** per the user’s standing instruction.

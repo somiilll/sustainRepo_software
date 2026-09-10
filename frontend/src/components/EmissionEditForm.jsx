@@ -265,6 +265,7 @@ export default function EmissionEditForm(props) {
     && /^c8\b/i.test(selectedCategory || formData.category || '');
   const isC8AllocationApplicable = isC8Category
     && ['activity_basis', 'supplier_basis'].includes(scope3Method);
+  const showsAssetName = formData.scope === 'scope3' && capabilities.assetName;
   const isProcessEmission = Boolean(capabilities.processType)
     || (formData.category || selectedCategory || '').toLowerCase().includes('process');
   const hasConfiguredDensityField = dynamicInputFields.some((field) => field.variable === 'density');
@@ -537,7 +538,7 @@ export default function EmissionEditForm(props) {
                             )}
                           </>
                         ) : !ghgUiState.showFuelSelection ? null : (
-                          <div className="relative space-y-1.5">
+                          <div className="relative flex min-w-0 flex-col gap-1.5">
                             {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
                             <Label htmlFor="fuel_select" className="whitespace-nowrap">Select Fuel Type *</Label>
                             {ghgUiState.showCustomFuel && (
@@ -563,7 +564,7 @@ export default function EmissionEditForm(props) {
                             )}
                             
                             {!editUseCustomFuel ? (
-                              <div className="mt-1.5">
+                              <div className="min-w-0">
                                 {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <SearchableSelect
                                   value={formData.fuel_id}
                                   options={getFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
@@ -654,7 +655,7 @@ export default function EmissionEditForm(props) {
 
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
-                        <div className={isC8Category ? 'grid grid-cols-1 gap-4 lg:grid-cols-3' : 'space-y-3'}>
+                        <div className={showsAssetName ? 'grid grid-cols-1 items-start gap-4 lg:grid-cols-3' : 'space-y-3'}>
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
                           {requiresSubcategory && availableSubcategories.length > 0 && (!isC8AllocationApplicable || allocationMethod) && (
                             <div className="space-y-1.5">
@@ -710,8 +711,8 @@ export default function EmissionEditForm(props) {
                           })()}
                           
                           {/* Activity Selection */}
-                          <div className="space-y-1.5" data-testid="scope3-activity-section">
-                            <div className="flex items-center justify-between">
+                          <div className="flex min-w-0 flex-col gap-1.5" data-testid="scope3-activity-section">
+                            <div className="flex min-h-4 items-center justify-between">
                               <Label htmlFor="scope3_activity_select">Activity *</Label>
                               {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
                               {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
@@ -778,9 +779,11 @@ export default function EmissionEditForm(props) {
                               <p className="text-xs text-blue-600 mt-1">Loading activities...</p>
                             )}
                           </div>
-                          {isC8Category && capabilities.assetName && (
-                            <div className="space-y-1.5" data-testid="edit-c8-asset-name-section">
-                              <Label htmlFor="asset_name">Asset Name *</Label>
+                          {showsAssetName && (
+                            <div className="flex min-w-0 flex-col gap-1.5" data-testid="edit-asset-name-section">
+                              <div className="flex min-h-4 items-center">
+                                <Label htmlFor="asset_name">Asset Name *</Label>
+                              </div>
                               <Input
                                 id="asset_name"
                                 value={formData.asset_name}
@@ -791,26 +794,6 @@ export default function EmissionEditForm(props) {
                               />
                             </div>
                           )}
-                        </div>
-                      )}
-
-                      {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
-                      {/* Asset Name section — driven by module capability 'asset-name' (C8/C13/C14/C15) */}
-                      {formData.scope === 'scope3' && capabilities.assetName && !isC8Category && (
-                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                          <h4 className="font-medium mb-2 text-amber-800 text-sm">Asset Information</h4>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="asset_name" className="text-xs">Asset Name *</Label>
-                            <Input
-                              id="asset_name"
-                              value={formData.asset_name}
-                              onChange={(e) => setFormData({ ...formData, asset_name: e.target.value })}
-                              placeholder="Enter asset name or identifier..."
-                              className="bg-white h-9"
-                              data-testid="edit-asset-name-input"
-                            />
-                            <p className="text-xs text-amber-600">Name or identifier of the leased asset, franchise, or investment</p>
-                          </div>
                         </div>
                       )}
 
