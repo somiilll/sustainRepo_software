@@ -158,8 +158,8 @@ export const Step1BasicSelection = ({
     hasCategory: Boolean(category),
   });
   const CategoryIcon = getCategoryIcon(category);
-  const isC8AllocationApplicable = scope === 'scope3'
-    && /^c8\b/i.test(category || '')
+  const isC8Category = scope === 'scope3' && /^c8\b/i.test(category || '');
+  const isC8AllocationApplicable = isC8Category
     && ['activity_basis', 'supplier_basis'].includes(scope3Method);
   const usesDirectFuelLayout = scope === 'scope1'
     || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
@@ -169,7 +169,7 @@ export const Step1BasicSelection = ({
     : usesIndirectBiogenicLayout
       ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-3'
       : scope === 'scope3'
-        ? 'grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-2 lg:grid-cols-4'
+        ? `grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-2 ${isC8Category || /^c11\b/i.test(category || '') ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`
         : scope === 'scope2'
           ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2'
           : 'min-w-0';
@@ -728,10 +728,9 @@ export const Step1BasicSelection = ({
                   disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
                   testId="scope3-activity-select"
                 />
-                  {loadingScope3EF && (
-                    <p className="text-xs text-blue-600">Loading activities...</p>
-                  )}
-                </>
+              )}
+              {loadingScope3EF && (
+                <p className="text-xs text-blue-600">Loading activities...</p>
               )}
             </div>
           )}

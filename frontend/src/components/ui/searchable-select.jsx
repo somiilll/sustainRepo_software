@@ -35,10 +35,10 @@ export const SearchableSelect = ({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-stone-400" aria-hidden="true" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[15rem] p-0" data-testid={`${testId}-menu`}>
-        <Command>
+      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[15rem] max-h-[calc(100vh-2rem)] overflow-hidden bg-white p-0 opacity-100" data-testid={`${testId}-menu`}>
+        <Command className="max-h-[calc(100vh-2rem)] bg-white">
           <CommandInput placeholder={searchPlaceholder} data-testid={`${testId}-search-input`} />
-          <CommandList>
+          <CommandList className="max-h-64 overflow-y-auto overscroll-contain [touch-action:pan-y]">
             <CommandEmpty data-testid={`${testId}-empty-state`}>No matching options.</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
