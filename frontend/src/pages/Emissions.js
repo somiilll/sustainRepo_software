@@ -2312,6 +2312,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         // Scope 3 props
         scope3Method,
         spendCurrencyConversionMethod,
+        allocationMethod: editDraft.allocationMethod,
         scope3ActivityId,
         scope3CustomActivity,
         useCustomActivity,
