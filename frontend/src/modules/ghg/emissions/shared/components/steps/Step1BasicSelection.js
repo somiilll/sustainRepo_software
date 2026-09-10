@@ -7,6 +7,7 @@
 import { useMemo } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
+import { SearchableSelect } from '../../../../../../components/ui/searchable-select';
 import {
   Select,
   SelectContent,
@@ -18,14 +19,11 @@ import {
   Building2,
   Calculator,
   Car,
-  Droplet,
   Factory,
   Flame,
   Leaf,
-  Search,
   Wind,
   Workflow,
-  X,
   Zap,
 } from 'lucide-react';
 import { resolveGhgUiState } from '../../../../config/resolveGhgUiState';
@@ -254,35 +252,11 @@ export const Step1BasicSelection = ({
     )).join('')}`
   ), []);
 
-  const activityOptionsHtml = useMemo(() => {
-    const isActivityTypeMissing = availableScope3ActivityTypes.length > 0 && !scope3ActivityType;
-    const isSubcategoryMissing = requiresSubcategory && !scope3Subcategory;
-    const isProductTypeMissing = ghgUiState.requiresTypeOfProduct && !typeOfProduct;
-    const placeholder = isActivityTypeMissing
-      ? 'Select activity type first'
-      : isSubcategoryMissing
-        ? 'Select sub-category first'
-        : isProductTypeMissing
-          ? 'Select type of product first'
-          : `Select Activity (${filteredScope3Activities.filter((activity) => !fuelSearchTerm || activity.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())).length} available)`;
-    const options = filteredScope3Activities
-      .filter((activity) => !fuelSearchTerm || activity.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase()))
-      .map((activity) => `<option value="${escapeOptionHtml(activity.id)}">${escapeOptionHtml(activity.activity)}</option>`)
-      .join('');
-    return `<option value="">${escapeOptionHtml(placeholder)}</option>${options}`;
-  }, [availableScope3ActivityTypes, scope3ActivityType, requiresSubcategory, scope3Subcategory, ghgUiState.requiresTypeOfProduct, typeOfProduct, filteredScope3Activities, fuelSearchTerm]);
-
   const processTypeOptionsHtml = useMemo(() => (
     `<option value="">Select process type</option>${ghgUiState.renderableProcessTypeOptions.map((option) => (
       `<option value="${escapeOptionHtml(option.value)}"${option.disabled ? ' disabled' : ''}>${escapeOptionHtml(option.label)}</option>`
     )).join('')}`
   ), [ghgUiState.renderableProcessTypeOptions]);
-
-  const fuelOptionsHtml = useMemo(() => (
-    `<option value="">Select Fuel Type (${filteredFuelsForCategory.length} available)</option>${filteredFuelsForCategory.map((fuel) => (
-      `<option value="${escapeOptionHtml(fuel.id)}">${escapeOptionHtml(fuel.fuel_name)}</option>`
-    )).join('')}`
-  ), [filteredFuelsForCategory]);
 
   return (
     <div className="space-y-4">
@@ -734,43 +708,26 @@ export const Step1BasicSelection = ({
                   </p>
                 </div>
               ) : (
-                <>
-                  {/* Activity search input */}
-                  <div className={`relative ${availableScope3ActivityTypes.length > 0 ? 'order-2' : ''}`}>
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                    <Input
-                      type="text"
-                      value={fuelSearchTerm}
-                      onChange={(e) => setFuelSearchTerm(e.target.value)}
-                      placeholder="Search activities..."
-                      className="pl-9 bg-stone-50 h-10"
-                      data-testid="activity-search-input"
-                      disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                    />
-                    {fuelSearchTerm && (
-                      <button
-                        type="button"
-                        onClick={() => setFuelSearchTerm('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                        data-testid="clear-activity-search-button"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Activity selection dropdown */}
-                  <select
-                    value={scope3ActivityId}
-                    onChange={(e) => {
-                      setScope3ActivityId(e.target.value);
-                      setFuelSearchTerm('');
-                    }}
-                    className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 ${availableScope3ActivityTypes.length > 0 ? 'order-1 mt-2' : ''} ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)) ? 'cursor-not-allowed opacity-50' : ''}`}
-                    data-testid="scope3-activity-select"
-                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
-                    dangerouslySetInnerHTML={{ __html: activityOptionsHtml }}
-                  />
+                <SearchableSelect
+                  value={scope3ActivityId}
+                  options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity }))}
+                  onValueChange={(value) => {
+                    setScope3ActivityId(value);
+                    setFuelSearchTerm('');
+                  }}
+                  placeholder={
+                    availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                      ? 'Select activity type first'
+                      : requiresSubcategory && !scope3Subcategory
+                        ? 'Select sub-category first'
+                        : ghgUiState.requiresTypeOfProduct && !typeOfProduct
+                          ? 'Select type of product first'
+                          : 'Search or select activity'
+                  }
+                  searchPlaceholder="Search activities..."
+                  disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
+                  testId="scope3-activity-select"
+                />
                   {loadingScope3EF && (
                     <p className="text-xs text-blue-600">Loading activities...</p>
                   )}
@@ -844,46 +801,17 @@ export const Step1BasicSelection = ({
               </label>
             )}
           {!useCustomFuel ? (
-            <>
-              {/* Fuel selection dropdown */}
-              <div className="relative mt-2">
-                <Droplet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-                <select
-                  value={fuelId}
-                  onChange={(e) => {
-                    setFuelId(e.target.value);
-                    setFuelSearchTerm('');
-                  }}
-                  className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
-                  data-testid="emission-fuel-select"
-                  dangerouslySetInnerHTML={{ __html: fuelOptionsHtml }}
-                />
-              </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                <Input
-                  type="text"
-                  value={fuelSearchTerm}
-                  onChange={(e) => setFuelSearchTerm(e.target.value)}
-                  placeholder="Search fuel types..."
-                  className="h-10 bg-stone-50 pl-9"
-                  data-testid="fuel-search-input"
-                />
-                {fuelSearchTerm && (
-                  <button
-                    type="button"
-                    onClick={() => setFuelSearchTerm('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                    data-testid="clear-fuel-search-button"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              {fuelSearchTerm && filteredFuelsForCategory.length === 0 && (
-                <p className="text-xs text-amber-600">No fuel types match &quot;{fuelSearchTerm}&quot;</p>
-              )}
-            </>
+            <SearchableSelect
+              value={fuelId}
+              options={filteredFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
+              onValueChange={(value) => {
+                setFuelId(value);
+                setFuelSearchTerm('');
+              }}
+              placeholder="Search or select fuel type"
+              searchPlaceholder="Search fuel types..."
+              testId="emission-fuel-select"
+            />
           ) : (
             <div className="mt-1.5" data-testid="custom-fuel-name-section">
               <div>

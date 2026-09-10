@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
+import { SearchableSelect } from './ui/searchable-select';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { MonthYearPicker } from './ui/month-year-picker';
@@ -31,7 +32,6 @@ import {
   Calendar as CalendarIcon,
   Eye,
   Download,
-  Search,
   AlertTriangle,
   X,
   Info,
@@ -43,11 +43,9 @@ import {
   Plane,
   Truck,
   Zap,
-  Droplet,
   Calculator,
   Leaf,
   ListFilter,
-  MapPin,
 } from 'lucide-react';
 import { isVolumeUnit as isVolumeUnitShared } from '../pages/emissions/utils/units';
 import {
@@ -130,7 +128,6 @@ export default function EmissionEditForm(props) {
     draft,
     onDraftChange,
     editingEmission,
-    activitySearchTerm,
     loadingScope3EF,
     loadingBiogenicCategories,
     isCalculatingEditEmployee,
@@ -566,24 +563,16 @@ export default function EmissionEditForm(props) {
                             )}
                             
                             {!editUseCustomFuel ? (
-                              <div className="relative mt-1.5">
-                                <Droplet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <select
-                                  id="fuel_select"
+                              <div className="mt-1.5">
+                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <SearchableSelect
                                   value={formData.fuel_id}
-                                  onChange={(e) => handleFuelSelect(e.target.value)}
-                                  required
+                                  options={getFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
+                                  onValueChange={handleFuelSelect}
+                                  placeholder={selectedCategory ? 'Search or select fuel type' : 'Select category first'}
+                                  searchPlaceholder="Search fuel types..."
                                   disabled={!selectedCategory}
-                                  className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
-                                  data-testid="fuel-select"
-                                >
-                                  <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
-                                  {getFuelsForCategory.map(fuel => (
-                                    <option key={fuel.id} value={fuel.id}>
-                                      {fuel.fuel_name}
-                                    </option>
-                                  ))}
-                                </select>}
+                                  testId="fuel-select"
+                                />}
                               </div>
                             ) : (
                               <div className="space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
@@ -762,56 +751,27 @@ export default function EmissionEditForm(props) {
                                 </p>
                               </div>
                             ) : (
-                              <div className="space-y-2">
-                                {/* Activity search input */}
-                                <div className="relative">
-                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                                  <Input
-                                    type="text"
-                                    value={activitySearchTerm}
-                                    onChange={(e) => setActivitySearchTerm(e.target.value)}
-                                    placeholder="Search activities..."
-                                    className="pl-9 bg-stone-50 h-10"
-                                    data-testid="edit-activity-search-input"
-                                    disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                  />
-                                  {activitySearchTerm && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setActivitySearchTerm('')}
-                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
-                                
-                                {/* Activity selection dropdown */}
-                                <div className="relative">
-                                  <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-                                  <select
-                                    id="scope3_activity_select"
-                                    value={scope3ActivityId}
-                                    onChange={(e) => { setScope3ActivityId(e.target.value); setActivitySearchTerm(''); markFormDirty(); }}
-                                    required
-                                    disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                    className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'cursor-not-allowed opacity-50' : ''}`}
-                                    data-testid="scope3-activity-select"
-                                  >
-                                    <option value="">
-                                      {!scope3Method ? 'Select method first' :
-                                       (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
-                                       (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
-                                       `Select activity (${filteredScope3Activities.filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length} available)...`}
-                                    </option>
-                                    {filteredScope3Activities.filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).map(ef => <option key={ef.id} value={ef.id}>{ef.activity}</option>)}
-                                  </select>
-                                </div>
-                                {/* No match indicator */}
-                                {activitySearchTerm && filteredScope3Activities.filter(a => a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length === 0 && (
-                                  <p className="text-xs text-amber-600">No activities match &quot;{activitySearchTerm}&quot;</p>
-                                )}
-                              </div>
+                              <SearchableSelect
+                                value={scope3ActivityId}
+                                options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity }))}
+                                onValueChange={(value) => {
+                                  setScope3ActivityId(value);
+                                  setActivitySearchTerm('');
+                                  markFormDirty();
+                                }}
+                                placeholder={
+                                  !scope3Method
+                                    ? 'Select method first'
+                                    : availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                                      ? 'Select activity type first'
+                                      : requiresSubcategory && !scope3Subcategory
+                                        ? 'Select subcategory first'
+                                        : 'Search or select activity'
+                                }
+                                searchPlaceholder="Search activities..."
+                                disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                testId="scope3-activity-select"
+                              />
                             )}
                             {/* Activity loading indicator only - no error message shown to users */}
                             {loadingScope3EF && (
