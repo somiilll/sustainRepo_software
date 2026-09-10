@@ -20,6 +20,7 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+- Persist Repo Pilot Data Retrieval and Internal Data AI chats with unified conversation sessions, then expose retrievable history in Repo Pilot.
 - Add multi-organization membership/context for suppliers that are also standalone customer organizations.
 - Add parent-configurable Supplier GHG dashboard widgets, KPIs, and visibility.
 - Implement a cleaner Supplier-to-Customer conversion architecture.

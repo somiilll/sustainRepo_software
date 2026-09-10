@@ -602,7 +602,7 @@ export const Step1BasicSelection = ({
                 </SelectTrigger>
                 <SelectContent data-testid="scope3-currency-conversion-method-options">
                   <SelectItem value="standard" data-testid="scope3-currency-conversion-method-option-standard">Standard Currency Conversion</SelectItem>
-                  <SelectItem value="ppp_inflation" data-testid="scope3-currency-conversion-method-option-ppp-inflation">PPP and Inflation Rate</SelectItem>
+                  <SelectItem value="ppp_inflation" data-testid="scope3-currency-conversion-method-option-ppp-inflation">Reporting Year &amp; PPP Adjustment</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 9, 2026 — Scope 3 currency-method terminology:** Renamed the visible `PPP and Inflation Rate` dropdown option to **`Reporting Year & PPP Adjustment`** in Scope 3 Add Emission, edit emission, and Super Admin currency-configuration controls. The stored `ppp_inflation` value and all calculation behavior remain unchanged.
+- **NOT TESTED** per the user’s standing instruction.
+-
 - **September 9, 2026 — Removed disconnected Process Templates module:** Deleted the Super Admin Process Templates page, navigation route, CRUD/public backend endpoints, contracts, frontend fetch/state plumbing, dormant template-specific form state, renderer branches, save payload builders, utility files, and obsolete endpoint/unit tests.
 - Active Scope 1 Process Emissions remain available through the canonical configuration-driven form, decision tree, calculation engine, and module dispatch. Existing `process_templates` database rows were intentionally left untouched; they are no longer read or written by application code.
 - **NOT TESTED** per the user’s standing instruction; a reference-only sweep found no remaining Process Templates code references.
@@ -368,6 +371,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **P0:** Explicit supplier facility-limit policy and canonical target-system consolidation.
 - **P0:** Security hardening: hash password-reset tokens and encrypt approved PII/financial data.
 - **P1:** Verify QuestionLedgerDialog `lower_is_better` save mapping; fix Sinks mobile table overflow.
+- **P1:** Persist and display Repo Pilot/Internal Data AI chat history through unified conversation sessions.
 - **P1:** Map ESG/GHG results to reviewable BRSR/GRI suggested responses; add multi-organization membership and onboarding/version-publishing flows.
 - **P2:** Design and execute the production legacy-emission migration for records created before calculation versioning. Preserve stored outputs, infer missing Scope 1 methodologies, bind old Scope 3 Spend Basis records to the legacy PPP/Inflation formula where unambiguous, create legacy formula/tree snapshots, report unresolved records for review, and prevent historical recalculation during migration.
 - **P2:** Repair GHG cadence-change save state and refactor oversized GHG form components.

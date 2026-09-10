@@ -482,7 +482,7 @@ export default function EmissionEditForm(props) {
                                   data-testid="edit-scope3-currency-conversion-method-select"
                                 >
                                   <option value="standard">Standard Currency Conversion</option>
-                                  <option value="ppp_inflation">PPP and Inflation Rate</option>
+                                  <option value="ppp_inflation">Reporting Year &amp; PPP Adjustment</option>
                                 </select>
                               </div>
                             )}
