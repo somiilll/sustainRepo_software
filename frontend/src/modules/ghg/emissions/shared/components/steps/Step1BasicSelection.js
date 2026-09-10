@@ -270,7 +270,7 @@ export const Step1BasicSelection = ({
               id="emission-facility-select"
               value={facilityId}
               onChange={(event) => setFacilityId(event.target.value)}
-              className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               data-testid="emission-facility-select"
               dangerouslySetInnerHTML={{ __html: facilityOptionsHtml }}
             />
@@ -398,7 +398,7 @@ export const Step1BasicSelection = ({
               setTypeOfProduct?.('');
               setScope3ActivityId('');
             }}
-            className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
             data-testid="emission-category-select"
             dangerouslySetInnerHTML={{ __html: categoryOptionsHtml }}
           />
@@ -418,7 +418,7 @@ export const Step1BasicSelection = ({
                 process_type: event.target.value,
                 calculation_methodology: 'using_heat_basis_ncv',
               }))}
-              className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               data-testid="process-type-select"
               dangerouslySetInnerHTML={{ __html: processTypeOptionsHtml }}
             />
@@ -434,7 +434,7 @@ export const Step1BasicSelection = ({
             <select
               value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
               onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: event.target.value }))}
-              className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               data-testid="calculation-methodology-select"
             >
               <option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option>
@@ -760,7 +760,7 @@ export const Step1BasicSelection = ({
             <select
               value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
               onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: event.target.value }))}
-              className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               data-testid="calculation-methodology-select"
             >
               <option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option>
