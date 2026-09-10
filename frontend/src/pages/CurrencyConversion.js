@@ -290,7 +290,7 @@ export default function CurrencyConversion() {
               <SelectContent>
                 <SelectItem value="all">All Methods</SelectItem>
                 <SelectItem value="standard">Standard Currency Conversion</SelectItem>
-                <SelectItem value="ppp_inflation">Reporting Year &amp; PPP Adjustment</SelectItem>
+                <SelectItem value="ppp_inflation">Currency adjusted to Inflation Rate and Purchase Power</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -412,7 +412,7 @@ export default function CurrencyConversion() {
                   <SelectTrigger data-testid="currency-conversion-method-select"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="standard">Standard Currency Conversion</SelectItem>
-                    <SelectItem value="ppp_inflation">Reporting Year &amp; PPP Adjustment</SelectItem>
+                    <SelectItem value="ppp_inflation">Currency adjusted to Inflation Rate and Purchase Power</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

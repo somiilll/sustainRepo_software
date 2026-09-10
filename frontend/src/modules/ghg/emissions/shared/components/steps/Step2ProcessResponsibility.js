@@ -23,9 +23,6 @@ import { Plus, Trash2, Info } from 'lucide-react';
  * @param {Function} props.addProcessName - Function to add process name
  * @param {Function} props.removeProcessName - Function to remove process name
  * @param {Function} props.updateProcessName - Function to update process name
- * @param {boolean} props.requiresAssetName - Whether asset name is required
- * @param {string} props.assetName - Asset name value
- * @param {Function} props.setAssetName - Setter for asset name
  * @param {boolean} props.showsLocationFields - Whether to show location fields
  * @param {boolean} props.isC7EmployeeCommuting - Whether category is C7
  * @param {string} props.fromLocation - From location value
@@ -44,9 +41,6 @@ export const Step2ProcessResponsibility = ({
   addProcessName,
   removeProcessName,
   updateProcessName,
-  requiresAssetName,
-  assetName,
-  setAssetName,
   showsLocationFields,
   isC7EmployeeCommuting,
   fromLocation,
@@ -222,34 +216,6 @@ export const Step2ProcessResponsibility = ({
 
           {responsibilityFields}
           
-          {/* Asset Name - Only for C8, C13, C14, C15 */}
-          {requiresAssetName && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Label>Asset Name <span className="text-red-500">*</span></Label>
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="cursor-help">
-                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                      <p>Name or identifier of the leased asset, franchise, or investment</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <Input
-                value={assetName}
-                onChange={(e) => setAssetName(e.target.value)}
-                placeholder="Enter asset name"
-                className="bg-stone-50"
-                data-testid="asset-name-input"
-              />
-            </div>
-          )}
-
           {/* From/To Location - Only for C4, C6, C9 (transportation/travel categories) */}
           {showsLocationFields && !isC7EmployeeCommuting && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

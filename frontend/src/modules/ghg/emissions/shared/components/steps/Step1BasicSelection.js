@@ -90,6 +90,9 @@ export const Step1BasicSelection = ({
   scope3Method,
   allocationMethod,
   onC8AllocationMethodChange,
+  requiresAssetName,
+  assetName,
+  setAssetName,
   spendCurrencyConversionMethod = 'ppp_inflation',
   setSpendCurrencyConversionMethod,
   availableScope3Methods,
@@ -608,7 +611,7 @@ export const Step1BasicSelection = ({
                 </SelectTrigger>
                 <SelectContent data-testid="scope3-currency-conversion-method-options">
                   <SelectItem value="standard" data-testid="scope3-currency-conversion-method-option-standard">Standard Currency Conversion</SelectItem>
-                  <SelectItem value="ppp_inflation" data-testid="scope3-currency-conversion-method-option-ppp-inflation">Reporting Year &amp; PPP Adjustment</SelectItem>
+                  <SelectItem value="ppp_inflation" data-testid="scope3-currency-conversion-method-option-ppp-inflation">Currency adjusted to Inflation Rate and Purchase Power</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -773,6 +776,20 @@ export const Step1BasicSelection = ({
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {requiresAssetName && scope3Method && (scope3ActivityId || (scope3Method === 'supplier_basis' && scope3CustomActivity?.trim())) && (
+            <div className="min-w-0 space-y-2" data-testid="asset-name-selection-section">
+              <Label htmlFor="asset-name-input">Asset Name <span className="text-red-500">*</span></Label>
+              <Input
+                id="asset-name-input"
+                value={assetName}
+                onChange={(event) => setAssetName(event.target.value)}
+                placeholder="Enter asset name or identifier"
+                className="h-10 bg-stone-50"
+                data-testid="asset-name-input"
+              />
             </div>
           )}
         </div>

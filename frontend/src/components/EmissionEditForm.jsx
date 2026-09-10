@@ -264,8 +264,9 @@ export default function EmissionEditForm(props) {
     hasCategory: Boolean(selectedCategory || formData.category),
   });
   const CategoryIcon = getCategoryIcon(selectedCategory || formData.category);
-  const isC8AllocationApplicable = formData.scope === 'scope3'
-    && /^c8\b/i.test(selectedCategory || formData.category || '')
+  const isC8Category = formData.scope === 'scope3'
+    && /^c8\b/i.test(selectedCategory || formData.category || '');
+  const isC8AllocationApplicable = isC8Category
     && ['activity_basis', 'supplier_basis'].includes(scope3Method);
   const isProcessEmission = Boolean(capabilities.processType)
     || (formData.category || selectedCategory || '').toLowerCase().includes('process');
@@ -488,7 +489,7 @@ export default function EmissionEditForm(props) {
                                   data-testid="edit-scope3-currency-conversion-method-select"
                                 >
                                   <option value="standard">Standard Currency Conversion</option>
-                                  <option value="ppp_inflation">Reporting Year &amp; PPP Adjustment</option>
+                                  <option value="ppp_inflation">Currency adjusted to Inflation Rate and Purchase Power</option>
                                 </select>
                               </div>
                             )}
@@ -664,7 +665,7 @@ export default function EmissionEditForm(props) {
 
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
-                        <div className="space-y-3">
+                        <div className={isC8Category ? 'grid grid-cols-1 gap-4 lg:grid-cols-3' : 'space-y-3'}>
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
                           {requiresSubcategory && availableSubcategories.length > 0 && (!isC8AllocationApplicable || allocationMethod) && (
                             <div className="space-y-1.5">
@@ -817,12 +818,25 @@ export default function EmissionEditForm(props) {
                               <p className="text-xs text-blue-600 mt-1">Loading activities...</p>
                             )}
                           </div>
+                          {isC8Category && capabilities.assetName && (
+                            <div className="space-y-1.5" data-testid="edit-c8-asset-name-section">
+                              <Label htmlFor="asset_name">Asset Name *</Label>
+                              <Input
+                                id="asset_name"
+                                value={formData.asset_name}
+                                onChange={(event) => setFormData({ ...formData, asset_name: event.target.value })}
+                                placeholder="Enter asset name or identifier..."
+                                className="h-10 bg-stone-50"
+                                data-testid="edit-asset-name-input"
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
 
                       {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
                       {/* Asset Name section — driven by module capability 'asset-name' (C8/C13/C14/C15) */}
-                      {formData.scope === 'scope3' && capabilities.assetName && (
+                      {formData.scope === 'scope3' && capabilities.assetName && !isC8Category && (
                         <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                           <h4 className="font-medium mb-2 text-amber-800 text-sm">Asset Information</h4>
                           <div className="space-y-1.5">

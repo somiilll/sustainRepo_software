@@ -3264,6 +3264,9 @@ export default function EmissionEntryForm({
           setScope3Method={setScope3Method}
           allocationMethod={allocationMethod}
           onC8AllocationMethodChange={handleC8AllocationMethodChange}
+          requiresAssetName={requiresAssetName}
+          assetName={assetName}
+          setAssetName={setAssetName}
           spendCurrencyConversionMethod={spendCurrencyConversionMethod}
           setSpendCurrencyConversionMethod={setSpendCurrencyConversionMethod}
           setScope3ActivityType={setScope3ActivityType}
@@ -3421,9 +3424,6 @@ export default function EmissionEntryForm({
           addProcessName={addProcessName}
           removeProcessName={removeProcessName}
           updateProcessName={updateProcessName}
-          requiresAssetName={requiresAssetName}
-          assetName={assetName}
-          setAssetName={setAssetName}
           showsLocationFields={showsLocationFields}
           isC7EmployeeCommuting={isC7EmployeeCommuting}
           fromLocation={fromLocation}
