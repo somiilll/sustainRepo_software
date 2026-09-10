@@ -362,6 +362,9 @@ export function buildCreatePayload(monthData, ctx) {
         ...(typeOfProduct && {
           type_of_product: { value: typeOfProduct, unit: '' },
         }),
+        ...(useCustomActivity && {
+          use_custom_activity: { value: true, unit: '' },
+        }),
       }),
       ...(scope === 'biogenic' && {
         biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },

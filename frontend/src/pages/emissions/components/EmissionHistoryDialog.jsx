@@ -352,7 +352,7 @@ export default function EmissionHistoryDialog({
               if (history.field_changes && history.field_changes.length > 0) {
                 // New format: backend provides field_changes array
                 changedFields = history.field_changes
-                  .filter(fc => !skipFields.includes(fc.field))
+                  .filter(fc => !skipFields.includes(fc.field) && fc.input_key !== 'use_custom_activity')
                   .map(fc => {
                     const isSingleInputDelta = fc.field === 'input_values' && fc.input_key;
                     const oldValue = isSingleInputDelta ? { [fc.input_key]: fc.old_value } : fc.old_value;

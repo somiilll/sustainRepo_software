@@ -50,6 +50,8 @@ DYNAMIC_HISTORY_EXCLUDED_FIELDS = frozenset({
     # These user selections are already audited as top-level readable fields.
     "calculation_method_scope3",
     "scope3_activity",
+    # The activity label itself records standard/custom changes intelligibly.
+    "use_custom_activity",
 })
 
 

@@ -225,6 +225,8 @@ export function buildEditPayload(ctx) {
       : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
 
   const dynamicValues = buildDynamicValues(ctxFull);
+  const dynamicValuesWithoutCustomActivityMarker = { ...dynamicValues };
+  delete dynamicValuesWithoutCustomActivityMarker.use_custom_activity;
 
   const outputs = {};
   if (effectiveCalculatedEmissions) {
@@ -277,7 +279,7 @@ export function buildEditPayload(ctx) {
     }),
 
     dynamic_field_values: {
-      ...dynamicValues,
+      ...dynamicValuesWithoutCustomActivityMarker,
       ...(isScope3LikeSave && {
         calculation_method_scope3: { value: scope3Method, unit: '' },
         ...(scope3Method === 'spend_basis' && {
@@ -311,7 +313,9 @@ export function buildEditPayload(ctx) {
         ...(typeOfProduct && {
           type_of_product: { value: typeOfProduct, unit: '' },
         }),
-        use_custom_activity: { value: useCustomActivity, unit: '' },
+        ...(useCustomActivity && {
+          use_custom_activity: { value: true, unit: '' },
+        }),
       }),
       ...(formData.scope === 'biogenic' && {
         biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },
