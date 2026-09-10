@@ -710,13 +710,11 @@ export default function EmissionEditForm(props) {
                           })()}
                           
                           {/* Activity Selection */}
-                          <div className="relative flex min-w-0 flex-col gap-1.5" data-testid="scope3-activity-section">
-                            <div className="flex min-h-4 items-center">
-                              <Label htmlFor="scope3_activity_select">Activity *</Label>
-                            </div>
+                          <div className="relative min-w-0 space-y-1.5" data-testid="scope3-activity-section">
+                            <Label htmlFor="scope3_activity_select">Activity *</Label>
                             {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
                             {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
-                              <label className="absolute right-0 top-0 flex min-h-4 items-center gap-2 text-sm cursor-pointer">
+                              <label className="absolute right-0 top-0 flex items-center gap-2 text-sm cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={useCustomActivity}
@@ -751,7 +749,7 @@ export default function EmissionEditForm(props) {
                                 </p>
                               </div>
                             ) : (
-                              <div className="min-w-0">
+                              <div className="mt-1.5 min-w-0">
                                 <SearchableSelect
                                   value={scope3ActivityId}
                                   options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity }))}
@@ -781,10 +779,8 @@ export default function EmissionEditForm(props) {
                             )}
                           </div>
                           {showsAssetName && (
-                            <div className="flex min-w-0 flex-col gap-1.5" data-testid="edit-asset-name-section">
-                              <div className="flex min-h-4 items-center">
-                                <Label htmlFor="asset_name">Asset Name *</Label>
-                              </div>
+                            <div className="min-w-0 space-y-1.5" data-testid="edit-asset-name-section">
+                              <Label htmlFor="asset_name">Asset Name *</Label>
                               <Input
                                 id="asset_name"
                                 value={formData.asset_name}
