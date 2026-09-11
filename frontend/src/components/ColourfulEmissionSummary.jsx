@@ -21,6 +21,17 @@ const UNIT_LESS_COUNT_FIELDS = new Set([
 
 const formatNumber = (value, decimals) => Number(value || 0).toFixed(decimals);
 
+const formatNormalizedValue = (value) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return String(value ?? '');
+  if (numericValue === 0 || Math.abs(numericValue) >= 0.000001) {
+    return formatNumber(numericValue, 6);
+  }
+
+  const decimals = Math.min(12, Math.max(6, Math.ceil(-Math.log10(Math.abs(numericValue))) + 1));
+  return numericValue.toFixed(decimals).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+};
+
 const emissionCards = (calculation) => [
   { key: 'co2', label: 'CO₂ Emissions', value: calculation.co2Emissions, unit: calculation.co2OutputUnit || 'tCO₂', Icon: Cloud, classes: 'border-red-100 bg-red-50/70 text-red-800', icon: 'text-red-500', muted: 'text-red-600' },
   { key: 'ch4', label: 'CH₄ Emissions', value: calculation.ch4Emissions, unit: calculation.ch4OutputUnit || 'tCH₄', Icon: Dna, classes: 'border-orange-100 bg-orange-50/70 text-orange-800', icon: 'text-orange-500', muted: 'text-orange-600' },
@@ -149,13 +160,13 @@ export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3L
                 {displayAuditLog.map((entry, index) => {
                   if (entry.step === 'input') {
                     const conversions = conversionsForEntry({ entry, kind: 'input', auditLog: displayAuditLog });
-                    return <div key={index} className="flex items-start gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-input-entry-${index}`}><ArrowUpFromLine className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">Input:</span> <span className="text-blue-700">{entry.variable_label || entry.variable}</span> = {entry.value}{!UNIT_LESS_COUNT_FIELDS.has(entry.variable) && entry.unit ? ` ${entry.unit}` : ''}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-input-normalized-value-${index}-${conversionIndex}`}>→ {formatNumber(conversion.output.value, 6)} {conversion.output.unit}</span>)}</p></div>;
+                    return <div key={index} className="flex items-start gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-input-entry-${index}`}><ArrowUpFromLine className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">Input:</span> <span className="text-blue-700">{entry.variable_label || entry.variable}</span> = {entry.value}{!UNIT_LESS_COUNT_FIELDS.has(entry.variable) && entry.unit ? ` ${entry.unit}` : ''}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-input-normalized-value-${index}-${conversionIndex}`}>→ {formatNormalizedValue(conversion.output.value)} {conversion.output.unit}</span>)}</p></div>;
                   }
                   if (entry.step === 'resolve_property') {
                     const { Icon, iconClass } = propertyPresentation(entry);
                     const sourceName = entry.source_name || entry.source || '';
                     const conversions = conversionsForEntry({ entry, kind: 'property', auditLog: displayAuditLog });
-                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-property-normalized-value-${index}-${conversionIndex}`}>→ {formatNumber(conversion.output.value, 6)} {conversion.output.unit}</span>)}</p><SourceBadge source={sourceName} testId={`calculation-source-badge-${index}`} /></div>;
+                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNormalizedValue(entry.value) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-property-normalized-value-${index}-${conversionIndex}`}>→ {formatNormalizedValue(conversion.output.value)} {conversion.output.unit}</span>)}</p><SourceBadge source={sourceName} testId={`calculation-source-badge-${index}`} /></div>;
                   }
                   if (entry.step === 'formula_step') {
                     const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());
