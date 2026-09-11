@@ -1970,6 +1970,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   </p>
                   {getEntityRecord('organization', organization.id, 'scope12') && <p className="mt-0.5 text-xs font-semibold text-blue-900" data-testid="organization-scope12-ledger-total">{formatLedgerTco2e(calculateScope12Totals(getEntityRecord('organization', organization.id, 'scope12').emissions_data).total)}</p>}
                   {getEntityRecord('organization', organization.id, 'scope12') && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6 text-blue-700 hover:bg-blue-100" title="View version history" aria-label="View Scope 1 and 2 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(getEntityRecord('organization', organization.id, 'scope12')); }} data-testid="organization-scope12-ledger-history-button"><History className="h-3.5 w-3.5" /></Button>}
+                  {user?.role !== 'user' && getEntityRecord('organization', organization.id, 'scope12') && <Button variant="ghost" size="icon" className="absolute right-1 top-8 h-6 w-6 text-blue-700 hover:bg-blue-100" title="Change base year" aria-label="Change Scope 1 and 2 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(getEntityRecord('organization', organization.id, 'scope12')); }} data-testid="organization-scope12-ledger-change-button"><CalendarClock className="h-3.5 w-3.5" /></Button>}
                 </div>
 
                  <div className="hidden w-4 lg:block xl:w-8" />
@@ -1995,6 +1996,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     </p>
                     {getEntityRecord('organization', organization.id, 'scope3') && <p className="mt-0.5 text-xs font-semibold text-purple-900" data-testid="organization-scope3-ledger-total">{formatLedgerTco2e(calculateScope3Total(getEntityRecord('organization', organization.id, 'scope3').emissions_data))}</p>}
                     {getEntityRecord('organization', organization.id, 'scope3') && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6 text-purple-700 hover:bg-purple-100" title="View version history" aria-label="View Scope 3 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(getEntityRecord('organization', organization.id, 'scope3')); }} data-testid="organization-scope3-ledger-history-button"><History className="h-3.5 w-3.5" /></Button>}
+                    {user?.role !== 'user' && getEntityRecord('organization', organization.id, 'scope3') && <Button variant="ghost" size="icon" className="absolute right-1 top-8 h-6 w-6 text-purple-700 hover:bg-purple-100" title="Change base year" aria-label="Change Scope 3 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(getEntityRecord('organization', organization.id, 'scope3')); }} data-testid="organization-scope3-ledger-change-button"><CalendarClock className="h-3.5 w-3.5" /></Button>}
                   </div>
                 )}
                 
@@ -2210,6 +2212,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       </p>
                       {scope12Record && <p className="mt-0.5 text-xs font-semibold text-blue-900" data-testid={`facility-${facility.id}-scope12-ledger-total`}>{formatLedgerTco2e(calculateScope12Totals(scope12Record.emissions_data).total)}</p>}
                       {scope12Record && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6 text-blue-700 hover:bg-blue-100" title="View version history" aria-label="View Scope 1 and 2 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope12Record); }} data-testid={`facility-${facility.id}-scope12-ledger-history-button`}><History className="h-3.5 w-3.5" /></Button>}
+                      {scope12Record && canEditRecordSync(scope12Record) && <Button variant="ghost" size="icon" className="absolute right-1 top-8 h-6 w-6 text-blue-700 hover:bg-blue-100" title="Change base year" aria-label="Change Scope 1 and 2 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(scope12Record); }} data-testid={`facility-${facility.id}-scope12-ledger-change-button`}><CalendarClock className="h-3.5 w-3.5" /></Button>}
                     </div>
 
                     <div className="hidden w-4 lg:block xl:w-8" />
@@ -2234,6 +2237,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                         </p>
                         {scope3Record && <p className="mt-0.5 text-xs font-semibold text-purple-900" data-testid={`facility-${facility.id}-scope3-ledger-total`}>{formatLedgerTco2e(calculateScope3Total(scope3Record.emissions_data))}</p>}
                         {scope3Record && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6 text-purple-700 hover:bg-purple-100" title="View version history" aria-label="View Scope 3 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope3Record); }} data-testid={`facility-${facility.id}-scope3-ledger-history-button`}><History className="h-3.5 w-3.5" /></Button>}
+                        {scope3Record && canEditRecordSync(scope3Record) && <Button variant="ghost" size="icon" className="absolute right-1 top-8 h-6 w-6 text-purple-700 hover:bg-purple-100" title="Change base year" aria-label="Change Scope 3 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(scope3Record); }} data-testid={`facility-${facility.id}-scope3-ledger-change-button`}><CalendarClock className="h-3.5 w-3.5" /></Button>}
                       </div>
                     )}
                     
