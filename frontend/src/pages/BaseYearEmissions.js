@@ -78,6 +78,13 @@ const calculateScope3Total = (emissions = []) => emissions.reduce((total, entry)
 
 function Scope12EmissionsSummary({ emissions, testId, compact = false }) {
   const totals = calculateScope12Totals(emissions);
+  const sinkTotal = emissions.reduce((total, entry) => {
+    const isSink = String(entry?.scope || '').toLowerCase() === 'sinks' || entry?.isSink;
+    const value = Number.parseFloat(entry?.tco2e);
+    return isSink && Number.isFinite(value) ? total + value : total;
+  }, 0);
+  const hasSinks = emissions.some((entry) => String(entry?.scope || '').toLowerCase() === 'sinks' || entry?.isSink);
+  const netEmissions = totals.total + sinkTotal;
 
   if (compact) {
     return (
@@ -91,7 +98,7 @@ function Scope12EmissionsSummary({ emissions, testId, compact = false }) {
   }
 
   return (
-    <section className="grid grid-cols-1 gap-2 rounded-lg border border-blue-200 bg-blue-50/70 p-3 sm:grid-cols-3" data-testid={testId}>
+    <section className={`grid grid-cols-1 gap-2 rounded-lg border border-blue-200 bg-blue-50/70 p-3 ${hasSinks ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`} data-testid={testId}>
       <div>
         <p className="text-xs text-blue-700">Scope 1</p>
         <p className="text-sm font-semibold text-text-primary" data-testid={`${testId}-scope1`}>{formatTco2e(totals.scope1)}</p>
@@ -104,6 +111,12 @@ function Scope12EmissionsSummary({ emissions, testId, compact = false }) {
         <p className="text-xs font-medium text-blue-800">Total Emissions</p>
         <p className="text-sm font-bold text-blue-900" data-testid={`${testId}-total`}>{formatTco2e(totals.total)}</p>
       </div>
+      {hasSinks && (
+        <div className="border-blue-200 sm:border-l sm:pl-3" data-testid={`${testId}-net-emissions`}>
+          <p className="text-xs font-medium text-emerald-800">Net Emissions</p>
+          <p className="text-sm font-bold text-emerald-900" data-testid={`${testId}-net-emissions-value`}>{formatTco2e(netEmissions)}</p>
+        </div>
+      )}
     </section>
   );
 }
@@ -3175,17 +3188,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 )
               )}
               
-              {/* Justification section - always show if exists */}
-              {viewRecord.justification && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertCircle className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-800">Base Year Justification</span>
-                  </div>
-                  <p className="text-sm text-amber-700">{viewRecord.justification}</p>
-                </div>
-              )}
-              
               {/* Notes section */}
               {viewRecord.notes && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -3196,31 +3198,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   <p className="text-sm text-blue-700">{viewRecord.notes}</p>
                 </div>
               )}
-              
-              {/* Sinks section - show total sinks value in a single row (only for Scope 1&2 and only if sinks are in saved emissions_data) */}
-              {(viewRecord.scope_group || 'scope12') === 'scope12' && (() => {
-                // Check if sinks are included in the saved base year configuration
-                const hasSinksInConfig = viewRecord.emissions_data?.some(e => 
-                  e.scope?.toLowerCase() === 'sinks'
-                );
-                if (!hasSinksInConfig) return null;
-                
-                const sinks = getSinksForBaseYear(viewRecord.base_year, viewRecord.facility_id);
-                if (sinks.length === 0) return null;
-                
-                const totalSinkReductions = sinks.reduce((sum, s) => sum + (parseFloat(s.total_emissions_reduced) || 0), 0);
-                
-                return (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Leaf className="w-4 h-4 text-green-600" />
-                      <span className="font-medium text-sm text-green-800">Total Carbon Sinks</span>
-                      <span className="text-xs text-green-600">({sinks.length} sink{sinks.length > 1 ? 's' : ''})</span>
-                    </div>
-                    <span className="font-bold text-green-800">-{totalSinkReductions.toFixed(4)} tCO₂e</span>
-                  </div>
-                );
-              })()}
               
               <div className="flex justify-between gap-3">
                 <div className="flex gap-2">
