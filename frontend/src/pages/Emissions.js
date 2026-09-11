@@ -1877,6 +1877,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   } = useEmissionsCalculator(getAuthHeader);
   
   const [useBackendCalc, setUseBackendCalc] = useState(true);
+  const [liveCalculationValidationError, setLiveCalculationValidationError] = useState('');
 
   const handleC8AllocationMethodChange = useCallback((allocationMethod) => {
     setEditDraft((currentDraft) => ({
@@ -1945,6 +1946,38 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     
     // Check if we have dynamic input fields - if so, use them for calculation
     if (dynamicInputFields.length > 0) {
+      const unwrapFieldValue = (field) => {
+        const rawValue = dynamicFieldValues[field.variable] ?? dynamicFieldValues[field.fieldKey];
+        return rawValue && typeof rawValue === 'object' ? rawValue.value : rawValue;
+      };
+      const isBlankFieldValue = (value) => (
+        value === undefined || value === null || String(value).trim() === ''
+      );
+      const missingRequiredField = dynamicInputFields.find((field) => {
+        if (!field.required || field.isOverride || field.presentationOnly) return false;
+        const value = unwrapFieldValue(field);
+        return isBlankFieldValue(value)
+          || ((field.fieldType === 'number' || !field.fieldType) && !Number.isFinite(Number.parseFloat(value)));
+      });
+      const isC8FloorShare = formData.scope === 'scope3'
+        && /^c8\b/i.test(selectedCategory || formData.category || '')
+        && editDraft.allocationMethod === 'floor_area_share';
+      const floorShareField = isC8FloorShare
+        ? dynamicInputFields.find((field) => /floor.*(?:area|share)|(?:area|share).*floor/i.test(
+          `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`,
+        ))
+        : null;
+      const missingFloorShare = floorShareField && isBlankFieldValue(unwrapFieldValue(floorShareField));
+      const missingInputLabel = missingRequiredField?.label
+        || missingRequiredField?.variable
+        || (missingFloorShare ? floorShareField.label : 'Floor Share %');
+      if (missingRequiredField || missingFloorShare) {
+        setLiveCalculationValidationError(`${missingInputLabel} is required before emissions can be calculated.`);
+        setBackendCalcResult(null);
+        return;
+      }
+      setLiveCalculationValidationError('');
+
       // Ensure dynamicFieldValues is populated (not just initialized)
       const hasAnyValues = Object.keys(dynamicFieldValues).some(key => {
         const val = dynamicFieldValues[key];
@@ -1952,7 +1985,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       });
       
       if (!hasAnyValues) {
-        // Values not yet initialized, wait for them
+        setBackendCalcResult(null);
         return;
       }
       
@@ -2047,7 +2080,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         : editUseCustomFuel ? customFuelCalculation?.isReady : hasValidInput;
       
       if (!canCalculate) {
-        // Don't reset to null here - keep previous result visible
+        setBackendCalcResult(null);
         return;
       }
       
@@ -2217,6 +2250,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   
   // Use backend calculation engine result exclusively
   const effectiveCalculatedEmissions = useMemo(() => {
+    if (liveCalculationValidationError) return null;
     // Use backend result if available
     if (backendCalcResult && useBackendCalc) {
       return {
@@ -2229,7 +2263,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     // The audit log enriches the trace panel but is not required for the
     // summary numbers — records created before the audit-link fix will
     // still display their saved CO₂/CH₄/N₂O/CO₂e immediately.
-    if (editingEmission) {
+    if (editingEmission && !isFormDirty) {
       return {
         auditLog: emissionAuditLog,
         co2Emissions: editingEmission.co2_emissions,
@@ -2248,7 +2282,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     }
     
     return null;
-  }, [backendCalcResult, useBackendCalc, emissionAuditLog, editingEmission]);
+  }, [backendCalcResult, useBackendCalc, emissionAuditLog, editingEmission, isFormDirty, liveCalculationValidationError]);
 
   // Track calculation state - set isCalculating true when inputs change, false after a short delay
   // This ensures the Save button is disabled while calculations are updating
@@ -2502,14 +2536,17 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   };
 
   // E4: handleEdit body extracted to ./emissions/utils/editEmissionDispatch.js.
-  const handleEdit = (emission) => editEmissionDispatchShared(emission, {
-    // State reads
-    scope3EFData, fugitiveEmissionsData, fuelDatabase,
-    // Setters
-    setEditDraft, setEditingEmissionId,
-    setEmissionAuditLog, setIsEditLoading, setDialogOpen, setIsFormDirty,
-    setEditingEmission, activeEditIdRef,
-  });
+  const handleEdit = (emission) => {
+    setLiveCalculationValidationError('');
+    return editEmissionDispatchShared(emission, {
+      // State reads
+      scope3EFData, fugitiveEmissionsData, fuelDatabase,
+      // Setters
+      setEditDraft, setEditingEmissionId,
+      setEmissionAuditLog, setIsEditLoading, setDialogOpen, setIsFormDirty,
+      setEditingEmission, activeEditIdRef,
+    });
+  };
 
   // Deep-link from /ghg/approvals: open the edit dialog for ?edit=<id> once
   // the emissions list is loaded. Strips the param after firing so a refresh
@@ -2642,6 +2679,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     setEditDraft(createEmptyEmissionDraft(activeScope));
     setEditFormConfig(null); // Clear form config
     setUploadedEvidence(null);
+    setLiveCalculationValidationError('');
   };
 
   const openCreateDialog = () => {
@@ -3518,6 +3556,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   editFormConfigLoading={editFormConfigLoading}
                   dynamicInputFields={dynamicInputFields}
                   effectiveCalculatedEmissions={effectiveCalculatedEmissions}
+                  liveCalculationValidationError={liveCalculationValidationError}
                   isCalculating={isCalculating}
                   isSaving={isSaving}
                   onC8AllocationMethodChange={handleC8AllocationMethodChange}

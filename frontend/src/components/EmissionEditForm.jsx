@@ -148,6 +148,7 @@ export default function EmissionEditForm(props) {
     editFormConfigLoading,
     dynamicInputFields,
     effectiveCalculatedEmissions,
+    liveCalculationValidationError,
     isCalculating,
     isSaving,
     onC8AllocationMethodChange,
@@ -1489,7 +1490,13 @@ export default function EmissionEditForm(props) {
 
                 </section>
 
-                {effectiveCalculatedEmissions && (
+                {liveCalculationValidationError && (
+                  <div role="alert" className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="edit-live-calculation-validation-error">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+                    {liveCalculationValidationError}
+                  </div>
+                )}
+                {effectiveCalculatedEmissions && !liveCalculationValidationError && (
                   editUseCustomFuel ? (
                     <CustomFuelLiveCalculation
                       result={effectiveCalculatedEmissions}

@@ -139,16 +139,23 @@ export function validateEditSubmission(ctx) {
     }
   }
 
-  // Required numeric inputs (only fields where isOverrideExplicitlyFalse)
+  // Every configured required field must remain present when editing. This
+  // includes values hydrated as { value, unit }, which must be unwrapped
+  // before checking a user-cleared field.
   if (dynamicInputFields?.length > 0) {
     for (const field of dynamicInputFields) {
-      if (!field.isOverrideExplicitlyFalse) continue;
-      if (field.fieldType === 'number' || !field.fieldType) {
-        const value = dynamicFieldValues[field.variable];
-        const numValue = parseFloat(value);
-        if (!value || isNaN(numValue) || numValue <= 0) {
-          return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
-        }
+      if (!field.required || field.isOverride || field.presentationOnly) continue;
+      const rawValue = dynamicFieldValues?.[field.variable] ?? dynamicFieldValues?.[field.fieldKey];
+      const value = rawValue && typeof rawValue === 'object' ? rawValue.value : rawValue;
+      const isEmpty = value === undefined || value === null || String(value).trim() === '';
+      if (isEmpty) {
+        return { valid: false, errorMessage: `${field.label || field.variable} is required` };
+      }
+      if ((field.fieldType === 'number' || !field.fieldType) && !Number.isFinite(Number.parseFloat(value))) {
+        return { valid: false, errorMessage: `${field.label || field.variable} must be a valid number` };
+      }
+      if (field.isOverrideExplicitlyFalse && Number.parseFloat(value) <= 0) {
+        return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
       }
     }
   }
