@@ -58,6 +58,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const formatTco2e = (value) => `${Number(value || 0).toFixed(4)} tCO₂e`;
+const formatLedgerTco2e = (value) => `${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tCO₂e`;
 
 const calculateScope12Totals = (emissions = []) => emissions.reduce((totals, entry) => {
   const scope = String(entry?.scope || '').toLowerCase().replace(/[\s_-]/g, '');
@@ -1917,9 +1918,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           {(user?.role === 'admin' || user?.role === 'user') && organization && (statusFilter === 'all' || statusFilter === getOrganizationStatus()) && (
             <div className="bg-gradient-to-r from-primary/5 to-transparent">
               {/* Organization Collapsed Row */}
-              <button
+              <div
                 onClick={handleOrgAccordionToggle}
                 className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-stone-50/50 transition-colors text-left ${expandedOrganization ? 'bg-stone-50/50' : ''}`}
+                data-testid="base-year-organization-ledger-row"
               >
                 {/* Expand/Collapse Icon */}
                 <div className="flex-shrink-0">
@@ -1931,10 +1933,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 </div>
                 
                 {/* Organization Name */}
-                <div className="min-w-0 w-40 sm:w-48">
+                <div className="min-w-0 w-44 sm:w-56 lg:w-72">
                   <div className="flex items-center gap-2">
                     <Building className="w-4 h-4 text-primary flex-shrink-0" />
-                    <p className="font-semibold text-text-primary truncate">{organization.name}</p>
+                    <p className="overflow-hidden font-semibold text-text-primary" title={organization.name} data-testid="base-year-organization-name" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{organization.name}</p>
                   </div>
                 </div>
                 
@@ -1946,11 +1948,11 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 </div>
                 
                 {/* Spacer - pushes scope cards to the right */}
-                <div className="w-40" />
+                <div className="hidden w-16 lg:block xl:w-28" />
                 
                 {/* Scope 1 & 2 Base Year - Clickable Card */}
                 <div 
-                  className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
+                  className="relative hidden min-w-[150px] rounded-lg border border-blue-100 bg-blue-50/50 p-2 pr-8 transition-colors hover:bg-blue-100/50 sm:block cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
                     const record = getEntityRecord('organization', organization.id, 'scope12');
@@ -1966,14 +1968,16 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   <p className="text-sm font-semibold text-text-primary">
                     {getEntityRecord('organization', organization.id, 'scope12')?.base_year || '—'}
                   </p>
+                  {getEntityRecord('organization', organization.id, 'scope12') && <p className="mt-0.5 text-xs font-semibold text-blue-900" data-testid="organization-scope12-ledger-total">{formatLedgerTco2e(calculateScope12Totals(getEntityRecord('organization', organization.id, 'scope12').emissions_data).total)}</p>}
+                  {getEntityRecord('organization', organization.id, 'scope12') && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6 text-blue-700 hover:bg-blue-100" title="View version history" aria-label="View Scope 1 and 2 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(getEntityRecord('organization', organization.id, 'scope12')); }} data-testid="organization-scope12-ledger-history-button"><History className="h-3.5 w-3.5" /></Button>}
                 </div>
 
-                 <div className="w-20" />
+                 <div className="hidden w-4 lg:block xl:w-8" />
                 
                 {/* Scope 3 Base Year - Clickable Card */}
                 {hasScope3Access && (
                   <div 
-                    className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-purple-50/50 border border-purple-100 hover:bg-purple-100/50 transition-colors cursor-pointer"
+                    className="relative hidden min-w-[150px] rounded-lg border border-purple-100 bg-purple-50/50 p-2 pr-8 transition-colors hover:bg-purple-100/50 sm:block cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
                       const record = getEntityRecord('organization', organization.id, 'scope3');
@@ -1989,6 +1993,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     <p className="text-sm font-semibold text-text-primary">
                       {getEntityRecord('organization', organization.id, 'scope3')?.base_year || '—'}
                     </p>
+                    {getEntityRecord('organization', organization.id, 'scope3') && <p className="mt-0.5 text-xs font-semibold text-purple-900" data-testid="organization-scope3-ledger-total">{formatLedgerTco2e(calculateScope3Total(getEntityRecord('organization', organization.id, 'scope3').emissions_data))}</p>}
+                    {getEntityRecord('organization', organization.id, 'scope3') && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6 text-purple-700 hover:bg-purple-100" title="View version history" aria-label="View Scope 3 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(getEntityRecord('organization', organization.id, 'scope3')); }} data-testid="organization-scope3-ledger-history-button"><History className="h-3.5 w-3.5" /></Button>}
                   </div>
                 )}
                 
@@ -2004,7 +2010,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 {user?.role === 'user' && (
                   <Badge variant="outline" className="text-xs bg-stone-50 flex-shrink-0">View Only</Badge>
                 )}
-              </button>
+              </div>
               
               {/* Organization Expanded Content */}
               {expandedOrganization && (
@@ -2152,9 +2158,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               return (
                 <div key={facility.id} className="border-t border-stone-100">
                   {/* Collapsed Row */}
-                  <button
+                  <div
                     onClick={() => handleAccordionToggle(facility.id)}
                     className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-stone-50 transition-colors text-left ${isExpanded ? 'bg-stone-50' : ''}`}
+                    data-testid={`base-year-facility-ledger-row-${facility.id}`}
                   >
                     {/* Expand/Collapse Icon */}
                     <div className="flex-shrink-0">
@@ -2166,8 +2173,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     </div>
                     
                     {/* Facility Name & Location */}
-                    <div className="min-w-0 w-40 sm:w-48">
-                      <p className="font-medium text-text-primary truncate">{facility.name}</p>
+                    <div className="min-w-0 w-44 sm:w-56 lg:w-72">
+                      <p className="overflow-hidden font-medium text-text-primary" title={facility.name} data-testid={`base-year-facility-name-${facility.id}`} style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{facility.name}</p>
                       <p className="text-xs text-text-muted flex items-center gap-1 truncate">
                         <MapPin className="w-3 h-3" />
                         {facility.city}, {facility.state}
@@ -2182,11 +2189,11 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     </div>
                     
                     {/* Spacer - pushes scope cards to the right */}
-                    <div className="w-40" />
+                    <div className="hidden w-16 lg:block xl:w-28" />
                     
                     {/* Scope 1 & 2 Base Year - Clickable Card */}
                     <div 
-                      className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
+                      className="relative hidden min-w-[150px] rounded-lg border border-blue-100 bg-blue-50/50 p-2 pr-8 transition-colors hover:bg-blue-100/50 sm:block cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (scope12Record) {
@@ -2201,14 +2208,16 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       <p className="text-sm font-semibold text-text-primary">
                         {scope12Record?.base_year || '—'}
                       </p>
+                      {scope12Record && <p className="mt-0.5 text-xs font-semibold text-blue-900" data-testid={`facility-${facility.id}-scope12-ledger-total`}>{formatLedgerTco2e(calculateScope12Totals(scope12Record.emissions_data).total)}</p>}
+                      {scope12Record && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6 text-blue-700 hover:bg-blue-100" title="View version history" aria-label="View Scope 1 and 2 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope12Record); }} data-testid={`facility-${facility.id}-scope12-ledger-history-button`}><History className="h-3.5 w-3.5" /></Button>}
                     </div>
 
-                    <div className="w-20" />
+                    <div className="hidden w-4 lg:block xl:w-8" />
                     
                     {/* Scope 3 Base Year - Clickable Card */}
                     {hasScope3Access && (
                       <div 
-                        className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-purple-50/50 border border-purple-100 hover:bg-purple-100/50 transition-colors cursor-pointer"
+                        className="relative hidden min-w-[150px] rounded-lg border border-purple-100 bg-purple-50/50 p-2 pr-8 transition-colors hover:bg-purple-100/50 sm:block cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (scope3Record) {
@@ -2223,6 +2232,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                         <p className="text-sm font-semibold text-text-primary">
                           {scope3Record?.base_year || '—'}
                         </p>
+                        {scope3Record && <p className="mt-0.5 text-xs font-semibold text-purple-900" data-testid={`facility-${facility.id}-scope3-ledger-total`}>{formatLedgerTco2e(calculateScope3Total(scope3Record.emissions_data))}</p>}
+                        {scope3Record && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-6 w-6 text-purple-700 hover:bg-purple-100" title="View version history" aria-label="View Scope 3 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope3Record); }} data-testid={`facility-${facility.id}-scope3-ledger-history-button`}><History className="h-3.5 w-3.5" /></Button>}
                       </div>
                     )}
                     
@@ -2233,7 +2244,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     <div className="flex-shrink-0">
                       {getStatusBadge(facilityStatus)}
                     </div>
-                  </button>
+                  </div>
                   
                   {/* Expanded Content */}
                   {isExpanded && (
