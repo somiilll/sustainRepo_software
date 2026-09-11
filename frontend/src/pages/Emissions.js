@@ -3564,6 +3564,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   handleDeleteAllEvidences={handleDeleteAllEvidences}
                   handleC7EvidenceUpload={handleC7EditEvidenceUpload}
                   handleC7EvidenceRemove={handleC7EditEvidenceRemove}
+                  handleC7EvidenceDownload={handleDownloadEvidence}
                   handleDialogChange={handleDialogChange}
                   assignedReportingPeriod={supplierReportingConfig}
                 />

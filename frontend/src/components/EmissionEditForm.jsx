@@ -191,6 +191,7 @@ export default function EmissionEditForm(props) {
     handleDeleteAllEvidences,
     handleC7EvidenceUpload,
     handleC7EvidenceRemove,
+    handleC7EvidenceDownload,
     handleDialogChange,
 
     // Optional props for approval mode
@@ -852,6 +853,7 @@ export default function EmissionEditForm(props) {
                       frequencyType={editFrequencyType}
                       onEvidenceUpload={handleC7EvidenceUpload}
                       onEvidenceRemove={handleC7EvidenceRemove}
+                      onEvidenceDownload={handleC7EvidenceDownload}
                       evidenceBackendUrl={BACKEND_URL}
                     />
                   </div>

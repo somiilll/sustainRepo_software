@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { Plus, Trash2, User, Calculator, Users, Upload, FileText, X } from 'lucide-react';
+import { Plus, Trash2, User, Calculator, Users, Upload, FileText, Download, X } from 'lucide-react';
 import {
   getAnnualReportingPeriodDayLimit,
   getMonthlyReportingPeriodDayLimit,
@@ -53,6 +53,7 @@ const EmployeeEvidenceCell = ({
   disabled,
   onEvidenceUpload,
   onEvidenceRemove,
+  onEvidenceDownload,
   backendUrl,
 }) => {
   const testIdPrefix = `employee-${employeeIndex}-${periodKey}-evidence`;
@@ -114,6 +115,17 @@ const EmployeeEvidenceCell = ({
                 <FileText className="h-4 w-4" />
               </a>
             )}
+            {onEvidenceDownload && evidence?.url && (
+              <button
+                type="button"
+                title={`Download ${evidence.filename || 'evidence'}`}
+                onClick={(event) => onEvidenceDownload(evidence.url, event, evidence.filename)}
+                className="inline-flex h-7 w-7 items-center justify-center text-sky-700 transition-colors hover:text-sky-900"
+                data-testid={`${testIdPrefix}-download-${evidenceIndex}`}
+              >
+                <Download className="h-4 w-4" />
+              </button>
+            )}
             {onEvidenceRemove && (
               <button
                 type="button"
@@ -160,6 +172,7 @@ const MultiEmployeeInput = ({
   isFutureMonth = null, // NEW: Function to check if month is in future (monthKey) => boolean
   onEvidenceUpload = null,
   onEvidenceRemove = null,
+  onEvidenceDownload = null,
   evidenceBackendUrl = '',
 }) => {
   // State for expanded accordions
@@ -1084,6 +1097,7 @@ const MultiEmployeeInput = ({
                               disabled={disabled}
                               onEvidenceUpload={onEvidenceUpload}
                               onEvidenceRemove={onEvidenceRemove}
+                            onEvidenceDownload={onEvidenceDownload}
                               backendUrl={evidenceBackendUrl}
                             />
                           </div>
@@ -1305,6 +1319,7 @@ const MultiEmployeeInput = ({
                                         disabled={disabled || isMonthInFuture}
                                         onEvidenceUpload={onEvidenceUpload}
                                         onEvidenceRemove={onEvidenceRemove}
+                                        onEvidenceDownload={onEvidenceDownload}
                                         backendUrl={evidenceBackendUrl}
                                       />
                                     </td>
