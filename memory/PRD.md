@@ -382,6 +382,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **Calculation Details normalization visibility — latest:** Every newly generated input or resolved-property conversion is now tagged with its originating field in the calculation audit. Calculation Details renders `raw value/unit → normalized value/unit` for each real normalization, rather than only Quantity-to-kg conversions. Older audit logs retain a safe exact value/unit fallback where their historic trace permits matching; immutable history is not rewritten. **NOT TESTED** per the user’s standing instruction.
 - **Scope 1 Edit safeguards — latest:** Edit submissions now reject missing active required inputs even if an earlier calculation remains visible. Custom Fuel requires the methodology-specific values: Quantity, EF/CV for Heat Basis, EF for Quantity Basis, and Carbon Content plus Oxidation Factor for Carbon Composition.
 - Custom Fuel Oxidation Factor in Scope 1 Edit accepts values only from **0 through 1**, rejecting negative values and values over 1 while typing and on save.
 - Custom Fuel Carbon Content and Oxidation Factor now use browser-required controls and server-facing edit validation. Edit payloads are built only from fields active in the current form, preventing stale values from a former fuel or methodology from being resubmitted.

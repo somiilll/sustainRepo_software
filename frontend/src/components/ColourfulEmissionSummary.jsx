@@ -62,6 +62,38 @@ const calculationEntries = (auditLog) => {
   });
 };
 
+const valuesMatch = (left, right) => (
+  Number.isFinite(Number(left))
+  && Number.isFinite(Number(right))
+  && Number(left) === Number(right)
+);
+
+const isRealNormalization = (entry) => (
+  entry.step === 'convert'
+  && entry.input
+  && entry.output
+  && (entry.input.unit !== entry.output.unit || !valuesMatch(entry.input.value, entry.output.value))
+);
+
+const conversionsForEntry = ({ entry, kind, auditLog }) => {
+  const matchingKey = kind === 'input' ? 'variable' : 'property';
+  const entryKey = kind === 'input' ? entry.variable : entry.property;
+  const explicitMatches = auditLog.filter((candidate) => (
+    isRealNormalization(candidate) && candidate[matchingKey] === entryKey
+  ));
+  if (explicitMatches.length > 0) return explicitMatches;
+
+  // Historic audit entries predate field identifiers on conversion steps.
+  // Match only an exact raw value/unit pair when the older trace permits it.
+  const rawValue = kind === 'input' ? entry.value : entry.value;
+  const rawUnit = kind === 'input' ? entry.unit : entry.unit;
+  return auditLog.filter((candidate) => (
+    isRealNormalization(candidate)
+    && candidate.input?.unit === rawUnit
+    && valuesMatch(candidate.input?.value, rawValue)
+  ));
+};
+
 const SourceBadge = ({ source, testId }) => source ? (
   <span className="ml-auto shrink-0 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700" data-testid={testId}>
     Source · {source}
@@ -116,15 +148,14 @@ export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3L
               <div className="rounded-lg border border-stone-200 bg-white px-4" data-testid="calculation-audit-entries">
                 {displayAuditLog.map((entry, index) => {
                   if (entry.step === 'input') {
-                    const finalConvert = entry.variable === 'qty' || entry.variable === 'qty_energy'
-                      ? displayAuditLog.find((candidate) => candidate.step === 'convert' && candidate.output?.unit === 'kg' && candidate.output?.value !== entry.value)
-                      : null;
-                    return <div key={index} className="flex items-start gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-input-entry-${index}`}><ArrowUpFromLine className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">Input:</span> <span className="text-blue-700">{entry.variable_label || entry.variable}</span> = {entry.value}{!UNIT_LESS_COUNT_FIELDS.has(entry.variable) && entry.unit ? ` ${entry.unit}` : ''}{finalConvert ? <span className="ml-2 text-emerald-700">→ {formatNumber(finalConvert.output.value, 2)} {finalConvert.output.unit}</span> : null}</p></div>;
+                    const conversions = conversionsForEntry({ entry, kind: 'input', auditLog: displayAuditLog });
+                    return <div key={index} className="flex items-start gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-input-entry-${index}`}><ArrowUpFromLine className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">Input:</span> <span className="text-blue-700">{entry.variable_label || entry.variable}</span> = {entry.value}{!UNIT_LESS_COUNT_FIELDS.has(entry.variable) && entry.unit ? ` ${entry.unit}` : ''}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-input-normalized-value-${index}-${conversionIndex}`}>→ {formatNumber(conversion.output.value, 6)} {conversion.output.unit}</span>)}</p></div>;
                   }
                   if (entry.step === 'resolve_property') {
                     const { Icon, iconClass } = propertyPresentation(entry);
                     const sourceName = entry.source_name || entry.source || '';
-                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}</p><SourceBadge source={sourceName} testId={`calculation-source-badge-${index}`} /></div>;
+                    const conversions = conversionsForEntry({ entry, kind: 'property', auditLog: displayAuditLog });
+                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-property-normalized-value-${index}-${conversionIndex}`}>→ {formatNumber(conversion.output.value, 6)} {conversion.output.unit}</span>)}</p><SourceBadge source={sourceName} testId={`calculation-source-badge-${index}`} /></div>;
                   }
                   if (entry.step === 'formula_step') {
                     const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());
