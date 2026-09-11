@@ -382,6 +382,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **Irreversible Org1 data cleanup — September 8, 2026:** At explicit user confirmation, removed 10,889 scoped database documents across 78 collections, 13 Org1-linked supplier organization profiles, 13 supplier user accounts, and 90 referenced R2 objects. GHG, Base Year, Sinks, all relevant histories/audits, ESG questionnaire/assessment data, supplier documents/training/submissions, uploads, and operational records were included. Verification found zero remaining Org1/supplier-scoped documents. The Org1 organization profile and its 9 internal accounts were retained as directed.
 - **Supplier Emissions summary cleanup — September 8, 2026:** Removed the FY/reporting-period tag from the Supplier Attributed Emissions Summary header and removed its unused frontend prop flow.
 - **Supplier Ranking tab polish — September 8, 2026:** Extended the Overview’s `rounded-xl` visual treatment to every ESG Analysis and Emissions tab surface, including metric cards, charts, summaries, legends, risk/comparison, and nested analytic panels.
 - **Supplier Ranking polish — September 8, 2026:** Removed the informational `i` icon from the left of the Detailed Rankings supplier search control. Standardized Overview surface corners to `rounded-xl`, including summary bands, charts, risk matrix, progress panels, and their small supporting surfaces.
