@@ -56,8 +56,7 @@ export const EditOptionalFields = ({
       <CollapsibleContent className="border-t border-stone-100 px-5 py-6">
         <fieldset disabled={readOnly} className="min-w-0 space-y-8 disabled:opacity-100" data-testid={readOnly ? "read-only-optional-fields" : undefined}>
         <div className="space-y-8" data-testid="edit-optional-fields-content">
-          {!isEditC7EmployeeCommuting && (
-            <div className="space-y-4">
+          <div className="space-y-4" data-testid="edit-process-details-section">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <Label>Name of process(es)</Label>
@@ -114,8 +113,7 @@ export const EditOptionalFields = ({
                   </div>
                 </div>
               ))}
-            </div>
-          )}
+          </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="edit-responsible-person-section">
             <div className="space-y-2">
