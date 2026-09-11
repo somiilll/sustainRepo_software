@@ -642,16 +642,16 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             // Aggregate sinks
             const sinkAggregates = {};
             matchedSinks.forEach(sink => {
-              const key = `${sink.sink_type || 'other'}_${sink.description || 'Carbon Sink'}`;
+            const key = `${sink.description || sink.sink_type || 'Carbon Sink'}_${sink.description || ''}`;
               if (!sinkAggregates[key]) {
-                sinkAggregates[key] = { sink_type: sink.sink_type || 'other', description: sink.description || '', total: 0 };
+              sinkAggregates[key] = { sink_type: sink.sink_type || 'other', description: sink.description || '', total: 0 };
               }
               sinkAggregates[key].total += parseFloat(sink.total_emissions_reduced) || 0;
             });
             
             sinksToAdd = Object.values(sinkAggregates).map(agg => ({
               scope: 'Sinks',
-              category: agg.sink_type || agg.description || 'Carbon Sink',
+              category: agg.description || agg.sink_type || 'Carbon Sink',
               subcategory: agg.description || '',
               tco2e: -(Math.abs(agg.total)),
               isSink: true
@@ -660,11 +660,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         }
       }
       
-      // Remove any existing sinks from savedData to avoid duplicates (will be replaced by sinksToAdd)
-      const savedDataWithoutSinks = savedData.filter(e => e.scope?.toLowerCase() !== 'sinks');
+      // Preserve the stored Base Year sink snapshot during a manual GHG edit.
+      // Sinks are refreshed only by the Sinks module, not by this form.
+      const savedDataWithoutSinks = savedData.filter(e => e.scope?.toLowerCase() !== 'sinks' && !e.isSink);
+      const savedSinkEntries = savedData.filter(e => e.scope?.toLowerCase() === 'sinks' || e.isSink);
+      const sinkEntriesForEdit = savedSinkEntries.length > 0 ? savedSinkEntries : sinksToAdd;
       
-      // Combine: saved data (without sinks) + new combinations + fresh sinks (if any)
-      const mergedData = [...savedDataWithoutSinks, ...newCombinations, ...sinksToAdd];
+      // Combine: saved GHG data + new GHG combinations + the unchanged sink snapshot.
+      const mergedData = [...savedDataWithoutSinks, ...newCombinations, ...sinkEntriesForEdit];
       
       setEmissionsData(mergedData);
     } catch (error) {
@@ -827,7 +830,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         // Aggregate sinks by description/type to avoid duplicates
         const sinkAggregates = {};
         matchedSinks.forEach(sink => {
-          const key = `${sink.sink_type || 'other'}_${sink.description || 'Carbon Sink'}`;
+          const key = `${sink.description || sink.sink_type || 'Carbon Sink'}_${sink.description || ''}`;
           if (!sinkAggregates[key]) {
             sinkAggregates[key] = {
               sink_type: sink.sink_type || 'other',
@@ -841,7 +844,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         // Convert aggregated sinks to emission entries with NEGATIVE values
         sinksToAdd = Object.values(sinkAggregates).map(agg => ({
           scope: 'Sinks',
-          category: agg.sink_type || agg.description || 'Carbon Sink',
+          category: agg.description || agg.sink_type || 'Carbon Sink',
           subcategory: agg.description || '',
           tco2e: -(Math.abs(agg.total)), // NEGATIVE value for sinks (carbon removal)
           isSink: true

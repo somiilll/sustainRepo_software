@@ -17,6 +17,14 @@ def _number(value: Any) -> float:
 
 
 def _entry_key(entry: Dict[str, Any]) -> str:
+    if str(entry.get("scope") or "").strip().lower() == "sinks" or entry.get("isSink"):
+        category = str(entry.get("category") or "").strip()
+        subcategory = str(entry.get("subcategory") or "").strip()
+        generic_labels = {"", "other", "carbon sink"}
+        sink_label = subcategory if subcategory.lower() not in generic_labels else category
+        if sink_label.lower() in generic_labels:
+            sink_label = "default-sink"
+        return f"Sinks|{sink_label.lower()}"
     return "|".join([
         str(entry.get("scope") or ""),
         str(entry.get("category") or ""),

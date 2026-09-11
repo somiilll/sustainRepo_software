@@ -118,7 +118,7 @@ def _sink_entries_for_base_year(sinks: list[Dict[str, Any]], base_year: str) -> 
             continue
         if str(sink.get("frequency_type") or "monthly").lower() == "yearly":
             reduction *= _yearly_overlap_factor(sink.get("reporting_period", ""), base_year)
-        key = (sink.get("sink_type") or sink.get("description") or "Carbon Sink", sink.get("description") or "")
+        key = (sink.get("description") or sink.get("sink_type") or "Carbon Sink", sink.get("description") or "")
         grouped[key] = grouped.get(key, 0) + reduction
 
     return [
