@@ -17,7 +17,7 @@ import { getMonthlyReportingPeriodDayLimit, isAnnualDayCountField } from '../../
 // ---------- field unit resolver ----------
 
 const getMonthlyLimitFromReportingPeriod = (reportingPeriod) => {
-  const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})$/);
+  const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
   if (!match) return undefined;
   return getMonthlyReportingPeriodDayLimit(Number(match[2]), Number(match[1]));
 };
@@ -118,8 +118,9 @@ export function validateEditSubmission(ctx) {
     categoryCode,
   } = ctx;
 
-  const isC6BusinessTravel = categoryCode === 'c6' || /^c6\b/i.test(formData?.category || '');
-  const monthlyDayLimit = frequencyType === 'monthly' && isC6BusinessTravel
+  const categoryIdentity = `${categoryCode || ''} ${formData?.category || ''}`.toLowerCase();
+  const isC6BusinessTravel = /(^|\s)c6\b|business[_\s-]*travel/.test(categoryIdentity);
+  const monthlyDayLimit = frequencyType !== 'yearly' && isC6BusinessTravel
     ? getMonthlyLimitFromReportingPeriod(formData?.reporting_period)
     : undefined;
 

@@ -124,11 +124,12 @@ class EmissionRecordCreate(BaseModel):
     @model_validator(mode="after")
     def validate_monthly_c6_travel_counts(self):
         """Keep monthly C6 travel counts within the actual calendar month."""
-        is_c6 = self.category_code == "c6" or bool(re.match(r"^c6\b", self.category or "", re.IGNORECASE))
+        category_identity = f"{self.category_code or ''} {self.category or ''}".lower()
+        is_c6 = bool(re.search(r"(^|\s)c6\b|business[_\s-]*travel", category_identity))
         if self.frequency_type != "monthly" or not is_c6:
             return self
 
-        period_match = re.match(r"^(\d{4})-(\d{2})$", self.reporting_period or "")
+        period_match = re.match(r"^(\d{4})-(\d{2})(?:-\d{2})?$", self.reporting_period or "")
         if not period_match:
             return self
         year, month = map(int, period_match.groups())

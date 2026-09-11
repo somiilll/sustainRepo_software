@@ -102,7 +102,7 @@ const isOxidationFactorField = (field = {}) => {
 };
 
 const getMonthlyLimitFromReportingPeriod = (reportingPeriod) => {
-  const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})$/);
+  const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
   if (!match) return undefined;
   return getMonthlyReportingPeriodDayLimit(Number(match[2]), Number(match[1]));
 };
@@ -895,7 +895,7 @@ export default function EmissionEditForm(props) {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
                         const isQtyField = isQuantityField(field);
-                        const monthlyDayLimit = editFrequencyType === 'monthly' && isAnnualDayCountField(field)
+                        const monthlyDayLimit = editFrequencyType !== 'yearly' && isAnnualDayCountField(field)
                           ? getMonthlyLimitFromReportingPeriod(formData.reporting_period)
                           : undefined;
                         const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
