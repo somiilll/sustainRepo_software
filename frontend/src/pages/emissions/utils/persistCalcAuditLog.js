@@ -63,7 +63,9 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       if (value !== undefined && value !== '' && value !== null) {
         const numValue = parseFloat(value);
         if (!isNaN(numValue)) {
-          const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+          const unit = field.unitSource === 'none'
+            ? ''
+            : dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
           inputs[field.variable] = { value: numValue, unit };
         }
       }
@@ -76,7 +78,9 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       if (dynamicFieldValues[overrideKey]) {
         const value = dynamicFieldValues[field.variable];
         if (value !== undefined && value !== null && value !== '') {
-          const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+          const unit = field.unitSource === 'none'
+            ? ''
+            : dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
           userOverrides[field.variable] = { value: parseFloat(value), unit };
         }
       }

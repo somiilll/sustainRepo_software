@@ -1981,9 +1981,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
         const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
         
-        // Get base unit based on unit_source
-        let baseUnit;
-        if (field.unitSource === 'fuel') {
+        // Unitless fields must never inherit a default display or fallback unit.
+        let baseUnit = '';
+        if (field.unitSource === 'none') {
+          baseUnit = '';
+        } else if (field.unitSource === 'fuel') {
           // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
           if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
             baseUnit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivityForEdit?.allowed_units?.[0] || matchedActivityForEdit?.default_unit || field.expectedUnit || 'kg';
@@ -1998,8 +2000,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         }
         
         // Apply compound suffix if field has compoundWithVariable
-        let finalUnit = baseUnit || 'kg';
-        if (field.compoundWithVariable) {
+        let finalUnit = field.unitSource === 'none' ? '' : (baseUnit || 'kg');
+        if (field.compoundWithVariable && finalUnit) {
           const linkedUnit = dynamicFieldValues[`${field.compoundWithVariable}_unit`];
           if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
             // Only add suffix if baseUnit doesn't already contain it

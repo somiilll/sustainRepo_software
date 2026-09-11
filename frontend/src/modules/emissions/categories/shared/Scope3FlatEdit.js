@@ -24,6 +24,7 @@ const getMonthlyLimitFromReportingPeriod = (reportingPeriod) => {
 
 const getFieldUnitForSave = (field, ctx) => {
   const { dynamicFieldValues, selectedFuel, scope3ActivityId, filteredScope3Activities, centralizedUnits, isScope3LikeSave } = ctx;
+  if (field.unitSource === 'none') return '';
   const storedUnit = dynamicFieldValues[`${field.variable}_unit`];
   if (storedUnit) return storedUnit;
 
