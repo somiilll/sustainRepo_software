@@ -121,21 +121,23 @@ export const buildCustomFuelCalculationPayload = ({
     referenceUnit = 'kg';
   }
 
-  const density = readValue(values, ['density']);
-  if (hasValue(density)) {
-    const calcDensity = normalizeDensityForCalcEngine({
-      value: density,
-      unit: readUnit(values, ['density_unit'], 'kg/L'),
-    });
-    addInput('density', calcDensity.value, calcDensity.unit, { override: true });
-  }
   const densityRequirement = resolveDensityRequirement({
     quantityUnit,
     referenceUnit,
     centralizedUnits,
   });
-  if (hasQuantity && hasMethodInputs && densityRequirement.required && !inputs.density) {
-    missingFields.push(`Density (${densityRequirement.densityUnit})`);
+  if (densityRequirement.required) {
+    const density = readValue(values, ['density']);
+    if (hasValue(density)) {
+      const calcDensity = normalizeDensityForCalcEngine({
+        value: density,
+        unit: readUnit(values, ['density_unit'], 'kg/L'),
+      });
+      addInput('density', calcDensity.value, calcDensity.unit, { override: true });
+    }
+    if (hasQuantity && hasMethodInputs && !inputs.density) {
+      missingFields.push(`Density (${densityRequirement.densityUnit})`);
+    }
   }
 
   return {

@@ -110,6 +110,15 @@ const CustomFuelMonthFields = ({
 
   useEffect(() => {
     if (isFugitiveCustomFuel) return;
+    if (!densityRequirement.required) {
+      if (data.density !== undefined && data.density !== '' && data.density !== null) {
+        updateMonthData(monthKey, 'density', '');
+      }
+      if (data.density_unit !== undefined && data.density_unit !== '' && data.density_unit !== null) {
+        updateMonthData(monthKey, 'density_unit', '');
+      }
+      return;
+    }
     if (!hasDensitySourceValue || !densityRequirement.required || !densityRequirement.densityUnit) return;
     const currentDensityUnit = data.density_unit || '';
     if (currentDensityUnit === densityRequirement.densityUnit) return;
