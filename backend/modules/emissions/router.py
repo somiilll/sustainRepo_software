@@ -1438,7 +1438,9 @@ async def update_emission_record(
     # Extract emission values from outputs dict for convenience accessors
     outputs = record_data.outputs or {}
     if is_c7_employee_commuting:
-        c7_total = record_data.co2e_emissions
+        c7_total = outputs.get("co2e", {}).get("value")
+        if c7_total is None:
+            c7_total = record_data.co2e_emissions
         if c7_total is None:
             c7_total = record_data.total_emissions
         if c7_total is None:

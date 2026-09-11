@@ -171,6 +171,12 @@ export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
   return { totalCo2e, extractedFormulaId, extractedFormulaVersionId };
 }
 
+const preserveCanonicalDynamicValues = (editingEmission) => Object.fromEntries(
+  Object.entries(editingEmission?.dynamic_field_values || {}).filter(
+    ([, value]) => value && typeof value === 'object' && !Array.isArray(value)
+  )
+);
+
 /**
  * Build the exact PUT payload that the C7 edit dialog used to send.
  * Byte-identical with the prior inline implementation in Emissions.js.
@@ -204,7 +210,6 @@ export function buildEditPayload(ctx) {
     editEmployeeMonthlyTotals,
     editEmployeeYearlyTotal,
     validProcessNames,
-    dynamicFieldValues,
   } = ctx;
 
   const isYearlyMode = editingEmission?.frequency_type === 'yearly';
@@ -279,7 +284,11 @@ export function buildEditPayload(ctx) {
     }),
     monthly_totals: isYearlyMode ? null : editEmployeeMonthlyTotals,
     yearly_total: editEmployeeYearlyTotal,
-    dynamic_field_values: dynamicFieldValues || {},
+    // C7 calculation inputs belong to each employee/month. The edit form's
+    // flat dynamic state contains display primitives and must never be sent as
+    // the record-level canonical dictionary. Preserve only existing canonical
+    // values for backwards compatibility.
+    dynamic_field_values: preserveCanonicalDynamicValues(editingEmission),
     evidence_url: formData.evidence_url || '',
     supplier_name: formData.supplier_name || '',
     supplier_code: formData.supplier_code || '',
