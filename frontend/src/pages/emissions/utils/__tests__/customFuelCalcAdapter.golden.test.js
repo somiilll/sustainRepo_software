@@ -8,7 +8,7 @@
 import { buildCustomFuelCalculationPayload } from '../customFuelCalcAdapter';
 
 describe('buildCustomFuelCalculationPayload — heat basis (NCV)', () => {
-  it('normalises tCO2/TJ to kgCO2/TJ and marks EF/CV as overrides', () => {
+  it('preserves the entered EF unit and marks EF/CV as overrides', () => {
     const result = buildCustomFuelCalculationPayload({
       dynamicFieldValues: {
         qty: 500,
@@ -22,7 +22,7 @@ describe('buildCustomFuelCalculationPayload — heat basis (NCV)', () => {
 
     expect(result.isReady).toBe(true);
     expect(result.inputs.qty).toEqual({ value: 500, unit: 'kg' });
-    expect(result.inputs.ef_co2).toEqual({ value: 74100, unit: 'kgCO2/TJ' });
+    expect(result.inputs.ef_co2).toEqual({ value: 74.1, unit: 'tCO2/TJ' });
     expect(result.inputs.cv).toEqual({ value: 0.000043, unit: 'TJ/kg' });
     expect(result.inputs.ef_ch4).toEqual({ value: 0, unit: 'kgCH4/TJ' });
     expect(result.inputs.ef_n2o).toEqual({ value: 0, unit: 'kgN2O/TJ' });
@@ -30,7 +30,7 @@ describe('buildCustomFuelCalculationPayload — heat basis (NCV)', () => {
     expect(result.userOverrides.cv).toEqual(result.inputs.cv);
   });
 
-  it('converts an MJ-denominated emission factor to TJ', () => {
+  it('preserves an MJ-denominated emission factor for Calc Engine conversion', () => {
     const result = buildCustomFuelCalculationPayload({
       dynamicFieldValues: {
         qty: 10,
@@ -40,7 +40,7 @@ describe('buildCustomFuelCalculationPayload — heat basis (NCV)', () => {
         custom_cv_unit: 'TJ/kg',
       },
     });
-    expect(result.inputs.ef_co2).toEqual({ value: 2000, unit: 'kgCO2/TJ' });
+    expect(result.inputs.ef_co2).toEqual({ value: 2, unit: 'kgCO2/MJ' });
   });
 
   it('strips whitespace from unit strings', () => {
@@ -75,13 +75,13 @@ describe('buildCustomFuelCalculationPayload — heat basis (NCV)', () => {
 });
 
 describe('buildCustomFuelCalculationPayload — quantity basis EF', () => {
-  it('normalises tCO2/kg to kgCO2/kg', () => {
+  it('preserves tCO2/kg for Calc Engine conversion', () => {
     const result = buildCustomFuelCalculationPayload({
       dynamicFieldValues: { qty: 100, custom_ef: 0.0741, custom_ef_unit: 'tCO2/kg' },
       calculationMethodology: 'using_qty_basis_ef',
     });
     expect(result.isReady).toBe(true);
-    expect(result.inputs.ef_quantity).toEqual({ value: 74.1, unit: 'kgCO2/kg' });
+    expect(result.inputs.ef_quantity).toEqual({ value: 0.0741, unit: 'tCO2/kg' });
     expect(result.userOverrides.emission_factor).toEqual(result.inputs.ef_quantity);
     expect(result.inputs.cv).toBeUndefined();
   });

@@ -38,6 +38,21 @@ SYSTEM_UNITS: List[dict] = []
 # System compound units — NO LONGER auto-seeded.
 SYSTEM_COMPOUND_UNITS: List[dict] = []
 
+# Emissions-mass labels retain the same metric mass relationship as their
+# underlying units. This lets the calculator use Super Admin's configured
+# `t → kg` conversion when a formula compares `tCO2` with `kgCO2`, without
+# hard-coding a numeric factor in the Custom Fuel client.
+EMISSION_MASS_BASE_UNITS = {
+    "kgCO2": ("kg", "CO2"),
+    "tCO2": ("t", "CO2"),
+    "kgCH4": ("kg", "CH4"),
+    "tCH4": ("t", "CH4"),
+    "kgN2O": ("kg", "N2O"),
+    "tN2O": ("t", "N2O"),
+    "kgCO2e": ("kg", "CO2e"),
+    "tCO2e": ("t", "CO2e"),
+}
+
 
 async def seed_units(db) -> Tuple[int, int]:
     """No-op: Units are no longer auto-seeded. SuperAdmin must add them manually."""
@@ -338,26 +353,34 @@ async def _try_compound_conversion(
     context = context or {}
     user_overrides = user_overrides or {}
     
-    # Look up compound units
+    def derived_emission_factor_components(unit_key: str) -> Optional[List[dict]]:
+        """Decompose a labelled emissions factor when no compound row exists."""
+        parts = str(unit_key or "").split("/")
+        if len(parts) != 2:
+            return None
+        numerator, denominator = parts
+        if numerator not in EMISSION_MASS_BASE_UNITS or not denominator:
+            return None
+        return [
+            {"unit_key": numerator, "power": 1},
+            {"unit_key": denominator, "power": -1},
+        ]
+
+    # Look up compound units. Labelled emissions factors may be derived from
+    # their configured simple-unit components, so Super Admin does not need to
+    # duplicate every `tCO2/...` companion of an existing `kgCO2/...` unit.
     from_compound = await db.ce_compound_units.find_one({"key": from_unit}, {"_id": 0})
     to_compound = await db.ce_compound_units.find_one({"key": to_unit}, {"_id": 0})
-    
-    if not from_compound or not to_compound:
+
+    from_components = (from_compound or {}).get("components") or derived_emission_factor_components(from_unit)
+    to_components = (to_compound or {}).get("components") or derived_emission_factor_components(to_unit)
+    if not from_components or not to_components:
         return None
     
     # Check whether compound dimensions differ. A mismatch is still valid when
     # a corresponding component can be converted through a property such as
     # density (for example kgCO2/L → kgCO2/kg). Component conversion below
     # remains authoritative and rejects unsupported mismatches.
-    from_dim = from_compound.get("derived_dimension_vector", {})
-    to_dim = to_compound.get("derived_dimension_vector", {})
-    
-    from_components = from_compound.get("components", [])
-    to_components = to_compound.get("components", [])
-    
-    if not from_components or not to_components:
-        return None
-    
     # Build lookup for to_compound components by power
     to_comp_map = {}
     for tc in to_components:
@@ -646,6 +669,26 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                     }
     
     # Priority 3: Chained conversion
+    from_emission_base = EMISSION_MASS_BASE_UNITS.get(from_unit)
+    to_emission_base = EMISSION_MASS_BASE_UNITS.get(to_unit)
+    if (
+        from_emission_base
+        and to_emission_base
+        and from_emission_base[1] == to_emission_base[1]
+    ):
+        base_from_unit, gas_tag = from_emission_base
+        base_to_unit, _ = to_emission_base
+        if base_from_unit != base_to_unit:
+            base_factor, base_audit = await _convert_component(
+                db, base_from_unit, base_to_unit, context, user_overrides
+            )
+            return base_factor, {
+                "factor": base_factor,
+                "method": "emission_mass_component",
+                "gas_tag": gas_tag,
+                "base_conversion": base_audit,
+            }
+
     chained_result = await _find_chained_conversion(db, from_unit, to_unit, 1.0)
     if chained_result:
         _, audit = chained_result
