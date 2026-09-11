@@ -126,7 +126,9 @@ export function validateEditSubmission(ctx) {
 
   if (monthlyDayLimit !== undefined) {
     for (const field of (dynamicInputFields || []).filter(isAnnualDayCountField)) {
-      const value = Number.parseFloat(dynamicFieldValues[field.variable] ?? dynamicFieldValues[field.fieldKey]);
+      const rawValue = dynamicFieldValues[field.variable] ?? dynamicFieldValues[field.fieldKey];
+      const fieldValue = rawValue && typeof rawValue === 'object' ? rawValue.value : rawValue;
+      const value = Number.parseFloat(fieldValue);
       if (Number.isFinite(value) && value > monthlyDayLimit) {
         return {
           valid: false,
