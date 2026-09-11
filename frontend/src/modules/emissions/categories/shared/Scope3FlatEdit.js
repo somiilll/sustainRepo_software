@@ -165,6 +165,30 @@ export function validateEditSubmission(ctx) {
   if (isC8AllocationApplicable && !allocationMethod) {
     return { valid: false, errorMessage: 'Please select an allocation method' };
   }
+  if (isC8AllocationApplicable && allocationMethod === 'floor_area_share') {
+    const floorShareField = (dynamicInputFields || []).find((field) => {
+      const fieldIdentity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+      return /floor.*(?:area|share)|(?:area|share).*floor/i.test(fieldIdentity);
+    });
+    const fallbackFloorShareKey = [
+      'floor_share_percent',
+      'floor_share_percentage',
+      'floor_area_share_percent',
+      'floor_area_share_percentage',
+    ].find((key) => Object.prototype.hasOwnProperty.call(dynamicFieldValues || {}, key));
+    const floorShareKey = floorShareField?.variable || floorShareField?.fieldKey || fallbackFloorShareKey;
+    const rawFloorShareValue = floorShareKey ? dynamicFieldValues?.[floorShareKey] : undefined;
+    const floorShareValue = rawFloorShareValue && typeof rawFloorShareValue === 'object'
+      ? rawFloorShareValue.value
+      : rawFloorShareValue;
+    const parsedFloorShare = Number.parseFloat(floorShareValue);
+    if (!Number.isFinite(parsedFloorShare) || parsedFloorShare <= 0) {
+      return {
+        valid: false,
+        errorMessage: 'Floor Share % is required and must be greater than 0 when Floor Area Share is selected',
+      };
+    }
+  }
   if (scope3Method === 'supplier_basis' && useCustomActivity) {
     if (!scope3CustomActivity?.trim()) {
       return { valid: false, errorMessage: 'Please enter a custom activity name' };
