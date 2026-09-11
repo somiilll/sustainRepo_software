@@ -23,6 +23,8 @@ class C7MonthlyEntryCreate(BaseModel):
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
     submission_batch_id: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
@@ -55,6 +57,8 @@ class C7MonthlyEntryResponse(BaseModel):
     monthly_total: Dict[str, Any]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
     evidence_url: Optional[str] = None
     responsible_person: Optional[str] = None
     version: int = 1
@@ -80,6 +84,8 @@ class C7YearlyEntryCreate(BaseModel):
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
@@ -119,6 +125,8 @@ class C7YearlyEntryResponse(BaseModel):
     yearly_total: Dict[str, Any]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
     evidence_url: Optional[str] = None
     responsible_person: Optional[str] = None
     version: int = 1
