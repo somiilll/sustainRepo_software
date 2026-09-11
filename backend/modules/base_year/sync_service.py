@@ -88,6 +88,25 @@ def _is_record_in_base_year(record: Dict[str, Any], base_year: str) -> bool:
     return year == start_year
 
 
+def _is_sink_entry(entry: Dict[str, Any]) -> bool:
+    return bool(entry.get("isSink")) or str(entry.get("scope") or "").strip().lower() == "sinks"
+
+
+def _preserved_sink_entries(base_year_record: Dict[str, Any], existing_emissions: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    """Keep the Base Year sink snapshot; sink records are not GHG log records."""
+    current_sinks = [entry for entry in existing_emissions if _is_sink_entry(entry)]
+    if current_sinks:
+        return current_sinks
+
+    # Recover sinks lost by the historic auto-sync behaviour from the most recent snapshot.
+    for version in reversed(base_year_record.get("version_history") or []):
+        snapshot_entries = version.get("emissions_data") or version.get("previous_emissions_data") or []
+        historical_sinks = [entry for entry in snapshot_entries if _is_sink_entry(entry)]
+        if historical_sinks:
+            return historical_sinks
+    return []
+
+
 async def sync_base_year_emissions_for_entity(
     entity_type: str,
     entity_id: str,
@@ -182,12 +201,14 @@ async def sync_base_year_emissions_for_entity(
             })
 
     existing_emissions = base_year_record.get("emissions_data", [])
-    manual_entries = [entry for entry in existing_emissions if entry.get("isManuallyAdded")]
+    manual_entries = [entry for entry in existing_emissions if entry.get("isManuallyAdded") and not _is_sink_entry(entry)]
+    sink_entries = _preserved_sink_entries(base_year_record, existing_emissions)
+    preserved_entries = [*manual_entries, *sink_entries]
     synced_keys = {(entry["scope"], entry["category"], entry.get("subcategory", "")) for entry in new_emissions_data}
-    for manual_entry in manual_entries:
-        key = (manual_entry["scope"], manual_entry["category"], manual_entry.get("subcategory", ""))
+    for preserved_entry in preserved_entries:
+        key = (preserved_entry["scope"], preserved_entry["category"], preserved_entry.get("subcategory", ""))
         if key not in synced_keys:
-            new_emissions_data.append(manual_entry)
+            new_emissions_data.append(preserved_entry)
 
     entry_changes = compare_entries(existing_emissions, new_emissions_data)
     if not entry_changes:
