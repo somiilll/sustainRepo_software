@@ -1019,12 +1019,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           },
         };
       }));
-      markFormDirty();
+      setIsFormDirty(true);
       toast.success('Evidence uploaded successfully');
     } catch (error) {
       throw new Error(getUploadErrorMessage(error, file));
     }
-  }, [getAuthHeader, markFormDirty, setEditEmployees]);
+  }, [getAuthHeader, setEditEmployees]);
 
   const handleC7EditEvidenceRemove = useCallback(async (employeeId, periodKey, evidenceIndex) => {
     const employee = editEmployees.find((entry) => entry.id === employeeId);
@@ -1058,9 +1058,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         },
       };
     }));
-    markFormDirty();
+    setIsFormDirty(true);
     toast.success('Evidence removed');
-  }, [editEmployees, getAuthHeader, markFormDirty, setDraftField, setEditEmployees]);
+  }, [editEmployees, getAuthHeader, setDraftField, setEditEmployees]);
 
   const fetchHistory = async (emission) => {
     if (isSupplierUser) return;
