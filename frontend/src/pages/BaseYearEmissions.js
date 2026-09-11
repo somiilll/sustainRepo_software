@@ -1891,37 +1891,30 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         </div>
 
         {/* Unified Base Year Ledger */}
-        <div className="border border-stone-200 rounded-xl overflow-hidden bg-white shadow-sm">
+        <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm">
           
           {/* ========== ORGANIZATION ROW ========== */}
           {(user?.role === 'admin' || user?.role === 'user') && organization && (statusFilter === 'all' || statusFilter === getOrganizationStatus()) && (
-            <div className="bg-gradient-to-r from-primary/5 to-transparent">
+            <div className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-sky-50 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
               {/* Organization Ledger Row */}
               <div
-                className="w-full px-4 py-3 flex items-center gap-4 text-left"
+                className={`grid w-full gap-3 px-4 py-4 text-left sm:items-stretch ${hasScope3Access ? 'sm:grid-cols-[minmax(15rem,1.25fr)_minmax(18rem,1fr)_minmax(18rem,1fr)_auto]' : 'sm:grid-cols-[minmax(15rem,1.25fr)_minmax(18rem,1fr)_auto]'}`}
                 data-testid="base-year-organization-ledger-row"
               >
                 {/* Organization Name */}
-                <div className="min-w-0 w-44 sm:w-56 lg:w-72">
+                <div className="min-w-0 self-center">
                   <div className="flex items-center gap-2">
-                    <Building className="w-4 h-4 text-primary flex-shrink-0" />
-                    <p className="overflow-hidden font-semibold text-text-primary" title={organization.name} data-testid="base-year-organization-name" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{organization.name}</p>
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><Building className="h-4 w-4" /></div>
+                    <div className="min-w-0">
+                      <p className="overflow-hidden font-semibold text-text-primary" title={organization.name} data-testid="base-year-organization-name" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{organization.name}</p>
+                      <Badge variant="outline" className="mt-1 border-emerald-200 bg-emerald-50 text-[10px] font-semibold text-emerald-700">Corporate Base Year</Badge>
+                    </div>
                   </div>
                 </div>
                 
-                {/* Type Column */}
-                <div className="hidden sm:block min-w-[100px]">
-                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">
-                    Organization
-                  </Badge>
-                </div>
-                
-                {/* Spacer - pushes scope cards to the right */}
-                <div className="hidden w-16 lg:block xl:w-28" />
-                
                 {/* Scope 1 & 2 Base Year - Clickable Card */}
                 <div 
-                  className="relative hidden min-w-[150px] rounded-lg border border-blue-100 bg-blue-50/50 p-2 pr-8 transition-colors hover:bg-blue-100/50 sm:block cursor-pointer"
+                  className="relative hidden min-h-[84px] w-full cursor-pointer rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-3 pr-10 shadow-sm transition-[transform,box-shadow,background-color] hover:-translate-y-0.5 hover:bg-blue-50 sm:block"
                   onClick={(e) => {
                     e.stopPropagation();
                     const record = getEntityRecord('organization', organization.id, 'scope12');
@@ -1943,12 +1936,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   {user?.role !== 'user' && getEntityRecord('organization', organization.id, 'scope12') && <Button variant="ghost" size="icon" className="absolute right-1 top-8 h-6 w-6 text-blue-700 hover:bg-blue-100" title="Change base year" aria-label="Change Scope 1 and 2 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(getEntityRecord('organization', organization.id, 'scope12')); }} data-testid="organization-scope12-ledger-change-button"><CalendarClock className="h-3.5 w-3.5" /></Button>}
                 </div>
 
-                 <div className="hidden w-4 lg:block xl:w-8" />
-                
                 {/* Scope 3 Base Year - Clickable Card */}
                 {hasScope3Access && (
                   <div 
-                    className="relative hidden min-w-[150px] rounded-lg border border-purple-100 bg-purple-50/50 p-2 pr-8 transition-colors hover:bg-purple-100/50 sm:block cursor-pointer"
+                    className="relative hidden min-h-[84px] w-full cursor-pointer rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 p-3 pr-10 shadow-sm transition-[transform,box-shadow,background-color] hover:-translate-y-0.5 hover:bg-violet-50 sm:block"
                     onClick={(e) => {
                       e.stopPropagation();
                       const record = getEntityRecord('organization', organization.id, 'scope3');
@@ -1971,11 +1962,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   </div>
                 )}
                 
-                {/* Gap before status */}
-                <div className="flex-1" />
-                
                 {/* Status Badge */}
-                <div className="flex-shrink-0">
+                <div className="flex flex-wrap items-center gap-1 self-center">
                   {getStatusBadge(getOrganizationStatus())}
                 </div>
                 
@@ -2128,34 +2116,27 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               const scope3Record = hasScope3Access ? getEntityRecord('facility', facility.id, 'scope3') : null;
               
               return (
-                <div key={facility.id} className="border-t border-stone-100">
+                <div key={facility.id} className="rounded-xl border border-stone-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
                   {/* Facility Ledger Row */}
                   <div
-                    className="w-full px-4 py-3 flex items-center gap-4 text-left"
+                    className={`grid w-full gap-3 px-4 py-4 text-left sm:items-stretch ${hasScope3Access ? 'sm:grid-cols-[minmax(15rem,1.25fr)_minmax(18rem,1fr)_minmax(18rem,1fr)_auto]' : 'sm:grid-cols-[minmax(15rem,1.25fr)_minmax(18rem,1fr)_auto]'}`}
                     data-testid={`base-year-facility-ledger-row-${facility.id}`}
                   >
                     {/* Facility Name & Location */}
-                    <div className="min-w-0 w-44 sm:w-56 lg:w-72">
-                      <p className="overflow-hidden font-medium text-text-primary" title={facility.name} data-testid={`base-year-facility-name-${facility.id}`} style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{facility.name}</p>
-                      <p className="text-xs text-text-muted flex items-center gap-1 truncate">
-                        <MapPin className="w-3 h-3" />
-                        {facility.city}, {facility.state}
-                      </p>
+                    <div className="min-w-0 self-center">
+                      <div className="flex items-start gap-2">
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600"><Building2 className="h-4 w-4" /></div>
+                        <div className="min-w-0">
+                          <p className="overflow-hidden font-medium text-text-primary" title={facility.name} data-testid={`base-year-facility-name-${facility.id}`} style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{facility.name}</p>
+                          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-text-muted"><MapPin className="h-3 w-3" />{facility.city}, {facility.state}</p>
+                          <Badge variant="outline" className="mt-1 border-stone-200 bg-stone-50 text-[10px] font-semibold text-stone-600">Facility</Badge>
+                        </div>
+                      </div>
                     </div>
-                    
-                    {/* Type Column */}
-                    <div className="hidden sm:block min-w-[100px]">
-                      <Badge variant="outline" className="bg-stone-50 text-stone-600 border-stone-200 text-xs">
-                        Facility
-                      </Badge>
-                    </div>
-                    
-                    {/* Spacer - pushes scope cards to the right */}
-                    <div className="hidden w-16 lg:block xl:w-28" />
                     
                     {/* Scope 1 & 2 Base Year - Clickable Card */}
                     <div 
-                      className="relative hidden min-w-[150px] rounded-lg border border-blue-100 bg-blue-50/50 p-2 pr-8 transition-colors hover:bg-blue-100/50 sm:block cursor-pointer"
+                      className="relative hidden min-h-[84px] w-full cursor-pointer rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-3 pr-10 shadow-sm transition-[transform,box-shadow,background-color] hover:-translate-y-0.5 hover:bg-blue-50 sm:block"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (scope12Record) {
@@ -2176,12 +2157,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       {scope12Record && canEditRecordSync(scope12Record) && <Button variant="ghost" size="icon" className="absolute right-1 top-8 h-6 w-6 text-blue-700 hover:bg-blue-100" title="Change base year" aria-label="Change Scope 1 and 2 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(scope12Record); }} data-testid={`facility-${facility.id}-scope12-ledger-change-button`}><CalendarClock className="h-3.5 w-3.5" /></Button>}
                     </div>
 
-                    <div className="hidden w-4 lg:block xl:w-8" />
-                    
                     {/* Scope 3 Base Year - Clickable Card */}
                     {hasScope3Access && (
                       <div 
-                        className="relative hidden min-w-[150px] rounded-lg border border-purple-100 bg-purple-50/50 p-2 pr-8 transition-colors hover:bg-purple-100/50 sm:block cursor-pointer"
+                        className="relative hidden min-h-[84px] w-full cursor-pointer rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 p-3 pr-10 shadow-sm transition-[transform,box-shadow,background-color] hover:-translate-y-0.5 hover:bg-violet-50 sm:block"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (scope3Record) {
@@ -2203,11 +2182,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       </div>
                     )}
                     
-                    {/* Gap before status */}
-                    <div className="flex-1" />
-                    
                     {/* Status Badge */}
-                    <div className="flex-shrink-0">
+                    <div className="flex items-center self-center">
                       {getStatusBadge(facilityStatus)}
                     </div>
                   </div>
