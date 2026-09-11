@@ -382,6 +382,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **Data cleanup — September 8, 2026:** At user request, permanently removed Org1 Base Year data: 6 active Base Year records, 0 append-only audit events, and 14 historical deletion records. Verified zero remaining Base Year records/history documents for organization ID `9067d872-8a3a-4ed9-8494-e3ef04952f7c`.
 - **P0 (completed September 8, 2026):** Rebuilt Base Year audit history as append-only events. It now records configuration, base-year changes, manual base-year value edits, automatic recalculations caused by underlying GHG entries, and deletion. Events retain actor, timestamp, written reason where required, before/after totals, category/subcategory deltas, and a link to the originating GHG entry. Base Year deletion now requires a written reason and its history remains accessible after deletion.
 - **P0 note:** Existing legacy Base Year `version_history` arrays remain readable as fallback. New activity is stored in `base_year_history_events`; a later P2 migration can normalize historic records into the new event model.
 - **P0:** Existing Scope 1 records uploaded before September 8 may retain incorrect Carbon Content, Oxidation Factor, or EF Quantity override metadata; migrate only after explicit approval.
