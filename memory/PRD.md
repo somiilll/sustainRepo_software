@@ -382,6 +382,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **Base Year card density refinement — September 8, 2026:** Increased label-to-detail spacing within every Scope card to 20px, using the card height intentionally rather than leaving visual dead space. History and Change Base Year icons now sit 12px apart with consistent right/top insets across organization and facility cards.
 - **Base Year Scope-card spacing — September 8, 2026:** Added a deliberate 12px visual separation between the Scope label and its single Base Year/value row. Removed the remaining `Editable` tags from both Base Year setup emissions and edit emissions headers.
 - **Base Year Scope-card refinement — September 8, 2026:** Scope-card Base Year and tCO₂e value now share one horizontal row. Scope 1 & 2 cards display one figure only: Net emissions when Sinks exist, otherwise gross emissions. Removed the unnecessary Editable/View Only badge from the Base Year detail dialog opened from a ledger card.
 - **Base Year ledger correctness — September 8, 2026:** Standardized every organization/facility ledger row onto fixed shared grid tracks (Entity / Scope 1 & 2 / Scope 3 / Status), removing content-dependent Scope-card misalignment.
