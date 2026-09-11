@@ -137,6 +137,7 @@ export default function Sinks() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSink, setEditingSink] = useState(null);
+  const [selectedEditMonth, setSelectedEditMonth] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingMonth, setUploadingMonth] = useState(null);
   const { getAuthHeader, user } = useAuth();
@@ -468,7 +469,8 @@ export default function Sinks() {
         return parseFloat(val) > 0;
       });
 
-      if (monthsWithData.length === 0) {
+      const editedMonthValue = isEditMode ? parseFloat(getMonthValue(editMonth)) : null;
+      if ((isEditMode && !(editedMonthValue > 0)) || (!isEditMode && monthsWithData.length === 0)) {
         errors.monthly_value = 'Enter a carbon offset greater than zero for at least one month.';
       }
     }
@@ -501,7 +503,7 @@ export default function Sinks() {
           });
         } else {
           // Monthly record edit
-          const monthIndex = editingSink.reporting_month ?? 0;
+          const monthIndex = editMonth ?? 0;
           const entry = monthlyData[monthIndex];
           const value = typeof entry === 'object' ? entry.value : entry;
           const evidence = typeof entry === 'object' ? (entry.evidence || []) : [];
@@ -622,6 +624,7 @@ export default function Sinks() {
 
     // Set frequency type
     setFrequencyType(freq);
+    setSelectedEditMonth(freq === 'yearly' ? null : month);
 
     // Restore evidence files
     const evidenceFiles = sink.evidence_files || (sink.evidence_urls || []).map((url, i) => ({
@@ -651,6 +654,7 @@ export default function Sinks() {
     setYearlyData({ value: '', evidence: [] });
     setFrequencyType('monthly');
     setEditingSink(null);
+    setSelectedEditMonth(null);
     setFormErrors({});
   };
 
@@ -752,7 +756,7 @@ export default function Sinks() {
   // Determine which months to show in form
   const isEditMode = !!editingSink;
   const isEditingYearly = isEditMode && (editingSink?.frequency_type === 'yearly' || editingSink?.reporting_month === null);
-  const editMonth = isEditingYearly ? null : (editingSink?.reporting_month ?? (editingSink?.start_date ? new Date(editingSink.start_date).getMonth() : null));
+  const editMonth = isEditingYearly ? null : (selectedEditMonth ?? editingSink?.reporting_month ?? (editingSink?.start_date ? new Date(editingSink.start_date).getMonth() : null));
 
   if (loading) {
     return (
@@ -789,7 +793,7 @@ export default function Sinks() {
                   Please correct the highlighted field{Object.keys(formErrors).length > 1 ? 's' : ''} before saving.
                 </div>
               )}
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Facility <span className="text-red-600">*</span></Label>
                   <Select
@@ -798,7 +802,6 @@ export default function Sinks() {
                       setFormData(prev => ({ ...prev, facility_id: value }));
                       clearFormError('facility_id');
                     }}
-                    disabled={isEditMode}
                   >
                     <SelectTrigger className={`bg-stone-50 ${formErrors.facility_id ? 'border-red-500 ring-1 ring-red-200' : ''}`} aria-invalid={Boolean(formErrors.facility_id)} data-testid="sink-facility-select">
                       <SelectValue placeholder="Select a facility" />
@@ -839,34 +842,30 @@ export default function Sinks() {
                   </Select>
                   {formErrors.reporting_year && <p className="text-xs font-medium text-red-600" data-testid="sink-year-error">{formErrors.reporting_year}</p>}
                 </div>
-              </div>
-
-              {/* Data Entry Frequency Selection */}
-              <div className="space-y-2">
-                <Label>Data Entry Frequency <span className="text-red-600">*</span></Label>
-                <select
-                  value={frequencyType}
-                  onChange={(e) => {
-                    const newFreq = e.target.value;
-                    setFrequencyType(newFreq);
-                    clearFormError('yearly_value');
-                    clearFormError('monthly_value');
-                    if (newFreq === 'monthly') {
-                      setYearlyData({ value: '', evidence: [] });
-                    } else {
-                      setMonthlyData({});
-                    }
-                  }}
-                  disabled={isEditMode}
-                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${isEditMode ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  data-testid="sink-frequency-select"
-                >
-                  <option value="monthly">Monthly</option>
-                  <option value="yearly">Yearly (Annual Total)</option>
-                </select>
-                {isEditMode && (
-                  <p className="text-xs text-amber-600">Frequency is locked when editing</p>
-                )}
+                <div className="space-y-2">
+                  <Label>Data Entry Frequency <span className="text-red-600">*</span></Label>
+                  <select
+                    value={frequencyType}
+                    onChange={(e) => {
+                      const newFreq = e.target.value;
+                      setFrequencyType(newFreq);
+                      clearFormError('yearly_value');
+                      clearFormError('monthly_value');
+                      if (newFreq === 'monthly') {
+                        setYearlyData({ value: '', evidence: [] });
+                      } else {
+                        setMonthlyData({});
+                      }
+                    }}
+                    disabled={isEditMode}
+                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${isEditMode ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    data-testid="sink-frequency-select"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly (Annual Total)</option>
+                  </select>
+                  {isEditMode && <p className="text-xs text-amber-600">Frequency is locked when editing</p>}
+                </div>
               </div>
 
               {/* Frequency Badge */}
@@ -958,8 +957,38 @@ export default function Sinks() {
               ) : (
                 /* Monthly Data Entry */
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>{isEditMode ? `${MONTHS[editMonth]} Offset (tCO2e)` : 'Monthly Carbon Offset (tCO2e)'} <span className="text-red-600">*</span></Label>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    {isEditMode ? (
+                      <div className="space-y-2">
+                        <Label>Month <span className="text-red-600">*</span></Label>
+                        <Select value={String(editMonth ?? '')} onValueChange={(value) => {
+                          const nextMonth = Number(value);
+                          setMonthlyData((current) => {
+                            if (current[nextMonth]) return current;
+                            const currentEntry = current[editMonth];
+                            return {
+                              ...current,
+                              [nextMonth]: currentEntry
+                                ? { ...currentEntry, evidence: [...(currentEntry.evidence || [])] }
+                                : { value: '', evidence: [] },
+                            };
+                          });
+                          setSelectedEditMonth(nextMonth);
+                          clearFormError('monthly_value');
+                        }}>
+                          <SelectTrigger className="w-full bg-stone-50 sm:w-52" data-testid="sink-edit-month-select">
+                            <SelectValue placeholder="Select month" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getOrderedMonthIndices().map((monthIndex) => (
+                              <SelectItem key={monthIndex} value={String(monthIndex)}>{getMonthLabelWithYear(monthIndex, formData.reporting_year)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <Label>Monthly Carbon Offset (tCO2e) <span className="text-red-600">*</span></Label>
+                    )}
                     {!isEditMode && (
                       <span className="text-sm font-medium text-green-600" data-testid="sink-total-value">
                         Total: {totalFromMonthly.toFixed(2)} tCO2e

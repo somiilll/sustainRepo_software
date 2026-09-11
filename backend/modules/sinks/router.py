@@ -142,6 +142,11 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
     # frequency_type is preserved from the original record — not editable.
     existing_frequency = existing.get("frequency_type", "monthly")
     organization = await db.organizations.find_one({"id": existing.get("organization_id")}, {"_id": 0})
+    target_facility = await db.facilities.find_one({"id": sink_data.facility_id}, {"_id": 0, "organization_id": 1})
+    if not target_facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    if target_facility.get("organization_id") != existing.get("organization_id"):
+        raise HTTPException(status_code=403, detail="A sink can only be reassigned to a facility in the same organization")
     try:
         period_fields = canonical_sink_period_fields(
             sink_data.reporting_period,
