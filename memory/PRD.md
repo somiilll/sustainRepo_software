@@ -382,6 +382,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **Bug fix — September 8, 2026:** Sinks create, update, and delete actions now synchronize matching Scope 1 & 2 Base Year records at both facility and organization level when the sink belongs to that Base Year period. The Base Year snapshot, version, net result, and audit timeline update automatically with a linked Sinks reference and old/new removal value.
 - **Base Year view polish — September 8, 2026:** Simplified the Base Year read-only dialog by removing the visible Base Year Justification and separate “Total Carbon Sinks” summary. Scope 1 & 2 totals now show gross Total Emissions plus Net Emissions only when configured sink rows exist; the Sinks row remains visible in the data table.
 - **Data cleanup — September 8, 2026:** At a later user confirmation, permanently removed the subsequently created Org1 Base Year record and its audit stream: 1 active Base Year record and 2 append-only audit events. Verified zero remaining documents across all Base Year collections for Org1.
 - **Bug fix — September 8, 2026:** Automatic Base Year recalculation now preserves configured `Sinks` rows instead of replacing them while rebuilding GHG-log emissions. If an older automatic sync previously removed sink rows, the next recalculation restores them from the most recent Base Year version snapshot. Sinks therefore stay visible and are excluded from false “removed” recalculation differences.

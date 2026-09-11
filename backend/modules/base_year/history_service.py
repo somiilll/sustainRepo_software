@@ -61,7 +61,12 @@ def compare_entries(before: Optional[List[Dict[str, Any]]], after: Optional[List
 def _emission_total(emission: Optional[Dict[str, Any]]) -> Optional[float]:
     if not emission:
         return None
-    return _number(emission.get("total_emissions") or emission.get("co2e_emissions") or emission.get("calculated_co2e"))
+    return _number(
+        emission.get("total_emissions")
+        or emission.get("co2e_emissions")
+        or emission.get("calculated_co2e")
+        or emission.get("total_emissions_reduced")
+    )
 
 
 def emission_reference(
@@ -75,8 +80,8 @@ def emission_reference(
     return {
         "id": emission.get("id"),
         "scope": emission.get("scope"),
-        "category": emission.get("category"),
-        "subcategory": emission.get("scope3_activity") or emission.get("sub_category") or "",
+        "category": emission.get("category") or emission.get("sink_type") or emission.get("description") or "Carbon Sink",
+        "subcategory": emission.get("scope3_activity") or emission.get("sub_category") or emission.get("description") or "",
         "reporting_period": emission.get("reporting_period"),
         "action": action,
         "old_emissions": _emission_total(previous_emission),
@@ -96,6 +101,7 @@ async def record_base_year_event(
     source_before: Optional[Dict[str, Any]] = None,
     source_after: Optional[Dict[str, Any]] = None,
     source_action: Optional[str] = None,
+    source_type: str = "emission",
 ) -> Dict[str, Any]:
     """Persist one human-readable, immutable Base Year audit event."""
     event = {
@@ -111,6 +117,7 @@ async def record_base_year_event(
         "reason": reason,
         "entry_changes": entry_changes or [],
         "source_emission": emission_reference(source_before, source_after, source_action),
+        "source_type": source_type,
         "actor": {
             "id": actor.get("id"),
             "name": actor.get("full_name") or actor.get("name") or actor.get("email") or "Unknown",

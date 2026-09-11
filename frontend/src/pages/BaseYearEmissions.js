@@ -154,6 +154,7 @@ const historyEventCopy = {
   base_year_updated: { title: 'Base year updated', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
   emissions_updated: { title: 'Base year emissions updated', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
   recalculated: { title: 'Recalculated automatically', badge: 'bg-sky-50 text-sky-700 border-sky-200' },
+  sinks_recalculated: { title: 'Sinks recalculated automatically', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   deleted: { title: 'Base year deleted', badge: 'bg-red-50 text-red-700 border-red-200' },
 };
 
@@ -207,14 +208,14 @@ function BaseYearHistoryTimeline({ events, loading }) {
             </div>
 
             {event.source_emission?.id && (
-              <a className="mt-3 inline-flex text-xs font-medium text-primary hover:underline" href={`/ghg?record_id=${encodeURIComponent(event.source_emission.id)}`} data-testid={`base-year-history-event-source-${event.id}`}>
-                View linked GHG entry: {event.source_emission.scope} · {event.source_emission.category} · {event.source_emission.reporting_period}
+              <a className="mt-3 inline-flex text-xs font-medium text-primary hover:underline" href={`${event.source_type === 'sink' ? '/sinks' : '/ghg'}?record_id=${encodeURIComponent(event.source_emission.id)}`} data-testid={`base-year-history-event-source-${event.id}`}>
+                {event.source_type === 'sink' ? 'View linked Sinks entry' : 'View linked GHG entry'}: {event.source_emission.category} · {event.source_emission.reporting_period}
               </a>
             )}
 
             {event.source_emission && (
               <p className="mt-1 text-xs text-text-secondary" data-testid={`base-year-history-event-source-values-${event.id}`}>
-                Source entry emissions: <span className="text-red-600">{event.source_emission.old_emissions == null ? '—' : formatTco2e(event.source_emission.old_emissions)}</span> → <span className="text-emerald-700">{event.source_emission.new_emissions == null ? '—' : formatTco2e(event.source_emission.new_emissions)}</span>
+                {event.source_type === 'sink' ? 'Sink removal' : 'Source entry emissions'}: <span className="text-red-600">{event.source_emission.old_emissions == null ? '—' : formatTco2e(event.source_emission.old_emissions)}</span> → <span className="text-emerald-700">{event.source_emission.new_emissions == null ? '—' : formatTco2e(event.source_emission.new_emissions)}</span>
               </p>
             )}
 

@@ -16,10 +16,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from modules.auth.dependencies import get_current_user
 from modules.sinks.contracts import SinkCreate, SinkResponse
 from modules.sinks.periods import canonical_sink_period_fields
+from modules.base_year.sync_service import sync_changed_sink_base_years
 from shared.database.mongo import db
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/sinks", response_model=SinkResponse)
@@ -87,6 +89,10 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         "updated_at": None,
     }
     await db.sinks.insert_one(sink_dict)
+    try:
+        await sync_changed_sink_base_years(None, sink_dict, current_user)
+    except Exception:
+        logger.exception("[BASE_YEAR_SINK_SYNC] Failed after creating sink %s", sink_dict["id"])
     
     # NOTE: Completion tracking removed - status is now computed on-the-fly by CompletionService
     
@@ -164,6 +170,10 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
         raise HTTPException(status_code=502, detail="Could not remove replaced evidence from storage. The sink was not updated.") from error
     await db.sinks.update_one({"id": sink_id}, {"$set": update_dict})
     updated = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    try:
+        await sync_changed_sink_base_years(existing, updated, current_user)
+    except Exception:
+        logger.exception("[BASE_YEAR_SINK_SYNC] Failed after updating sink %s", sink_id)
     return SinkResponse(**updated)
 
 
@@ -181,4 +191,8 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
     result = await db.sinks.delete_one({"id": sink_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Sink record not found")
+    try:
+        await sync_changed_sink_base_years(sink, None, current_user)
+    except Exception:
+        logger.exception("[BASE_YEAR_SINK_SYNC] Failed after deleting sink %s", sink_id)
     return {"message": "Sink record and associated files deleted successfully"}
