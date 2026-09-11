@@ -12,7 +12,7 @@
  * with the legacy shared inline implementation in `Emissions.js`.
  */
 
-import { getMonthlyReportingPeriodDayLimit, isAnnualDayCountField } from '../../ghg/emissions/shared/utils/reportingPeriodDays';
+import { getMonthlyReportingPeriodDayLimit, isAnnualDayCountField } from '../../../ghg/emissions/shared/utils/reportingPeriodDays';
 
 // ---------- field unit resolver ----------
 
