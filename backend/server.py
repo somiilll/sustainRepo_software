@@ -74,6 +74,12 @@ from modules.facilities.router import router as facilities_router
 from modules.organizations.router import router as organizations_router
 from modules.sinks.router import router as sinks_router
 from modules.base_year.sync_service import sync_base_year_emissions_for_entity
+from modules.base_year.history_service import (
+    build_snapshot,
+    compare_entries,
+    get_base_year_events,
+    record_base_year_event,
+)
 
 # Phase B4: emissions read/list router (POST/PUT remain in this file until Phase B5).
 from modules.emissions.router import router as emissions_router
@@ -2171,6 +2177,14 @@ async def create_base_year_emissions(
     
     await db.base_year_emissions.insert_one(record)
     record.pop("_id", None)
+    await record_base_year_event(
+        base_year_record=record,
+        event_type="configured",
+        before=None,
+        after=build_snapshot(record["base_year"], record["emissions_data"]),
+        actor=current_user,
+        reason=record["justification"],
+    )
     return record
 
 
@@ -2232,6 +2246,32 @@ async def get_base_year_emissions(
             record["justification"] = record.get("notes", "")
     
     return records
+
+
+@api_router.get("/base-year-emissions/history/{entity_type}/{entity_id}")
+async def get_base_year_history(
+    entity_type: str,
+    entity_id: str,
+    scope_group: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the readable, append-only Base Year audit trail for one entity."""
+    if entity_type not in {"organization", "facility"}:
+        raise HTTPException(status_code=400, detail="Entity type must be organization or facility")
+
+    user_org_id = current_user.get("organization_id")
+    if current_user.get("role") != "super_admin":
+        if entity_type == "organization" and entity_id != user_org_id:
+            raise HTTPException(status_code=403, detail="Not authorized to access this organization")
+        if entity_type == "facility":
+            facility = await db.facilities.find_one({"id": entity_id}, {"_id": 0, "organization_id": 1})
+            if not facility or facility.get("organization_id") != user_org_id:
+                raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+            if current_user.get("role") == "user" and entity_id not in (current_user.get("assigned_facilities") or []):
+                raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+
+    events = await get_base_year_events(entity_type, entity_id, scope_group)
+    return {"events": events, "total": len(events)}
 
 
 @api_router.get("/base-year-emissions/validate-for-report")
@@ -2445,6 +2485,17 @@ async def update_base_year_emissions(
     # Add default values for response
     if "scope_group" not in updated:
         updated["scope_group"] = "scope12"
+
+    if changed_fields:
+        await record_base_year_event(
+            base_year_record=updated,
+            event_type="base_year_updated" if change_type == "base_year_changed" else "emissions_updated",
+            before=build_snapshot(record.get("base_year"), record.get("emissions_data")),
+            after=build_snapshot(updated.get("base_year"), updated.get("emissions_data")),
+            actor=current_user,
+            reason=(data.notes or "Base year emissions were edited manually."),
+            entry_changes=compare_entries(record.get("emissions_data"), updated.get("emissions_data")),
+        )
     
     return updated
 
@@ -2452,12 +2503,15 @@ async def update_base_year_emissions(
 @api_router.delete("/base-year-emissions/{record_id}")
 async def delete_base_year_emissions(
     record_id: str,
+    deletion_reason: str = Query(..., min_length=1, description="Reason for deleting the base year"),
     current_user: dict = Depends(get_current_user)
 ):
     """Delete base year emissions record and store deletion in history (admin only)"""
     # Admin permission required
     if current_user.get("role") not in ("admin", "super_admin"):
         raise HTTPException(status_code=403, detail="Admin permission required to delete base year emissions")
+    if not deletion_reason.strip():
+        raise HTTPException(status_code=422, detail="A written reason is required to delete a base year")
     
     # Get the record first to store in deletion history
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
@@ -2506,10 +2560,18 @@ async def delete_base_year_emissions(
         "deleted_by": current_user["id"],
         "deleted_by_name": current_user.get("full_name", "Unknown"),
         "deleted_at": datetime.now(timezone.utc).isoformat(),
-        "deletion_reason": "User initiated deletion"
+        "deletion_reason": deletion_reason.strip()
     }
     
     await db.base_year_emissions_deletions.insert_one(deletion_record)
+    await record_base_year_event(
+        base_year_record={**record, "version": record.get("version", 1) + 1},
+        event_type="deleted",
+        before=build_snapshot(record.get("base_year"), record.get("emissions_data")),
+        after=None,
+        actor=current_user,
+        reason=deletion_reason.strip(),
+    )
     
     # Now delete the actual record
     await db.base_year_emissions.delete_one({"id": record_id})
@@ -2746,6 +2808,15 @@ async def change_base_year(
     )
     
     updated_record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    await record_base_year_event(
+        base_year_record=updated_record,
+        event_type="base_year_updated",
+        before=build_snapshot(old_base_year, record.get("emissions_data")),
+        after=build_snapshot(new_base_year, new_emissions_data),
+        actor=current_user,
+        reason=change_reason,
+        entry_changes=compare_entries(record.get("emissions_data"), new_emissions_data),
+    )
     return updated_record
 
 

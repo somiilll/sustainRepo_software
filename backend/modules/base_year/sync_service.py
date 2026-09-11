@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from shared.database.mongo import db
 from shared.utils.emission_records import eligible_ghg_record_filter, normalize_reporting_period
+from .history_service import build_snapshot, compare_entries, record_base_year_event
 
 
 def _base_year_range(base_year: str) -> Optional[tuple[bool, int, int]]:
@@ -92,6 +93,9 @@ async def sync_base_year_emissions_for_entity(
     entity_id: str,
     scope_group: str,
     current_user: Dict[str, Any],
+    source_before: Optional[Dict[str, Any]] = None,
+    source_after: Optional[Dict[str, Any]] = None,
+    source_action: Optional[str] = None,
 ) -> Dict[str, Any]:
     query: Dict[str, Any] = {"scope_group": scope_group}
     if entity_type == "facility":
@@ -185,6 +189,10 @@ async def sync_base_year_emissions_for_entity(
         if key not in synced_keys:
             new_emissions_data.append(manual_entry)
 
+    entry_changes = compare_entries(existing_emissions, new_emissions_data)
+    if not entry_changes:
+        return {"message": "Base year emissions already match source data", "synced": False}
+
     current_version = base_year_record.get("version", 1)
     version_history = base_year_record.get("version_history", [])
     version_history.append({
@@ -206,6 +214,20 @@ async def sync_base_year_emissions_for_entity(
             "updated_by": current_user.get("email"),
             "last_synced_at": now,
         }},
+    )
+
+    updated_record = {**base_year_record, "version": current_version + 1, "emissions_data": new_emissions_data}
+    await record_base_year_event(
+        base_year_record=updated_record,
+        event_type="recalculated",
+        before=build_snapshot(base_year_record.get("base_year"), existing_emissions),
+        after=build_snapshot(base_year_record.get("base_year"), new_emissions_data),
+        actor=current_user,
+        reason="Recalculated automatically after a linked GHG entry changed.",
+        entry_changes=entry_changes,
+        source_before=source_before,
+        source_after=source_after,
+        source_action=source_action,
     )
 
     return {
@@ -259,6 +281,15 @@ async def sync_changed_emission_base_years(
             _is_record_in_base_year(emission, base_year_record.get("base_year", ""))
             for emission in emissions
         ):
-            results.append(await sync_base_year_emissions_for_entity(entity_type, entity_id, scope_group, current_user))
+            source_action = "added" if previous_emission is None else "removed" if updated_emission is None else "updated"
+            results.append(await sync_base_year_emissions_for_entity(
+                entity_type,
+                entity_id,
+                scope_group,
+                current_user,
+                source_before=previous_emission,
+                source_after=updated_emission,
+                source_action=source_action,
+            ))
 
     return results
