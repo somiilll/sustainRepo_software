@@ -179,6 +179,10 @@ export function validateEditSubmission(ctx) {
     editProcessType,
     categoryCode,
   } = ctx;
+  const isCustomFugitiveFuel = editUseCustomFuel && (
+    categoryCode === 'fugitive_emissions'
+    || String(formData.category || '').toLowerCase().includes('fugitive')
+  );
 
   // 1. Override CV/density justifications (DOM-read)
   if (isOverrideCV && !formData.calorific_value_justification?.trim()) {
@@ -202,7 +206,7 @@ export function validateEditSubmission(ctx) {
   // 3. Every required field currently rendered by the configured form must
   // have a usable value. This prevents an earlier successful calculation from
   // allowing an incomplete edit to be saved.
-  if (dynamicInputFields?.length > 0) {
+  if (dynamicInputFields?.length > 0 && !isCustomFugitiveFuel) {
     for (const field of dynamicInputFields) {
       if (field.presentationOnly) continue;
       const isOxidationFactor = isOxidationFactorField(field);
@@ -238,29 +242,37 @@ export function validateEditSubmission(ctx) {
       return { valid: false, errorMessage: 'Quantity Used must be greater than 0' };
     }
 
-    const methodology = dynamicFieldValues.calculation_methodology?.value
-      || dynamicFieldValues.calculation_methodology
-      || ctx.editCalcMethodology
-      || 'using_heat_basis_ncv';
-    if (methodology === 'using_heat_basis_ncv') {
-      if (!isPositive(dynamicFieldValues.custom_ef)) {
-        return { valid: false, errorMessage: 'Emission Factor must be greater than 0' };
+    if (isCustomFugitiveFuel) {
+      const fugitiveGwp = dynamicFieldValues.co2_gwp_fugitives ?? dynamicFieldValues.gwp_fugitives;
+      if (!isPositive(fugitiveGwp)) {
+        return { valid: false, errorMessage: 'GWP Fugitives must be greater than 0' };
       }
-      if (!isPositive(dynamicFieldValues.custom_cv)) {
-        return { valid: false, errorMessage: 'Calorific Value must be greater than 0' };
-      }
-    } else if (methodology === 'using_qty_basis_ef') {
-      if (!isPositive(dynamicFieldValues.custom_ef)) {
-        return { valid: false, errorMessage: 'Emission Factor must be greater than 0' };
-      }
-    } else if (methodology === 'using_carbon_composition') {
-      const carbonContent = numericValue(dynamicFieldValues.custom_carbon_content);
-      const oxidationFactor = numericValue(dynamicFieldValues.custom_oxidation_factor);
-      if (!Number.isFinite(carbonContent) || carbonContent <= 0 || carbonContent > 100) {
-        return { valid: false, errorMessage: 'Carbon Content must be greater than 0 and no more than 100' };
-      }
-      if (!Number.isFinite(oxidationFactor) || oxidationFactor < 0 || oxidationFactor > 1) {
-        return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
+    } else {
+
+      const methodology = dynamicFieldValues.calculation_methodology?.value
+        || dynamicFieldValues.calculation_methodology
+        || ctx.editCalcMethodology
+        || 'using_heat_basis_ncv';
+      if (methodology === 'using_heat_basis_ncv') {
+        if (!isPositive(dynamicFieldValues.custom_ef)) {
+          return { valid: false, errorMessage: 'Emission Factor must be greater than 0' };
+        }
+        if (!isPositive(dynamicFieldValues.custom_cv)) {
+          return { valid: false, errorMessage: 'Calorific Value must be greater than 0' };
+        }
+      } else if (methodology === 'using_qty_basis_ef') {
+        if (!isPositive(dynamicFieldValues.custom_ef)) {
+          return { valid: false, errorMessage: 'Emission Factor must be greater than 0' };
+        }
+      } else if (methodology === 'using_carbon_composition') {
+        const carbonContent = numericValue(dynamicFieldValues.custom_carbon_content);
+        const oxidationFactor = numericValue(dynamicFieldValues.custom_oxidation_factor);
+        if (!Number.isFinite(carbonContent) || carbonContent <= 0 || carbonContent > 100) {
+          return { valid: false, errorMessage: 'Carbon Content must be greater than 0 and no more than 100' };
+        }
+        if (!Number.isFinite(oxidationFactor) || oxidationFactor < 0 || oxidationFactor > 1) {
+          return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
+        }
       }
     }
   }

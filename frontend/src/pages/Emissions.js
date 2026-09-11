@@ -2323,6 +2323,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         effectiveCalculatedEmissions,
         formData,
         capabilities: editCapabilities,
+        categoryCode: editGhgFormContext.categoryCode,
         // Scope 1 props
         isOverrideCV,
         isOverrideDensity,
