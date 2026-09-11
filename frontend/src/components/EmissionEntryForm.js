@@ -3213,6 +3213,7 @@ export default function EmissionEntryForm({
     categoryCode: ghgFormContext.categoryCode,
     isProcessEmissions: ghgFormContext.isProcessCategory,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
+    c7Evidence,
     matchedFormula: dynamicInputFieldsResult?.matchedFormula,
     // Helpers
     canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
@@ -3316,10 +3317,6 @@ export default function EmissionEntryForm({
           scope3Method={scope3Method}
           availableScope3Methods={availableScope3Methods}
           getMethodLabel={getMethodLabel}
-          showEvidence={isC7EmployeeCommuting}
-          evidenceFile={c7Evidence}
-          onEvidenceUpload={handleC7EvidenceUpload}
-          onEvidenceRemove={handleC7EvidenceRemove}
           scope3ActivityType={scope3ActivityType}
           availableScope3ActivityTypes={availableScope3ActivityTypes}
           requiresSubcategory={requiresSubcategory}
@@ -3481,6 +3478,10 @@ export default function EmissionEntryForm({
         <Step4Notes
           notes={notes}
           setNotes={setNotes}
+          showEvidence={isC7EmployeeCommuting}
+          evidenceFile={c7Evidence}
+          onEvidenceUpload={handleC7EvidenceUpload}
+          onEvidenceRemove={handleC7EvidenceRemove}
           selectedFacility={selectedFacility}
           scope={scope}
           category={category}
