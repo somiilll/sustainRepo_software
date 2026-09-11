@@ -83,6 +83,7 @@ const isRealNormalization = (entry) => (
   entry.step === 'convert'
   && entry.input
   && entry.output
+  && entry.note !== 'no conversion (missing unit specification)'
   && (entry.input.unit !== entry.output.unit || !valuesMatch(entry.input.value, entry.output.value))
 );
 
