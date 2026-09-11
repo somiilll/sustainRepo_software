@@ -24,6 +24,10 @@ import {
   isQuantityField,
   resolveDensityRequirement,
 } from '../utils/unitHelpers';
+import {
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../utils/reportingPeriodDays';
 import { buildNativeOptionsHtml } from '../utils/nativeSelectOptions';
 
 // Field-level help text shown on hover next to the label as an "i" icon.
@@ -54,6 +58,9 @@ export const getFieldUnits = ({
   centralizedUnits,
   biogenicScopeSelection,
   useCustomFuel = false,
+  frequencyType,
+  reportingYear,
+  reportingYearType,
 }) => {
   const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
   let fieldUnits = [];
@@ -127,6 +134,9 @@ export const DynamicFieldRenderer = ({
   centralizedUnits,
   biogenicScopeSelection,
   useCustomFuel = false,
+  frequencyType,
+  reportingYear,
+  reportingYearType,
   // Compound unit support — when set, dropdown options are suffixed with
   // "/<compoundSuffix>". Computed by the parent from the linked field's unit.
   compoundSuffix = '',
@@ -176,6 +186,11 @@ export const DynamicFieldRenderer = ({
     !field.variable?.includes('factor') && 
     !field.variable?.includes('carbon') &&
     !field.variable?.includes('composition');
+  const isMonthlyDayCountField = frequencyType === 'monthly' && isAnnualDayCountField(field);
+  const monthlyDayLimit = isMonthlyDayCountField
+    ? getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)
+    : undefined;
+  const inputMax = monthlyDayLimit ?? field.validationRules?.max;
 
   // For Qty Basis EF: density is dynamically required when EF unit denominator
   // dimension mismatches the fuel's quantity unit dimension for this month
@@ -229,12 +244,15 @@ export const DynamicFieldRenderer = ({
       }
     }
     
-    // Validation rules: max value check (e.g., oxidation_factor <= 1)
-    if (field.validationRules?.max !== undefined && val !== '' && val !== null) {
+    // Date-aware month limits take precedence for days/nights, otherwise use
+    // configured field limits such as oxidation_factor <= 1.
+    if (inputMax !== undefined && val !== '' && val !== null) {
       const numVal = parseFloat(val);
-      if (numVal > field.validationRules.max) {
+      if (numVal > inputMax) {
         const fieldName = field.label || field.variable;
-        toast.error(`${fieldName} cannot be greater than ${field.validationRules.max}`);
+        toast.error(isMonthlyDayCountField
+          ? `${fieldName} cannot exceed ${inputMax} days for ${monthKey}`
+          : `${fieldName} cannot be greater than ${inputMax}`);
         return;
       }
     }
@@ -324,7 +342,8 @@ export const DynamicFieldRenderer = ({
             type={field.fieldType === 'text' ? 'text' : 'number'}
             step={field.fieldType === 'number' ? (isUnitlessCountField ? '1' : 'any') : undefined}
             min={field.fieldType === 'number' ? '0' : undefined}
-            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+            max={inputMax}
+            placeholder={isMonthlyDayCountField ? `≤${monthlyDayLimit}` : (field.placeholder || `Enter ${field.label.toLowerCase()}`)}
             value={data[field.variable] || data[field.fieldKey] || ''}
             onChange={handleValueChange}
             onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}

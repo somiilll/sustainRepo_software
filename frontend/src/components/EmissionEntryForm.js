@@ -2575,6 +2575,9 @@ export default function EmissionEntryForm({
       centralizedUnits={centralizedUnits}
       biogenicScopeSelection={biogenicScopeSelection}
       useCustomFuel={useCustomFuel}
+      frequencyType={frequencyType}
+      reportingYear={reportingYear}
+      reportingYearType={reportingYearType}
       compoundSuffix={computeCompoundSuffix(field, data)}
     />
   );

@@ -12,7 +12,15 @@
  * with the legacy shared inline implementation in `Emissions.js`.
  */
 
+import { getMonthlyReportingPeriodDayLimit, isAnnualDayCountField } from '../../ghg/emissions/shared/utils/reportingPeriodDays';
+
 // ---------- field unit resolver ----------
+
+const getMonthlyLimitFromReportingPeriod = (reportingPeriod) => {
+  const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})$/);
+  if (!match) return undefined;
+  return getMonthlyReportingPeriodDayLimit(Number(match[2]), Number(match[1]));
+};
 
 const getFieldUnitForSave = (field, ctx) => {
   const { dynamicFieldValues, selectedFuel, scope3ActivityId, filteredScope3Activities, centralizedUnits, isScope3LikeSave } = ctx;
@@ -106,7 +114,26 @@ export function validateEditSubmission(ctx) {
     processNames,
     effectiveCalculatedEmissions,
     formData,
+    frequencyType,
+    categoryCode,
   } = ctx;
+
+  const isC6BusinessTravel = categoryCode === 'c6' || /^c6\b/i.test(formData?.category || '');
+  const monthlyDayLimit = frequencyType === 'monthly' && isC6BusinessTravel
+    ? getMonthlyLimitFromReportingPeriod(formData?.reporting_period)
+    : undefined;
+
+  if (monthlyDayLimit !== undefined) {
+    for (const field of (dynamicInputFields || []).filter(isAnnualDayCountField)) {
+      const value = Number.parseFloat(dynamicFieldValues[field.variable] ?? dynamicFieldValues[field.fieldKey]);
+      if (Number.isFinite(value) && value > monthlyDayLimit) {
+        return {
+          valid: false,
+          errorMessage: `${field.label} cannot exceed ${monthlyDayLimit} days for this reporting month`,
+        };
+      }
+    }
+  }
 
   // Required numeric inputs (only fields where isOverrideExplicitlyFalse)
   if (dynamicInputFields?.length > 0) {

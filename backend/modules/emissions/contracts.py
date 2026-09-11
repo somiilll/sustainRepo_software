@@ -5,9 +5,11 @@ These are the canonical request/response schemas for the emissions
 collection. Phase B4 extracts them; complex POST/PUT route handlers
 (which integrate the calc-engine + audit pipeline) move in Phase B5.
 """
+import calendar
+import re
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from shared.utils.emission_records import normalize_reporting_period_for_storage
 
@@ -118,6 +120,41 @@ class EmissionRecordCreate(BaseModel):
         if not normalized:
             raise ValueError("reporting_period must be a valid YYYY-MM, CYyyyy, or FY yyyy-yyyy value")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_monthly_c6_travel_counts(self):
+        """Keep monthly C6 travel counts within the actual calendar month."""
+        is_c6 = self.category_code == "c6" or bool(re.match(r"^c6\b", self.category or "", re.IGNORECASE))
+        if self.frequency_type != "monthly" or not is_c6:
+            return self
+
+        period_match = re.match(r"^(\d{4})-(\d{2})$", self.reporting_period or "")
+        if not period_match:
+            return self
+        year, month = map(int, period_match.groups())
+        max_days = calendar.monthrange(year, month)[1]
+        values = self.dynamic_field_values or {}
+        travel_fields = {
+            "qty_days_travelled": "No. of Days Travelled",
+            "no_of_days": "No. of Days Travelled",
+            "nights_stayed": "No. of Nights Stayed",
+            "number_of_nights": "No. of Nights Stayed",
+            "qty_nights": "No. of Nights Stayed",
+        }
+        for key, label in travel_fields.items():
+            raw_value = values.get(key)
+            value = raw_value.get("value") if isinstance(raw_value, dict) else raw_value
+            if value in (None, "") and key == "nights_stayed":
+                value = self.nights_stayed
+            if value in (None, ""):
+                continue
+            try:
+                numeric_value = float(value)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"{label} must be a valid number") from error
+            if numeric_value < 0 or numeric_value > max_days:
+                raise ValueError(f"{label} must be between 0 and {max_days} days for the reporting month")
+        return self
 
 
 class EmissionBatchRollbackRequest(BaseModel):

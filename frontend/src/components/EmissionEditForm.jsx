@@ -53,7 +53,9 @@ import {
   isQuantityField,
   resolveDensityRequirement,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import { getMonthlyReportingPeriodDayLimit, isAnnualDayCountField } from '../modules/ghg/emissions/shared/utils/reportingPeriodDays';
 import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
+import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -97,6 +99,12 @@ const isCarbonContentField = (field = {}) => {
 const isOxidationFactorField = (field = {}) => {
   const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
   return /oxidation.*factor|factor.*oxidation/i.test(identity);
+};
+
+const getMonthlyLimitFromReportingPeriod = (reportingPeriod) => {
+  const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})$/);
+  if (!match) return undefined;
+  return getMonthlyReportingPeriodDayLimit(Number(match[2]), Number(match[1]));
 };
 
 const hasNumericValue = (value) => (
@@ -887,6 +895,9 @@ export default function EmissionEditForm(props) {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
                         const isQtyField = isQuantityField(field);
+                        const monthlyDayLimit = editFrequencyType === 'monthly' && isAnnualDayCountField(field)
+                          ? getMonthlyLimitFromReportingPeriod(formData.reporting_period)
+                          : undefined;
                         const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
                         const showCustomFuelQuantityUnit = editUseCustomFuel && isQtyField;
                         const hideStandardQuantityUnit = false;
@@ -1114,12 +1125,16 @@ export default function EmissionEditForm(props) {
                                   type={field.fieldType === 'text' ? 'text' : 'number'}
                                   step={field.fieldType === 'number' ? 'any' : undefined}
                                   min={field.fieldType === 'number' ? '0' : undefined}
-                                  max={isOxidationFactorField(field) ? '1' : undefined}
-                                  placeholder={field.placeholder}
+                                  max={monthlyDayLimit ?? (isOxidationFactorField(field) ? '1' : undefined)}
+                                  placeholder={monthlyDayLimit ? `≤${monthlyDayLimit}` : field.placeholder}
                                   value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     const parsedValue = parseFloat(val);
+                                    if (monthlyDayLimit !== undefined && Number.isFinite(parsedValue) && parsedValue > monthlyDayLimit) {
+                                      toast.error(`${field.label} cannot exceed ${monthlyDayLimit} days for this reporting month`);
+                                      return;
+                                    }
                                     const isValidOxidationFactor = !isOxidationFactorField(field)
                                       || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1);
                                     if (field.fieldType === 'text' || val === '' || (parsedValue >= 0 && isValidOxidationFactor)) {

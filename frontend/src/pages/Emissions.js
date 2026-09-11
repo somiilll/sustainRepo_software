@@ -2322,8 +2322,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         processNames: formData.process_names,
         effectiveCalculatedEmissions,
         formData,
-        capabilities: editCapabilities,
+        frequencyType: editFrequencyType,
         categoryCode: editGhgFormContext.categoryCode,
+        capabilities: editCapabilities,
         // Scope 1 props
         isOverrideCV,
         isOverrideDensity,

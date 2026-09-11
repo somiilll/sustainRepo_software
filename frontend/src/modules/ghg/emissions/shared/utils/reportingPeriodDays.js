@@ -2,6 +2,9 @@ const ANNUAL_DAY_COUNT_FIELDS = new Set([
   'working_days',
   'qty_days_travelled',
   'no_of_days',
+  'nights_stayed',
+  'number_of_nights',
+  'qty_nights',
 ]);
 
 const MONTH_NUMBERS = {
