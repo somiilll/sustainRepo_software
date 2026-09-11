@@ -40,6 +40,11 @@ const getFieldUnitForSave = (field, ctx) => {
   return fieldUnits[0] || field.expectedUnit || '';
 };
 
+const isOxidationFactorField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /oxidation.*factor|factor.*oxidation/i.test(identity);
+};
+
 export function buildDynamicValues(ctx) {
   const { dynamicInputFields, dynamicFieldValues, formData } = ctx;
   // PUT replaces this object. Build it solely from the fields active in the
@@ -199,11 +204,22 @@ export function validateEditSubmission(ctx) {
   // allowing an incomplete edit to be saved.
   if (dynamicInputFields?.length > 0) {
     for (const field of dynamicInputFields) {
-      if (field.presentationOnly || !field.required || field.isOverride) continue;
+      if (field.presentationOnly) continue;
+      const isOxidationFactor = isOxidationFactorField(field);
+      if ((!field.required || field.isOverride) && !isOxidationFactor) continue;
       const value = dynamicFieldValues[field.variable];
       if (field.fieldType === 'number' || !field.fieldType) {
         const numValue = parseFloat(value);
-        if (value === '' || value === undefined || value === null || isNaN(numValue) || numValue <= 0) {
+        if (isOxidationFactor && (
+          !Number.isFinite(numValue) || numValue < 0 || numValue > 1
+        )) {
+          return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
+        }
+        if (!field.required || field.isOverride) continue;
+        if (
+          value === '' || value === undefined || value === null || isNaN(numValue)
+          || (!isOxidationFactor && numValue <= 0)
+        ) {
           return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
         }
       } else if (value === '' || value === undefined || value === null) {

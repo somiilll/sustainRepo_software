@@ -94,6 +94,11 @@ const isCarbonContentField = (field = {}) => {
     || /carbon.*content|composition.*carbon/i.test(field.label || '');
 };
 
+const isOxidationFactorField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /oxidation.*factor|factor.*oxidation/i.test(identity);
+};
+
 const hasNumericValue = (value) => (
   value !== undefined
   && value !== null
@@ -1116,11 +1121,15 @@ export default function EmissionEditForm(props) {
                                   type={field.fieldType === 'text' ? 'text' : 'number'}
                                   step={field.fieldType === 'number' ? 'any' : undefined}
                                   min={field.fieldType === 'number' ? '0' : undefined}
+                                  max={isOxidationFactorField(field) ? '1' : undefined}
                                   placeholder={field.placeholder}
                                   value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
+                                    const parsedValue = parseFloat(val);
+                                    const isValidOxidationFactor = !isOxidationFactorField(field)
+                                      || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1);
+                                    if (field.fieldType === 'text' || val === '' || (parsedValue >= 0 && isValidOxidationFactor)) {
                                       updateDynamicFieldValue(field.variable, val);
                                       // Also sync to formData for legacy compatibility
                                       if (isQtyField) {
