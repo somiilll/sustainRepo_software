@@ -280,6 +280,7 @@ export function hydrateEmissionForm(emission, config = {}) {
         }
         const monthInputs = existingMonthData.inputs || emp.inputs || {};
         const monthCalcDetails = existingMonthData.calculation_details || emp.calculation_details || null;
+        const monthEvidences = existingMonthData.evidences || emp.evidences || [];
         
         return {
           ...emp,
@@ -289,6 +290,7 @@ export function hydrateEmissionForm(emission, config = {}) {
               inputs: monthInputs,
               emissions: monthEmissions,
               calculation_details: monthCalcDetails,
+              evidences: monthEvidences,
             }
           }
         };
@@ -309,6 +311,7 @@ export function hydrateEmissionForm(emission, config = {}) {
         }
         const yearlyInputs = existingYearlyData.inputs || emp.inputs || {};
         const yearlyCalcDetails = existingYearlyData.calculation_details || emp.calculation_details || null;
+        const yearlyEvidences = existingYearlyData.evidences || emp.evidences || [];
         
         return {
           ...emp,
@@ -316,6 +319,7 @@ export function hydrateEmissionForm(emission, config = {}) {
             inputs: yearlyInputs,
             emissions: yearlyEmissions,
             calculation_details: yearlyCalcDetails,
+            evidences: yearlyEvidences,
           }
         };
       });

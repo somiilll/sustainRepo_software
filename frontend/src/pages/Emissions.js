@@ -31,6 +31,7 @@ import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/ut
 import { buildCustomFuelCalculationPayload } from './emissions/utils/customFuelCalcAdapter';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
 import { getEmissionUpdateErrorMessage } from './emissions/utils/apiErrorMessage';
+import { getUploadErrorMessage, validateFileSize } from '../lib/uploadUtils';
 import { categoryRegistry } from '../modules/emissions';
 import { formatEmissionQuantity, resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
 import {
@@ -976,6 +977,90 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     setUploadedEvidence,
     getAuthHeader,
   });
+
+  const handleC7EditEvidenceUpload = useCallback(async (employeeId, periodKey, file) => {
+    const sizeError = validateFileSize(file);
+    if (sizeError) throw new Error(sizeError);
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, uploadData, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
+      });
+      if (!response.data?.url) throw new Error('Evidence upload did not return a file URL');
+
+      const uploadedEvidence = {
+        url: response.data.url,
+        filename: response.data.filename || file.name,
+        file_id: response.data.file_id,
+        is_new: true,
+      };
+      setEditEmployees((currentEmployees) => currentEmployees.map((employee) => {
+        if (employee.id !== employeeId) return employee;
+        if (periodKey === 'yearly') {
+          return {
+            ...employee,
+            yearly_data: {
+              ...(employee.yearly_data || { inputs: {}, emissions: null }),
+              evidences: [...(employee.yearly_data?.evidences || []), uploadedEvidence],
+            },
+          };
+        }
+        const currentMonth = employee.monthly_data?.[periodKey] || { inputs: {}, emissions: null };
+        return {
+          ...employee,
+          monthly_data: {
+            ...employee.monthly_data,
+            [periodKey]: {
+              ...currentMonth,
+              evidences: [...(currentMonth.evidences || []), uploadedEvidence],
+            },
+          },
+        };
+      }));
+      markFormDirty();
+      toast.success('Evidence uploaded successfully');
+    } catch (error) {
+      throw new Error(getUploadErrorMessage(error, file));
+    }
+  }, [getAuthHeader, markFormDirty, setEditEmployees]);
+
+  const handleC7EditEvidenceRemove = useCallback(async (employeeId, periodKey, evidenceIndex) => {
+    const employee = editEmployees.find((entry) => entry.id === employeeId);
+    const periodData = periodKey === 'yearly'
+      ? employee?.yearly_data
+      : employee?.monthly_data?.[periodKey];
+    const evidenceToRemove = periodData?.evidences?.[evidenceIndex] || null;
+    const fileId = evidenceToRemove?.file_id || evidenceToRemove?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (evidenceToRemove?.is_new && fileId) {
+      await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
+    } else if (fileId) {
+      setDraftField('c7EvidenceIdsToDelete', (currentIds = []) => (
+        currentIds.includes(fileId) ? currentIds : [...currentIds, fileId]
+      ));
+    }
+
+    setEditEmployees((currentEmployees) => currentEmployees.map((employee) => {
+      if (employee.id !== employeeId) return employee;
+      const currentPeriodData = periodKey === 'yearly'
+        ? employee.yearly_data
+        : employee.monthly_data?.[periodKey];
+      const remainingEvidences = (currentPeriodData?.evidences || []).filter((_, index) => index !== evidenceIndex);
+      if (periodKey === 'yearly') {
+        return { ...employee, yearly_data: { ...employee.yearly_data, evidences: remainingEvidences } };
+      }
+      return {
+        ...employee,
+        monthly_data: {
+          ...employee.monthly_data,
+          [periodKey]: { ...currentPeriodData, evidences: remainingEvidences },
+        },
+      };
+    }));
+    markFormDirty();
+    toast.success('Evidence removed');
+  }, [editEmployees, getAuthHeader, markFormDirty, setDraftField, setEditEmployees]);
 
   const fetchHistory = async (emission) => {
     if (isSupplierUser) return;
@@ -2270,7 +2355,17 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         });
         
         if (response.data) {
+          const deletedFileResults = await Promise.allSettled(
+            (editDraft.c7EvidenceIdsToDelete || []).map((fileId) => axios.delete(
+              `${API}/files/${fileId}`,
+              { headers: getAuthHeader() },
+            )),
+          );
+          const failedFileDeletes = deletedFileResults.filter((result) => result.status === 'rejected').length;
           toast.success(`Updated ${employeesForSave.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
+          if (failedFileDeletes > 0) {
+            toast.error(`The record was saved, but ${failedFileDeletes} removed evidence file(s) could not be deleted.`);
+          }
           // NOTE: Audit log persistence (POST /calc-engine/execute-by-category)
           // is intentionally skipped for C7. The calc-engine endpoint expects
           // aggregated `dynamicFieldValues`-based inputs; C7's per-employee
@@ -3467,6 +3562,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   handleRemoveEvidence={handleRemoveEvidence}
                   handleDeleteExistingEvidence={handleDeleteExistingEvidence}
                   handleDeleteAllEvidences={handleDeleteAllEvidences}
+                  handleC7EvidenceUpload={handleC7EditEvidenceUpload}
+                  handleC7EvidenceRemove={handleC7EditEvidenceRemove}
                   handleDialogChange={handleDialogChange}
                   assignedReportingPeriod={supplierReportingConfig}
                 />

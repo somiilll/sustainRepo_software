@@ -177,6 +177,8 @@ const preserveCanonicalDynamicValues = (editingEmission) => Object.fromEntries(
   )
 );
 
+const sanitizeEvidences = (evidences = []) => evidences.map(({ is_new, ...evidence }) => evidence);
+
 /**
  * Build the exact PUT payload that the C7 edit dialog used to send.
  * Byte-identical with the prior inline implementation in Emissions.js.
@@ -275,12 +277,17 @@ export function buildEditPayload(ctx) {
           emissions: emp.yearly_data?.emissions || emp.emissions || {},
           calculation_details:
             emp.yearly_data?.calculation_details || emp.calculation_details,
-          evidences: emp.yearly_data?.evidences || emp.evidences || [],
+          evidences: sanitizeEvidences(emp.yearly_data?.evidences || emp.evidences || []),
         };
       }
       return {
         ...baseEmployee,
-        monthly_data: emp.monthly_data,
+        monthly_data: Object.fromEntries(
+          Object.entries(emp.monthly_data || {}).map(([monthKey, monthData]) => [
+            monthKey,
+            { ...monthData, evidences: sanitizeEvidences(monthData?.evidences || []) },
+          ])
+        ),
       };
     }),
     monthly_totals: isYearlyMode ? null : editEmployeeMonthlyTotals,

@@ -35,6 +35,7 @@
  * @property {Object} employeeYearlyTotal
  * @property {string|null} c7Month
  * @property {Array<Object>} existingEvidences
+ * @property {Array<string>} c7EvidenceIdsToDelete Unlinked C7 evidence files queued after a successful save.
  */
 
 export const createEmptyEmissionValues = (scope = 'scope1') => ({
@@ -112,6 +113,7 @@ export const createEmptyEmissionDraft = (scope = 'scope1') => ({
   employeeYearlyTotal: {},
   c7Month: null,
   existingEvidences: [],
+  c7EvidenceIdsToDelete: [],
 });
 
 /**

@@ -189,6 +189,8 @@ export default function EmissionEditForm(props) {
     handleRemoveEvidence,
     handleDeleteExistingEvidence,
     handleDeleteAllEvidences,
+    handleC7EvidenceUpload,
+    handleC7EvidenceRemove,
     handleDialogChange,
 
     // Optional props for approval mode
@@ -848,6 +850,9 @@ export default function EmissionEditForm(props) {
                       disabled={false}
                       isEditMode={true}
                       frequencyType={editFrequencyType}
+                      onEvidenceUpload={handleC7EvidenceUpload}
+                      onEvidenceRemove={handleC7EvidenceRemove}
+                      evidenceBackendUrl={BACKEND_URL}
                     />
                   </div>
                 )}
@@ -1511,9 +1516,9 @@ export default function EmissionEditForm(props) {
                 />
 
                 {/* Evidence Management Section */}
-                {readOnly ? readOnlyEvidenceContent : <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
+                {readOnly ? readOnlyEvidenceContent : (!isEditC7EmployeeCommuting || existingEvidences.length > 0) && <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
                   <div className="flex items-center justify-between">
-                    <Label>Evidence Documents</Label>
+                    <Label>{isEditC7EmployeeCommuting ? 'Legacy Record Evidence' : 'Evidence Documents'}</Label>
                     {existingEvidences.length > 0 && (
                       <Button
                         type="button"
