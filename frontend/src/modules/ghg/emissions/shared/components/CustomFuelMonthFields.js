@@ -244,7 +244,13 @@ const CustomFuelMonthFields = ({
               type="number" step="any" min="0" max="1"
               required
               value={data.custom_oxidation_factor || ''}
-              onChange={(e) => updateMonthData(monthKey, 'custom_oxidation_factor', e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                const parsedValue = Number.parseFloat(value);
+                if (value === '' || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1)) {
+                  updateMonthData(monthKey, 'custom_oxidation_factor', value);
+                }
+              }}
               placeholder="e.g. 1" className={`bg-white text-sm ${isYearlyEntry ? 'h-10' : 'h-9'}`}
               data-testid={`month-${monthKey}-custom-oxidation-factor`}
             />

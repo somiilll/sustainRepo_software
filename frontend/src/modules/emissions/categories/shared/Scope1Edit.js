@@ -243,8 +243,8 @@ export function validateEditSubmission(ctx) {
       if (!Number.isFinite(carbonContent) || carbonContent <= 0 || carbonContent > 100) {
         return { valid: false, errorMessage: 'Carbon Content must be greater than 0 and no more than 100' };
       }
-      if (!Number.isFinite(oxidationFactor) || oxidationFactor <= 0 || oxidationFactor > 1) {
-        return { valid: false, errorMessage: 'Oxidation Factor must be greater than 0 and no more than 1' };
+      if (!Number.isFinite(oxidationFactor) || oxidationFactor < 0 || oxidationFactor > 1) {
+        return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
       }
     }
   }
