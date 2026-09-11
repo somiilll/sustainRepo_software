@@ -781,13 +781,13 @@ export default function Sinks() {
                 Add Sink Record
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-[calc(100%-2rem)] max-w-4xl max-h-[calc(100dvh-2rem)] overflow-y-auto" data-testid="sink-record-dialog">
+            <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl flex-col gap-0 overflow-y-auto" data-testid="sink-record-dialog">
               <DialogHeader>
                 <DialogTitle className="text-xl font-heading">
                   {editingSink ? 'Edit Sink Record' : 'Add New Sink Record'}
                 </DialogTitle>
               </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-5 py-4" noValidate data-testid="sink-record-form">
+            <form onSubmit={handleSubmit} className="mt-4 space-y-5 pb-4" noValidate data-testid="sink-record-form">
               {Object.keys(formErrors).length > 0 && (
                 <div className="border-l-4 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" data-testid="sink-form-validation-summary">
                   Please correct the highlighted field{Object.keys(formErrors).length > 1 ? 's' : ''} before saving.
