@@ -382,6 +382,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **Emission Version History facility names — latest:** The frontend now passes the already loaded facilities list into Emission Version History and resolves `facility_id` old/new values to their facility names. Stored audit records remain unchanged; an ID is shown only if its facility is unavailable to the current frontend data. **NOT TESTED** per the user’s standing instruction.
 - **Fuel Type / Activity dropdown scrolling — latest:** Updated the shared searchable selector with bounded menu/list heights, an explicit vertical options scroll area, touch pan support, and contained wheel/touch events. This applies to both Fuel Type and Activity selectors in create and edit flows. **NOT TESTED** per the user’s standing instruction.
 - **Custom Fuel edit alignment — latest:** Removed the redundant “Fuel Name * / Custom fuel” caption from the Custom Fuel Edit field while retaining the required fuel-name input and Custom Fuel toggle. **NOT TESTED** per the user’s standing instruction.
 - **Custom Fugitive save validation — latest:** Scope 1 Edit now passes the category code into validation. Custom Fugitive Fuel bypasses Heat/Quantity/Carbon methodology checks and requires only Quantity plus GWP Fugitives; it no longer incorrectly asks for an Emission Factor. **NOT TESTED** per the user’s standing instruction.

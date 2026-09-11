@@ -3652,6 +3652,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           open={historyDialogOpen}
           onOpenChange={setHistoryDialogOpen}
           history={selectedEmissionHistory}
+          facilities={facilities}
         />
       )}
       

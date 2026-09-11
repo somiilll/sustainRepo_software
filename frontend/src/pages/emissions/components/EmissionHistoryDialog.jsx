@@ -17,7 +17,14 @@ export default function EmissionHistoryDialog({
   onOpenChange,
   history: selectedEmissionHistory = [],
   fieldLabels: externalFieldLabels = {},
+  facilities = [],
 }) {
+  const facilityNamesById = React.useMemo(() => Object.fromEntries(
+    facilities
+      .filter((facility) => facility?.id)
+      .map((facility) => [facility.id, facility.name || facility.facility_name || facility.id]),
+  ), [facilities]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -49,6 +56,7 @@ export default function EmissionHistoryDialog({
                 'activity_name': 'Activity',
                 'fuel_type': 'Fuel Type',
                 'fuel_name': 'Fuel Name',
+                'facility_id': 'Facility',
                 'scope': 'Scope',
                 'reporting_period': 'Reporting Period',
                 'reporting_year': 'Reporting Year',
@@ -175,6 +183,15 @@ export default function EmissionHistoryDialog({
               // Render complex value with expandable view
               const renderValue = (val, label, field) => {
                 if (val === null || val === undefined) return <span className="text-stone-400">(empty)</span>;
+
+                if (field === 'facility_id' && typeof val === 'string') {
+                  const facilityName = facilityNamesById[val];
+                  return (
+                    <span data-testid={`emission-history-facility-value-${val}`}>
+                      {facilityName || formatValue(val)}
+                    </span>
+                  );
+                }
 
                 // Handle evidence field specially
                 if (field === 'evidence') {
@@ -358,7 +375,9 @@ export default function EmissionHistoryDialog({
                     const oldValue = isSingleInputDelta ? { [fc.input_key]: fc.old_value } : fc.old_value;
                     const newValue = isSingleInputDelta ? { [fc.input_key]: fc.new_value } : fc.new_value;
                     return {
-                      label: fc.display_name || fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      label: fc.field === 'facility_id'
+                        ? 'Facility'
+                        : fc.display_name || fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
                       oldValue,
                       newValue,
                       field: fc.field,
