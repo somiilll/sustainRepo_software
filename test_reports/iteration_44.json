@@ -1,0 +1,40 @@
+{
+  "summary": "Completed targeted frontend+backend regression for C6 monthly canonical dynamic values. Frontend validateEditSubmission and backend EmissionRecordCreate both correctly enforce calendar-month day limits for qty_days_travelled, nights_stayed, and qty_nights alias scenarios.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/src/modules/emissions/categories/shared/__tests__/Scope3FlatEdit.monthlyLimits.test.js",
+    "/app/backend/tests/test_c6_monthly_canonical_object_limits_iter46.py",
+    "/app/test_reports/pytest/pytest_results_iter46_c6_monthly_limits.xml"
+  ],
+  "action_items": [
+    "No functional bug found in the requested C6 monthly canonical-value validation paths.",
+    "If desired, keep these two new targeted tests in regression runs to prevent future NaN bypass reintroduction."
+  ],
+  "critical_code_review_comments": [
+    "Frontend fix is present at Scope3FlatEdit.js: raw object values are unwrapped via rawValue.value before Number.parseFloat, preventing NaN skip on canonical object-shaped dynamic values.",
+    "No APIs or flows were MOCKED in this run."
+  ],
+  "updated_files": [
+    "/app/frontend/src/modules/emissions/categories/shared/__tests__/Scope3FlatEdit.monthlyLimits.test.js",
+    "/app/backend/tests/test_c6_monthly_canonical_object_limits_iter46.py",
+    "/app/test_reports/iteration_44.json"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 targeted tests passed)",
+    "frontend": "100% (9/9 targeted tests passed)"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Frontend direct validator regression covered canonical object inputs for qty_days_travelled, nights_stayed, and qty_nights; tested April 2025 boundary (30 pass/31 fail) and February leap/non-leap boundaries (2024: 29 pass/30 fail, 2025: 28 pass/29 fail). Backend model validator mirrored same limits and passed all targeted assertions.",
+  "rca of the issue": "Pre-fix failure mode: Number.parseFloat was applied to the canonical object itself (e.g., {value: 30092, unit: ''}), producing NaN. Since Number.isFinite(NaN) is false, the month-limit rejection branch was skipped, allowing invalid values. Current code now unwraps object-shaped values first (`rawValue && typeof rawValue === 'object' ? rawValue.value : rawValue`) and then parses, so over-limit values are correctly rejected."
+}
