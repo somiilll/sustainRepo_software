@@ -382,6 +382,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **Supplier Emissions summary cleanup — September 8, 2026:** Removed the FY/reporting-period tag from the Supplier Attributed Emissions Summary header and removed its unused frontend prop flow.
 - **Supplier Ranking tab polish — September 8, 2026:** Extended the Overview’s `rounded-xl` visual treatment to every ESG Analysis and Emissions tab surface, including metric cards, charts, summaries, legends, risk/comparison, and nested analytic panels.
 - **Supplier Ranking polish — September 8, 2026:** Removed the informational `i` icon from the left of the Detailed Rankings supplier search control. Standardized Overview surface corners to `rounded-xl`, including summary bands, charts, risk matrix, progress panels, and their small supporting surfaces.
 - **Base Year card density refinement — September 8, 2026:** Increased label-to-detail spacing within every Scope card to 20px, using the card height intentionally rather than leaving visual dead space. History and Change Base Year icons now sit 12px apart with consistent right/top insets across organization and facility cards.
