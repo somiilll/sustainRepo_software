@@ -382,6 +382,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **Facilities form cleanup — September 8, 2026:** Removed the “Auto-fill facility details from organization (editable)” helper text while retaining the existing Same as Organization checkbox behavior.
 - **Supplier Assessment list spacing — September 8, 2026:** Increased the Detailed Ranking card radius to 12px. Published Documents and Training admin list rows now use a consistent 24px gap, replacing their previous tight 16px stack rhythm.
 - **Irreversible Org1 data cleanup — September 8, 2026:** At explicit user confirmation, removed 10,889 scoped database documents across 78 collections, 13 Org1-linked supplier organization profiles, 13 supplier user accounts, and 90 referenced R2 objects. GHG, Base Year, Sinks, all relevant histories/audits, ESG questionnaire/assessment data, supplier documents/training/submissions, uploads, and operational records were included. Verification found zero remaining Org1/supplier-scoped documents. The Org1 organization profile and its 9 internal accounts were retained as directed.
 - **Supplier Emissions summary cleanup — September 8, 2026:** Removed the FY/reporting-period tag from the Supplier Attributed Emissions Summary header and removed its unused frontend prop flow.
