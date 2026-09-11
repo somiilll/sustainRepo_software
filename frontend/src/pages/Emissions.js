@@ -30,6 +30,7 @@ import useEvidenceManagement from './emissions/useEvidenceManagement';
 import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/utils/persistCalcAuditLog';
 import { buildCustomFuelCalculationPayload } from './emissions/utils/customFuelCalcAdapter';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
+import { getEmissionUpdateErrorMessage } from './emissions/utils/apiErrorMessage';
 import { categoryRegistry } from '../modules/emissions';
 import { formatEmissionQuantity, resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
 import {
@@ -61,13 +62,6 @@ import {
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-const SUPPLIER_GHG_LOCKED_MESSAGE = 'Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.';
-
-const getEmissionUpdateErrorMessage = (error) => (
-  error?.response?.data?.detail === SUPPLIER_GHG_LOCKED_MESSAGE
-    ? SUPPLIER_GHG_LOCKED_MESSAGE
-    : 'Failed to update emissions. Please try again.'
-);
 
 export default function Emissions({ organizationGhgOverrides = null }) {
   // ============================================================================
