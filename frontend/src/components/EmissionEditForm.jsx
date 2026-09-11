@@ -1038,6 +1038,27 @@ export default function EmissionEditForm(props) {
                                     onChange={(e) => {
                                       const isChecked = e.target.checked;
                                       updateDynamicFieldValue(`override_${field.variable}`, isChecked);
+
+                                      // Switching Density back to its default removes the
+                                      // custom value; enabling it starts a new deliberate override.
+                                      if (field.variable === 'density') {
+                                        if (isChecked) {
+                                          updateDynamicFieldValue(field.variable, '');
+                                          updateDynamicFieldValue(`${field.variable}_justification`, '');
+                                        } else {
+                                          updateDynamicFieldValue(
+                                            field.variable,
+                                            selectedFuel?.density !== undefined && selectedFuel?.density !== null
+                                              ? String(selectedFuel.density)
+                                              : '',
+                                          );
+                                          updateDynamicFieldValue(
+                                            `${field.variable}_unit`,
+                                            selectedFuel?.density_unit || field.expectedUnit || '',
+                                          );
+                                          updateDynamicFieldValue(`${field.variable}_justification`, '');
+                                        }
+                                      }
                                       
                                       // When enabling override, initialize the unit to the first allowed unit
                                       // This ensures the displayed unit matches what will be sent to backend

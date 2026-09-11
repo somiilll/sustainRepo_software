@@ -231,6 +231,7 @@ const CustomFuelMonthFields = ({
             <Label className={isYearlyEntry ? 'mb-2 flex min-h-6 items-center justify-center text-center text-xs leading-snug' : 'text-xs'}>Carbon Content (%) <span className="text-red-500">*</span></Label>
             <Input
               type="number" step="any" min="0" max="100"
+              required
               value={data.custom_carbon_content || ''}
               onChange={(e) => updateMonthData(monthKey, 'custom_carbon_content', e.target.value)}
               placeholder="e.g. 85" className={`bg-white text-sm ${isYearlyEntry ? 'h-10' : 'h-9'}`}
@@ -241,6 +242,7 @@ const CustomFuelMonthFields = ({
             <Label className={isYearlyEntry ? 'mb-2 flex min-h-6 items-center justify-center text-center text-xs leading-snug' : 'text-xs'}>Oxidation Factor <span className="text-red-500">*</span></Label>
             <Input
               type="number" step="any" min="0" max="1"
+              required
               value={data.custom_oxidation_factor || ''}
               onChange={(e) => updateMonthData(monthKey, 'custom_oxidation_factor', e.target.value)}
               placeholder="e.g. 1" className={`bg-white text-sm ${isYearlyEntry ? 'h-10' : 'h-9'}`}
