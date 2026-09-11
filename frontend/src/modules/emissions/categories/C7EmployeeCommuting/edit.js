@@ -275,6 +275,7 @@ export function buildEditPayload(ctx) {
           emissions: emp.yearly_data?.emissions || emp.emissions || {},
           calculation_details:
             emp.yearly_data?.calculation_details || emp.calculation_details,
+          evidences: emp.yearly_data?.evidences || emp.evidences || [],
         };
       }
       return {

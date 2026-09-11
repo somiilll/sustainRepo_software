@@ -424,6 +424,8 @@ export const Step3YearMonthlyData = ({
   // Evidence handling
   handleEvidenceUpload,
   removeEvidence,
+  onC7EvidenceUpload,
+  onC7EvidenceRemove,
   
   // Backend URL for file viewing
   BACKEND_URL,
@@ -711,6 +713,9 @@ export const Step3YearMonthlyData = ({
               };
             })()}
             showEmissionFactorCard={false}
+            onEvidenceUpload={onC7EvidenceUpload}
+            onEvidenceRemove={onC7EvidenceRemove}
+            evidenceBackendUrl={BACKEND_URL}
           />
         </>
       )}

@@ -218,9 +218,6 @@ export default function EmissionEntryForm({
     employeeId, setEmployeeId,
   } = _formState;
 
-  const [c7Evidence, setC7Evidence] = useState(null);
-
-
   // ============================================================================
   // F3: Centralized data-fetching effects — replaces 5 inline useEffects
   // (form-config fetch, fugitive emissions fetch, scope3-ef fetch, biogenic
@@ -2523,7 +2520,7 @@ export default function EmissionEntryForm({
     }
   };
 
-  const handleC7EvidenceUpload = async (file) => {
+  const handleC7EmployeeEvidenceUpload = async (employeeId, periodKey, file) => {
     const sizeErr = validateFileSize(file);
     if (sizeErr) throw new Error(sizeErr);
     const uploadData = new FormData();
@@ -2532,20 +2529,72 @@ export default function EmissionEntryForm({
       headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
     });
     if (!response.data?.url) throw new Error('Evidence upload did not return a file URL');
-    setC7Evidence({
+    const uploadedEvidence = {
       url: response.data.url,
       filename: response.data.filename || file.name,
       file_id: response.data.file_id,
       size: file.size,
       content_type: file.type,
-    });
+    };
+    setEmployees((previousEmployees) => previousEmployees.map((employee) => {
+      if (employee.id !== employeeId) return employee;
+      if (periodKey === 'yearly') {
+        return {
+          ...employee,
+          yearly_data: {
+            ...(employee.yearly_data || { inputs: {}, emissions: null }),
+            evidences: [...(employee.yearly_data?.evidences || []), uploadedEvidence],
+          },
+        };
+      }
+      const monthData = employee.monthly_data?.[periodKey] || { inputs: {}, emissions: null };
+      return {
+        ...employee,
+        monthly_data: {
+          ...employee.monthly_data,
+          [periodKey]: {
+            ...monthData,
+            evidences: [...(monthData.evidences || []), uploadedEvidence],
+          },
+        },
+      };
+    }));
+    onFormChange?.();
     toast.success('Evidence uploaded successfully');
   };
 
-  const handleC7EvidenceRemove = async () => {
-    const fileId = c7Evidence?.file_id || c7Evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+  const handleC7EmployeeEvidenceRemove = async (employeeId, periodKey, evidenceIndex) => {
+    const employee = employees.find((entry) => entry.id === employeeId);
+    const periodData = periodKey === 'yearly'
+      ? employee?.yearly_data
+      : employee?.monthly_data?.[periodKey];
+    const evidence = periodData?.evidences?.[evidenceIndex];
+    const fileId = evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
     if (fileId) await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
-    setC7Evidence(null);
+    setEmployees((previousEmployees) => previousEmployees.map((entry) => {
+      if (entry.id !== employeeId) return entry;
+      if (periodKey === 'yearly') {
+        return {
+          ...entry,
+          yearly_data: {
+            ...entry.yearly_data,
+            evidences: (entry.yearly_data?.evidences || []).filter((_, index) => index !== evidenceIndex),
+          },
+        };
+      }
+      return {
+        ...entry,
+        monthly_data: {
+          ...entry.monthly_data,
+          [periodKey]: {
+            ...entry.monthly_data?.[periodKey],
+            evidences: (entry.monthly_data?.[periodKey]?.evidences || []).filter((_, index) => index !== evidenceIndex),
+          },
+        },
+      };
+    }));
+    onFormChange?.();
+    toast.success('Evidence removed');
   };
 
   const removeEvidence = async (periodKey, evidenceIndex) => {
@@ -2705,7 +2754,6 @@ export default function EmissionEntryForm({
     yearlyData: submissionYearlyData,
     monthlyData: submissionMonthlyData,
     filledMonthsCount: submissionFilledMonthsCount,
-    c7Evidence,
     updateMonthData,
     calculationMethodology: decisionFieldValues.calculation_methodology,
     selectedFuel,
@@ -3213,7 +3261,6 @@ export default function EmissionEntryForm({
     categoryCode: ghgFormContext.categoryCode,
     isProcessEmissions: ghgFormContext.isProcessCategory,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
-    c7Evidence,
     matchedFormula: dynamicInputFieldsResult?.matchedFormula,
     // Helpers
     canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
@@ -3433,6 +3480,8 @@ export default function EmissionEntryForm({
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
+          onC7EvidenceUpload={handleC7EmployeeEvidenceUpload}
+          onC7EvidenceRemove={handleC7EmployeeEvidenceRemove}
           BACKEND_URL={BACKEND_URL}
           isProcessEmissions={ghgFormContext.isProcessCategory}
           category={category}
@@ -3478,10 +3527,6 @@ export default function EmissionEntryForm({
         <Step4Notes
           notes={notes}
           setNotes={setNotes}
-          showEvidence={isC7EmployeeCommuting}
-          evidenceFile={c7Evidence}
-          onEvidenceUpload={handleC7EvidenceUpload}
-          onEvidenceRemove={handleC7EvidenceRemove}
           selectedFacility={selectedFacility}
           scope={scope}
           category={category}

@@ -64,7 +64,6 @@ export function useEmissionSubmit(ctx) {
       responsiblePersonDesignation, responsiblePersonContact, notes, supplierName,
       supplierCode, employeeName, employeeId, assetName,
       fromLocation, toLocation, dynamicCategories, setIsSaving, isC7EmployeeCommuting,
-      c7Evidence,
       isProcessEmissions = false, requiresSubcategory, selectedFuel, filteredScope3Activities,
       dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
       onSuccess, getActualYearForMonth,
@@ -338,8 +337,6 @@ export function useEmissionSubmit(ctx) {
           processNames,
           validProcesses,
           getActualYearForMonth,
-          evidenceUrl: c7Evidence?.url || '',
-          evidenceFileName: c7Evidence?.filename || '',
         };
 
         // 1. Module-owned validation (employee names + per-mode data presence + calc check)

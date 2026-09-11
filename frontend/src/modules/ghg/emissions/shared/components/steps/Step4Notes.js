@@ -5,7 +5,6 @@
 
 import React from 'react';
 import { Label } from '../../../../../../components/ui/label';
-import { FileUpload } from '../../../../../../components/ui/file-upload';
 
 /**
  * Step 4 Notes Component
@@ -16,10 +15,6 @@ import { FileUpload } from '../../../../../../components/ui/file-upload';
 export const Step4Notes = ({
   notes,
   setNotes,
-  showEvidence = false,
-  evidenceFile = null,
-  onEvidenceUpload,
-  onEvidenceRemove,
 }) => {
   return (
     <div className="mt-4 space-y-3">
@@ -31,14 +26,6 @@ export const Step4Notes = ({
         className="h-32 w-full resize-none rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 focus:border-primary focus:ring-2 focus:ring-primary/20"
         data-testid="add-emission-additional-notes-input"
       />
-      {showEvidence && (
-        <FileUpload
-          label="Evidence Document"
-          uploadedFile={evidenceFile}
-          onUpload={onEvidenceUpload}
-          onRemove={onEvidenceRemove}
-        />
-      )}
     </div>
   );
 };

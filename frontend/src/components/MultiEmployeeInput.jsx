@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { Plus, Trash2, User, Calculator, Users } from 'lucide-react';
+import { Plus, Trash2, User, Calculator, Users, Upload, FileText, X } from 'lucide-react';
 import {
   getAnnualReportingPeriodDayLimit,
   getMonthlyReportingPeriodDayLimit,
@@ -45,6 +45,99 @@ const MONTHS = [
   { key: 'dec', label: 'December', days: 31 },
 ];
 
+const EmployeeEvidenceCell = ({
+  employeeId,
+  employeeIndex,
+  periodKey,
+  evidences = [],
+  disabled,
+  onEvidenceUpload,
+  onEvidenceRemove,
+  backendUrl,
+}) => {
+  const testIdPrefix = `employee-${employeeIndex}-${periodKey}-evidence`;
+  const inputId = `${testIdPrefix}-input`;
+
+  if (!onEvidenceUpload) return null;
+
+  return (
+    <div className="flex min-w-[4.5rem] items-center justify-end gap-1" data-testid={`${testIdPrefix}-cell`}>
+      <input
+        id={inputId}
+        type="file"
+        multiple
+        accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xlsx,.xls,.csv,.doc,.docx"
+        className="hidden"
+        disabled={disabled}
+        onChange={async (event) => {
+          try {
+            for (const file of Array.from(event.target.files || [])) {
+              await onEvidenceUpload(employeeId, periodKey, file);
+            }
+          } catch (error) {
+            toast.error(error.message || 'Could not upload evidence');
+          } finally {
+            event.target.value = '';
+          }
+        }}
+        data-testid={`${testIdPrefix}-input`}
+      />
+      <label
+        htmlFor={inputId}
+        title="Upload evidence"
+        aria-label="Upload evidence"
+        className={`relative inline-flex h-8 w-8 items-center justify-center rounded border border-stone-200 bg-white text-stone-600 transition-colors ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-emerald-500 hover:text-emerald-700'}`}
+        data-testid={`${testIdPrefix}-upload-trigger`}
+      >
+        <Upload className="h-4 w-4" />
+        {evidences.length > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[10px] font-bold text-white" data-testid={`${testIdPrefix}-count`}>
+            {evidences.length}
+          </span>
+        )}
+      </label>
+      {evidences.map((evidence, evidenceIndex) => {
+        const fileId = evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+        const viewUrl = fileId ? `${backendUrl}/api/files/${fileId}/view` : evidence?.url;
+        return (
+          <React.Fragment key={`${evidence?.file_id || evidence?.url || evidenceIndex}`}>
+            {viewUrl && (
+              <a
+                href={viewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={evidence.filename || `Evidence ${evidenceIndex + 1}`}
+                onClick={(event) => event.stopPropagation()}
+                className="inline-flex h-7 w-7 items-center justify-center text-emerald-700 transition-colors hover:text-emerald-900"
+                data-testid={`${testIdPrefix}-view-${evidenceIndex}`}
+              >
+                <FileText className="h-4 w-4" />
+              </a>
+            )}
+            {onEvidenceRemove && (
+              <button
+                type="button"
+                title={`Remove ${evidence.filename || 'evidence'}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  Promise.resolve(onEvidenceRemove(employeeId, periodKey, evidenceIndex)).catch((error) => {
+                    toast.error(error.message || 'Could not remove evidence');
+                  });
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center text-stone-400 transition-colors hover:text-red-600"
+                disabled={disabled}
+                data-testid={`${testIdPrefix}-remove-${evidenceIndex}`}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
+
 // Helper to get days in a month for a specific year (handles leap years)
 const MultiEmployeeInput = ({
   entityLabel = 'Employee',
@@ -65,6 +158,9 @@ const MultiEmployeeInput = ({
   onValidationChange = null, // New: callback to report validation state
   frequencyType = 'monthly', // NEW: 'monthly' or 'yearly' for frequency support
   isFutureMonth = null, // NEW: Function to check if month is in future (monthKey) => boolean
+  onEvidenceUpload = null,
+  onEvidenceRemove = null,
+  evidenceBackendUrl = '',
 }) => {
   // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
@@ -978,6 +1074,20 @@ const MultiEmployeeInput = ({
                             </div>
                           )})}
                         </div>
+                        {onEvidenceUpload && (
+                          <div className="border-t border-stone-200 pt-3">
+                            <EmployeeEvidenceCell
+                              employeeId={employee.id}
+                              employeeIndex={empIndex}
+                              periodKey="yearly"
+                              evidences={employee.yearly_data?.evidences || []}
+                              disabled={disabled}
+                              onEvidenceUpload={onEvidenceUpload}
+                              onEvidenceRemove={onEvidenceRemove}
+                              backendUrl={evidenceBackendUrl}
+                            />
+                          </div>
+                        )}
                         
                         {/* Yearly emissions result */}
                         {isEditMode && employee.yearly_data?.emissions?.co2e !== null && employee.yearly_data?.emissions?.co2e !== undefined && (
@@ -1077,6 +1187,9 @@ const MultiEmployeeInput = ({
                                   </th>
                                 );
                               })}
+                              {onEvidenceUpload && (
+                                <th className="w-28 px-3 py-2 text-right text-xs font-semibold text-gray-600" data-testid="employee-monthly-evidence-column-header">Evidence</th>
+                              )}
                               {isEditMode && (
                                 <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-28">Emissions</th>
                               )}
@@ -1182,6 +1295,20 @@ const MultiEmployeeInput = ({
                                       </td>
                                     );
                                   })}
+                                  {onEvidenceUpload && (
+                                    <td className="px-3 py-1.5 align-middle">
+                                      <EmployeeEvidenceCell
+                                        employeeId={employee.id}
+                                        employeeIndex={empIndex}
+                                        periodKey={monthKey}
+                                        evidences={monthData.evidences || []}
+                                        disabled={disabled || isMonthInFuture}
+                                        onEvidenceUpload={onEvidenceUpload}
+                                        onEvidenceRemove={onEvidenceRemove}
+                                        backendUrl={evidenceBackendUrl}
+                                      />
+                                    </td>
+                                  )}
                                   
                                   {/* Emissions Column */}
                                   {isEditMode && (

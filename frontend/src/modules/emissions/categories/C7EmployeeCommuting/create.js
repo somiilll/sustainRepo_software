@@ -138,8 +138,6 @@ export function buildYearlyCreatePayload(ctx) {
     responsiblePersonDesignation,
     responsiblePersonContact,
     validProcesses,
-    evidenceUrl,
-    evidenceFileName,
   } = ctx;
 
   const yearlyReportingPeriod =
@@ -163,6 +161,7 @@ export function buildYearlyCreatePayload(ctx) {
       inputs: emp.yearly_data?.inputs || {},
       emissions: emp.yearly_data?.emissions || {},
       calculation_details: emp.yearly_data?.calculation_details || null,
+      evidences: emp.yearly_data?.evidences || [],
     }));
 
   return {
@@ -192,8 +191,6 @@ export function buildYearlyCreatePayload(ctx) {
         name: p.name,
         description: p.description || '',
       })),
-      evidence_url: evidenceUrl || '',
-      evidence_file_name: evidenceFileName || '',
     },
   };
 }
@@ -225,8 +222,6 @@ export function buildMonthlyCreatePayloads(ctx) {
     responsiblePersonContact,
     processNames,
     getActualYearForMonth,
-    evidenceUrl,
-    evidenceFileName,
   } = ctx;
 
   // Group employees by month
@@ -250,6 +245,7 @@ export function buildMonthlyCreatePayloads(ctx) {
           inputs: monthData.inputs || {},
           emissions: monthData.emissions || {},
           calculation_details: monthData.calculation_details || null,
+          evidences: monthData.evidences || [],
         });
       }
     });
@@ -312,8 +308,6 @@ export function buildMonthlyCreatePayloads(ctx) {
         process_descriptions: processNames
           .filter((p) => p.name?.trim())
           .map((p) => ({ name: p.name, description: p.description || '' })),
-        evidence_url: evidenceUrl || '',
-        evidence_file_name: evidenceFileName || '',
       },
     };
   });
