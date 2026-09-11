@@ -29,6 +29,7 @@ class C7MonthlyEntryCreate(BaseModel):
     responsible_person_contact: Optional[str] = None
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
+    evidence_url: Optional[str] = None
 
 
 class C7MonthlyEntryResponse(BaseModel):
@@ -54,6 +55,7 @@ class C7MonthlyEntryResponse(BaseModel):
     monthly_total: Dict[str, Any]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    evidence_url: Optional[str] = None
     responsible_person: Optional[str] = None
     version: int = 1
     created_at: str
@@ -83,6 +85,7 @@ class C7YearlyEntryCreate(BaseModel):
     responsible_person_contact: Optional[str] = None
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
+    evidence_url: Optional[str] = None
 
     @field_validator("reporting_year")
     @classmethod
@@ -116,6 +119,7 @@ class C7YearlyEntryResponse(BaseModel):
     yearly_total: Dict[str, Any]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    evidence_url: Optional[str] = None
     responsible_person: Optional[str] = None
     version: int = 1
     created_at: str

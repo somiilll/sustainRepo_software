@@ -218,6 +218,8 @@ export default function EmissionEntryForm({
     employeeId, setEmployeeId,
   } = _formState;
 
+  const [c7Evidence, setC7Evidence] = useState(null);
+
 
   // ============================================================================
   // F3: Centralized data-fetching effects — replaces 5 inline useEffects
@@ -2521,6 +2523,31 @@ export default function EmissionEntryForm({
     }
   };
 
+  const handleC7EvidenceUpload = async (file) => {
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) throw new Error(sizeErr);
+    const uploadData = new FormData();
+    uploadData.append('file', file);
+    const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, uploadData, {
+      headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
+    });
+    if (!response.data?.url) throw new Error('Evidence upload did not return a file URL');
+    setC7Evidence({
+      url: response.data.url,
+      filename: response.data.filename || file.name,
+      file_id: response.data.file_id,
+      size: file.size,
+      content_type: file.type,
+    });
+    toast.success('Evidence uploaded successfully');
+  };
+
+  const handleC7EvidenceRemove = async () => {
+    const fileId = c7Evidence?.file_id || c7Evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (fileId) await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
+    setC7Evidence(null);
+  };
+
   const removeEvidence = async (periodKey, evidenceIndex) => {
     const evidences = periodKey === 'yearly'
       ? yearlyData.evidences || []
@@ -2639,7 +2666,10 @@ export default function EmissionEntryForm({
       const monthsWithData = new Set();
       employees.forEach(emp => {
         Object.entries(emp.monthly_data || {}).forEach(([monthKey, data]) => {
-          if (data?.emissions?.co2e !== null && data?.emissions?.co2e !== undefined) {
+          const hasInputs = Object.entries(data?.inputs || {}).some(
+            ([key, value]) => !key.endsWith('_unit') && value !== '' && value !== null && value !== undefined && value !== 0,
+          );
+          if (hasInputs || (data?.emissions?.co2e !== null && data?.emissions?.co2e !== undefined)) {
             monthsWithData.add(monthKey);
           }
         });
@@ -2675,6 +2705,7 @@ export default function EmissionEntryForm({
     yearlyData: submissionYearlyData,
     monthlyData: submissionMonthlyData,
     filledMonthsCount: submissionFilledMonthsCount,
+    c7Evidence,
     updateMonthData,
     calculationMethodology: decisionFieldValues.calculation_methodology,
     selectedFuel,
@@ -3285,6 +3316,10 @@ export default function EmissionEntryForm({
           scope3Method={scope3Method}
           availableScope3Methods={availableScope3Methods}
           getMethodLabel={getMethodLabel}
+          showEvidence={isC7EmployeeCommuting}
+          evidenceFile={c7Evidence}
+          onEvidenceUpload={handleC7EvidenceUpload}
+          onEvidenceRemove={handleC7EvidenceRemove}
           scope3ActivityType={scope3ActivityType}
           availableScope3ActivityTypes={availableScope3ActivityTypes}
           requiresSubcategory={requiresSubcategory}

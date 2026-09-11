@@ -136,6 +136,8 @@ export function buildYearlyCreatePayload(ctx) {
     responsiblePersonDesignation,
     responsiblePersonContact,
     validProcesses,
+    evidenceUrl,
+    evidenceFileName,
   } = ctx;
 
   const yearlyReportingPeriod =
@@ -186,6 +188,8 @@ export function buildYearlyCreatePayload(ctx) {
         name: p.name,
         description: p.description || '',
       })),
+      evidence_url: evidenceUrl || '',
+      evidence_file_name: evidenceFileName || '',
     },
   };
 }
@@ -215,6 +219,8 @@ export function buildMonthlyCreatePayloads(ctx) {
     responsiblePersonContact,
     processNames,
     getActualYearForMonth,
+    evidenceUrl,
+    evidenceFileName,
   } = ctx;
 
   // Group employees by month
@@ -298,6 +304,8 @@ export function buildMonthlyCreatePayloads(ctx) {
         process_descriptions: processNames
           .filter((p) => p.name?.trim())
           .map((p) => ({ name: p.name, description: p.description || '' })),
+        evidence_url: evidenceUrl || '',
+        evidence_file_name: evidenceFileName || '',
       },
     };
   });

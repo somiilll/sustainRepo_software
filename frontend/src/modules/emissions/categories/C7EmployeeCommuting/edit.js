@@ -204,6 +204,7 @@ export function buildEditPayload(ctx) {
     editEmployeeMonthlyTotals,
     editEmployeeYearlyTotal,
     validProcessNames,
+    dynamicFieldValues,
   } = ctx;
 
   const isYearlyMode = editingEmission?.frequency_type === 'yearly';
@@ -278,6 +279,19 @@ export function buildEditPayload(ctx) {
     }),
     monthly_totals: isYearlyMode ? null : editEmployeeMonthlyTotals,
     yearly_total: editEmployeeYearlyTotal,
+    dynamic_field_values: dynamicFieldValues || {},
+    evidence_url: formData.evidence_url || '',
+    supplier_name: formData.supplier_name || '',
+    supplier_code: formData.supplier_code || '',
+    employee_name: formData.employee_name || '',
+    employee_id: formData.employee_id || '',
+    asset_name: formData.asset_name || '',
+    from_location: formData.from_location || '',
+    to_location: formData.to_location || '',
+    customer_name: formData.customer_name || '',
+    customer_code: formData.customer_code || '',
+    nights_stayed: formData.nights_stayed ?? null,
+    rooms_taken: formData.rooms_taken ?? null,
 
     outputs: {
       co2e: { value: totalCo2e, unit: 'tCO2e' },

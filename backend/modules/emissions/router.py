@@ -1430,19 +1430,39 @@ async def update_emission_record(
         if scope3_activity:
             update_dict["sub_category"] = scope3_activity
     
+    # C7 Employee Commuting stores employee-derived CO2e totals only. Do not
+    # manufacture Scope 1/2 gas-breakdown zeroes when its specialised edit
+    # payload is saved through this shared endpoint.
+    is_c7_employee_commuting = existing.get("category") == "C7 - Employee Commuting"
+
     # Extract emission values from outputs dict for convenience accessors
     outputs = record_data.outputs or {}
-    update_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
-    update_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
-    update_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
-    update_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
-    update_dict["total_emissions"] = update_dict["co2e_emissions"]
+    if is_c7_employee_commuting:
+        c7_total = record_data.co2e_emissions
+        if c7_total is None:
+            c7_total = record_data.total_emissions
+        if c7_total is None:
+            c7_total = existing.get("co2e_emissions", existing.get("total_emissions", 0))
+        update_dict["co2e_emissions"] = c7_total or 0
+        update_dict["total_emissions"] = c7_total or 0
+        for gas_field in ("co2_emissions", "ch4_emissions", "n2o_emissions"):
+            update_dict.pop(gas_field, None)
+    else:
+        update_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
+        update_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
+        update_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
+        update_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
+        update_dict["total_emissions"] = update_dict["co2e_emissions"]
     
     # Prepare new_values for history with proper emission field names
     history_new_values = dict(versioned_record_data)
-    history_new_values["co2_emissions"] = update_dict["co2_emissions"]
-    history_new_values["ch4_emissions"] = update_dict["ch4_emissions"]
-    history_new_values["n2o_emissions"] = update_dict["n2o_emissions"]
+    if is_c7_employee_commuting:
+        for gas_field in ("co2_emissions", "ch4_emissions", "n2o_emissions"):
+            history_new_values.pop(gas_field, None)
+    else:
+        history_new_values["co2_emissions"] = update_dict["co2_emissions"]
+        history_new_values["ch4_emissions"] = update_dict["ch4_emissions"]
+        history_new_values["n2o_emissions"] = update_dict["n2o_emissions"]
     history_new_values["co2e_emissions"] = update_dict["co2e_emissions"]
     history_new_values["total_emissions"] = update_dict["total_emissions"]
     

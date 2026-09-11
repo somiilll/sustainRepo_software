@@ -2264,6 +2264,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         editEmployeeMonthlyTotals: calculation.monthlyTotals,
         editEmployeeYearlyTotal: calculation.yearlyTotal,
         validProcessNames: validation.validProcessNames,
+        dynamicFieldValues,
       });
       const totalCo2e = builtPayload.__totalCo2e;
       // Strip orchestration-only field before sending
