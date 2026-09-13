@@ -45,6 +45,7 @@ import {
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
   prepareDensityAwareCalculationInputs,
+  normalizeCustomFuelCompoundUnit,
   normalizeCustomFuelDensityUnit,
   normalizeCustomFuelQuantityUnit,
   resolveCompoundDenominatorBasis,
@@ -384,6 +385,12 @@ export default function EmissionEntryForm({
             if (monthData.density_unit) {
               monthData.density_unit = normalizeCustomFuelDensityUnit(monthData.density_unit);
             }
+            if (monthData.custom_ef_unit) {
+              monthData.custom_ef_unit = normalizeCustomFuelCompoundUnit(monthData.custom_ef_unit);
+            }
+            if (monthData.custom_cv_unit) {
+              monthData.custom_cv_unit = normalizeCustomFuelCompoundUnit(monthData.custom_cv_unit);
+            }
           }
           
           // Also include calculated values if they exist
@@ -438,6 +445,12 @@ export default function EmissionEntryForm({
             || 'kg');
           if (yearData.density_unit) {
             yearData.density_unit = normalizeCustomFuelDensityUnit(yearData.density_unit);
+          }
+          if (yearData.custom_ef_unit) {
+            yearData.custom_ef_unit = normalizeCustomFuelCompoundUnit(yearData.custom_ef_unit);
+          }
+          if (yearData.custom_cv_unit) {
+            yearData.custom_cv_unit = normalizeCustomFuelCompoundUnit(yearData.custom_cv_unit);
           }
         }
         

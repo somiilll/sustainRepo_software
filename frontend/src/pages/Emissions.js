@@ -50,6 +50,7 @@ import {
 } from '../modules/ghg/emissions/shared/domain';
 import {
   normalizeDensityForCalcEngine,
+  normalizeCustomFuelCompoundUnit,
   normalizeCustomFuelDensityUnit,
   normalizeCustomFuelQuantityUnit,
   resolveCompoundDenominatorBasis,
@@ -807,7 +808,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             const saved = aliases.map(alias => savedDynamicValues[alias]).find(Boolean);
             if (saved) {
               values[key] = saved.value !== null && saved.value !== undefined ? saved.value.toString() : '';
-              if (saved.unit) values[`${key}_unit`] = saved.unit;
+              if (saved.unit) {
+                values[`${key}_unit`] = normalizeCustomFuelCompoundUnit(saved.unit);
+              }
             }
           });
           // Custom fuel quantity unit is persisted on dynamic_field_values.qty.

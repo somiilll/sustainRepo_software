@@ -23,6 +23,7 @@
  */
 
 import {
+  normalizeCustomFuelCompoundUnit,
   normalizeCustomFuelDensityUnit,
   normalizeCustomFuelQuantityUnit,
 } from '../../../ghg/emissions/shared/utils/unitHelpers';
@@ -124,10 +125,16 @@ export function buildDynamicValues(ctx) {
       // standard config-driven list, so merge them explicitly into the payload.
       dynamicValues.qty = { value: parseValue(quantity), unit: quantityUnit };
       if (hasValue(dynamicFieldValues.custom_ef)) {
-        dynamicValues.custom_ef = { value: parseValue(dynamicFieldValues.custom_ef), unit: dynamicFieldValues.custom_ef_unit || '' };
+        dynamicValues.custom_ef = {
+          value: parseValue(dynamicFieldValues.custom_ef),
+          unit: normalizeCustomFuelCompoundUnit(dynamicFieldValues.custom_ef_unit || ''),
+        };
       }
       if (hasValue(dynamicFieldValues.custom_cv)) {
-        dynamicValues.custom_cv = { value: parseValue(dynamicFieldValues.custom_cv), unit: dynamicFieldValues.custom_cv_unit || '' };
+        dynamicValues.custom_cv = {
+          value: parseValue(dynamicFieldValues.custom_cv),
+          unit: normalizeCustomFuelCompoundUnit(dynamicFieldValues.custom_cv_unit || ''),
+        };
       }
       if (hasValue(dynamicFieldValues.custom_carbon_content)) {
         dynamicValues.custom_carbon_content = { value: parseValue(dynamicFieldValues.custom_carbon_content), unit: '%' };

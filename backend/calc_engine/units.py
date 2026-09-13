@@ -54,6 +54,16 @@ EMISSION_MASS_BASE_UNITS = {
 }
 
 
+def _compound_unit_lookup_keys(key: str) -> List[str]:
+    """Return exact registered-key aliases for legacy kL/kl denominators."""
+    keys = [key]
+    if str(key or "").endswith("/kl"):
+        keys.append(f"{key[:-3]}/kL")
+    elif str(key or "").endswith("/kL"):
+        keys.append(f"{key[:-3]}/kl")
+    return keys
+
+
 async def seed_units(db) -> Tuple[int, int]:
     """No-op: Units are no longer auto-seeded. SuperAdmin must add them manually."""
     # Previously this function seeded system units automatically.
@@ -123,7 +133,10 @@ async def resolve_unit(db, key: str) -> dict:
         }
     
     # Check compound units
-    compound = await db.ce_compound_units.find_one({"key": key}, {"_id": 0})
+    compound = await db.ce_compound_units.find_one(
+        {"key": {"$in": _compound_unit_lookup_keys(key)}},
+        {"_id": 0},
+    )
     if compound:
         return {
             "key": compound["key"],
@@ -449,8 +462,14 @@ async def _try_compound_conversion(
     # Look up compound units. Labelled emissions factors may be derived from
     # their configured simple-unit components, so Super Admin does not need to
     # duplicate every `tCO2/...` companion of an existing `kgCO2/...` unit.
-    from_compound = await db.ce_compound_units.find_one({"key": from_unit}, {"_id": 0})
-    to_compound = await db.ce_compound_units.find_one({"key": to_unit}, {"_id": 0})
+    from_compound = await db.ce_compound_units.find_one(
+        {"key": {"$in": _compound_unit_lookup_keys(from_unit)}},
+        {"_id": 0},
+    )
+    to_compound = await db.ce_compound_units.find_one(
+        {"key": {"$in": _compound_unit_lookup_keys(to_unit)}},
+        {"_id": 0},
+    )
 
     from_components = (from_compound or {}).get("components") or derived_emission_factor_components(from_unit)
     to_components = (to_compound or {}).get("components") or derived_emission_factor_components(to_unit)

@@ -1,4 +1,5 @@
 import {
+  normalizeCustomFuelCompoundUnit,
   normalizeCustomFuelDensityUnit,
   normalizeCustomFuelQuantityUnit,
   normalizeDensityForCalcEngine,
@@ -83,9 +84,13 @@ export const buildCustomFuelCalculationPayload = ({
 
   if (methodology === 'using_heat_basis_ncv') {
     const ef = readValue(values, ['custom_ef', 'ef_quantity', 'ef', 'emission_factor']);
-    const efUnit = readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'tCO2/TJ');
+    const efUnit = normalizeCustomFuelCompoundUnit(
+      readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'tCO2/TJ'),
+    );
     const cv = readValue(values, ['custom_cv', 'cv', 'ncv', 'calorific_value']);
-    const cvUnit = readUnit(values, ['custom_cv_unit', 'cv_unit', 'ncv_unit', 'calorific_value_unit'], 'TJ/kg');
+    const cvUnit = normalizeCustomFuelCompoundUnit(
+      readUnit(values, ['custom_cv_unit', 'cv_unit', 'ncv_unit', 'calorific_value_unit'], 'TJ/kg'),
+    );
     // Preserve the user's EF value and unit. `ef_co2` is a formula property,
     // so the Calc Engine resolves it through the configured Super Admin unit
     // conversions and records the raw-to-normalized audit trail.
@@ -104,7 +109,9 @@ export const buildCustomFuelCalculationPayload = ({
     hasMethodInputs = hasEf && hasCv;
   } else if (methodology === 'using_qty_basis_ef') {
     const ef = readValue(values, ['custom_ef', 'ef_quantity', 'ef', 'emission_factor']);
-    const efUnit = readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'kgCO2/kg');
+    const efUnit = normalizeCustomFuelCompoundUnit(
+      readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'kgCO2/kg'),
+    );
     const rawEf = toInput(ef, efUnit);
     hasMethodInputs = rawEf && addInput('ef_quantity', rawEf.value, rawEf.unit, { override: true });
     if (!hasMethodInputs) missingFields.push('Emission Factor');

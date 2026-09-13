@@ -306,6 +306,13 @@ export const normalizeCustomFuelDensityUnit = (unit) => {
   return compactUnit === 'kg/kL' ? 'kg/kl' : compactUnit;
 };
 
+export const normalizeCustomFuelCompoundUnit = (unit) => {
+  const compactUnit = String(unit || '').replace(/\s/g, '');
+  return compactUnit.endsWith('/kL')
+    ? `${compactUnit.slice(0, -3)}/kl`
+    : compactUnit;
+};
+
 /**
  * The frozen calculation engine accepts physical density as kg/L, while the
  * form also permits the equally valid inverse L/kg direction. Convert the
