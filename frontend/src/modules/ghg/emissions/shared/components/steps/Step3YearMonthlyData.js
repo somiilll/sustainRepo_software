@@ -1677,7 +1677,7 @@ const YearlyDataEntry = ({
               </div>
             )}
 
-            {yearlyDensityState.visible && !configuredDensityField && (
+            {!useCustomFuel && yearlyDensityState.visible && !configuredDensityField && (
               <div className="col-span-full grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="yearly-process-density-field">
                 <div className="space-y-1">
                   <Label htmlFor="yearly-process-density-input" className="text-sm font-medium">
