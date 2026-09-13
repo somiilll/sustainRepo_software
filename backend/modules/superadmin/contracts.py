@@ -365,7 +365,10 @@ class GWPConfigUpdate(BaseModel):
 class CurrencyConversionCreate(BaseModel):
     source_currency: str  # e.g., "USD", "EUR", "INR"
     target_currency: str = "USD"  # Default target is USD
-    year_applicable: int  # Year for which this conversion is applicable
+    applicability_type: Optional[Literal["calendar_year", "financial_year", "month"]] = None
+    year_applicable: Optional[int] = None  # Calendar year or FY ending year compatibility field
+    financial_year_start: Optional[int] = None
+    financial_year_end: Optional[int] = None
     month_applicable: Optional[int] = None  # Optional 1-12; blank means annual rate
     effective_from: Optional[str] = None  # YYYY for annual / YYYY-MM for monthly rate
     conversion_method: str = "ppp_inflation"  # ppp_inflation | standard
@@ -379,7 +382,10 @@ class CurrencyConversionCreate(BaseModel):
 class CurrencyConversionUpdate(BaseModel):
     source_currency: Optional[str] = None
     target_currency: Optional[str] = None
+    applicability_type: Optional[Literal["calendar_year", "financial_year", "month"]] = None
     year_applicable: Optional[int] = None
+    financial_year_start: Optional[int] = None
+    financial_year_end: Optional[int] = None
     month_applicable: Optional[int] = None
     effective_from: Optional[str] = None
     conversion_method: Optional[str] = None

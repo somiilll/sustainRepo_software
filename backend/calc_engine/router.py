@@ -814,8 +814,10 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                             "source_name": currency_conversion_source_name(currency_conversion, currency_method),
                         }
                     else:
-                        # Default to 1.0
-                        merged_user_overrides["inflation_rate"] = {"value": 1.0, "unit": "", "source_name": "Default"}
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"No active PPP/Inflation configuration with an inflation factor was found for {input_currency} and {reporting_period or 'the requested period'}",
+                        )
                 
                 if currency_method == PPP_INFLATION_METHOD and "ppp" not in merged_user_overrides:
                     if currency_conversion and currency_conversion.get("purchase_parity"):
@@ -825,8 +827,10 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                             "source_name": currency_conversion_source_name(currency_conversion, currency_method),
                         }
                     else:
-                        # Default to 1.0
-                        merged_user_overrides["ppp"] = {"value": 1.0, "unit": "", "source_name": "Default"}
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"No active PPP/Inflation configuration with purchase parity was found for {input_currency} and {reporting_period or 'the requested period'}",
+                        )
                 if currency_method == STANDARD_METHOD and "exchange_rate" not in merged_user_overrides:
                     if not currency_conversion or not currency_conversion.get("exchange_rate"):
                         raise HTTPException(status_code=400, detail=f"No active standard currency rate found for {input_currency} and {reporting_period or 'the requested period'}")

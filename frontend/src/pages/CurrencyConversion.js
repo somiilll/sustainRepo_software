@@ -53,6 +53,23 @@ const DATA_SOURCES = [
   'Custom'
 ];
 
+const inferApplicabilityType = (config = {}) => (
+  config.applicability_type
+  || (config.month_applicable ? 'month' : 'calendar_year')
+);
+
+const formatApplicablePeriod = (config = {}) => {
+  if (inferApplicabilityType(config) === 'financial_year') {
+    const start = config.financial_year_start;
+    const end = config.financial_year_end || config.year_applicable;
+    return start && end ? `FY ${start}-${String(end).slice(-2)}` : config.period_key || '-';
+  }
+  if (inferApplicabilityType(config) === 'month') {
+    return `${config.year_applicable}-${String(config.month_applicable).padStart(2, '0')}`;
+  }
+  return `CY ${config.year_applicable}`;
+};
+
 export default function CurrencyConversion() {
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,15 +80,18 @@ export default function CurrencyConversion() {
   const [filterCurrency, setFilterCurrency] = useState('');
   const [filterYear, setFilterYear] = useState('');
   const [filterMethod, setFilterMethod] = useState('');
+  const [filterApplicability, setFilterApplicability] = useState('');
   const { getAuthHeader } = useAuth();
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 30 }, (_, i) => currentYear - i);
+  const years = Array.from({ length: 36 }, (_, i) => currentYear + 5 - i);
 
   const [formData, setFormData] = useState({
     source_currency: 'INR',
     target_currency: 'USD',
+    applicability_type: 'calendar_year',
     year_applicable: currentYear,
+    financial_year_start: currentYear,
     month_applicable: '',
     conversion_method: 'ppp_inflation',
     purchase_parity: '',
@@ -102,13 +122,18 @@ export default function CurrencyConversion() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    const isFinancialYear = formData.applicability_type === 'financial_year';
+    const isMonthly = formData.applicability_type === 'month';
+    const financialYearStart = parseInt(formData.financial_year_start);
     const payload = {
       ...formData,
       purchase_parity: formData.purchase_parity ? parseFloat(formData.purchase_parity) : null,
       inflation_factor: formData.inflation_factor ? parseFloat(formData.inflation_factor) : null,
       exchange_rate: formData.exchange_rate ? parseFloat(formData.exchange_rate) : null,
-      year_applicable: parseInt(formData.year_applicable),
-      month_applicable: formData.month_applicable ? parseInt(formData.month_applicable) : null,
+      year_applicable: isFinancialYear ? financialYearStart + 1 : parseInt(formData.year_applicable),
+      financial_year_start: isFinancialYear ? financialYearStart : null,
+      financial_year_end: isFinancialYear ? financialYearStart + 1 : null,
+      month_applicable: isMonthly && formData.month_applicable ? parseInt(formData.month_applicable) : null,
     };
 
     try {
@@ -143,7 +168,9 @@ export default function CurrencyConversion() {
     setFormData({
       source_currency: config.source_currency,
       target_currency: config.target_currency,
+      applicability_type: inferApplicabilityType(config),
       year_applicable: config.year_applicable,
+      financial_year_start: config.financial_year_start || ((config.financial_year_end || config.year_applicable) - 1),
       month_applicable: config.month_applicable?.toString() || '',
       conversion_method: config.conversion_method || 'ppp_inflation',
       purchase_parity: config.purchase_parity?.toString() || '',
@@ -178,7 +205,9 @@ export default function CurrencyConversion() {
     setFormData({
       source_currency: 'INR',
       target_currency: 'USD',
+      applicability_type: 'calendar_year',
       year_applicable: currentYear,
+      financial_year_start: currentYear,
       month_applicable: '',
       conversion_method: 'ppp_inflation',
       purchase_parity: '',
@@ -199,8 +228,15 @@ export default function CurrencyConversion() {
   // Filter configs
   const filteredConfigs = configs.filter(config => {
     if (filterCurrency && config.source_currency !== filterCurrency) return false;
-    if (filterYear && config.year_applicable !== parseInt(filterYear)) return false;
+    if (filterYear) {
+      const year = parseInt(filterYear);
+      const matchesYear = config.year_applicable === year
+        || config.financial_year_start === year
+        || config.financial_year_end === year;
+      if (!matchesYear) return false;
+    }
     if (filterMethod && (config.conversion_method || 'ppp_inflation') !== filterMethod) return false;
+    if (filterApplicability && inferApplicabilityType(config) !== filterApplicability) return false;
     return true;
   });
 
@@ -211,6 +247,11 @@ export default function CurrencyConversion() {
     acc[key].push(config);
     return acc;
   }, {});
+  const availableFilterYears = [...new Set(configs.flatMap((config) => [
+    config.year_applicable,
+    config.financial_year_start,
+    config.financial_year_end,
+  ]).filter(Boolean))].sort((a, b) => b - a);
 
   if (loading) {
     return (
@@ -247,6 +288,8 @@ export default function CurrencyConversion() {
               <li><strong>Inflation Factor:</strong> Adjusts for inflation between the base year and calculation year</li>
               <li><strong>Standard Conversion:</strong> Uses the market rate effective for the reporting month.</li>
               <li><strong>PPP &amp; Inflation:</strong> Uses annual PPP and inflation adjustment, including legacy records.</li>
+              <li><strong>Financial Year:</strong> Uses an exact FY rate first, then the ending calendar year and previous-period fallbacks.</li>
+              <li><strong>Calendar Year:</strong> Uses the exact CY rate first, then the nearest previous CY rate.</li>
             </ul>
           </div>
         </div>
@@ -254,7 +297,7 @@ export default function CurrencyConversion() {
 
       {/* Filters */}
       <Card className="p-4">
-        <div className="flex gap-4 items-end">
+        <div className="flex flex-wrap gap-4 items-end">
           <div className="w-48">
             <Label className="text-sm text-slate-600 mb-1">Filter by Currency</Label>
             <Select value={filterCurrency || "all"} onValueChange={(v) => setFilterCurrency(v === "all" ? "" : v)}>
@@ -269,6 +312,20 @@ export default function CurrencyConversion() {
               </SelectContent>
             </Select>
           </div>
+          <div className="w-44">
+            <Label className="text-sm text-slate-600 mb-1">Filter by Period Type</Label>
+            <Select value={filterApplicability || 'all'} onValueChange={(value) => setFilterApplicability(value === 'all' ? '' : value)}>
+              <SelectTrigger data-testid="currency-applicability-filter">
+                <SelectValue placeholder="All Period Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" data-testid="currency-applicability-filter-all">All Period Types</SelectItem>
+                <SelectItem value="calendar_year" data-testid="currency-applicability-filter-calendar-year">Calendar Year</SelectItem>
+                <SelectItem value="financial_year" data-testid="currency-applicability-filter-financial-year">Financial Year</SelectItem>
+                <SelectItem value="month" data-testid="currency-applicability-filter-month">Specific Month</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="w-36">
             <Label className="text-sm text-slate-600 mb-1">Filter by Year</Label>
             <Select value={filterYear || "all"} onValueChange={(v) => setFilterYear(v === "all" ? "" : v)}>
@@ -277,7 +334,7 @@ export default function CurrencyConversion() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Years</SelectItem>
-                {[...new Set(configs.map(c => c.year_applicable))].sort((a, b) => b - a).map(year => (
+                {availableFilterYears.map(year => (
                   <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
                 ))}
               </SelectContent>
@@ -294,21 +351,21 @@ export default function CurrencyConversion() {
               </SelectContent>
             </Select>
           </div>
-          <div className="text-sm text-slate-500">
+          <div className="text-sm text-slate-500" data-testid="currency-filter-result-count">
             Showing {filteredConfigs.length} of {configs.length} configurations
           </div>
         </div>
       </Card>
 
       {/* Currency Conversion Table */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50">
               <TableHead className="font-semibold">Source Currency</TableHead>
               <TableHead className="font-semibold">Target Currency</TableHead>
-              <TableHead className="font-semibold">Year</TableHead>
-              <TableHead className="font-semibold">Effective Period</TableHead>
+              <TableHead className="font-semibold">Period Type</TableHead>
+              <TableHead className="font-semibold">Applicable Period</TableHead>
               <TableHead className="font-semibold">Method</TableHead>
               <TableHead className="font-semibold">Purchase Parity (PPP)</TableHead>
               <TableHead className="font-semibold">Inflation Factor</TableHead>
@@ -338,11 +395,13 @@ export default function CurrencyConversion() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-slate-400" />
-                      {config.year_applicable}
+                      {inferApplicabilityType(config) === 'financial_year'
+                        ? 'Financial Year'
+                        : inferApplicabilityType(config) === 'month' ? 'Specific Month' : 'Calendar Year'}
                     </div>
                   </TableCell>
                   <TableCell data-testid={`currency-effective-period-${config.id}`}>
-                    {config.effective_from || (config.month_applicable ? `${config.year_applicable}-${String(config.month_applicable).padStart(2, '0')}` : config.year_applicable)}
+                    {formatApplicablePeriod(config)}
                   </TableCell>
                   <TableCell data-testid={`currency-method-${config.id}`}>
                     {(config.conversion_method || 'ppp_inflation') === 'standard' ? 'Standard' : 'PPP & Inflation'}
@@ -397,7 +456,7 @@ export default function CurrencyConversion() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl" data-testid="currency-conversion-dialog">
           <DialogHeader>
             <DialogTitle>
               {editingConfig ? 'Edit Currency Conversion' : 'Add Currency Conversion'}
@@ -405,7 +464,7 @@ export default function CurrencyConversion() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <Label className="text-sm font-medium">Conversion Method *</Label>
                 <Select value={formData.conversion_method} onValueChange={(value) => setFormData({ ...formData, conversion_method: value })}>
@@ -435,18 +494,6 @@ export default function CurrencyConversion() {
                 </Select>
               </div>
               <div>
-                <Label className="text-sm font-medium">Month Applicable</Label>
-                <Select value={formData.month_applicable || 'annual'} onValueChange={(value) => setFormData({ ...formData, month_applicable: value === 'annual' ? '' : value })}>
-                  <SelectTrigger data-testid="currency-month-select"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="annual">Annual rate</SelectItem>
-                    {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                      <SelectItem key={month} value={String(month)}>{new Date(2000, month - 1, 1).toLocaleString('en', { month: 'long' })}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <Label className="text-sm font-medium">Target Currency *</Label>
                 <Select 
                   value={formData.target_currency} 
@@ -466,33 +513,80 @@ export default function CurrencyConversion() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <Label className="text-sm font-medium">Year Applicable *</Label>
-                <Select 
-                  value={formData.year_applicable.toString()} 
-                  onValueChange={(value) => setFormData({...formData, year_applicable: parseInt(value)})}
+                <Label className="text-sm font-medium">Applicable Period Type *</Label>
+                <Select
+                  value={formData.applicability_type}
+                  onValueChange={(value) => setFormData({
+                    ...formData,
+                    applicability_type: value,
+                    month_applicable: value === 'month' ? (formData.month_applicable || '1') : '',
+                  })}
                 >
-                  <SelectTrigger data-testid="year-select">
+                  <SelectTrigger data-testid="currency-applicability-type-select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {years.map(year => (
-                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                    ))}
+                    <SelectItem value="calendar_year" data-testid="currency-applicability-type-calendar-year">Calendar Year</SelectItem>
+                    <SelectItem value="financial_year" data-testid="currency-applicability-type-financial-year">Financial Year</SelectItem>
+                    <SelectItem value="month" data-testid="currency-applicability-type-month">Specific Month</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-sm font-medium">Data Source *</Label>
-                <Input
-                  value={formData.source}
-                  onChange={(e) => setFormData({...formData, source: e.target.value})}
-                  placeholder="e.g., World Bank, IMF, OECD"
-                  required
-                  data-testid="data-source-input"
-                />
+                <Label className="text-sm font-medium">
+                  {formData.applicability_type === 'financial_year' ? 'Financial Year Starts *' : 'Year Applicable *'}
+                </Label>
+                <Select
+                  value={String(formData.applicability_type === 'financial_year' ? formData.financial_year_start : formData.year_applicable)}
+                  onValueChange={(value) => setFormData(
+                    formData.applicability_type === 'financial_year'
+                      ? { ...formData, financial_year_start: parseInt(value) }
+                      : { ...formData, year_applicable: parseInt(value) }
+                  )}
+                >
+                  <SelectTrigger data-testid="currency-applicable-year-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {years.map(year => (
+                      <SelectItem key={year} value={year.toString()} data-testid={`currency-applicable-year-${year}`}>{year}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+              {formData.applicability_type === 'month' ? (
+                <div>
+                  <Label className="text-sm font-medium">Month Applicable *</Label>
+                  <Select value={formData.month_applicable || '1'} onValueChange={(value) => setFormData({ ...formData, month_applicable: value })}>
+                    <SelectTrigger data-testid="currency-month-select"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                        <SelectItem key={month} value={String(month)} data-testid={`currency-month-${month}`}>
+                          {new Date(2000, month - 1, 1).toLocaleString('en', { month: 'long' })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : formData.applicability_type === 'financial_year' ? (
+                <div>
+                  <Label className="text-sm font-medium">Applicable Financial Year</Label>
+                  <div className="flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-medium" data-testid="currency-financial-year-preview">
+                    FY {formData.financial_year_start}-{String(Number(formData.financial_year_start) + 1).slice(-2)}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium">Data Source *</Label>
+              <Input
+                value={formData.source}
+                onChange={(e) => setFormData({...formData, source: e.target.value})}
+                placeholder="e.g., World Bank, IMF, OECD"
+                required
+                data-testid="data-source-input"
+              />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
@@ -511,13 +605,14 @@ export default function CurrencyConversion() {
                 <p className="text-xs text-slate-500 mt-1">PPP conversion factor</p>
               </div>
               <div>
-                <Label className="text-sm font-medium">Inflation Factor</Label>
+                <Label className="text-sm font-medium">Inflation Factor *</Label>
                 <Input
                   type="number"
                   step="0.0001"
                   value={formData.inflation_factor}
                   onChange={(e) => setFormData({...formData, inflation_factor: e.target.value})}
                   placeholder="e.g., 1.05"
+                  required={formData.conversion_method === 'ppp_inflation'}
                   data-testid="inflation-input"
                 />
                 <p className="text-xs text-slate-500 mt-1">Inflation adjustment</p>
@@ -559,7 +654,7 @@ export default function CurrencyConversion() {
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} data-testid="cancel-currency-button">
                 Cancel
               </Button>
               <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700" data-testid="save-currency-btn">
@@ -577,7 +672,7 @@ export default function CurrencyConversion() {
             <AlertDialogTitle>Delete Currency Conversion</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this currency conversion configuration for{' '}
-              <strong>{configToDelete?.source_currency}/{configToDelete?.target_currency}</strong> ({configToDelete?.year_applicable})?
+              <strong>{configToDelete?.source_currency}/{configToDelete?.target_currency}</strong> ({formatApplicablePeriod(configToDelete)})?
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
