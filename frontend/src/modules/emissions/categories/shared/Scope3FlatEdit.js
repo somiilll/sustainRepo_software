@@ -12,11 +12,25 @@
  * with the legacy shared inline implementation in `Emissions.js`.
  */
 
-import { getMonthlyReportingPeriodDayLimit, isAnnualDayCountField } from '../../../ghg/emissions/shared/utils/reportingPeriodDays';
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../../../ghg/emissions/shared/utils/reportingPeriodDays';
 
 // ---------- field unit resolver ----------
 
-const getMonthlyLimitFromReportingPeriod = (reportingPeriod) => {
+const getDayLimitFromReportingPeriod = (reportingPeriod, frequencyType) => {
+  if (frequencyType === 'yearly') {
+    const calendarMatch = String(reportingPeriod || '').match(/^CY\s?(\d{4})$/i);
+    if (calendarMatch) return getAnnualReportingPeriodDayLimit(calendarMatch[1], 'calendar');
+
+    const financialMatch = String(reportingPeriod || '').match(/^FY\s?(\d{4})-(\d{4})$/i);
+    if (financialMatch) return getAnnualReportingPeriodDayLimit(financialMatch[1], 'financial');
+
+    return undefined;
+  }
+
   const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
   if (!match) return undefined;
   return getMonthlyReportingPeriodDayLimit(Number(match[2]), Number(match[1]));
@@ -121,19 +135,23 @@ export function validateEditSubmission(ctx) {
 
   const categoryIdentity = `${categoryCode || ''} ${formData?.category || ''}`.toLowerCase();
   const isC6BusinessTravel = /(^|\s)c6\b|business[_\s-]*travel/.test(categoryIdentity);
-  const monthlyDayLimit = frequencyType !== 'yearly' && isC6BusinessTravel
-    ? getMonthlyLimitFromReportingPeriod(formData?.reporting_period)
+  const reportingPeriodDayLimit = isC6BusinessTravel
+    ? getDayLimitFromReportingPeriod(
+      formData?.reporting_period || formData?.reporting_period_start,
+      frequencyType,
+    )
     : undefined;
+  const reportingPeriodLabel = frequencyType === 'yearly' ? 'reporting year' : 'reporting month';
 
-  if (monthlyDayLimit !== undefined) {
+  if (reportingPeriodDayLimit !== undefined) {
     for (const field of (dynamicInputFields || []).filter(isAnnualDayCountField)) {
       const rawValue = dynamicFieldValues[field.variable] ?? dynamicFieldValues[field.fieldKey];
       const fieldValue = rawValue && typeof rawValue === 'object' ? rawValue.value : rawValue;
       const value = Number.parseFloat(fieldValue);
-      if (Number.isFinite(value) && value > monthlyDayLimit) {
+      if (Number.isFinite(value) && value > reportingPeriodDayLimit) {
         return {
           valid: false,
-          errorMessage: `${field.label} cannot exceed ${monthlyDayLimit} days for this reporting month`,
+          errorMessage: `${field.label} cannot exceed ${reportingPeriodDayLimit} days for this ${reportingPeriodLabel}`,
         };
       }
     }

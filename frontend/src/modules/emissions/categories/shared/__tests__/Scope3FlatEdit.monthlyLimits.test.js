@@ -1,7 +1,7 @@
 import { validateEditSubmission } from '../Scope3FlatEdit';
 
 // Scope 3 C6 monthly edit validation for canonical dynamic values
-const buildBaseContext = ({ reportingPeriod, dynamicFieldValues, dynamicInputFields }) => ({
+const buildBaseContext = ({ reportingPeriod, dynamicFieldValues, dynamicInputFields, frequencyType = 'monthly' }) => ({
   module: null,
   scope3Method: 'activity_basis',
   scope3ActivityId: 'activity-1',
@@ -23,7 +23,7 @@ const buildBaseContext = ({ reportingPeriod, dynamicFieldValues, dynamicInputFie
     category: 'Business Travel',
     reporting_period: reportingPeriod,
   },
-  frequencyType: 'monthly',
+  frequencyType,
   categoryCode: 'c6',
 });
 
@@ -126,6 +126,35 @@ describe('validateEditSubmission - C6 monthly canonical object day limits', () =
       expect(accepted.valid).toBe(true);
       expect(rejected.valid).toBe(false);
       expect(rejected.errorMessage).toContain(`cannot exceed ${maxDays} days`);
+    },
+  );
+});
+
+describe('validateEditSubmission - C6 yearly canonical object day limits', () => {
+  test.each([
+    ['CY2024', 'qty_days_travelled', 366, 367, 366],
+    ['CY2025', 'nights_stayed', 365, 366, 365],
+    ['FY 2023-2024', 'qty_nights', 366, 367, 366],
+    ['FY 2024-2025', 'number_of_nights', 365, 366, 365],
+  ])(
+    '%s %s accepts its boundary and rejects the next day',
+    (reportingPeriod, variable, acceptedValue, rejectedValue, maximum) => {
+      const accepted = validateEditSubmission(buildBaseContext({
+        reportingPeriod,
+        frequencyType: 'yearly',
+        dynamicInputFields: [{ variable, label: 'Travel days' }],
+        dynamicFieldValues: { [variable]: { value: acceptedValue, unit: '' } },
+      }));
+      const rejected = validateEditSubmission(buildBaseContext({
+        reportingPeriod,
+        frequencyType: 'yearly',
+        dynamicInputFields: [{ variable, label: 'Travel days' }],
+        dynamicFieldValues: { [variable]: { value: rejectedValue, unit: '' } },
+      }));
+
+      expect(accepted.valid).toBe(true);
+      expect(rejected.valid).toBe(false);
+      expect(rejected.errorMessage).toContain(`cannot exceed ${maximum} days for this reporting year`);
     },
   );
 });

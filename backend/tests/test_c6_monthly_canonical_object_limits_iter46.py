@@ -18,6 +18,12 @@ def _base_payload(reporting_period: str, dynamic_field_values: dict):
     }
 
 
+def _yearly_payload(reporting_period: str, dynamic_field_values: dict):
+    payload = _base_payload(reporting_period, dynamic_field_values)
+    payload["frequency_type"] = "yearly"
+    return payload
+
+
 @pytest.mark.parametrize(
     "field_key,limit,invalid_value",
     [
@@ -82,3 +88,33 @@ def test_rejects_non_numeric_canonical_object_value():
         EmissionRecordCreate(**payload)
 
     assert "must be a valid number" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "reporting_period,field_key,accepted,rejected,max_days",
+    [
+        ("CY2024", "qty_days_travelled", 366, 367, 366),
+        ("CY2025", "nights_stayed", 365, 366, 365),
+        ("FY 2023-2024", "qty_nights", 366, 367, 366),
+        ("FY 2024-2025", "number_of_nights", 365, 366, 365),
+    ],
+)
+def test_yearly_c6_travel_counts_respect_calendar_and_financial_year_boundaries(
+    reporting_period,
+    field_key,
+    accepted,
+    rejected,
+    max_days,
+):
+    EmissionRecordCreate(**_yearly_payload(
+        reporting_period,
+        {field_key: {"value": accepted, "unit": ""}},
+    ))
+
+    with pytest.raises(ValidationError) as exc:
+        EmissionRecordCreate(**_yearly_payload(
+            reporting_period,
+            {field_key: {"value": rejected, "unit": ""}},
+        ))
+
+    assert f"must be between 0 and {max_days} days for the reporting year" in str(exc.value)

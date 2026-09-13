@@ -122,18 +122,33 @@ class EmissionRecordCreate(BaseModel):
         return normalized
 
     @model_validator(mode="after")
-    def validate_monthly_c6_travel_counts(self):
-        """Keep monthly C6 travel counts within the actual calendar month."""
+    def validate_c6_travel_counts_for_reporting_period(self):
+        """Keep C6 travel counts within the actual monthly or yearly reporting period."""
         category_identity = f"{self.category_code or ''} {self.category or ''}".lower()
         is_c6 = bool(re.search(r"(^|\s)c6\b|business[_\s-]*travel", category_identity))
-        if self.frequency_type != "monthly" or not is_c6:
+        if not is_c6:
             return self
 
-        period_match = re.match(r"^(\d{4})-(\d{2})(?:-\d{2})?$", self.reporting_period or "")
-        if not period_match:
+        if self.frequency_type == "monthly":
+            period_match = re.match(r"^(\d{4})-(\d{2})(?:-\d{2})?$", self.reporting_period or "")
+            if not period_match:
+                return self
+            year, month = map(int, period_match.groups())
+            max_days = calendar.monthrange(year, month)[1]
+            period_label = "reporting month"
+        elif self.frequency_type == "yearly":
+            calendar_match = re.match(r"^CY\s?(\d{4})$", self.reporting_period or "", re.IGNORECASE)
+            financial_match = re.match(r"^FY\s?(\d{4})-(\d{4})$", self.reporting_period or "", re.IGNORECASE)
+            if calendar_match:
+                max_days = 366 if calendar.isleap(int(calendar_match.group(1))) else 365
+            elif financial_match:
+                max_days = 366 if calendar.isleap(int(financial_match.group(2))) else 365
+            else:
+                return self
+            period_label = "reporting year"
+        else:
             return self
-        year, month = map(int, period_match.groups())
-        max_days = calendar.monthrange(year, month)[1]
+
         values = self.dynamic_field_values or {}
         travel_fields = {
             "qty_days_travelled": "No. of Days Travelled",
@@ -154,7 +169,7 @@ class EmissionRecordCreate(BaseModel):
             except (TypeError, ValueError) as error:
                 raise ValueError(f"{label} must be a valid number") from error
             if numeric_value < 0 or numeric_value > max_days:
-                raise ValueError(f"{label} must be between 0 and {max_days} days for the reporting month")
+                raise ValueError(f"{label} must be between 0 and {max_days} days for the {period_label}")
         return self
 
 

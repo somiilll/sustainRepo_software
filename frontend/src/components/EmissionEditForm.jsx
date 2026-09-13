@@ -53,7 +53,11 @@ import {
   isQuantityField,
   resolveDensityRequirement,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
-import { getMonthlyReportingPeriodDayLimit, isAnnualDayCountField } from '../modules/ghg/emissions/shared/utils/reportingPeriodDays';
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../modules/ghg/emissions/shared/utils/reportingPeriodDays';
 import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
 import { toast } from 'sonner';
 
@@ -101,7 +105,17 @@ const isOxidationFactorField = (field = {}) => {
   return /oxidation.*factor|factor.*oxidation/i.test(identity);
 };
 
-const getMonthlyLimitFromReportingPeriod = (reportingPeriod) => {
+const getDayLimitFromReportingPeriod = (reportingPeriod, frequencyType) => {
+  if (frequencyType === 'yearly') {
+    const calendarMatch = String(reportingPeriod || '').match(/^CY\s?(\d{4})$/i);
+    if (calendarMatch) return getAnnualReportingPeriodDayLimit(calendarMatch[1], 'calendar');
+
+    const financialMatch = String(reportingPeriod || '').match(/^FY\s?(\d{4})-(\d{4})$/i);
+    if (financialMatch) return getAnnualReportingPeriodDayLimit(financialMatch[1], 'financial');
+
+    return undefined;
+  }
+
   const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
   if (!match) return undefined;
   return getMonthlyReportingPeriodDayLimit(Number(match[2]), Number(match[1]));
@@ -903,9 +917,13 @@ export default function EmissionEditForm(props) {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
                         const isQtyField = isQuantityField(field);
-                        const monthlyDayLimit = editFrequencyType !== 'yearly' && isAnnualDayCountField(field)
-                          ? getMonthlyLimitFromReportingPeriod(formData.reporting_period)
+                        const reportingPeriodDayLimit = isAnnualDayCountField(field)
+                          ? getDayLimitFromReportingPeriod(
+                            formData.reporting_period || formData.reporting_period_start,
+                            editFrequencyType,
+                          )
                           : undefined;
+                        const reportingPeriodLabel = editFrequencyType === 'yearly' ? 'reporting year' : 'reporting month';
                         const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
                         const showCustomFuelQuantityUnit = editUseCustomFuel && isQtyField;
                         const hideStandardQuantityUnit = false;
@@ -1133,14 +1151,14 @@ export default function EmissionEditForm(props) {
                                   type={field.fieldType === 'text' ? 'text' : 'number'}
                                   step={field.fieldType === 'number' ? 'any' : undefined}
                                   min={field.fieldType === 'number' ? '0' : undefined}
-                                  max={monthlyDayLimit ?? (isOxidationFactorField(field) ? '1' : undefined)}
-                                  placeholder={monthlyDayLimit ? `≤${monthlyDayLimit}` : field.placeholder}
+                                  max={reportingPeriodDayLimit ?? (isOxidationFactorField(field) ? '1' : undefined)}
+                                  placeholder={reportingPeriodDayLimit ? `≤${reportingPeriodDayLimit}` : field.placeholder}
                                   value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     const parsedValue = parseFloat(val);
-                                    if (monthlyDayLimit !== undefined && Number.isFinite(parsedValue) && parsedValue > monthlyDayLimit) {
-                                      toast.error(`${field.label} cannot exceed ${monthlyDayLimit} days for this reporting month`);
+                                    if (reportingPeriodDayLimit !== undefined && Number.isFinite(parsedValue) && parsedValue > reportingPeriodDayLimit) {
+                                      toast.error(`${field.label} cannot exceed ${reportingPeriodDayLimit} days for this ${reportingPeriodLabel}`);
                                       return;
                                     }
                                     const isValidOxidationFactor = !isOxidationFactorField(field)

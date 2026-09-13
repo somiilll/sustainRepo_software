@@ -25,6 +25,6 @@ describe('annual reporting-period day limits', () => {
     expect(isAnnualDayCountField('working_days')).toBe(true);
     expect(isAnnualDayCountField('qty_days_travelled')).toBe(true);
     expect(isAnnualDayCountField('no_of_days')).toBe(true);
-    expect(isAnnualDayCountField('number_of_nights')).toBe(false);
+    expect(isAnnualDayCountField('number_of_nights')).toBe(true);
   });
 });
