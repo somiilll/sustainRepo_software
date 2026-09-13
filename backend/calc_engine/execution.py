@@ -548,7 +548,14 @@ class CalcEngine:
             
             # Only convert if we have both units and they differ
             if expected_unit and unit and unit != expected_unit:
-                value, c_audit = await convert(self.db, value, unit, expected_unit, context)
+                value, c_audit = await convert(
+                    self.db,
+                    value,
+                    unit,
+                    expected_unit,
+                    context,
+                    user_overrides,
+                )
                 _add_conversion_audit(audit, c_audit, property_key=var)
                 applied_factors[var]["converted_to"] = expected_unit
                 applied_factors[var]["converted_value"] = value

@@ -221,7 +221,14 @@ async def convert(db, value: float, from_unit: str, to_unit: str, context: dict 
     
     # Priority 3: Try chained conversion through intermediate units
     # Find all conversions from 'from_unit' and to 'to_unit'
-    chained_result = await _find_chained_conversion(db, from_unit, to_unit, value)
+    chained_result = await _find_chained_conversion(
+        db,
+        from_unit,
+        to_unit,
+        value,
+        context=context,
+        user_overrides=user_overrides,
+    )
     if chained_result:
         return chained_result
 
@@ -260,7 +267,13 @@ async def convert(db, value: float, from_unit: str, to_unit: str, context: dict 
 
 
 async def _find_chained_conversion(
-    db, from_unit: str, to_unit: str, value: float, max_depth: int = 3
+    db,
+    from_unit: str,
+    to_unit: str,
+    value: float,
+    max_depth: int = 3,
+    context: dict = None,
+    user_overrides: dict = None,
 ) -> Optional[Tuple[float, dict]]:
     """
     Find a conversion path through intermediate units.
@@ -270,41 +283,100 @@ async def _find_chained_conversion(
     Uses BFS to find shortest path. Max depth prevents infinite loops.
     Returns (converted_value, audit_entry) or None if no path found.
     """
+    context = context or {}
+    user_overrides = user_overrides or {}
+
     # Get all available conversions
     all_conversions = await db.ce_unit_conversions.find(
         {"is_active": True}, {"_id": 0}
     ).to_list(500)
     
-    # Build adjacency map: unit -> [(target_unit, factor)]
-    graph: Dict[str, List[Tuple[str, float]]] = {}
+    # Build adjacency map. Property-based edges retain their conversion record
+    # so their factor can be resolved from a user override or fuel default when
+    # that edge is reached in a mixed chain such as kl -> L -> kg.
+    graph: Dict[str, List[dict]] = {}
     for conv in all_conversions:
-        if conv.get("factor") is None:
+        src = conv.get("from_unit")
+        tgt = conv.get("to_unit")
+        fac = conv.get("factor")
+        is_property_edge = (
+            conv.get("conversion_type") == "property_based"
+            and bool(conv.get("property_key"))
+        )
+        if not src or not tgt or (fac is None and not is_property_edge):
             continue
-        src, tgt, fac = conv["from_unit"], conv["to_unit"], conv["factor"]
-        if src not in graph:
-            graph[src] = []
-        graph[src].append((tgt, fac))
+        graph.setdefault(src, []).append({
+            "to": tgt,
+            "factor": fac,
+            "conversion": conv,
+            "reverse": False,
+        })
         # Add reverse direction
-        if fac != 0:
-            if tgt not in graph:
-                graph[tgt] = []
-            graph[tgt].append((src, 1.0 / fac))
+        if is_property_edge or fac != 0:
+            graph.setdefault(tgt, []).append({
+                "to": src,
+                "factor": None if is_property_edge else 1.0 / fac,
+                "conversion": conv,
+                "reverse": True,
+            })
     
     # BFS to find shortest path
     from collections import deque
     
-    # Queue items: (current_unit, accumulated_factor, path)
-    queue = deque([(from_unit, 1.0, [from_unit])])
+    # Queue items: (current_unit, accumulated_factor, path, edge_audits,
+    # property_resolutions)
+    queue = deque([(from_unit, 1.0, [from_unit], [], [])])
     visited = {from_unit}
     
     while queue:
-        current, acc_factor, path = queue.popleft()
+        current, acc_factor, path, edge_audits, property_resolutions = queue.popleft()
         
         if len(path) > max_depth + 1:
             continue
         
         # Check if we can reach target from current
-        for next_unit, factor in graph.get(current, []):
+        for edge in graph.get(current, []):
+            next_unit = edge["to"]
+            factor = edge.get("factor")
+            # Keep a direct property conversion on its existing dedicated path
+            # in _convert_component(). The chain walker is only needed when a
+            # property edge follows or precedes another conversion edge.
+            if factor is None and current == from_unit and next_unit == to_unit and len(path) == 1:
+                continue
+            edge_audit = {
+                "from": current,
+                "to": next_unit,
+                "factor": factor,
+                "method": "db_conversion_reverse" if edge.get("reverse") else "db_conversion",
+                "conversion_id": edge.get("conversion", {}).get("id"),
+            }
+            edge_property_resolutions = []
+
+            if factor is None:
+                try:
+                    factor, resolved_audit = await _convert_component(
+                        db,
+                        current,
+                        next_unit,
+                        context,
+                        user_overrides,
+                        allow_chained=False,
+                    )
+                except ValueError:
+                    continue
+                edge_audit.update({
+                    "factor": factor,
+                    "method": resolved_audit.get("method", "property_based"),
+                    "property_key": resolved_audit.get("property_key"),
+                })
+                if resolved_audit.get("property_resolution"):
+                    edge_property_resolutions.append(resolved_audit["property_resolution"])
+                edge_property_resolutions.extend(
+                    resolved_audit.get("property_resolutions") or []
+                )
+
+            next_edge_audits = edge_audits + [edge_audit]
+            next_property_resolutions = property_resolutions + edge_property_resolutions
             if next_unit == to_unit:
                 # Found the target!
                 total_factor = acc_factor * factor
@@ -318,12 +390,20 @@ async def _find_chained_conversion(
                     "factor": total_factor,
                     "method": "chained_conversion",
                     "path": path + [to_unit],
+                    "component_conversions": next_edge_audits,
+                    "property_resolutions": next_property_resolutions,
                     "note": f"Chained: {' → '.join(path + [to_unit])}",
                 }
             
             if next_unit not in visited and len(path) < max_depth:
                 visited.add(next_unit)
-                queue.append((next_unit, acc_factor * factor, path + [next_unit]))
+                queue.append((
+                    next_unit,
+                    acc_factor * factor,
+                    path + [next_unit],
+                    next_edge_audits,
+                    next_property_resolutions,
+                ))
     
     return None
 
@@ -428,6 +508,7 @@ async def _try_compound_conversion(
                 conv_method = conv_audit.get("method", "unknown")
                 if conv_audit.get("property_resolution"):
                     property_resolutions.append(conv_audit["property_resolution"])
+                property_resolutions.extend(conv_audit.get("property_resolutions") or [])
             except ValueError:
                 return None  # No conversion path found
         
@@ -458,7 +539,14 @@ async def _try_compound_conversion(
     return converted, conversion_audit
 
 
-async def _convert_component(db, from_unit: str, to_unit: str, context: dict = None, user_overrides: dict = None) -> Tuple[float, dict]:
+async def _convert_component(
+    db,
+    from_unit: str,
+    to_unit: str,
+    context: dict = None,
+    user_overrides: dict = None,
+    allow_chained: bool = True,
+) -> Tuple[float, dict]:
     """
     Convert between simple units for compound unit decomposition.
     Uses all available conversion methods: direct, reverse, chained, property-based.
@@ -468,6 +556,8 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
         user_overrides: Optional dict with user-provided property values (e.g., density)
     
     Returns (factor, audit_entry) where factor converts 1 unit of from_unit to to_unit.
+    Set allow_chained=False when resolving an edge already selected by the chain
+    walker, preventing that edge from recursively starting another chain search.
     """
     context = context or {}
     user_overrides = user_overrides or {}
@@ -573,7 +663,15 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                     },
                 )
                 if fuel and fuel.get(property_key):
-                    factor = float(fuel[property_key])
+                    property_value = float(fuel[property_key])
+                    property_unit = fuel.get(property_unit_key) or f"{to_unit}/{from_unit}"
+                    factor = property_value
+                    if property_key == "density" and property_unit:
+                        factor = await normalize_density_factor(
+                            factor,
+                            property_unit,
+                            f"{to_unit}/{from_unit}",
+                        )
                     return factor, {
                         "factor": factor,
                         "method": "property_based",
@@ -581,8 +679,8 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                         "fuel_database_id": fuel_db_id,
                         "property_resolution": property_resolution_audit(
                             property_key,
-                            factor,
-                            fuel.get(property_unit_key) or f"{to_unit}/{from_unit}",
+                            property_value,
+                            property_unit,
                             "fuel_database_fallback",
                             fuel.get("source") or fuel.get("source_of_information") or "Fuel Database",
                         ),
@@ -653,7 +751,13 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                     },
                 )
                 if fuel and fuel.get(property_key) and float(fuel[property_key]) != 0:
-                    factor = 1.0 / float(fuel[property_key])
+                    property_value = float(fuel[property_key])
+                    property_unit = fuel.get(property_unit_key) or f"{from_unit}/{to_unit}"
+                    factor = await normalize_density_factor(
+                        property_value,
+                        property_unit,
+                        f"{to_unit}/{from_unit}",
+                    ) if property_key == "density" else 1.0 / property_value
                     return factor, {
                         "factor": factor,
                         "method": "property_based_reverse",
@@ -661,13 +765,16 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                         "fuel_database_id": fuel_db_id,
                         "property_resolution": property_resolution_audit(
                             property_key,
-                            float(fuel[property_key]),
-                            fuel.get(property_unit_key) or f"{from_unit}/{to_unit}",
+                            property_value,
+                            property_unit,
                             "fuel_database_fallback",
                             fuel.get("source") or fuel.get("source_of_information") or "Fuel Database",
                         ),
                     }
     
+    if not allow_chained:
+        raise ValueError(f"No direct conversion path from '{from_unit}' to '{to_unit}'")
+
     # Priority 3: Chained conversion
     from_emission_base = EMISSION_MASS_BASE_UNITS.get(from_unit)
     to_emission_base = EMISSION_MASS_BASE_UNITS.get(to_unit)
@@ -689,14 +796,25 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                 "base_conversion": base_audit,
             }
 
-    chained_result = await _find_chained_conversion(db, from_unit, to_unit, 1.0)
+    chained_result = await _find_chained_conversion(
+        db,
+        from_unit,
+        to_unit,
+        1.0,
+        context=context,
+        user_overrides=user_overrides,
+    )
     if chained_result:
         _, audit = chained_result
-        return audit.get("factor", 1.0), {
+        chained_audit = {
             "factor": audit.get("factor", 1.0),
             "method": "chained_conversion",
-            "path": audit.get("path", [])
+            "path": audit.get("path", []),
+            "component_conversions": audit.get("component_conversions", []),
         }
+        if audit.get("property_resolutions"):
+            chained_audit["property_resolutions"] = audit["property_resolutions"]
+        return audit.get("factor", 1.0), chained_audit
     
     # No conversion found
     raise ValueError(f"No conversion path from '{from_unit}' to '{to_unit}'")
