@@ -45,6 +45,13 @@ const isOxidationFactorField = (field = {}) => {
   return /oxidation.*factor|factor.*oxidation/i.test(identity);
 };
 
+const resolveActiveCalculationMethodology = (ctx) => {
+  const savedMethodology = ctx.dynamicFieldValues?.calculation_methodology;
+  return ctx.editCalcMethodology
+    || (typeof savedMethodology === 'object' ? savedMethodology?.value : savedMethodology)
+    || 'using_heat_basis_ncv';
+};
+
 export function buildDynamicValues(ctx) {
   const { dynamicInputFields, dynamicFieldValues, formData } = ctx;
   // PUT replaces this object. Build it solely from the fields active in the
@@ -92,12 +99,7 @@ export function buildDynamicValues(ctx) {
       || dynamicFieldValues.quantity_unit
       || ctx.formData?.quantity_unit
       || 'kg';
-    const savedCalculationMethodology = dynamicFieldValues.calculation_methodology;
-    const calculationMethodology = ctx.editCalcMethodology
-      || (typeof savedCalculationMethodology === 'object'
-        ? savedCalculationMethodology?.value
-        : savedCalculationMethodology)
-      || 'using_heat_basis_ncv';
+    const calculationMethodology = resolveActiveCalculationMethodology(ctx);
 
     dynamicValues.calculation_methodology = { value: calculationMethodology, unit: '' };
 
@@ -206,7 +208,7 @@ export function validateEditSubmission(ctx) {
   // 3. Every required field currently rendered by the configured form must
   // have a usable value. This prevents an earlier successful calculation from
   // allowing an incomplete edit to be saved.
-  if (dynamicInputFields?.length > 0 && !isCustomFugitiveFuel) {
+  if (dynamicInputFields?.length > 0 && !editUseCustomFuel) {
     for (const field of dynamicInputFields) {
       if (field.presentationOnly) continue;
       const isOxidationFactor = isOxidationFactorField(field);
@@ -249,10 +251,7 @@ export function validateEditSubmission(ctx) {
       }
     } else {
 
-      const methodology = ctx.editCalcMethodology
-        || dynamicFieldValues.calculation_methodology?.value
-        || dynamicFieldValues.calculation_methodology
-        || 'using_heat_basis_ncv';
+      const methodology = resolveActiveCalculationMethodology(ctx);
       if (methodology === 'using_heat_basis_ncv') {
         if (!isPositive(dynamicFieldValues.custom_ef)) {
           return { valid: false, errorMessage: 'Emission Factor must be greater than 0' };
@@ -324,9 +323,11 @@ export function validateEditSubmission(ctx) {
   }
 
   // 8. Dynamic override/optional fields — value required when checkbox enabled
-  const overrideAndOptionalFields = (dynamicInputFields || []).filter(
-    (f) => f.isOverride || (!f.required && !f.isOverride)
-  );
+  const overrideAndOptionalFields = editUseCustomFuel
+    ? []
+    : (dynamicInputFields || []).filter(
+      (f) => f.isOverride || (!f.required && !f.isOverride)
+    );
   for (const field of overrideAndOptionalFields) {
     const isCheckboxChecked = dynamicFieldValues[`override_${field.variable}`];
     const value = dynamicFieldValues[field.variable];

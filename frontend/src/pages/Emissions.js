@@ -2460,6 +2460,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         // Custom fuel props
         editUseCustomFuel,
         editCustomFuelName,
+        editCalcMethodology,
         editProcessType,
       });
       if (!validation.valid) {
