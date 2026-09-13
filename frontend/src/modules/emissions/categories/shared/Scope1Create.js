@@ -15,6 +15,8 @@
 
 import { buildCustomFuelCalculationPayload } from '../../../../pages/emissions/utils/customFuelCalcAdapter';
 import {
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
   normalizeDensityForCalcEngine,
   prepareDensityAwareCalculationInputs,
 } from '../../../ghg/emissions/shared/utils/unitHelpers';
@@ -205,7 +207,9 @@ export function buildDynamicFieldValues(data, ctx) {
     const hasValue = (value) => value !== undefined && value !== null && value !== '';
     const parseValue = (value) => (hasValue(value) ? parseFloat(value) : null);
     const quantity = hasValue(data.qty) ? data.qty : data.quantity;
-    const quantityUnit = data.custom_qty_unit || ctx.defaultUnit || data.qty_unit || data.quantity_unit || data.unit || 'kg';
+    const quantityUnit = normalizeCustomFuelQuantityUnit(
+      data.custom_qty_unit || ctx.defaultUnit || data.qty_unit || data.quantity_unit || data.unit || 'kg',
+    );
     const decisionInputs = ctx.buildDecisionInputs?.(data) || {};
     const calculationMethodology = data.calculation_methodology
       || decisionInputs.calculation_methodology
@@ -227,7 +231,10 @@ export function buildDynamicFieldValues(data, ctx) {
       out.custom_oxidation_factor = { value: parseValue(data.custom_oxidation_factor), unit: '' };
     }
     if (hasValue(data.density)) {
-      out.density = { value: parseValue(data.density), unit: data.density_unit || 'kg/L' };
+      out.density = {
+        value: parseValue(data.density),
+        unit: normalizeCustomFuelDensityUnit(data.density_unit || 'kg/L'),
+      };
     }
     if (ctx.categoryCode === 'fugitive_emissions' && hasValue(data.co2_gwp_fugitives)) {
       out.co2_gwp_fugitives = {

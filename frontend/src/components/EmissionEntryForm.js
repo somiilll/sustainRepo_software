@@ -45,6 +45,8 @@ import {
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
   prepareDensityAwareCalculationInputs,
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
   resolveCompoundDenominatorBasis,
   resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
@@ -376,9 +378,12 @@ export default function EmissionEntryForm({
           if (editingEmission.is_custom_fuel) {
             const savedQty = dfv.qty;
             const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
-            monthData.custom_qty_unit = savedQtyUnit
+            monthData.custom_qty_unit = normalizeCustomFuelQuantityUnit(savedQtyUnit
               || resolveEmissionQuantity(editingEmission).unit
-              || 'kg';
+              || 'kg');
+            if (monthData.density_unit) {
+              monthData.density_unit = normalizeCustomFuelDensityUnit(monthData.density_unit);
+            }
           }
           
           // Also include calculated values if they exist
@@ -428,9 +433,12 @@ export default function EmissionEntryForm({
         if (editingEmission.is_custom_fuel) {
           const savedQty = dfv.qty;
           const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
-          yearData.custom_qty_unit = savedQtyUnit
+          yearData.custom_qty_unit = normalizeCustomFuelQuantityUnit(savedQtyUnit
             || resolveEmissionQuantity(editingEmission).unit
-            || 'kg';
+            || 'kg');
+          if (yearData.density_unit) {
+            yearData.density_unit = normalizeCustomFuelDensityUnit(yearData.density_unit);
+          }
         }
         
         // Also include calculated values

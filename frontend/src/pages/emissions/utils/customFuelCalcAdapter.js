@@ -1,4 +1,6 @@
 import {
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
   normalizeDensityForCalcEngine,
   resolveDensityRequirement,
   resolveCompoundDenominatorBasis,
@@ -39,11 +41,11 @@ export const buildCustomFuelCalculationPayload = ({
 }) => {
   const values = dynamicFieldValues;
   const quantity = readValue(values, ['qty', 'quantity']) ?? formData.quantity;
-  const quantityUnit = readUnit(
+  const quantityUnit = normalizeCustomFuelQuantityUnit(readUnit(
     values,
     ['custom_qty_unit', 'qty_unit', 'quantity_unit'],
     formData.quantity_unit || 'kg',
-  );
+  ));
   const inputs = {};
   const userOverrides = {};
   const decisionInputs = {};
@@ -131,7 +133,9 @@ export const buildCustomFuelCalculationPayload = ({
     if (hasValue(density)) {
       const calcDensity = normalizeDensityForCalcEngine({
         value: density,
-        unit: readUnit(values, ['density_unit'], 'kg/L'),
+        unit: normalizeCustomFuelDensityUnit(
+          readUnit(values, ['density_unit'], 'kg/L'),
+        ),
       });
       addInput('density', calcDensity.value, calcDensity.unit, { override: true });
     }

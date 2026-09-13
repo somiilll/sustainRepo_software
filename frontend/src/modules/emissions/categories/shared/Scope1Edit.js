@@ -22,6 +22,11 @@
  * today; helpers are factored out for symmetry with Scope 3.
  */
 
+import {
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
+} from '../../../ghg/emissions/shared/utils/unitHelpers';
+
 // ---------- field unit resolver (same logic as legacy inline) ----------
 
 const getFieldUnitForSave = (field, ctx) => {
@@ -94,11 +99,11 @@ export function buildDynamicValues(ctx) {
     const quantity = hasValue(dynamicFieldValues.qty)
       ? dynamicFieldValues.qty
       : (hasValue(dynamicFieldValues.quantity) ? dynamicFieldValues.quantity : ctx.formData?.quantity);
-    const quantityUnit = dynamicFieldValues.custom_qty_unit
+    const quantityUnit = normalizeCustomFuelQuantityUnit(dynamicFieldValues.custom_qty_unit
       || dynamicFieldValues.qty_unit
       || dynamicFieldValues.quantity_unit
       || ctx.formData?.quantity_unit
-      || 'kg';
+      || 'kg');
     const calculationMethodology = resolveActiveCalculationMethodology(ctx);
 
     dynamicValues.calculation_methodology = { value: calculationMethodology, unit: '' };
@@ -131,7 +136,10 @@ export function buildDynamicValues(ctx) {
         dynamicValues.custom_oxidation_factor = { value: parseValue(dynamicFieldValues.custom_oxidation_factor), unit: '' };
       }
       if (hasValue(dynamicFieldValues.density)) {
-        dynamicValues.density = { value: parseValue(dynamicFieldValues.density), unit: dynamicFieldValues.density_unit || 'kg/L' };
+        dynamicValues.density = {
+          value: parseValue(dynamicFieldValues.density),
+          unit: normalizeCustomFuelDensityUnit(dynamicFieldValues.density_unit || 'kg/L'),
+        };
       }
       if (ctx.categoryCode === 'fugitive_emissions' && hasValue(dynamicFieldValues.co2_gwp_fugitives)) {
         dynamicValues.co2_gwp_fugitives = {

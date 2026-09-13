@@ -50,6 +50,8 @@ import {
 } from '../modules/ghg/emissions/shared/domain';
 import {
   normalizeDensityForCalcEngine,
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
   resolveCompoundDenominatorBasis,
   resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
@@ -813,13 +815,15 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           const savedQty = savedDynamicValues.qty;
           const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
           const primaryQuantity = resolveEmissionQuantity(editingEmission);
-          values.custom_qty_unit = savedQtyUnit
+          values.custom_qty_unit = normalizeCustomFuelQuantityUnit(savedQtyUnit
             || primaryQuantity.unit
-            || 'kg';
+            || 'kg');
           // Density from dynamic_field_values
           if (savedDynamicValues.density) {
             values.density = savedDynamicValues.density.value?.toString() || '';
-            values.density_unit = savedDynamicValues.density.unit || 'kg/L';
+            values.density_unit = normalizeCustomFuelDensityUnit(
+              savedDynamicValues.density.unit || 'kg/L',
+            );
           }
           setDynamicFieldValues({ ...values });
         }
