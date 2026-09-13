@@ -93,10 +93,10 @@ export function buildDynamicValues(ctx) {
       || ctx.formData?.quantity_unit
       || 'kg';
     const savedCalculationMethodology = dynamicFieldValues.calculation_methodology;
-    const calculationMethodology = (typeof savedCalculationMethodology === 'object'
-      ? savedCalculationMethodology?.value
-      : savedCalculationMethodology)
-      || ctx.editCalcMethodology
+    const calculationMethodology = ctx.editCalcMethodology
+      || (typeof savedCalculationMethodology === 'object'
+        ? savedCalculationMethodology?.value
+        : savedCalculationMethodology)
       || 'using_heat_basis_ncv';
 
     dynamicValues.calculation_methodology = { value: calculationMethodology, unit: '' };
@@ -249,9 +249,9 @@ export function validateEditSubmission(ctx) {
       }
     } else {
 
-      const methodology = dynamicFieldValues.calculation_methodology?.value
+      const methodology = ctx.editCalcMethodology
+        || dynamicFieldValues.calculation_methodology?.value
         || dynamicFieldValues.calculation_methodology
-        || ctx.editCalcMethodology
         || 'using_heat_basis_ncv';
       if (methodology === 'using_heat_basis_ncv') {
         if (!isPositive(dynamicFieldValues.custom_ef)) {
