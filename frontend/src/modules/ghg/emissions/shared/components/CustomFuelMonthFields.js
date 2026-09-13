@@ -252,7 +252,7 @@ const CustomFuelMonthFields = ({
             <Input
               type="number" step="any" min="0" max="1"
               required
-              value={data.custom_oxidation_factor || ''}
+              value={data.custom_oxidation_factor ?? ''}
               onChange={(e) => {
                 const value = e.target.value;
                 const parsedValue = Number.parseFloat(value);

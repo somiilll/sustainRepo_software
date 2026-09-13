@@ -58,6 +58,14 @@ const FUEL_DEFAULT_UNIT_KEYS = {
 
 const hasFieldValue = (value) => value !== undefined && value !== null && value !== '';
 
+const isPureUnitlessCountField = (field = {}) => (
+  field.unitSource === 'none'
+  && !field.validationRules?.max
+  && !field.variable?.includes('factor')
+  && !field.variable?.includes('carbon')
+  && !field.variable?.includes('composition')
+);
+
 const getFieldDefaultValue = (field, selectedFuel) => {
   if (hasFieldValue(field.defaultValue)) return field.defaultValue;
   const fuelKey = FUEL_DEFAULT_VALUE_KEYS[field.variable];
@@ -1430,6 +1438,44 @@ const YearlyDataEntry = ({
     centralizedUnits,
   });
 
+  // Yearly inputs previously showed configured defaults without adding them
+  // to yearlyData. Persist those defaults in state so required validation and
+  // the save payload see the same value shown to the user.
+  useEffect(() => {
+    if (dynamicInputFields.length === 0) return;
+    setYearlyData((previous) => {
+      let changed = false;
+      const next = { ...previous };
+      dynamicInputFields.forEach((field) => {
+        if (field.presentationOnly || field.isOverride || hasFieldValue(previous[field.variable])) return;
+        const defaultValue = resolveSpendDefaultValue(field, yearlyReportingPeriod)
+          ?? getFieldDefaultValue(field, selectedFuel);
+        if (hasFieldValue(defaultValue)) {
+          next[field.variable] = defaultValue;
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+  }, [dynamicInputFields, resolveSpendDefaultValue, selectedFuel, setYearlyData, yearlyReportingPeriod]);
+
+  useEffect(() => {
+    if (!useCustomFuel || calculationMethodology !== 'using_carbon_composition') return;
+    setYearlyData((previous) => {
+      if (hasFieldValue(previous.custom_oxidation_factor)) return previous;
+      const oxidationField = dynamicInputFields.find((field) => /oxidation.*factor|factor.*oxidation/i.test(
+        `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`,
+      ));
+      const configuredDefault = oxidationField
+        ? getFieldDefaultValue(oxidationField, selectedFuel)
+        : '';
+      return {
+        ...previous,
+        custom_oxidation_factor: hasFieldValue(configuredDefault) ? configuredDefault : 1,
+      };
+    });
+  }, [calculationMethodology, dynamicInputFields, selectedFuel, setYearlyData, useCustomFuel]);
+
   useEffect(() => {
     if (useCustomFuel) return;
     setYearlyData((previous) => {
@@ -1511,7 +1557,7 @@ const YearlyDataEntry = ({
                   const isSupplierBasis = scope3Method === 'supplier_basis';
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
-                  const isUnitlessCountField = isNoUnitField;
+                  const isUnitlessCountField = isPureUnitlessCountField(field);
                   const isAnnualDayField = isAnnualDayCountField(field);
                   const yearlyFieldMax = isAnnualDayField
                     ? annualDayLimit
@@ -1671,7 +1717,7 @@ const YearlyDataEntry = ({
                   const isSupplierBasis = scope3Method === 'supplier_basis';
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
-                  const isUnitlessCountField = isNoUnitField;
+                  const isUnitlessCountField = isPureUnitlessCountField(field);
                   const isAnnualDayField = isAnnualDayCountField(field);
                   const yearlyFieldMax = isAnnualDayField
                     ? annualDayLimit
