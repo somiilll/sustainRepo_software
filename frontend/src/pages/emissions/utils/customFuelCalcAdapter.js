@@ -1,4 +1,5 @@
 import {
+  normalizeCustomFuelCalorificValueUnit,
   normalizeCustomFuelCompoundUnit,
   normalizeCustomFuelDensityUnit,
   normalizeCustomFuelQuantityUnit,
@@ -88,7 +89,7 @@ export const buildCustomFuelCalculationPayload = ({
       readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'tCO2/TJ'),
     );
     const cv = readValue(values, ['custom_cv', 'cv', 'ncv', 'calorific_value']);
-    const cvUnit = normalizeCustomFuelCompoundUnit(
+    const cvUnit = normalizeCustomFuelCalorificValueUnit(
       readUnit(values, ['custom_cv_unit', 'cv_unit', 'ncv_unit', 'calorific_value_unit'], 'TJ/kg'),
     );
     // Preserve the user's EF value and unit. `ef_co2` is a formula property,

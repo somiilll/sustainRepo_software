@@ -15,6 +15,7 @@
 
 import { buildCustomFuelCalculationPayload } from '../../../../pages/emissions/utils/customFuelCalcAdapter';
 import {
+  normalizeCustomFuelCalorificValueUnit,
   normalizeCustomFuelCompoundUnit,
   normalizeCustomFuelDensityUnit,
   normalizeCustomFuelQuantityUnit,
@@ -228,7 +229,7 @@ export function buildDynamicFieldValues(data, ctx) {
     if (hasValue(data.custom_cv)) {
       out.custom_cv = {
         value: parseValue(data.custom_cv),
-        unit: normalizeCustomFuelCompoundUnit(data.custom_cv_unit || ''),
+        unit: normalizeCustomFuelCalorificValueUnit(data.custom_cv_unit || ''),
       };
     }
     if (hasValue(data.custom_carbon_content)) {

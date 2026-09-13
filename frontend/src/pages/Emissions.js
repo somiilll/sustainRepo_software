@@ -50,6 +50,7 @@ import {
 } from '../modules/ghg/emissions/shared/domain';
 import {
   normalizeDensityForCalcEngine,
+  normalizeCustomFuelCalorificValueUnit,
   normalizeCustomFuelCompoundUnit,
   normalizeCustomFuelDensityUnit,
   normalizeCustomFuelQuantityUnit,
@@ -809,7 +810,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             if (saved) {
               values[key] = saved.value !== null && saved.value !== undefined ? saved.value.toString() : '';
               if (saved.unit) {
-                values[`${key}_unit`] = normalizeCustomFuelCompoundUnit(saved.unit);
+                values[`${key}_unit`] = key === 'custom_cv'
+                  ? normalizeCustomFuelCalorificValueUnit(saved.unit)
+                  : normalizeCustomFuelCompoundUnit(saved.unit);
               }
             }
           });

@@ -23,6 +23,7 @@
  */
 
 import {
+  normalizeCustomFuelCalorificValueUnit,
   normalizeCustomFuelCompoundUnit,
   normalizeCustomFuelDensityUnit,
   normalizeCustomFuelQuantityUnit,
@@ -133,7 +134,7 @@ export function buildDynamicValues(ctx) {
       if (hasValue(dynamicFieldValues.custom_cv)) {
         dynamicValues.custom_cv = {
           value: parseValue(dynamicFieldValues.custom_cv),
-          unit: normalizeCustomFuelCompoundUnit(dynamicFieldValues.custom_cv_unit || ''),
+          unit: normalizeCustomFuelCalorificValueUnit(dynamicFieldValues.custom_cv_unit || ''),
         };
       }
       if (hasValue(dynamicFieldValues.custom_carbon_content)) {
