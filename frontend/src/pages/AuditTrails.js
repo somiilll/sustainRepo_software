@@ -108,8 +108,9 @@ const AUDIT_FIELD_LABELS = {
 };
 const AUDIT_HIDDEN_FIELDS = new Set([
   'id', 'created_at', 'created_by', 'created_by_email', 'created_by_name', 'version_number',
-  'formula_id', 'formula_version_id', 'formula_version', 'decision_tree_version_id',
-  'submission_batch_id', 'inputs', 'outputs', 'properties', 'steps', 'category_code',
+  'formula_id', 'formula_version_id', 'formula_version', 'formula_snapshot', 'decision_tree_version_id',
+  'submission_batch_id', 'inputs', 'outputs', 'properties', 'steps', 'category_code', 'category_id',
+  'justification', 'updated_at', 'updated_by', 'updated_by_email', 'updated_by_name',
 ]);
 
 const humanizeAuditField = (key = '') => AUDIT_FIELD_LABELS[key]
@@ -161,7 +162,15 @@ const getVisibleAuditChanges = (changes, resolvedEntities, action) => {
   const next = flattenAuditValues(changes?.new_values, resolvedEntities);
   const fields = [...new Set([...Object.keys(previous), ...Object.keys(next)])].filter((field) => (
     action === 'create' ? next[field] && next[field] !== 'Not set' : previous[field] !== next[field]
-  ));
+  )).filter((field) => {
+    const leaf = field.split('.').pop();
+    const customFuelName = next.custom_fuel_name || previous.custom_fuel_name;
+    return !(
+      customFuelName
+      && ['sub_category', 'fuel_type'].includes(leaf)
+      && (next[field] === customFuelName || previous[field] === customFuelName)
+    );
+  });
   return { fields, next, previous };
 };
 
@@ -186,6 +195,7 @@ export default function AuditTrails() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [summary, setSummary] = useState(null);
   
   // Filters
@@ -284,14 +294,18 @@ export default function AuditTrails() {
   };
   
   const openLogDetail = async (log) => {
-    setSelectedLog(log);
+    setSelectedLog(null);
     setDetailDialogOpen(true);
+    setDetailLoading(true);
     try {
       const response = await axios.get(`${API}/audit-logs/${log.id}`, { headers: getAuthHeader() });
       setSelectedLog(response.data);
     } catch (error) {
       console.error('Failed to load audit log details:', error);
       toast.error('Showing the available audit log details');
+      setSelectedLog(log);
+    } finally {
+      setDetailLoading(false);
     }
   };
   
@@ -648,7 +662,8 @@ export default function AuditTrails() {
       {/* Log Detail Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
         <DialogContent className="max-h-[86vh] max-w-4xl gap-0 overflow-hidden p-0" data-testid="audit-log-detail-dialog">
-          {selectedLog && <>
+          {detailLoading && <div className="flex min-h-48 items-center justify-center" data-testid="audit-log-detail-loading"><RefreshCw className="h-6 w-6 animate-spin text-emerald-700" aria-hidden="true" /></div>}
+          {selectedLog && !detailLoading && <>
             <DialogHeader className={`border-b px-6 py-5 ${selectedLog.status === 'success' ? 'border-emerald-100 bg-emerald-50/70' : 'border-rose-100 bg-rose-50/70'}`}>
               <div className="flex items-start gap-4 pr-8">
                 <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${selectedLog.status === 'success' ? 'bg-emerald-700 text-white' : 'bg-rose-700 text-white'}`} data-testid="audit-log-event-icon"><ModuleIcon module={selectedLog.module} /></span>
