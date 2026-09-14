@@ -118,7 +118,7 @@ class R2Storage:
             is_training_upload = bucket_type == 'supplier_assessment'
             if ext and ext not in ALLOWED_EXTENSIONS and not (is_training_upload and ext in training_extensions):
                 return {"error": f"File type '{ext}' not allowed"}
-            max_file_size = 250 * 1024 * 1024 if is_training_upload else MAX_FILE_SIZE
+            max_file_size = 500 * 1024 * 1024 if is_training_upload else MAX_FILE_SIZE
             if len(file_content) > max_file_size:
                 return {"error": f"File too large. Max {max_file_size // (1024*1024)}MB"}
             is_training_media = content_type.startswith(('audio/', 'video/')) if content_type else False

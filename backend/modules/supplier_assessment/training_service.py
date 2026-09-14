@@ -24,7 +24,7 @@ ALLOWED_TYPES = {
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "audio/mpeg", "audio/mp4", "audio/wav", "video/mp4", "video/webm",
 }
-MAX_TRAINING_SIZE = 250 * 1024 * 1024
+MAX_TRAINING_SIZE = 500 * 1024 * 1024
 MAX_RENDERED_PAGES = 200
 
 def _now(): return datetime.now(timezone.utc).isoformat()
@@ -79,7 +79,7 @@ async def _prepare_viewer(content: bytes, file_name: str, content_type: str) -> 
 async def create_training(org_id: str, user_id: str, title: str, description: str, threshold: float, file_name: str, content_type: str, content: bytes, relationship_ids: List[str], due_date: Optional[str] = None):
     threshold = 100.0
     if not title.strip(): raise ValueError("Title is required")
-    if content_type not in ALLOWED_TYPES or not content or len(content) > MAX_TRAINING_SIZE: raise ValueError("Unsupported training file or file exceeds 250MB")
+    if content_type not in ALLOWED_TYPES or not content or len(content) > MAX_TRAINING_SIZE: raise ValueError("Unsupported training file or file exceeds 500MB")
     validate_due_date(due_date)
     organization_config = await sustainability_config_service.resolve_supplier_assessment_config(org_id)
     if not (organization_config.get("modules", {}).get("training") or {}).get("enabled"):
