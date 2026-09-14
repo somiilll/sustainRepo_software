@@ -1264,7 +1264,7 @@ export default function Sinks() {
           <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No Matching Records</h3>
           <p className="text-text-secondary mb-4">No sink records match your current filters.</p>
           <Button 
-            onClick={() => { setFilterFacility('all'); setFilterYear(currentReportingYear); }} 
+            onClick={() => { setFilterFacility('all'); setFilterStartMonth(currentReportingMonthRange.start); setFilterEndMonth(currentReportingMonthRange.end); }} 
             className="bg-primary hover:bg-primary/90 text-white"
             data-testid="clear-sink-empty-state-filters-button"
           >

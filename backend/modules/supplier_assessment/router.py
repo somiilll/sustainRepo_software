@@ -67,11 +67,41 @@ def _evidence_file_ids(value: object) -> List[str]:
     return list(dict.fromkeys(re.findall(r"/api/files/([A-Za-z0-9-]+)", str(value or ""))))
 
 
+async def _effective_supplier_program_config(relationship: dict) -> dict:
+    """Apply current parent-level Documents/Training shutdowns over the bound revision."""
+    program_context = await supplier_service.get_program_context(relationship)
+    program_config = program_context.get("config") or {}
+    effective_modules = {
+        code: dict(module_config)
+        for code, module_config in (program_config.get("modules") or {}).items()
+    }
+    parent_config = await sustainability_config_service.resolve_supplier_assessment_config(
+        relationship["customer_org_id"]
+    )
+    parent_modules = parent_config.get("modules") or {}
+    for module_code in ("documents", "training"):
+        if not (parent_modules.get(module_code) or {}).get("enabled", False):
+            effective_modules.setdefault(module_code, {})["enabled"] = False
+    return {**program_config, "modules": effective_modules}
+
+
+async def _assert_parent_supplier_module_enabled(relationship: dict, module_code: str) -> None:
+    parent_config = await sustainability_config_service.resolve_supplier_assessment_config(
+        relationship["customer_org_id"]
+    )
+    if not (parent_config.get("modules", {}).get(module_code) or {}).get("enabled", False):
+        display_name = "Documents" if module_code == "documents" else "Training"
+        raise HTTPException(
+            status_code=403,
+            detail=f"{display_name} is disabled by your customer organization",
+        )
+
+
 # ============================================================================
 # Helper: Check if user is supplier
 # ============================================================================
 
-async def get_supplier_user(current_user: dict = Depends(get_current_user)):
+async def get_supplier_user(request: Request, current_user: dict = Depends(get_current_user)):
     """Dependency that checks if user is a supplier."""
     user_type = current_user.get("user_type")
     org = await db.organizations.find_one(
@@ -80,6 +110,21 @@ async def get_supplier_user(current_user: dict = Depends(get_current_user)):
     )
     
     if user_type == "supplier" or (org and org.get("org_type") == "supplier"):
+        module_by_path = {
+            "/supplier-assessment/my-assessment/documents": "documents",
+            "/supplier-assessment/my-assessment/trainings": "training",
+        }
+        requested_module = next(
+            (module for path, module in module_by_path.items() if path in request.url.path),
+            None,
+        )
+        if requested_module:
+            relationship = await supplier_service.get_supplier_relationship_for_user(
+                user_id=current_user["id"],
+                user_org_id=current_user["organization_id"],
+            )
+            if relationship:
+                await _assert_parent_supplier_module_enabled(relationship, requested_module)
         return current_user
     
     raise HTTPException(status_code=403, detail="Supplier access required")
@@ -1037,12 +1082,12 @@ async def get_my_assessment(
         {"_id": 0, "name": 1}
     )
     
-    program_context = await supplier_service.get_program_context(relationship)
+    effective_config = await _effective_supplier_program_config(relationship)
     return {
         "relationship": relationship,
         "customer_name": customer_org.get("name") if customer_org else None,
         "assessment_modules": supplier_assessment_module_registry.supplier_module_summaries(
-            program_context["config"], relationship
+            effective_config, relationship
         ),
     }
 
@@ -1059,11 +1104,14 @@ async def get_my_assessment_onboarding(current_user: dict = Depends(get_supplier
         {"_id": 0, "id": 1, "name": 1, "updated_at": 1, "created_at": 1},
     )
     questionnaires = await supplier_service.get_supplier_questionnaire_status(current_user["organization_id"], relationship["customer_org_id"])
-    documents = await documents_service.list_supplier_documents(relationship)
-    trainings = await training_service.supplier_trainings(relationship)
+    effective_config = await _effective_supplier_program_config(relationship)
+    effective_modules = effective_config.get("modules") or {}
+    documents_enabled = bool((effective_modules.get("documents") or {}).get("enabled", False))
+    training_enabled = bool((effective_modules.get("training") or {}).get("enabled", False))
+    documents = await documents_service.list_supplier_documents(relationship) if documents_enabled else []
+    trainings = await training_service.supplier_trainings(relationship) if training_enabled else []
     ghg_state = await ghg_submission_service.get_supplier_ghg_state(relationship)
-    program_context = await supplier_service.get_program_context(relationship)
-    modules = supplier_assessment_module_registry.supplier_module_summaries(program_context["config"], relationship)
+    modules = supplier_assessment_module_registry.supplier_module_summaries(effective_config, relationship)
     questionnaire_pending = [item for item in questionnaires if item.get("status") != "submitted"]
     document_pending = [item for item in documents if not item.get("accepted") and not item.get("selected_response") and item.get("submission_status") != "submitted"]
     training_pending = [item for item in trainings if item.get("status") != "completed"]

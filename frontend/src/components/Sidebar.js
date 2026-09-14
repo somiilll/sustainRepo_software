@@ -23,6 +23,10 @@ const SUPPLIER_ASSESSMENT_LABEL_KEYS = {
   'supplier_assessment.documents': 'documents',
   'supplier_assessment.trainings': 'training',
 };
+const SUPPLIER_PORTAL_MODULE_KEYS = {
+  'supplier_assessment.my_documents': 'documents',
+  'supplier_assessment.my_training': 'training',
+};
 const SUPPLIER_GHG_REQUIRED_MENU_KEYS = new Set(['facilities', 'environment', 'environment.ghg', 'supplier_assessment.my_ghg']);
 
 function _sectionIcons(section) {
@@ -78,6 +82,8 @@ function MenuItem(props) {
   if (item.adminOnly && userRole !== 'admin' && userRole !== 'super_admin') return null;
   // Check supplierOnly - only show to supplier users
   if (item.supplierOnly && userType !== 'supplier' && orgType !== 'supplier') return null;
+  var supplierPortalModule = SUPPLIER_PORTAL_MODULE_KEYS[item.key];
+  if (item.supplierOnly && supplierPortalModule && (!Array.isArray(supplierModules) || !supplierModules.includes(supplierPortalModule))) return null;
   // Hide admin supplier items from supplier users
   if (!item.supplierOnly && item.key?.startsWith('supplier_assessment.') && (userType === 'supplier' || orgType === 'supplier')) return null;
   if (!hasAccess(item.key)) return null;

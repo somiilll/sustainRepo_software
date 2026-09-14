@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Parent-config supplier module enforcement:** Supplier-facing Documents and Training now honor the parent organization’s current canonical module configuration even when an older immutable supplier program revision still has the module enabled. Disabled modules are removed from `/my-assessment`, onboarding tasks, dashboard panels, progress summaries, and supplier sidebar navigation. Direct supplier API access to disabled Document/Training list, viewer, response, and progress routes returns 403, while direct browser routes redirect to the Supplier Assessment dashboard.
+- **September 10, 2026 — Sinks filter reset lint repair:** Replaced the removed `setFilterYear` callback in the Sinks no-results action with the active reporting-period start/end month reset used by the main filter toolbar.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Supplier Revenue draft validation:** Revenue drafts now accept empty or partially completed percentage/annual-amount fields while still rejecting any entered invalid number. Final submission continues to require Revenue Percentage and, when configured, Annual Revenue Amount. The form labels now clarify “required to submit” rather than presenting draft fields as browser-required.
 - **NOT TESTED** per the user’s standing instruction.
 
