@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — ESG Questionnaire toolbar alignment:** Restructured the ESG Questionnaire top controls to match the Supplier module’s panel pattern. The unified toolbar now provides questionnaire search, Review responses, New Questionnaire, and the reporting-period selector aligned at the right. Search filters questionnaires by name and description with a clear empty state.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Custom Fuel EF default persistence:** Quantity Basis Custom Fuel now materializes `kgCO2/kg` into each row’s form state when no EF unit was selected. Create and Edit payload serializers also use method-specific safeguards (`kgCO2/kg` for Quantity Basis; `tCO2/TJ` for Heat Basis), eliminating empty emission-factor units in saved requests.
 - **NOT TESTED** per the user’s standing instruction.
 
