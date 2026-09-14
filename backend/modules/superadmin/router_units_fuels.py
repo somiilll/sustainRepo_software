@@ -41,6 +41,7 @@ from shared.constants.gwp import GWP_VALUES, GWP_DEFAULT_SOURCE
 from shared.database.mongo import db
 from shared.helpers.email import send_email
 from shared.helpers.passwords import generate_random_password, get_password_hash
+from shared.utils.density_units import normalize_density_unit
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -143,7 +144,7 @@ async def seed_default_units(current_user: dict = Depends(get_super_admin_user))
 async def get_all_fuels(current_user: dict = Depends(get_super_admin_user)):
     """Get all fuels in the database"""
     fuels = await db.fuel_database.find({}, {"_id": 0}).to_list(10000)
-    return [FuelDatabaseResponse(**f) for f in fuels]
+    return [FuelDatabaseResponse(**{**fuel, "density_unit": normalize_density_unit(fuel.get("density_unit"))}) for fuel in fuels]
 
 @router.post("/super-admin/fuel-database", response_model=FuelDatabaseResponse)
 async def create_fuel(
@@ -165,6 +166,7 @@ async def create_fuel(
         )
     
     fuel_dict = fuel_data.model_dump()
+    fuel_dict["density_unit"] = normalize_density_unit(fuel_dict.get("density_unit"))
     fuel_dict["id"] = str(uuid.uuid4())
     fuel_dict["created_by"] = current_user["id"]
     fuel_dict["created_at"] = datetime.now(timezone.utc).isoformat()
@@ -199,6 +201,7 @@ async def update_fuel(
         )
     
     update_dict = fuel_data.model_dump()
+    update_dict["density_unit"] = normalize_density_unit(update_dict.get("density_unit"))
     update_dict["region"] = fuel_data.region or "Global"
     update_dict["updated_by"] = current_user["id"]
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -223,7 +226,7 @@ async def delete_fuel(fuel_id: str, current_user: dict = Depends(get_super_admin
 async def get_fuels_for_users(current_user: dict = Depends(get_current_user)):
     """Get all fuels (for Admin/User to select when adding emissions)"""
     fuels = await db.fuel_database.find({}, {"_id": 0}).to_list(10000)
-    return [FuelDatabaseResponse(**f) for f in fuels]
+    return [FuelDatabaseResponse(**{**fuel, "density_unit": normalize_density_unit(fuel.get("density_unit"))}) for fuel in fuels]
 
 @router.get("/fuel-database/{fuel_id}", response_model=FuelDatabaseResponse)
 async def get_fuel_by_id(fuel_id: str, current_user: dict = Depends(get_current_user)):

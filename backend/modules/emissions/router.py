@@ -50,6 +50,7 @@ from modules.emissions.contracts import (
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
+from shared.utils.density_units import normalize_density_dynamic_values
 from shared.utils.emission_records import without_legacy_quantity_fields
 
 logger = logging.getLogger(__name__)
@@ -198,12 +199,12 @@ def _build_emission_inputs(emission_record: dict) -> dict:
     # Check for dynamic_field_values first (new format)
     dfv = emission_record.get("dynamic_field_values")
     if dfv and isinstance(dfv, dict) and len(dfv) > 0:
-        return dfv
+        return normalize_density_dynamic_values(dfv)
     
     # Check for inputs field
     inputs = emission_record.get("inputs")
     if inputs and isinstance(inputs, dict) and len(inputs) > 0:
-        return inputs
+        return normalize_density_dynamic_values(inputs)
     
     # Build from legacy individual fields
     legacy_inputs = {}
@@ -936,6 +937,9 @@ async def rollback_emission_submission_batch(
 @router.post("/emissions", response_model=EmissionRecordResponse)
 async def create_emission_record(record_data: EmissionRecordCreate, current_user: dict = Depends(get_current_user)):
     logger.info(f"[EMISSION_CREATE] Starting: user={current_user.get('email')}, facility={record_data.facility_id}, scope={record_data.scope}, category={record_data.category}")
+    record_data = record_data.model_copy(update={
+        "dynamic_field_values": normalize_density_dynamic_values(record_data.dynamic_field_values),
+    })
     
     facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0})
     if not facility:
@@ -1250,6 +1254,9 @@ async def update_emission_record(
     current_user: dict = Depends(get_current_user)
 ):
     logger.info(f"[EMISSION_UPDATE] Starting: record_id={record_id}, user={current_user.get('email')}")
+    record_data = record_data.model_copy(update={
+        "dynamic_field_values": normalize_density_dynamic_values(record_data.dynamic_field_values),
+    })
     
     # Find record directly from emission_records (approved collection)
     existing = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})

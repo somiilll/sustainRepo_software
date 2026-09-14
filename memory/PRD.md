@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Canonical density `kl` unit:** Density units now normalize every standalone `kL` component to lowercase `kl`, including both `kg/kL → kg/kl` and `kL/kg → kl/kg`. The rule is scoped strictly to density; calorific units such as `TJ/kL` remain unchanged. New and updated fuel records, emission payloads, calculation overrides, Scope 1/2 Bulk Upload overrides, and legacy fuel/emission responses all use the canonical spelling; immutable historical records are not rewritten.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — FY-aware currency fallback hierarchy:** The shared currency resolver now applies the requested financial-year hierarchy in all context-aware GHG calculation and default-resolution paths. For monthly entries in an FY, it uses the exact month, then the containing April–March FY, then the matching calendar year (Apr–Dec use that year; Jan–Mar use the following year). Calendar-year monthly entries remain calendar-only. A yearly FY record uses its exact FY first, then the FY starting calendar year. Method isolation remains intact: PPP/inflation and standard exchange-rate records resolve only within their selected method.
 - **NOT TESTED** per the user’s standing instruction.
 

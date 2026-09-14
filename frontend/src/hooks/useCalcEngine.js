@@ -13,6 +13,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { normalizeCustomFuelDensityUnit } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -187,7 +188,7 @@ export function useCalcEngine(getAuthHeader) {
         const densityValue = parseFloat(overrides.density);
         userOverrides.density = { 
           value: densityValue, 
-          unit: fuel?.density_unit || 'kg/L' 
+          unit: normalizeCustomFuelDensityUnit(fuel?.density_unit || 'kg/L')
         };
       }
 

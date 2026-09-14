@@ -2115,7 +2115,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         if (Number.isFinite(densityValue) && densityValue > 0) {
           userOverrides.density = normalizeDensityForCalcEngine({
             value: densityValue,
-            unit: dynamicFieldValues.density_unit || 'kg/L',
+            unit: normalizeCustomFuelDensityUnit(dynamicFieldValues.density_unit || 'kg/L'),
           });
         }
       }

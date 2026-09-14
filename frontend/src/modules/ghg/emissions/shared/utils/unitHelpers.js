@@ -303,7 +303,10 @@ export const normalizeCustomFuelQuantityUnit = (unit) => {
 
 export const normalizeCustomFuelDensityUnit = (unit) => {
   const compactUnit = String(unit || '').replace(/\s/g, '');
-  return compactUnit === 'kg/kL' ? 'kg/kl' : compactUnit;
+  return compactUnit
+    .split('/')
+    .map((component) => (component.toLowerCase() === 'kl' ? 'kl' : component))
+    .join('/');
 };
 
 export const normalizeCustomFuelCompoundUnit = (unit) => {
@@ -327,9 +330,9 @@ export const normalizeCustomFuelCalorificValueUnit = (unit) => {
  */
 export const normalizeDensityForCalcEngine = (density) => {
   const value = Number.parseFloat(density?.value);
-  const unit = String(density?.unit || '').replace(/\s/g, '');
+  const unit = normalizeCustomFuelDensityUnit(density?.unit);
   if (!Number.isFinite(value) || value <= 0 || unit.toLowerCase() !== 'l/kg') {
-    return density;
+    return { ...density, unit };
   }
   return { value: 1 / value, unit: 'kg/L' };
 };

@@ -12,6 +12,7 @@ from ..models import (
 )
 from ..validators import FieldValidator
 from ..ghg_config_resolver import ResolvedGhgCapabilities
+from shared.utils.density_units import normalize_density_unit
 
 logger = logging.getLogger(__name__)
 
@@ -869,7 +870,7 @@ class Scope12RowProcessor:
             # Density override (applies to all custom fuel methods)
             if row_data.get("density"):
                 density_value = float(row_data.get("density"))
-                density_unit = row_data.get("density_unit", "kg/L")
+                density_unit = normalize_density_unit(row_data.get("density_unit", "kg/L"))
                 user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
         else:
             # ── Standard fuel: existing override logic ──
@@ -888,7 +889,7 @@ class Scope12RowProcessor:
             # Density override
             if row_data.get("density"):
                 density_value = float(row_data.get("density"))
-                density_unit = row_data.get("density_unit", "")
+                density_unit = normalize_density_unit(row_data.get("density_unit", ""))
                 user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
             
             # Carbon content + oxidation factor for standard stationary combustion
