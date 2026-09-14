@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier GHG tabs consolidated:** Moved the “Emissions by Supplier” and “Logs” view tabs into the Supplier GHG top control bar, alongside the emissions search and reporting-period selector.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Supplier GHG toolbar alignment:** Supplier GHG Emissions now uses the same responsive top control panel as the other Supplier Assessment modules. Its emissions search and reporting-period selector are consolidated in the top bar, while scope, supplier, and category remain focused filters within the Logs tab.
 - **NOT TESTED** per the user’s standing instruction.
 
