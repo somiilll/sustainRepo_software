@@ -781,10 +781,15 @@ async def create_questionnaire(
 @router.get("/questionnaires", response_model=List[QuestionnaireResponse])
 async def list_questionnaires(
     include_inactive: bool = False,
+    reporting_period: Optional[str] = None,
     current_user: dict = Depends(get_customer_admin),
 ):
     """List active questionnaires, or all templates for the questionnaire manager."""
-    return await supplier_service.get_questionnaires(current_user["organization_id"], include_inactive=include_inactive)
+    return await supplier_service.get_questionnaires(
+        current_user["organization_id"],
+        include_inactive=include_inactive,
+        reporting_period=reporting_period,
+    )
 
 
 @router.get("/questionnaires/{questionnaire_id}")

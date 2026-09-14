@@ -103,6 +103,7 @@ async def get_questionnaires(
     self,
     organization_id: str,
     include_inactive: bool = False,
+    reporting_period: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Get questionnaires for an organization, including inactive templates when requested by an admin."""
     query = {"organization_id": organization_id}
@@ -114,6 +115,8 @@ async def get_questionnaires(
     else:
         query["is_active"] = True
         query["is_deleted"] = {"$ne": True}
+    if reporting_period:
+        query["assignment_reporting_period"] = reporting_period
     questionnaires = await db.supplier_questionnaires.find(
         query,
         {"_id": 0}

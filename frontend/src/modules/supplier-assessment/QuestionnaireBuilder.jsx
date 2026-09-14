@@ -214,15 +214,21 @@ export default function QuestionnaireBuilder() {
   const fetchQuestionnaires = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/supplier-assessment/questionnaires?include_inactive=true`, {
+        params: { reporting_period: reportingPeriod },
         headers: getAuthHeader(),
       });
-      setQuestionnaires(res.data || []);
+      const periodQuestionnaires = res.data || [];
+      setQuestionnaires(periodQuestionnaires);
+      setSelectedQuestionnaire((current) => {
+        if (!current || periodQuestionnaires.some((questionnaire) => questionnaire.id === current.id)) return current;
+        return null;
+      });
     } catch (err) {
       toast.error('Failed to load questionnaires');
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader]);
+  }, [getAuthHeader, reportingPeriod]);
 
   const fetchQuestions = useCallback(async (questionnaireId) => {
     try {

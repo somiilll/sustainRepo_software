@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — ESG questionnaire reporting-period isolation:** The parent questionnaire list now requests and applies the selected reporting period. The backend filters by `assignment_reporting_period`, and the frontend clears a selected questionnaire if it is not available in the newly selected period. Existing response-review filtering was intentionally left unchanged.
+- **NOT UI TESTED** per the user’s standing instruction; source-reviewed only.
+
 - **September 10, 2026 — Questionnaire response-review placement:** Moved the parent organization’s “Review responses” action out of the shared ESG Questionnaire toolbar and into the selected questionnaire’s own action row, immediately to the left of “Manage suppliers.” The action remains bound to that selected questionnaire and keeps its existing automated-test identifier.
 - **NOT UI TESTED** per the user’s standing instruction; source-reviewed only.
 
