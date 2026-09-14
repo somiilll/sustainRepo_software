@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier card simplification:** Removed internal version labels from supplier-facing Document and Training cards. Document filenames and Training descriptions remain visible when present; parent-admin version information is unchanged.
+- **NOT UI TESTED** per the user’s standing instruction; source-reviewed only.
+
 - **September 10, 2026 — Supplier Document and Training spacing:** Added dedicated content-list sections on both supplier-facing Documents and Training pages. They now enforce a 32px gap below the status tiles and a 16px gap between assigned-item cards, rather than relying on mapped sibling spacing.
 - **NOT UI TESTED** per the user’s standing instruction; source-reviewed only.
 
