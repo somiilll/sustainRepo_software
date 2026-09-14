@@ -1977,6 +1977,7 @@ export default function EmissionEntryForm({
         category: category,
         facility_id: facilityId,
         reporting_period: yearlyReportingPeriodForCalc, // For currency conversion year lookup
+        reporting_year_type: reportingYearType,
         is_custom_fuel: useCustomFuel || false,
         ...(isScope3Like && {
           calculation_method_scope3: scope3Method,
@@ -2899,6 +2900,7 @@ export default function EmissionEntryForm({
         calculation_method_scope3: scope3Method,
         activity_type: activityType,
         reporting_period: c7ReportingPeriod, // For currency conversion year lookup
+        reporting_year_type: reportingYearType,
         activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // For emission factor lookup
         fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // Alias for property source mapping
         scope3_ef_id: matchedActivity?.id || null,
@@ -3132,6 +3134,7 @@ export default function EmissionEntryForm({
                 calculation_method_scope3: scope3Method,
                 activity_type: scope3ActivityType,
                 reporting_period: reportingPeriod,
+                reporting_year_type: reportingYearType,
                 activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
                 fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
                 scope3_ef_id: matchedActivity?.id || null,

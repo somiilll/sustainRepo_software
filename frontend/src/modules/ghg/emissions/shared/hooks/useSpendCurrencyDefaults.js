@@ -44,6 +44,7 @@ export const useSpendCurrencyDefaults = ({
         source_currency: sourceCurrency,
         reporting_periods: periodsKey,
         conversion_method: conversionMethod,
+        reporting_year_type: reportingYearType,
       },
     }).then((response) => {
       if (!cancelled) setDefaults(response.data?.defaults || {});
@@ -54,7 +55,7 @@ export const useSpendCurrencyDefaults = ({
     return () => {
       cancelled = true;
     };
-  }, [conversionMethod, enabled, getAuthHeader, periodsKey, sourceCurrency]);
+  }, [conversionMethod, enabled, getAuthHeader, periodsKey, reportingYearType, sourceCurrency]);
 
   return defaults;
 };

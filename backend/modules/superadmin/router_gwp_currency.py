@@ -440,6 +440,7 @@ async def get_resolved_currency_conversion_defaults(
     source_currency: str,
     reporting_periods: str,
     conversion_method: Optional[str] = None,
+    reporting_year_type: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
 ):
     """Resolve the same period-specific spend defaults used by the calculation engine."""
@@ -458,6 +459,7 @@ async def get_resolved_currency_conversion_defaults(
             db,
             source_currency=source,
             reporting_period=period,
+            reporting_year_type=reporting_year_type,
             method=method,
         )
         source_name = (config or {}).get("source") or "Unavailable"

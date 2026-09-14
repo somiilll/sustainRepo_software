@@ -800,7 +800,11 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             if input_currency and input_currency != "USD":
                 reporting_period = enriched_context.get("reporting_period") or req.context.get("reporting_period")
                 currency_conversion = await resolve_currency_conversion(
-                    db, source_currency=input_currency, reporting_period=reporting_period, method=currency_method,
+                    db,
+                    source_currency=input_currency,
+                    reporting_period=reporting_period,
+                    reporting_year_type=enriched_context.get("reporting_year_type") or req.context.get("reporting_year_type"),
+                    method=currency_method,
                 )
                 
                 if currency_conversion:

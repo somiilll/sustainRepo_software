@@ -144,6 +144,7 @@ async def resolve_currency_conversion(
     source_currency: str,
     target_currency: str = "USD",
     reporting_period: Optional[str] = None,
+    reporting_year_type: Optional[str] = None,
     method: Optional[str] = None,
 ) -> Optional[dict]:
     """Resolve exact period data first, followed by deterministic compatible fallbacks."""
@@ -179,6 +180,25 @@ async def resolve_currency_conversion(
         })
         if monthly:
             return _with_resolution(monthly, resolution="exact", requested_period=requested_period)
+
+        is_financial_reporting_year = str(reporting_year_type or "").lower() in {
+            "financial",
+            "financial_year",
+            "fy",
+        }
+        if is_financial_reporting_year:
+            financial_year_start = year if month >= 4 else year - 1
+            financial_year_end = financial_year_start + 1
+            financial_year = await find_period(
+                _financial_year_clause(financial_year_start, financial_year_end),
+            )
+            if financial_year:
+                return _with_resolution(
+                    financial_year,
+                    resolution="financial_year_fallback",
+                    requested_period=requested_period,
+                )
+
         calendar_year = await find_period(_calendar_annual_clause(year))
         return _with_resolution(
             calendar_year,
@@ -193,11 +213,11 @@ async def resolve_currency_conversion(
         if exact_fy:
             return _with_resolution(exact_fy, resolution="exact", requested_period=requested_period)
 
-        ending_calendar_year = await find_period(_calendar_annual_clause(end_year))
-        if ending_calendar_year:
+        starting_calendar_year = await find_period(_calendar_annual_clause(start_year))
+        if starting_calendar_year:
             return _with_resolution(
-                ending_calendar_year,
-                resolution="ending_calendar_year_fallback",
+                starting_calendar_year,
+                resolution="starting_calendar_year_fallback",
                 requested_period=requested_period,
             )
 

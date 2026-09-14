@@ -583,7 +583,11 @@ class EmissionCalculator:
             )
             currency_method = resolve_bulk_currency_method(row_data)
             currency_conversion = await resolve_currency_conversion(
-                self.db, source_currency=spent_currency, reporting_period=reporting_period, method=currency_method,
+                self.db,
+                source_currency=spent_currency,
+                reporting_period=reporting_period,
+                reporting_year_type=row_data.get("reporting_year_type"),
+                method=currency_method,
             )
             if (
                 currency_method == STANDARD_METHOD
