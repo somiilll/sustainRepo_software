@@ -89,12 +89,6 @@ const resolveScope3Formula = (formConfig, context) => {
   let matchedFormula = null;
 
   if (formConfig.decision_tree) {
-    const selectedCvUnit = decisionFieldValues.cv_unit
-      || decisionFieldValues.cv?.unit
-      || context.selectedFuel?.calorific_value_unit;
-    const selectedEfUnit = decisionFieldValues.ef_quantity_unit
-      || decisionFieldValues.ef_quantity?.unit
-      || context.selectedFuel?.emission_factor_basis_unit;
     const formulaId = traverseDecisionTree(formConfig.decision_tree, {
       calculation_method_scope3: scope3Method,
       spend_currency_conversion_method: spendCurrencyConversionMethod,
@@ -172,6 +166,12 @@ const resolveScope12Formula = (formConfig, context) => {
   let matchedFormula = null;
 
   if (formConfig.decision_tree) {
+    const selectedCvUnit = decisionFieldValues.cv_unit
+      || decisionFieldValues.cv?.unit
+      || context.selectedFuel?.calorific_value_unit;
+    const selectedEfUnit = decisionFieldValues.ef_quantity_unit
+      || decisionFieldValues.ef_quantity?.unit
+      || context.selectedFuel?.emission_factor_basis_unit;
     const formulaId = traverseDecisionTree(formConfig.decision_tree, {
       calculation_methodology:
         decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv',

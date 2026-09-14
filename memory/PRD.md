@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Formula resolver scope repair:** Moved the standard-fuel unit-basis variables into the Scope 1/2 formula resolver where they are used. This removes the `selectedCvUnit is not defined` runtime crash introduced during the standard-fuel routing enhancement.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Edit routing startup repair:** Corrected the standard-fuel Edit calculation callback to reference the existing early-resolved `editSelectedFuel` value. This removes the temporal-dead-zone startup crash while preserving fuel-default-aware basis routing.
 - **NOT TESTED** per the user’s standing instruction.
 
