@@ -109,6 +109,12 @@ const CustomFuelMonthFields = ({
   const shouldShowDensity = hasDensitySourceValue && densityRequirement.required;
 
   useEffect(() => {
+    if (calculationMethodology === 'using_qty_basis_ef' && !data.custom_ef_unit) {
+      updateMonthData(monthKey, 'custom_ef_unit', 'kgCO2/kg');
+    }
+  }, [calculationMethodology, data.custom_ef_unit, monthKey, updateMonthData]);
+
+  useEffect(() => {
     if (isFugitiveCustomFuel) return;
     if (!densityRequirement.required) {
       if (data.density !== undefined && data.density !== '' && data.density !== null) {

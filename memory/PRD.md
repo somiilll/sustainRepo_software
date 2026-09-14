@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Custom Fuel EF default persistence:** Quantity Basis Custom Fuel now materializes `kgCO2/kg` into each row’s form state when no EF unit was selected. Create and Edit payload serializers also use method-specific safeguards (`kgCO2/kg` for Quantity Basis; `tCO2/TJ` for Heat Basis), eliminating empty emission-factor units in saved requests.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Custom Fuel quantity EF restriction:** The Quantity Basis Custom Fuel emission-factor picker now offers only `kgCO2/L` and `kgCO2/kg`. The calculation adapter and Emission API reject any other quantity-basis Custom Fuel emission-factor unit, preventing bypass through stale UI state or direct API submission.
 - **NOT TESTED** per the user’s standing instruction.
 

@@ -107,6 +107,9 @@ export function buildDynamicValues(ctx) {
       || ctx.formData?.quantity_unit
       || 'kg');
     const calculationMethodology = resolveActiveCalculationMethodology(ctx);
+    const customEmissionFactorFallback = calculationMethodology === 'using_qty_basis_ef'
+      ? 'kgCO2/kg'
+      : 'tCO2/TJ';
 
     dynamicValues.calculation_methodology = { value: calculationMethodology, unit: '' };
 
@@ -128,7 +131,7 @@ export function buildDynamicValues(ctx) {
       if (hasValue(dynamicFieldValues.custom_ef)) {
         dynamicValues.custom_ef = {
           value: parseValue(dynamicFieldValues.custom_ef),
-          unit: normalizeCustomFuelCompoundUnit(dynamicFieldValues.custom_ef_unit || ''),
+          unit: normalizeCustomFuelCompoundUnit(dynamicFieldValues.custom_ef_unit || customEmissionFactorFallback),
         };
       }
       if (hasValue(dynamicFieldValues.custom_cv)) {

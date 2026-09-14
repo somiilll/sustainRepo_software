@@ -216,6 +216,9 @@ export function buildDynamicFieldValues(data, ctx) {
     const calculationMethodology = data.calculation_methodology
       || decisionInputs.calculation_methodology
       || 'using_heat_basis_ncv';
+    const customEmissionFactorFallback = calculationMethodology === 'using_qty_basis_ef'
+      ? 'kgCO2/kg'
+      : 'tCO2/TJ';
 
     // CustomFuelMonthFields owns these per-period inputs, so they must not
     // depend on the standard dynamic field list for persistence.
@@ -223,7 +226,7 @@ export function buildDynamicFieldValues(data, ctx) {
     if (hasValue(data.custom_ef)) {
       out.custom_ef = {
         value: parseValue(data.custom_ef),
-        unit: normalizeCustomFuelCompoundUnit(data.custom_ef_unit || ''),
+        unit: normalizeCustomFuelCompoundUnit(data.custom_ef_unit || customEmissionFactorFallback),
       };
     }
     if (hasValue(data.custom_cv)) {
