@@ -30,16 +30,16 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const EMPTY_SUBMITTED_EMISSIONS = { emissions: [], supplier_totals: [] };
 
 const RankingMetric = ({ id, label, value, detail, Icon }) => (
-  <Card className="group relative overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-[0_4px_14px_rgba(28,25,23,0.10)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(28,25,23,0.14)]" data-testid={`supplier-ranking-${id}-metric`}>
+  <Card className="group relative overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_14px_rgba(28,25,23,0.10)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(28,25,23,0.14)]" data-testid={`supplier-ranking-${id}-metric`}>
     <span className="absolute inset-x-0 top-0 h-1.5 bg-emerald-800" aria-hidden="true" />
-    <CardContent className="flex min-h-[205px] flex-col justify-between p-8 pt-10">
-      <div className="flex items-center gap-5">
-        <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[22px] bg-emerald-50 text-emerald-700" data-testid={`supplier-ranking-${id}-icon`}><Icon className="h-9 w-9" aria-hidden="true" /></span>
-        <p className="text-base font-semibold uppercase text-stone-600">{label}</p>
+    <CardContent className="flex min-h-[148px] flex-col justify-between p-5 pt-6">
+      <div className="flex items-center gap-3">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700" data-testid={`supplier-ranking-${id}-icon`}><Icon className="h-6 w-6" aria-hidden="true" /></span>
+        <p className="text-xs font-semibold uppercase text-stone-600">{label}</p>
       </div>
       <div>
-        <p className="text-5xl font-semibold text-stone-950 sm:text-6xl" data-testid={`supplier-ranking-${id}-value`}>{value}</p>
-        <p className="mt-2 truncate text-sm text-stone-500" data-testid={`supplier-ranking-${id}-detail`}>{detail}</p>
+        <p className="text-4xl font-semibold text-stone-950" data-testid={`supplier-ranking-${id}-value`}>{value}</p>
+        <p className="mt-1 truncate text-xs text-stone-500" data-testid={`supplier-ranking-${id}-detail`}>{detail}</p>
       </div>
     </CardContent>
   </Card>
