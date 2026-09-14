@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Newer Bulk Upload central audit trail:** Added the `Bulk Upload` audit module and visible audit-log filter. The active Scope 3 bulk upload flow now records template downloads, validation uploads (including failed processing), confirmed imports, validation-report downloads, results-report downloads, and job deletions.
+- Audit entries identify the actor, organization, job, scope, artifact/action, safe row totals, validation results, and deleted-record count where applicable. Audit persistence is best-effort and cannot disrupt an otherwise successful Bulk Upload action.
+- **NOT RUNTIME-TESTED** per the user’s standing instruction; source-reviewed only.
+
 - **September 10, 2026 — Customer-safe error handling, focused Phase 2–3:** Hardened only Base Year/Targets, Sinks, and Bulk Upload UI states. Failed primary data loads now render a clear retryable error state instead of a misleading empty or access-denied view.
 - Base Year history, target lists, SBTi progress/form settings, and Bulk Upload history now show localized retry states. Save, delete, upload, template, and report-download failures use the shared customer-safe message formatter; raw server/provider details are not displayed.
 - No calculation, scoring, permission, schema, API-contract, configuration, or successful-workflow behavior was changed. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.

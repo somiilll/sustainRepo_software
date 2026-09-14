@@ -25,7 +25,7 @@ import time
 from fastapi.responses import StreamingResponse, FileResponse
 import asyncio
 import anthropic
-from audit_logger import AuditLogger, AuditAction, AuditModule, init_audit_logger, get_audit_logger
+from audit_logger import AuditAction, AuditModule, init_audit_logger
 
 # ============================================================================
 # Phase B1: Foundation refactor — centralized config + helpers
@@ -3428,6 +3428,7 @@ async def get_audit_filter_options(
         {"value": "user", "label": "User Management"},
         {"value": "ghg_emission", "label": "GHG Emissions"},
         {"value": "ghg_sink", "label": "GHG Sinks"},
+        {"value": "bulk_upload", "label": "Bulk Upload"},
         {"value": "fuel_database", "label": "Fuel Database"},
         {"value": "emission_factor", "label": "Emission Factors"},
         {"value": "formula", "label": "Formulas"},
@@ -3498,6 +3499,39 @@ from modules.entitlements.dependencies import assert_period_row_batch_limit
 
 scope3_bulk_router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
 
+
+async def _record_scope3_bulk_audit(
+    *,
+    action: AuditAction,
+    current_user: dict,
+    organization_id: str,
+    description: str,
+    resource_id: Optional[str] = None,
+    resource_name: Optional[str] = None,
+    old_values: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    audit_status: str = "success",
+) -> None:
+    """Persist a business audit event without interrupting a completed upload operation."""
+    try:
+        await audit_logger.log(
+            action=action,
+            module=AuditModule.BULK_UPLOAD,
+            user_id=current_user["id"],
+            user_email=current_user.get("email", ""),
+            user_role=current_user.get("role", "user"),
+            organization_id=organization_id,
+            resource_id=resource_id,
+            resource_name=resource_name,
+            description=description,
+            old_values=old_values,
+            metadata=metadata,
+            status=audit_status,
+        )
+    except Exception:
+        log_event(logger, logging.ERROR, "bulk_upload.audit.persist_failed", action="bulk_upload.audit", outcome="failed",
+                  error_code="AUDIT_LOG_FAILED", context={"audit_action": action.value, "resource_id": resource_id}, exc_info=True)
+
 @scope3_bulk_router.get("/template/download")
 async def download_scope3_template(current_user: dict = Depends(get_current_user)):
     """Download Scope 3 bulk upload template"""
@@ -3507,6 +3541,13 @@ async def download_scope3_template(current_user: dict = Depends(get_current_user
     
     capabilities = await resolve_ghg_capabilities(db, organization_id)
     template_bytes = await generate_scope3_template(db, organization_id, capabilities=capabilities)
+    await _record_scope3_bulk_audit(
+        action=AuditAction.DOWNLOAD,
+        current_user=current_user,
+        organization_id=organization_id,
+        description="Downloaded Scope 3 bulk upload template",
+        metadata={"scope": "scope3", "artifact": "template"},
+    )
     
     return StreamingResponse(
         template_bytes,
@@ -3547,7 +3588,35 @@ async def upload_scope3_file(
     user_name = current_user.get("full_name") or current_user.get("name") or ""
     
     processor = UploadProcessor(db, organization_id, user_id, user_email, user_name)
-    summary = await processor.process_upload(file_content, file.filename, validate_only=validate_only)
+    try:
+        summary = await processor.process_upload(file_content, file.filename, validate_only=validate_only)
+    except Exception:
+        await _record_scope3_bulk_audit(
+            action=AuditAction.UPLOAD,
+            current_user=current_user,
+            organization_id=organization_id,
+            description="Scope 3 bulk upload validation failed",
+            metadata={"scope": "scope3", "validate_only": validate_only},
+            audit_status="failure",
+        )
+        raise
+
+    await _record_scope3_bulk_audit(
+        action=AuditAction.UPLOAD,
+        current_user=current_user,
+        organization_id=organization_id,
+        resource_id=summary.job_id,
+        resource_name=f"Bulk Upload Job {summary.job_id[:8]}",
+        description="Uploaded Scope 3 file for validation",
+        metadata={
+            "scope": "scope3",
+            "validate_only": validate_only,
+            "total_rows": summary.total_rows,
+            "valid_rows": summary.success_count,
+            "invalid_rows": summary.error_count,
+            "warning_count": summary.warning_count,
+        },
+    )
     
     return summary
 
@@ -3694,23 +3763,20 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
         scope_summary = ", ".join([f"{s}: {c}" for s, c in scope_counts.items()])
         logger.info(f"[BULK_SAVE] Job {job_id}: Scope breakdown - {scope_summary}")
         
-        audit_logger = AuditLogger(db)
-        await audit_logger.log(
+        await _record_scope3_bulk_audit(
             action=AuditAction.IMPORT,
-            module=AuditModule.EMISSION,
-            user_id=current_user["id"],
-            user_email=current_user.get("email", ""),
-            user_role=current_user.get("role", "user"),
+            current_user=current_user,
             organization_id=organization_id,
             resource_id=job_id,
             resource_name=f"Bulk Upload Job {job_id[:8]}",
-            description=f"Bulk uploaded {len(created_ids)} emission records ({scope_summary})",
+            description=f"Imported {len(created_ids)} Scope 3 bulk upload record(s)",
             metadata={
+                "scope": "scope3",
                 "job_id": job_id,
                 "total_records": len(created_ids),
                 "scope_breakdown": scope_counts,
-                "emission_ids": created_ids[:10] if len(created_ids) > 10 else created_ids
-            }
+                "invalid_rows": job.get("error_count", 0),
+            },
         )
         logger.info(f"[BULK_SAVE] Job {job_id}: Audit log created")
         
@@ -3789,6 +3855,15 @@ async def download_scope3_error_report(job_id: str, current_user: dict = Depends
     )
     
     report_bytes = ReportGenerator.generate_error_report(summary)
+    await _record_scope3_bulk_audit(
+        action=AuditAction.DOWNLOAD,
+        current_user=current_user,
+        organization_id=organization_id,
+        resource_id=job_id,
+        resource_name=f"Bulk Upload Job {job_id[:8]}",
+        description="Downloaded Scope 3 bulk upload validation report",
+        metadata={"scope": "scope3", "artifact": "validation_report", "error_count": len(errors)},
+    )
     return StreamingResponse(
         report_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -3827,6 +3902,15 @@ async def download_scope3_results_report(job_id: str, current_user: dict = Depen
     )
     
     report_bytes = ReportGenerator.generate_results_report(summary, emissions)
+    await _record_scope3_bulk_audit(
+        action=AuditAction.DOWNLOAD,
+        current_user=current_user,
+        organization_id=organization_id,
+        resource_id=job_id,
+        resource_name=f"Bulk Upload Job {job_id[:8]}",
+        description="Downloaded Scope 3 bulk upload results report",
+        metadata={"scope": "scope3", "artifact": "results_report", "record_count": len(emissions)},
+    )
     return StreamingResponse(
         report_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -3863,13 +3947,30 @@ async def delete_scope3_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
+    deleted_emission_count = 0
     if delete_emissions:
         emission_ids = job.get("created_emission_ids", [])
         if emission_ids:
-            await db.emission_records.delete_many({"id": {"$in": emission_ids}})
+            result = await db.emission_records.delete_many({"id": {"$in": emission_ids}})
+            deleted_emission_count = result.deleted_count
     
     await db.bulk_upload_errors.delete_many({"job_id": job_id})
     await db.bulk_upload_jobs.delete_one({"id": job_id})
+    await _record_scope3_bulk_audit(
+        action=AuditAction.DELETE,
+        current_user=current_user,
+        organization_id=organization_id,
+        resource_id=job_id,
+        resource_name=f"Bulk Upload Job {job_id[:8]}",
+        description="Deleted Scope 3 bulk upload job",
+        old_values={
+            "status": job.get("status"),
+            "total_rows": job.get("total_rows"),
+            "valid_rows": job.get("success_count"),
+            "invalid_rows": job.get("error_count"),
+        },
+        metadata={"scope": "scope3", "delete_emissions": delete_emissions, "deleted_emission_count": deleted_emission_count},
+    )
     
     return {"message": "Job deleted successfully", "emissions_deleted": delete_emissions}
 

@@ -53,6 +53,7 @@ class AuditModule(str, Enum):
     USER = "user"
     EMISSION = "ghg_emission"
     SINK = "ghg_sink"
+    BULK_UPLOAD = "bulk_upload"
     FUEL_DATABASE = "fuel_database"
     EMISSION_FACTOR = "emission_factor"
     FORMULA = "formula"
