@@ -43,12 +43,9 @@ async def create_questionnaire(
     relationship_query = {"customer_org_id": organization_id, "is_active": True}
     if assignment_reporting_period:
         relationship_query["reporting_period"] = assignment_reporting_period
-    eligible_relationships = [
-        relationship for relationship in await db.supplier_relationships.find(
-            relationship_query, {"_id": 0, "id": 1, "modules_enabled": 1}
-        ).to_list(1000)
-        if "esg" in (relationship.get("modules_enabled") or ["esg", "ghg"])
-    ]
+    eligible_relationships = await db.supplier_relationships.find(
+        relationship_query, {"_id": 0, "id": 1}
+    ).to_list(1000)
     eligible_ids = {relationship["id"] for relationship in eligible_relationships}
     requested_ids = list(dict.fromkeys(supplier_relationship_ids or []))
     if assignment_mode == "selected":
@@ -98,7 +95,7 @@ async def create_questionnaire(
     if assigned_supplier_ids:
         await db.supplier_relationships.update_many(
             {"id": {"$in": assigned_supplier_ids}},
-            {"$addToSet": {"questionnaire_ids": questionnaire_id}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+            {"$addToSet": {"questionnaire_ids": questionnaire_id, "modules_enabled": "esg"}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
         )
     return questionnaire
 
@@ -202,7 +199,7 @@ async def assign_questionnaire_to_supplier(self, customer_org_id: str, questionn
         raise ValueError("Questionnaire or supplier is unavailable")
     now = datetime.now(timezone.utc).isoformat()
     await db.supplier_questionnaires.update_one({"id": questionnaire_id}, {"$addToSet": {"assigned_supplier_ids": supplier_relationship_id}, "$set": {"assignment_mode": "selected", "updated_at": now}})
-    await db.supplier_relationships.update_one({"id": supplier_relationship_id}, {"$addToSet": {"questionnaire_ids": questionnaire_id}, "$set": {"updated_at": now}})
+    await db.supplier_relationships.update_one({"id": supplier_relationship_id}, {"$addToSet": {"questionnaire_ids": questionnaire_id, "modules_enabled": "esg"}, "$set": {"updated_at": now}})
 
 
 async def unassign_questionnaire_from_supplier(self, customer_org_id: str, questionnaire_id: str, supplier_relationship_id: str) -> None:

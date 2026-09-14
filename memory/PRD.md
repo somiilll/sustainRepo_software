@@ -101,6 +101,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier Revenue draft validation:** Revenue drafts now accept empty or partially completed percentage/annual-amount fields while still rejecting any entered invalid number. Final submission continues to require Revenue Percentage and, when configured, Annual Revenue Amount. The form labels now clarify “required to submit” rather than presenting draft fields as browser-required.
+- **NOT TESTED** per the user’s standing instruction.
+
+- **September 10, 2026 — Assignment activates supplier modules:** Questionnaire “All suppliers” now targets every active supplier in its reporting period, rather than excluding suppliers whose ESG module was initially off, and assignment enables ESG on those relationships. Document and Training assignment—at creation, on direct multipart Training creation, and through Manage suppliers—now likewise enables the respective supplier module, provided the parent organization has that module available.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Supplier assignment-load isolation:** Add/Edit Supplier now loads Documents, Training, ESG Questionnaires, and status independently. A disabled Documents module returns no document options but no longer aborts the batch or hides enabled Training options; the old misleading assignment-load error toast is removed.
 - **NOT TESTED** per the user’s standing instruction.
 

@@ -162,7 +162,7 @@ async def publish_agreement(
         revision_relationships.setdefault((revision["program_id"], revision["version"], relationship.get("reporting_period")), []).append(relationship["id"])
         await db.supplier_relationships.update_one(
             {"id": relationship["id"]},
-            {"$set": {
+            {"$addToSet": {"modules_enabled": "documents"}, "$set": {
                 "assessment_program_id": revision["program_id"],
                 "assessment_program_version": revision["version"],
                 "documents_completion_percent": 0.0,
@@ -323,6 +323,7 @@ async def assign_document_to_supplier(customer_org_id: str, requirement_id: str,
     )
     if not source or not relationship:
         raise ValueError("Document or supplier is unavailable")
+    await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$addToSet": {"modules_enabled": "documents"}, "$set": {"updated_at": _now()}})
     await assign_existing_documents_to_supplier(customer_org_id, relationship, [source["id"]], assigned_by)
 
 

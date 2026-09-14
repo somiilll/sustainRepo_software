@@ -138,7 +138,7 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
             "training": organization_config["modules"]["training"],
         }
         revision = await get_or_create_program_revision(org_id, program_config, user_id)
-        await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$set": {"assessment_program_id": revision["program_id"], "assessment_program_version": revision["version"], "training_completion_percent": 0.0, "updated_at": now}})
+        await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$addToSet": {"modules_enabled": "training"}, "$set": {"assessment_program_id": revision["program_id"], "assessment_program_version": revision["version"], "training_completion_percent": 0.0, "updated_at": now}})
         assignment={"id":str(uuid.uuid4()),"supplier_relationship_id":relationship["id"],"organization_id":org_id,"training_requirement_id":requirement_id,"requirement_version_id":version_id,"reporting_period":relationship.get("reporting_period"),"assigned_at":now,"is_active":True}
         await db.supplier_training_assignments.insert_one(assignment); assignment.pop("_id",None); assignments.append(assignment)
     from modules.supplier_assessment.service import supplier_service
@@ -168,6 +168,7 @@ async def create_training_from_multipart(org_id: str, user_id: str, title: str, 
     await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
     assignments = []
     for relationship in relationships:
+        await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$addToSet": {"modules_enabled": "training"}, "$set": {"training_completion_percent": 0.0, "updated_at": now}})
         assignment = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": version_id, "reporting_period": relationship.get("reporting_period"), "assigned_at": now, "is_active": True}
         await db.supplier_training_assignments.insert_one(assignment); assignment.pop("_id", None); assignments.append(assignment)
     for document in (content_doc, version, requirement): document.pop("_id", None)
@@ -476,6 +477,7 @@ async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier
     )
     if not requirement or not relationship:
         raise ValueError("Training or supplier is unavailable")
+    await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$addToSet": {"modules_enabled": "training"}, "$set": {"training_completion_percent": 0.0, "updated_at": _now()}})
     existing = await db.supplier_training_assignments.find_one(
         {"supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id, "reporting_period": relationship.get("reporting_period"), "is_active": True}, {"_id": 0, "id": 1}
     )

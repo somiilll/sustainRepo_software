@@ -117,17 +117,18 @@ export default function SupplierDashboard() {
     ...(modules.has('training') ? [{ id: 'training', label: 'Training', progress: modules.get('training').completion_percent, Icon: GraduationCap, iconClassName: 'bg-amber-50 text-amber-700', shadowClassName: 'shadow-[0_3px_10px_rgba(245,158,11,0.14)]' }] : []),
   ];
 
-  const validateRevenue = () => {
+  const validateRevenue = (forSubmission = false) => {
     const percentage = revenuePercentage === '' ? null : Number(revenuePercentage);
     const amount = revenueAmount === '' ? null : Number(revenueAmount);
-    if (percentage === null || Number.isNaN(percentage) || percentage < 0 || percentage > 100) { toast.error('Revenue percentage is required and must be between 0 and 100'); return null; }
-    if (revenueRequired && (amount === null || Number.isNaN(amount) || amount < 0)) { toast.error('Annual revenue amount is required'); return null; }
+    if (percentage !== null && (Number.isNaN(percentage) || percentage < 0 || percentage > 100)) { toast.error('Revenue percentage must be between 0 and 100'); return null; }
     if (amount !== null && (Number.isNaN(amount) || amount < 0)) { toast.error('Enter a valid annual revenue amount'); return null; }
+    if (forSubmission && percentage === null) { toast.error('Revenue percentage is required and must be between 0 and 100'); return null; }
+    if (forSubmission && revenueRequired && amount === null) { toast.error('Annual revenue amount is required'); return null; }
     return { revenue_percentage: percentage, revenue_amount: amount, revenue_currency: revenueCurrency };
   };
 
   const saveRevenue = async () => {
-    const payload = validateRevenue(); if (!payload) return;
+    const payload = validateRevenue(false); if (!payload) return;
     setSaving(true);
     try { await axios.put(`${API}/supplier-assessment/my-assessment/revenue`, payload, { headers: getAuthHeader() }); toast.success('Revenue information saved'); await load(); }
     catch (error) { toast.error(error.response?.data?.detail || 'Failed to save revenue information'); }
@@ -135,7 +136,7 @@ export default function SupplierDashboard() {
   };
 
   const submitRevenue = async () => {
-    const payload = validateRevenue(); if (!payload) return;
+    const payload = validateRevenue(true); if (!payload) return;
     setSubmittingRevenue(true);
     try { await axios.put(`${API}/supplier-assessment/my-assessment/revenue`, payload, { headers: getAuthHeader() }); await axios.post(`${API}/supplier-assessment/my-assessment/revenue/submit`, {}, { headers: getAuthHeader() }); toast.success('Revenue information submitted'); setShowRevenueSubmitConfirm(false); await load(); }
     catch (error) { toast.error(error.response?.data?.detail || 'Could not submit revenue information'); }
