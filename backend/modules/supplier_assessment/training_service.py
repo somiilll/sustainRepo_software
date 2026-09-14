@@ -70,6 +70,16 @@ def _probe_media_duration(content: bytes, file_name: str) -> float:
             raise ValueError("Training media must have a valid duration")
         return duration
 
+
+def _probe_media_duration_from_path(source: Path) -> float:
+    result = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(source)], capture_output=True, text=True, timeout=60)
+    if result.returncode != 0:
+        raise ValueError("Could not read this media file for in-app playback")
+    duration = float(json.loads(result.stdout).get("format", {}).get("duration") or 0)
+    if duration <= 0:
+        raise ValueError("Training media must have a valid duration")
+    return duration
+
 async def _prepare_viewer(content: bytes, file_name: str, content_type: str) -> Dict[str, Any]:
     viewer_type = _viewer_type(content_type)
     if viewer_type == "pages":
@@ -153,7 +163,7 @@ async def create_training_from_multipart(org_id: str, user_id: str, title: str, 
         raise ValueError("One or more suppliers are not available to this organization")
     now, content_id, requirement_id, version_id = _now(), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     content_doc = {"id": content_id, "organization_id": org_id, "title": title.strip(), "description": description or "", "created_by": user_id, "created_at": now}
-    version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": file_size, "bucket_type": TRAINING_BUCKET, "r2_key": storage_key, "viewer_manifest": {"viewer_type": "media", "duration_seconds": None}, "created_by": user_id, "created_at": now}
+    version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": file_size, "bucket_type": TRAINING_BUCKET, "r2_key": storage_key, "viewer_manifest": {"viewer_type": _viewer_type(content_type), "duration_seconds": None}, "viewer_processing_status": "processing", "created_by": user_id, "created_at": now}
     requirement = {"id": requirement_id, "upload_session_id": upload_session_id, "organization_id": org_id, "training_content_id": content_id, "training_version_id": version_id, "completion_threshold": 100.0, "title": title.strip(), "description": description or "", "due_date": due_date or None, "is_active": True, "is_deleted": False, "created_by": user_id, "created_at": now}
     await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
     assignments = []
@@ -162,6 +172,21 @@ async def create_training_from_multipart(org_id: str, user_id: str, title: str, 
         await db.supplier_training_assignments.insert_one(assignment); assignment.pop("_id", None); assignments.append(assignment)
     for document in (content_doc, version, requirement): document.pop("_id", None)
     return {"training": requirement, "version": version, "assignments": assignments}
+
+
+async def prepare_multipart_training_media(version_id: str) -> None:
+    version = await db.supplier_training_versions.find_one({"id": version_id, "viewer_processing_status": "processing"}, {"_id": 0})
+    if not version or (version.get("viewer_manifest") or {}).get("viewer_type") not in {"audio", "video"}:
+        return
+    suffix = Path(version["original_filename"]).suffix.lower()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        source = Path(temp_dir) / f"source{suffix}"
+        try:
+            await asyncio.to_thread(get_r2_storage().download_to_path, version["bucket_type"], version["r2_key"], str(source))
+            duration = await asyncio.to_thread(_probe_media_duration_from_path, source)
+            await db.supplier_training_versions.update_one({"id": version_id}, {"$set": {"viewer_manifest.duration_seconds": duration, "viewer_processing_status": "ready", "viewer_prepared_at": _now()}})
+        except Exception:
+            await db.supplier_training_versions.update_one({"id": version_id}, {"$set": {"viewer_processing_status": "failed"}})
 
 async def supplier_trainings(relationship: Dict[str, Any]):
     assignments = await db.supplier_training_assignments.find({"supplier_relationship_id":relationship["id"],"is_active":True},{"_id":0}).to_list(200)

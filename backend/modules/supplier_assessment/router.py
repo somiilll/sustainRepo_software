@@ -485,6 +485,8 @@ async def complete_training_upload(session_id: str, payload: TrainingUploadCompl
     try:
         await asyncio.to_thread(get_r2_storage().complete_multipart_upload, session["bucket_type"], session["r2_key"], session["upload_id"], parts)
         training = await training_service.create_training_from_multipart(current_user["organization_id"], current_user["id"], session["title"], session["description"], session["filename"], session["content_type"], session["file_size"], session["r2_key"], session["supplier_relationship_ids"], session.get("due_date"), session_id)
+        if training.get("version", {}).get("viewer_processing_status") == "processing":
+            asyncio.create_task(training_service.prepare_multipart_training_media(training["version"]["id"]))
         await db.supplier_training_upload_sessions.update_one({"id": session_id}, {"$set": {"status": "completed", "training": training}})
         return {"training": training, "status": "completed"}
     except Exception as error:

@@ -113,6 +113,9 @@ class R2Storage:
 
     def abort_multipart_upload(self, bucket_type: str, key: str, upload_id: str) -> None:
         self.client.abort_multipart_upload(Bucket=self._get_bucket(bucket_type), Key=key, UploadId=upload_id)
+
+    def download_to_path(self, bucket_type: str, key: str, destination: str) -> None:
+        self.client.download_file(self._get_bucket(bucket_type), key, destination)
     
     async def upload_file(
         self, 
