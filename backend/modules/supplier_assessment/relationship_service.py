@@ -63,6 +63,7 @@ async def create_supplier(
     """
     validate_due_date(access_revoke_date)
     company_name = (company_name or "").strip()
+    email = (email or "").strip().lower()
     duplicate_supplier = await db.supplier_relationships.find_one(
         {"customer_org_id": customer_org_id, "is_active": True, "company_name": {"$regex": f"^{re.escape(company_name)}$", "$options": "i"}},
         {"_id": 0, "id": 1},
@@ -80,6 +81,22 @@ async def create_supplier(
     temp_password = None
     
     if existing_user:
+        if existing_user.get("organization_id") == customer_org_id:
+            raise ValueError(
+                "This email belongs to a user in your organization and cannot be used as a supplier contact. "
+                "Enter an email belonging to the supplier organization."
+            )
+
+        existing_user_org = await db.organizations.find_one(
+            {"id": existing_user.get("organization_id")},
+            {"_id": 0, "org_type": 1},
+        ) or {}
+        if existing_user.get("user_type") != "supplier" or existing_user_org.get("org_type") != "supplier":
+            raise ValueError(
+                "This email belongs to an existing non-supplier account and cannot be used as a supplier contact. "
+                "Enter an email belonging to the supplier organization."
+            )
+
         # User exists - check if they're already a supplier for this customer
         existing_rel = await db.supplier_relationships.find_one({
             "customer_org_id": customer_org_id,
@@ -89,16 +106,9 @@ async def create_supplier(
         if existing_rel:
             raise ValueError("This supplier is already registered")
         
-        # User exists but not as supplier for this customer
+        # Existing supplier account can be linked to this customer relationship.
         supplier_org_id = existing_user.get("organization_id")
         supplier_user_id = existing_user.get("id")
-        
-        # Update user to be a supplier if not already
-        if existing_user.get("user_type") != "supplier":
-            await db.users.update_one(
-                {"id": supplier_user_id},
-                {"$set": {"user_type": "supplier"}}
-            )
     else:
         # Create new supplier organization
         supplier_org_id = str(uuid.uuid4())

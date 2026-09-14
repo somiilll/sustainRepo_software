@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier-contact identity guard:** Supplier creation now normalizes contact email and rejects an email belonging to the parent/customer organization’s user or admin with a specific error. It also rejects any existing non-supplier account, preventing the previous unsafe side effect of reclassifying a parent or other customer account as a supplier. Existing accounts are only reusable when both the user and their organization are already supplier-classified.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Multipart video preview repair:** Newly uploaded multipart Training videos now persist the correct `video` viewer type rather than the invalid `media` type, so they render in a video player instead of the audio fallback. Duration preparation runs asynchronously by downloading the newly uploaded R2 object to temporary disk for `ffprobe`, then updates its manifest; existing Training records are intentionally unchanged.
 - **NOT TESTED** per the user’s standing instruction.
 
