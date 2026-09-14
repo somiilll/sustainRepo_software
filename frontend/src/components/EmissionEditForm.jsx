@@ -52,6 +52,7 @@ import {
   getUnitDenominator,
   isQuantityField,
   resolveDensityRequirement,
+  resolveDensityFieldState,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import {
   getAnnualReportingPeriodDayLimit,
@@ -936,6 +937,17 @@ export default function EmissionEditForm(props) {
                         const savedDensityValue = field.variable === 'density'
                           ? dynamicFieldValues.density ?? formData.density ?? editingEmission?.dynamic_field_values?.density?.value
                           : undefined;
+                        const densityState = field.variable === 'density'
+                          ? resolveDensityFieldState({
+                            calculationMethodology: dynamicFieldValues.calculation_methodology
+                              || formData.calculation_methodology
+                              || 'using_heat_basis_ncv',
+                            fields: dynamicInputFields,
+                            data: { ...formData, ...dynamicFieldValues },
+                            selectedFuel,
+                            centralizedUnits,
+                          })
+                          : null;
                         const overrideKey = `override_${field.variable}`;
                         const isOverrideEnabled = isFugitiveGwpField
                           || dynamicFieldValues[overrideKey] === true
@@ -1010,6 +1022,14 @@ export default function EmissionEditForm(props) {
                         // NOTE: This must happen AFTER compound suffix is applied to avoid duplicates
                         if (savedUnit && !fieldUnits.includes(savedUnit)) {
                           fieldUnits = [savedUnit, ...fieldUnits];
+                        }
+
+                        if (densityState?.visible) {
+                          fieldUnits = [
+                            savedUnit,
+                            densityState.defaultDensity?.unit,
+                            densityState.densityUnit,
+                          ].filter((unit, index, units) => unit && units.indexOf(unit) === index).slice(0, 1);
                         }
 
                         // Unitless count fields - admin-driven via unit_source === 'none'.
@@ -1111,6 +1131,9 @@ export default function EmissionEditForm(props) {
                                           overrideUnits = centralizedUnits.map(u => u.symbol);
                                         } else {
                                           overrideUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                                        }
+                                        if (field.variable === 'density' && densityState?.visible) {
+                                          overrideUnits = fieldUnits;
                                         }
                                         if (overrideUnits.length > 0) {
                                           updateDynamicFieldValue(`${field.variable}_unit`, overrideUnits[0]);

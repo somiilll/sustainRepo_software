@@ -607,11 +607,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       }
 
       if (decisionInputs.calculation_methodology === 'using_qty_basis_ef') {
-        const isStandardCombustionFuel = editGhgFormContext.isStationaryMobileOrFlaringCategory
-          && !editUseCustomFuel;
-        if (isStandardCombustionFuel) {
-          decisionInputs.ef_quantity_basis = 'mass';
-        } else if (editGhgFormContext.categoryCode === 'process_emissions' || editUseCustomFuel) {
+        if (editGhgFormContext.isStationaryMobileOrFlaringCategory
+          || editGhgFormContext.categoryCode === 'process_emissions'
+          || editUseCustomFuel) {
           const efField = dynamicInputFields.find((field) => (
             field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
           ));
@@ -619,6 +617,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             ? dynamicFieldValues.custom_ef_unit || 'kgCO2/kg'
             : dynamicFieldValues.ef_quantity_unit
             || dynamicFieldValues.ef_quantity?.unit
+            || selectedFuel?.emission_factor_basis_unit
             || efField?.defaultUnit
             || efField?.default_unit
             || efField?.expectedUnit
@@ -629,30 +628,25 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       }
 
       if (decisionInputs.calculation_methodology === 'using_heat_basis_ncv') {
-        const isStandardCombustionFuel = editGhgFormContext.isStationaryMobileOrFlaringCategory
-          && !editUseCustomFuel;
-        if (isStandardCombustionFuel) {
-          decisionInputs.cv_quantity_basis = 'mass';
-        } else {
-          const cvField = dynamicInputFields.find((field) => (
-            field.variable === 'cv' || field.fieldKey === 'cv'
-          ));
-          const cvUnit = (editUseCustomFuel ? dynamicFieldValues.custom_cv_unit : null)
-            || dynamicFieldValues.cv_unit
-            || dynamicFieldValues.cv?.unit
-            || cvField?.defaultUnit
-            || cvField?.default_unit
-            || cvField?.expectedUnit
-            || cvField?.allowedUnits?.[0]
-            || 'TJ/kg';
-          const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
-          if (basis) decisionInputs.cv_quantity_basis = basis;
-        }
+        const cvField = dynamicInputFields.find((field) => (
+          field.variable === 'cv' || field.fieldKey === 'cv'
+        ));
+        const cvUnit = (editUseCustomFuel ? dynamicFieldValues.custom_cv_unit : null)
+          || dynamicFieldValues.cv_unit
+          || dynamicFieldValues.cv?.unit
+          || selectedFuel?.calorific_value_unit
+          || cvField?.defaultUnit
+          || cvField?.default_unit
+          || cvField?.expectedUnit
+          || cvField?.allowedUnits?.[0]
+          || 'TJ/kg';
+        const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
+        if (basis) decisionInputs.cv_quantity_basis = basis;
       }
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel, editDraft.allocationMethod]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel, editDraft.allocationMethod, selectedFuel]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {

@@ -69,6 +69,13 @@ const findByNameTerms = (formulas, terms) =>
     return terms.some((term) => name.includes(term.toLowerCase()));
   });
 
+const resolveCompoundBasis = (unit) => {
+  const denominator = String(unit || '').split('/')[1]?.trim().toLowerCase();
+  if (['g', 'kg', 't'].includes(denominator)) return 'mass';
+  if (['ml', 'l', 'kl', 'm3', 'cm3'].includes(denominator)) return 'volume';
+  return null;
+};
+
 const resolveScope3Formula = (formConfig, context) => {
   const {
     scope3Method,
@@ -82,6 +89,12 @@ const resolveScope3Formula = (formConfig, context) => {
   let matchedFormula = null;
 
   if (formConfig.decision_tree) {
+    const selectedCvUnit = decisionFieldValues.cv_unit
+      || decisionFieldValues.cv?.unit
+      || context.selectedFuel?.calorific_value_unit;
+    const selectedEfUnit = decisionFieldValues.ef_quantity_unit
+      || decisionFieldValues.ef_quantity?.unit
+      || context.selectedFuel?.emission_factor_basis_unit;
     const formulaId = traverseDecisionTree(formConfig.decision_tree, {
       calculation_method_scope3: scope3Method,
       spend_currency_conversion_method: spendCurrencyConversionMethod,
@@ -168,13 +181,13 @@ const resolveScope12Formula = (formConfig, context) => {
       ...((context.isProcessCategory || context.isStationaryMobileOrFlaringCategory)
         && decisionFieldValues.calculation_methodology === 'using_qty_basis_ef'
         && !decisionFieldValues.ef_quantity_basis
-        ? { ef_quantity_basis: 'mass' }
+        ? { ef_quantity_basis: resolveCompoundBasis(selectedEfUnit) || 'mass' }
         : {}),
       // Heat Basis CV routing follows the selected denominator at calculation
       // time. Use mass while the form has not yet materialized its CV unit.
       ...(decisionFieldValues.calculation_methodology === 'using_heat_basis_ncv'
         && !decisionFieldValues.cv_quantity_basis
-        ? { cv_quantity_basis: 'mass' }
+        ? { cv_quantity_basis: resolveCompoundBasis(selectedCvUnit) || 'mass' }
         : {}),
       ...decisionFieldValues,
     });

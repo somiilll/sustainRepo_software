@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Standard-fuel density and routing parity:** Standard-fuel Edit now exposes only its active density unit (the saved unit, fuel-native default, or dynamically required unit), rather than the unrestricted administrator allowlist. Standard stationary/mobile/flaring calculations now derive the decision-tree EF/CV basis from the active factor or calorific-value denominator, including fuel database defaults, instead of forcing the mass branch. This keeps volume-basis fuels on their correct calculation path.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Canonical density `kl` unit:** Density units now normalize every standalone `kL` component to lowercase `kl`, including both `kg/kL → kg/kl` and `kL/kg → kl/kg`. The rule is scoped strictly to density; calorific units such as `TJ/kL` remain unchanged. New and updated fuel records, emission payloads, calculation overrides, Scope 1/2 Bulk Upload overrides, and legacy fuel/emission responses all use the canonical spelling; immutable historical records are not rewritten.
 - **NOT TESTED** per the user’s standing instruction.
 
