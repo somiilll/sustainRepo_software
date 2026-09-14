@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Audit create-event cleanup:** Hidden calculation and system implementation fields from Audit Details, including decision-tree/formula versions, submission batch, internal inputs/outputs/properties/steps, record IDs, version numbers, and created-by metadata. Nested duplicate calculation methodology is suppressed. Opening an event now fetches its enriched audit-detail record directly, ensuring facility and organization names resolve from the latest lookup data.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Audit detail relevance filtering:** Update events now display only fields whose values actually changed. Create events show only populated recorded values in a single-column view, without a previous/before side. Empty values and internal `formula_id`, `formula_version_id`, and `formula_version` fields are suppressed across comparisons and technical details.
 - **NOT TESTED** per the user’s standing instruction.
 

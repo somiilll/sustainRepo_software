@@ -106,7 +106,11 @@ const AUDIT_FIELD_LABELS = {
   new_values: 'New values', user_agent: 'Browser', ip_address: 'IP address', custom_ef: 'Custom emission factor',
   ef_quantity: 'Emission factor', qty: 'Quantity', cv: 'Calorific value', fuel_type: 'Fuel type',
 };
-const AUDIT_HIDDEN_FIELDS = new Set(['formula_id', 'formula_version_id', 'formula_version']);
+const AUDIT_HIDDEN_FIELDS = new Set([
+  'id', 'created_at', 'created_by', 'created_by_email', 'created_by_name', 'version_number',
+  'formula_id', 'formula_version_id', 'formula_version', 'decision_tree_version_id',
+  'submission_batch_id', 'inputs', 'outputs', 'properties', 'steps', 'category_code',
+]);
 
 const humanizeAuditField = (key = '') => AUDIT_FIELD_LABELS[key]
   || key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -132,12 +136,14 @@ const formatAuditValue = (value, key, resolvedEntities) => {
 };
 
 const flattenAuditValues = (value, resolvedEntities, prefix = '', result = {}) => {
+  if (Array.isArray(value) && value.length === 0) return result;
   if (value === null || value === undefined || typeof value !== 'object' || Array.isArray(value) || ('value' in value)) {
     if (prefix) result[prefix] = formatAuditValue(value, prefix.split('.').pop(), resolvedEntities);
     return result;
   }
   Object.entries(value).forEach(([key, childValue]) => {
     if (['password', 'password_hash', 'token', 'secret', '_id'].includes(key.toLowerCase()) || AUDIT_HIDDEN_FIELDS.has(key.toLowerCase())) return;
+    if (prefix === 'dynamic_field_values' && key === 'calculation_methodology') return;
     const nextPrefix = prefix ? `${prefix}.${key}` : key;
     flattenAuditValues(childValue, resolvedEntities, nextPrefix, result);
   });
@@ -280,6 +286,13 @@ export default function AuditTrails() {
   const openLogDetail = async (log) => {
     setSelectedLog(log);
     setDetailDialogOpen(true);
+    try {
+      const response = await axios.get(`${API}/audit-logs/${log.id}`, { headers: getAuthHeader() });
+      setSelectedLog(response.data);
+    } catch (error) {
+      console.error('Failed to load audit log details:', error);
+      toast.error('Showing the available audit log details');
+    }
   };
   
   const formatTimestamp = (timestamp) => {
