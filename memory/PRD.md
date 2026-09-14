@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Overview KPI density correction:** Reduced the Overview status KPI card height, padding, icon tile, and primary number to a denser `text-3xl` scale, while retaining the green, blue, and red status-edge treatment.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Ranking Overview KPI alignment:** Updated Overview status KPI cards to the compact Supplier Ranking card format, with white surfaces, pale icon tiles, oversized values, and status-specific top edges: green for Excellent, blue for Good, and red for Overdue follow-up.
 - **NOT TESTED** per the user’s standing instruction.
 
