@@ -37,13 +37,16 @@ function getIcon(name) {
 
 function withSupplierAssessmentLabels(items, resolvedConfig) {
   const modules = resolvedConfig?.supplier_assessment?.modules || {};
-  return items.map((item) => ({
-    ...item,
-    label: SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key]
-      ? modules[SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key]]?.display_name || item.label
-      : item.label,
-    children: item.children ? withSupplierAssessmentLabels(item.children, resolvedConfig) : item.children,
-  }));
+  return items.reduce((visibleItems, item) => {
+    const supplierModule = SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key];
+    if (item.adminOnly && supplierModule && modules[supplierModule]?.enabled === false) return visibleItems;
+    visibleItems.push({
+      ...item,
+      label: supplierModule ? modules[supplierModule]?.display_name || item.label : item.label,
+      children: item.children ? withSupplierAssessmentLabels(item.children, resolvedConfig) : item.children,
+    });
+    return visibleItems;
+  }, []);
 }
 
 function isActive(path, loc) {
@@ -165,9 +168,8 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   // Build the active sidebar config, replacing section children if org has custom config
   const activeConfig = useMemo(() => {
     if (isSuperAdmin) return superAdminSidebarConfig;
-    if (!resolvedConfig?.has_org_config) return sidebarConfig;
-
     const configuredSidebar = withSupplierAssessmentLabels(sidebarConfig, resolvedConfig);
+    if (!resolvedConfig?.has_org_config) return configuredSidebar;
 
     const mode = resolvedConfig.modules_mode; // "default" | "default_custom" | "custom"
 

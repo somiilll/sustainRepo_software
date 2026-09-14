@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier module visibility enforcement:** Supplier Assessment Documents and Training are now removed from the parent-admin sidebar whenever the organization’s resolved module configuration disables them, including default-config organizations. Parent-admin API access to all Documents/Trainings routes now returns 403 while the respective module is disabled; publish-only enforcement was replaced with route-level enforcement.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Assignment-optional Supplier content creation:** Training and Document creation now require only their content fields; supplier selection is explicitly optional and can be completed later through Manage suppliers. Unassigned Training and Document items remain visible while a reporting period is selected. ESG Questionnaire creation already supported pre-supplier setup via its “All suppliers” mode, so no behavioral change was required there.
 - **NOT TESTED** per the user’s standing instruction.
 

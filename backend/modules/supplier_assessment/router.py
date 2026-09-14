@@ -5,7 +5,7 @@ from typing import Optional, List
 import json
 import re
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Request
 from fastapi.responses import Response
 
 from modules.auth.dependencies import get_current_user, get_admin_user
@@ -45,6 +45,7 @@ from modules.supplier_assessment.contracts import (
 from modules.supplier_assessment import documents_service
 from modules.supplier_assessment import training_service
 from modules.supplier_assessment import ghg_submission_service
+from modules.sustainability_config import service as sustainability_config_service
 from modules.facilities.contracts import FacilityCreate, FacilityResponse
 from modules.facilities.router import create_facility_for_organization
 from r2_storage import get_r2_storage
@@ -79,7 +80,7 @@ async def get_supplier_user(current_user: dict = Depends(get_current_user)):
     raise HTTPException(status_code=403, detail="Supplier access required")
 
 
-async def get_customer_admin(current_user: dict = Depends(get_admin_user)):
+async def get_customer_admin(request: Request, current_user: dict = Depends(get_admin_user)):
     """Dependency that checks if user is a customer admin (not supplier)."""
     org = await db.organizations.find_one(
         {"id": current_user.get("organization_id")},
@@ -88,6 +89,21 @@ async def get_customer_admin(current_user: dict = Depends(get_admin_user)):
     
     if org and org.get("org_type") == "supplier":
         raise HTTPException(status_code=403, detail="Customer admin access required")
+
+    module_by_path = {
+        "/supplier-assessment/documents": "documents",
+        "/supplier-assessment/trainings": "training",
+    }
+    requested_module = next(
+        (module for path, module in module_by_path.items() if path in request.url.path),
+        None,
+    )
+    if requested_module:
+        supplier_config = await sustainability_config_service.resolve_supplier_assessment_config(
+            current_user["organization_id"],
+        )
+        if not (supplier_config.get("modules", {}).get(requested_module) or {}).get("enabled"):
+            raise HTTPException(status_code=403, detail=f"{requested_module.title()} is disabled for this organization")
     
     return current_user
 
