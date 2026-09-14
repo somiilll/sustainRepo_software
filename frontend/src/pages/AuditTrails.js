@@ -106,6 +106,7 @@ const AUDIT_FIELD_LABELS = {
   new_values: 'New values', user_agent: 'Browser', ip_address: 'IP address', custom_ef: 'Custom emission factor',
   ef_quantity: 'Emission factor', qty: 'Quantity', cv: 'Calorific value', fuel_type: 'Fuel type',
 };
+const AUDIT_HIDDEN_FIELDS = new Set(['formula_id', 'formula_version_id', 'formula_version']);
 
 const humanizeAuditField = (key = '') => AUDIT_FIELD_LABELS[key]
   || key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -136,7 +137,7 @@ const flattenAuditValues = (value, resolvedEntities, prefix = '', result = {}) =
     return result;
   }
   Object.entries(value).forEach(([key, childValue]) => {
-    if (['password', 'password_hash', 'token', 'secret', '_id'].includes(key.toLowerCase())) return;
+    if (['password', 'password_hash', 'token', 'secret', '_id'].includes(key.toLowerCase()) || AUDIT_HIDDEN_FIELDS.has(key.toLowerCase())) return;
     const nextPrefix = prefix ? `${prefix}.${key}` : key;
     flattenAuditValues(childValue, resolvedEntities, nextPrefix, result);
   });
@@ -149,11 +150,21 @@ const AuditValueList = ({ values, resolvedEntities, testId }) => {
   return <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2" data-testid={testId}>{rows.map(([key, value]) => <div key={key} className="min-w-0 border-b border-stone-100 pb-2"><dt className="text-xs font-medium text-stone-500">{humanizeAuditField(key.split('.').pop())}</dt><dd className="mt-1 break-words text-sm font-medium text-stone-800">{value}</dd></div>)}</dl>;
 };
 
-const AuditChangeComparison = ({ changes, resolvedEntities }) => {
+const getVisibleAuditChanges = (changes, resolvedEntities, action) => {
   const previous = flattenAuditValues(changes?.old_values, resolvedEntities);
   const next = flattenAuditValues(changes?.new_values, resolvedEntities);
-  const fields = [...new Set([...Object.keys(previous), ...Object.keys(next)])];
+  const fields = [...new Set([...Object.keys(previous), ...Object.keys(next)])].filter((field) => (
+    action === 'create' ? next[field] && next[field] !== 'Not set' : previous[field] !== next[field]
+  ));
+  return { fields, next, previous };
+};
+
+const AuditChangeComparison = ({ changes, resolvedEntities, action }) => {
+  const { fields, next, previous } = getVisibleAuditChanges(changes, resolvedEntities, action);
   if (!fields.length) return null;
+  if (action === 'create') {
+    return <section className="overflow-hidden rounded-xl border border-stone-200" data-testid="audit-log-change-comparison"><div className="border-b border-stone-200 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase text-stone-500">Recorded values</div><div className="divide-y divide-stone-100">{fields.map((field) => <div key={field} className="grid gap-1 px-4 py-3 sm:grid-cols-[minmax(140px,0.38fr)_minmax(0,1fr)] sm:gap-4"><p className="text-xs font-medium text-stone-500">{humanizeAuditField(field.split('.').pop())}</p><p className="break-words text-sm text-emerald-800">{next[field]}</p></div>)}</div></section>;
+  }
   return <section className="overflow-hidden rounded-xl border border-stone-200" data-testid="audit-log-change-comparison"><div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-b border-stone-200 bg-stone-50 text-xs font-semibold uppercase text-stone-500"><div className="px-4 py-3">Previous</div><div className="border-l border-stone-200 px-4 py-3">New</div></div><div className="divide-y divide-stone-100">{fields.map((field) => <div key={field} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><div className="min-w-0 px-4 py-3"><p className="text-xs font-medium text-stone-500">{humanizeAuditField(field.split('.').pop())}</p><p className="mt-1 break-words text-sm text-rose-800">{previous[field] || 'Not set'}</p></div><div className="min-w-0 border-l border-stone-200 px-4 py-3"><p className="text-xs font-medium text-stone-500">{humanizeAuditField(field.split('.').pop())}</p><p className="mt-1 break-words text-sm text-emerald-800">{next[field] || 'Not set'}</p></div></div>)}</div></section>;
 };
 
@@ -647,7 +658,7 @@ export default function AuditTrails() {
 
               {selectedLog.description && <section className="rounded-xl border border-stone-200 bg-stone-50/70 p-4" data-testid="audit-log-description"><p className="text-xs font-semibold uppercase text-stone-500">Description</p><p className="mt-2 text-sm leading-6 text-stone-800">{selectedLog.description}</p></section>}
 
-              {selectedLog.changes && <section className="space-y-3" data-testid="audit-log-changes"><div><p className="text-xs font-semibold uppercase text-stone-500">Changes</p><h3 className="mt-1 text-base font-semibold text-stone-950">Before and after</h3></div><AuditChangeComparison changes={selectedLog.changes} resolvedEntities={selectedLog.resolved_entities} /></section>}
+              {selectedLog.changes && getVisibleAuditChanges(selectedLog.changes, selectedLog.resolved_entities, selectedLog.action).fields.length > 0 && <section className="space-y-3" data-testid="audit-log-changes"><div><p className="text-xs font-semibold uppercase text-stone-500">{selectedLog.action === 'create' ? 'Recorded values' : 'Changes'}</p><h3 className="mt-1 text-base font-semibold text-stone-950">{selectedLog.action === 'create' ? 'Supplied details' : 'Before and after'}</h3></div><AuditChangeComparison changes={selectedLog.changes} resolvedEntities={selectedLog.resolved_entities} action={selectedLog.action} /></section>}
 
               {(selectedLog.metadata || selectedLog.client) && <details className="rounded-xl border border-stone-200 bg-white" data-testid="audit-log-technical-details"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-stone-700" data-testid="audit-log-technical-details-toggle">Technical details</summary><div className="border-t border-stone-100 p-4"><AuditValueList values={{ ...(selectedLog.metadata || {}), ...(selectedLog.client || {}) }} resolvedEntities={selectedLog.resolved_entities} testId="audit-log-technical-values" /></div></details>}
             </div>
