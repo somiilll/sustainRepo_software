@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Audit false-change suppression:** Removed organization and version fields from user-facing audit details. Audit comparison now treats absent, null, empty, `None`, and “Not set” values as the same unset state, preventing empty-before/empty-after fields from appearing as false updates; a newly entered density still appears correctly as a real change.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Audit emission-create deduplication:** Suppressed the entire formula snapshot and further implementation metadata, including justification. Custom Fuel create events now show the Custom Fuel Name once, rather than duplicating it through fuel type and subcategory aliases. Audit detail now waits for the enriched single-event response before rendering, preventing temporary raw-ID/unavailable entity placeholders.
 - **NOT TESTED** per the user’s standing instruction.
 

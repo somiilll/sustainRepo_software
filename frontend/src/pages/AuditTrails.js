@@ -110,6 +110,7 @@ const AUDIT_HIDDEN_FIELDS = new Set([
   'id', 'created_at', 'created_by', 'created_by_email', 'created_by_name', 'version_number',
   'formula_id', 'formula_version_id', 'formula_version', 'formula_snapshot', 'decision_tree_version_id',
   'submission_batch_id', 'inputs', 'outputs', 'properties', 'steps', 'category_code', 'category_id',
+  'organization_id', 'org_id', 'version',
   'justification', 'updated_at', 'updated_by', 'updated_by_email', 'updated_by_name',
 ]);
 
@@ -160,8 +161,11 @@ const AuditValueList = ({ values, resolvedEntities, testId }) => {
 const getVisibleAuditChanges = (changes, resolvedEntities, action) => {
   const previous = flattenAuditValues(changes?.old_values, resolvedEntities);
   const next = flattenAuditValues(changes?.new_values, resolvedEntities);
+  const isUnset = (value) => value === undefined || value === null || value === '' || value === 'None' || String(value).startsWith('Not set');
   const fields = [...new Set([...Object.keys(previous), ...Object.keys(next)])].filter((field) => (
-    action === 'create' ? next[field] && next[field] !== 'Not set' : previous[field] !== next[field]
+    action === 'create'
+      ? !isUnset(next[field])
+      : !(isUnset(previous[field]) && isUnset(next[field])) && previous[field] !== next[field]
   )).filter((field) => {
     const leaf = field.split('.').pop();
     const customFuelName = next.custom_fuel_name || previous.custom_fuel_name;
@@ -681,7 +685,7 @@ export default function AuditTrails() {
 
               <section className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-stone-200 bg-white p-4" data-testid="audit-log-actor"><p className="text-xs font-semibold uppercase text-stone-500">Who</p><div className="mt-3 flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"><User className="h-5 w-5" aria-hidden="true" /></span><div className="min-w-0"><p className="truncate text-sm font-semibold text-stone-900" data-testid="audit-log-user-email">{selectedLog.user?.email || 'Unknown user'}</p><p className="mt-0.5 text-xs capitalize text-stone-500" data-testid="audit-log-user-role">{selectedLog.user?.role || 'User'}</p></div></div></div>
-                <div className="rounded-xl border border-stone-200 bg-white p-4" data-testid="audit-log-resource"><p className="text-xs font-semibold uppercase text-stone-500">Affected resource</p><p className="mt-3 text-sm font-semibold text-stone-900" data-testid="audit-log-resource-name">{selectedLog.resource?.name || (selectedLog.module === 'facility' ? selectedLog.resolved_entities?.facilities?.[String(selectedLog.resource?.id)] : selectedLog.module === 'organization' ? selectedLog.resolved_entities?.organizations?.[String(selectedLog.resource?.id)] : 'Unavailable resource')}</p>{selectedLog.organization_id && <p className="mt-1 text-xs text-stone-500" data-testid="audit-log-organization-name">{formatAuditValue(selectedLog.organization_id, 'organization_id', selectedLog.resolved_entities)}</p>}</div>
+                <div className="rounded-xl border border-stone-200 bg-white p-4" data-testid="audit-log-resource"><p className="text-xs font-semibold uppercase text-stone-500">Affected resource</p><p className="mt-3 text-sm font-semibold text-stone-900" data-testid="audit-log-resource-name">{selectedLog.resource?.name || (selectedLog.module === 'facility' ? selectedLog.resolved_entities?.facilities?.[String(selectedLog.resource?.id)] : selectedLog.module === 'organization' ? selectedLog.resolved_entities?.organizations?.[String(selectedLog.resource?.id)] : 'Unavailable resource')}</p></div>
               </section>
 
               {selectedLog.description && <section className="rounded-xl border border-stone-200 bg-stone-50/70 p-4" data-testid="audit-log-description"><p className="text-xs font-semibold uppercase text-stone-500">Description</p><p className="mt-2 text-sm leading-6 text-stone-800">{selectedLog.description}</p></section>}
