@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Assignment-optional Supplier content creation:** Training and Document creation now require only their content fields; supplier selection is explicitly optional and can be completed later through Manage suppliers. Unassigned Training and Document items remain visible while a reporting period is selected. ESG Questionnaire creation already supported pre-supplier setup via its “All suppliers” mode, so no behavioral change was required there.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Compact business audit storage:** Future `audit_logs` entries now store populated business fields only. Create/import events retain the compact new-value snapshot; update events persist a nested, field-level old/new diff only; delete events retain the compact prior snapshot. Formula, decision-tree, calculation execution, submission, version, and duplicate actor metadata are excluded at write time. The technical `ce_calculation_audit_logs` ledger is unchanged, and IP/user-agent retention remains unchanged for later policy work.
 - **NOT TESTED** per the user’s standing instruction.
 

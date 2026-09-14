@@ -90,7 +90,6 @@ export default function SupplierDocumentsAdmin() {
 
   const uploadAgreement = async () => {
     if (!file) { toast.error('Choose a document file first'); return; }
-    if (!selectedSuppliers.length) { toast.error('Select at least one supplier'); return; }
     const options = statusOptions.split('\n').map((option) => option.trim()).filter(Boolean);
     if (responseMode === 'STATUS' && !options.length) { toast.error('Add at least one status option'); return; }
     const data = new FormData();
@@ -98,7 +97,7 @@ export default function SupplierDocumentsAdmin() {
     setUploading(true);
     try {
       await axios.post(`${API}/supplier-assessment/documents`, data, { headers: getAuthHeader() });
-      toast.success('Document published to selected suppliers');
+      toast.success(selectedSuppliers.length ? 'Document published to selected suppliers' : 'Document published — assign suppliers when ready');
       setTitle(''); setDueDate(''); setFile(null); setSelectedSuppliers([]); setShowAgreementForm(false);
       const fileInput = document.getElementById('supplier-agreement-file-input');
       if (fileInput) fileInput.value = '';
@@ -228,7 +227,7 @@ export default function SupplierDocumentsAdmin() {
             </div>
           )}
           <div className="md:col-span-2">
-            <SupplierAssignmentPicker selectedIds={selectedSuppliers} onChange={setSelectedSuppliers} getAuthHeader={getAuthHeader} testIdPrefix="document" reportingPeriod={reportingPeriod} />
+            <SupplierAssignmentPicker selectedIds={selectedSuppliers} onChange={setSelectedSuppliers} getAuthHeader={getAuthHeader} testIdPrefix="document" reportingPeriod={reportingPeriod} label="Assign suppliers now (optional)" />
           </div>
           <div className="md:col-span-2 flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowAgreementForm(false)} data-testid="cancel-supplier-agreement-button">Cancel</Button>

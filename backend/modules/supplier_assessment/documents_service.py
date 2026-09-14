@@ -109,7 +109,7 @@ async def publish_agreement(
 
     organization_config = await _enable_documents_for_org(customer_org_id, created_by)
     relationship_filter = {"customer_org_id": customer_org_id, "is_active": True}
-    if relationship_ids:
+    if relationship_ids is not None:
         relationship_filter["id"] = {"$in": list(set(relationship_ids))}
     relationships = await db.supplier_relationships.find(relationship_filter, {"_id": 0}).to_list(1000)
     if relationship_ids and len(relationships) != len(set(relationship_ids)):
@@ -511,7 +511,11 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
 async def list_customer_documents(customer_org_id: str, reporting_period: Optional[str] = None) -> List[Dict[str, Any]]:
     query = {"customer_org_id": customer_org_id, "is_active": True}
     if reporting_period:
-        query["reporting_period"] = reporting_period
+        query["$or"] = [
+            {"reporting_period": reporting_period},
+            {"reporting_period": None},
+            {"reporting_period": {"$exists": False}},
+        ]
     requirements = await db.supplier_document_requirements.find(
         query, {"_id": 0}
     ).sort("created_at", -1).to_list(100)

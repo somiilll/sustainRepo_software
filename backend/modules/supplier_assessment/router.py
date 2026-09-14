@@ -317,8 +317,6 @@ async def upload_document(
             raise ValueError("Selected suppliers must be valid")
         if not isinstance(relationship_ids, list) or not all(isinstance(relationship_id, str) for relationship_id in relationship_ids):
             raise ValueError("Selected suppliers must be a list")
-        if not relationship_ids:
-            raise ValueError("Select at least one supplier")
         content = await file.read()
         await assert_evidence_storage_limit(current_user["organization_id"], len(content))
         result = await documents_service.publish_agreement(
@@ -412,8 +410,8 @@ async def delete_document(requirement_id: str, current_user: dict = Depends(get_
     return {"message": "Agreement deleted"}
 
 @router.post("/trainings")
-async def create_training(file: UploadFile = File(...), title: str = Form(...), description: str = Form(""), due_date: Optional[str] = Form(None), supplier_relationship_ids: str = Form(...), current_user: dict = Depends(get_customer_admin)):
-    """Create immutable v1 training content and assign it to selected suppliers."""
+async def create_training(file: UploadFile = File(...), title: str = Form(...), description: str = Form(""), due_date: Optional[str] = Form(None), supplier_relationship_ids: str = Form("[]"), current_user: dict = Depends(get_customer_admin)):
+    """Create immutable v1 training content and optionally assign it to suppliers."""
     try:
         content = await file.read()
         await assert_evidence_storage_limit(current_user["organization_id"], len(content))
@@ -425,8 +423,12 @@ async def create_training(file: UploadFile = File(...), title: str = Form(...), 
 async def list_trainings(reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     query = {"organization_id": current_user["organization_id"], "is_deleted": {"$ne": True}}
     if reporting_period:
-        assignment_ids = await db.supplier_training_assignments.distinct("training_requirement_id", {"organization_id": current_user["organization_id"], "reporting_period": reporting_period})
-        query["id"] = {"$in": assignment_ids}
+        assigned_for_period = await db.supplier_training_assignments.distinct("training_requirement_id", {"organization_id": current_user["organization_id"], "reporting_period": reporting_period})
+        assigned_any_period = await db.supplier_training_assignments.distinct("training_requirement_id", {"organization_id": current_user["organization_id"]})
+        query["$or"] = [
+            {"id": {"$in": assigned_for_period}},
+            {"id": {"$nin": assigned_any_period}},
+        ]
     return await db.supplier_training_requirements.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
 
 @router.patch("/trainings/{training_id}")

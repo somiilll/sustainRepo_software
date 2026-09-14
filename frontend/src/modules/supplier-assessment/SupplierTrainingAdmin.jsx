@@ -73,8 +73,8 @@ export default function SupplierTrainingAdmin() {
   useEffect(() => { load(); }, [load]);
 
   const create = async () => {
-    if (!file || !title || !selected.length) {
-      toast.error('Add a title, file, and supplier');
+    if (!file || !title) {
+      toast.error('Add a title and file');
       return;
     }
     setIsCreating(true);
@@ -87,7 +87,7 @@ export default function SupplierTrainingAdmin() {
       data.append('completion_threshold', '100');
       data.append('supplier_relationship_ids', JSON.stringify(selected));
       await axios.post(`${API}/supplier-assessment/trainings`, data, { headers: getAuthHeader() });
-      toast.success(`${trainingLabel} assigned`);
+      toast.success(selected.length ? `${trainingLabel} assigned` : `${trainingLabel} created — assign suppliers when ready`);
       setTitle(''); setDescription(''); setDueDate(''); setFile(null); setSelected([]); setShowTrainingForm(false);
       await load();
     } catch (error) {
@@ -198,7 +198,7 @@ export default function SupplierTrainingAdmin() {
             <Input id="training-file" type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={(event) => setFile(event.target.files?.[0])} data-testid="training-file-input" />
           </div>
           <div className="md:col-span-2">
-            <SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" reportingPeriod={reportingPeriod} />
+            <SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" reportingPeriod={reportingPeriod} label="Assign suppliers now (optional)" />
           </div>
           <div className="md:col-span-2 flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowTrainingForm(false)} data-testid="cancel-create-training-button">Cancel</Button>

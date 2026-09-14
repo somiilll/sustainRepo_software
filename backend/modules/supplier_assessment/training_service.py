@@ -83,7 +83,7 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
     validate_due_date(due_date)
     organization_config = await sustainability_config_service.resolve_supplier_assessment_config(org_id)
     if not (organization_config.get("modules", {}).get("training") or {}).get("enabled"):
-        raise ValueError("Enable the Training module in Organization Config before assigning training")
+        raise ValueError("Enable the Training module in Organization Config before creating training")
     relationships = await db.supplier_relationships.find(
         {"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True}, {"_id": 0}
     ).to_list(1000)
