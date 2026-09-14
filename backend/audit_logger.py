@@ -69,6 +69,15 @@ class AuditModule(str, Enum):
 
 class AuditLogger:
     """Centralized audit logging service"""
+
+    CHANGE_FIELDS_TO_EXCLUDE = {
+        "id", "organization_id", "org_id", "category_id", "category_code",
+        "formula_id", "formula_version_id", "decision_tree_version_id", "formula_snapshot",
+        "inputs", "outputs", "properties", "steps", "submission_batch_id", "fuel_database_id",
+        "scope3_ef_id", "created_by", "created_by_email", "created_by_name", "created_at",
+        "updated_by", "updated_by_email", "updated_by_name", "updated_at", "version", "version_number",
+        "justification",
+    }
     
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
@@ -117,10 +126,21 @@ class AuditLogger:
         Returns:
             The ID of the created audit log entry
         """
+        action_value = action.value if isinstance(action, AuditAction) else action
+        sanitized_old_values = self._prepare_audit_values(old_values)
+        sanitized_new_values = self._prepare_audit_values(new_values)
+
+        if action_value == AuditAction.UPDATE.value:
+            audit_old_values, audit_new_values = self._diff_audit_values(sanitized_old_values, sanitized_new_values)
+        elif action_value == AuditAction.DELETE.value:
+            audit_old_values, audit_new_values = sanitized_old_values, None
+        else:
+            audit_old_values, audit_new_values = None, sanitized_new_values
+
         audit_entry = {
             "id": str(uuid.uuid4()),
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "action": action.value if isinstance(action, AuditAction) else action,
+            "action": action_value,
             "module": module.value if isinstance(module, AuditModule) else module,
             "user": {
                 "id": user_id,
@@ -134,10 +154,10 @@ class AuditLogger:
             } if resource_id else None,
             "description": description,
             "changes": {
-                "old_values": self._sanitize_values(old_values),
-                "new_values": self._sanitize_values(new_values)
-            } if old_values or new_values else None,
-            "metadata": metadata,
+                "old_values": audit_old_values,
+                "new_values": audit_new_values,
+            } if audit_old_values or audit_new_values else None,
+            "metadata": self._prepare_audit_values(metadata),
             "client": {
                 "ip_address": ip_address,
                 "user_agent": user_agent
@@ -195,6 +215,64 @@ class AuditLogger:
                 sanitized[key] = value
         
         return sanitized if sanitized else None
+
+    def _prepare_audit_values(self, values: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Keep only populated, user-meaningful fields in business audit history."""
+        sanitized = self._sanitize_values(values)
+        if not sanitized:
+            return None
+
+        def clean(value: Any, key: Optional[str] = None) -> Any:
+            if key and key.lower() in self.CHANGE_FIELDS_TO_EXCLUDE:
+                return None
+            if isinstance(value, dict):
+                cleaned = {child_key: clean(child_value, child_key) for child_key, child_value in value.items()}
+                cleaned = {child_key: child_value for child_key, child_value in cleaned.items() if child_value is not None}
+                return cleaned or None
+            if isinstance(value, list):
+                cleaned = [clean(item) for item in value]
+                cleaned = [item for item in cleaned if item is not None]
+                return cleaned or None
+            if value is None or value == "":
+                return None
+            return value
+
+        return clean(sanitized)
+
+    def _diff_audit_values(
+        self,
+        old_values: Optional[Dict[str, Any]],
+        new_values: Optional[Dict[str, Any]],
+    ) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        """Return matching old/new dictionaries containing only actual changes."""
+        missing = object()
+
+        def diff(old_value: Any, new_value: Any) -> tuple[Any, Any]:
+            if isinstance(old_value, dict) and isinstance(new_value, dict):
+                old_diff, new_diff = {}, {}
+                for key in set(old_value) | set(new_value):
+                    old_child, new_child = old_value.get(key, missing), new_value.get(key, missing)
+                    if old_child is missing or new_child is missing:
+                        if old_child is not missing:
+                            old_diff[key] = old_child
+                        if new_child is not missing:
+                            new_diff[key] = new_child
+                        continue
+                    old_changed, new_changed = diff(old_child, new_child)
+                    if old_changed is not missing:
+                        old_diff[key] = old_changed
+                    if new_changed is not missing:
+                        new_diff[key] = new_changed
+                return (old_diff or missing), (new_diff or missing)
+            if old_value != new_value:
+                return old_value, new_value
+            return missing, missing
+
+        old_diff, new_diff = diff(old_values or {}, new_values or {})
+        return (
+            old_diff if old_diff is not missing else None,
+            new_diff if new_diff is not missing else None,
+        )
     
     async def get_logs(
         self,

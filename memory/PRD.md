@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Compact business audit storage:** Future `audit_logs` entries now store populated business fields only. Create/import events retain the compact new-value snapshot; update events persist a nested, field-level old/new diff only; delete events retain the compact prior snapshot. Formula, decision-tree, calculation execution, submission, version, and duplicate actor metadata are excluded at write time. The technical `ce_calculation_audit_logs` ledger is unchanged, and IP/user-agent retention remains unchanged for later policy work.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Audit no-ID display rule:** User-facing audit detail rendering now suppresses any generic ID field (`id`, `*_id`, or `*_ids`), including Fuel Database IDs, employee IDs, and other internal references. Readable names and business context remain visible where available.
 - **NOT TESTED** per the user’s standing instruction.
 
