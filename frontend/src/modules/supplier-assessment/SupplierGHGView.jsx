@@ -154,7 +154,7 @@ export default function SupplierGHGView() {
   const categoryOptions = [...new Set(emissions.map((emission) => emission.category).filter(Boolean))].sort();
   return (
     <div className="space-y-6" data-testid="supplier-ghg-view">
-      <Tabs defaultValue="supplier-summary" data-testid="supplier-ghg-tabs">
+      <Tabs defaultValue="supplier-summary" className="space-y-7" data-testid="supplier-ghg-tabs">
       {/* Header */}
       <div className="border-b border-stone-200 pb-5" data-testid="supplier-ghg-header">
         <div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700 shadow-sm" data-testid="supplier-ghg-heading-icon"><Cloud className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-ghg-heading">Supplier GHG Emissions</h1></div>

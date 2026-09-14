@@ -101,6 +101,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Exact Supplier GHG toolbar gap alignment:** Updated the Supplier GHG tabs wrapper from `space-y-6` to `space-y-7`, exactly matching ESG Questionnaire’s header-to-toolbar separation.
+- **NOT TESTED** per the user’s standing instruction.
+
+- **September 10, 2026 — Supplier GHG header spacing repair:** Restored the vertical spacing wrapper after relocating GHG tabs into the toolbar, giving the header underline the same visual gap before controls as the ESG Questionnaire page.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Supplier GHG toolbar consistency:** Refined the Supplier GHG control bar to retain the same search → primary control → reporting-period placement used by Supplier Documents. The active “Emissions by Supplier” or “Logs” view now displays as a full emerald segment with white text instead of an underline-only state.
 - **NOT TESTED** per the user’s standing instruction.
 
