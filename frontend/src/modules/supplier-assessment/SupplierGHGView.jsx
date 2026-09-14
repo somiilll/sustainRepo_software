@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { ChevronLeft, ChevronRight, Search, Cloud, Download, Eye, Factory, Filter, LockOpen, Paperclip } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Search, Cloud, Download, Eye, Factory, Filter, LockOpen, Paperclip } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import SupplierEmissionReadOnlyDialog from './components/SupplierEmissionReadOnlyDialog';
@@ -155,9 +155,13 @@ export default function SupplierGHGView() {
   return (
     <div className="space-y-6" data-testid="supplier-ghg-view">
       {/* Header */}
-      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-start sm:justify-between" data-testid="supplier-ghg-header">
+      <div className="border-b border-stone-200 pb-5" data-testid="supplier-ghg-header">
         <div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700 shadow-sm" data-testid="supplier-ghg-heading-icon"><Cloud className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-ghg-heading">Supplier GHG Emissions</h1></div>
-        <div className="w-44" data-testid="supplier-ghg-period-control"><label htmlFor="supplier-ghg-reporting-period" className="mb-1 block text-xs font-medium text-stone-600" data-testid="supplier-ghg-period-label">Reporting period</label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ghg-reporting-period" className="h-9 bg-white" data-testid="supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ghg-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ghg-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] md:flex-row md:flex-wrap md:items-center lg:flex-nowrap" data-testid="supplier-ghg-controls">
+        <div className="relative w-full md:w-[min(430px,100%)] md:flex-none" data-testid="supplier-ghg-search-control"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input placeholder="Search emissions..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 border-stone-200 bg-white pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label="Search emissions" data-testid="supplier-ghg-search-input" /></div>
+        <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row md:items-center md:gap-3" data-testid="supplier-ghg-period-control"><label htmlFor="supplier-ghg-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-ghg-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ghg-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 md:w-44" data-testid="supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ghg-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ghg-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
       </div>
 
       <Tabs defaultValue="supplier-summary" data-testid="supplier-ghg-tabs">
@@ -258,17 +262,7 @@ export default function SupplierGHGView() {
         </TabsContent>
 
         <TabsContent value="logs" className="mt-5 space-y-5" data-testid="supplier-ghg-logs-panel">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
-          <Input
-            placeholder="Search emissions..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-            data-testid="supplier-ghg-search-input"
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-4" data-testid="supplier-ghg-log-filters">
         <Select value={scopeFilter} onValueChange={setScopeFilter}>
           <SelectTrigger className="w-40" data-testid="supplier-ghg-scope-filter">
             <Filter className="h-4 w-4 mr-2" />

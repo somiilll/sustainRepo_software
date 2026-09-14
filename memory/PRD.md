@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier GHG toolbar alignment:** Supplier GHG Emissions now uses the same responsive top control panel as the other Supplier Assessment modules. Its emissions search and reporting-period selector are consolidated in the top bar, while scope, supplier, and category remain focused filters within the Logs tab.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Documents and Training toolbar alignment:** Supplier Documents and Training now use the same responsive top-toolbar pattern as Suppliers and ESG Questionnaires: search at left, the existing publish/create action, and the reporting-period selector at right. Both lists filter by title/description with an explicit no-results state.
 - **NOT TESTED** per the user’s standing instruction.
 
