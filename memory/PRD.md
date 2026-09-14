@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier emission evidence empty-state alignment:** The read-only Supplier Emission dialog now places the “Evidence Documents / No evidence attached” state inside the same bordered white panel, padding, and spacing used by the editable form’s evidence section. This keeps it aligned with the other form surfaces instead of leaving the empty state on the dialog background.
+- **NOT UI TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Supplier unlock email notifications:** Parent-triggered reopening of an ESG questionnaire, GHG reporting period (including the legacy GHG reopen route), or Document response now sends the affected supplier a transactional email through the configured Resend delivery service. Messages identify the customer, reopened module/item, optional GHG instructions, and link to the supplier sign-in page.
 - Delivery attempts are recorded in `supplier_notification_deliveries` with a unique event key, status, and timestamps. This prevents duplicate emails when an unlock request is retried or reached through overlapping legacy/current GHG routes; a failed delivery is recorded without undoing the valid unlock.
 - **NOT TESTED** per the user’s standing instruction.
