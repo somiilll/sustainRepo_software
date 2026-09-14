@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Audit Log detail redesign:** Rebuilt the Audit Log detail modal as a readable event view: contextual success/failure header, Who/Resource sections, human-readable descriptions, and field-level Previous/New comparisons replace raw JSON. Audit retrieval now batches organization and facility lookup data, so all supported `organization_id`, `org_id`, `facility_id`, and `facility_ids` fields display their names instead of IDs. Metadata/client context is now a labeled, collapsible Technical details section.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Exact Supplier GHG toolbar gap alignment:** Updated the Supplier GHG tabs wrapper from `space-y-6` to `space-y-7`, exactly matching ESG Questionnaire’s header-to-toolbar separation.
 - **NOT TESTED** per the user’s standing instruction.
 

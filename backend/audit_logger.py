@@ -263,6 +263,7 @@ class AuditLogger:
         cursor = cursor.skip(skip).limit(limit)
         
         logs = await cursor.to_list(length=limit)
+        await self._enrich_entity_names(logs)
         
         return {
             "logs": logs,
@@ -273,7 +274,69 @@ class AuditLogger:
     
     async def get_log_by_id(self, log_id: str) -> Optional[Dict[str, Any]]:
         """Get a single audit log entry by ID"""
-        return await self.collection.find_one({"id": log_id}, {"_id": 0})
+        log = await self.collection.find_one({"id": log_id}, {"_id": 0})
+        if log:
+            await self._enrich_entity_names([log])
+        return log
+
+    async def _enrich_entity_names(self, logs: List[Dict[str, Any]]) -> None:
+        """Attach safe human-readable organization and facility lookup maps to audit logs."""
+        organization_ids, facility_ids = set(), set()
+
+        def collect_references(value: Any, key: Optional[str] = None) -> None:
+            if isinstance(value, dict):
+                for child_key, child_value in value.items():
+                    collect_references(child_value, child_key)
+                return
+            if isinstance(value, list):
+                for item in value:
+                    collect_references(item, key)
+                return
+            if not value:
+                return
+            if key in {"organization_id", "org_id"}:
+                organization_ids.add(str(value))
+            elif key == "facility_id":
+                facility_ids.add(str(value))
+
+        for log in logs:
+            collect_references(log)
+            resource = log.get("resource") or {}
+            if log.get("module") == AuditModule.ORGANIZATION.value and resource.get("id"):
+                organization_ids.add(str(resource["id"]))
+            if log.get("module") == AuditModule.FACILITY.value and resource.get("id"):
+                facility_ids.add(str(resource["id"]))
+
+        organizations = await self.db.organizations.find(
+            {"id": {"$in": list(organization_ids)}},
+            {"_id": 0, "id": 1, "name": 1, "organization_name": 1},
+        ).to_list(length=len(organization_ids) or 1)
+        facilities = await self.db.facilities.find(
+            {"id": {"$in": list(facility_ids)}},
+            {"_id": 0, "id": 1, "name": 1, "facility_name": 1},
+        ).to_list(length=len(facility_ids) or 1)
+        organization_names = {
+            item["id"]: item.get("organization_name") or item.get("name") or "Unavailable organization"
+            for item in organizations
+        }
+        facility_names = {
+            item["id"]: item.get("facility_name") or item.get("name") or "Unavailable facility"
+            for item in facilities
+        }
+
+        for log in logs:
+            log["resolved_entities"] = {
+                "organizations": organization_names,
+                "facilities": facility_names,
+            }
+            resource = log.get("resource")
+            if not resource or resource.get("name"):
+                continue
+            resource_id = str(resource.get("id") or "")
+            if log.get("module") == AuditModule.ORGANIZATION.value:
+                resource["name"] = organization_names.get(resource_id, "Unavailable organization")
+            elif log.get("module") == AuditModule.FACILITY.value:
+                resource["name"] = facility_names.get(resource_id, "Unavailable facility")
     
     async def get_activity_summary(
         self,
