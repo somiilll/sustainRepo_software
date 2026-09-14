@@ -58,6 +58,7 @@ from shared.helpers.tokens import (
 from shared.helpers.email import send_email
 from shared.utils.emission_records import eligible_ghg_record_filter
 from app.bootstrap.contract_verifier import verify_module_contracts
+from app.errors.handlers import register_exception_handlers
 
 # Phase B2: extracted auth deps + per-domain routers.
 # server.py keeps the legacy class definitions and route handlers commented
@@ -132,6 +133,7 @@ from modules.airports.router import router as airports_router
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
 
 app = FastAPI()
+register_exception_handlers(app)
 api_router = APIRouter(prefix="/api")
 
 # Phase B2: include modular routers.

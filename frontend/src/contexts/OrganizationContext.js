@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from './AuthContext';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const OrganizationContext = createContext(null);
 
@@ -29,58 +30,44 @@ export const OrganizationProvider = ({ children }) => {
     timezone: 'UTC',
   });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const fetchModuleConfig = useCallback(async () => {
     if (!token) {
-      setLoading(false);
       return;
     }
-
-    try {
-      const response = await axios.get(`${API}/organization/module-config`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setModuleConfig(response.data);
-    } catch (error) {
-      console.error('Failed to fetch module config:', error);
-      // Keep defaults on error
-    }
+    const response = await axios.get(`${API}/organization/module-config`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setModuleConfig(response.data);
   }, [token]);
 
   const fetchOrganization = useCallback(async () => {
     if (!token || !user || user.role === 'super_admin') {
-      setLoading(false);
       return;
     }
-
-    try {
-      const response = await axios.get(`${API}/organizations/my`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOrganization(response.data);
-    } catch (error) {
-      console.error('Failed to fetch organization:', error);
-    }
+    const response = await axios.get(`${API}/organizations/my`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setOrganization(response.data);
   }, [token, user?.role]);
 
   const refreshOrganization = useCallback(async () => {
     setLoading(true);
-    await Promise.all([fetchModuleConfig(), fetchOrganization()]);
+    setLoadError('');
+    const results = await Promise.allSettled([fetchModuleConfig(), fetchOrganization()]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure) {
+      console.error('Failed to load organization context:', failure.reason);
+      setLoadError(getUserFriendlyError(failure.reason, 'Unable to load organization settings. Please refresh the page and try again.', { preferFallback: true }));
+    }
     setLoading(false);
   }, [fetchModuleConfig, fetchOrganization]);
 
   useEffect(() => {
-    const init = async () => {
-      if (token) {
-        setLoading(true);
-        await Promise.all([fetchModuleConfig(), fetchOrganization()]);
-        setLoading(false);
-      } else {
-        setLoading(false);
-      }
-    };
-    init();
-  }, [token, fetchModuleConfig, fetchOrganization]);
+    if (token) refreshOrganization();
+    else setLoading(false);
+  }, [token, refreshOrganization]);
 
   // Get timezone from moduleConfig (already includes org timezone) or organization
   const timezone = moduleConfig?.timezone || organization?.timezone || 'UTC';
@@ -91,6 +78,7 @@ export const OrganizationProvider = ({ children }) => {
       moduleConfig,
       timezone,
       loading,
+      loadError,
       refreshOrganization,
     }}>
       {children}
@@ -112,6 +100,7 @@ export const useOrganization = () => {
       moduleConfig: { timezone: 'UTC' },
       timezone: 'UTC',
       loading: false,
+      loadError: '',
       refreshOrganization: () => {},
     };
   }

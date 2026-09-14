@@ -13,6 +13,7 @@ import EmissionFilters from './emissions/EmissionFilters';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Plus, Filter, X, Search, Cloud } from 'lucide-react';
 import { ModulePageHeader } from '../components/ModulePageHeader';
+import { LoadErrorState } from '../components/LoadErrorState';
 import { toast } from 'sonner';
 import EmissionEntryForm from '../components/EmissionEntryForm';
 import EmissionEditForm from '../components/EmissionEditForm';
@@ -77,7 +78,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const {
     emissions, facilities, organization, fuelDatabase,
     formulaDefinitions, formulaParameters, emissionConfigurations,
-    loading, centralizedUnits, gwpConfig,
+    loading, loadError: coreDataLoadError, centralizedUnits, gwpConfig,
     dynamicScopes, dynamicCategories, configLabels, organizationGhgOverrides: resolvedOrganizationGhgOverrides,
     scope3EFData: initialScope3EFData,
     fugitiveEmissionsData: initialFugitiveData,
@@ -1876,6 +1877,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     calcEngineUsed,
     setCalcEngineUsed,
     isCalculatingNetwork,
+    calculationError,
+    setCalculationError,
     calculate: triggerCalcEngine,
     clearResult: clearCalcResult
   } = useEmissionsCalculator(getAuthHeader);
@@ -2216,6 +2219,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     };
     
     // Call the backend calc engine (uses its own debouncing)
+    setCalculationError('');
     executeBackendCalc({
       scope: formData.scope,
       category: formData.category || selectedCategory,
@@ -2235,11 +2239,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       } else {
         setBackendCalcResult(null);
         setCalcEngineUsed(false);
+        setCalculationError('Calculation unavailable. Please review the entered data and try again.');
       }
     }).catch(error => {
       console.error('[CalcEngine] Backend calculation error:', error);
       setBackendCalcResult(null);
       setCalcEngineUsed(false);
+      setCalculationError("We couldn't complete this calculation. Please review the entered data and try again.");
     });
   }, [
     dialogOpen, editingEmission, isFormDirty, selectedFuel?.id, formData.quantity, formData.quantity_unit,
@@ -2309,6 +2315,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (calculationError && !isEditC7EmployeeCommuting) {
+      toast.error(`Nothing was saved. ${calculationError}`);
+      return;
+    }
 
     // E3: persistCalcAuditLog moved to ./emissions/utils/persistCalcAuditLog.
     // Thin wrapper binds local state for the dispatch branches below.
@@ -3422,6 +3433,17 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     );
   }
 
+  if (coreDataLoadError) {
+    return <main className="mx-auto max-w-4xl px-6 py-16" data-testid="emissions-core-data-error-page">
+      <LoadErrorState
+        title="Unable to load emission data"
+        message={coreDataLoadError}
+        onRetry={fetchData}
+        testId="emissions-core-data-load-error"
+      />
+    </main>;
+  }
+
   // Check if organization has emission access
   // If enabled_access is null/undefined, default to scope1_2. If it's an empty array, no access.
   const enabledAccess = organization?.enabled_access;
@@ -3561,7 +3583,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   editFormConfigLoading={editFormConfigLoading}
                   dynamicInputFields={dynamicInputFields}
                   effectiveCalculatedEmissions={effectiveCalculatedEmissions}
-                  liveCalculationValidationError={liveCalculationValidationError}
+                  liveCalculationValidationError={liveCalculationValidationError || calculationError}
                   isCalculating={isCalculating}
                   isSaving={isSaving}
                   onC8AllocationMethodChange={handleC8AllocationMethodChange}

@@ -10,6 +10,8 @@ import { Label } from '../components/ui/label';
 import { Users, Trash2, Plus } from 'lucide-react';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { toast } from 'sonner';
+import { LoadErrorState } from '../components/LoadErrorState';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -17,6 +19,7 @@ const API = `${BACKEND_URL}/api`;
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
@@ -31,12 +34,14 @@ export default function UserManagement() {
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
+    setLoadError('');
     try {
       const usersRes = await axios.get(`${API}/admin/users`, { headers: getAuthHeader() });
       setUsers(usersRes.data);
     } catch (error) {
       console.error('User management fetch error:', error);
-      setUsers([]);
+      setLoadError(getUserFriendlyError(error, 'Unable to load users. Please try again.', { preferFallback: true }));
     } finally {
       setLoading(false);
     }
@@ -151,7 +156,7 @@ export default function UserManagement() {
         </Dialog>}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {loadError ? <LoadErrorState title="Unable to load users" message={loadError} onRetry={fetchData} testId="user-management-load-error" /> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {users.map((user) => (
           <Card key={user.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`user-card-${user.id}`}>
             <div className="flex items-start justify-between mb-4">
@@ -183,9 +188,9 @@ export default function UserManagement() {
             )}
           </Card>
         ))}
-      </div>
+      </div>}
 
-      {users.length === 0 && (
+      {!loadError && users.length === 0 && (
         <div className="text-center py-12">
           <Users className="w-16 h-16 mx-auto text-text-muted mb-4" />
           <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No users yet</h3>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -15,6 +16,7 @@ export function useEmissionsCalculator(getAuthHeader) {
   const [backendCalcResult, setBackendCalcResult] = useState(null);
   const [calcEngineUsed, setCalcEngineUsed] = useState(false);
   const [isCalculatingNetwork, setIsCalculatingNetwork] = useState(false);
+  const [calculationError, setCalculationError] = useState('');
   const calcTriggerRef = useRef(null);
 
   const calculate = (payload, debounceMs = 400) => {
@@ -24,6 +26,7 @@ export function useEmissionsCalculator(getAuthHeader) {
     }
 
     setIsCalculatingNetwork(true);
+    setCalculationError('');
 
     // Debounce the actual API call
     calcTriggerRef.current = setTimeout(async () => {
@@ -53,11 +56,13 @@ export function useEmissionsCalculator(getAuthHeader) {
         } else {
           setBackendCalcResult(null);
           setCalcEngineUsed(false);
+          setCalculationError('Calculation unavailable. Please review the entered data and try again.');
         }
       } catch (error) {
         console.error('[CalcEngine] Backend calculation error:', error);
         setBackendCalcResult(null);
         setCalcEngineUsed(false);
+        setCalculationError(getUserFriendlyError(error, "We couldn't complete this calculation. Please review the entered data and try again."));
       } finally {
         setIsCalculatingNetwork(false);
       }
@@ -71,6 +76,7 @@ export function useEmissionsCalculator(getAuthHeader) {
     setBackendCalcResult(null);
     setCalcEngineUsed(false);
     setIsCalculatingNetwork(false);
+    setCalculationError('');
   };
 
   // Cleanup timeout on unmount
@@ -88,6 +94,8 @@ export function useEmissionsCalculator(getAuthHeader) {
     calcEngineUsed,
     setCalcEngineUsed,
     isCalculatingNetwork,
+    calculationError,
+    setCalculationError,
     calculate,
     clearResult
   };

@@ -101,6 +101,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Customer-safe error handling (P0):** Added central FastAPI exception handlers that return a safe, backward-compatible `{error_code, message, detail, request_id}` envelope for HTTP, validation, application, unexpected, and rate-limit errors. Raw 500 exception/provider/storage details are now logged internally with a request ID rather than sent to customers.
+- Added a global frontend error formatter for both the default Axios client and the emissions-specific Axios client, plus a safe application rendering fallback. The formatter normalizes strings, objects, FastAPI validation errors, HTTP status errors, and network failures into customer-facing language.
+- Fixed P0 silent/misleading states: supplier Documents now shows a retryable load failure rather than “No documents”; User Management no longer renders a failed request as an empty user list; organization configuration has a controlled retryable error screen instead of default fallback access; emissions core data has a retryable blocking state; and a failed live calculation is visibly flagged and blocked from saving.
+- **NOT RUNTIME-TESTED** per the user’s standing instruction; source-reviewed only. P1 remains: migrate console-only configuration/reporting/audit/base-year load failures onto the shared retryable error state.
+
 - **September 10, 2026 — Supplier card simplification:** Removed internal version labels from supplier-facing Document and Training cards. Document filenames and Training descriptions remain visible when present; parent-admin version information is unchanged.
 - **NOT UI TESTED** per the user’s standing instruction; source-reviewed only.
 
