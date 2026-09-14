@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Direct multipart Training video uploads:** Added authenticated upload-session, part-signing, multipart-completion, and abort APIs for Supplier Training videos. The Training dialog now uploads video parts directly to Cloudflare R2 in up to four concurrent 16 MiB parts, retries failed parts, reports progress, and aborts incomplete multipart sessions on failure. Initiation validates entitlement, type, and 500 MB size before an R2 session is created; completion is session-idempotent, including recovery when R2 has already finalized an upload or Training metadata already exists. Non-video Training files retain the existing upload flow. **R2 bucket CORS must allow the application origin and expose `ETag` for direct browser video uploads.**
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Supplier Training upload limit:** Increased Supplier Training upload validation from 250 MB to 500 MB in both the Training service and R2 storage guard, with the matching user-facing error message updated.
 - **NOT TESTED** per the user’s standing instruction.
 

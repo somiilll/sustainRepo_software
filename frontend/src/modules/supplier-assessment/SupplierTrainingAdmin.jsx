@@ -37,6 +37,7 @@ export default function SupplierTrainingAdmin() {
   const [selected, setSelected] = useState([]);
   const [trainingLabel, setTrainingLabel] = useState('Training');
   const [isCreating, setIsCreating] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [showTrainingForm, setShowTrainingForm] = useState(false);
   const [isUpdating, setIsUpdating] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -78,22 +79,42 @@ export default function SupplierTrainingAdmin() {
       return;
     }
     setIsCreating(true);
+    setUploadProgress(0);
+    let multipartSessionId = null;
     try {
-      const data = new FormData();
-      data.append('file', file);
-      data.append('title', title);
-      data.append('description', description);
-      data.append('due_date', dueDate);
-      data.append('completion_threshold', '100');
-      data.append('supplier_relationship_ids', JSON.stringify(selected));
-      await axios.post(`${API}/supplier-assessment/trainings`, data, { headers: getAuthHeader() });
+      if (file.type.startsWith('video/')) {
+        const initiated = await axios.post(`${API}/supplier-assessment/training-uploads/initiate`, { filename: file.name, content_type: file.type, file_size: file.size, title, description, due_date: dueDate || null, supplier_relationship_ids: selected }, { headers: getAuthHeader() });
+        const { session_id: sessionId, part_size: partSize, part_count: partCount } = initiated.data;
+        multipartSessionId = sessionId;
+        const completedParts = []; let nextPart = 1;
+        const uploadPart = async (partNumber) => {
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            const signed = await axios.post(`${API}/supplier-assessment/training-uploads/${sessionId}/parts/${partNumber}`, {}, { headers: getAuthHeader() });
+            const start = (partNumber - 1) * partSize;
+            const response = await fetch(signed.data.url, { method: 'PUT', body: file.slice(start, Math.min(start + partSize, file.size)) });
+            const etag = response.headers.get('ETag');
+            if (response.ok && etag) return { PartNumber: partNumber, ETag: etag };
+            if (attempt === 2) throw new Error(`Part ${partNumber} could not upload`);
+          }
+          return null;
+        };
+        const worker = async () => { while (nextPart <= partCount) { const partNumber = nextPart; nextPart += 1; completedParts.push(await uploadPart(partNumber)); setUploadProgress(Math.round((completedParts.length / partCount) * 100)); } };
+        await Promise.all(Array.from({ length: Math.min(4, partCount) }, worker));
+        await axios.post(`${API}/supplier-assessment/training-uploads/${sessionId}/complete`, { parts: completedParts.sort((a, b) => a.PartNumber - b.PartNumber) }, { headers: getAuthHeader() });
+        multipartSessionId = null;
+      } else {
+        const data = new FormData(); data.append('file', file); data.append('title', title); data.append('description', description); data.append('due_date', dueDate); data.append('completion_threshold', '100'); data.append('supplier_relationship_ids', JSON.stringify(selected));
+        await axios.post(`${API}/supplier-assessment/trainings`, data, { headers: getAuthHeader() });
+      }
       toast.success(selected.length ? `${trainingLabel} assigned` : `${trainingLabel} created — assign suppliers when ready`);
       setTitle(''); setDescription(''); setDueDate(''); setFile(null); setSelected([]); setShowTrainingForm(false);
       await load();
     } catch (error) {
+      if (multipartSessionId) await axios.delete(`${API}/supplier-assessment/training-uploads/${multipartSessionId}`, { headers: getAuthHeader() }).catch(() => null);
       toast.error(error.response?.data?.detail || `Could not create ${trainingLabel.toLowerCase()}`);
     } finally {
       setIsCreating(false);
+      setUploadProgress(0);
     }
   };
 
@@ -201,6 +222,7 @@ export default function SupplierTrainingAdmin() {
             <SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" reportingPeriod={reportingPeriod} label="Assign suppliers now (optional)" />
           </div>
           <div className="md:col-span-2 flex justify-end gap-2 pt-2">
+            {isCreating && file?.type.startsWith('video/') && <span className="mr-auto self-center text-xs font-medium text-emerald-800" data-testid="training-upload-progress">Uploading video {uploadProgress}%</span>}
             <Button variant="outline" onClick={() => setShowTrainingForm(false)} data-testid="cancel-create-training-button">Cancel</Button>
             <Button onClick={create} disabled={isCreating} data-testid="create-training-button">
               {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

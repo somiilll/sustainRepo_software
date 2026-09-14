@@ -161,6 +161,20 @@ class TrainingConsumptionEvent(BaseModel):
     position_seconds: Optional[float] = Field(default=None, ge=0)
 
 
+class TrainingUploadInitiate(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: str = Field(min_length=1, max_length=120)
+    file_size: int = Field(gt=0, le=500 * 1024 * 1024)
+    title: str = Field(min_length=1, max_length=300)
+    description: str = ""
+    due_date: Optional[str] = None
+    supplier_relationship_ids: List[str] = Field(default_factory=list)
+
+
+class TrainingUploadComplete(BaseModel):
+    parts: List[Dict[str, Any]] = Field(min_length=1, max_length=10000)
+
+
 # ============================================================================
 # Questionnaire Schemas
 # ============================================================================

@@ -82,6 +82,37 @@ class R2Storage:
         if folder:
             return f"{folder}/{timestamp}/{base_name}"
         return f"{timestamp}/{base_name}"
+
+    def initiate_multipart_upload(self, filename: str, bucket_type: str, content_type: str, folder: str = None, org_name: str = None) -> dict:
+        bucket = self._get_bucket(bucket_type)
+        key = self._generate_unique_key(filename, folder, org_name)
+        result = self.client.create_multipart_upload(Bucket=bucket, Key=key, ContentType=content_type)
+        return {"bucket": bucket, "key": key, "upload_id": result["UploadId"]}
+
+    def sign_multipart_part(self, bucket_type: str, key: str, upload_id: str, part_number: int) -> str:
+        return self.client.generate_presigned_url(
+            "upload_part",
+            Params={"Bucket": self._get_bucket(bucket_type), "Key": key, "UploadId": upload_id, "PartNumber": part_number},
+            ExpiresIn=3600,
+            HttpMethod="PUT",
+        )
+
+    def complete_multipart_upload(self, bucket_type: str, key: str, upload_id: str, parts: list[dict]) -> dict:
+        bucket = self._get_bucket(bucket_type)
+        try:
+            result = self.client.complete_multipart_upload(
+                Bucket=bucket, Key=key, UploadId=upload_id,
+                MultipartUpload={"Parts": parts},
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "NoSuchUpload":
+                raise
+            result = {}
+        head = self.client.head_object(Bucket=bucket, Key=key)
+        return {"etag": result.get("ETag"), "file_size": head.get("ContentLength", 0)}
+
+    def abort_multipart_upload(self, bucket_type: str, key: str, upload_id: str) -> None:
+        self.client.abort_multipart_upload(Bucket=self._get_bucket(bucket_type), Key=key, UploadId=upload_id)
     
     async def upload_file(
         self, 

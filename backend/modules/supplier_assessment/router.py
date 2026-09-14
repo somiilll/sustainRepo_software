@@ -4,6 +4,9 @@ Supplier Assessment Router - API endpoints for supplier management.
 from typing import Optional, List
 import json
 import re
+import asyncio
+import math
+import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Request
 from fastapi.responses import Response
@@ -41,6 +44,8 @@ from modules.supplier_assessment.contracts import (
     DueDateUpdate,
     TrainingUpdate,
     TrainingConsumptionEvent,
+    TrainingUploadInitiate,
+    TrainingUploadComplete,
 )
 from modules.supplier_assessment import documents_service
 from modules.supplier_assessment import training_service
@@ -93,6 +98,7 @@ async def get_customer_admin(request: Request, current_user: dict = Depends(get_
     module_by_path = {
         "/supplier-assessment/documents": "documents",
         "/supplier-assessment/trainings": "training",
+        "/supplier-assessment/training-uploads": "training",
     }
     requested_module = next(
         (module for path, module in module_by_path.items() if path in request.url.path),
@@ -434,6 +440,65 @@ async def create_training(file: UploadFile = File(...), title: str = Form(...), 
         return await training_service.create_training(current_user["organization_id"], current_user["id"], title, description, 100.0, file.filename or "training", file.content_type or "application/octet-stream", content, json.loads(supplier_relationship_ids), due_date)
     except (ValueError, json.JSONDecodeError) as error:
         raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.post("/training-uploads/initiate")
+async def initiate_training_upload(payload: TrainingUploadInitiate, current_user: dict = Depends(get_customer_admin)):
+    if not payload.content_type.startswith("video/") or payload.content_type not in training_service.ALLOWED_TYPES:
+        raise HTTPException(status_code=415, detail="Direct multipart upload is available for training videos")
+    await assert_evidence_storage_limit(current_user["organization_id"], payload.file_size)
+    training_service.validate_due_date(payload.due_date)
+    storage = get_r2_storage()
+    organization = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0, "name": 1, "organization_name": 1})
+    upload = await asyncio.to_thread(storage.initiate_multipart_upload, payload.filename, training_service.TRAINING_BUCKET, payload.content_type, training_service.TRAINING_FOLDER, (organization or {}).get("organization_name") or (organization or {}).get("name"))
+    part_size = 16 * 1024 * 1024
+    session_id = str(uuid.uuid4())
+    session = {"id": session_id, "organization_id": current_user["organization_id"], "user_id": current_user["id"], "status": "initiated", "bucket_type": training_service.TRAINING_BUCKET, "r2_key": upload["key"], "upload_id": upload["upload_id"], "part_size": part_size, "part_count": math.ceil(payload.file_size / part_size), "file_size": payload.file_size, "filename": payload.filename, "content_type": payload.content_type, "title": payload.title, "description": payload.description, "due_date": payload.due_date, "supplier_relationship_ids": payload.supplier_relationship_ids, "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.supplier_training_upload_sessions.insert_one(session)
+    return {"session_id": session_id, "part_size": part_size, "part_count": session["part_count"]}
+
+
+@router.post("/training-uploads/{session_id}/parts/{part_number}")
+async def sign_training_upload_part(session_id: str, part_number: int, current_user: dict = Depends(get_customer_admin)):
+    session = await db.supplier_training_upload_sessions.find_one({"id": session_id, "organization_id": current_user["organization_id"], "user_id": current_user["id"], "status": {"$in": ["initiated", "uploading"]}}, {"_id": 0})
+    if not session or part_number < 1 or part_number > session["part_count"]:
+        raise HTTPException(status_code=404, detail="Invalid training upload session or part")
+    await db.supplier_training_upload_sessions.update_one({"id": session_id}, {"$set": {"status": "uploading"}})
+    url = await asyncio.to_thread(get_r2_storage().sign_multipart_part, session["bucket_type"], session["r2_key"], session["upload_id"], part_number)
+    return {"url": url, "part_number": part_number}
+
+
+@router.post("/training-uploads/{session_id}/complete")
+async def complete_training_upload(session_id: str, payload: TrainingUploadComplete, current_user: dict = Depends(get_customer_admin)):
+    session = await db.supplier_training_upload_sessions.find_one({"id": session_id, "organization_id": current_user["organization_id"], "user_id": current_user["id"]}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Training upload session not found")
+    if session.get("status") == "completed":
+        return {"training": session.get("training"), "status": "completed"}
+    existing_training = await db.supplier_training_requirements.find_one({"upload_session_id": session_id}, {"_id": 0})
+    if existing_training:
+        await db.supplier_training_upload_sessions.update_one({"id": session_id}, {"$set": {"status": "completed", "training": {"training": existing_training, "idempotent": True}}})
+        return {"training": {"training": existing_training, "idempotent": True}, "status": "completed"}
+    parts = sorted(payload.parts, key=lambda part: part.get("PartNumber", 0))
+    if [part.get("PartNumber") for part in parts] != list(range(1, session["part_count"] + 1)):
+        raise HTTPException(status_code=400, detail="All upload parts are required")
+    try:
+        await asyncio.to_thread(get_r2_storage().complete_multipart_upload, session["bucket_type"], session["r2_key"], session["upload_id"], parts)
+        training = await training_service.create_training_from_multipart(current_user["organization_id"], current_user["id"], session["title"], session["description"], session["filename"], session["content_type"], session["file_size"], session["r2_key"], session["supplier_relationship_ids"], session.get("due_date"), session_id)
+        await db.supplier_training_upload_sessions.update_one({"id": session_id}, {"$set": {"status": "completed", "training": training}})
+        return {"training": training, "status": "completed"}
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"Training upload finalization failed: {error}")
+
+
+@router.delete("/training-uploads/{session_id}")
+async def abort_training_upload(session_id: str, current_user: dict = Depends(get_customer_admin)):
+    session = await db.supplier_training_upload_sessions.find_one({"id": session_id, "organization_id": current_user["organization_id"], "user_id": current_user["id"], "status": {"$in": ["initiated", "uploading"]}}, {"_id": 0})
+    if not session:
+        return {"status": "already-finalized"}
+    await asyncio.to_thread(get_r2_storage().abort_multipart_upload, session["bucket_type"], session["r2_key"], session["upload_id"])
+    await db.supplier_training_upload_sessions.update_one({"id": session_id}, {"$set": {"status": "aborted"}})
+    return {"status": "aborted"}
 
 @router.get("/trainings")
 async def list_trainings(reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
