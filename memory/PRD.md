@@ -527,6 +527,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **P0:** Explicit supplier facility-limit policy and canonical target-system consolidation.
 - **P0:** Security hardening: hash password-reset tokens and encrypt approved PII/financial data.
 - **P1:** Verify QuestionLedgerDialog `lower_is_better` save mapping; fix Sinks mobile table overflow.
+- **P1:** Expand centralized business Audit Trail coverage: newer Scope 3 bulk uploads (marked Bulk Upload), OCR extraction/import, ESG metrics and targets, supplier CRUD, Supplier ESG questionnaire/training/document lifecycle, MIS report configuration, workflow definition and approval/rejection, missing organization/facility lifecycle events, and BRSR/GRI answer changes. Keep technical calculation traces in `ce_calculation_audit_logs`; defer IP/user-agent retention policy.
 - **P1:** Persist and display Repo Pilot/Internal Data AI chat history through unified conversation sessions.
 - **P1:** Complete C8 Floor Area Share Formula Builder variable, input mapping, and Decision Tree configuration; leave Bulk Upload unchanged until separately scoped.
 - **P1:** Map ESG/GHG results to reviewable BRSR/GRI suggested responses; add multi-organization membership and onboarding/version-publishing flows.
