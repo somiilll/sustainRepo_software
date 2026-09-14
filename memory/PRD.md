@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Questionnaire response-review placement:** Moved the parent organization’s “Review responses” action out of the shared ESG Questionnaire toolbar and into the selected questionnaire’s own action row, immediately to the left of “Manage suppliers.” The action remains bound to that selected questionnaire and keeps its existing automated-test identifier.
+- **NOT UI TESTED** per the user’s standing instruction; source-reviewed only.
+
 - **September 10, 2026 — Supplier assignment email notifications:** Suppliers now receive a transactional email whenever newly assigned ESG questionnaires, Documents, Training, GHG access/scopes, or required Revenue information becomes available. This covers creating/assigning ESG questionnaires, publishing/assigning Documents, standard and multipart Training creation/assignment, and Add/Edit Supplier selections.
 - Assignment notifications identify the customer, assigned item, optional due date, and supplier portal link. The initial supplier invitation remains the single onboarding email; the delivery ledger uniquely identifies each supplier-item assignment to prevent repeat sends when a request is retried or re-saved.
 - **NOT RUNTIME-TESTED** per the user’s standing instruction; source-reviewed only.
