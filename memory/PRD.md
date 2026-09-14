@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Customer-safe error handling, focused Phase 2–3:** Hardened only Base Year/Targets, Sinks, and Bulk Upload UI states. Failed primary data loads now render a clear retryable error state instead of a misleading empty or access-denied view.
+- Base Year history, target lists, SBTi progress/form settings, and Bulk Upload history now show localized retry states. Save, delete, upload, template, and report-download failures use the shared customer-safe message formatter; raw server/provider details are not displayed.
+- No calculation, scoring, permission, schema, API-contract, configuration, or successful-workflow behavior was changed. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
+
 - **September 10, 2026 — Structured backend logging (P0):** Enhanced the existing `app.logging` utility with customer-safe JSON event output, request-scoped `request_id` and `operation_id`, safe metadata redaction, standardized action/outcome fields, and server-only stack traces.
 - Added request lifecycle events (start/completion, HTTP status, duration, failure severity) to every GHG, Bulk Upload, and Supplier Assessment API route. Added detailed operational milestones for emission/C7 writes and rollbacks, bulk validation/save/template/delete flows, supplier lifecycle/reminders, and supplier GHG submission/unlock/reopen workflows.
 - Safe API error handling now emits correlated error-code events without logging request bodies, emails, tokens, evidence, or other sensitive payload fields. Customer responses remain unchanged and never contain server stack traces.

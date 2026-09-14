@@ -19,6 +19,8 @@ import {
   ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts';
 import { generateReportingYears } from '../utils/reportingYearUtils';
+import { LoadErrorState } from '../components/LoadErrorState';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -30,13 +32,20 @@ const TARGET_TYPES = [
 
 function TargetCard({ target, onEdit, onDelete, token }) {
   const [progress, setProgress] = useState(null);
+  const [progressError, setProgressError] = useState(null);
   const headers = { Authorization: `Bearer ${token}` };
 
-  useEffect(() => {
-    axios.get(`${API}/api/sbti-targets/progress/${target.id}`, { headers })
-      .then(r => setProgress(r.data))
-      .catch(() => null);
-  }, [target.id]);
+  const loadProgress = useCallback(async () => {
+    setProgressError(null);
+    try {
+      const response = await axios.get(`${API}/api/sbti-targets/progress/${target.id}`, { headers });
+      setProgress(response.data);
+    } catch (error) {
+      setProgressError(getUserFriendlyError(error, 'We could not load progress for this target.'));
+    }
+  }, [target.id, token]);
+
+  useEffect(() => { loadProgress(); }, [loadProgress]);
 
   const ach = progress?.achievement_percentage;
   const isIntensity = target.target_type !== 'percentage';
@@ -70,6 +79,10 @@ function TargetCard({ target, onEdit, onDelete, token }) {
 
       {target.growth_rate != null && (
         <p className="text-xs text-text-muted mb-2">Growth Rate: {target.growth_rate}% | Reduction: {target.reduction_percentage}%</p>
+      )}
+
+      {progressError && (
+        <LoadErrorState title="Progress unavailable" message={progressError} onRetry={loadProgress} testId={`sbti-target-progress-error-${target.id}`} />
       )}
 
       {/* Achievement */}
@@ -248,7 +261,7 @@ function TargetCard({ target, onEdit, onDelete, token }) {
   );
 }
 
-function TargetFormDialog({ open, onClose, onSubmit, editData, kpis, orgReportingType }) {
+function TargetFormDialog({ open, onClose, onSubmit, editData, kpis, orgReportingType, setupError, onRetrySettings }) {
   const isEdit = !!editData?.id;
   const [form, setForm] = useState({
     target_name: '', description: '', kpi_id: '', kpi_name: '', unit: '',
@@ -308,6 +321,9 @@ function TargetFormDialog({ open, onClose, onSubmit, editData, kpis, orgReportin
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Target className="w-5 h-5 text-emerald-600" />{isEdit ? 'Edit' : 'Create'} SBTi Target</DialogTitle>
         </DialogHeader>
+        {setupError && (
+          <LoadErrorState title="Target form settings unavailable" message={setupError} onRetry={onRetrySettings} testId="sbti-targets-form-settings-error" />
+        )}
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div><Label className="text-sm">Target Name *</Label><Input value={form.target_name} onChange={e => setForm(f => ({...f, target_name: e.target.value}))} placeholder="e.g., Near-term Scope 1+2 Reduction" className="mt-1" /></div>
@@ -366,7 +382,7 @@ function TargetFormDialog({ open, onClose, onSubmit, editData, kpis, orgReportin
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={!canSubmit} className="bg-emerald-600 hover:bg-emerald-700">{isEdit ? 'Update' : 'Create'} Target</Button>
+            <Button onClick={handleSubmit} disabled={!canSubmit || Boolean(setupError)} className="bg-emerald-600 hover:bg-emerald-700">{isEdit ? 'Update' : 'Create'} Target</Button>
           </div>
         </div>
       </DialogContent>
@@ -381,6 +397,8 @@ export default function SBTiTargetsPage() {
 
   const [targets, setTargets] = useState({ short_term: [], long_term: [] });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [formSetupError, setFormSetupError] = useState(null);
   const [kpis, setKpis] = useState([]);
   const [orgRepType, setOrgRepType] = useState('FY');
   const [formOpen, setFormOpen] = useState(false);
@@ -390,6 +408,7 @@ export default function SBTiTargetsPage() {
 
   const fetchTargets = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await axios.get(`${API}/api/sbti-targets`, { headers });
       const all = res.data?.targets || [];
@@ -397,28 +416,33 @@ export default function SBTiTargetsPage() {
         short_term: all.filter(t => t.term_type === 'short_term'),
         long_term: all.filter(t => t.term_type === 'long_term'),
       });
-    } catch (e) {
-      if (e.response?.status !== 403) toast.error('Failed to load SBTi targets');
+    } catch (error) {
+      setLoadError(getUserFriendlyError(error, 'We could not load your SBTi targets.'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [token]);
 
   useEffect(() => { fetchTargets(); }, [fetchTargets]);
 
-  useEffect(() => {
-    // Fetch KPIs (reuse ESG KPI hierarchy)
-    axios.get(`${API}/api/esg-targets/lookup/categories?section=environment`, { headers })
-      .then(r => {
-        const hierarchy = r.data?.hierarchy || {};
-        const flat = [];
-        Object.values(hierarchy).forEach(subcats => Object.values(subcats).forEach(kpiList => flat.push(...kpiList)));
-        setKpis(flat);
-      }).catch(() => null);
-    // Org reporting type
-    axios.get(`${API}/api/organizations/my`, { headers })
-      .then(r => setOrgRepType(r.data?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'))
-      .catch(() => null);
+  const loadFormSettings = useCallback(async () => {
+    setFormSetupError(null);
+    try {
+      const [kpiResponse, organizationResponse] = await Promise.all([
+        axios.get(`${API}/api/esg-targets/lookup/categories?section=environment`, { headers }),
+        axios.get(`${API}/api/organizations/my`, { headers }),
+      ]);
+      const hierarchy = kpiResponse.data?.hierarchy || {};
+      const flat = [];
+      Object.values(hierarchy).forEach(subcats => Object.values(subcats).forEach(kpiList => flat.push(...kpiList)));
+      setKpis(flat);
+      setOrgRepType(organizationResponse.data?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY');
+    } catch (error) {
+      setFormSetupError(getUserFriendlyError(error, 'We could not load the target form settings.'));
+    }
   }, [token]);
+
+  useEffect(() => { loadFormSettings(); }, [loadFormSettings]);
 
   const handleCreate = (termType) => { setFormTermType(termType); setEditData(null); setFormOpen(true); };
   const handleEdit = (t) => { setFormTermType(t.term_type); setEditData(t); setFormOpen(true); };
@@ -435,7 +459,7 @@ export default function SBTiTargetsPage() {
       setFormOpen(false);
       fetchTargets();
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to save');
+      toast.error(getUserFriendlyError(e, 'We could not save this target.'));
     }
   };
 
@@ -447,7 +471,7 @@ export default function SBTiTargetsPage() {
       setDeleteTarget(null);
       fetchTargets();
     } catch (e) {
-      toast.error('Failed to delete');
+      toast.error(getUserFriendlyError(e, 'We could not delete this target.'));
     }
   };
 
@@ -480,6 +504,15 @@ export default function SBTiTargetsPage() {
 
   if (loading) return <div className="flex items-center justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" /></div>;
 
+  if (loadError) {
+    return (
+      <div className="space-y-7" data-testid="sbti-targets-page">
+        <ModulePageHeader title="SBTi Targets" icon={Target} iconClassName="border-orange-200 bg-orange-50 text-orange-700" testId="sbti-targets" />
+        <LoadErrorState title="Unable to load SBTi targets" message={loadError} onRetry={fetchTargets} testId="sbti-targets-load-error" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-7" data-testid="sbti-targets-page">
       <ModulePageHeader title="SBTi Targets" icon={Target} iconClassName="border-orange-200 bg-orange-50 text-orange-700" testId="sbti-targets" />
@@ -487,7 +520,7 @@ export default function SBTiTargetsPage() {
       {renderSection('Short-Term Targets', 'short_term', targets.short_term)}
       {renderSection('Long-Term Targets', 'long_term', targets.long_term)}
 
-      <TargetFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} editData={editData} kpis={kpis} orgReportingType={orgRepType} />
+      <TargetFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} editData={editData} kpis={kpis} orgReportingType={orgRepType} setupError={formSetupError} onRetrySettings={loadFormSettings} />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={v => !v && setDeleteTarget(null)}>
         <AlertDialogContent>

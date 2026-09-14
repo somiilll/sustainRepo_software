@@ -14,6 +14,8 @@ import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useGHGAccess } from '../hooks/useKPIAccess';
+import { LoadErrorState } from '../components/LoadErrorState';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -135,6 +137,7 @@ export default function Sinks() {
   const [facilities, setFacilities] = useState([]);
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSink, setEditingSink] = useState(null);
   const [selectedEditMonth, setSelectedEditMonth] = useState(null);
@@ -177,18 +180,12 @@ export default function Sinks() {
   const [uploadingYearly, setUploadingYearly] = useState(false);
 
   useEffect(() => {
-    fetchSinks();
-    fetchFacilities();
-    fetchOrganization();
+    loadSinksPage();
   }, []);
 
   const fetchOrganization = async () => {
-    try {
-      const response = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
-      setOrganization(response.data);
-    } catch (error) {
-      console.error('Error fetching organization:', error);
-    }
+    const response = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
+    setOrganization(response.data);
   };
 
   // Check if organization has sink access
@@ -263,26 +260,24 @@ export default function Sinks() {
   };
 
   const fetchSinks = async () => {
-    try {
-      const response = await axios.get(`${API}/sinks`, { headers: getAuthHeader() });
-      setSinks(response.data);
-    } catch (error) {
-      console.error('Error fetching sinks:', error);
-      // Only show error if it's not a "no data" situation
-      if (error.response?.status !== 404) {
-        // Don't show error toast for empty data - it's normal for new orgs
-      }
-    } finally {
-      setLoading(false);
-    }
+    const response = await axios.get(`${API}/sinks`, { headers: getAuthHeader() });
+    setSinks(response.data);
   };
 
   const fetchFacilities = async () => {
+    const response = await axios.get(`${API}/facilities`, { headers: getAuthHeader() });
+    setFacilities(response.data.filter(f => f.is_active !== false));
+  };
+
+  const loadSinksPage = async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
-      const response = await axios.get(`${API}/facilities`, { headers: getAuthHeader() });
-      setFacilities(response.data.filter(f => f.is_active !== false));
+      await Promise.all([fetchSinks(), fetchFacilities(), fetchOrganization()]);
     } catch (error) {
-      console.error('Error fetching facilities:', error);
+      setLoadError(getUserFriendlyError(error, 'We could not load the sink records.'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -381,7 +376,7 @@ export default function Sinks() {
       try {
         await axios.delete(`${API}/files/${evidence.file_id}`, { headers: getAuthHeader() });
       } catch (error) {
-        toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+        toast.error(getUserFriendlyError(error, 'We could not remove this evidence file.'));
         return;
       }
     }
@@ -442,7 +437,7 @@ export default function Sinks() {
       try {
         await axios.delete(`${API}/files/${evidence.file_id}`, { headers: getAuthHeader() });
       } catch (error) {
-        toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
+        toast.error(getUserFriendlyError(error, 'We could not remove this evidence file.'));
         return;
       }
     }
@@ -577,10 +572,10 @@ export default function Sinks() {
 
       setDialogOpen(false);
       resetForm();
-      fetchSinks();
+      fetchSinks().catch((error) => toast.error(getUserFriendlyError(error, 'The sink was saved, but the refreshed list could not be loaded.')));
     } catch (error) {
       console.error('Error saving sink:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save sink record');
+      toast.error(getUserFriendlyError(error, 'We could not save this sink record.'));
     } finally {
       setSubmitting(false);
     }
@@ -591,10 +586,10 @@ export default function Sinks() {
     try {
       await axios.delete(`${API}/sinks/${sinkId}`, { headers: getAuthHeader() });
       toast.success('Sink record deleted');
-      fetchSinks();
+      fetchSinks().catch((error) => toast.error(getUserFriendlyError(error, 'The sink was deleted, but the refreshed list could not be loaded.')));
     } catch (error) {
       console.error('Error deleting sink:', error);
-      toast.error('Failed to delete sink record');
+      toast.error(getUserFriendlyError(error, 'We could not delete this sink record.'));
     }
   };
 
@@ -762,6 +757,15 @@ export default function Sinks() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-7" data-testid="sinks-page">
+        <ModulePageHeader title="GHG Sinks" icon={TreeDeciduous} iconClassName="border-emerald-200 bg-emerald-50 text-emerald-800" testId="ghg-sinks" />
+        <LoadErrorState title="Unable to load sink records" message={loadError} onRetry={loadSinksPage} testId="sinks-load-error" />
       </div>
     );
   }

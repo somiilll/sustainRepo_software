@@ -53,6 +53,8 @@ import {
 } from '../components/ui/collapsible';
 import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf, AlertCircle, PlusCircle, Search, MapPin, Filter } from 'lucide-react';
 import { ModulePageHeader } from '../components/ModulePageHeader';
+import { LoadErrorState } from '../components/LoadErrorState';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -176,8 +178,9 @@ const historyEventCopy = {
 
 const formatAuditDate = (value) => value ? new Date(value).toLocaleString() : 'Date unavailable';
 
-function BaseYearHistoryTimeline({ events, loading }) {
+function BaseYearHistoryTimeline({ events, loading, error, onRetry }) {
   if (loading) return <div className="py-10 text-center text-sm text-text-muted" data-testid="base-year-history-loading">Loading history…</div>;
+  if (error) return <LoadErrorState title="Unable to load version history" message={error} onRetry={onRetry} testId="base-year-history-error" />;
   if (!events.length) return <div className="py-10 text-center text-sm text-text-muted" data-testid="base-year-history-empty">No new audit events are available for this base year.</div>;
 
   return (
@@ -262,6 +265,7 @@ function BaseYearHistoryTimeline({ events, loading }) {
 export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   const { user, getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [organization, setOrganization] = useState(null);
   const [facilities, setFacilities] = useState([]);
   const [baseYearRecords, setBaseYearRecords] = useState([]);
@@ -298,6 +302,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   const [historyRecord, setHistoryRecord] = useState(null);
   const [deletionHistory, setDeletionHistory] = useState([]);
   const [historyEvents, setHistoryEvents] = useState([]);
+  const [historyError, setHistoryError] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [deletionReason, setDeletionReason] = useState('');
@@ -348,6 +353,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
   const fetchData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       // Fetch organization
       const orgResponse = await axios.get(`${API}/organizations/my`, {
@@ -414,8 +420,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       }
 
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
+      setLoadError(getUserFriendlyError(error, 'We could not load your base year records.'));
     } finally {
       setLoading(false);
     }
@@ -500,7 +505,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
     } catch (error) {
       console.error('Error checking oldest year:', error);
-      toast.error('Failed to check emissions data');
+      toast.error(getUserFriendlyError(error, 'We could not check the available emissions data.'));
     }
   };
 
@@ -890,7 +895,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
     } catch (error) {
       console.error('Error fetching combinations:', error);
-      toast.error('Failed to load emission categories');
+      toast.error(getUserFriendlyError(error, 'We could not load the available emission categories.'));
     }
   };
 
@@ -998,7 +1003,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
     } catch (error) {
       console.error('Error saving base year:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save base year emissions');
+      toast.error(getUserFriendlyError(error, 'We could not save the base year emissions.'));
     } finally {
       setSavingEmissions(false);
     }
@@ -1008,6 +1013,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     setHistoryRecord(record);
     setLoadingHistory(true);
     setHistoryEvents([]);
+    setHistoryError(null);
     
     // Fetch deletion history for this entity
     const entityType = record.facility_id ? 'facility' : 'organization';
@@ -1028,6 +1034,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       console.error('Error fetching deletion history:', error);
       setDeletionHistory([]);
       setHistoryEvents([]);
+      setHistoryError(getUserFriendlyError(error, 'We could not load the version history.'));
     } finally {
       setLoadingHistory(false);
     }
@@ -1051,6 +1058,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     setHistoryRecord(pseudoRecord);
     setLoadingHistory(true);
     setHistoryEvents([]);
+    setHistoryError(null);
     
     try {
       const eventResponse = await axios.get(
@@ -1067,6 +1075,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       console.error('Error fetching deletion history:', error);
       setDeletionHistory([]);
       setHistoryEvents([]);
+      setHistoryError(getUserFriendlyError(error, 'We could not load the version history.'));
     } finally {
       setLoadingHistory(false);
     }
@@ -1094,7 +1103,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       await fetchData();
     } catch (error) {
       console.error('Error deleting record:', error);
-      toast.error(error.response?.data?.detail || 'Failed to delete base year emissions');
+      toast.error(getUserFriendlyError(error, 'We could not delete the base year emissions.'));
     } finally {
       setDeletingBaseYear(false);
     }
@@ -1230,7 +1239,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
     } catch (error) {
       console.error('Error changing base year:', error);
-      toast.error(error.response?.data?.detail || 'Failed to change base year');
+      toast.error(getUserFriendlyError(error, 'We could not change the base year.'));
     } finally {
       setChangingYear(false);
     }
@@ -1736,6 +1745,20 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-6" data-testid="base-year-emissions-page">
+        {!hideTopHeader && <ModulePageHeader title="Base Year Emissions" icon={History} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="base-year-emissions" />}
+        <LoadErrorState
+          title="Unable to load base year records"
+          message={loadError}
+          onRetry={fetchData}
+          testId="base-year-emissions-load-error"
+        />
       </div>
     );
   }
@@ -3230,9 +3253,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             </DialogDescription>
           </DialogHeader>
 
-          {historyRecord && <BaseYearHistoryTimeline events={historyEvents} loading={loadingHistory} />}
+          {historyRecord && <BaseYearHistoryTimeline events={historyEvents} loading={loadingHistory} error={historyError} onRetry={() => handleViewHistory(historyRecord)} />}
 
-          {historyRecord && !loadingHistory && historyEvents.length === 0 && (
+          {historyRecord && !loadingHistory && !historyError && historyEvents.length === 0 && (
             <div className="space-y-4">
               {/* Only show current record info if there's an actual record */}
               {historyRecord.version > 0 && (

@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../../../contexts/AuthContext';
 import { createBulkUploadApiService } from '../shared/apiService';
 import { shortUploadId } from '../shared/normalizers';
+import { getSafeUserMessage, getUserFriendlyError } from '../../../lib/userFriendlyError';
 
 export function useBulkUpload(activeModule) {
   const { getAuthHeader } = useAuth();
@@ -25,6 +26,7 @@ export function useBulkUpload(activeModule) {
   const [downloadingErrors, setDownloadingErrors] = useState(false);
   const [savingRows, setSavingRows] = useState(false);
   const [sessions, setSessions] = useState([]);
+  const [sessionsError, setSessionsError] = useState(null);
   const [expandedRows, setExpandedRows] = useState({});
 
   // Reset everything when the active module changes (Scope tab switch).
@@ -32,17 +34,19 @@ export function useBulkUpload(activeModule) {
     setValidationResult(null);
     setExpandedRows({});
     setSessions([]);
+    setSessionsError(null);
   }, [activeModule?.id]);
 
   const api = activeModule ? createBulkUploadApiService(activeModule, getAuthHeader()) : null;
 
   const loadSessions = useCallback(async () => {
     if (!api) return;
+    setSessionsError(null);
     try {
       const jobs = await api.listJobs();
       setSessions(jobs);
     } catch (error) {
-      console.error('[useBulkUpload] listJobs failed:', error);
+      setSessionsError(getUserFriendlyError(error, 'We could not load your recent uploads.'));
     }
   }, [api]);  
 
@@ -72,7 +76,7 @@ export function useBulkUpload(activeModule) {
       window.URL.revokeObjectURL(url);
       toast.success('Template downloaded successfully');
     } catch (error) {
-      toast.error('Failed to download template');
+      toast.error(getUserFriendlyError(error, 'We could not download the template.'));
     } finally {
       setDownloadingTemplate(false);
     }
@@ -114,7 +118,7 @@ export function useBulkUpload(activeModule) {
         toast.error(`Validation complete: All ${invalid} rows have errors. Download error report or upload a corrected file.`);
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to process file');
+      toast.error(getUserFriendlyError(error, 'We could not process this file.'));
     } finally {
       setUploading(false);
       event.target.value = '';
@@ -135,11 +139,10 @@ export function useBulkUpload(activeModule) {
         setValidationResult(null);
         loadSessions();
       } else {
-        toast.error(data?.error || 'Failed to save records');
+        toast.error(getSafeUserMessage(data?.error, 'We could not save the valid records.'));
       }
     } catch (error) {
-      const errorMsg = error.response?.data?.detail || error.response?.data?.error || 'Failed to save records';
-      toast.error(errorMsg);
+      toast.error(getUserFriendlyError(error, 'We could not save the valid records.'));
     } finally {
       setSavingRows(false);
     }
@@ -165,7 +168,7 @@ export function useBulkUpload(activeModule) {
       window.URL.revokeObjectURL(url);
       toast.success('Error report downloaded');
     } catch (error) {
-      toast.error('Failed to download error report');
+      toast.error(getUserFriendlyError(error, 'We could not download the error report.'));
     } finally {
       setDownloadingErrors(false);
     }
@@ -178,7 +181,7 @@ export function useBulkUpload(activeModule) {
   return {
     // state
     uploading, validationResult, downloadingTemplate, downloadingErrors,
-    savingRows, sessions, expandedRows,
+    savingRows, sessions, sessionsError, expandedRows,
     // actions
     handleDownloadTemplate, handleFileUpload, handleSaveValidRows,
     handleDiscardAndUploadNew, handleDownloadErrorReport, toggleRowExpansion,

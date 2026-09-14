@@ -28,6 +28,8 @@ const detailMessage = (detail) => {
   return '';
 };
 
+export const getSafeUserMessage = (message, fallbackMessage = '') => safeText(message) || fallbackMessage;
+
 export const getUserFriendlyError = (error, fallbackMessage = '', { preferFallback = false } = {}) => {
   if (!error?.response) return 'Unable to connect. Please check your connection and try again.';
   const { status, data } = error.response;

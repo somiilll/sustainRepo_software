@@ -22,12 +22,14 @@ import useTargets from '../hooks/useTargets';
 import useReportingYearFormat from '../hooks/useReportingYearFormat';
 import TargetTable from '../components/TargetTable';
 import TargetFormModal from '../components/TargetFormModal';
+import { LoadErrorState } from '../../../components/LoadErrorState';
+import { getUserFriendlyError } from '../../../lib/userFriendlyError';
 
 export default function TargetSettingsPage({ organization, currentUser }) {
   const role = currentUser?.role;
   const canManage = role === 'admin' || role === 'super_admin';
 
-  const { items, loading, create, update, remove } = useTargets({ enabled: true });
+  const { items, loading, error, refetch, create, update, remove } = useTargets({ enabled: true });
   const { sampleYears } = useReportingYearFormat(organization);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -77,7 +79,7 @@ export default function TargetSettingsPage({ organization, currentUser }) {
       toast.success('Target deleted');
       setConfirmDelete(null);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || 'Delete failed');
+      toast.error(getUserFriendlyError(e, 'We could not delete this target.'));
     } finally {
       setBusy(false);
     }
@@ -108,13 +110,22 @@ export default function TargetSettingsPage({ organization, currentUser }) {
         </p>
       )}
 
-      <TargetTable
-        rows={items}
-        onEdit={openEdit}
-        onDelete={(t) => setConfirmDelete(t)}
-        canManage={canManage}
-        loading={loading}
-      />
+      {error ? (
+        <LoadErrorState
+          title="Unable to load targets"
+          message={getUserFriendlyError(error, 'We could not load your reduction targets.')}
+          onRetry={refetch}
+          testId="targets-load-error"
+        />
+      ) : (
+        <TargetTable
+          rows={items}
+          onEdit={openEdit}
+          onDelete={(t) => setConfirmDelete(t)}
+          canManage={canManage}
+          loading={loading}
+        />
+      )}
 
       <TargetFormModal
         open={modalOpen}
