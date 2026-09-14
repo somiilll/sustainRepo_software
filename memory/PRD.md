@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Optional PPP and inflation configuration:** Super Admins can now create or update PPP/inflation currency configurations without entering either Purchase Parity or Inflation Factor. The frontend no longer marks those inputs required, and server validation now preserves blank values as `null`; standard currency conversion continues to require its exchange rate.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Currency conversion null-state repair:** Made period applicability inference and display formatting null-safe. The always-mounted delete confirmation now safely renders before a conversion has been selected, and malformed/null list entries are excluded from the displayed configuration collection.
 - **NOT TESTED** per the user’s standing instruction.
 

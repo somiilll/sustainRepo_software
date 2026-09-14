@@ -594,27 +594,25 @@ export default function CurrencyConversion() {
             <div className="grid grid-cols-3 gap-4">
               {formData.conversion_method === 'ppp_inflation' && <>
               <div>
-                <Label className="text-sm font-medium">Purchase Parity (PPP) *</Label>
+                <Label className="text-sm font-medium">Purchase Parity (PPP)</Label>
                 <Input
                   type="number"
                   step="0.0001"
                   value={formData.purchase_parity}
                   onChange={(e) => setFormData({...formData, purchase_parity: e.target.value})}
                   placeholder="e.g., 22.5"
-                  required={formData.conversion_method === 'ppp_inflation'}
                   data-testid="ppp-input"
                 />
                 <p className="text-xs text-slate-500 mt-1">PPP conversion factor</p>
               </div>
               <div>
-                <Label className="text-sm font-medium">Inflation Factor *</Label>
+                <Label className="text-sm font-medium">Inflation Factor</Label>
                 <Input
                   type="number"
                   step="0.0001"
                   value={formData.inflation_factor}
                   onChange={(e) => setFormData({...formData, inflation_factor: e.target.value})}
                   placeholder="e.g., 1.05"
-                  required={formData.conversion_method === 'ppp_inflation'}
                   data-testid="inflation-input"
                 />
                 <p className="text-xs text-slate-500 mt-1">Inflation adjustment</p>

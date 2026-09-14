@@ -390,10 +390,6 @@ def _validate_currency_values(fields: dict) -> None:
         raise HTTPException(status_code=400, detail="conversion_method must be standard or ppp_inflation")
     if method == "standard" and not fields.get("exchange_rate"):
         raise HTTPException(status_code=400, detail="exchange_rate is required for standard currency conversion")
-    if method == "ppp_inflation" and not fields.get("purchase_parity"):
-        raise HTTPException(status_code=400, detail="purchase_parity is required for PPP and inflation conversion")
-    if method == "ppp_inflation" and not fields.get("inflation_factor"):
-        raise HTTPException(status_code=400, detail="inflation_factor is required for PPP and inflation conversion")
 
 
 # Get active currency conversion config for a specific currency pair and year
