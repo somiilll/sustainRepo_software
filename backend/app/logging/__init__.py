@@ -1,4 +1,15 @@
 """Structured logging package — Phase B1."""
-from .logger import get_logger, configure_logging
+from .logger import (
+    configure_logging,
+    get_logger,
+    get_operation_id,
+    get_request_id,
+    log_event,
+    reset_request_context,
+    set_request_context,
+)
 
-__all__ = ["get_logger", "configure_logging"]
+__all__ = [
+    "configure_logging", "get_logger", "get_operation_id", "get_request_id", "log_event",
+    "reset_request_context", "set_request_context",
+]

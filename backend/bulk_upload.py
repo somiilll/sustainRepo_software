@@ -15,6 +15,9 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 from rapidfuzz import fuzz, process
+from app.logging import get_logger, log_event
+
+logger = get_logger(__name__)
 
 
 def normalize_string(s: str) -> str:
@@ -153,7 +156,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
     @router.get("/bulk-upload/template")
     async def download_scope3_template(current_user: dict = Depends(get_admin_user)):
         """Generate Excel template for Scope 3 emissions."""
-        
+        log_event(logger, 20, "bulk_upload.legacy_template.generate.started", action="bulk_upload.template.generate", outcome="started")
         org_id = current_user.get("organization_id")
         ref_data = await get_reference_data(org_id)
         
@@ -303,6 +306,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         buffer.seek(0)
         
         filename = f"GHG_Scope3_Template_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        log_event(logger, 20, "bulk_upload.legacy_template.generate.completed", action="bulk_upload.template.generate", outcome="succeeded", context={"organization_id": org_id})
         return StreamingResponse(
             buffer,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -315,7 +319,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         current_user: dict = Depends(get_admin_user)
     ):
         """Parse and validate uploaded Scope 3 Excel file."""
-        
+        log_event(logger, 20, "bulk_upload.legacy_validation.started", action="bulk_upload.validation", outcome="started")
         if not file.filename.endswith('.xlsx'):
             raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
         
@@ -552,6 +556,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         
         await db.bulk_upload_sessions.insert_one(upload_session)
         
+        log_event(logger, 20, "bulk_upload.legacy_validation.completed", action="bulk_upload.validation", outcome="succeeded", context={"upload_id": upload_id, "total_rows": len(rows_result), "valid_rows": valid_count, "invalid_rows": invalid_count})
         return {
             "upload_id": upload_id,
             "template_type": "scope3",
@@ -570,7 +575,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         current_user: dict = Depends(get_admin_user)
     ):
         """Save valid rows from upload session."""
-        
+        log_event(logger, 20, "bulk_upload.legacy_save.started", action="bulk_upload.save", outcome="started", context={"upload_id": upload_id, "save_mode": save_mode})
         org_id = current_user.get("organization_id")
         
         session = await db.bulk_upload_sessions.find_one(
@@ -645,6 +650,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
             }
         )
         
+        log_event(logger, 20, "bulk_upload.legacy_save.completed", action="bulk_upload.save", outcome="succeeded", context={"upload_id": upload_id, "saved_count": saved_count, "skipped_count": session["invalid_rows"]})
         return {
             "message": f"Successfully saved {saved_count} emission entries",
             "saved_count": saved_count,

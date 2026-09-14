@@ -5,12 +5,14 @@ from typing import Optional, List
 import json
 import re
 import asyncio
+import logging
 import math
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Request
 from fastapi.responses import Response
 
+from app.logging import get_logger, log_event
 from modules.auth.dependencies import get_current_user, get_admin_user
 from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_supplier_limit
 from modules.supplier_assessment.service import supplier_service
@@ -59,6 +61,7 @@ from r2_storage import get_r2_storage
 from shared.database.mongo import db
 
 router = APIRouter(prefix="/supplier-assessment", tags=["Supplier Assessment"])
+logger = get_logger(__name__)
 
 
 def _safe_filename(filename: str) -> str:
@@ -309,6 +312,8 @@ async def create_supplier(
     current_user: dict = Depends(get_customer_admin),
 ):
     """Create a new supplier and send invitation."""
+    log_event(logger, logging.INFO, "supplier_assessment.supplier.create.started", action="supplier_assessment.supplier.create", outcome="started",
+              context={"reporting_period": data.reporting_period, "ghg_submission_frequency": data.ghg_submission_frequency})
     try:
         await assert_supplier_limit(current_user["organization_id"])
         result = await supplier_service.create_supplier(
@@ -329,8 +334,12 @@ async def create_supplier(
             document_requirement_ids=data.document_requirement_ids,
             training_requirement_ids=data.training_requirement_ids,
         )
+        log_event(logger, logging.INFO, "supplier_assessment.supplier.create.completed", action="supplier_assessment.supplier.create", outcome="succeeded",
+                  context={"supplier_id": result.get("id"), "reporting_period": data.reporting_period})
         return result
     except ValueError as e:
+        log_event(logger, logging.WARNING, "supplier_assessment.supplier.create.rejected", action="supplier_assessment.supplier.create", outcome="rejected",
+                  error_code="SUPPLIER_CREATE_VALIDATION_FAILED")
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -379,6 +388,7 @@ async def update_supplier(
     current_user: dict = Depends(get_customer_admin),
 ):
     """Update supplier details."""
+    log_event(logger, logging.INFO, "supplier_assessment.supplier.update.started", action="supplier_assessment.supplier.update", outcome="started", context={"supplier_id": supplier_id})
     supplier = await supplier_service.get_supplier(supplier_id)
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
@@ -397,6 +407,7 @@ async def update_supplier(
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     await _notify_new_supplier_update_assignments(supplier, result, assignment_request)
+    log_event(logger, logging.INFO, "supplier_assessment.supplier.update.completed", action="supplier_assessment.supplier.update", outcome="succeeded", context={"supplier_id": supplier_id})
     return result
 
 
@@ -414,6 +425,7 @@ async def deactivate_supplier(
         raise HTTPException(status_code=403, detail="Access denied")
     
     await supplier_service.deactivate_supplier(supplier_id)
+    log_event(logger, logging.INFO, "supplier_assessment.supplier.deactivate.completed", action="supplier_assessment.supplier.deactivate", outcome="succeeded", context={"supplier_id": supplier_id})
     return {"message": "Supplier deleted"}
 
 
@@ -437,7 +449,9 @@ async def send_reminder(
     )
     
     if success:
+        log_event(logger, logging.INFO, "supplier_assessment.reminder.completed", action="supplier_assessment.reminder.send", outcome="succeeded", context={"supplier_id": supplier_id})
         return {"message": "Reminder sent"}
+    log_event(logger, logging.ERROR, "supplier_assessment.reminder.failed", action="supplier_assessment.reminder.send", outcome="failed", error_code="REMINDER_DELIVERY_FAILED", context={"supplier_id": supplier_id})
     raise HTTPException(status_code=500, detail="Failed to send reminder")
 
 
@@ -1185,6 +1199,8 @@ async def unlock_parent_supplier_ghg_submission_period(
             supplier_instructions=result.get("supplier_instructions"),
         )
         await supplier_service._update_completion_status(supplier_id)
+        log_event(logger, logging.INFO, "supplier_assessment.ghg_period.unlock.completed", action="supplier_assessment.ghg_period.unlock", outcome="succeeded",
+                  context={"supplier_id": supplier_id, "period_key": period_key, "entry_count": result.get("entry_count", 0)})
         return result
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
@@ -1726,6 +1742,8 @@ async def create_my_emission(
     current_user: dict = Depends(get_supplier_user),
 ):
     """Create emission record for supplier with CalcEngine calculation."""
+    log_event(logger, logging.INFO, "supplier_assessment.ghg_emission.create.started", action="supplier_assessment.ghg_emission.create", outcome="started",
+              context={"scope": data.scope, "category": data.category, "reporting_period": data.reporting_period})
     import uuid
     from datetime import datetime, timezone
     from calc_engine.execution import CalcEngine
@@ -1849,9 +1867,9 @@ async def create_my_emission(
                     n2o_emissions = outputs.get("n2o", {}).get("value", 0) or 0
                     co2e_emissions = outputs.get("co2e", {}).get("value", 0) or 0
                     
-        except Exception as e:
-            # Log error but don't fail - allow manual entry
-            print(f"CalcEngine error for supplier emission: {e}")
+        except Exception:
+            log_event(logger, logging.ERROR, "supplier_assessment.ghg_emission.calculation.failed", action="supplier_assessment.ghg_emission.create", outcome="degraded",
+                      error_code="CALCULATION_FAILED", context={"scope": data.scope, "category": data.category}, exc_info=True)
     
     # Create emission record with supplier metadata
     emission_id = str(uuid.uuid4())
@@ -1929,7 +1947,8 @@ async def create_my_emission(
     
     # Update completion status
     await supplier_service._update_completion_status(relationship["id"])
-    
+    log_event(logger, logging.INFO, "supplier_assessment.ghg_emission.create.completed", action="supplier_assessment.ghg_emission.create", outcome="succeeded",
+              context={"record_id": emission_id, "scope": data.scope, "facility_id": facility_id})
     return {
         "id": emission_id, 
         "message": "Emission record created",

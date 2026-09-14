@@ -9,6 +9,7 @@ import io
 import uuid
 import logging
 
+from app.logging import get_logger, log_event
 from .template_generator import generate_scope3_template
 from .processors import UploadProcessor
 from .report_generator import ReportGenerator
@@ -18,7 +19,7 @@ from modules.entitlements.dependencies import assert_period_row_batch_limit
 from shared.utils.emission_records import normalize_reporting_period_for_storage
 from .calculation_audit import prepare_bulk_calculation_audits, persist_bulk_calculation_audits
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
 
@@ -57,6 +58,7 @@ async def download_template(
     - Color-coded mandatory/optional fields
     - Instructions sheet
     """
+    log_event(logger, logging.INFO, "bulk_upload.template.generate.started", action="bulk_upload.template.generate", outcome="started")
     try:
         organization_id = current_user.get("organization_id")
         if not organization_id:
@@ -65,6 +67,8 @@ async def download_template(
         capabilities = await resolve_ghg_capabilities(db, organization_id)
         template_bytes = await generate_scope3_template(db, organization_id, capabilities=capabilities)
         
+        log_event(logger, logging.INFO, "bulk_upload.template.generate.completed", action="bulk_upload.template.generate", outcome="succeeded",
+                  context={"organization_id": organization_id})
         return StreamingResponse(
             template_bytes,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -72,8 +76,10 @@ async def download_template(
                 "Content-Disposition": "attachment; filename=scope3_bulk_upload_template.xlsx"
             }
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate template: {str(e)}")
+    except Exception as error:
+        log_event(logger, logging.ERROR, "bulk_upload.template.generate.failed", action="bulk_upload.template.generate", outcome="failed",
+                  error_code="TEMPLATE_GENERATION_FAILED", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate template: {str(error)}")
 
 
 @router.post("/upload", response_model=UploadSummary)
@@ -99,6 +105,8 @@ async def upload_file(
     Returns:
         UploadSummary with validation results
     """
+    log_event(logger, logging.INFO, "bulk_upload.validation.started", action="bulk_upload.validation", outcome="started",
+              context={"validate_only": validate_only})
     # Validate file type
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
@@ -124,8 +132,12 @@ async def upload_file(
             validate_only=validate_only
         )
         
+        log_event(logger, logging.INFO, "bulk_upload.validation.completed", action="bulk_upload.validation", outcome="succeeded",
+                  context={"job_id": summary.job_id, "total_rows": summary.total_rows, "success_count": summary.success_count, "error_count": summary.error_count})
         return summary
     except Exception as e:
+        log_event(logger, logging.ERROR, "bulk_upload.validation.failed", action="bulk_upload.validation", outcome="failed",
+                  error_code="BULK_UPLOAD_PROCESSING_FAILED", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Upload processing failed: {str(e)}")
 
 
@@ -170,6 +182,7 @@ async def save_valid_rows(
         Save results with count of saved records
     """
     organization_id = current_user.get("organization_id")
+    log_event(logger, logging.INFO, "bulk_upload.save.started", action="bulk_upload.save", outcome="started", context={"job_id": job_id})
     
     # Get job
     job = await db.bulk_upload_jobs.find_one(
@@ -231,7 +244,8 @@ async def save_valid_rows(
                     "id": {"$in": [audit["id"] for audit in calculation_audits]}
                 })
             raise
-        logger.info(f"[BULK_UPLOAD_SAVE] Inserted {len(created_ids)} emission records for job {job_id}")
+        log_event(logger, logging.INFO, "bulk_upload.records.persisted", action="bulk_upload.save", outcome="succeeded",
+                  context={"job_id": job_id, "record_count": len(created_ids)})
         
         # Create emission_history entries for version tracking
         now = datetime.now(timezone.utc)
@@ -262,10 +276,10 @@ async def save_valid_rows(
                     }
                 }
             })
-        logger.info(f"[BULK_UPLOAD_SAVE] Prepared {len(history_entries)} history entries")
         if history_entries:
             result = await db.emission_history.insert_many(history_entries)
-            logger.info(f"[BULK_UPLOAD_SAVE] Inserted {len(result.inserted_ids)} history entries for job {job_id}")
+            log_event(logger, logging.INFO, "bulk_upload.history.persisted", action="bulk_upload.save", outcome="succeeded",
+                      context={"job_id": job_id, "record_count": len(result.inserted_ids)})
         
         # Update job with saved record IDs
         await db.bulk_upload_jobs.update_one(
@@ -279,6 +293,8 @@ async def save_valid_rows(
         # Clean up pending records
         await db.bulk_upload_pending_records.delete_many({"job_id": job_id})
         
+        log_event(logger, logging.INFO, "bulk_upload.save.completed", action="bulk_upload.save", outcome="succeeded",
+                  context={"job_id": job_id, "record_count": len(created_ids)})
         return {
             "success": True,
             "saved_count": len(created_ids),
@@ -286,6 +302,8 @@ async def save_valid_rows(
             "emission_ids": created_ids
         }
     
+    log_event(logger, logging.WARNING, "bulk_upload.save.rejected", action="bulk_upload.save", outcome="rejected",
+              error_code="NO_VALID_RECORDS", context={"job_id": job_id})
     return {"success": False, "error": "No records to save"}
 
 
@@ -446,6 +464,7 @@ async def delete_job(
     Delete a bulk upload job and optionally its created emissions
     """
     organization_id = current_user.get("organization_id")
+    log_event(logger, logging.INFO, "bulk_upload.job.delete.started", action="bulk_upload.job.delete", outcome="started", context={"job_id": job_id, "delete_emissions": delete_emissions})
     
     # Get job
     job = await db.bulk_upload_jobs.find_one(
@@ -468,4 +487,5 @@ async def delete_job(
     # Delete job
     await db.bulk_upload_jobs.delete_one({"id": job_id})
     
+    log_event(logger, logging.INFO, "bulk_upload.job.delete.completed", action="bulk_upload.job.delete", outcome="succeeded", context={"job_id": job_id, "delete_emissions": delete_emissions})
     return {"message": "Job deleted successfully", "emissions_deleted": delete_emissions}

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
 import os
@@ -21,6 +21,7 @@ import base64
 import secrets
 import string
 import shutil
+import time
 from fastapi.responses import StreamingResponse, FileResponse
 import asyncio
 import anthropic
@@ -59,6 +60,7 @@ from shared.helpers.email import send_email
 from shared.utils.emission_records import eligible_ghg_record_filter
 from app.bootstrap.contract_verifier import verify_module_contracts
 from app.errors.handlers import register_exception_handlers
+from app.logging import get_logger, log_event, reset_request_context, set_request_context
 
 # Phase B2: extracted auth deps + per-domain routers.
 # server.py keeps the legacy class definitions and route handlers commented
@@ -134,6 +136,47 @@ os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
 
 app = FastAPI()
 register_exception_handlers(app)
+logger = get_logger(__name__)
+
+
+def _structured_log_area(path: str) -> str | None:
+    if path.startswith("/api/emissions"):
+        return "ghg"
+    if path.startswith("/api/bulk-upload"):
+        return "bulk_upload"
+    if path.startswith("/api/supplier-assessment"):
+        return "supplier_assessment"
+    return None
+
+
+@app.middleware("http")
+async def structured_request_logging(request: Request, call_next):
+    request_id = (request.headers.get("X-Request-ID") or str(uuid.uuid4()))[:128]
+    context_tokens = set_request_context(request_id)
+    area = _structured_log_area(request.url.path)
+    started_at = time.perf_counter()
+    try:
+        if area:
+            log_event(logger, logging.INFO, "api.request.started", action=f"{area}.request", outcome="started",
+                      context={"method": request.method, "path": request.url.path})
+        try:
+            response = await call_next(request)
+        except Exception:
+            if area:
+                log_event(logger, logging.ERROR, "api.request.unhandled", action=f"{area}.request", outcome="failed",
+                          error_code="INTERNAL_ERROR", context={"method": request.method, "path": request.url.path}, exc_info=True)
+            raise
+        response.headers["X-Request-ID"] = request_id
+        if area:
+            level = logging.ERROR if response.status_code >= 500 else logging.WARNING if response.status_code >= 400 else logging.INFO
+            log_event(logger, level, "api.request.completed", action=f"{area}.request",
+                      outcome="failed" if response.status_code >= 400 else "succeeded",
+                      error_code="REQUEST_FAILED" if response.status_code >= 400 else None,
+                      context={"method": request.method, "path": request.url.path, "status_code": response.status_code,
+                               "duration_ms": round((time.perf_counter() - started_at) * 1000, 2)})
+        return response
+    finally:
+        reset_request_context(context_tokens)
 api_router = APIRouter(prefix="/api")
 
 # Phase B2: include modular routers.

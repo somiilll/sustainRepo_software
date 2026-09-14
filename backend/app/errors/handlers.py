@@ -1,5 +1,4 @@
 """Customer-safe API error responses with internal request correlation."""
-import logging
 import re
 import uuid
 from typing import Any, Tuple
@@ -10,9 +9,10 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.errors.exceptions import AppError
+from app.logging import get_logger, get_request_id, log_event
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 STATUS_MESSAGES = {
     400: ("VALIDATION_FAILED", "Please check the entered information and try again."),
@@ -35,7 +35,7 @@ TECHNICAL_TERMS = re.compile(
 
 
 def _request_id(request: Request) -> str:
-    return request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    return get_request_id() or request.headers.get("X-Request-ID") or str(uuid.uuid4())
 
 
 def _safe_message(detail: Any, status_code: int) -> Tuple[str, str]:
@@ -69,15 +69,16 @@ async def app_error_handler(request: Request, error: AppError) -> JSONResponse:
     request_id = _request_id(request)
     error_code, message = _safe_message(error.message, error.http_status)
     error_code = str(error.code or error_code).upper()
-    logger.error("App error request_id=%s code=%s path=%s context=%s", request_id, error_code, request.url.path, error.context)
+    log_event(logger, 40, "api.error.app", action="api.error", outcome="failed", error_code=error_code,
+              context={"path": request.url.path, "status_code": error.http_status})
     return _response(error.http_status, error_code, message, request_id)
 
 
 async def http_error_handler(request: Request, error: HTTPException) -> JSONResponse:
     request_id = _request_id(request)
     error_code, message = _safe_message(error.detail, error.status_code)
-    log_method = logger.error if error.status_code >= 500 else logger.warning
-    log_method("HTTP error request_id=%s status=%s path=%s detail=%r", request_id, error.status_code, request.url.path, error.detail)
+    log_event(logger, 40 if error.status_code >= 500 else 30, "api.error.http", action="api.error", outcome="failed",
+              error_code=error_code, context={"path": request.url.path, "status_code": error.status_code})
     return _response(error.status_code, error_code, message, request_id)
 
 
@@ -87,13 +88,15 @@ async def starlette_http_error_handler(request: Request, error: StarletteHTTPExc
 
 async def validation_error_handler(request: Request, error: RequestValidationError) -> JSONResponse:
     request_id = _request_id(request)
-    logger.warning("Validation error request_id=%s path=%s errors=%s", request_id, request.url.path, error.errors())
+    log_event(logger, 30, "api.error.validation", action="api.validate", outcome="failed",
+              error_code="VALIDATION_FAILED", context={"path": request.url.path, "status_code": 422})
     return _response(422, "VALIDATION_FAILED", "Please check the highlighted fields.", request_id)
 
 
 async def unexpected_error_handler(request: Request, error: Exception) -> JSONResponse:
     request_id = _request_id(request)
-    logger.exception("Unexpected error request_id=%s path=%s", request_id, request.url.path)
+    log_event(logger, 40, "api.error.unexpected", action="api.request", outcome="failed",
+              error_code="INTERNAL_ERROR", context={"path": request.url.path, "status_code": 500}, exc_info=True)
     return _response(500, "INTERNAL_ERROR", "Something went wrong. Please try again.", request_id)
 
 

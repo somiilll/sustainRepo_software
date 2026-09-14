@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.logging import get_logger, log_event
 from audit_logger import AuditAction, AuditModule, get_audit_logger
 from calc_engine.versioning import CalculationVersionError, apply_record_version_binding
 from modules.auth.dependencies import get_admin_user, get_current_user
@@ -41,6 +42,7 @@ from shared.helpers.audit_helpers import (
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 async def _bind_calculation_version(payload: dict, existing: Optional[dict] = None) -> dict:
@@ -60,6 +62,8 @@ async def create_or_update_c7_monthly_entry(
     - If entry_id is provided: UPDATE the existing record with that ID
     - If entry_id is NOT provided: Always CREATE a new record
     """
+    log_event(logger, logging.INFO, "ghg.c7.monthly.save.started", action="ghg.c7.monthly.save", outcome="started",
+              context={"facility_id": entry_data.facility_id, "reporting_year": entry_data.reporting_year, "reporting_month": entry_data.reporting_month, "mode": "update" if entry_data.entry_id else "create"})
     
     # Verify facility access
     facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
@@ -326,7 +330,8 @@ async def create_or_update_c7_monthly_entry(
     # Add facility name
     result["facility_name"] = facility.get("name", "")
     result["calculation_method"] = entry_data.calculation_method
-    
+    log_event(logger, logging.INFO, "ghg.c7.monthly.save.completed", action="ghg.c7.monthly.save", outcome="succeeded",
+              context={"record_id": result.get("id"), "facility_id": entry_data.facility_id, "mode": "update" if existing else "create"})
     return C7MonthlyEntryResponse(**result)
 
 @router.get("/emissions/c7/{facility_id}/{year}")
@@ -454,6 +459,7 @@ async def delete_c7_monthly_entry(
     current_user: dict = Depends(get_current_user)
 ):
     """Delete a C7 monthly entry"""
+    log_event(logger, logging.INFO, "ghg.c7.monthly.delete.started", action="ghg.c7.monthly.delete", outcome="started", context={"record_id": entry_id})
     
     entry = await db.emission_records.find_one({"id": entry_id}, {"_id": 0})
     if not entry:
@@ -492,6 +498,7 @@ async def delete_c7_monthly_entry(
     await db.emission_history.insert_one(history_dict)
     await db.emission_records.delete_one({"id": entry_id})
     
+    log_event(logger, logging.INFO, "ghg.c7.monthly.delete.completed", action="ghg.c7.monthly.delete", outcome="succeeded", context={"record_id": entry_id})
     return {"message": "Entry deleted successfully", "id": entry_id}
 
 # ==========================================
@@ -509,6 +516,8 @@ async def create_or_update_c7_yearly_entry(
     - If entry_id is provided: UPDATE the existing record with that ID
     - If entry_id is NOT provided: Always CREATE a new record
     """
+    log_event(logger, logging.INFO, "ghg.c7.yearly.save.started", action="ghg.c7.yearly.save", outcome="started",
+              context={"facility_id": entry_data.facility_id, "reporting_period": entry_data.reporting_year, "mode": "update" if entry_data.entry_id else "create"})
     
     # Verify facility access
     facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
@@ -659,6 +668,8 @@ async def create_or_update_c7_yearly_entry(
         # Map database field names to response model field names
         updated["activity_id"] = updated.get("scope3_ef_id")
         updated["activity_name"] = updated.get("scope3_activity")
+        log_event(logger, logging.INFO, "ghg.c7.yearly.save.completed", action="ghg.c7.yearly.save", outcome="succeeded",
+                  context={"record_id": updated.get("id"), "facility_id": entry_data.facility_id, "mode": "update"})
         return C7YearlyEntryResponse(**updated)
     
     else:
@@ -754,6 +765,8 @@ async def create_or_update_c7_yearly_entry(
         # Map database field names to response model field names
         new_record["activity_id"] = entry_data.activity_id
         new_record["activity_name"] = entry_data.activity_name
+        log_event(logger, logging.INFO, "ghg.c7.yearly.save.completed", action="ghg.c7.yearly.save", outcome="succeeded",
+                  context={"record_id": new_record.get("id"), "facility_id": entry_data.facility_id, "mode": "create"})
         return C7YearlyEntryResponse(**new_record)
 
 @router.post("/emissions/c7/migrate/{facility_id}/{year}")
@@ -763,6 +776,8 @@ async def migrate_c7_to_monthly_model(
     current_user: dict = Depends(get_admin_user)
 ):
     """Migrate old C7 entries to new monthly model (Admin only)"""
+    log_event(logger, logging.INFO, "ghg.c7.migration.started", action="ghg.c7.migration", outcome="started",
+              context={"facility_id": facility_id, "reporting_year": year})
     
     # Find old model entries
     old_entries = await db.emission_records.find({
@@ -854,6 +869,8 @@ async def migrate_c7_to_monthly_model(
             {"$set": {"migrated_to_v2": True, "migrated_at": datetime.now(timezone.utc).isoformat()}}
         )
     
+    log_event(logger, logging.INFO, "ghg.c7.migration.completed", action="ghg.c7.migration", outcome="succeeded",
+              context={"facility_id": facility_id, "reporting_year": year, "migrated_count": migrated_count})
     return {
         "message": "Migration complete",
         "migrated_count": migrated_count,

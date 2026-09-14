@@ -2,9 +2,13 @@
 import uuid
 from datetime import date, datetime, timedelta, timezone
 import re
+import logging
 from typing import Any, Dict, List, Optional
 
+from app.logging import get_logger, log_event
 from shared.database.mongo import db
+logger = get_logger(__name__)
+
 from shared.utils.emission_records import without_legacy_quantity_fields
 from modules.supplier_assessment.programs import resolve_program_context
 
@@ -424,6 +428,8 @@ async def can_modify_supplier_ghg_record(
 async def submit_supplier_ghg_period(
     relationship: Dict[str, Any], period_key: str, submitted_by: str, data_verified: bool,
 ) -> Dict[str, Any]:
+    log_event(logger, logging.INFO, "supplier_assessment.ghg_period.submit.started", action="supplier_assessment.ghg_period.submit", outcome="started",
+              context={"relationship_id": relationship.get("id"), "period_key": period_key})
     await ensure_ghg_submission_indexes()
     await _hydrate_reporting_year_start(relationship)
     if not data_verified:
@@ -476,12 +482,16 @@ async def submit_supplier_ghg_period(
     await db.supplier_ghg_submissions.update_one(
         {"relationship_id": relationship["id"], "period_key": period_key}, {"$set": document}, upsert=True,
     )
+    log_event(logger, logging.INFO, "supplier_assessment.ghg_period.submit.completed", action="supplier_assessment.ghg_period.submit", outcome="succeeded",
+              context={"relationship_id": relationship.get("id"), "period_key": period_key, "entry_count": len(entries), "revision": revision})
     return {key: value for key, value in document.items() if key != "history"}
 
 
 async def unlock_supplier_ghg_period(
     relationship: Dict[str, Any], period_key: str, unlocked_by: str, reason: Optional[str] = None, supplier_instructions: Optional[str] = None,
 ) -> Dict[str, Any]:
+    log_event(logger, logging.INFO, "supplier_assessment.ghg_period.unlock.started", action="supplier_assessment.ghg_period.unlock", outcome="started",
+              context={"relationship_id": relationship.get("id"), "period_key": period_key})
     await ensure_ghg_submission_indexes()
     await _hydrate_reporting_year_start(relationship)
     reason = (reason or "").strip() or "Unlocked directly by parent organization"
@@ -516,6 +526,8 @@ async def unlock_supplier_ghg_period(
     await db.supplier_ghg_submissions.update_one(
         {"id": submission["id"]}, {"$set": {"status": "unlocked", "unlocked_at": now, "unlocked_by": unlocked_by, "unlock_reason": reason, "supplier_instructions": supplier_instructions or None}, "$push": {"history": event}},
     )
+    log_event(logger, logging.INFO, "supplier_assessment.ghg_period.unlock.persisted", action="supplier_assessment.ghg_period.unlock", outcome="succeeded",
+              context={"relationship_id": relationship.get("id"), "period_key": period_key, "entry_count": len(copies)})
     return {"id": submission["id"], "period_key": period_key, "status": "unlocked", "entry_count": len(copies), "unlocked_at": now, "unlock_reason": reason, "supplier_instructions": supplier_instructions or None}
 
 
@@ -662,6 +674,8 @@ async def submit_supplier_ghg(
     submitted_by: str,
     data_verified: bool = False,
 ) -> Dict[str, Any]:
+    log_event(logger, logging.INFO, "supplier_assessment.ghg.submit.started", action="supplier_assessment.ghg.submit", outcome="started",
+              context={"relationship_id": relationship.get("id")})
     if not data_verified:
         raise ValueError("Confirm that the submitted data has been reviewed and verified")
     period_filter = {"reporting_period": {"$in": reporting_period_values(relationship["reporting_period"])}} if relationship.get("reporting_period") else {}
@@ -691,10 +705,14 @@ async def submit_supplier_ghg(
     await db.emission_records.update_many({"id": {"$in": [entry["id"] for entry in entries]}}, {"$set": {"submitted_to_parent_org": now, "submission_id": submission["id"], "submitted_by": submitted_by, "parent_visible": True, "status": "submitted", "approval_status": "submitted", "data_verified": True, "data_verified_at": now, "data_verified_by": submitted_by}})
     from modules.supplier_assessment.service import supplier_service
     submission["canonical_score"] = await supplier_service.refresh_supplier_canonical_score(relationship["id"])
+    log_event(logger, logging.INFO, "supplier_assessment.ghg.submit.completed", action="supplier_assessment.ghg.submit", outcome="succeeded",
+              context={"relationship_id": relationship.get("id"), "entry_count": len(entries), "resubmission": is_reopened})
     return submission
 
 
 async def reopen_supplier_ghg(relationship: Dict[str, Any], reopened_by: str) -> Dict[str, Any]:
+    log_event(logger, logging.INFO, "supplier_assessment.ghg.reopen.started", action="supplier_assessment.ghg.reopen", outcome="started",
+              context={"relationship_id": relationship.get("id")})
     visible_entries = await db.emission_records.find({"source": "supplier", "supplier_relationship_id": relationship["id"], "submitted_to_parent_org": {"$exists": True, "$ne": None}, "parent_visible": {"$ne": False}}, {"_id": 0}).to_list(5000)
     if not visible_entries:
         raise ValueError("No submitted GHG data is available to unlock")
@@ -727,6 +745,8 @@ async def reopen_supplier_ghg(relationship: Dict[str, Any], reopened_by: str) ->
                 "is_current_revision": False,
             }},
         )
+    log_event(logger, logging.INFO, "supplier_assessment.ghg.reopen.completed", action="supplier_assessment.ghg.reopen", outcome="succeeded",
+              context={"relationship_id": relationship.get("id"), "entry_count": len(copies)})
     return {
         "status": "reopened",
         "source_submission_id": source_submission_id,
