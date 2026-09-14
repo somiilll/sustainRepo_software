@@ -110,7 +110,7 @@ const AUDIT_HIDDEN_FIELDS = new Set([
   'id', 'created_at', 'created_by', 'created_by_email', 'created_by_name', 'version_number',
   'formula_id', 'formula_version_id', 'formula_version', 'formula_snapshot', 'decision_tree_version_id',
   'submission_batch_id', 'inputs', 'outputs', 'properties', 'steps', 'category_code', 'category_id',
-  'organization_id', 'org_id', 'version',
+  'organization_id', 'org_id', 'version', 'scope3_ef_id',
   'justification', 'updated_at', 'updated_by', 'updated_by_email', 'updated_by_name',
 ]);
 
