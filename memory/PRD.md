@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier GHG toolbar consistency:** Refined the Supplier GHG control bar to retain the same search → primary control → reporting-period placement used by Supplier Documents. The active “Emissions by Supplier” or “Logs” view now displays as a full emerald segment with white text instead of an underline-only state.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Overview KPI density correction:** Reduced the Overview status KPI card height, padding, icon tile, and primary number to a denser `text-3xl` scale, while retaining the green, blue, and red status-edge treatment.
 - **NOT TESTED** per the user’s standing instruction.
 
