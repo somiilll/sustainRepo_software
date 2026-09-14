@@ -181,16 +181,16 @@ export default function SupplierList() {
   useEffect(() => {
     if (!showAddDialog) return;
     setFormData((current) => ({ ...current, reporting_period: reportingPeriod }));
-    Promise.all([
+    Promise.allSettled([
       axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
-      axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
-    ]).then(([documentResponse, trainingResponse, questionnaireResponse]) => {
-      const availableDocuments = groupAvailableDocuments(documentResponse.data);
-      const availableTrainings = (trainingResponse.data || []).filter((training) => training.is_active !== false && !training.is_deleted);
+    ]).then(([documentResult, trainingResult, questionnaireResult]) => {
+      const availableDocuments = documentResult.status === 'fulfilled' ? groupAvailableDocuments(documentResult.value.data) : [];
+      const availableTrainings = trainingResult.status === 'fulfilled' ? (trainingResult.value.data || []).filter((training) => training.is_active !== false && !training.is_deleted) : [];
       setDocuments(availableDocuments);
       setTrainings(availableTrainings);
-      const availableQuestionnaires = (questionnaireResponse.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted);
+      const availableQuestionnaires = questionnaireResult.status === 'fulfilled' ? (questionnaireResult.value.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted) : [];
       setQuestionnaires(availableQuestionnaires);
       setFormData((current) => ({
         ...current,
@@ -199,33 +199,33 @@ export default function SupplierList() {
         document_requirement_ids: availableDocuments.map((document) => document.id),
         training_requirement_ids: availableTrainings.map((training) => training.id),
       }));
-    }).catch(() => toast.error('Could not load existing assignments'));
+    });
   }, [showAddDialog, getAuthHeader, reportingPeriod]);
 
   useEffect(() => {
     if (!showEditDialog || !selectedSupplier) return;
     setQuestionnaireAssignmentsLoaded(false);
-    Promise.all([
+    Promise.allSettled([
       axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/submission-status`, { headers: getAuthHeader() }),
-    ]).then(([documentResponse, trainingResponse, questionnaireResponse, statusResponse]) => {
-      const availableDocuments = groupAvailableDocuments(documentResponse.data);
-      const availableTrainings = (trainingResponse.data || []).filter((training) => training.is_active !== false && !training.is_deleted);
+    ]).then(([documentResult, trainingResult, questionnaireResult, statusResult]) => {
+      const availableDocuments = documentResult.status === 'fulfilled' ? groupAvailableDocuments(documentResult.value.data) : [];
+      const availableTrainings = trainingResult.status === 'fulfilled' ? (trainingResult.value.data || []).filter((training) => training.is_active !== false && !training.is_deleted) : [];
       setDocuments(availableDocuments);
       setTrainings(availableTrainings);
       const selectedDocumentIds = availableDocuments.filter((document) => selectedSupplier.document_requirement_ids?.includes(document.id) || document.supplier_relationship_ids?.includes(selectedSupplier.id)).map((document) => document.id);
       const selectedTrainingIds = availableTrainings.filter((training) => selectedSupplier.training_requirement_ids?.includes(training.id) || training.supplier_relationship_ids?.includes(selectedSupplier.id)).map((training) => training.id);
       setFormData((current) => ({ ...current, document_requirement_ids: selectedDocumentIds, training_requirement_ids: selectedTrainingIds }));
-      const availableQuestionnaires = (questionnaireResponse.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted);
+      const availableQuestionnaires = questionnaireResult.status === 'fulfilled' ? (questionnaireResult.value.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted) : [];
       setQuestionnaires(availableQuestionnaires);
-      setSubmissionStatus(statusResponse.data);
+      setSubmissionStatus(statusResult.status === 'fulfilled' ? statusResult.value.data : null);
       if (selectedSupplier.questionnaire_assignment_is_implicit) {
         setFormData((current) => ({ ...current, questionnaire_ids: availableQuestionnaires.map((questionnaire) => questionnaire.id) }));
       }
       setQuestionnaireAssignmentsLoaded(true);
-    }).catch(() => toast.error('Could not load questionnaire assignments'));
+    });
   }, [showEditDialog, selectedSupplier, getAuthHeader]);
 
   const handleAdd = async () => {

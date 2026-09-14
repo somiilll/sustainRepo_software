@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier assignment-load isolation:** Add/Edit Supplier now loads Documents, Training, ESG Questionnaires, and status independently. A disabled Documents module returns no document options but no longer aborts the batch or hides enabled Training options; the old misleading assignment-load error toast is removed.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Supplier-contact identity guard:** Supplier creation now normalizes contact email and rejects an email belonging to the parent/customer organization’s user or admin with a specific error. It also rejects any existing non-supplier account, preventing the previous unsafe side effect of reclassifying a parent or other customer account as a supplier. Existing accounts are only reusable when both the user and their organization are already supplier-classified.
 - **NOT TESTED** per the user’s standing instruction.
 
