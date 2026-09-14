@@ -9,6 +9,7 @@ import {
 } from '../../../modules/ghg/emissions/shared/utils/unitHelpers';
 
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
+const CUSTOM_FUEL_QUANTITY_EF_UNITS = new Set(['kgCO2/L', 'kgCO2/kg']);
 
 const readValue = (values, keys) => {
   for (const key of keys) {
@@ -113,6 +114,16 @@ export const buildCustomFuelCalculationPayload = ({
     const efUnit = normalizeCustomFuelCompoundUnit(
       readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'kgCO2/kg'),
     );
+    if (!CUSTOM_FUEL_QUANTITY_EF_UNITS.has(efUnit)) {
+      missingFields.push('Emission Factor must use kgCO2/L or kgCO2/kg');
+      return {
+        inputs,
+        userOverrides,
+        decisionInputs,
+        isReady: false,
+        missingFields,
+      };
+    }
     const rawEf = toInput(ef, efUnit);
     hasMethodInputs = rawEf && addInput('ef_quantity', rawEf.value, rawEf.unit, { override: true });
     if (!hasMethodInputs) missingFields.push('Emission Factor');

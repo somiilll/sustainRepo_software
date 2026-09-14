@@ -56,6 +56,7 @@ from shared.utils.emission_records import without_legacy_quantity_fields
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+CUSTOM_FUEL_QUANTITY_EF_UNITS = {"kgCO2/L", "kgCO2/kg"}
 
 
 def _process_input_entry(dynamic_values: dict, predicate) -> tuple[Optional[str], Optional[dict]]:
@@ -183,6 +184,24 @@ async def _validate_density_requirement(record_data: EmissionRecordCreate) -> No
                 f"Density ({required_density_unit}) is required because Quantity uses {quantity_unit} "
                 f"while the calculation reference uses {reference_unit}"
             ),
+        )
+
+
+def _validate_custom_fuel_quantity_ef_unit(record_data: EmissionRecordCreate) -> None:
+    """Restrict quantity-basis custom-fuel emission factors to supported units."""
+    if not record_data.is_custom_fuel:
+        return
+    dynamic_values = record_data.dynamic_field_values or {}
+    methodology_value = dynamic_values.get("calculation_methodology") or record_data.calculation_methodology
+    methodology = methodology_value.get("value") if isinstance(methodology_value, dict) else methodology_value
+    if methodology != "using_qty_basis_ef":
+        return
+    emission_factor = dynamic_values.get("custom_ef") or dynamic_values.get("ef_quantity") or {}
+    unit = str(emission_factor.get("unit") or "").replace(" ", "") if isinstance(emission_factor, dict) else ""
+    if unit not in CUSTOM_FUEL_QUANTITY_EF_UNITS:
+        raise HTTPException(
+            status_code=422,
+            detail="Custom Fuel quantity-basis Emission Factor must use kgCO2/L or kgCO2/kg",
         )
 
 
@@ -946,6 +965,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         logger.warning(f"[EMISSION_CREATE] Facility not found: {record_data.facility_id}")
         raise HTTPException(status_code=404, detail="Facility not found")
 
+    _validate_custom_fuel_quantity_ef_unit(record_data)
     await _validate_density_requirement(record_data)
     
     org_id = facility.get("organization_id")
@@ -1332,6 +1352,7 @@ async def update_emission_record(
                 ),
             )
 
+    _validate_custom_fuel_quantity_ef_unit(record_data)
     await _validate_density_requirement(record_data)
     
     org_id = existing.get("organization_id")

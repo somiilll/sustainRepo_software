@@ -67,6 +67,11 @@ export const STANDARD_CUSTOM_FUEL_EMISSION_FACTOR_UNITS = Object.freeze([
   { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't' },
 ]);
 
+export const STANDARD_CUSTOM_FUEL_QUANTITY_EF_UNITS = Object.freeze([
+  'kgCO2/L',
+  'kgCO2/kg',
+]);
+
 const CUSTOM_FUEL_QUANTITY_UNITS = Object.freeze(['kg', 'g', 't', 'L', 'kl', 'ml', 'm3', 'cm3']);
 const CUSTOM_FUEL_HEAT_CV_DENOMINATOR_UNITS = Object.freeze(
   CUSTOM_FUEL_QUANTITY_UNITS.map((unit) => (unit === 'kl' ? 'kL' : unit)),
@@ -84,5 +89,5 @@ export const resolveStandardGhgFieldOptions = ({ scopeCode } = {}) => ({
   [GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT]: CUSTOM_FUEL_ENERGY_UNITS.flatMap((numerator) =>
     CUSTOM_FUEL_HEAT_CV_DENOMINATOR_UNITS.map((denominator) => `${numerator}/${denominator}`),
   ),
-  [GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT]: CUSTOM_FUEL_QUANTITY_UNITS.map((unit) => `kgCO2/${unit}`),
+  [GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT]: STANDARD_CUSTOM_FUEL_QUANTITY_EF_UNITS,
 });

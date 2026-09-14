@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Custom Fuel quantity EF restriction:** The Quantity Basis Custom Fuel emission-factor picker now offers only `kgCO2/L` and `kgCO2/kg`. The calculation adapter and Emission API reject any other quantity-basis Custom Fuel emission-factor unit, preventing bypass through stale UI state or direct API submission.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Formula resolver scope repair:** Moved the standard-fuel unit-basis variables into the Scope 1/2 formula resolver where they are used. This removes the `selectedCvUnit is not defined` runtime crash introduced during the standard-fuel routing enhancement.
 - **NOT TESTED** per the user’s standing instruction.
 
