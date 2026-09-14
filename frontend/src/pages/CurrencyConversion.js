@@ -53,21 +53,21 @@ const DATA_SOURCES = [
   'Custom'
 ];
 
-const inferApplicabilityType = (config = {}) => (
-  config.applicability_type
-  || (config.month_applicable ? 'month' : 'calendar_year')
+const inferApplicabilityType = (config) => (
+  config?.applicability_type
+  || (config?.month_applicable ? 'month' : 'calendar_year')
 );
 
-const formatApplicablePeriod = (config = {}) => {
+const formatApplicablePeriod = (config) => {
   if (inferApplicabilityType(config) === 'financial_year') {
-    const start = config.financial_year_start;
-    const end = config.financial_year_end || config.year_applicable;
-    return start && end ? `FY ${start}-${String(end).slice(-2)}` : config.period_key || '-';
+    const start = config?.financial_year_start;
+    const end = config?.financial_year_end || config?.year_applicable;
+    return start && end ? `FY ${start}-${String(end).slice(-2)}` : config?.period_key || '-';
   }
   if (inferApplicabilityType(config) === 'month') {
-    return `${config.year_applicable}-${String(config.month_applicable).padStart(2, '0')}`;
+    return `${config?.year_applicable || '-'}-${String(config?.month_applicable || '').padStart(2, '0')}`;
   }
-  return `CY ${config.year_applicable}`;
+  return config?.year_applicable ? `CY ${config.year_applicable}` : '-';
 };
 
 export default function CurrencyConversion() {
@@ -110,7 +110,9 @@ export default function CurrencyConversion() {
     try {
       setLoading(true);
       const response = await axios.get(`${API}/super-admin/currency-conversions`, { headers: getAuthHeader() });
-      setConfigs(response.data);
+      setConfigs(Array.isArray(response.data)
+        ? response.data.filter((config) => config && typeof config === 'object')
+        : []);
     } catch (error) {
       console.error('Error fetching currency conversions:', error);
       toast.error('Failed to load currency conversion configurations');
