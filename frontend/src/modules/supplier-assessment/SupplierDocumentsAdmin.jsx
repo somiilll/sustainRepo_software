@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { CalendarDays, Eye, FileText, CalendarDays as Pencil, ShieldCheck, Trash2, Upload, Users } from 'lucide-react';
+import { CalendarDays, Eye, FileText, CalendarDays as Pencil, Search, ShieldCheck, Trash2, Upload, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
@@ -42,7 +42,8 @@ const documentProgress = (document) => {
 export default function SupplierDocumentsAdmin() {
   const { getAuthHeader } = useAuth();
   const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
-  const [documents, setDocuments] = useState([]);
+  const [allDocuments, setDocuments] = useState([]);
+  const [documentSearch, setDocumentSearch] = useState('');
   const [selectedSuppliers, setSelectedSuppliers] = useState([]);
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
@@ -166,6 +167,12 @@ export default function SupplierDocumentsAdmin() {
     finally { setDeletingId(''); }
   };
 
+  const documents = allDocuments.filter((document) => {
+    const query = documentSearch.trim().toLowerCase();
+    return !query || [document.title, document.response_mode]
+      .some((value) => String(value || '').toLowerCase().includes(query));
+  });
+
   const documentSummary = {
     total: documents.length,
     assigned: documents.reduce((total, document) => total + (document.assigned_supplier_count || 0), 0),
@@ -173,12 +180,14 @@ export default function SupplierDocumentsAdmin() {
   };
 
   return <div className="space-y-7" data-testid="supplier-documents-admin-page">
-    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid="supplier-documents-header">
+    <div className="border-b border-stone-200 pb-5" data-testid="supplier-documents-header">
       <div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-teal-200 bg-teal-50 text-teal-700 shadow-sm" data-testid="supplier-documents-heading-icon"><FileText className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-documents-heading">Supplier Documents</h1></div>
-      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-stone-200 bg-white p-2 shadow-[0_4px_18px_rgba(28,55,43,0.06)]" data-testid="supplier-documents-controls">
-        <div className="min-w-40" data-testid="supplier-documents-period-control"><Label htmlFor="supplier-documents-reporting-period" className="mb-1 flex items-center gap-1.5 text-xs font-medium text-stone-600" data-testid="supplier-documents-period-label"><CalendarDays className="h-3.5 w-3.5 text-stone-500" aria-hidden="true" />Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-documents-reporting-period" className="h-9 bg-white" data-testid="supplier-documents-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-documents-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-documents-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
-        <Button className="h-9 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowAgreementForm(true)} data-testid="open-add-supplier-agreement-button"><Upload className="h-4 w-4 mr-2" />Add document</Button>
-      </div>
+    </div>
+
+    <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] md:flex-row md:flex-wrap md:items-center lg:flex-nowrap" data-testid="supplier-documents-controls">
+      <div className="relative w-full md:w-[min(430px,100%)] md:flex-none" data-testid="supplier-documents-search-control"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input value={documentSearch} onChange={(event) => setDocumentSearch(event.target.value)} placeholder="Search documents..." className="h-10 border-stone-200 bg-white pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label="Search documents" data-testid="supplier-documents-search-input" /></div>
+      <Button className="h-10 shrink-0 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowAgreementForm(true)} data-testid="open-add-supplier-agreement-button"><Upload className="mr-2 h-4 w-4" />Add document</Button>
+      <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row md:items-center md:gap-3" data-testid="supplier-documents-period-control"><Label htmlFor="supplier-documents-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-documents-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-documents-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 md:w-44" data-testid="supplier-documents-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-documents-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-documents-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
     </div>
 
     <div className="grid gap-4 sm:grid-cols-3" data-testid="supplier-documents-summary-cards"><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-documents-total-card"><CardContent className="flex items-center gap-3 p-5"><FileText className="h-5 w-5 text-teal-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Documents published</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="supplier-documents-total-value">{documentSummary.total}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-documents-assigned-card"><CardContent className="flex items-center gap-3 p-5"><Users className="h-5 w-5 text-stone-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Supplier assignments</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="supplier-documents-assigned-value">{documentSummary.assigned}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-documents-submitted-card"><CardContent className="flex items-center gap-3 p-5"><ShieldCheck className="h-5 w-5 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Responses submitted</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="supplier-documents-submitted-value">{documentSummary.submitted}</p></div></CardContent></Card></div>

@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Documents and Training toolbar alignment:** Supplier Documents and Training now use the same responsive top-toolbar pattern as Suppliers and ESG Questionnaires: search at left, the existing publish/create action, and the reporting-period selector at right. Both lists filter by title/description with an explicit no-results state.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — ESG Questionnaire toolbar alignment:** Restructured the ESG Questionnaire top controls to match the Supplier module’s panel pattern. The unified toolbar now provides questionnaire search, Review responses, New Questionnaire, and the reporting-period selector aligned at the right. Search filters questionnaires by name and description with a clear empty state.
 - **NOT TESTED** per the user’s standing instruction.
 
