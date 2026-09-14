@@ -113,6 +113,14 @@ const AUDIT_HIDDEN_FIELDS = new Set([
   'organization_id', 'org_id', 'version', 'scope3_ef_id',
   'justification', 'updated_at', 'updated_by', 'updated_by_email', 'updated_by_name',
 ]);
+const isHiddenAuditField = (key = '') => {
+  const normalizedKey = key.toLowerCase();
+  return ['password', 'password_hash', 'token', 'secret', '_id'].includes(normalizedKey)
+    || AUDIT_HIDDEN_FIELDS.has(normalizedKey)
+    || normalizedKey === 'id'
+    || normalizedKey.endsWith('_id')
+    || normalizedKey.endsWith('_ids');
+};
 
 const humanizeAuditField = (key = '') => AUDIT_FIELD_LABELS[key]
   || key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -144,7 +152,7 @@ const flattenAuditValues = (value, resolvedEntities, prefix = '', result = {}) =
     return result;
   }
   Object.entries(value).forEach(([key, childValue]) => {
-    if (['password', 'password_hash', 'token', 'secret', '_id'].includes(key.toLowerCase()) || AUDIT_HIDDEN_FIELDS.has(key.toLowerCase())) return;
+    if (isHiddenAuditField(key)) return;
     if (prefix === 'dynamic_field_values' && key === 'calculation_methodology') return;
     const nextPrefix = prefix ? `${prefix}.${key}` : key;
     flattenAuditValues(childValue, resolvedEntities, nextPrefix, result);

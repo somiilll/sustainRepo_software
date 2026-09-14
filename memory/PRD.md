@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Audit no-ID display rule:** User-facing audit detail rendering now suppresses any generic ID field (`id`, `*_id`, or `*_ids`), including Fuel Database IDs, employee IDs, and other internal references. Readable names and business context remain visible where available.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Audit Scope 3 factor cleanup:** Removed the internal `scope3_ef_id` from user-facing audit detail rows; human-readable Scope 3 activity and activity type remain visible.
 - **NOT TESTED** per the user’s standing instruction.
 
