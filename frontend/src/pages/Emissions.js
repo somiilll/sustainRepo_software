@@ -617,7 +617,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             ? dynamicFieldValues.custom_ef_unit || 'kgCO2/kg'
             : dynamicFieldValues.ef_quantity_unit
             || dynamicFieldValues.ef_quantity?.unit
-            || selectedFuel?.emission_factor_basis_unit
+            || editSelectedFuel?.emission_factor_basis_unit
             || efField?.defaultUnit
             || efField?.default_unit
             || efField?.expectedUnit
@@ -634,7 +634,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         const cvUnit = (editUseCustomFuel ? dynamicFieldValues.custom_cv_unit : null)
           || dynamicFieldValues.cv_unit
           || dynamicFieldValues.cv?.unit
-          || selectedFuel?.calorific_value_unit
+          || editSelectedFuel?.calorific_value_unit
           || cvField?.defaultUnit
           || cvField?.default_unit
           || cvField?.expectedUnit
@@ -646,7 +646,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel, editDraft.allocationMethod, selectedFuel]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel, editDraft.allocationMethod, editSelectedFuel]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {

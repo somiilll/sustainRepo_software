@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Edit routing startup repair:** Corrected the standard-fuel Edit calculation callback to reference the existing early-resolved `editSelectedFuel` value. This removes the temporal-dead-zone startup crash while preserving fuel-default-aware basis routing.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Standard-fuel density and routing parity:** Standard-fuel Edit now exposes only its active density unit (the saved unit, fuel-native default, or dynamically required unit), rather than the unrestricted administrator allowlist. Standard stationary/mobile/flaring calculations now derive the decision-tree EF/CV basis from the active factor or calorific-value denominator, including fuel database defaults, instead of forcing the mass branch. This keeps volume-basis fuels on their correct calculation path.
 - **NOT TESTED** per the user’s standing instruction.
 
