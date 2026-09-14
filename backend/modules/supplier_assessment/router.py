@@ -50,6 +50,7 @@ from modules.supplier_assessment.contracts import (
 from modules.supplier_assessment import documents_service
 from modules.supplier_assessment import training_service
 from modules.supplier_assessment import ghg_submission_service
+from modules.supplier_assessment.assignment_notification_service import notify_supplier_assignment
 from modules.supplier_assessment.unlock_notification_service import notify_supplier_module_unlocked
 from modules.sustainability_config import service as sustainability_config_service
 from modules.facilities.contracts import FacilityCreate, FacilityResponse
@@ -96,6 +97,89 @@ async def _assert_parent_supplier_module_enabled(relationship: dict, module_code
             status_code=403,
             detail=f"{display_name} is disabled by your customer organization",
         )
+
+
+async def _notify_supplier_assignment_by_id(
+    supplier_id: str,
+    assignment_type: str,
+    assignment_id: str,
+    assignment_name: str,
+    due_date: Optional[str] = None,
+) -> None:
+    relationship = await supplier_service.get_supplier(supplier_id)
+    if relationship:
+        await notify_supplier_assignment(
+            relationship, assignment_type, assignment_id, assignment_name, due_date=due_date,
+        )
+
+
+async def _notify_new_supplier_update_assignments(
+    previous: dict, current: dict, requested: dict,
+) -> None:
+    """Email only newly selected work or newly enabled supplier access from an edit."""
+    questionnaire_ids = set(requested.get("questionnaire_ids") or [])
+    if questionnaire_ids:
+        previous_questionnaires = previous.get("questionnaire_ids")
+        if previous_questionnaires is None:
+            previous_questionnaires = [row["id"] for row in await db.supplier_questionnaires.find(
+                {"organization_id": previous["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1},
+            ).to_list(1000)]
+        new_questionnaire_ids = questionnaire_ids - set(previous_questionnaires)
+        questionnaires = await db.supplier_questionnaires.find(
+            {"id": {"$in": list(new_questionnaire_ids)}}, {"_id": 0, "id": 1, "name": 1, "due_date": 1},
+        ).to_list(1000)
+        for questionnaire in questionnaires:
+            await notify_supplier_assignment(
+                current, "esg", questionnaire["id"], questionnaire.get("name") or "ESG questionnaire",
+                due_date=questionnaire.get("due_date"),
+            )
+
+    document_ids = set(requested.get("document_requirement_ids") or [])
+    new_document_ids = set()
+    if document_ids:
+        documents = await db.supplier_document_requirements.find(
+            {"id": {"$in": list(document_ids)}, "is_active": True},
+            {"_id": 0, "id": 1, "title": 1, "due_date": 1, "reporting_period": 1, "assignment_mode": 1, "supplier_relationship_ids": 1, "excluded_supplier_relationship_ids": 1, "assessment_program_id": 1, "assessment_program_version": 1},
+        ).to_list(1000)
+        for document in documents:
+            if not documents_service._is_requirement_available_to_relationship(document, previous):
+                new_document_ids.add(document["id"])
+                await notify_supplier_assignment(
+                    current, "documents", document["id"], document.get("title") or "Document",
+                    due_date=document.get("due_date"),
+                )
+
+    training_ids = set(requested.get("training_requirement_ids") or [])
+    new_training_ids = set()
+    if training_ids:
+        active_assignments = await db.supplier_training_assignments.find(
+            {"supplier_relationship_id": previous["id"], "training_requirement_id": {"$in": list(training_ids)}, "reporting_period": previous.get("reporting_period"), "is_active": True},
+            {"_id": 0, "training_requirement_id": 1},
+        ).to_list(1000)
+        new_training_ids = training_ids - {row["training_requirement_id"] for row in active_assignments}
+        trainings = await db.supplier_training_requirements.find(
+            {"id": {"$in": list(new_training_ids)}, "is_active": True, "is_deleted": {"$ne": True}},
+            {"_id": 0, "id": 1, "title": 1, "due_date": 1},
+        ).to_list(1000)
+        for training in trainings:
+            await notify_supplier_assignment(
+                current, "training", training["id"], training.get("title") or "Training",
+                due_date=training.get("due_date"),
+            )
+
+    newly_enabled = set(current.get("modules_enabled") or []) - set(previous.get("modules_enabled") or [])
+    program_version = current.get("assessment_program_version") or "current"
+    if "ghg" in newly_enabled or (set(current.get("ghg_scopes_enabled") or []) - set(previous.get("ghg_scopes_enabled") or [])):
+        scopes = ", ".join(scope.replace("scope", "Scope ") for scope in current.get("ghg_scopes_enabled") or [])
+        await notify_supplier_assignment(current, "ghg", f"ghg:{program_version}", f"GHG emissions data{f' ({scopes})' if scopes else ''}")
+    if "esg" in newly_enabled and not questionnaire_ids:
+        await notify_supplier_assignment(current, "esg", f"esg:{program_version}", "ESG questionnaire access")
+    if "documents" in newly_enabled and not new_document_ids:
+        await notify_supplier_assignment(current, "documents", f"documents:{program_version}", "Document response access")
+    if "training" in newly_enabled and not new_training_ids:
+        await notify_supplier_assignment(current, "training", f"training:{program_version}", "Training access")
+    if requested.get("revenue_required") is True and not previous.get("revenue_required"):
+        await notify_supplier_assignment(current, "revenue", f"revenue:{program_version}", "Revenue information")
 
 
 # ============================================================================
@@ -303,10 +387,16 @@ async def update_supplier(
         raise HTTPException(status_code=403, detail="Access denied")
     
     updates = data.model_dump(exclude_unset=True)
+    assignment_request = {
+        key: updates.get(key)
+        for key in ("questionnaire_ids", "document_requirement_ids", "training_requirement_ids", "revenue_required")
+        if key in updates
+    }
     try:
         result = await supplier_service.update_supplier(supplier_id, updates)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+    await _notify_new_supplier_update_assignments(supplier, result, assignment_request)
     return result
 
 
@@ -401,6 +491,10 @@ async def upload_document(
         )
         for relationship_id in result["affected_relationship_ids"]:
             await supplier_service._update_completion_status(relationship_id)
+            await _notify_supplier_assignment_by_id(
+                relationship_id, "documents", result["version"]["id"],
+                result["requirements"][0].get("title") or "Document", due_date=due_date,
+            )
         return {"requirements": result["requirements"], "version": result["version"]}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
@@ -435,6 +529,13 @@ async def get_document_assignments(requirement_id: str, current_user: dict = Dep
 async def assign_document_supplier(requirement_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
     try:
         await documents_service.assign_document_to_supplier(current_user["organization_id"], requirement_id, supplier_id, current_user["id"])
+        document = await db.supplier_document_requirements.find_one(
+            {"id": requirement_id}, {"_id": 0, "title": 1, "document_version_id": 1, "due_date": 1},
+        ) or {}
+        await _notify_supplier_assignment_by_id(
+            supplier_id, "documents", document.get("document_version_id", requirement_id),
+            document.get("title") or "Document", due_date=document.get("due_date"),
+        )
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
@@ -483,7 +584,13 @@ async def create_training(file: UploadFile = File(...), title: str = Form(...), 
     try:
         content = await file.read()
         await assert_evidence_storage_limit(current_user["organization_id"], len(content))
-        return await training_service.create_training(current_user["organization_id"], current_user["id"], title, description, 100.0, file.filename or "training", file.content_type or "application/octet-stream", content, json.loads(supplier_relationship_ids), due_date)
+        result = await training_service.create_training(current_user["organization_id"], current_user["id"], title, description, 100.0, file.filename or "training", file.content_type or "application/octet-stream", content, json.loads(supplier_relationship_ids), due_date)
+        for assignment in result["assignments"]:
+            await _notify_supplier_assignment_by_id(
+                assignment["supplier_relationship_id"], "training", assignment["training_requirement_id"],
+                result["training"].get("title") or "Training", due_date=result["training"].get("due_date"),
+            )
+        return result
     except (ValueError, json.JSONDecodeError) as error:
         raise HTTPException(status_code=400, detail=str(error))
 
@@ -531,6 +638,11 @@ async def complete_training_upload(session_id: str, payload: TrainingUploadCompl
     try:
         await asyncio.to_thread(get_r2_storage().complete_multipart_upload, session["bucket_type"], session["r2_key"], session["upload_id"], parts)
         training = await training_service.create_training_from_multipart(current_user["organization_id"], current_user["id"], session["title"], session["description"], session["filename"], session["content_type"], session["file_size"], session["r2_key"], session["supplier_relationship_ids"], session.get("due_date"), session_id)
+        for assignment in training.get("assignments", []):
+            await _notify_supplier_assignment_by_id(
+                assignment["supplier_relationship_id"], "training", assignment["training_requirement_id"],
+                training["training"].get("title") or "Training", due_date=training["training"].get("due_date"),
+            )
         if training.get("version", {}).get("viewer_processing_status") == "processing":
             asyncio.create_task(training_service.prepare_multipart_training_media(training["version"]["id"]))
         await db.supplier_training_upload_sessions.update_one({"id": session_id}, {"$set": {"status": "completed", "training": training}})
@@ -580,6 +692,12 @@ async def get_training_assignments(training_id: str, reporting_period: Optional[
 async def assign_training_supplier(training_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
     try:
         await training_service.assign_training_to_supplier(current_user["organization_id"], training_id, supplier_id)
+        training = await db.supplier_training_requirements.find_one(
+            {"id": training_id}, {"_id": 0, "title": 1, "due_date": 1},
+        ) or {}
+        await _notify_supplier_assignment_by_id(
+            supplier_id, "training", training_id, training.get("title") or "Training", due_date=training.get("due_date"),
+        )
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
@@ -633,7 +751,7 @@ async def create_questionnaire(
 ):
     """Create a new questionnaire template."""
     try:
-        return await supplier_service.create_questionnaire(
+        questionnaire = await supplier_service.create_questionnaire(
             organization_id=current_user["organization_id"],
             name=data.name,
             description=data.description,
@@ -647,6 +765,15 @@ async def create_questionnaire(
             supplier_relationship_ids=data.supplier_relationship_ids,
             assignment_reporting_period=data.assignment_reporting_period,
         )
+        relationships = await db.supplier_relationships.find(
+            {"id": {"$in": questionnaire.get("assigned_supplier_ids") or []}, "is_active": True}, {"_id": 0},
+        ).to_list(1000)
+        for relationship in relationships:
+            await notify_supplier_assignment(
+                relationship, "esg", questionnaire["id"], questionnaire.get("name") or "ESG questionnaire",
+                due_date=questionnaire.get("due_date"),
+            )
+        return questionnaire
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
@@ -703,6 +830,13 @@ async def get_questionnaire_assignments(questionnaire_id: str, current_user: dic
 async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
     try:
         await supplier_service.assign_questionnaire_to_supplier(current_user["organization_id"], questionnaire_id, supplier_id)
+        questionnaire = await db.supplier_questionnaires.find_one(
+            {"id": questionnaire_id}, {"_id": 0, "name": 1, "due_date": 1},
+        ) or {}
+        await _notify_supplier_assignment_by_id(
+            supplier_id, "esg", questionnaire_id, questionnaire.get("name") or "ESG questionnaire",
+            due_date=questionnaire.get("due_date"),
+        )
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
