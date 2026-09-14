@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier unlock email notifications:** Parent-triggered reopening of an ESG questionnaire, GHG reporting period (including the legacy GHG reopen route), or Document response now sends the affected supplier a transactional email through the configured Resend delivery service. Messages identify the customer, reopened module/item, optional GHG instructions, and link to the supplier sign-in page.
+- Delivery attempts are recorded in `supplier_notification_deliveries` with a unique event key, status, and timestamps. This prevents duplicate emails when an unlock request is retried or reached through overlapping legacy/current GHG routes; a failed delivery is recorded without undoing the valid unlock.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Parent-config supplier module enforcement:** Supplier-facing Documents and Training now honor the parent organization’s current canonical module configuration even when an older immutable supplier program revision still has the module enabled. Disabled modules are removed from `/my-assessment`, onboarding tasks, dashboard panels, progress summaries, and supplier sidebar navigation. Direct supplier API access to disabled Document/Training list, viewer, response, and progress routes returns 403, while direct browser routes redirect to the Supplier Assessment dashboard.
 - **September 10, 2026 — Sinks filter reset lint repair:** Replaced the removed `setFilterYear` callback in the Sinks no-results action with the active reporting-period start/end month reset used by the main filter toolbar.
 - **NOT TESTED** per the user’s standing instruction.

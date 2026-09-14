@@ -50,6 +50,7 @@ from modules.supplier_assessment.contracts import (
 from modules.supplier_assessment import documents_service
 from modules.supplier_assessment import training_service
 from modules.supplier_assessment import ghg_submission_service
+from modules.supplier_assessment.unlock_notification_service import notify_supplier_module_unlocked
 from modules.sustainability_config import service as sustainability_config_service
 from modules.facilities.contracts import FacilityCreate, FacilityResponse
 from modules.facilities.router import create_facility_for_organization
@@ -929,6 +930,15 @@ async def reopen_questionnaire(
     
     success = await supplier_service.reopen_questionnaire(supplier_id, questionnaire_id, current_user["id"])
     if success:
+        reopened = await db.supplier_questionnaire_responses.find_one(
+            {"supplier_relationship_id": supplier_id, "questionnaire_id": questionnaire_id, "status": "in_progress", "is_current": True},
+            {"_id": 0, "id": 1},
+            sort=[("reopened_at", -1)],
+        ) or {}
+        questionnaire = await supplier_service.get_questionnaire(questionnaire_id)
+        await notify_supplier_module_unlocked(
+            supplier, "esg", reopened.get("id", ""), item_name=(questionnaire or {}).get("name"),
+        )
         await supplier_service._update_completion_status(supplier_id)
         return {"message": "Questionnaire reopened"}
     raise HTTPException(status_code=400, detail="Could not reopen questionnaire")
@@ -1002,6 +1012,7 @@ async def reopen_supplier_ghg(supplier_id: str, current_user: dict = Depends(get
         raise HTTPException(status_code=404, detail="Supplier not found")
     try:
         result = await ghg_submission_service.reopen_supplier_ghg(supplier, current_user["id"])
+        await notify_supplier_module_unlocked(supplier, "ghg", result.get("unlock_notification_event_id", ""))
         await supplier_service._update_completion_status(supplier_id)
         return result
     except ValueError as error:
@@ -1030,6 +1041,10 @@ async def unlock_parent_supplier_ghg_submission_period(
         result = await ghg_submission_service.unlock_supplier_ghg_period(
             supplier, period_key, current_user["id"], data.reason, data.supplier_instructions,
         )
+        await notify_supplier_module_unlocked(
+            supplier, "ghg", result["id"], item_name=f"GHG reporting period {result['period_key']}",
+            supplier_instructions=result.get("supplier_instructions"),
+        )
         await supplier_service._update_completion_status(supplier_id)
         return result
     except ValueError as error:
@@ -1038,8 +1053,12 @@ async def unlock_parent_supplier_ghg_submission_period(
 
 @router.post("/suppliers/{supplier_id}/documents/{requirement_id}/reopen")
 async def reopen_supplier_document(supplier_id: str, requirement_id: str, current_user: dict = Depends(get_customer_admin)):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
     try:
         result = await documents_service.reopen_supplier_document(current_user["organization_id"], supplier_id, requirement_id, current_user["id"])
+        await notify_supplier_module_unlocked(supplier, "documents", result["id"], item_name="Document response")
         await supplier_service._update_completion_status(supplier_id)
         return result
     except ValueError as error:

@@ -727,7 +727,13 @@ async def reopen_supplier_ghg(relationship: Dict[str, Any], reopened_by: str) ->
                 "is_current_revision": False,
             }},
         )
-    return {"status": "reopened", "source_submission_id": source_submission_id, "entry_count": len(copies), "reopened_at": now}
+    return {
+        "status": "reopened",
+        "source_submission_id": source_submission_id,
+        "unlock_notification_event_id": source_submission_id or visible_entries[0]["id"],
+        "entry_count": len(copies),
+        "reopened_at": now,
+    }
 
 
 async def get_parent_submitted_ghg(customer_org_id: str, reporting_period: Optional[str] = None) -> Dict[str, Any]:
