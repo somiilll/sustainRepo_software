@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — Supplier Ranking KPI visual refresh:** Redesigned the Supplier Ranking summary KPI cards to match the approved reference: a clean white surface, slim emerald top rule, generous pale-green icon tile, and oversized primary metric. Existing metric data and interactions remain unchanged.
+- **NOT TESTED** per the user’s standing instruction.
+
 - **September 10, 2026 — Supplier GHG tabs consolidated:** Moved the “Emissions by Supplier” and “Logs” view tabs into the Supplier GHG top control bar, alongside the emissions search and reporting-period selector.
 - **NOT TESTED** per the user’s standing instruction.
 

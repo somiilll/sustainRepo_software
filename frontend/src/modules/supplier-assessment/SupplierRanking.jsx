@@ -29,16 +29,21 @@ const buildRiskMatrix = (rankings, supplierTotals) => {
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const EMPTY_SUBMITTED_EMISSIONS = { emissions: [], supplier_totals: [] };
 
-const RankingMetric = ({ id, label, value, detail, Icon, tone = 'stone' }) => {
-  const themes = {
-    stone: { surface: 'border-blue-200 bg-gradient-to-br from-white via-white to-blue-50/75 shadow-[0_9px_24px_rgba(59,130,246,0.10)] hover:shadow-[0_14px_30px_rgba(59,130,246,0.16)]', accent: 'text-blue-600', icon: 'bg-blue-50 text-blue-600', wave: 'bg-blue-100/55' },
-    emerald: { surface: 'border-teal-200 bg-gradient-to-br from-white via-white to-emerald-50/80 shadow-[0_9px_24px_rgba(16,185,129,0.10)] hover:shadow-[0_14px_30px_rgba(16,185,129,0.16)]', accent: 'text-teal-600', icon: 'bg-teal-50 text-teal-600', wave: 'bg-emerald-100/55' },
-    amber: { surface: 'border-amber-200 bg-gradient-to-br from-white via-white to-amber-50/80 shadow-[0_9px_24px_rgba(245,158,11,0.10)] hover:shadow-[0_14px_30px_rgba(245,158,11,0.16)]', accent: 'text-amber-600', icon: 'bg-amber-50 text-amber-500', wave: 'bg-amber-100/55' },
-    rose: { surface: 'border-rose-200 bg-gradient-to-br from-white via-white to-rose-50/80 shadow-[0_9px_24px_rgba(244,63,94,0.10)] hover:shadow-[0_14px_30px_rgba(244,63,94,0.16)]', accent: 'text-rose-500', icon: 'bg-rose-50 text-rose-500', wave: 'bg-rose-100/60' },
-  };
-  const theme = themes[tone];
-  return <Card className={`group overflow-hidden rounded-2xl border-l-4 ${theme.surface} transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5`} data-testid={`supplier-ranking-${id}-metric`}><CardContent className="relative flex min-h-[142px] flex-col justify-between p-4"><span className={`absolute -bottom-14 -right-8 h-28 w-[85%] rotate-[-11deg] rounded-tl-[100%] ${theme.wave}`} aria-hidden="true" /><span className={`absolute -bottom-20 -right-2 h-28 w-[78%] rotate-[-11deg] rounded-tl-[100%] border-t border-current ${theme.accent} opacity-20`} aria-hidden="true" /><div className="relative flex items-center gap-3"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${theme.icon}`} data-testid={`supplier-ranking-${id}-icon`}><Icon className="h-5 w-5" aria-hidden="true" /></span><p className={`text-xs font-semibold uppercase tracking-wide ${theme.accent}`}>{label}</p></div><div className="relative"><p className="text-4xl font-semibold text-slate-950" data-testid={`supplier-ranking-${id}-value`}>{value}</p><p className="mt-1.5 truncate text-sm text-slate-500" data-testid={`supplier-ranking-${id}-detail`}>{detail}</p></div></CardContent></Card>;
-};
+const RankingMetric = ({ id, label, value, detail, Icon }) => (
+  <Card className="group relative overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-[0_4px_14px_rgba(28,25,23,0.10)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(28,25,23,0.14)]" data-testid={`supplier-ranking-${id}-metric`}>
+    <span className="absolute inset-x-0 top-0 h-1.5 bg-emerald-800" aria-hidden="true" />
+    <CardContent className="flex min-h-[205px] flex-col justify-between p-8 pt-10">
+      <div className="flex items-center gap-5">
+        <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[22px] bg-emerald-50 text-emerald-700" data-testid={`supplier-ranking-${id}-icon`}><Icon className="h-9 w-9" aria-hidden="true" /></span>
+        <p className="text-base font-semibold uppercase text-stone-600">{label}</p>
+      </div>
+      <div>
+        <p className="text-5xl font-semibold text-stone-950 sm:text-6xl" data-testid={`supplier-ranking-${id}-value`}>{value}</p>
+        <p className="mt-2 truncate text-sm text-stone-500" data-testid={`supplier-ranking-${id}-detail`}>{detail}</p>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export default function SupplierRanking() {
   const { getAuthHeader } = useAuth();
