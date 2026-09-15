@@ -650,6 +650,18 @@ export default function EmissionEntryForm({
       console.log('[OCR Debug] Setting category:', ocrPrefillData.category);
       setCategory(ocrPrefillData.category);
     }
+
+    if (ocrPrefillData.facility_id && facilities.some((facility) => facility.id === ocrPrefillData.facility_id)) {
+      setFacilityId(ocrPrefillData.facility_id);
+    }
+
+    if (ocrPrefillData.scope === 'scope3') {
+      if (ocrPrefillData.calculation_method_scope3) setScope3Method(ocrPrefillData.calculation_method_scope3);
+      if (ocrPrefillData.scope3_activity_type) setScope3ActivityType(ocrPrefillData.scope3_activity_type);
+      if (ocrPrefillData.scope3_subcategory) setScope3Subcategory(ocrPrefillData.scope3_subcategory);
+      if (ocrPrefillData.scope3_ef_id) setScope3ActivityId(ocrPrefillData.scope3_ef_id);
+      if (ocrPrefillData.supplier_name) setSupplierName(ocrPrefillData.supplier_name);
+    }
     
     // Set fuel type by looking up fuelId from fuelDatabase
     // For Scope 2 electricity, look for subcategory match (e.g., "Non-Renewable Electricity")
@@ -669,7 +681,9 @@ export default function EmissionEntryForm({
         subcategory: f.subcategory
       })));
       
-      let matchedFuel = null;
+      let matchedFuel = ocrPrefillData.fuel_id
+        ? fuelDatabase.find((fuel) => fuel.id === ocrPrefillData.fuel_id)
+        : null;
       
       // Helper function to check if any field matches the search term
       const fuelMatches = (fuel, searchTerm) => {
@@ -698,7 +712,7 @@ export default function EmissionEntryForm({
       };
       
       // For Scope 2, try to match by subcategory first (e.g., "Non-Renewable Electricity")
-      if (subcategoryLower) {
+      if (!matchedFuel && subcategoryLower) {
         matchedFuel = fuelDatabase.find(f => fuelMatches(f, subcategoryLower));
         if (matchedFuel) {
           console.log('[OCR Debug] Matched fuel by subcategory:', matchedFuel.name || matchedFuel.activity);
@@ -756,10 +770,18 @@ export default function EmissionEntryForm({
     }
     
     // Store quantity info for Phase 2 (after formConfig loads)
-    if (ocrPrefillData.quantity && ocrPrefillData.billing_period?.start_date) {
-      const startDate = new Date(ocrPrefillData.billing_period.start_date);
-      const monthKey = String(startDate.getMonth() + 1).padStart(2, '0');
-      const year = startDate.getFullYear();
+    const periodMatch = String(
+      ocrPrefillData.reporting_period || ocrPrefillData.billing_period?.start_date || '',
+    ).match(/^(\d{4})-(0[1-9]|1[0-2])/);
+    const hasOcrInput = [ocrPrefillData.quantity, ocrPrefillData.cost, ocrPrefillData.distance_km]
+      .some((value) => value !== undefined && value !== null && value !== '');
+    if (hasOcrInput && periodMatch) {
+      const [, extractedYear, extractedMonth] = periodMatch;
+      const monthKey = extractedMonth;
+      const calendarYear = Number(extractedYear);
+      const year = reportingYearType === 'financial' && Number(extractedMonth) <= 3
+        ? calendarYear - 1
+        : calendarYear;
       
       console.log('[OCR Debug] Phase 1 - Setting up pending quantity:', { monthKey, year, quantity: ocrPrefillData.quantity });
       
@@ -778,14 +800,16 @@ export default function EmissionEntryForm({
       setOcrPendingQuantity({
         monthKey,
         quantity: ocrPrefillData.quantity,
-        unit: ocrPrefillData.unit || ''
+        unit: ocrPrefillData.unit || '',
+        cost: ocrPrefillData.cost,
+        currency: ocrPrefillData.currency || '',
+        distance: ocrPrefillData.distance_km,
+        method: ocrPrefillData.calculation_method_scope3 || '',
       });
     }
-    
-    // Note: Facility is NOT auto-selected per spec
-    // Note: Process Name and Description are left empty per spec
-    
-  }, [ocrPrefillData, fuelDatabase]);
+
+    // Process Name and Description are intentionally left empty for review.
+  }, [facilities, fuelDatabase, ocrPrefillData, reportingYearType]);
 
   // Sync decisionFieldValues + custom-activity auto-enable now live inside
   // useEmissionFormState (F2 integration). The corresponding inline useEffects
@@ -1453,14 +1477,30 @@ export default function EmissionEntryForm({
       console.log('[OCR Debug] Phase 2 - No pending quantity, skipping');
       return;
     }
+    const hasNumericValue = (value) => value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value));
     if (!dynamicInputFields || dynamicInputFields.length === 0) {
       console.log('[OCR Debug] Phase 2 - No dynamicInputFields yet, waiting...');
+      if (loadingFormConfig) return;
+      if (hasNumericValue(ocrPendingQuantity.quantity) && ocrPendingQuantity.method !== 'spend_basis') {
+        setMonthlyData((previous) => ({
+          ...previous,
+          [ocrPendingQuantity.monthKey]: {
+            ...(previous[ocrPendingQuantity.monthKey] || {}),
+            quantity: Number(ocrPendingQuantity.quantity),
+            unit: ocrPendingQuantity.unit || '',
+          },
+        }));
+        setOcrPendingQuantity(null);
+      }
       return;
     }
     
     console.log('[OCR Debug] Phase 2 - Finding primary field...');
-    const primaryField = findPrimaryActivityField(dynamicInputFields);
-    
+    const isSpendImport = ocrPendingQuantity.method === 'spend_basis';
+    const primaryField = !isSpendImport && hasNumericValue(ocrPendingQuantity.quantity)
+      ? findPrimaryActivityField(dynamicInputFields)
+      : null;
+
     if (primaryField) {
       console.log('[OCR Prefill] Phase 2 - Found primary field:', primaryField.fieldKey);
       
@@ -1497,12 +1537,29 @@ export default function EmissionEntryForm({
         setMonthlyData,
         availableUnits
       );
-      // Clear pending after applying
-      setOcrPendingQuantity(null);
     } else {
-      console.log('[OCR Debug] Phase 2 - No primary field found!');
+      console.log('[OCR Debug] Phase 2 - No primary quantity field found or quantity is not applicable.');
     }
-  }, [ocrPendingQuantity, dynamicInputFields, findPrimaryActivityField, applyOcrQuantityToField, scope, biogenicScopeSelection, requiresSubcategory, selectedFuel, scope3ActivityId, filteredScope3Activities, centralizedUnits]);
+
+    setMonthlyData((previous) => {
+      const currentMonth = { ...(previous[ocrPendingQuantity.monthKey] || {}) };
+      const assignMappedValue = (patterns, value, unit) => {
+        if (!hasNumericValue(value)) return;
+        const field = dynamicInputFields.find((candidate) => {
+          const key = String(candidate.variable || candidate.fieldKey || '').toLowerCase();
+          return patterns.some((pattern) => key === pattern || key.includes(pattern));
+        });
+        if (!field) return;
+        const key = field.variable || field.fieldKey;
+        currentMonth[key] = Number(value);
+        if (unit) currentMonth[`${key}_unit`] = unit;
+      };
+      if (isSpendImport) assignMappedValue(['spent_value'], ocrPendingQuantity.cost, ocrPendingQuantity.currency);
+      assignMappedValue(['distance', 'km_travelled'], ocrPendingQuantity.distance, 'km');
+      return { ...previous, [ocrPendingQuantity.monthKey]: currentMonth };
+    });
+    setOcrPendingQuantity(null);
+  }, [ocrPendingQuantity, dynamicInputFields, loadingFormConfig, findPrimaryActivityField, applyOcrQuantityToField, scope, biogenicScopeSelection, requiresSubcategory, selectedFuel, scope3ActivityId, filteredScope3Activities, centralizedUnits]);
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks

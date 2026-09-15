@@ -51,6 +51,19 @@ const formatSavedMonths = (monthKeys) => {
   return `${monthNames.slice(0, -1).join(', ')}, and ${monthNames[monthNames.length - 1]}`;
 };
 
+const applyOcrEmissionMetadata = (payload, ocrPrefillData) => {
+  if (!ocrPrefillData) return payload;
+  const canonicalPayload = { ...payload };
+  ['naics_code', 'naics_label', 'naics_commodity', 'ef_database', 'accounting_rationale']
+    .forEach((field) => delete canonicalPayload[field]);
+  const invoiceNumber = String(ocrPrefillData.invoice_number || '').trim();
+  return {
+    ...canonicalPayload,
+    source_of_information: invoiceNumber ? `Invoice No. ${invoiceNumber}` : canonicalPayload.source_of_information,
+    record_source: 'OCR invoice upload',
+  };
+};
+
 export function useEmissionSubmit(ctx) {
   const submit = async () => {
     const {
@@ -96,7 +109,7 @@ export function useEmissionSubmit(ctx) {
         console.log('[OCR Finalize] Successfully finalized OCR import');
       } catch (err) {
         console.error('[OCR Finalize] Failed to finalize import:', err);
-        // Don't show error to user - emission was saved successfully
+        toast.error('GHG entry was saved, but the invoice could not yet be attached as evidence. The OCR row remains available for retry.');
       }
     };
     
@@ -353,9 +366,10 @@ export function useEmissionSubmit(ctx) {
         // 3. POST + UI semantics (kept here — orchestration responsibility of the page/form)
         if (c7Built.mode === 'yearly') {
           try {
-            await axios.post(`${API}${c7Built.endpoint}`, c7Built.payload, {
+            const response = await axios.post(`${API}${c7Built.endpoint}`, applyOcrEmissionMetadata(c7Built.payload, ocrPrefillData), {
               headers: getAuthHeader(),
             });
+            if (response.data?.id) await finalizeOcrImport([response.data.id]);
             toast.success(`Created yearly C7 Employee Commuting record for ${c7Built.reportingPeriod}`);
             onSuccess?.();
           } catch (error) {
@@ -379,17 +393,19 @@ export function useEmissionSubmit(ctx) {
         }
 
         let totalCo2e = 0;
+        const savedEmissionIds = [];
         const submissionBatchId = createSubmissionBatchId();
         let saveError = null;
         for (const { monthKey, monthCo2e, payload } of c7Built.payloads) {
           totalCo2e += monthCo2e;
           try {
-            await axios.post(`${API}${c7Built.endpoint}`, {
+            const response = await axios.post(`${API}${c7Built.endpoint}`, applyOcrEmissionMetadata({
               ...payload,
               submission_batch_id: submissionBatchId,
-            }, {
+            }, ocrPrefillData), {
               headers: getAuthHeader(),
             });
+            if (response.data?.id) savedEmissionIds.push(response.data.id);
           } catch (err) {
             console.error(`[C7] Failed to save ${monthKey}:`, err);
             saveError = `${monthKey}: ${getApiErrorMessage(err, 'Unable to save this month')}`;
@@ -406,6 +422,8 @@ export function useEmissionSubmit(ctx) {
           setIsSaving(false);
           return;
         }
+
+        if (savedEmissionIds.length > 0) await finalizeOcrImport(savedEmissionIds);
 
         toast.success(`Saved ${formatSavedMonths(c7Built.payloads.map(({ monthKey }) => monthKey))} for ${submissionEmployees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
         if (typeof onSuccess === 'function') onSuccess();
@@ -522,17 +540,20 @@ export function useEmissionSubmit(ctx) {
               return;
             }
 
-            const yPayload = {
+            const yPayload = applyOcrEmissionMetadata({
               ...yearlyMod.buildCreatePayload(yearlyData, {
                 ...yBaseCtx,
                 ...yearlyCalculation,
               }),
               // Yearly-only marker (legacy parity)
               frequency_type: 'yearly',
-            };
+          }, ocrPrefillData);
 
             const yResp = await axios.post(apiBase, yPayload, { headers: getAuthHeader() });
-            if (yResp.data?.id) linkAuditLog(yearlyCalculation.auditLogId, yResp.data.id);
+            if (yResp.data?.id) {
+              linkAuditLog(yearlyCalculation.auditLogId, yResp.data.id);
+              await finalizeOcrImport([yResp.data.id]);
+            }
             toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
             onSuccess?.();
           }
@@ -660,13 +681,13 @@ export function useEmissionSubmit(ctx) {
           preparedRows.push({
             monthKey,
             calculation: rowCalculation,
-            payload: {
+            payload: applyOcrEmissionMetadata({
               ...dispatchActiveModule.buildCreatePayload(data, {
                 ...baseCtx,
                 ...rowCalculation,
               }),
               submission_batch_id: submissionBatchId,
-            },
+            }, ocrPrefillData),
           });
         }
 

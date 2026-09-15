@@ -982,20 +982,43 @@ async def accept_line_item(
         }
     )
     
-    # Build source_of_information string
+    # OCR invoices are the authoritative source for the resulting GHG entry.
+    # Factor provenance remains represented by the resolved formula/version,
+    # rather than copying OCR-only classification metadata into emissions.
     invoice_num = current_values.get("invoice_number", "N/A")
     vendor = current_values.get("vendor_name", "Unknown Vendor")
-    source_info = f"Invoice No. {invoice_num} | Vendor: {vendor}"
+    source_info = f"Invoice No. {invoice_num}"
     facility = None
-    if current_values.get("location"):
+    if current_values.get("facility_id"):
+        facility = await db.facilities.find_one(
+            {
+                "id": current_values["facility_id"],
+                "organization_id": org_id,
+                "is_deleted": {"$ne": True},
+                "is_active": {"$ne": False},
+            },
+            {"_id": 0, "id": 1},
+        )
+    if not facility and current_values.get("location"):
         facility = await db.facilities.find_one(
             {
                 "organization_id": org_id,
                 "name": current_values["location"],
                 "is_deleted": {"$ne": True},
+                "is_active": {"$ne": False},
             },
             {"_id": 0, "id": 1},
         )
+
+    ocr_method = str(current_values.get("ef_method") or "").strip().lower()
+    scope3_method = {
+        "activity": "activity_basis",
+        "activity_basis": "activity_basis",
+        "spend": "spend_basis",
+        "spend_basis": "spend_basis",
+        "supplier": "supplier_basis",
+        "supplier_basis": "supplier_basis",
+    }.get(ocr_method)
     
     # Build response for emission form pre-fill
     prefill_data = {
@@ -1009,6 +1032,7 @@ async def accept_line_item(
         "fuel_name": current_values.get("fuel_name"),
         "quantity": current_values.get("quantity"),
         "unit": current_values.get("unit"),
+        "reporting_period": current_values.get("reporting_period"),
         
         # Billing period
         "billing_period": {
@@ -1027,25 +1051,19 @@ async def accept_line_item(
         "invoice_filename": item.get("filename"),
         
         # Additional context
-        "vendor_name": vendor,
         "invoice_number": invoice_num,
         "facility_id": facility.get("id") if facility else None,
         "cost": current_values.get("cost"),
         "currency": current_values.get("currency"),
-        "item_description": current_values.get("item_description"),
         "category_code": current_values.get("category_code"),
         "distance_km": current_values.get("distance_km"),
-        "ef_method": current_values.get("ef_method"),
-        "ef_database": current_values.get("ef_database"),
-        "ef_lookup_key": current_values.get("ef_lookup_key"),
-        "naics_code": current_values.get("naics_code"),
-        "naics_label": current_values.get("naics_label"),
-        "accounting_rationale": current_values.get("accounting_rationale"),
-        "calculation_method_scope3": f"{current_values.get('ef_method')}_basis" if current_values.get("scope") == "scope3" and current_values.get("ef_method") else None,
-        "scope3_activity": current_values.get("ef_lookup_key"),
-        "scope3_activity_type": current_values.get("category_key"),
-        "fuel_id": current_values.get("fuel_id"),
-        "scope3_ef_id": current_values.get("scope3_ef_id"),
+        "calculation_method_scope3": scope3_method if current_values.get("scope") == "scope3" else None,
+        "scope3_activity": current_values.get("ef_lookup_key") or current_values.get("subcategory"),
+        "scope3_activity_type": current_values.get("scope3_activity_type"),
+        "scope3_subcategory": current_values.get("scope3_subcategory"),
+        "supplier_name": vendor if current_values.get("scope") == "scope3" else None,
+        "fuel_id": current_values.get("fuel_id") or (current_values.get("factor_id") if current_values.get("scope") in {"scope1", "scope2"} else None),
+        "scope3_ef_id": current_values.get("scope3_ef_id") or (current_values.get("factor_id") if current_values.get("scope") == "scope3" and scope3_method != "supplier_basis" else None),
     }
     
     return {
@@ -1186,6 +1204,7 @@ async def finalize_import(
         {},
     )
     evidence_url = source_file.get("evidence_url")
+    evidence_file_id = source_file.get("evidence_file_id")
     
     logger.info(f"[OCR Finalize] temp_file_key: {temp_file_key}, filename: {filename}")
     
@@ -1198,6 +1217,13 @@ async def finalize_import(
     
     # Find emission records by invoice number if no IDs provided
     emission_record_ids = request.emission_record_ids
+    if emission_record_ids:
+        linked_records = await db.emission_records.find(
+            {"id": {"$in": emission_record_ids}, "organization_id": org_id},
+            {"_id": 0, "id": 1},
+        ).to_list(len(emission_record_ids))
+        if {record.get("id") for record in linked_records} != set(emission_record_ids):
+            raise HTTPException(status_code=422, detail="Each GHG record must belong to your organization before evidence can be attached.")
     if not emission_record_ids and invoice_number:
         # Search for recently created emissions with this invoice in source_of_information
         logger.info(f"[OCR Finalize] Searching for emissions with invoice number: {invoice_number}")
@@ -1246,6 +1272,7 @@ async def finalize_import(
                 if evidence_result and evidence_result.get("key"):
                     # Create uploaded_files record for proper file tracking
                     file_record_id = str(uuid.uuid4())
+                    evidence_file_id = file_record_id
                     file_record = {
                         "id": file_record_id,
                         "original_filename": filename,
@@ -1301,7 +1328,10 @@ async def finalize_import(
         for emission_id in emission_record_ids:
             try:
                 # Get current evidence - use evidence_url field (comma-separated string)
-                emission = await db.emission_records.find_one({"id": emission_id})
+                emission = await db.emission_records.find_one(
+                    {"id": emission_id, "organization_id": org_id},
+                    {"_id": 0, "id": 1, "evidence_url": 1},
+                )
                 logger.info(f"[OCR Finalize] Found emission record: {emission_id}, current evidence_url: {emission.get('evidence_url') if emission else 'NOT FOUND'}")
                 if emission:
                     # Parse existing evidence_url (comma-separated string) into list
@@ -1317,8 +1347,12 @@ async def finalize_import(
                     
                     # Update emission record
                     await db.emission_records.update_one(
-                        {"id": emission_id},
-                        {"$set": {"evidence_url": new_evidence_str}}
+                        {"id": emission_id, "organization_id": org_id},
+                        {"$set": {
+                            "evidence_url": new_evidence_str,
+                            "evidence_file_name": filename,
+                            "evidence_file_id": evidence_file_id,
+                        }}
                     )
                     logger.info(f"[OCR Finalize] Updated emission record {emission_id} with evidence_url: {new_evidence_str}")
             except Exception as e:
