@@ -132,8 +132,12 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   const sinksTotal = filteredData.filteredSinks || 0;
   const netEmissions = (totals.total || 0) - sinksTotal;
   const { turnover, productionQty, productionUnit, loading: intensityLoading } = useIntensityData(dateRange, selectedFacilities);
-  const revenueIntensity = turnover && turnover > 0 ? (totals.total || 0) / turnover : null;
-  const productionIntensity = productionQty && productionQty > 0 ? (totals.total || 0) / productionQty : null;
+  const [intensityMode, setIntensityMode] = useState('revenue');
+  const scope12Emissions = (totals.scope1 || 0) + (totals.scope2 || 0);
+  const intensityValue = intensityMode === 'revenue'
+    ? (turnover && turnover > 0 ? scope12Emissions / turnover : null)
+    : (productionQty && productionQty > 0 ? scope12Emissions / productionQty : null);
+  const intensityUnit = intensityMode === 'revenue' ? 'tCO₂e/Cr' : `tCO₂e/${productionUnit || 'unit'}`;
 
   const [selectedTargetId, setSelectedTargetId] = useState(null);
   const selectedTarget =
@@ -238,7 +242,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         <>
           <div className="space-y-4">
           {/* ROW 1: KPI cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             <KpiCard
               title="Total Emissions"
               value={totals.total}
@@ -265,22 +269,14 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               comparisonLabel={comparisonLabel}
             />
             <KpiCard
-              title="GHG Intensity by Revenue"
-              value={revenueIntensity}
-              unit="tCO₂e/Cr"
-              decimals={4}
-              sparkColor="#2563EB"
-              loading={intensityLoading}
-              emptyLabel="Revenue unavailable"
-            />
-            <KpiCard
-              title="GHG Intensity by Production"
-              value={productionIntensity}
-              unit={`tCO₂e/${productionUnit || 'unit'}`}
+              title="GHG Intensity"
+              value={intensityValue}
+              unit={intensityUnit}
               decimals={4}
               sparkColor="#0F766E"
               loading={intensityLoading}
-              emptyLabel="Production unavailable"
+              emptyLabel={intensityMode === 'revenue' ? 'Revenue unavailable' : 'Production unavailable'}
+              rightSlot={<select value={intensityMode} onChange={(event) => setIntensityMode(event.target.value)} className="max-w-[92px] rounded-md border border-stone-200 bg-white px-1.5 py-1 text-[10px] font-medium text-stone-600" data-testid="ghg-intensity-mode-selector" aria-label="GHG intensity calculation basis"><option value="revenue">Revenue</option><option value="production">Production</option></select>}
             />
             <GaugeCard
               targets={targets}
@@ -314,12 +310,12 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           </div>
 
           {/* ROW 3: Operational hotspots */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            <SectionCard className="lg:col-span-2" title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility" contentClassName="pb-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <SectionCard title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility" contentClassName="pb-0">
               <FacilityChart facilities={facilitySeries} />
             </SectionCard>
 
-            <SectionCard title="Emissions by Scope & Category" accent="#0F766E" testId="section-emissions-by-category" contentClassName="pr-5">
+            <SectionCard accent="#0F766E" testId="section-emissions-by-category">
               <EmissionsByScopeCategoryList data={scopedCategoryList} showScope3={hasScope3} />
             </SectionCard>
           </div>
