@@ -18,11 +18,13 @@ import { useOCR } from '../contexts/OCRContext';
 import { DocumentPreview } from '../modules/ocr/DocumentPreview';
 import { ExtractionModeSelector } from '../modules/ocr/ExtractionModeSelector';
 import { OcrEditDialog } from '../modules/ocr/OcrEditDialog';
+import { OcrFacilityAssignmentDialog } from '../modules/ocr/OcrFacilityAssignmentDialog';
 import { OcrBatchQueue } from '../modules/ocr/OcrBatchQueue';
 import { OcrReviewTable } from '../modules/ocr/OcrReviewTable';
 import { UploadWorkspace } from '../modules/ocr/UploadWorkspace';
 import {
   acceptOcrLineItem,
+  assignOcrUploadFacilities,
   deleteOcrUpload,
   downloadOcrTemplate,
   getOcrConfiguration,
@@ -40,6 +42,7 @@ const FALLBACK_CONFIGURATION = {
     { key: 'think', label: 'Think', vision_model: 'gpt-5.6-sol', reasoning_model: 'gpt-5.6-terra' },
   ],
   categories: [],
+  facilities: [],
 };
 
 const responseMessage = (error, fallback) => error?.response?.data?.detail || error?.response?.data?.message || fallback;
@@ -67,6 +70,12 @@ export default function OCRInvoice() {
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [fileQueue, setFileQueue] = useState([]);
   const [error, setError] = useState('');
+  const [facilityAssignmentFiles, setFacilityAssignmentFiles] = useState([]);
+  const [facilityAssignmentOpen, setFacilityAssignmentOpen] = useState(false);
+  const [facilityAssignmentSaving, setFacilityAssignmentSaving] = useState(false);
+  const [facilityPreviewFile, setFacilityPreviewFile] = useState(null);
+  const [facilityPreviewUrl, setFacilityPreviewUrl] = useState(null);
+  const [facilityPreviewLoading, setFacilityPreviewLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -100,6 +109,11 @@ export default function OCRInvoice() {
           setItems(unresolvedItems);
           setSelectedFile(unresolvedFiles[0] || null);
           setSelectedItem(unresolvedItems[0] || null);
+          const unassignedInvoiceFiles = unresolvedFiles.filter((file) => file.preview_supported && !file.facility_id);
+          if (unassignedInvoiceFiles.length) {
+            setFacilityAssignmentFiles(unassignedInvoiceFiles);
+            setFacilityAssignmentOpen(true);
+          }
         });
     }
     return () => { mounted = false; };
@@ -112,6 +126,10 @@ export default function OCRInvoice() {
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
+
+  useEffect(() => () => {
+    if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
+  }, [facilityPreviewUrl]);
 
   const selectedFileItems = useMemo(() => (
     selectedFile ? items.filter((item) => item.upload_id === selectedFile.upload_id && item.file_index === selectedFile.file_index) : items
@@ -162,6 +180,11 @@ export default function OCRInvoice() {
       localStorage.removeItem('ocr-active-upload-id');
       setSelectedFile(successfulFiles[0] || null);
       setSelectedItem(successfulItems[0] || null);
+      const invoiceFiles = successfulFiles.filter((file) => file.preview_supported);
+      if (invoiceFiles.length) {
+        setFacilityAssignmentFiles(invoiceFiles);
+        setFacilityAssignmentOpen(true);
+      }
       toast.success(`Extracted ${successfulItems.length} activity row${successfulItems.length === 1 ? '' : 's'}`);
     }
     if (failures.length) {
@@ -183,6 +206,58 @@ export default function OCRInvoice() {
       toast.error(responseMessage(requestError, 'Secure preview could not be loaded.'));
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  const previewFacilityAssignmentFile = async (file) => {
+    setFacilityPreviewFile(file);
+    setFacilityPreviewLoading(true);
+    try {
+      const response = await loadOcrPreview(file.upload_id, file.file_index, getAuthHeader());
+      if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
+      setFacilityPreviewUrl(URL.createObjectURL(response.data));
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'Secure preview could not be loaded.'));
+    } finally {
+      setFacilityPreviewLoading(false);
+    }
+  };
+
+  const saveFacilityAssignments = async (assignments) => {
+    const byUpload = assignments.reduce((groups, assignment) => {
+      groups[assignment.upload_id] = groups[assignment.upload_id] || [];
+      groups[assignment.upload_id].push({ file_index: assignment.file_index, facility_id: assignment.facility_id });
+      return groups;
+    }, {});
+    setFacilityAssignmentSaving(true);
+    try {
+      await Promise.all(Object.entries(byUpload).map(([uploadId, uploadAssignments]) => (
+        assignOcrUploadFacilities(uploadId, uploadAssignments, getAuthHeader())
+      )));
+      const assignmentByFile = new Map(assignments.map((assignment) => [`${assignment.upload_id}-${assignment.file_index}`, assignment]));
+      const applyAssignment = (item) => {
+        const assignment = assignmentByFile.get(`${item.upload_id}-${item.file_index}`);
+        return assignment ? { ...item, current_values: { ...item.current_values, facility_id: assignment.facility_id, location: assignment.facility_name } } : item;
+      };
+      setItems((current) => current.map(applyAssignment));
+      setSelectedItem((current) => current ? applyAssignment(current) : current);
+      setUpload((current) => current ? {
+        ...current,
+        files: current.files.map((file) => {
+          const assignment = assignmentByFile.get(`${file.upload_id}-${file.file_index}`);
+          return assignment ? { ...file, facility_id: assignment.facility_id, facility_name: assignment.facility_name } : file;
+        }),
+      } : current);
+      setFacilityAssignmentOpen(false);
+      setFacilityAssignmentFiles([]);
+      setFacilityPreviewFile(null);
+      if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
+      setFacilityPreviewUrl(null);
+      toast.success('Invoice facilities assigned');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'Invoice facilities could not be assigned.'));
+    } finally {
+      setFacilityAssignmentSaving(false);
     }
   };
 
@@ -372,6 +447,8 @@ export default function OCRInvoice() {
       )}
 
       <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) setEditingItem(null); }} configuration={configuration} onSave={saveEdit} saving={saving} getAuthHeaders={getAuthHeader} />
+
+      <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
 
       <AlertDialog open={Boolean(rejectingItem)} onOpenChange={(open) => { if (!open && !rejectingId) setRejectingItem(null); }}>
         <AlertDialogContent data-testid="ocr-reject-confirmation-dialog">

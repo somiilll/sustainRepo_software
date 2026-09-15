@@ -33,6 +33,9 @@ export const uploadOcrFiles = (files, mode, headers, onUploadProgress) => {
 export const updateOcrLineItem = (itemId, values, headers) =>
   axios.put(`${API}/api/ocr-invoice/line-items/${itemId}`, values, { headers });
 
+export const assignOcrUploadFacilities = (uploadId, assignments, headers) =>
+  axios.put(`${API}/api/ocr-invoice/uploads/${uploadId}/facility-assignments`, { assignments }, { headers });
+
 export const acceptOcrLineItem = (itemId, headers) =>
   axios.post(`${API}/api/ocr-invoice/line-items/${itemId}/accept`, {}, { headers });
 

@@ -35,6 +35,15 @@ class LineItemEdit(BaseModel):
     remember_override: bool = Field(default=False)
 
 
+class FileFacilityAssignment(BaseModel):
+    file_index: int = Field(ge=0)
+    facility_id: str = Field(min_length=1)
+
+
+class UploadFacilityAssignments(BaseModel):
+    assignments: List[FileFacilityAssignment] = Field(min_length=1)
+
+
 class FinalizeImportRequest(BaseModel):
     line_item_id: str
     emission_record_ids: List[str] = Field(default_factory=list)

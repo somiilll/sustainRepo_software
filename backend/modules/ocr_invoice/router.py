@@ -23,7 +23,7 @@ from . import invoice_processor
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MODES, get_mode
 from .factor_options import resolve_factor_options, validate_factor_selection
-from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit
+from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit, UploadFacilityAssignments
 from .service import build_org_context, process_upload_batch, save_vendor_override
 from .template_service import generate_ocr_template
 from .taxonomy_service import SCOPE3_CATEGORY_NAMES, SCOPE_CATEGORY_NAMES, WATER_CATEGORY_NAMES
@@ -673,6 +673,14 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
     """Return enabled scopes, available modes, and editable category options."""
     org_id = _get_org(current_user)
     _, scopes, disabled_scope3_sheets = await build_org_context(org_id)
+    facilities = await db.facilities.find(
+        {
+            "organization_id": org_id,
+            "is_deleted": {"$ne": True},
+            "is_active": {"$ne": False},
+        },
+        {"_id": 0, "id": 1, "name": 1},
+    ).sort("name", 1).to_list(1000)
     scopes = [scope for scope in ("scope1", "scope2", "scope3") if scope in scopes] + ["water"]
     scope_categories = list(SCOPE_CATEGORY_NAMES.items())
     categories = [
@@ -697,6 +705,7 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
             for mode in MODES.values()
         ],
         "categories": categories,
+        "facilities": facilities,
     }
 
 
@@ -716,6 +725,76 @@ async def get_ocr_factor_options(
         "method": method,
         "factors": options,
         "count": len(options),
+    }
+
+
+@router.put("/uploads/{upload_id}/facility-assignments")
+async def assign_upload_facilities(
+    upload_id: str,
+    request: UploadFacilityAssignments,
+    current_user: dict = Depends(get_current_user),
+):
+    """Assign each non-spreadsheet source document to an active organization facility."""
+    org_id = _get_org(current_user)
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"_id": 0, "files": 1},
+    )
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+
+    assignments_by_file = {assignment.file_index: assignment.facility_id for assignment in request.assignments}
+    if len(assignments_by_file) != len(request.assignments):
+        raise HTTPException(status_code=422, detail="Each invoice can be assigned to one facility only.")
+    upload_file_indexes = {file.get("file_index") for file in upload.get("files", [])}
+    if not set(assignments_by_file).issubset(upload_file_indexes):
+        raise HTTPException(status_code=422, detail="One or more selected invoices do not belong to this upload.")
+
+    facility_ids = set(assignments_by_file.values())
+    facilities = await db.facilities.find(
+        {
+            "id": {"$in": list(facility_ids)},
+            "organization_id": org_id,
+            "is_deleted": {"$ne": True},
+            "is_active": {"$ne": False},
+        },
+        {"_id": 0, "id": 1, "name": 1},
+    ).to_list(len(facility_ids))
+    facilities_by_id = {facility["id"]: facility for facility in facilities if facility.get("id")}
+    if facility_ids != set(facilities_by_id):
+        raise HTTPException(status_code=422, detail="Choose an active facility from your organization.")
+
+    assigned_at = datetime.now(timezone.utc).isoformat()
+    for file_index, facility_id in assignments_by_file.items():
+        facility = facilities_by_id[facility_id]
+        await db[OCR_LINE_ITEMS_COLLECTION].update_many(
+            {"upload_id": upload_id, "organization_id": org_id, "file_index": file_index},
+            {"$set": {
+                "current_values.facility_id": facility_id,
+                "current_values.location": facility.get("name", ""),
+                "updated_at": assigned_at,
+            }},
+        )
+        await db[OCR_UPLOADS_COLLECTION].update_one(
+            {"id": upload_id, "organization_id": org_id},
+            {"$set": {
+                "files.$[file].facility_id": facility_id,
+                "files.$[file].facility_name": facility.get("name", ""),
+                "files.$[file].facility_assigned_at": assigned_at,
+            }},
+            array_filters=[{"file.file_index": file_index}],
+        )
+
+    return {
+        "message": "Invoice facilities assigned",
+        "assignments": [
+            {
+                "file_index": file_index,
+                "facility_id": facility_id,
+                "facility_name": facilities_by_id[facility_id].get("name", ""),
+            }
+            for file_index, facility_id in assignments_by_file.items()
+        ],
     }
 
 
