@@ -29,6 +29,30 @@ def _units(record: dict) -> list[str]:
     return list(dict.fromkeys(values))
 
 
+def factor_database_fallback(scope: str, category: str, method: str, activity: str = "") -> str:
+    scope_key = normalize_option(scope)
+    method_key = normalize_method(method)
+    category_key = normalize_option(category)
+    activity_key = normalize_option(activity)
+    if method_key == "spend":
+        return "USEEIO"
+    if method_key == "supplier":
+        return "Supplier"
+    if scope_key == "scope1":
+        return "IPCC"
+    if scope_key == "scope2":
+        return "DEFRA" if any(token in category_key for token in ("heat", "steam", "cooling")) else "CEA"
+    if scope_key == "scope3":
+        if category_key.startswith("c3") and any(token in activity_key for token in ("tdloss", "gridloss", "transmission", "distributionloss")):
+            return "NITI Aayog"
+        if category_key.startswith("c5") or category_key.startswith("c12"):
+            return "US EPA"
+        return "DEFRA"
+    if scope_key == "water":
+        return "ESG Water"
+    return "Factor database"
+
+
 def _option(record: dict, *, value_field: str, source_fallback: str, collection: str) -> dict:
     value = str(record.get(value_field) or "").strip()
     naics_match = re.match(r"^(\d{2,6})\s*-\s*(.+)$", value)
@@ -67,7 +91,8 @@ async def resolve_factor_options(db, scope: str, category: str, method: str) -> 
             if category_key and not any(normalize_option(value) == category_key for value in categories if value):
                 continue
             if record.get("fuel_name"):
-                options.append(_option(record, value_field="fuel_name", source_fallback="fuel_database", collection="fuel_database"))
+                fallback = factor_database_fallback(scope, category, method, record.get("fuel_name") or "")
+                options.append(_option(record, value_field="fuel_name", source_fallback=fallback, collection="fuel_database"))
 
     elif scope_key == "scope3":
         records = await db.scope3_ef.find(
@@ -81,7 +106,8 @@ async def resolve_factor_options(db, scope: str, category: str, method: str) -> 
             if method_key and normalize_method(record.get("method")) != method_key:
                 continue
             if record.get("activity"):
-                options.append(_option(record, value_field="activity", source_fallback="scope3_ef", collection="scope3_ef"))
+                fallback = factor_database_fallback(scope, category, method, record.get("activity") or "")
+                options.append(_option(record, value_field="activity", source_fallback=fallback, collection="scope3_ef"))
 
     elif scope_key == "water" and method_key == "activity":
         records = await db.esg_record_categories.find(
@@ -138,6 +164,7 @@ async def validate_factor_selection(
     factor_id: str,
     lookup_value: str,
     unit: str,
+    currency: str,
 ) -> dict:
     options = await resolve_factor_options(db, scope, category, method)
     selected = next((option for option in options if option["id"] == factor_id), None)
@@ -146,8 +173,21 @@ async def validate_factor_selection(
     if selected is None:
         raise ValueError("Select a factor available for the chosen scope, category, and calculation method")
     allowed_units = selected.get("allowed_units") or []
-    if not unit:
-        raise ValueError("Select a quantity unit for the chosen factor")
-    if allowed_units and unit not in allowed_units:
-        raise ValueError(f"Unit '{unit}' is not allowed for '{selected['label']}'")
+    input_field = "currency" if normalize_method(method) == "spend" else "unit"
+    input_value = currency if input_field == "currency" else unit
+    if not allowed_units:
+        raise ValueError(f"No allowed {'currencies' if input_field == 'currency' else 'quantity units'} are configured for '{selected['label']}'")
+    if not input_value:
+        raise ValueError(f"Select a {'currency' if input_field == 'currency' else 'quantity unit'} for the chosen factor")
+    matched_value = next((value for value in allowed_units if value == input_value), None)
+    if matched_value is None:
+        for value in allowed_units:
+            aliases = selected.get("unit_aliases", {}).get(value, [value])
+            if any(normalize_option(alias) == normalize_option(input_value) for alias in aliases):
+                matched_value = value
+                break
+    if matched_value is None:
+        raise ValueError(f"{'Currency' if input_field == 'currency' else 'Unit'} '{input_value}' is not allowed for '{selected['label']}'")
+    selected["selected_input_field"] = input_field
+    selected["selected_input_value"] = matched_value or input_value
     return selected

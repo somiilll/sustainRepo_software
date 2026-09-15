@@ -11,6 +11,39 @@ import { getOcrFactorOptions } from './ocrApi';
 
 const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', remember_override: false };
 const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const words = (value) => String(value || '')
+  .toLowerCase()
+  .replace(/^\s*\d{2,6}\s*[-–—:]\s*/, '')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim()
+  .split(/\s+/)
+  .filter((word) => word.length > 1 && !['and', 'the', 'of', 'for', 'to', 'in', 'a', 'an'].includes(word));
+const variants = (value) => {
+  const withoutCode = String(value || '').replace(/^\s*\d{2,6}\s*[-–—:]\s*/, '').trim();
+  const suffix = withoutCode.includes(':') ? withoutCode.split(':').slice(1).join(':').trim() : '';
+  return [...new Set([normalize(withoutCode), normalize(suffix)].filter(Boolean))];
+};
+const similarity = (left, right) => {
+  const leftWords = new Set(words(left));
+  const rightWords = new Set(words(right));
+  if (!leftWords.size || !rightWords.size) return 0;
+  const common = [...leftWords].filter((word) => rightWords.has(word)).length;
+  const containment = common / Math.min(leftWords.size, rightWords.size);
+  const dice = (2 * common) / (leftWords.size + rightWords.size);
+  return (containment * 0.65) + (dice * 0.35);
+};
+const closestFactor = (options, candidates) => {
+  const values = candidates.filter(Boolean);
+  const exact = options.filter((option) => values.some((candidate) => variants(candidate).some((left) => variants(option.value).includes(left))));
+  if (exact.length === 1) return exact[0];
+  const contains = options.filter((option) => values.some((candidate) => variants(candidate).some((left) => variants(option.value).some((right) => left.length >= 4 && right.length >= 4 && (left.includes(right) || right.includes(left))))));
+  if (contains.length === 1) return contains[0];
+  const ranked = options
+    .map((option) => ({ option, score: Math.max(...values.map((candidate) => similarity(candidate, option.value)), 0) }))
+    .sort((left, right) => right.score - left.score);
+  if (ranked[0]?.score >= 0.75 && (!ranked[1] || ranked[0].score - ranked[1].score >= 0.1)) return ranked[0].option;
+  return null;
+};
 const matchingUnit = (factor, value) => (factor?.allowed_units || []).find((unit) => {
   const aliases = factor?.unit_aliases?.[unit] || [unit];
   return aliases.some((alias) => normalize(alias) === normalize(value));
@@ -57,12 +90,16 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
         setFactors(options);
         setValues((current) => {
           const selected = options.find((option) => option.id === current.factor_id)
-            || options.find((option) => normalize(option.value) === normalize(current.ef_lookup_key || current.subcategory))
-            || options.find((option) => normalize(option.value) === normalize(original.ef_lookup_key || original.subcategory));
+            || closestFactor(options, [current.ef_lookup_key, current.subcategory, original.ef_lookup_key, original.subcategory]);
           if (!selected) {
-            return { ...current, factor_id: '', fuel_id: '', scope3_ef_id: '', subcategory: '', fuel_name: '', ef_lookup_key: '', ef_database: '', unit: '' };
+            return {
+              ...current,
+              factor_id: '', fuel_id: '', scope3_ef_id: '', subcategory: '', fuel_name: '', ef_lookup_key: '', ef_database: '',
+              ...(current.ef_method === 'spend' ? { currency: '' } : { unit: '' }),
+            };
           }
-          const matchedUnit = matchingUnit(selected, current.unit || original.unit);
+          const isSpend = current.ef_method === 'spend';
+          const matchedInput = matchingUnit(selected, isSpend ? (current.currency || original.currency) : (current.unit || original.unit));
           return {
             ...current,
             factor_id: selected.id,
@@ -74,7 +111,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             ef_database: selected.database,
             naics_code: selected.naics_code || (selected.method === 'spend' ? current.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? current.naics_label : ''),
-            unit: matchedUnit || '',
+            ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
           };
         });
       })
@@ -86,13 +123,14 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       })
       .finally(() => { if (active) setFactorLoading(false); });
     return () => { active = false; };
-  }, [open, values.scope, values.category, values.ef_method, getAuthHeaders, original.ef_lookup_key, original.subcategory, original.unit]);
+  }, [open, values.scope, values.category, values.ef_method, getAuthHeaders, original.ef_lookup_key, original.subcategory, original.unit, original.currency]);
 
   const selectedFactor = useMemo(
     () => factors.find((factor) => factor.id === values.factor_id),
     [factors, values.factor_id],
   );
   const allowedUnits = selectedFactor?.allowed_units || [];
+  const isSpend = values.ef_method === 'spend';
   const set = (field, value) => setValues((current) => ({ ...current, [field]: value }));
   const resetFactor = (current, patch) => ({ ...current, ...patch, factor_id: '', fuel_id: '', scope3_ef_id: '', ef_database: '', naics_code: '', naics_label: '' });
 
@@ -107,7 +145,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   const changeFactor = (factorId) => {
     const factor = factors.find((option) => option.id === factorId);
     if (!factor) return;
-    const matchedUnit = matchingUnit(factor, values.unit);
+    const matchedInput = matchingUnit(factor, isSpend ? values.currency : values.unit);
     setValues((current) => ({
       ...current,
       factor_id: factor.id,
@@ -119,11 +157,11 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       ef_database: factor.database,
       naics_code: factor.naics_code || '',
       naics_label: factor.naics_label || '',
-      unit: matchedUnit || '',
+      ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
     }));
   };
 
-  const selectionComplete = Boolean(values.category && selectedFactor && values.subcategory && values.unit && !factorError);
+  const selectionComplete = Boolean(values.category && selectedFactor && values.subcategory && (isSpend ? values.currency : values.unit) && !factorError);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -135,7 +173,6 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
         <div className="grid gap-4 py-3 sm:grid-cols-2">
           {[
             ['invoice_number', 'Invoice number'], ['vendor_name', 'Vendor'], ['item_description', 'Item description'],
-            ['quantity', 'Quantity'], ['cost', 'Cost'], ['currency', 'Currency'],
             ['naics_code', 'NAICS code'], ['naics_label', 'NAICS commodity'],
           ].map(([field, label]) => (
             <div key={field} className="space-y-2">
@@ -168,17 +205,41 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             <Label>Subcategory / lookup</Label>
             <Select value={values.factor_id || ''} onValueChange={changeFactor} disabled={factorLoading || factors.length === 0}>
               <SelectTrigger data-testid="ocr-edit-subcategory-select"><SelectValue placeholder={factorLoading ? 'Loading factors…' : 'Select a subcategory'} /></SelectTrigger>
-              <SelectContent>{factors.map((factor, index) => <SelectItem key={`${factor.id}-${factor.value}`} value={factor.id} data-testid={`ocr-edit-factor-option-${index}`}>{factor.label}</SelectItem>)}</SelectContent>
+              <SelectContent>{factors.map((factor, index) => <SelectItem key={`${factor.id}-${factor.value}`} value={factor.id} data-testid={`ocr-edit-factor-option-${index}`}>{factor.label} · {factor.database}</SelectItem>)}</SelectContent>
             </Select>
             <ExtractedValue label="subcategory" value={original.ef_lookup_key || original.subcategory} field="subcategory" />
           </div>
           <div className="space-y-2">
-            <Label>Unit</Label>
-            <Select value={values.unit || ''} onValueChange={(unit) => set('unit', unit)} disabled={!selectedFactor || allowedUnits.length === 0}>
-              <SelectTrigger data-testid="ocr-edit-unit-select"><SelectValue placeholder="Select a unit" /></SelectTrigger>
-              <SelectContent>{allowedUnits.map((unit, index) => <SelectItem key={unit} value={unit} data-testid={`ocr-edit-unit-option-${index}`}>{unit}</SelectItem>)}</SelectContent>
-            </Select>
+            <Label htmlFor="ocr-quantity">Quantity</Label>
+            <Input id="ocr-quantity" type="number" value={values.quantity ?? ''} onChange={(event) => set('quantity', event.target.value === '' ? '' : Number(event.target.value))} data-testid="ocr-edit-quantity-input" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={isSpend ? 'ocr-quantity-unit' : undefined}>Unit of quantity</Label>
+            {isSpend ? (
+              <Input id="ocr-quantity-unit" value={values.unit || ''} onChange={(event) => set('unit', event.target.value)} data-testid="ocr-edit-quantity-unit-input" />
+            ) : (
+              <Select value={values.unit || ''} onValueChange={(unit) => set('unit', unit)} disabled={!selectedFactor || allowedUnits.length === 0}>
+                <SelectTrigger data-testid="ocr-edit-unit-select"><SelectValue placeholder="Select a unit" /></SelectTrigger>
+                <SelectContent>{allowedUnits.map((unit, index) => <SelectItem key={unit} value={unit} data-testid={`ocr-edit-unit-option-${index}`}>{unit}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
             <ExtractedValue label="unit" value={original.unit} field="unit" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ocr-cost">Cost</Label>
+            <Input id="ocr-cost" type="number" value={values.cost ?? ''} onChange={(event) => set('cost', event.target.value === '' ? '' : Number(event.target.value))} data-testid="ocr-edit-cost-input" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={isSpend ? undefined : 'ocr-currency'}>Currency</Label>
+            {isSpend ? (
+              <Select value={values.currency || ''} onValueChange={(currency) => set('currency', currency)} disabled={!selectedFactor || allowedUnits.length === 0}>
+                <SelectTrigger data-testid="ocr-edit-currency-select"><SelectValue placeholder="Select a currency" /></SelectTrigger>
+                <SelectContent>{allowedUnits.map((currency, index) => <SelectItem key={currency} value={currency} data-testid={`ocr-edit-currency-option-${index}`}>{currency}</SelectItem>)}</SelectContent>
+              </Select>
+            ) : (
+              <Input id="ocr-currency" value={values.currency || ''} onChange={(event) => set('currency', event.target.value)} data-testid="ocr-edit-currency-input" />
+            )}
+            <ExtractedValue label="currency" value={original.currency} field="currency" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="ocr-ef-database">Factor database</Label>
@@ -188,7 +249,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             {factorLoading && <p className="text-sm text-slate-600" data-testid="ocr-edit-factor-loading">Loading factor options…</p>}
             {!factorLoading && !factorError && values.category && factors.length === 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-no-factors">No factors are configured for this category and method. Choose another method or contact the factor administrator.</p>}
             {factorError && <p className="text-sm text-red-700" data-testid="ocr-edit-factor-error">{factorError}</p>}
-            {!selectionComplete && factors.length > 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-selection-required">Select a subcategory and one of its allowed units before saving.</p>}
+            {!selectionComplete && factors.length > 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-selection-required">Select a subcategory and {isSpend ? 'one of its supported currencies' : 'one of its allowed quantity units'} before saving.</p>}
           </div>
           <div className="space-y-2 sm:col-span-2"><Label htmlFor="ocr-rationale">Accounting rationale</Label><Textarea id="ocr-rationale" value={values.accounting_rationale || ''} onChange={(event) => set('accounting_rationale', event.target.value)} rows={3} data-testid="ocr-edit-rationale-input" /></div>
           <label className="flex items-start gap-3 border border-slate-200 bg-slate-50 p-3 sm:col-span-2" data-testid="ocr-remember-override-control">

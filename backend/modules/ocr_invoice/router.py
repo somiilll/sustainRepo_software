@@ -783,6 +783,7 @@ async def edit_line_item(
                 factor_id=candidate.get("factor_id") or "",
                 lookup_value=candidate.get("ef_lookup_key") or candidate.get("subcategory") or "",
                 unit=candidate.get("unit") or "",
+                currency=candidate.get("currency") or "",
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -794,9 +795,10 @@ async def edit_line_item(
             "ef_database": selected_factor["database"],
             "fuel_id": selected_factor["id"] if selected_factor["collection"] == "fuel_database" else "",
             "scope3_ef_id": selected_factor["id"] if selected_factor["collection"] == "scope3_ef" else "",
-            "naics_code": selected_factor.get("naics_code") or "",
-            "naics_label": selected_factor.get("naics_label") or "",
+            "naics_code": selected_factor.get("naics_code") or (candidate.get("naics_code") if selected_factor.get("method") == "spend" else ""),
+            "naics_label": selected_factor.get("naics_label") or (candidate.get("naics_label") if selected_factor.get("method") == "spend" else ""),
         })
+        submitted[selected_factor["selected_input_field"]] = selected_factor["selected_input_value"]
     for field, value in submitted.items():
         if value is not None:
             old_value = current_values.get(field)
