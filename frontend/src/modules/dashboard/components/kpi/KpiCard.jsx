@@ -65,10 +65,12 @@ export default function KpiCard({
         </div>
       </div>
       {deltaPct != null && (
-        <div className={`mt-3 flex items-center gap-1 text-xs font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-          <TrendIcon className="w-3.5 h-3.5" />
-          <span>{Math.abs(deltaPct).toFixed(1)}%</span>
-          <span className="text-stone-400 font-normal">{comparisonLabel ? `vs ${comparisonLabel.replace(/^Compared with\s*/i, '')}` : 'vs previous period'}</span>
+        <div className={`mt-3 text-xs font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+          <div className="flex items-center gap-1">
+            <TrendIcon className="w-3.5 h-3.5" />
+            <span>{Math.abs(deltaPct).toFixed(1)}%</span>
+          </div>
+          <p className="mt-1 text-[11px] font-normal leading-4 text-stone-400">{comparisonLabel ? `vs ${comparisonLabel.replace(/^Compared with\s*/i, '')}` : 'vs previous period'}</p>
         </div>
       )}
     </div>

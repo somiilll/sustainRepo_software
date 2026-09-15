@@ -9,7 +9,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 const BAR_GRADIENT_FROM = '#34D399';
 const BAR_GRADIENT_TO = '#10B981';
 
-export default function FacilityChart({ facilities = [], height = 400 }) {
+export default function FacilityChart({ facilities = [], height = 400, className = '' }) {
   const data = useMemo(() => facilities.slice(0, 10), [facilities]);
 
   if (!data.length) {
@@ -21,7 +21,7 @@ export default function FacilityChart({ facilities = [], height = 400 }) {
   }
 
   return (
-    <div data-testid="facility-chart">
+    <div className={`w-full ${className}`} data-testid="facility-chart">
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
           <defs>

@@ -310,9 +310,9 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           </div>
 
           {/* ROW 3: Operational hotspots */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <SectionCard title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility" contentClassName="pb-0">
-              <FacilityChart facilities={facilitySeries} />
+          <div className="grid grid-cols-1 items-stretch lg:grid-cols-2 gap-3">
+            <SectionCard className="flex min-h-[450px] flex-col" title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility" contentClassName="flex flex-1 flex-col pb-0">
+              <FacilityChart facilities={facilitySeries} height="100%" className="min-h-[400px] flex-1" />
             </SectionCard>
 
             <SectionCard accent="#0F766E" testId="section-emissions-by-category">
