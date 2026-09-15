@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Check, ChevronRight, Edit3, Search } from 'lucide-react';
+import { Check, ChevronRight, Edit3, Search, XCircle } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -23,7 +23,7 @@ const Confidence = ({ value }) => {
   );
 };
 
-export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, acceptingId }) => {
+export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, onReject, acceptingId, rejectingId }) => {
   const [query, setQuery] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [reviewFilter, setReviewFilter] = useState('all');
@@ -93,6 +93,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                   <TableCell>
                     <div className="flex justify-end gap-1">
                       <Button type="button" size="icon" variant="ghost" onClick={(event) => { event.stopPropagation(); onEdit(item); }} aria-label="Edit row" data-testid={`ocr-edit-row-${item.id}`}><Edit3 className="h-4 w-4" /></Button>
+                      <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={(event) => { event.stopPropagation(); onReject(item); }} disabled={rejectingId === item.id} aria-label="Reject row" data-testid={`ocr-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
                       <Button type="button" size="icon" onClick={(event) => { event.stopPropagation(); onAccept(item); }} disabled={acceptingId === item.id || item.status === 'imported'} aria-label="Accept row" data-testid={`ocr-accept-row-${item.id}`}><Check className="h-4 w-4" /></Button>
                     </div>
                   </TableCell>

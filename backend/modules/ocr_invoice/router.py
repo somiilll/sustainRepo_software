@@ -99,6 +99,72 @@ def _preview_path(upload_id: str, file_index: int) -> str:
     return f"/api/ocr-invoice/uploads/{upload_id}/files/{file_index}/preview"
 
 
+async def _resolve_ocr_line_item(item: dict, outcome: str) -> dict:
+    """Remove one resolved row and delete its source only after sibling rows resolve."""
+    upload_id = item.get("upload_id")
+    org_id = item.get("organization_id")
+    file_index = item.get("file_index", 0)
+    temp_key = item.get("temp_file_key")
+    await db[OCR_LINE_ITEMS_COLLECTION].delete_one({
+        "id": item.get("id"),
+        "organization_id": org_id,
+    })
+    now = datetime.now(timezone.utc).isoformat()
+    counter_field = "saved_count" if outcome == "saved" else "rejected_count"
+    await db[OCR_UPLOADS_COLLECTION].update_one(
+        {"id": upload_id, "organization_id": org_id},
+        {
+            "$inc": {
+                "files.$[file].resolved_count": 1,
+                f"files.$[file].{counter_field}": 1,
+            },
+            "$set": {
+                "files.$[file].last_resolved_at": now,
+                "updated_at": now,
+            },
+        },
+        array_filters=[{"file.file_index": file_index}],
+    )
+    remaining_for_file = await db[OCR_LINE_ITEMS_COLLECTION].count_documents({
+        "upload_id": upload_id,
+        "organization_id": org_id,
+        "file_index": file_index,
+    })
+    temp_deleted = False
+    if remaining_for_file == 0:
+        if temp_key:
+            try:
+                temp_deleted = await r2_storage.delete_file("ocr_temp", temp_key)
+            except Exception as error:
+                logger.warning("OCR temp cleanup deferred for %s: %s", temp_key, error)
+        file_updates = {
+            "files.$[file].resolution_status": "resolved",
+            "files.$[file].resolved_at": now,
+            "files.$[file].temp_cleanup_status": "deleted" if temp_deleted or not temp_key else "pending_retry",
+        }
+        if temp_deleted:
+            file_updates["files.$[file].temp_deleted_at"] = now
+        await db[OCR_UPLOADS_COLLECTION].update_one(
+            {"id": upload_id, "organization_id": org_id},
+            {"$set": file_updates},
+            array_filters=[{"file.file_index": file_index}],
+        )
+    remaining_for_upload = await db[OCR_LINE_ITEMS_COLLECTION].count_documents({
+        "upload_id": upload_id,
+        "organization_id": org_id,
+    })
+    if remaining_for_upload == 0:
+        await db[OCR_UPLOADS_COLLECTION].update_one(
+            {"id": upload_id, "organization_id": org_id},
+            {"$set": {"status": "resolved", "resolved_at": now, "updated_at": now}},
+        )
+    return {
+        "file_completed": remaining_for_file == 0,
+        "upload_completed": remaining_for_upload == 0,
+        "temp_deleted": temp_deleted,
+    }
+
+
 def _load_mappings() -> dict:
     """Load OCR mappings configuration."""
     if os.path.exists(MAPPINGS_PATH):
@@ -853,7 +919,15 @@ async def finalize_import(
     
     temp_file_key = item.get("temp_file_key")
     filename = item.get("filename", "invoice.pdf")
-    evidence_url = None
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": item.get("upload_id"), "organization_id": org_id},
+        {"_id": 0, "files": 1},
+    ) or {}
+    source_file = next(
+        (file for file in upload.get("files", []) if file.get("file_index") == item.get("file_index", 0)),
+        {},
+    )
+    evidence_url = source_file.get("evidence_url")
     
     logger.info(f"[OCR Finalize] temp_file_key: {temp_file_key}, filename: {filename}")
     
@@ -881,11 +955,11 @@ async def finalize_import(
         logger.info(f"[OCR Finalize] Found {len(emission_record_ids)} emission records: {emission_record_ids}")
     
     # Copy file from temp bucket to evidence bucket
-    if temp_file_key:
+    if temp_file_key and not evidence_url:
         try:
             logger.info(f"[OCR Finalize] Downloading from temp bucket: {temp_file_key}")
             # Download from temp bucket
-            temp_file_content, _ = await r2_storage.get_file('ocr_temp', temp_file_key)
+            temp_file_content, source_content_type = await r2_storage.get_file('ocr_temp', temp_file_key)
             
             if temp_file_content:
                 # Determine content type
@@ -896,7 +970,7 @@ async def finalize_import(
                     'jpg': 'image/jpeg',
                     'jpeg': 'image/jpeg'
                 }
-                content_type = content_types.get(ext, 'application/octet-stream')
+                content_type = source_content_type or content_types.get(ext, 'application/octet-stream')
                 
                 # Get org name for path (use org name instead of org_id)
                 org_doc = await db.organizations.find_one({"id": org_id}, {"name": 1, "_id": 0})
@@ -923,6 +997,7 @@ async def finalize_import(
                         "r2_key": evidence_result['key'],
                         "file_size": len(temp_file_content),
                         "content_type": content_type,
+                        "organization_id": org_id,
                         "uploaded_by": current_user.get("id"),
                         "uploaded_at": datetime.now(timezone.utc).isoformat(),
                         "source": "ocr_invoice"
@@ -931,23 +1006,36 @@ async def finalize_import(
                     
                     # Use /api/files/{id} format for permanent URL (not presigned)
                     evidence_url = f"/api/files/{file_record_id}"
+                    await db[OCR_UPLOADS_COLLECTION].update_one(
+                        {"id": item.get("upload_id"), "organization_id": org_id},
+                        {"$set": {
+                            "files.$[file].evidence_url": evidence_url,
+                            "files.$[file].evidence_file_id": file_record_id,
+                            "files.$[file].evidence_key": evidence_result["key"],
+                            "files.$[file].evidence_bucket": evidence_result.get("bucket"),
+                        }},
+                        array_filters=[{"file.file_index": item.get("file_index", 0)}],
+                    )
                     logger.info(f"[OCR Finalize] Created uploaded_files record: {file_record_id}, evidence_url: {evidence_url}")
                 
                 logger.info(f"[OCR Finalize] Copied invoice to evidence bucket: {evidence_url}")
                 
-                # Delete from temp bucket
-                try:
-                    await r2_storage.delete_file('ocr_temp', temp_file_key)
-                    logger.info(f"[OCR Finalize] Deleted temp file: {temp_file_key}")
-                except Exception as e:
-                    logger.warning(f"[OCR Finalize] Failed to delete temp file: {e}")
             else:
                 logger.warning(f"[OCR Finalize] Could not download temp file (content is None): {temp_file_key}")
                 
         except Exception as e:
             logger.error(f"[OCR Finalize] Error copying invoice to evidence bucket: {e}")
     else:
-        logger.warning(f"[OCR Finalize] No temp_file_key found in line item")
+        if evidence_url:
+            logger.info("[OCR Finalize] Reusing existing evidence file for source document")
+        else:
+            logger.warning(f"[OCR Finalize] No temp_file_key found in line item")
+
+    if not evidence_url:
+        raise HTTPException(
+            status_code=502,
+            detail="The emission was saved, but its source document could not be secured as evidence. Please retry the OCR finalization.",
+        )
     
     # Update emission records with evidence URL
     logger.info(f"[OCR Finalize] Updating emissions. evidence_url: {evidence_url}, emission_record_ids: {emission_record_ids}")
@@ -980,23 +1068,35 @@ async def finalize_import(
     else:
         logger.warning(f"[OCR Finalize] Skipping emission update - evidence_url: {evidence_url}, emission_record_ids count: {len(emission_record_ids) if emission_record_ids else 0}")
     
-    # Mark OCR line item as imported
-    await db[OCR_LINE_ITEMS_COLLECTION].update_one(
-        {"id": request.line_item_id},
-        {
-            "$set": {
-                "status": "imported",
-                "imported_at": datetime.now(timezone.utc).isoformat(),
-                "emission_record_ids": emission_record_ids,
-                "evidence_url": evidence_url
-            }
-        }
-    )
+    resolution = await _resolve_ocr_line_item(item, "saved")
     
     return {
         "message": "Import finalized successfully",
         "evidence_url": evidence_url,
-        "emission_record_ids": emission_record_ids
+        "emission_record_ids": emission_record_ids,
+        "line_item_removed": True,
+        **resolution,
+    }
+
+
+@router.post("/line-items/{item_id}/reject")
+async def reject_line_item(
+    item_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Reject and remove one extracted row, retaining shared source until all rows resolve."""
+    org_id = _get_org(current_user)
+    item = await db[OCR_LINE_ITEMS_COLLECTION].find_one(
+        {"id": item_id, "organization_id": org_id},
+        {"_id": 0},
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Line item not found")
+    resolution = await _resolve_ocr_line_item(item, "rejected")
+    return {
+        "message": "Line item rejected and removed",
+        "line_item_id": item_id,
+        **resolution,
     }
 
 
@@ -1021,28 +1121,13 @@ async def mark_as_imported(
     if not item:
         raise HTTPException(status_code=404, detail="Line item not found")
     
-    # Update item
-    await db[OCR_LINE_ITEMS_COLLECTION].update_one(
-        {"id": item_id},
-        {
-            "$set": {
-                "status": "imported",
-                "imported_at": datetime.now(timezone.utc).isoformat(),
-                "emission_record_ids": emission_record_ids,
-                "evidence_url": evidence_url
-            }
-        }
-    )
-    
-    # Clean up temp file from R2 (invoice is now stored as evidence)
-    temp_file_key = item.get("temp_file_key")
-    if temp_file_key:
-        try:
-            await r2_storage.delete_file('ocr_temp', temp_file_key)
-        except Exception as e:
-            logger.warning(f"Failed to delete temp file {temp_file_key}: {e}")
-    
-    return {"message": "Line item marked as imported"}
+    resolution = await _resolve_ocr_line_item(item, "saved")
+    return {
+        "message": "Line item imported and removed from the OCR queue",
+        "evidence_url": evidence_url,
+        "emission_record_ids": emission_record_ids,
+        **resolution,
+    }
 
 
 @router.delete("/uploads/{upload_id}")
@@ -1072,8 +1157,13 @@ async def delete_upload(
     # Delete temp files from R2
     deleted_keys = set()
     cleanup_failed = False
-    for item in line_items:
-        temp_key = item.get("temp_file_key")
+    source_keys = {
+        file.get("temp_key")
+        for file in upload.get("files", [])
+        if file.get("temp_key")
+    }
+    source_keys.update(item.get("temp_file_key") for item in line_items if item.get("temp_file_key"))
+    for temp_key in source_keys:
         if temp_key and temp_key not in deleted_keys:
             try:
                 deleted = await r2_storage.delete_file('ocr_temp', temp_key)

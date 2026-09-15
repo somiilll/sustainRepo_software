@@ -5,6 +5,9 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export const getOcrConfiguration = (headers) =>
   axios.get(`${API}/api/ocr-invoice/configuration`, { headers });
 
+export const getOcrUpload = (uploadId, headers) =>
+  axios.get(`${API}/api/ocr-invoice/uploads/${uploadId}`, { headers });
+
 export const uploadOcrFiles = (files, mode, headers, onUploadProgress) => {
   const body = new FormData();
   files.forEach((file) => body.append('files', file));
@@ -20,6 +23,9 @@ export const updateOcrLineItem = (itemId, values, headers) =>
 
 export const acceptOcrLineItem = (itemId, headers) =>
   axios.post(`${API}/api/ocr-invoice/line-items/${itemId}/accept`, {}, { headers });
+
+export const rejectOcrLineItem = (itemId, headers) =>
+  axios.post(`${API}/api/ocr-invoice/line-items/${itemId}/reject`, {}, { headers });
 
 export const deleteOcrUpload = (uploadId, headers) =>
   axios.delete(`${API}/api/ocr-invoice/uploads/${uploadId}`, { headers });

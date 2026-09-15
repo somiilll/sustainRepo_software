@@ -3,6 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Download, FileText, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useOCR } from '../contexts/OCRContext';
 import { DocumentPreview } from '../modules/ocr/DocumentPreview';
@@ -15,7 +25,9 @@ import {
   deleteOcrUpload,
   downloadOcrCsv,
   getOcrConfiguration,
+  getOcrUpload,
   loadOcrPreview,
+  rejectOcrLineItem,
   updateOcrLineItem,
   uploadOcrFiles,
 } from '../modules/ocr/ocrApi';
@@ -49,13 +61,35 @@ export default function OCRInvoice() {
   const [editingItem, setEditingItem] = useState(null);
   const [saving, setSaving] = useState(false);
   const [acceptingId, setAcceptingId] = useState(null);
+  const [rejectingItem, setRejectingItem] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let mounted = true;
-    getOcrConfiguration(getAuthHeader())
+    const headers = getAuthHeader();
+    getOcrConfiguration(headers)
       .then(({ data }) => { if (mounted) setConfiguration(data); })
       .catch(() => { if (mounted) setError('Organization OCR settings could not be loaded. Default options are shown.'); });
+    const activeUploadId = localStorage.getItem('ocr-active-upload-id');
+    if (activeUploadId) {
+      getOcrUpload(activeUploadId, headers)
+        .then(({ data }) => {
+          if (!mounted) return;
+          const unresolvedItems = data.line_items || [];
+          if (!unresolvedItems.length) {
+            localStorage.removeItem('ocr-active-upload-id');
+            return;
+          }
+          const unresolvedFileIndexes = new Set(unresolvedItems.map((item) => item.file_index));
+          const unresolvedFiles = (data.upload?.files || []).filter((file) => unresolvedFileIndexes.has(file.file_index));
+          setUpload({ ...data.upload, upload_id: data.upload.id, files: unresolvedFiles });
+          setItems(unresolvedItems);
+          setSelectedFile(unresolvedFiles[0] || null);
+          setSelectedItem(unresolvedItems[0] || null);
+        })
+        .catch(() => localStorage.removeItem('ocr-active-upload-id'));
+    }
     return () => { mounted = false; };
   }, [getAuthHeader]);
 
@@ -82,6 +116,7 @@ export default function OCRInvoice() {
       });
       setProgress(100);
       setUpload(data);
+      localStorage.setItem('ocr-active-upload-id', data.upload_id);
       setItems(data.line_items || []);
       setSelectedFile(data.files?.[0] || null);
       setSelectedItem(data.line_items?.[0] || null);
@@ -152,6 +187,36 @@ export default function OCRInvoice() {
     }
   };
 
+  const rejectItem = async () => {
+    if (!rejectingItem) return;
+    setRejectingId(rejectingItem.id);
+    try {
+      const { data } = await rejectOcrLineItem(rejectingItem.id, getAuthHeader());
+      const remainingItems = items.filter((item) => item.id !== rejectingItem.id);
+      const remainingFileIndexes = new Set(remainingItems.map((item) => item.file_index));
+      const remainingFiles = (upload?.files || []).filter((file) => remainingFileIndexes.has(file.file_index));
+      setItems(remainingItems);
+      setSelectedItem(remainingItems.find((item) => item.file_index === rejectingItem.file_index) || remainingItems[0] || null);
+      if (data.file_completed) {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+        setUpload((current) => current ? { ...current, files: remainingFiles } : current);
+        setSelectedFile(remainingFiles[0] || null);
+      }
+      if (data.upload_completed) {
+        localStorage.removeItem('ocr-active-upload-id');
+        setUpload(null);
+        setSelectedFile(null);
+      }
+      setRejectingItem(null);
+      toast.success(data.upload_completed ? 'All extracted rows have been resolved' : 'Row rejected and removed');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This row could not be rejected.'));
+    } finally {
+      setRejectingId(null);
+    }
+  };
+
   const exportCsv = async () => {
     if (!upload?.upload_id) return;
     try {
@@ -172,6 +237,7 @@ export default function OCRInvoice() {
     if (!upload?.upload_id) return;
     try {
       await deleteOcrUpload(upload.upload_id, getAuthHeader());
+      localStorage.removeItem('ocr-active-upload-id');
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setUpload(null); setItems([]); setSelectedFile(null); setSelectedItem(null); setPreviewUrl(null); setError('');
       toast.success('Extraction workspace cleared');
@@ -231,7 +297,7 @@ export default function OCRInvoice() {
             <DocumentPreview file={selectedFile} previewUrl={previewUrl} loading={previewLoading} onLoadPreview={loadPreview} />
           </section>
 
-          <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={setEditingItem} onAccept={acceptItem} acceptingId={acceptingId} />
+          <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={setEditingItem} onAccept={acceptItem} onReject={setRejectingItem} acceptingId={acceptingId} rejectingId={rejectingId} />
 
           {selectedItem && (
             <section className="border-l-4 border-emerald-600 bg-slate-50 p-4 lg:hidden" data-testid="ocr-selected-item-actions">
@@ -239,6 +305,7 @@ export default function OCRInvoice() {
               <p className="mt-1 text-xs text-slate-600">{selectedItem.current_values?.accounting_rationale}</p>
               <div className="mt-4 flex gap-2">
                 <Button type="button" variant="outline" onClick={() => setEditingItem(selectedItem)} data-testid="ocr-mobile-edit-button">Edit</Button>
+                <Button type="button" variant="outline" className="text-red-700 hover:bg-red-50" onClick={() => setRejectingItem(selectedItem)} data-testid="ocr-mobile-reject-button">Reject</Button>
                 <Button type="button" onClick={() => acceptItem(selectedItem)} disabled={acceptingId === selectedItem.id} data-testid="ocr-mobile-accept-button">Accept activity</Button>
               </div>
             </section>
@@ -247,6 +314,23 @@ export default function OCRInvoice() {
       )}
 
       <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) setEditingItem(null); }} configuration={configuration} onSave={saveEdit} saving={saving} />
+
+      <AlertDialog open={Boolean(rejectingItem)} onOpenChange={(open) => { if (!open && !rejectingId) setRejectingItem(null); }}>
+        <AlertDialogContent data-testid="ocr-reject-confirmation-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject this extracted row?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The row will be removed from the OCR queue. Its shared source file stays temporary until every row from that file is either saved or rejected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(rejectingId)} data-testid="ocr-reject-cancel-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={rejectItem} disabled={Boolean(rejectingId)} className="bg-red-700 hover:bg-red-800" data-testid="ocr-reject-confirm-button">
+              {rejectingId ? 'Rejecting…' : 'Reject row'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

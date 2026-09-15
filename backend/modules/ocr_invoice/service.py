@@ -120,6 +120,10 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
             "file_index": file_index,
             "preview_supported": extension not in SPREADSHEET_EXTENSIONS,
             "line_item_count": 0,
+            "resolved_count": 0,
+            "saved_count": 0,
+            "rejected_count": 0,
+            "resolution_status": "pending",
             "status": "processing",
         }
         upload_record["files"].append(file_info)
