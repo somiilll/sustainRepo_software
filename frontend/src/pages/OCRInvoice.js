@@ -24,6 +24,7 @@ import {
   acceptOcrLineItem,
   deleteOcrUpload,
   downloadOcrCsv,
+  downloadOcrTemplate,
   getOcrConfiguration,
   getOcrUpload,
   loadOcrPreview,
@@ -63,6 +64,7 @@ export default function OCRInvoice() {
   const [acceptingId, setAcceptingId] = useState(null);
   const [rejectingItem, setRejectingItem] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -233,6 +235,26 @@ export default function OCRInvoice() {
     }
   };
 
+  const downloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      const response = await downloadOcrTemplate(getAuthHeader());
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'ocr_activity_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('OCR spreadsheet template downloaded');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'The OCR spreadsheet template could not be downloaded.'));
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
   const clearUpload = async () => {
     if (!upload?.upload_id) return;
     try {
@@ -259,12 +281,15 @@ export default function OCRInvoice() {
               Convert invoices and ledgers into reviewable Scope 1, 2 and 3 activity data.
             </p>
           </div>
-          {upload && (
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={downloadTemplate} disabled={downloadingTemplate} data-testid="ocr-download-template-button">
+                {downloadingTemplate ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Download template
+              </Button>
+            {upload && <>
               <Button type="button" variant="outline" onClick={exportCsv} data-testid="ocr-export-csv-button"><Download className="mr-2 h-4 w-4" />Export CSV</Button>
               <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
-            </div>
-          )}
+            </>}
+          </div>
         </div>
       </header>
 
@@ -278,7 +303,7 @@ export default function OCRInvoice() {
       {!upload ? (
         <div className="grid gap-8 xl:grid-cols-[22rem_minmax(0,1fr)]">
           <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} />
-          <UploadWorkspace files={files} onFilesChange={setFiles} onProcess={processFiles} processing={processing} progress={progress} />
+          <UploadWorkspace files={files} onFilesChange={setFiles} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} />
         </div>
       ) : (
         <div className="space-y-8">

@@ -101,6 +101,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — OCR spreadsheet template restored:** Reintroduced the OCR template download in both the page header and upload workspace. The authenticated `/api/ocr-invoice/template/download` endpoint generates an importer-ready Excel ledger with the current organization’s active facility dropdown and supported currency choices; no spreadsheet template is stored in the application or R2. **NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 - **September 10, 2026 — Account access support:** Cleared the stored failed-login-attempt/lockout record for the admin account `goyalsomil2001@gmail.com` at the user’s request. No password, user profile, role, organization access, or authentication code was changed. **NOT TESTED** per the user’s explicit instruction.
 
 - **September 10, 2026 — GHG dashboard KPI and category redesign:** Updated the GHG executive dashboard to show six compact KPIs: Total Emissions, Sinks, Net Emissions, GHG Intensity by Revenue, GHG Intensity by Production, and Reduction Target Achieved. Removed the oversized decorative trend-arrow graphic while retaining concise percentage comparisons.

@@ -24,6 +24,7 @@ from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MODES, get_mode
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, LineItemEdit as AdvancedLineItemEdit
 from .service import process_upload_batch, save_vendor_override
+from .template_service import generate_ocr_template
 from .taxonomy_service import SCOPE3_CATEGORY_NAMES, SCOPE_CATEGORY_NAMES
 
 logger = logging.getLogger(__name__)
@@ -533,6 +534,22 @@ async def upload_invoices(
     except Exception as error:
         logger.exception("Advanced OCR upload failed", extra={"organization_id": org_id, "mode": mode})
         raise HTTPException(status_code=500, detail="Invoice extraction failed. Please verify the file and try again.") from error
+
+
+@router.get("/template/download")
+async def download_ocr_template(current_user: dict = Depends(get_current_user)):
+    """Download a spreadsheet that the OCR ledger importer can read directly."""
+    org_id = _get_org(current_user)
+    try:
+        template = await generate_ocr_template(db, org_id)
+    except Exception as error:
+        logger.exception("OCR template generation failed", extra={"organization_id": org_id})
+        raise HTTPException(status_code=500, detail="The OCR spreadsheet template could not be generated.") from error
+    return StreamingResponse(
+        template,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=ocr_activity_template.xlsx"},
+    )
 
 
 @router.get("/uploads")

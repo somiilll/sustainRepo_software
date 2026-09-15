@@ -1,11 +1,11 @@
 import React, { useRef, useState } from 'react';
-import { FileSpreadsheet, FileText, Loader2, UploadCloud, X } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Loader2, UploadCloud, X } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
 
 const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.csv,.xlsx,.xls';
 
-export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, progress }) => {
+export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate }) => {
   const inputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -47,17 +47,28 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
         <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
           Invoices, utility bills, receipts, CSV ledgers and Excel workbooks up to 20MB each.
         </p>
-        <Button
-          type="button"
-          variant="outline"
-          className="mt-5"
-          onClick={() => inputRef.current?.click()}
-          disabled={processing}
-          data-testid="ocr-browse-files-button"
-        >
-          <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-          Browse files
-        </Button>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => inputRef.current?.click()}
+            disabled={processing}
+            data-testid="ocr-browse-files-button"
+          >
+            <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
+            Browse files
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onDownloadTemplate}
+            disabled={processing || downloadingTemplate}
+            data-testid="ocr-download-template-upload-button"
+          >
+            {downloadingTemplate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" aria-hidden="true" />}
+            Download template
+          </Button>
+        </div>
       </div>
 
       {files.length > 0 && (

@@ -5,6 +5,12 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export const getOcrConfiguration = (headers) =>
   axios.get(`${API}/api/ocr-invoice/configuration`, { headers });
 
+export const downloadOcrTemplate = (headers) =>
+  axios.get(`${API}/api/ocr-invoice/template/download`, {
+    headers,
+    responseType: 'blob',
+  });
+
 export const getOcrUpload = (uploadId, headers) =>
   axios.get(`${API}/api/ocr-invoice/uploads/${uploadId}`, { headers });
 
