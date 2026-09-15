@@ -238,7 +238,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         <>
           <div className="space-y-4">
           {/* ROW 1: KPI cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <KpiCard
               title="Total Emissions"
               value={totals.total}
@@ -315,11 +315,11 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
 
           {/* ROW 3: Operational hotspots */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            <SectionCard title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility" contentClassName="pb-0">
+            <SectionCard className="lg:col-span-2" title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility" contentClassName="pb-0">
               <FacilityChart facilities={facilitySeries} />
             </SectionCard>
 
-            <SectionCard className="lg:col-span-2" title="Emissions by Scope & Category" accent="#0F766E" testId="section-emissions-by-category" contentClassName="pr-5">
+            <SectionCard title="Emissions by Scope & Category" accent="#0F766E" testId="section-emissions-by-category" contentClassName="pr-5">
               <EmissionsByScopeCategoryList data={scopedCategoryList} showScope3={hasScope3} />
             </SectionCard>
           </div>

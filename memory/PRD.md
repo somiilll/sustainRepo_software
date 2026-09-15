@@ -102,6 +102,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ## Latest Change — September 8, 2026
 - **September 10, 2026 — GHG dashboard KPI and category redesign:** Updated the GHG executive dashboard to show six compact KPIs: Total Emissions, Sinks, Net Emissions, GHG Intensity by Revenue, GHG Intensity by Production, and Reduction Target Achieved. Removed the oversized decorative trend-arrow graphic while retaining concise percentage comparisons.
+- Follow-up layout adjustment: the six KPI cards now form one desktop row from the `lg` breakpoint onward, with responsive wrapping retained on smaller screens. The Facility-wise Emissions panel now occupies two-thirds of the operational row and Emissions by Scope & Category one-third.
 - The Base Year comparison empty state now provides a **Configure Base Year** action to `/ghg/base-year`. Replaced the separate Scope 3 Hotspots and Emission Categories cards with a filterable `Emissions by Scope & Category` list for All, Scope 1, Scope 2, and Scope 3 categories, including proportional bars, values, percentages, and an emissions-module shortcut.
 - No backend, calculation, target, authorization, or API-contract behavior changed. **NOT RUNTIME-TESTED** per the user’s standing instruction; source-reviewed only.
 
