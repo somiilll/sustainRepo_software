@@ -54,6 +54,7 @@ export function buildFacilitySeries(facilitiesData = []) {
     scope2: f.scope2_emissions || 0,
     scope3: f.scope3_emissions || 0,
     biogenic: f.biogenic_emissions || 0,
+    scopeCategories: f.scope_categories || {},
   }));
 }
 

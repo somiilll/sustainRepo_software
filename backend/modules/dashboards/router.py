@@ -534,6 +534,21 @@ async def get_dashboard_stats(
         scope2 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope2") * equity_factor
         scope3 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope3") * equity_factor
         biogenic = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
+        scope_category_totals = {"scope1": {}, "scope2": {}, "scope3": {}}
+        for emission in facility_emissions:
+            scope = emission.get("scope")
+            if scope not in scope_category_totals:
+                continue
+            category = emission.get("category") or "Uncategorized"
+            adjusted_value = get_emission_value(emission) * equity_factor
+            scope_category_totals[scope][category] = scope_category_totals[scope].get(category, 0.0) + adjusted_value
+        scope_categories = {
+            scope: [
+                {"name": category, "value": round(value, 2)}
+                for category, value in sorted(categories.items(), key=lambda item: -item[1])
+            ]
+            for scope, categories in scope_category_totals.items()
+        }
         
         emissions_by_facility.append({
             "facility_id": facility["id"],
@@ -543,6 +558,7 @@ async def get_dashboard_stats(
             "scope2_emissions": round(scope2, 2),
             "scope3_emissions": round(scope3, 2),
             "biogenic_emissions": round(biogenic, 2),
+            "scope_categories": scope_categories,
             "equity_share_percentage": round(equity_factor * 100, 1) if use_equity_share else 100.0
         })
     
