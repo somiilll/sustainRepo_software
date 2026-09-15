@@ -12,6 +12,7 @@ class LineItemEdit(BaseModel):
     category: Optional[str] = None
     category_key: Optional[str] = None
     category_code: Optional[str] = None
+    facility_id: Optional[str] = None
     subcategory: Optional[str] = None
     fuel_name: Optional[str] = None
     quantity: Optional[float] = None

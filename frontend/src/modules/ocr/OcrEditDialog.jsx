@@ -74,15 +74,28 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   useEffect(() => {
     if (item) {
       const current = { ...emptyValues, ...(item.current_values || {}) };
+      const matchingFacility = configuration.facilities?.find((facility) => (
+        facility.id === current.facility_id || facility.name === current.location
+      ));
       if (current.scope === 'water') current.ef_method = 'activity';
       setValues({
         ...current,
+        facility_id: current.facility_id || matchingFacility?.id || '',
         reporting_period: reportingPeriodFromDate(current.reporting_period)
           || reportingPeriodFromDate(current.date)
           || reportingPeriodFromDate(item.original_values?.date),
       });
     }
   }, [item]);
+
+  useEffect(() => {
+    if (!item || !configuration.facilities?.length) return;
+    setValues((current) => {
+      if (current.facility_id) return current;
+      const matchingFacility = configuration.facilities.find((facility) => facility.name === current.location);
+      return matchingFacility ? { ...current, facility_id: matchingFacility.id } : current;
+    });
+  }, [configuration.facilities, item]);
 
   const categories = useMemo(
     () => configuration.categories.filter((option) => option.scope === values.scope),
@@ -209,6 +222,13 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             </Select>
           </div>
           <div className="space-y-2">
+            <Label data-testid="ocr-edit-facility-label">Facility</Label>
+            <Select value={values.facility_id || ''} onValueChange={(facilityId) => set('facility_id', facilityId)}>
+              <SelectTrigger data-testid="ocr-edit-facility-select"><SelectValue placeholder="Select facility" /></SelectTrigger>
+              <SelectContent>{(configuration.facilities || []).map((facility) => <SelectItem key={facility.id} value={facility.id} data-testid={`ocr-edit-facility-${facility.id}`}>{facility.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label>Calculation method</Label>
             <Select value={values.ef_method || 'activity'} onValueChange={changeMethod} disabled={values.scope === 'water'}>
               <SelectTrigger data-testid="ocr-edit-method-select"><SelectValue /></SelectTrigger>
@@ -224,10 +244,6 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             <ExtractedValue label="subcategory" value={original.ef_lookup_key || original.subcategory} field="subcategory" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="ocr-quantity">Quantity</Label>
-            <Input id="ocr-quantity" type="number" value={values.quantity ?? ''} onChange={(event) => set('quantity', event.target.value === '' ? '' : Number(event.target.value))} data-testid="ocr-edit-quantity-input" />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="ocr-reporting-period">Reporting period</Label>
             <div className="relative">
               <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" />
@@ -235,33 +251,41 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             </div>
             <ExtractedValue label="date" value={original.date} field="date" />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor={isSpend ? 'ocr-quantity-unit' : undefined}>Unit of quantity</Label>
-            {isSpend ? (
-              <Input id="ocr-quantity-unit" value={values.unit || ''} onChange={(event) => set('unit', event.target.value)} data-testid="ocr-edit-quantity-unit-input" />
-            ) : (
-              <Select value={values.unit || ''} onValueChange={(unit) => set('unit', unit)} disabled={!selectedFactor || allowedUnits.length === 0}>
-                <SelectTrigger data-testid="ocr-edit-unit-select"><SelectValue placeholder="Select a unit" /></SelectTrigger>
-                <SelectContent>{allowedUnits.map((unit, index) => <SelectItem key={unit} value={unit} data-testid={`ocr-edit-unit-option-${index}`}>{unit}</SelectItem>)}</SelectContent>
-              </Select>
-            )}
-            <ExtractedValue label="unit" value={original.unit} field="unit" />
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-quantity-unit-row">
+            <div className="space-y-2">
+              <Label htmlFor="ocr-quantity">Quantity</Label>
+              <Input id="ocr-quantity" type="number" value={values.quantity ?? ''} onChange={(event) => set('quantity', event.target.value === '' ? '' : Number(event.target.value))} data-testid="ocr-edit-quantity-input" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={isSpend ? 'ocr-quantity-unit' : undefined}>Unit of quantity</Label>
+              {isSpend ? (
+                <Input id="ocr-quantity-unit" value={values.unit || ''} onChange={(event) => set('unit', event.target.value)} data-testid="ocr-edit-quantity-unit-input" />
+              ) : (
+                <Select value={values.unit || ''} onValueChange={(unit) => set('unit', unit)} disabled={!selectedFactor || allowedUnits.length === 0}>
+                  <SelectTrigger data-testid="ocr-edit-unit-select"><SelectValue placeholder="Select a unit" /></SelectTrigger>
+                  <SelectContent>{allowedUnits.map((unit, index) => <SelectItem key={unit} value={unit} data-testid={`ocr-edit-unit-option-${index}`}>{unit}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
+              <ExtractedValue label="unit" value={original.unit} field="unit" />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="ocr-cost">Cost</Label>
-            <Input id="ocr-cost" type="number" value={values.cost ?? ''} onChange={(event) => set('cost', event.target.value === '' ? '' : Number(event.target.value))} data-testid="ocr-edit-cost-input" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={isSpend ? undefined : 'ocr-currency'}>Currency</Label>
-            {isSpend ? (
-              <Select value={values.currency || ''} onValueChange={(currency) => set('currency', currency)} disabled={!selectedFactor || allowedUnits.length === 0}>
-                <SelectTrigger data-testid="ocr-edit-currency-select"><SelectValue placeholder="Select a currency" /></SelectTrigger>
-                <SelectContent>{allowedUnits.map((currency, index) => <SelectItem key={currency} value={currency} data-testid={`ocr-edit-currency-option-${index}`}>{currency}</SelectItem>)}</SelectContent>
-              </Select>
-            ) : (
-              <Input id="ocr-currency" value={values.currency || ''} onChange={(event) => set('currency', event.target.value)} data-testid="ocr-edit-currency-input" />
-            )}
-            <ExtractedValue label="currency" value={original.currency} field="currency" />
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-cost-currency-row">
+            <div className="space-y-2">
+              <Label htmlFor="ocr-cost">Cost</Label>
+              <Input id="ocr-cost" type="number" value={values.cost ?? ''} onChange={(event) => set('cost', event.target.value === '' ? '' : Number(event.target.value))} data-testid="ocr-edit-cost-input" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={isSpend ? undefined : 'ocr-currency'}>Currency</Label>
+              {isSpend ? (
+                <Select value={values.currency || ''} onValueChange={(currency) => set('currency', currency)} disabled={!selectedFactor || allowedUnits.length === 0}>
+                  <SelectTrigger data-testid="ocr-edit-currency-select"><SelectValue placeholder="Select a currency" /></SelectTrigger>
+                  <SelectContent>{allowedUnits.map((currency, index) => <SelectItem key={currency} value={currency} data-testid={`ocr-edit-currency-option-${index}`}>{currency}</SelectItem>)}</SelectContent>
+                </Select>
+              ) : (
+                <Input id="ocr-currency" value={values.currency || ''} onChange={(event) => set('currency', event.target.value)} data-testid="ocr-edit-currency-input" />
+              )}
+              <ExtractedValue label="currency" value={original.currency} field="currency" />
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="ocr-ef-database">Factor database</Label>

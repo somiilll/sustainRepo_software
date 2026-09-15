@@ -851,6 +851,19 @@ async def edit_line_item(
     
     submitted = edit_data.model_dump(exclude_unset=True)
     remember_override = submitted.pop("remember_override", False)
+    if submitted.get("facility_id"):
+        facility = await db.facilities.find_one(
+            {
+                "id": submitted["facility_id"],
+                "organization_id": org_id,
+                "is_deleted": {"$ne": True},
+                "is_active": {"$ne": False},
+            },
+            {"_id": 0, "id": 1, "name": 1},
+        )
+        if not facility:
+            raise HTTPException(status_code=422, detail="Choose an active facility from your organization.")
+        submitted["location"] = facility.get("name", "")
     if submitted.get("factor_id"):
         candidate = {**current_values, **{key: value for key, value in submitted.items() if value is not None}}
         try:
