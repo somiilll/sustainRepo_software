@@ -28,6 +28,8 @@ SCOPE3_METHODS = {
     "supplier": "supplier_basis",
     "supplier_basis": "supplier_basis",
 }
+MASS_UNITS = {"g", "gram", "grams", "kg", "kilogram", "kilograms", "t", "tonne", "tonnes", "metricton", "metrictons", "lb", "lbs", "pound", "pounds"}
+VOLUME_UNITS = {"ml", "millilitre", "millilitres", "l", "litre", "litres", "liter", "liters", "kl", "kilolitre", "kilolitres", "kiloliter", "kiloliters", "m3", "m³", "gallon", "gallons", "gal"}
 
 
 def scope3_method(value: Any) -> str | None:
@@ -41,6 +43,15 @@ def _number(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def quantity_basis(unit: Any) -> str:
+    normalized = str(unit or "").strip().lower().replace(" ", "")
+    if normalized in MASS_UNITS:
+        return "mass"
+    if normalized in VOLUME_UNITS:
+        return "volume"
+    raise ValueError("The extracted quantity unit must be a recognized mass or volume unit for Stationary or Mobile Combustion.")
 
 
 async def resolve_ghg_category(db, values: dict) -> dict:
@@ -80,8 +91,15 @@ def build_decision_inputs(values: dict, category: dict) -> dict:
             decisions["activity_type"] = values["scope3_activity_type"]
         if values.get("scope3_subcategory"):
             decisions["scope3_subcategory"] = values["scope3_subcategory"]
+        if method == "spend_basis":
+            decisions["spend_currency_conversion_method"] = normalize_currency_method(
+                values.get("spend_currency_conversion_method")
+            )
     elif scope == "scope1":
         decisions["calculation_methodology"] = values.get("calculation_methodology") or "using_qty_basis_ef"
+        if decisions["calculation_methodology"] in {"using_qty_basis_ef", "using_heat_basis_ncv"}:
+            basis_key = "ef_quantity_basis" if decisions["calculation_methodology"] == "using_qty_basis_ef" else "cv_quantity_basis"
+            decisions[basis_key] = values.get(basis_key) or quantity_basis(values.get("unit"))
     if values.get("type_of_product"):
         decisions["type_of_product"] = values["type_of_product"]
     if category.get("code"):

@@ -1127,6 +1127,17 @@ async def save_line_item_to_ghg(
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
+    resolved_decisions = calculation["decision_inputs"]
+    await db[OCR_LINE_ITEMS_COLLECTION].update_one(
+        {"id": item_id, "organization_id": org_id},
+        {"$set": {
+            "current_values.spend_currency_conversion_method": resolved_decisions.get("spend_currency_conversion_method"),
+            "current_values.calculation_methodology": resolved_decisions.get("calculation_methodology"),
+            "current_values.ef_quantity_basis": resolved_decisions.get("ef_quantity_basis"),
+            "current_values.cv_quantity_basis": resolved_decisions.get("cv_quantity_basis"),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
     method = scope3_method(values.get("ef_method")) if values.get("scope") == "scope3" else None
     invoice_number = str(values.get("invoice_number") or "").strip()
     emission_payload = EmissionRecordCreate(
