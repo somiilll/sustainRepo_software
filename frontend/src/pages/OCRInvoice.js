@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Download, FileText, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -314,6 +314,15 @@ export default function OCRInvoice() {
     }
   };
 
+  const saveAutomaticFactorMatch = useCallback(async (values) => {
+    if (!editingItem) return;
+    const { data } = await updateOcrLineItem(editingItem.id, values, getAuthHeader());
+    setItems((current) => current.map((item) => item.id === editingItem.id ? data.line_item : item));
+    setSelectedItem(data.line_item);
+    setEditingItem(data.line_item);
+    setEditingRequiredFields((current) => current.filter((field) => field !== 'factor_id'));
+  }, [editingItem, getAuthHeader]);
+
   const acceptItem = async (item) => {
     setAcceptingId(item.id);
     try {
@@ -493,7 +502,7 @@ export default function OCRInvoice() {
         </div>
       )}
 
-      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) { setEditingItem(null); setEditingRequiredFields([]); } }} configuration={configuration} onSave={saveEdit} saving={saving} getAuthHeaders={getAuthHeader} requiredFields={editingRequiredFields} />
+      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) { setEditingItem(null); setEditingRequiredFields([]); } }} configuration={configuration} onSave={saveEdit} onAutoMatch={saveAutomaticFactorMatch} saving={saving} getAuthHeaders={getAuthHeader} requiredFields={editingRequiredFields} />
 
       <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onHidePreview={hideFacilityAssignmentPreview} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
 

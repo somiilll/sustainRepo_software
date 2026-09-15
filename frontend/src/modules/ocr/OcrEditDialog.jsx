@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Loader2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -64,12 +64,15 @@ const ExtractedValue = ({ label, value, field }) => (
   </p>
 );
 
-export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave, saving, getAuthHeaders, requiredFields = [] }) => {
+export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave, onAutoMatch, saving, getAuthHeaders, requiredFields = [] }) => {
   const [values, setValues] = useState(emptyValues);
   const [factors, setFactors] = useState([]);
   const [factorLoading, setFactorLoading] = useState(false);
   const [factorError, setFactorError] = useState('');
+  const automaticMatchRef = useRef('');
   const original = item?.original_values || {};
+
+  useEffect(() => { automaticMatchRef.current = ''; }, [item?.id]);
 
   useEffect(() => {
     if (item) {
@@ -116,8 +119,11 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
         const options = data.factors || [];
         setFactors(options);
         setValues((current) => {
-          const selected = options.find((option) => option.id === current.factor_id)
-            || closestFactor(options, [current.ef_lookup_key, current.subcategory, original.ef_lookup_key, original.subcategory]);
+          const storedFactor = options.find((option) => option.id === current.factor_id);
+          const automaticFactor = storedFactor
+            ? null
+            : closestFactor(options, [current.ef_lookup_key, current.subcategory, original.ef_lookup_key, original.subcategory]);
+          const selected = storedFactor || automaticFactor;
           if (!selected) {
             return {
               ...current,
@@ -127,7 +133,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           }
           const isSpend = current.ef_method === 'spend';
           const matchedInput = matchingUnit(selected, isSpend ? (current.currency || original.currency) : (current.unit || original.unit));
-          return {
+          const nextValues = {
             ...current,
             factor_id: selected.id,
             fuel_id: selected.collection === 'fuel_database' ? selected.id : '',
@@ -140,6 +146,14 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_label: selected.naics_label || (selected.method === 'spend' ? current.naics_label : ''),
             ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
           };
+          const automaticMatchKey = automaticFactor ? `${item?.id}:${automaticFactor.id}` : '';
+          if (automaticFactor && onAutoMatch && automaticMatchRef.current !== automaticMatchKey) {
+            automaticMatchRef.current = automaticMatchKey;
+            onAutoMatch(nextValues).catch(() => {
+              if (active) setFactorError('The matched factor could not be saved. Select it and save changes manually.');
+            });
+          }
+          return nextValues;
         });
       })
       .catch(() => {
@@ -150,7 +164,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       })
       .finally(() => { if (active) setFactorLoading(false); });
     return () => { active = false; };
-  }, [open, values.scope, values.category, values.ef_method, getAuthHeaders, original.ef_lookup_key, original.subcategory, original.unit, original.currency]);
+  }, [open, values.scope, values.category, values.ef_method, getAuthHeaders, onAutoMatch, original.ef_lookup_key, original.subcategory, original.unit, original.currency]);
 
   const selectedFactor = useMemo(
     () => factors.find((factor) => factor.id === values.factor_id),
