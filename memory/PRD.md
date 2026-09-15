@@ -101,6 +101,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — GHG dashboard KPI and category redesign:** Updated the GHG executive dashboard to show six compact KPIs: Total Emissions, Sinks, Net Emissions, GHG Intensity by Revenue, GHG Intensity by Production, and Reduction Target Achieved. Removed the oversized decorative trend-arrow graphic while retaining concise percentage comparisons.
+- The Base Year comparison empty state now provides a **Configure Base Year** action to `/ghg/base-year`. Replaced the separate Scope 3 Hotspots and Emission Categories cards with a filterable `Emissions by Scope & Category` list for All, Scope 1, Scope 2, and Scope 3 categories, including proportional bars, values, percentages, and an emissions-module shortcut.
+- No backend, calculation, target, authorization, or API-contract behavior changed. **NOT RUNTIME-TESTED** per the user’s standing instruction; source-reviewed only.
+
 - **September 10, 2026 — Newer Bulk Upload central audit trail:** Added the `Bulk Upload` audit module and visible audit-log filter. The active Scope 3 bulk upload flow now records template downloads, validation uploads (including failed processing), confirmed imports, validation-report downloads, results-report downloads, and job deletions.
 - Audit entries identify the actor, organization, job, scope, artifact/action, safe row totals, validation results, and deleted-record count where applicable. Audit persistence is best-effort and cannot disrupt an otherwise successful Bulk Upload action.
 - **NOT RUNTIME-TESTED** per the user’s standing instruction; source-reviewed only.

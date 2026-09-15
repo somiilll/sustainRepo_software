@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
-import { Loader2, Activity, RadioTower } from 'lucide-react';
+import { Loader2, RadioTower } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
 import StickyFilterBar from './components/filters/StickyFilterBar';
@@ -19,22 +19,20 @@ import GaugeCard from './components/kpi/GaugeCard';
 import ScopeTrendChart from './components/charts/ScopeTrendChart';
 import EmissionsByScopeDonut from './components/charts/EmissionsByScopeDonut';
 import FacilityChart from './components/charts/FacilityChart';
-import Scope3Hotspots from './components/charts/Scope3Hotspots';
-import EmissionCategoriesChart from './components/charts/EmissionCategoriesChart';
+import EmissionsByScopeCategoryList from './components/charts/EmissionsByScopeCategoryList';
 import GeoHeatmap from './components/charts/GeoHeatmap';
 import BaseYearComparisonChart from './components/charts/BaseYearChart';
 import { DashboardExportButton } from './pdf-export';
 import {
   buildSparklineSeries,
-  deriveTrendDeltas,
   buildEmissionsByScope,
   buildFacilitySeries,
-  buildScope3Hotspots,
-  buildCategoryBreakdown,
+  buildScopedCategoryList,
   buildHeatPoints,
   buildBaseYearChartData,
 } from './services/dataTransformers';
 import usePreviousYearData from './services/fetchPreviousYearData';
+import { useIntensityData } from './hooks/useIntensityData';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -92,12 +90,9 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   const totals = filteredData.totals;
   // const trendDeltas = useMemo(() => deriveTrendDeltas(filteredData.trend), [filteredData.trend]);
   const totalSparkData = useMemo(() => buildSparklineSeries(filteredData.trend, 'total'), [filteredData.trend]);
-  const scope1Spark = useMemo(() => buildSparklineSeries(filteredData.trend, 'scope1'), [filteredData.trend]);
-  const scope2Spark = useMemo(() => buildSparklineSeries(filteredData.trend, 'scope2'), [filteredData.trend]);
   const donutData = useMemo(() => buildEmissionsByScope(totals, hasScope3), [totals, hasScope3]);
   const facilitySeries = useMemo(() => buildFacilitySeries(filteredData.facilities), [filteredData.facilities]);
-  const scope3Hotspots = useMemo(() => buildScope3Hotspots(stats?.emissions_by_category), [stats]);
-  const categoryBreakdown = useMemo(() => buildCategoryBreakdown(stats?.emissions_by_category), [stats]);
+  const scopedCategoryList = useMemo(() => buildScopedCategoryList(stats?.emissions_by_category), [stats]);
   const baseYearChart = useMemo(() => buildBaseYearChartData(baseYearComparison, totals, hasScope3), [baseYearComparison, totals, hasScope3]);
   const heatPoints = useMemo(() => buildHeatPoints(facilities, filteredData.facilities), [facilities, filteredData.facilities]);
   const trendDeltas = useMemo(() => {
@@ -136,6 +131,9 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
 
   const sinksTotal = filteredData.filteredSinks || 0;
   const netEmissions = (totals.total || 0) - sinksTotal;
+  const { turnover, productionQty, productionUnit, loading: intensityLoading } = useIntensityData(dateRange, selectedFacilities);
+  const revenueIntensity = turnover && turnover > 0 ? (totals.total || 0) / turnover : null;
+  const productionIntensity = productionQty && productionQty > 0 ? (totals.total || 0) / productionQty : null;
 
   const [selectedTargetId, setSelectedTargetId] = useState(null);
   const selectedTarget =
@@ -240,7 +238,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         <>
           <div className="space-y-4">
           {/* ROW 1: KPI cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3">
             <KpiCard
               title="Total Emissions"
               value={totals.total}
@@ -250,7 +248,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               comparisonLabel={comparisonLabel}
             />
             <KpiCard
-              title="Total Sinks"
+              title="Sinks"
               value={sinksTotal}
               deltaPct={trendDeltas.sinksDelta}
               sparkData={[]}
@@ -265,6 +263,24 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               sparkData={totalSparkData}
               sparkColor="#F59E0B"
               comparisonLabel={comparisonLabel}
+            />
+            <KpiCard
+              title="GHG Intensity by Revenue"
+              value={revenueIntensity}
+              unit="tCO₂e/Cr"
+              decimals={4}
+              sparkColor="#2563EB"
+              loading={intensityLoading}
+              emptyLabel="Revenue unavailable"
+            />
+            <KpiCard
+              title="GHG Intensity by Production"
+              value={productionIntensity}
+              unit={`tCO₂e/${productionUnit || 'unit'}`}
+              decimals={4}
+              sparkColor="#0F766E"
+              loading={intensityLoading}
+              emptyLabel="Production unavailable"
             />
             <GaugeCard
               targets={targets}
@@ -298,19 +314,13 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           </div>
 
           {/* ROW 3: Operational hotspots */}
-          <div className={`grid grid-cols-1 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-3`}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             <SectionCard title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility" contentClassName="pb-0">
               <FacilityChart facilities={facilitySeries} />
             </SectionCard>
 
-            {hasScope3 && (
-              <SectionCard title="Scope 3 Emission Hotspots" subtitle="By category" accent="#8B5CF6" testId="section-scope3-hotspots" contentClassName="pb-0">
-                <Scope3Hotspots data={scope3Hotspots} />
-              </SectionCard>
-            )}
-
-            <SectionCard title="Emission Categories" subtitle="Top categories across scopes" accent="#F59E0B" testId="section-categories" contentClassName="pr-2">
-              <EmissionCategoriesChart data={categoryBreakdown} />
+            <SectionCard className="lg:col-span-2" title="Emissions by Scope & Category" accent="#0F766E" testId="section-emissions-by-category" contentClassName="pr-5">
+              <EmissionsByScopeCategoryList data={scopedCategoryList} showScope3={hasScope3} />
             </SectionCard>
           </div>
 

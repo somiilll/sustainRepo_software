@@ -245,6 +245,9 @@
 
 
 import React, { useMemo } from 'react';
+import { Settings2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '../../../../components/ui/button';
 import {
   ResponsiveContainer,
   BarChart,
@@ -335,6 +338,7 @@ export default function BaseYearChart({
   data = [],
   height = 340,
 }) {
+  const navigate = useNavigate();
   const chartData = useMemo(() => {
     return data.map((r) => ({
       ...r,
@@ -351,8 +355,18 @@ export default function BaseYearChart({
 
   if (!chartData.length) {
     return (
-      <div className="flex items-center justify-center h-[280px] text-sm text-stone-400">
-        No base year comparison data
+      <div className="flex min-h-[280px] flex-col items-center justify-center px-6 text-center" data-testid="base-year-comparison-empty">
+        <Settings2 className="mb-3 h-7 w-7 text-teal-600" aria-hidden="true" />
+        <p className="text-sm font-medium text-stone-700" data-testid="base-year-comparison-empty-message">No base year comparison data</p>
+        <p className="mt-1 max-w-sm text-xs leading-5 text-stone-500">Set a base year to compare your current emissions progress by scope.</p>
+        <Button
+          size="sm"
+          className="mt-4 bg-teal-700 text-white hover:bg-teal-800"
+          onClick={() => navigate('/ghg/base-year')}
+          data-testid="configure-base-year-button"
+        >
+          Configure Base Year
+        </Button>
       </div>
     );
   }

@@ -6,8 +6,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Minus, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import AnimatedNumber from '../shared/AnimatedNumber';
-import GlowSparkline from '../shared/GlowSparkline';
-import TrendArrow from '../shared/TrendArrow';
 
 export default function KpiCard({
   title,
@@ -22,6 +20,7 @@ export default function KpiCard({
   loading = false,
   ariaLabel,
   comparisonLabel,
+  emptyLabel = 'Not available',
 }) {
   const trend =
     deltaPct == null ? 'flat' :
@@ -51,31 +50,19 @@ export default function KpiCard({
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{title}</p>
         {rightSlot}
       </div>
-      <div className="flex items-end justify-between gap-2">
+      <div className="flex items-end gap-2">
         <div className="min-w-0">
           <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums" data-testid={`kpi-value-${title.toLowerCase().replace(/\s+/g, '-')}`}>
             {loading ? (
               <span className="inline-block h-8 w-24 bg-stone-200 rounded animate-pulse" />
+            ) : value == null || !Number.isFinite(Number(value)) ? (
+              <span className="text-base font-medium text-stone-400">{emptyLabel}</span>
             ) : (
               <AnimatedNumber value={value} decimals={decimals} />
             )}
           </div>
           <div className="text-[11px] text-stone-500 mt-0.5">{unit}</div>
         </div>
-        {trend !== 'flat' && (
-          <TrendArrow
-            trend={trend}
-            color={
-              invertedColor
-                ? trend === 'up'
-                  ? '#10B981'
-                  : '#EF4444'
-                : trend === 'up'
-                  ? '#EF4444'
-                  : '#10B981'
-            }
-          />
-        )}
       </div>
       {deltaPct != null && (
         <div className={`mt-3 flex items-center gap-1 text-xs font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>

@@ -131,6 +131,16 @@ export function buildCategoryBreakdown(categories = []) {
     .slice(0, 5);
 }
 
+export function buildScopedCategoryList(categories = []) {
+  return (categories || [])
+    .map((category) => ({
+      name: category.category || category.name,
+      scope: detectScopeForCategory(category),
+      value: Number(category.total_emissions || category.value || 0),
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
 export function buildBaseYearChartData(
   baseYearComparison,
   totals,
