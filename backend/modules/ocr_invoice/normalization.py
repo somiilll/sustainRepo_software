@@ -16,6 +16,11 @@ MONTHS = {
     "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
 }
 
+MONTH_NAMES = {
+    1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June",
+    7: "July", 8: "August", 9: "September", 10: "October", 11: "November", 12: "December",
+}
+
 
 def extract_json(raw_text: str, default: Any = None) -> Any:
     text = str(raw_text or "").strip()
@@ -23,17 +28,51 @@ def extract_json(raw_text: str, default: Any = None) -> Any:
     text = re.sub(r"\s*```$", "", text).strip()
     if not text:
         return default
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        match = re.search(r"[\[{]", text)
-        if not match:
-            return default
+    match = re.search(r"[\[{]", text)
+    if not match:
+        return default
+    candidate = text[match.start():]
+    candidates = [candidate]
+    if candidate.startswith("[") and (last_object := candidate.rfind("}")) >= 0:
+        candidates.append(candidate[:last_object + 1].rstrip().rstrip(",") + "]")
+    if candidate.startswith("{") and (last_object := candidate.rfind("}")) >= 0:
+        prefix = candidate[:last_object + 1].rstrip().rstrip(",")
+        candidates.extend((prefix + "]}", prefix + "}"))
+
+    stack: list[str] = []
+    in_string = False
+    escaped = False
+    for character in candidate:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            continue
+        if character == '"':
+            in_string = True
+        elif character in "[{":
+            stack.append(character)
+        elif character in "]}" and stack:
+            expected = "[" if character == "]" else "{"
+            if stack[-1] == expected:
+                stack.pop()
+    if stack and not in_string:
+        repaired = candidate.rstrip().rstrip(",") + "".join("]" if opening == "[" else "}" for opening in reversed(stack))
+        candidates.append(repaired)
+
+    for value in candidates:
         try:
-            value, _ = json.JSONDecoder().raw_decode(text[match.start():])
-            return value
+            return json.loads(value)
         except json.JSONDecodeError:
-            return default
+            continue
+    try:
+        value, _ = json.JSONDecoder().raw_decode(candidate)
+        return value
+    except json.JSONDecodeError:
+        return default
 
 
 def sanitize_json(value: Any) -> Any:
@@ -70,9 +109,9 @@ def normalize_confidence_score(value: Any, fallback: Any = None) -> int | None:
 
 
 def parse_number(value: Any, *, positive: bool = False) -> tuple[float | None, str | None]:
-    if value is None or str(value).strip().lower() in {"", "none", "null", "n/a", "-", "—"}:
+    if value is None or str(value).strip().lower() in {"", "none", "null", "-", "—"}:
         return None, None
-    cleaned = re.sub(r"(?i)\b(rs\.?|inr|usd|eur|gbp)\b|[$₹€£,\s]", "", str(value))
+    cleaned = re.sub(r"(?i)\b(rs\.?|inr|usd|eur|gbp|re)\b|[$₹€£,\s]", "", str(value))
     try:
         number = float(cleaned)
     except (TypeError, ValueError, OverflowError):
@@ -89,10 +128,10 @@ def parse_number(value: Any, *, positive: bool = False) -> tuple[float | None, s
 def normalize_currency(value: Any) -> str:
     raw = str(value or "INR").strip().lower()
     groups = {
-        "INR": {"rupees", "rupee", "rs", "rs.", "₹", "inr"},
-        "USD": {"$", "usd", "dollar", "dollars"},
+        "INR": {"rupees", "rupaiya", "rupee", "rs", "rs.", "₹", "re", "re.", "inr", "inr."},
+        "USD": {"$", "usd", "dollar", "dollars", "us dollar", "us dollars"},
         "EUR": {"€", "eur", "euro", "euros"},
-        "GBP": {"£", "gbp", "pound", "pounds"},
+        "GBP": {"£", "gbp", "pound", "pounds", "british pound"},
     }
     for code, aliases in groups.items():
         if raw in aliases:
@@ -103,22 +142,24 @@ def normalize_currency(value: Any) -> str:
 
 def normalize_unit(value: Any, category: str = "") -> str | None:
     raw = str(value or "").strip()
-    if not raw or raw.lower() in {"none", "null", "n/a", "-", "—"}:
+    if not raw or raw.lower() in {"none", "null", "undefined", "n/a", "-", "—"}:
         return None
     key = raw.lower()
     if key in {"unit", "units"} and "electric" in category.lower():
         return "kWh"
     units = {
         "kg": "kg", "kgs": "kg", "kilogram": "kg", "kilograms": "kg",
-        "g": "g", "gram": "g", "grams": "g", "ton": "tonnes", "tons": "tonnes",
+        "g": "g", "gm": "g", "gms": "g", "gram": "g", "grams": "g", "ton": "tonnes", "tons": "tonnes",
         "tonne": "tonnes", "tonnes": "tonnes", "mt": "tonnes", "l": "Liters",
-        "ltr": "Liters", "litre": "Liters", "litres": "Liters", "liter": "Liters",
-        "liters": "Liters", "kl": "kL", "kilolitre": "kL", "kiloliter": "kL",
-        "m3": "m3", "m³": "m3", "cum": "m3", "gal": "Gallons", "gallon": "Gallons",
-        "kwh": "kWh", "mwh": "MWh", "gj": "GJ", "mj": "MJ", "tj": "TJ",
-        "km": "km", "kms": "km", "mile": "miles", "miles": "miles",
-        "night": "room_nights", "nights": "room_nights", "room_night": "room_nights",
-        "trip": "trips", "trips": "trips", "unit": "units", "units": "units",
+        "ltr": "Liters", "ltrs": "Liters", "litre": "Liters", "litres": "Liters", "liter": "Liters",
+        "liters": "Liters", "kl": "kL", "kilolitre": "kL", "kiloliter": "kL", "kiloliters": "kL",
+        "m3": "m3", "m³": "m3", "cu.m": "m3", "cum": "m3", "gal": "Gallons", "gals": "Gallons", "gallon": "Gallons", "gallons": "Gallons",
+        "kwh": "kWh", "kwhr": "kWh", "kw-h": "kWh", "mwh": "MWh", "mwhr": "MWh", "mw-h": "MWh",
+        "gj": "GJ", "gigajoule": "GJ", "mj": "MJ", "megajoule": "MJ", "tj": "TJ",
+        "therm": "Therms", "therms": "Therms", "km": "km", "kms": "km", "kilometer": "km", "kilometers": "km",
+        "mile": "miles", "miles": "miles", "night": "room_nights", "nights": "room_nights",
+        "room_night": "room_nights", "room_nights": "room_nights", "trip": "trips", "trips": "trips",
+        "passenger": "passengers", "passengers": "passengers", "pax": "passengers", "unit": "units", "units": "units",
     }
     return units.get(key, raw)
 
@@ -128,9 +169,11 @@ def convert_quantity(quantity: float | None, unit: str | None) -> tuple[float | 
         return quantity, unit
     key = unit.lower()
     conversions = {
-        "g": (0.001, "kg"), "grams": (0.001, "kg"), "ml": (0.001, "Liters"),
-        "lbs": (0.45359237, "kg"), "lb": (0.45359237, "kg"),
-        "gallons": (3.78541, "Liters"), "gallon": (3.78541, "Liters"),
+        "g": (0.001, "kg"), "gm": (0.001, "kg"), "gms": (0.001, "kg"), "gram": (0.001, "kg"), "grams": (0.001, "kg"),
+        "ml": (0.001, "Liters"), "milliliter": (0.001, "Liters"), "milliliters": (0.001, "Liters"),
+        "lbs": (0.45359237, "kg"), "lb": (0.45359237, "kg"), "pound": (0.45359237, "kg"), "pounds": (0.45359237, "kg"),
+        "oz": (0.0283495, "kg"), "ounce": (0.0283495, "kg"), "ounces": (0.0283495, "kg"),
+        "gal": (3.78541, "Liters"), "gals": (3.78541, "Liters"), "gallons": (3.78541, "Liters"), "gallon": (3.78541, "Liters"), "us gal": (3.78541, "Liters"),
     }
     if key not in conversions:
         return quantity, unit
@@ -146,23 +189,46 @@ def normalize_date(value: Any) -> tuple[str | None, bool]:
     elif isinstance(value, date):
         parsed = value
     else:
-        raw = str(value).strip().split("T", 1)[0]
+        raw = str(value).strip()
+        try:
+            serial = float(raw)
+            if 20000 <= serial <= 90000:
+                from openpyxl.utils.datetime import from_excel
+                parsed = from_excel(serial).date()
+                return parsed.isoformat(), parsed > date.today()
+        except (TypeError, ValueError, OverflowError):
+            pass
+        if "T" in raw:
+            raw = raw.split("T", 1)[0].strip()
+        elif re.search(r"\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}\s+\d{1,2}:\d{2}", raw):
+            raw = re.split(r"\s+", raw)[0].strip()
+        else:
+            raw = re.sub(r"\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?.*$", "", raw, flags=re.IGNORECASE).strip()
         parsed = None
-        for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%m/%d/%Y", "%d %b %Y", "%d %B %Y"):
+        for fmt in (
+            "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
+            "%d-%b-%Y", "%d %b %Y", "%b %d, %Y", "%b %d %Y", "%d-%B-%Y", "%d %B %Y",
+            "%B %d, %Y", "%B %d %Y", "%m/%d/%Y", "%m-%d-%Y", "%d-%m-%y", "%d/%m/%y",
+            "%d.%m.%y", "%y-%m-%d", "%y/%m/%d",
+        ):
             try:
                 parsed = datetime.strptime(raw, fmt).date()
                 break
             except ValueError:
                 continue
         if parsed is None:
-            return raw, False
+            try:
+                from dateutil import parser as date_parser
+                parsed = date_parser.parse(raw, dayfirst=True).date()
+            except Exception:
+                return raw, False
     return parsed.isoformat(), parsed > date.today()
 
 
 def normalize_period(start: Any, end: Any, text: Any, invoice_date: Any) -> dict:
     start_value, _ = normalize_date(start)
     end_value, _ = normalize_date(end)
-    period_text = str(text or "").strip() or None
+    period_text = normalize_reporting_period(text) or None
     if not start_value and period_text:
         match = re.match(r"^([A-Za-z]+)[\s,-]+(\d{4})$", period_text)
         if match and match.group(1).lower() in MONTHS:
@@ -177,6 +243,44 @@ def normalize_period(start: Any, end: Any, text: Any, invoice_date: Any) -> dict
             end_value = parsed.replace(day=calendar.monthrange(parsed.year, parsed.month)[1]).isoformat()
             period_text = period_text or parsed.strftime("%b %Y")
     return {"start_date": start_value, "end_date": end_value, "period_text": period_text}
+
+
+def normalize_reporting_period(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw or raw.lower() in {"none", "null", "n/a", "undefined", "—", "-"}:
+        return ""
+    single_fy = re.match(r"^(?:FY\s*)(\d{2}|\d{4})$", raw, re.IGNORECASE)
+    if single_fy:
+        end_year_raw = int(single_fy.group(1))
+        end_year = 2000 + end_year_raw if end_year_raw < 100 else end_year_raw
+        return f"FY {end_year - 1}-{str(end_year)[-2:]}"
+    month_year = re.match(r"^(\d{1,2})\s*[-/]\s*(\d{4})$", raw)
+    if month_year and 1 <= int(month_year.group(1)) <= 12:
+        return f"{MONTH_NAMES[int(month_year.group(1))]} {int(month_year.group(2))}"
+    year_month = re.match(r"^(\d{4})\s*[-/]\s*(\d{1,2})$", raw)
+    if year_month and 1 <= int(year_month.group(2)) <= 12:
+        return f"{MONTH_NAMES[int(year_month.group(2))]} {int(year_month.group(1))}"
+    short_month_year = re.match(r"^(\d{1,2})\s*[-/]\s*(\d{2})$", raw)
+    if short_month_year and not raw.upper().startswith("FY"):
+        month, short_year = int(short_month_year.group(1)), int(short_month_year.group(2))
+        if 1 <= month <= 12 and short_year != month + 1:
+            return f"{MONTH_NAMES[month]} {2000 + short_year}"
+    fiscal_range = re.match(r"^(?:FY\s*)?(\d{2}|\d{4})\s*[-/]\s*(\d{2}|\d{4})$", raw, re.IGNORECASE)
+    if fiscal_range:
+        first, second = int(fiscal_range.group(1)), int(fiscal_range.group(2))
+        start_year = 2000 + first if first < 100 else first
+        end_year = 2000 + second if second < 100 else second
+        if end_year == start_year + 1 or second == (first + 1) % 100 or raw.upper().startswith("FY"):
+            return f"FY {start_year}-{str(start_year + 1)[-2:]}"
+        if 1 <= first <= 12:
+            return f"{MONTH_NAMES[first]} {end_year}"
+    named_month = re.match(r"^([A-Za-z]+)[,\s-]+(\d{4})$", raw)
+    if named_month and named_month.group(1).lower() in MONTHS:
+        return f"{MONTH_NAMES[MONTHS[named_month.group(1).lower()]]} {int(named_month.group(2))}"
+    reversed_named_month = re.match(r"^(\d{4})[,\s-]+([A-Za-z]+)$", raw)
+    if reversed_named_month and reversed_named_month.group(2).lower() in MONTHS:
+        return f"{MONTH_NAMES[MONTHS[reversed_named_month.group(2).lower()]]} {int(reversed_named_month.group(1))}"
+    return raw
 
 
 def normalize_scope(value: Any) -> str:

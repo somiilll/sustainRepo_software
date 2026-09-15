@@ -48,6 +48,7 @@ async def build_org_context(organization_id: str) -> tuple[dict, set[str], set[s
     }
     enabled_scopes.add("water")
     context = {
+        "organization_id": organization_id,
         "company_name": organization.get("name"),
         "organization_profile": organization.get("general_description"),
         "products": organization.get("process_description"),

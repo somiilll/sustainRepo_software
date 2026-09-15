@@ -6,8 +6,10 @@ import re
 from functools import lru_cache
 from typing import Any
 
+from .classification_cache import BoundedCache, cache_key
 from .config import MASTER_TAXONOMY_PATH, NAICS_INDEX_PATH
 from .llm_gateway import OcrLlmGateway
+from .methodology import resolve_methodology
 from .normalization import extract_json, normalize_confidence_score, normalize_scope
 
 
@@ -38,6 +40,9 @@ SCOPE_CATEGORY_NAMES = {
 }
 
 WATER_CATEGORY_NAMES = {"water": "Water"}
+
+_CLASSIFICATION_CACHE = BoundedCache()
+_USEEIO_CACHE = BoundedCache()
 
 
 @lru_cache(maxsize=1)
@@ -90,67 +95,76 @@ def _context_text(item: dict, invoice: dict, org_context: dict) -> str:
         ]))
         for location in org_context.get("locations", [])
     )
-    return "\n".join([
+    freight = item.get("freight_details") or {}
+    travel = item.get("travel_details") or {}
+    waste = item.get("waste_details") or {}
+    context_lines = [
         f"Organization: {org_context.get('company_name') or 'Not specified'}",
         f"Organization profile: {org_context.get('organization_profile') or 'Not specified'}",
         f"Facility sectors (facility — sector — sub-sector): {facilities or 'Not specified'}",
         f"Products/processes: {org_context.get('products') or 'Not specified'}",
         f"Vendor: {invoice.get('vendor_name') or 'Unknown'} ({invoice.get('vendor_type') or 'Unknown'})",
-        f"Buyer: {invoice.get('buyer_name') or 'Unknown'}",
+        f"Buyer: {invoice.get('buyer_name') or 'Unknown'} ({invoice.get('buyer_address') or 'Unknown'})",
         f"Item: {item.get('item_description_english') or item.get('item_description') or 'Unknown'}",
+        f"Item category hint: {item.get('item_category_hint') or 'Other'}",
+        f"Material nature: {item.get('material_nature') or 'composite_product'}",
+        f"Primary material: {item.get('primary_material') or 'Not specified'}",
+        f"HSN/SAC: {item.get('hsn_sac_code') or 'Not specified'}",
         f"Quantity/unit: {item.get('quantity')} {item.get('unit') or ''}",
         f"Spend: {item.get('total_cost')} {item.get('currency') or ''}",
         f"Additional context: {item.get('additional_context') or ''}",
-    ])
+    ]
+    if freight:
+        context_lines.append(f"Freight: mode={freight.get('mode')}, route={freight.get('origin')} to {freight.get('destination')}, distance={freight.get('distance_km')} km, weight={freight.get('weight_kg')} kg")
+    if travel:
+        context_lines.append(f"Travel: mode={travel.get('mode')}, class={travel.get('class')}, vehicle={travel.get('vehicle_type')}, passengers={travel.get('passenger_count')}, route={travel.get('origin')} to {travel.get('destination')}, distance={travel.get('distance_km')} km")
+    if waste:
+        context_lines.append(f"Waste: type={waste.get('waste_type')}, disposal={waste.get('disposal_method')}")
+    return "\n".join(context_lines)
 
 
-async def _map_naics(gateway: OcrLlmGateway, item_description: str, context: str) -> tuple[str, str]:
+async def _map_naics(gateway: OcrLlmGateway, item_description: str, context: str, organization_id: str) -> tuple[str, str]:
+    mapping_key = cache_key("useeio", organization_id, gateway.mode.reasoning_model, item_description.strip().lower(), context)
+    cached_mapping = _USEEIO_CACHE.get(mapping_key)
+    if cached_mapping:
+        return tuple(cached_mapping)
     index = load_naics_index()
     subsectors = "\n".join(f"{code}: {value['name']}" for code, value in index.items())
     stage_one = await gateway.reason(
-        "You classify procurement into NAICS subsectors for USEEIO spend-based emissions.",
-        f"Item and context:\n{item_description}\n{context}\n\nAvailable subsectors:\n{subsectors}\n\n"
-        "Return JSON only: {\"codes\": [\"three digit code\", ...]}. Choose at most four.",
+        "You are an economic taxonomy specialist classifying invoice expenditure into 2017 NAICS for USEEIO spend-based emissions modeling.",
+        f"Classify the fundamental commodity, asset, or service being procured. Use vendor context only to understand its technical domain.\n\n"
+        f"Item to classify: {item_description}\n{context}\n\nAvailable 3-digit NAICS subsectors:\n{subsectors}\n\n"
+        "Select the top four probable codes. Return only a JSON array, for example [\"331\", \"332\", \"339\"].",
         max_tokens=500,
     )
-    selected = extract_json(stage_one, {})
-    codes = [str(code) for code in (selected.get("codes", []) if isinstance(selected, dict) else []) if str(code) in index][:4]
+    selected = extract_json(stage_one, [])
+    selected_codes = selected.get("codes", []) if isinstance(selected, dict) else selected if isinstance(selected, list) else []
+    codes = [str(code) for code in selected_codes if str(code) in index][:4]
     if not codes:
-        codes = [code for code in ("541", "423", "332", "811") if code in index]
+        codes = [code for code in ("331", "332", "541") if code in index]
     candidates = [commodity for code in codes for commodity in index[code].get("commodities", [])]
+    if not candidates:
+        candidates = [
+            commodity
+            for code in ("331", "332", "334", "541", "484", "811")
+            if code in index
+            for commodity in index[code].get("commodities", [])
+        ]
     stage_two = await gateway.reason(
-        "You select the closest exact NAICS commodity for USEEIO spend-based emissions.",
-        f"Item and context:\n{item_description}\n{context}\n\nCandidate commodities:\n"
+        "You are an economic commodity classifier for USEEIO spend-based emissions modeling.",
+        f"Select the single closest exact commodity for the fundamental item or service being procured.\n\nItem and context:\n{item_description}\n{context}\n\nCandidate commodities:\n"
         + "\n".join(candidates)
-        + "\n\nReturn JSON only: {\"commodity\": \"exact candidate string\"}.",
+        + "\n\nReturn JSON only: {\"selected_commodity\": \"exact candidate string\"}.",
         max_tokens=700,
     )
     result = extract_json(stage_two, {})
-    commodity = result.get("commodity") if isinstance(result, dict) else None
+    commodity = (result.get("selected_commodity") or result.get("commodity")) if isinstance(result, dict) else None
     if commodity not in candidates:
         commodity = candidates[0] if candidates else "541990 - All Other Professional, Scientific, and Technical Services"
     code, _, label = commodity.partition(" - ")
-    return code.strip(), label.strip() or commodity
-
-
-def _methodology(scope: str, category_key: str, subcategory: str, item: dict) -> dict:
-    has_activity = item.get("quantity") is not None or item.get("distance_km") is not None
-    if scope == "water":
-        return {"ef_method": "activity", "ef_database": "Water activity data", "auto_generate_cat3": False}
-    if scope == "scope1":
-        return {"ef_method": "activity", "ef_database": "IPCC", "auto_generate_cat3": category_key != "fugitive_emissions"}
-    if scope == "scope2":
-        database = "DEFRA" if category_key == "purchased_heat_steam_cooling" else "CEA"
-        return {"ef_method": "activity", "ef_database": database, "auto_generate_cat3": True}
-    number = int(re.search(r"cat_(\d+)", category_key).group(1)) if re.search(r"cat_(\d+)", category_key) else 1
-    if number in {5, 12}:
-        return {"ef_method": "activity", "ef_database": "US EPA", "auto_generate_cat3": False}
-    if number in {3, 6, 7, 11}:
-        return {"ef_method": "activity", "ef_database": "DEFRA", "auto_generate_cat3": False}
-    if number in {1, 2, 4, 8, 9, 13}:
-        return {"ef_method": "activity" if has_activity else "spend", "ef_database": "DEFRA" if has_activity else "USEEIO", "auto_generate_cat3": False}
-    return {"ef_method": "spend", "ef_database": "USEEIO", "auto_generate_cat3": False}
-
+    mapping = (code.strip(), label.strip() or commodity)
+    _USEEIO_CACHE.set(mapping_key, mapping)
+    return mapping
 
 async def classify_item(
     gateway: OcrLlmGateway,
@@ -166,32 +180,48 @@ async def classify_item(
     description = item.get("item_description_english") or item.get("item_description") or "Unknown item"
     context = _context_text(item, invoice, org_context)
     taxonomy_rows = _flat_taxonomy(enabled_scopes, disabled_scope3_sheets)
-    response = await gateway.reason(
-        "You are an expert GHG Protocol accountant. Classify one invoice activity into the supplied organization-enabled taxonomy.",
-        f"{context}\n\nAllowed taxonomy:\n" + "\n".join(taxonomy_rows) + "\n\n"
-        "Apply GHG Protocol ownership and value-chain boundaries. Inbound freight is Scope 3 C4; outbound freight is C9. "
-        "Routine goods/services are C1; long-lived capital equipment is C2; operational waste is C5; business travel is C6. "
-        "Purchased electricity is Scope 2. Fuel burned in owned assets is Scope 1. Water supply, treatment, tanker, borewell, municipal, or rainwater activity is Water.\n"
-        "Return JSON only with keys scope (scope1/scope2/scope3/water), category_key, subcategory, rationale, confidence_score. "
-        "confidence_score must be an integer percentage from 0 to 100.",
-        max_tokens=1200,
-    )
-    parsed = extract_json(response, {})
-    scope = normalize_scope(parsed.get("scope"))
+    organization_id = str(org_context.get("organization_id") or "")
+    classification_key = cache_key("classification", organization_id, gateway.mode.reasoning_model, context, taxonomy_rows)
+    parsed = _CLASSIFICATION_CACHE.get(classification_key)
+    if parsed is None:
+        response = await gateway.reason(
+            "You are an expert GHG Protocol accountant. Classify one invoice activity into the supplied organization-enabled taxonomy.",
+            f"{context}\n\nAllowed taxonomy:\n" + "\n".join(taxonomy_rows) + "\n\n"
+            "Apply GHG Protocol ownership and value-chain boundaries. Inbound freight is Scope 3 C4; outbound freight is C9. "
+            "Routine goods/services are C1; long-lived capital equipment is C2; operational waste is C5; business travel is C6. "
+            "Purchased electricity is Scope 2. Fuel burned in owned assets is Scope 1. Water supply, treatment, tanker, borewell, municipal, or rainwater activity is Water.\n"
+            "Return JSON only with keys scope (scope1/scope2/scope3/water), category_key, subcategory, rationale, confidence_score. "
+            "confidence_score must be an integer percentage from 0 to 100.",
+            max_tokens=1200,
+        )
+        parsed = extract_json(response, {})
+        if not isinstance(parsed, dict):
+            parsed = {}
+        _CLASSIFICATION_CACHE.set(classification_key, parsed)
+    raw_scope = re.sub(r"[^a-z0-9]", "", str(parsed.get("scope") or "").lower())
+    scope = {"scope1": "scope1", "scope2": "scope2", "scope3": "scope3", "water": "water"}.get(raw_scope, "Unknown")
     category_key = str(parsed.get("category_key") or "").strip()
     subcategory = str(parsed.get("subcategory") or description).strip()
-    if scope not in enabled_scopes:
-        scope = next(iter(sorted(enabled_scopes)))
-        parsed["rationale"] = f"Detected scope was not enabled for this organization. Review required. {parsed.get('rationale', '')}".strip()
-    valid_keys = {row.split(" | ")[1] for row in taxonomy_rows}
+    invalid_scope = scope == "Unknown" or scope not in enabled_scopes
+    if invalid_scope:
+        scope = "Unknown"
+    valid_keys = {
+        parts[1]
+        for row in taxonomy_rows
+        if len(parts := row.split(" | ")) > 1 and parts[0] == scope
+    }
     if category_key not in valid_keys:
-        category_key = next((key for key in valid_keys if key in category_key or category_key in key), "")
+        category_key = ""
     category_name = WATER_CATEGORY_NAMES.get(category_key, SCOPE3_CATEGORY_NAMES.get(category_key, SCOPE_CATEGORY_NAMES.get(category_key, category_key or "Unknown")))
-    methodology = _methodology(scope, category_key, subcategory, item)
+    methodology = resolve_methodology(scope, category_key, subcategory, item, load_taxonomy())
     naics_code = naics_label = None
-    if methodology["ef_method"] == "spend" and methodology["ef_database"] == "USEEIO":
-        naics_code, naics_label = await _map_naics(gateway, description, context)
+    if methodology["requires_useeio"]:
+        naics_code, naics_label = await _map_naics(gateway, description, context, organization_id)
         subcategory = f"{naics_code} - {naics_label}"
+        methodology["subcategory"] = subcategory
+        methodology["ef_lookup_key"] = subcategory
+    else:
+        subcategory = methodology["subcategory"]
     score = normalize_confidence_score(parsed.get("confidence_score"), fallback=item.get("confidence_score", 80))
     if score is None:
         score = 80
@@ -203,12 +233,12 @@ async def classify_item(
         "ghg_subcategory": subcategory,
         "ef_method": methodology["ef_method"],
         "ef_database": methodology["ef_database"],
-        "ef_lookup_key": subcategory,
+        "ef_lookup_key": methodology["ef_lookup_key"],
         "naics_code": naics_code,
         "naics_label": naics_label,
-        "accounting_rationale": parsed.get("rationale") or f"Mapped {description} to {category_name}.",
+        "accounting_rationale": methodology["accounting_rationale"],
         "confidence_score": score,
-        "needs_review": score < 75 or not category_key,
+        "needs_review": invalid_scope or not category_key,
         "auto_generate_cat3": methodology["auto_generate_cat3"],
         "classification_source": "ai",
     }
