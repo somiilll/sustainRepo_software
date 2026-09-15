@@ -8,7 +8,7 @@ from typing import Any
 
 from .config import MASTER_TAXONOMY_PATH, NAICS_INDEX_PATH
 from .llm_gateway import OcrLlmGateway
-from .normalization import extract_json, normalize_scope
+from .normalization import extract_json, normalize_confidence_score, normalize_scope
 
 
 SCOPE3_CATEGORY_NAMES = {
@@ -172,7 +172,8 @@ async def classify_item(
         "Apply GHG Protocol ownership and value-chain boundaries. Inbound freight is Scope 3 C4; outbound freight is C9. "
         "Routine goods/services are C1; long-lived capital equipment is C2; operational waste is C5; business travel is C6. "
         "Purchased electricity is Scope 2. Fuel burned in owned assets is Scope 1. Water supply, treatment, tanker, borewell, municipal, or rainwater activity is Water.\n"
-        "Return JSON only with keys scope (scope1/scope2/scope3/water), category_key, subcategory, rationale, confidence_score.",
+        "Return JSON only with keys scope (scope1/scope2/scope3/water), category_key, subcategory, rationale, confidence_score. "
+        "confidence_score must be an integer percentage from 0 to 100.",
         max_tokens=1200,
     )
     parsed = extract_json(response, {})
@@ -191,10 +192,8 @@ async def classify_item(
     if methodology["ef_method"] == "spend" and methodology["ef_database"] == "USEEIO":
         naics_code, naics_label = await _map_naics(gateway, description, context)
         subcategory = f"{naics_code} - {naics_label}"
-    score = parsed.get("confidence_score", item.get("confidence_score", 80))
-    try:
-        score = max(0, min(100, int(score)))
-    except (TypeError, ValueError):
+    score = normalize_confidence_score(parsed.get("confidence_score"), fallback=item.get("confidence_score", 80))
+    if score is None:
         score = 80
     return {
         "ghg_scope": scope,

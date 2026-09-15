@@ -19,6 +19,7 @@ from .llm_gateway import OcrLlmGateway
 from .normalization import (
     convert_quantity,
     extract_json,
+    normalize_confidence_score,
     normalize_currency,
     normalize_date,
     normalize_period,
@@ -59,7 +60,7 @@ EXTRACTION_SCHEMA_PROMPT = """Extract every invoice in these pages. Return a JSO
     "origin": string|null,
     "destination": string|null,
     "additional_context": string|null,
-    "confidence_score": integer,
+    "confidence_score": integer from 0 to 100,
     "low_confidence_fields": [string]
   }]
 }
@@ -206,10 +207,7 @@ def _clean_invoice(invoice: dict) -> tuple[dict, list[dict]]:
         missing_values = not has_activity and not has_cost
         if missing_values:
             warnings.append("Missing quantity and cost")
-        try:
-            confidence = int(item.get("confidence_score", 85))
-        except (TypeError, ValueError):
-            confidence = 85
+        confidence = normalize_confidence_score(item.get("confidence_score"), fallback=85)
         if missing_values:
             confidence = min(confidence, 40)
         elif warnings:
@@ -220,7 +218,7 @@ def _clean_invoice(invoice: dict) -> tuple[dict, list[dict]]:
             "unit": unit,
             "total_cost": cost,
             "distance_km": distance,
-            "confidence_score": max(0, min(100, confidence)),
+            "confidence_score": confidence,
             "low_confidence_fields": list(dict.fromkeys(str(value) for value in warnings)),
             "missing_values": missing_values,
         })

@@ -13,8 +13,24 @@ const scopeTone = {
   water: 'bg-cyan-50 text-cyan-900 border-cyan-200',
 };
 
+const normalizedConfidence = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(String(value).trim().replace(/%$/, ''));
+  if (!Number.isFinite(numeric)) return null;
+  const percentage = numeric > 0 && numeric <= 1 ? numeric * 100 : numeric;
+  return Math.max(0, Math.min(100, Math.round(percentage)));
+};
+
+const confidenceLabel = (value) => {
+  const score = normalizedConfidence(value);
+  return score === null ? 'Not available' : `${score}%`;
+};
+
 const Confidence = ({ value, itemId }) => {
-  const score = Number(value) || 0;
+  const score = normalizedConfidence(value);
+  if (score === null) {
+    return <span className="text-xs text-slate-500" data-testid={`ocr-confidence-${itemId}`}>Not available</span>;
+  }
   const tone = score >= 85 ? 'bg-emerald-600' : score >= 70 ? 'bg-amber-500' : 'bg-red-600';
   return (
     <div className="min-w-20" data-testid={`ocr-confidence-${itemId}`}>
@@ -199,7 +215,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                 <MobileField label="Vendor" value={values.vendor_name || 'Unknown vendor'} itemId={item.id} field="vendor" wide />
                 <MobileField label="Location" value={values.location} itemId={item.id} field="location" wide />
                 <MobileField label="Extracted item" value={values.item_description || values.fuel_name || 'Unspecified activity'} itemId={item.id} field="description" wide />
-                <MobileField label="Confidence score" value={`${item.confidence_score ?? values.confidence_score ?? 0}%`} itemId={item.id} field="confidence" />
+                <MobileField label="Confidence score" value={confidenceLabel(item.confidence_score ?? values.confidence_score)} itemId={item.id} field="confidence" />
                 <MobileField label="Scope" itemId={item.id} field="scope"><Badge variant="outline" className={scopeTone[values.scope]}>{values.scope?.replace('scope', 'Scope ') || '—'}</Badge></MobileField>
                 <MobileField label="Category" value={values.category || 'Unknown'} itemId={item.id} field="category" wide />
                 <MobileField label="Accounting rationale" value={values.accounting_rationale || 'No accounting rationale returned.'} itemId={item.id} field="rationale" wide />

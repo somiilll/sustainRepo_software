@@ -46,6 +46,29 @@ def sanitize_json(value: Any) -> Any:
     return value
 
 
+def normalize_confidence_score(value: Any, fallback: Any = None) -> int | None:
+    candidate = value
+    if candidate is None or (isinstance(candidate, str) and not candidate.strip()):
+        candidate = fallback
+    if candidate is None:
+        return None
+    if isinstance(candidate, bool):
+        return normalize_confidence_score(fallback) if fallback is not None and fallback != value else None
+    if isinstance(candidate, str):
+        candidate = candidate.strip().removesuffix("%").strip()
+    try:
+        score = float(candidate)
+    except (TypeError, ValueError, OverflowError):
+        if fallback is None or fallback == value:
+            return None
+        return normalize_confidence_score(fallback)
+    if math.isnan(score) or math.isinf(score):
+        return normalize_confidence_score(fallback) if fallback is not None and fallback != value else None
+    if 0 < score <= 1:
+        score *= 100
+    return max(0, min(100, round(score)))
+
+
 def parse_number(value: Any, *, positive: bool = False) -> tuple[float | None, str | None]:
     if value is None or str(value).strip().lower() in {"", "none", "null", "n/a", "-", "—"}:
         return None, None
