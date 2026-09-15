@@ -17,7 +17,28 @@ const ALL_BARS = [
 
 const CATEGORY_COLORS = ['#0F766E', '#14B8A6', '#2563EB', '#7C3AED', '#D97706', '#DB2777', '#64748B', '#0891B2', '#65A30D', '#EA580C', '#BE123C', '#4F46E5', '#0D9488', '#9333EA', '#CA8A04'];
 
-const scopeLabel = (scope) => scope.replace('scope', 'Scope ');
+const formatEmissions = (value) => Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
+function FacilityTooltip({ active, payload, label, activeScope }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload || {};
+  const scopeName = activeScope.replace('scope', 'Scope ');
+  const total = Number(row[activeScope] || 0);
+
+  return (
+    <div className="min-w-[190px] rounded-lg border border-stone-200 bg-white p-3 shadow-lg" data-testid="facility-emissions-tooltip">
+      <p className="text-xs font-semibold text-stone-800">{label}</p>
+      {activeScope !== 'all' && <p className="mt-1 border-b border-stone-100 pb-2 text-xs font-bold text-emerald-700">Total {scopeName}: {formatEmissions(total)} tCO₂e</p>}
+      <div className="mt-2 space-y-1">
+        {payload.filter((item) => Number(item.value || 0) > 0).map((item) => (
+          <div key={item.name} className="flex items-center justify-between gap-4 text-[11px] text-stone-600">
+            <span className="truncate">{item.name}</span><span className="shrink-0 font-semibold text-stone-800">{formatEmissions(item.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function FacilityChart({ facilities = [], height = 400, className = '', showScope3 = true }) {
   const [activeScope, setActiveScope] = useState('all');
@@ -42,7 +63,7 @@ export default function FacilityChart({ facilities = [], height = 400, className
       rows: facilities.slice(0, 10).map((facility) => {
         const categoryValues = facility.scopeCategories?.[activeScope] || [];
         const valuesByName = new Map(categoryValues.map((category) => [category.name, Number(category.value || 0)]));
-        const row = { ...facility, scopeTotal: Number(facility[activeScope] || 0) };
+        const row = { ...facility };
         rankedCategories.forEach((category) => { row[category.key] = valuesByName.get(category.name) || 0; });
         return row;
       }),
@@ -68,10 +89,9 @@ export default function FacilityChart({ facilities = [], height = 400, className
             <CartesianGrid strokeDasharray="3 3" stroke="#E7E5E4" vertical={false} />
             <XAxis dataKey="name" stroke="#A8A29E" fontSize={10} tickLine={false} axisLine={false} angle={-30} textAnchor="end" interval={0} />
             <YAxis stroke="#A8A29E" fontSize={11} tickLine={false} axisLine={false} label={{ value: 'tCO₂e', angle: -90, position: 'insideLeft', offset: 15, style: { textAnchor: 'middle', fill: '#78716C', fontSize: 10, fontWeight: 600 } }} />
-            <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E7E5E4', boxShadow: '0 6px 14px rgba(0,0,0,0.08)', fontSize: 12 }} formatter={(value, name) => [`${Number(value).toFixed(2)} tCO₂e`, name]} />
+            <Tooltip content={<FacilityTooltip activeScope={activeScope} />} />
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
             {activeScope === 'all' ? visibleAllBars.map((bar) => <Bar key={bar.key} dataKey={bar.key} name={bar.label} fill={bar.color} radius={[4, 4, 0, 0]} />) : <>
-              <Bar dataKey="scopeTotal" name={`Total ${scopeLabel(activeScope)}`} fill={ALL_BARS.find((bar) => bar.key === activeScope)?.color} radius={[4, 4, 0, 0]} />
               {selectedScopeData.categoryKeys.map((category) => <Bar key={category.key} dataKey={category.key} name={category.name} stackId="categories" fill={category.color} radius={[2, 2, 0, 0]} />)}
             </>}
           </BarChart>
