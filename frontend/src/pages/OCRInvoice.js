@@ -371,7 +371,7 @@ export default function OCRInvoice() {
         </div>
       )}
 
-      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) setEditingItem(null); }} configuration={configuration} onSave={saveEdit} saving={saving} />
+      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) setEditingItem(null); }} configuration={configuration} onSave={saveEdit} saving={saving} getAuthHeaders={getAuthHeader} />
 
       <AlertDialog open={Boolean(rejectingItem)} onOpenChange={(open) => { if (!open && !rejectingId) setRejectingItem(null); }}>
         <AlertDialogContent data-testid="ocr-reject-confirmation-dialog">

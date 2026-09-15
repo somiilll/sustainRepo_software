@@ -10,6 +10,7 @@ class LineItemEdit(BaseModel):
     item_description: Optional[str] = None
     scope: Optional[str] = None
     category: Optional[str] = None
+    category_key: Optional[str] = None
     category_code: Optional[str] = None
     subcategory: Optional[str] = None
     fuel_name: Optional[str] = None
@@ -24,6 +25,9 @@ class LineItemEdit(BaseModel):
     ef_method: Optional[str] = None
     ef_database: Optional[str] = None
     ef_lookup_key: Optional[str] = None
+    factor_id: Optional[str] = None
+    fuel_id: Optional[str] = None
+    scope3_ef_id: Optional[str] = None
     naics_code: Optional[str] = None
     naics_label: Optional[str] = None
     accounting_rationale: Optional[str] = None

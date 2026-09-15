@@ -22,6 +22,7 @@ from r2_storage import R2Storage
 from . import invoice_processor
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MODES, get_mode
+from .factor_options import resolve_factor_options, validate_factor_selection
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit
 from .service import build_org_context, process_upload_batch, save_vendor_override
 from .template_service import generate_ocr_template
@@ -673,15 +674,16 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
     org_id = _get_org(current_user)
     _, scopes, disabled_scope3_sheets = await build_org_context(org_id)
     scopes = [scope for scope in ("scope1", "scope2", "scope3") if scope in scopes] + ["water"]
+    scope_categories = list(SCOPE_CATEGORY_NAMES.items())
     categories = [
-        *({"scope": "scope1", "value": value, "label": value} for value in list(SCOPE_CATEGORY_NAMES.values())[:3]),
-        *({"scope": "scope2", "value": value, "label": value} for value in list(SCOPE_CATEGORY_NAMES.values())[3:]),
+        *({"scope": "scope1", "value": value, "label": value, "key": key, "code": key} for key, value in scope_categories[:3]),
+        *({"scope": "scope2", "value": value, "label": value, "key": key, "code": key} for key, value in scope_categories[3:]),
         *(
-            {"scope": "scope3", "value": value, "label": value}
-            for value in SCOPE3_CATEGORY_NAMES.values()
+            {"scope": "scope3", "value": value, "label": value, "key": key, "code": value.split(" - ", 1)[0].lower()}
+            for key, value in SCOPE3_CATEGORY_NAMES.items()
             if value.split(" - ", 1)[0] not in disabled_scope3_sheets
         ),
-        *({"scope": "water", "value": value, "label": value} for value in WATER_CATEGORY_NAMES.values()),
+        *({"scope": "water", "value": value, "label": value, "key": key, "code": key} for key, value in WATER_CATEGORY_NAMES.items()),
     ]
     return {
         "enabled_scopes": scopes,
@@ -695,6 +697,25 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
             for mode in MODES.values()
         ],
         "categories": categories,
+    }
+
+
+@router.get("/factor-options")
+async def get_ocr_factor_options(
+    scope: str = Query(..., min_length=1),
+    category: str = Query(..., min_length=1),
+    method: str = Query(..., min_length=1),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return canonical factor and unit choices for one OCR edit combination."""
+    _get_org(current_user)
+    options = await resolve_factor_options(db, scope, category, method)
+    return {
+        "scope": scope,
+        "category": category,
+        "method": method,
+        "factors": options,
+        "count": len(options),
     }
 
 
@@ -751,6 +772,31 @@ async def edit_line_item(
     
     submitted = edit_data.model_dump(exclude_unset=True)
     remember_override = submitted.pop("remember_override", False)
+    if submitted.get("factor_id"):
+        candidate = {**current_values, **{key: value for key, value in submitted.items() if value is not None}}
+        try:
+            selected_factor = await validate_factor_selection(
+                db,
+                scope=candidate.get("scope") or "",
+                category=candidate.get("category") or "",
+                method=candidate.get("ef_method") or "",
+                factor_id=candidate.get("factor_id") or "",
+                lookup_value=candidate.get("ef_lookup_key") or candidate.get("subcategory") or "",
+                unit=candidate.get("unit") or "",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        submitted.update({
+            "factor_id": selected_factor["id"],
+            "subcategory": selected_factor["value"],
+            "fuel_name": selected_factor["value"],
+            "ef_lookup_key": selected_factor["value"],
+            "ef_database": selected_factor["database"],
+            "fuel_id": selected_factor["id"] if selected_factor["collection"] == "fuel_database" else "",
+            "scope3_ef_id": selected_factor["id"] if selected_factor["collection"] == "scope3_ef" else "",
+            "naics_code": selected_factor.get("naics_code") or "",
+            "naics_label": selected_factor.get("naics_label") or "",
+        })
     for field, value in submitted.items():
         if value is not None:
             old_value = current_values.get(field)
@@ -759,6 +805,8 @@ async def edit_line_item(
                 current_values[field] = value
     
     if not edit_changes:
+        if remember_override:
+            await save_vendor_override(org_id, current_user, current_values)
         return {"message": "No changes detected", "line_item": {k: v for k, v in item.items() if k != "_id"}}
     
     # Add to edit history
@@ -901,7 +949,9 @@ async def accept_line_item(
         "accounting_rationale": current_values.get("accounting_rationale"),
         "calculation_method_scope3": f"{current_values.get('ef_method')}_basis" if current_values.get("scope") == "scope3" and current_values.get("ef_method") else None,
         "scope3_activity": current_values.get("ef_lookup_key"),
-        "scope3_activity_type": current_values.get("category_key")
+        "scope3_activity_type": current_values.get("category_key"),
+        "fuel_id": current_values.get("fuel_id"),
+        "scope3_ef_id": current_values.get("scope3_ef_id"),
     }
     
     return {
