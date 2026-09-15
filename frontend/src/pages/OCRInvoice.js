@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Download, FileText, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -76,6 +76,7 @@ export default function OCRInvoice() {
   const [facilityPreviewFile, setFacilityPreviewFile] = useState(null);
   const [facilityPreviewUrl, setFacilityPreviewUrl] = useState(null);
   const [facilityPreviewLoading, setFacilityPreviewLoading] = useState(false);
+  const facilityPreviewRequestRef = useRef(0);
   const [activeExtractionIds, setActiveExtractionIds] = useState([]);
 
   useEffect(() => {
@@ -212,17 +213,28 @@ export default function OCRInvoice() {
   };
 
   const previewFacilityAssignmentFile = async (file) => {
+    const requestId = facilityPreviewRequestRef.current + 1;
+    facilityPreviewRequestRef.current = requestId;
     setFacilityPreviewFile(file);
     setFacilityPreviewLoading(true);
     try {
       const response = await loadOcrPreview(file.upload_id, file.file_index, getAuthHeader());
+      if (facilityPreviewRequestRef.current !== requestId) return;
       if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
       setFacilityPreviewUrl(URL.createObjectURL(response.data));
     } catch (requestError) {
-      toast.error(responseMessage(requestError, 'Secure preview could not be loaded.'));
+      if (facilityPreviewRequestRef.current === requestId) toast.error(responseMessage(requestError, 'Secure preview could not be loaded.'));
     } finally {
-      setFacilityPreviewLoading(false);
+      if (facilityPreviewRequestRef.current === requestId) setFacilityPreviewLoading(false);
     }
+  };
+
+  const hideFacilityAssignmentPreview = () => {
+    facilityPreviewRequestRef.current += 1;
+    if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
+    setFacilityPreviewUrl(null);
+    setFacilityPreviewFile(null);
+    setFacilityPreviewLoading(false);
   };
 
   const saveFacilityAssignments = async (assignments) => {
@@ -450,7 +462,7 @@ export default function OCRInvoice() {
 
       <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) setEditingItem(null); }} configuration={configuration} onSave={saveEdit} saving={saving} getAuthHeaders={getAuthHeader} />
 
-      <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
+      <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onHidePreview={hideFacilityAssignmentPreview} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
 
       <AlertDialog open={Boolean(rejectingItem)} onOpenChange={(open) => { if (!open && !rejectingId) setRejectingItem(null); }}>
         <AlertDialogContent data-testid="ocr-reject-confirmation-dialog">

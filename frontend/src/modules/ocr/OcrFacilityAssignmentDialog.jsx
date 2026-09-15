@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckSquare, Eye, FileText, Loader2, MapPin } from 'lucide-react';
+import { CheckSquare, Eye, EyeOff, FileText, Loader2, MapPin } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 
 const fileKey = (file) => `${file.upload_id}-${file.file_index}`;
 
-export const OcrFacilityAssignmentDialog = ({ files, facilities, open, saving, onSave, onPreview, onManageFacilities, previewFile, previewUrl, previewLoading }) => {
+export const OcrFacilityAssignmentDialog = ({ files, facilities, open, saving, onSave, onPreview, onHidePreview, onManageFacilities, previewFile, previewUrl, previewLoading }) => {
   const [assignments, setAssignments] = useState({});
   const [applyToAll, setApplyToAll] = useState(false);
   const [sharedFacilityId, setSharedFacilityId] = useState('');
@@ -81,9 +81,12 @@ export const OcrFacilityAssignmentDialog = ({ files, facilities, open, saving, o
                           <SelectContent>{facilities.map((facility) => <SelectItem key={facility.id} value={facility.id} data-testid={`ocr-facility-assignment-option-${index}-${facility.id}`}>{facility.name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <Button type="button" variant="outline" onClick={() => onPreview(file)} disabled={previewLoading && viewingThisFile} data-testid={`ocr-facility-assignment-preview-${index}`}>
-                        {previewLoading && viewingThisFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}Preview
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button type="button" variant="outline" onClick={() => onPreview(file)} disabled={previewLoading && viewingThisFile} data-testid={`ocr-facility-assignment-preview-${index}`}>
+                          {previewLoading && viewingThisFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}Preview
+                        </Button>
+                        {viewingThisFile && <Button type="button" variant="ghost" onClick={onHidePreview} data-testid={`ocr-facility-assignment-hide-preview-${index}`}><EyeOff className="mr-2 h-4 w-4" />Hide</Button>}
+                      </div>
                     </div>
                     {viewingThisFile && (
                       <div className="mt-4 overflow-hidden border border-slate-200 bg-slate-50" data-testid={`ocr-facility-assignment-preview-panel-${index}`}>
