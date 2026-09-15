@@ -242,7 +242,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         <>
           <div className="space-y-4">
           {/* ROW 1: KPI cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-[repeat(4,minmax(0,0.8fr))_minmax(0,1.8fr)]">
             <KpiCard
               title="Total Emissions"
               value={totals.total}

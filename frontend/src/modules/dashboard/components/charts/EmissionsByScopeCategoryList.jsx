@@ -35,10 +35,11 @@ export default function EmissionsByScopeCategoryList({ data = [], showScope3 = t
   const scopedRows = useMemo(() => (
     activeScope === 'all' ? availableRows : availableRows.filter((item) => item.scope === activeScope)
   ), [activeScope, availableRows]);
-  const overallTotal = useMemo(() => availableRows.reduce((sum, item) => sum + Number(item.value || 0), 0), [availableRows]);
+  const activeTotal = useMemo(() => scopedRows.reduce((sum, item) => sum + Number(item.value || 0), 0), [scopedRows]);
   const rows = scopedRows.slice(0, 5);
   const maxValue = rows[0]?.value || 0;
   const filters = showScope3 ? FILTERS : FILTERS.filter((filter) => filter.id !== 'scope3');
+  const showScopeTags = activeScope === 'all';
 
   return (
     <div data-testid="emissions-by-scope-category-list">
@@ -54,7 +55,7 @@ export default function EmissionsByScopeCategoryList({ data = [], showScope3 = t
         </div>
         <div className="shrink-0 text-right" data-testid="emissions-by-scope-category-total">
           <p className="text-[10px] font-semibold uppercase text-stone-500">Total emissions</p>
-          <p className="text-sm font-bold tabular-nums text-stone-900">{formatValue(overallTotal)} <span className="text-[11px] font-medium text-stone-500">tCO₂e</span></p>
+          <p className="text-sm font-bold tabular-nums text-stone-900">{formatValue(activeTotal)} <span className="text-[11px] font-medium text-stone-500">tCO₂e</span></p>
         </div>
       </div>
 
@@ -89,13 +90,13 @@ export default function EmissionsByScopeCategoryList({ data = [], showScope3 = t
               const name = String(item.name || 'Uncategorized');
               const visual = getCategoryVisual(item);
               const Icon = visual.icon;
-              const percentage = overallTotal > 0 ? (value / overallTotal) * 100 : 0;
+              const percentage = activeTotal > 0 ? (value / activeTotal) * 100 : 0;
               const width = maxValue > 0 ? Math.max((value / maxValue) * 100, 4) : 0;
               return (
                 <div key={`${item.scope}-${name}`} className="grid grid-cols-[minmax(0,1fr)_74px_44px] items-center gap-2 border-b border-stone-100 px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(150px,1fr)_minmax(96px,1.45fr)_auto_auto] sm:gap-3" data-testid={`emission-category-row-${item.scope}-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>
                   <div className="flex min-w-0 items-center gap-2.5">
                     <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${visual.iconWrap}`}><Icon className="h-4 w-4" aria-hidden="true" /></div>
-                    <div className="min-w-0"><p className="truncate text-xs font-semibold text-stone-800" title={name}>{name}</p><span className={`mt-0.5 inline-flex rounded px-1.5 py-0.5 text-[9px] font-semibold ${visual.pill}`}>{visual.label}</span></div>
+                    <div className="min-w-0"><p className="line-clamp-2 text-xs font-semibold leading-5 text-stone-800" title={name}>{name}</p>{showScopeTags && <span className={`mt-0.5 inline-flex rounded px-1.5 py-0.5 text-[9px] font-semibold ${visual.pill}`}>{visual.label}</span>}</div>
                   </div>
                   <div className="hidden h-2.5 overflow-hidden rounded-sm bg-stone-100 sm:block" aria-label={`${name} emissions bar`}><div className="h-full rounded-sm transition-[width] duration-500" style={{ width: `${width}%`, backgroundColor: visual.color }} /></div>
                   <span className="text-right text-xs font-bold tabular-nums text-stone-800">{formatValue(value)}</span>
