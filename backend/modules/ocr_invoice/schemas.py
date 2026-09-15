@@ -22,6 +22,7 @@ class LineItemEdit(BaseModel):
     billing_period_start: Optional[str] = None
     billing_period_end: Optional[str] = None
     billing_period_text: Optional[str] = None
+    reporting_period: Optional[str] = None
     ef_method: Optional[str] = None
     ef_database: Optional[str] = None
     ef_lookup_key: Optional[str] = None

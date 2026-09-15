@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { CalendarDays, Loader2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../../components/ui/textarea';
 import { getOcrFactorOptions } from './ocrApi';
 
-const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', remember_override: false };
+const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', reporting_period: '', remember_override: false };
 const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const words = (value) => String(value || '')
   .toLowerCase()
@@ -48,6 +48,15 @@ const matchingUnit = (factor, value) => (factor?.allowed_units || []).find((unit
   const aliases = factor?.unit_aliases?.[unit] || [unit];
   return aliases.some((alias) => normalize(alias) === normalize(value));
 });
+const reportingPeriodFromDate = (value) => {
+  const match = String(value || '').trim().match(/^(\d{4})-(0[1-9]|1[0-2])/);
+  return match ? `${match[1]}-${match[2]}` : '';
+};
+const reportingPeriodLabel = (value) => {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value || '')) return 'Select month';
+  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' })
+    .format(new Date(`${value}-01T12:00:00`));
+};
 
 const ExtractedValue = ({ label, value, field }) => (
   <p className="text-xs text-slate-500" data-testid={`ocr-edit-extracted-${field}`}>
@@ -66,7 +75,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     if (item) {
       const current = { ...emptyValues, ...(item.current_values || {}) };
       if (current.scope === 'water') current.ef_method = 'activity';
-      setValues(current);
+      setValues({
+        ...current,
+        reporting_period: reportingPeriodFromDate(current.reporting_period)
+          || reportingPeriodFromDate(current.date)
+          || reportingPeriodFromDate(item.original_values?.date),
+      });
     }
   }, [item]);
 
@@ -212,6 +226,14 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           <div className="space-y-2">
             <Label htmlFor="ocr-quantity">Quantity</Label>
             <Input id="ocr-quantity" type="number" value={values.quantity ?? ''} onChange={(event) => set('quantity', event.target.value === '' ? '' : Number(event.target.value))} data-testid="ocr-edit-quantity-input" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ocr-reporting-period">Reporting period</Label>
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" />
+              <Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className="pl-10" aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" />
+            </div>
+            <ExtractedValue label="date" value={original.date} field="date" />
           </div>
           <div className="space-y-2">
             <Label htmlFor={isSpend ? 'ocr-quantity-unit' : undefined}>Unit of quantity</Label>

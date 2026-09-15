@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 import uuid
 import logging
@@ -23,6 +24,12 @@ logger = logging.getLogger(__name__)
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _reporting_period_from_date(value: object) -> str:
+    """Normalize an extracted ISO date to the monthly GHG period key."""
+    match = re.match(r"^(\d{4})-(0[1-9]|1[0-2])", str(value or "").strip())
+    return f"{match.group(1)}-{match.group(2)}" if match else ""
 
 
 def _normalize_cache_key(value: str | None) -> str:
@@ -152,6 +159,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
                     "billing_period_start": billing_period.get("start_date"),
                     "billing_period_end": billing_period.get("end_date"),
                     "billing_period_text": billing_period.get("period_text"),
+                    "reporting_period": _reporting_period_from_date(row.get("date")),
                     "unit_matched": bool(row.get("unit")),
                     "mode": mode.key,
                     "vision_model": mode.vision_model if extension not in SPREADSHEET_EXTENSIONS else "Spreadsheet direct ingestion",
