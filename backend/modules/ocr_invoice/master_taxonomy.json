@@ -1,0 +1,177 @@
+{
+  "scope_1": {
+    "stationary_combustion": {
+      "ef_method": "activity",
+      "ef_database": "IPCC",
+      "subcategories": ["Natural Gas", "Diesel", "LPG", "Coal", "Wood/Biomass", "Fuel Oil", "Kerosene", "Propane", "Anthracite", "Lignite"]
+    },
+    "mobile_combustion": {
+      "ef_method": "activity",
+      "ef_database": "IPCC",
+      "subcategories": ["Petrol/Gasoline", "Diesel", "CNG", "LPG", "Aviation Turbine Fuel", "Marine Fuel Oil"]
+    },
+    "fugitive_emissions": {
+      "ef_method": "activity",
+      "ef_database": "IPCC",
+      "subcategories": ["R-22", "R-134a", "R-410A", "R-404A", "R-407C", "R-32", "SF6", "CO2", "HFC-23"]
+    }
+  },
+  "scope_2": {
+    "purchased_electricity": {
+      "ef_method": "activity",
+      "ef_database": "CEA",
+      "subcategories": {
+        "non_renewable": ["Grid Electricity"],
+        "renewable": ["Green Tariff", "Solar PPA", "Wind PPA", "REC-backed"]
+      }
+    },
+    "purchased_heat_steam_cooling": {
+      "ef_method": "activity",
+      "ef_database": "DEFRA",
+      "subcategories": ["District Heating", "Purchased Steam", "District Cooling"]
+    }
+  },
+  "scope_3": {
+    "cat_1_purchased_goods_services": {
+      "ef_method_with_qty": { "method": "activity", "ef_database": "DEFRA" },
+      "ef_method_without_qty": { "method": "spend", "ef_database": "USEEIO" },
+      "defra_subcategories": [
+        "Metals (Construction)",
+        "Metal: aluminium cans and foil",
+        "Metal: steel cans",
+        "Metal: mixed cans",
+        "Metal: scrap metal",
+        "Plastics: HDPE",
+        "Plastics: LDPE and LLDPE",
+        "Plastics: PET",
+        "Plastics: PP",
+        "Plastics: PS",
+        "Plastics: PVC",
+        "Plastics: average plastics",
+        "Paper and board: paper",
+        "Paper and board: board",
+        "Paper and board: mixed",
+        "Concrete",
+        "Aggregates",
+        "Bricks",
+        "Insulation",
+        "Wood",
+        "Glass",
+        "Clothing",
+        "Food and drink",
+        "Electrical items - small",
+        "Electrical items - large",
+        "Electrical items - IT"
+      ],
+      "useeio_sectors": [
+        "334 - Computer & Electronic Products",
+        "325 - Chemicals",
+        "331 - Primary Metals",
+        "322 - Paper Manufacturing",
+        "311 - Food Manufacturing",
+        "541 - Professional Services",
+        "518 - Data Processing & Hosting",
+        "561 - Administrative Services",
+        "Other Services"
+      ]
+    },
+    "cat_2_capital_goods": {
+      "ef_method_with_qty": { "method": "activity", "ef_database": "DEFRA" },
+      "ef_method_without_qty": { "method": "spend", "ef_database": "USEEIO" },
+      "defra_subcategories": ["Vehicles", "Machinery", "Buildings/Construction", "IT Infrastructure", "Furniture"],
+      "useeio_sectors": ["333 - Machinery Manufacturing", "336 - Transportation Equipment", "334 - Computer & Electronic Products", "236 - Construction"]
+    },
+    "cat_3_fuel_energy_upstream": {
+      "ef_method": "activity",
+      "note": "Auto-derived from Scope 1/2 invoices. Same fuel type, upstream EF applied.",
+      "subcategories": ["WTT - Natural Gas", "WTT - Diesel", "WTT - Petrol", "WTT - Coal", "WTT - LPG", "WTT - Electricity (Generation)", "T&D Losses"]
+    },
+    "cat_4_upstream_transport": {
+      "ef_method_with_qty": { "method": "activity", "ef_database": "DEFRA" },
+      "ef_method_without_qty": { "method": "spend", "ef_database": "USEEIO" },
+      "defra_subcategories": ["HGV - Rigid", "HGV - Articulated", "Van", "Rail Freight", "Sea Freight - Container", "Sea Freight - Bulk", "Air Freight - Domestic", "Air Freight - International", "Courier"],
+      "useeio_sectors": ["484 - Truck Transportation", "482 - Rail Transportation", "483 - Water Transportation", "481 - Air Transportation", "492 - Couriers & Messengers"]
+    },
+    "cat_5_waste_in_operations": {
+      "ef_method": "activity",
+      "ef_database": "US EPA",
+      "subcategories": {
+        "landfill": ["Mixed MSW", "Food Waste", "Yard Trimmings", "Mixed Recyclables", "Mixed Organics"],
+        "recycling": ["Corrugated Cardboard", "Mixed Paper", "HDPE", "PET", "Mixed Plastics", "Aluminum Cans", "Steel Cans", "Glass", "Mixed Metals", "E-Waste"],
+        "composting": ["Food Waste Composting", "Yard Waste Composting", "Mixed Organics Composting"],
+        "combustion": ["Mixed MSW Combustion", "Hazardous Waste Incineration", "Medical Waste Incineration"],
+        "wastewater": ["Industrial Wastewater", "Domestic Sewage"]
+      }
+    },
+    "cat_6_business_travel": {
+      "ef_method": "activity",
+      "ef_database": "DEFRA",
+      "subcategories": {
+        "air": ["Domestic Flight", "Short-Haul International", "Long-Haul International"],
+        "rail": ["National Rail"],
+        "road": ["Car - Small", "Car - Medium", "Car - Large", "Car - Average", "Taxi"],
+        "hotel": ["Hotel Stay"]
+      }
+    },
+    "cat_7_employee_commuting": {
+      "ef_method": "activity",
+      "ef_database": "DEFRA",
+      "subcategories": ["Car - Petrol", "Car - Diesel", "Car - Hybrid", "Car - BEV", "Motorbike", "Bus", "National Rail", "Light Rail/Tram", "WFH"]
+    },
+    "cat_8_upstream_leased_assets": {
+      "ef_method_with_qty": { "method": "activity", "ef_database": "DEFRA" },
+      "ef_method_without_qty": { "method": "spend", "ef_database": "USEEIO" },
+      "defra_subcategories": ["Leased Office Building", "Leased Warehouse", "Leased Vehicle Fleet", "Leased IT Data Center", "Leased Industrial Equipment"],
+      "useeio_sectors": ["531 - Real Estate", "532 - Rental and Leasing Services"]
+    },
+    "cat_9_downstream_transport": {
+      "ef_method_with_qty": { "method": "activity", "ef_database": "DEFRA" },
+      "ef_method_without_qty": { "method": "spend", "ef_database": "USEEIO" },
+      "defra_subcategories": ["HGV - Rigid", "HGV - Articulated", "Van", "Rail Freight", "Sea Freight - Container", "Air Freight - Domestic", "Air Freight - International"],
+      "useeio_sectors": ["484 - Truck Transportation", "482 - Rail Transportation", "483 - Water Transportation", "481 - Air Transportation"]
+    },
+    "cat_10_processing_of_sold_products": {
+      "ef_method": "spend",
+      "ef_database": "USEEIO",
+      "subcategories": ["Third-party Chemical Processing", "Plastic Molding of Sold Pellets", "Metal Fabrication of Sold Ingots", "Contract Assembly of Sold Components", "Food Processing of Sold Agricultural Goods"],
+      "useeio_sectors": ["325 - Chemicals", "326 - Plastics and Rubber", "332 - Fabricated Metal Products", "311 - Food Manufacturing"]
+    },
+    "cat_11_use_of_sold_products": {
+      "ef_method": "activity",
+      "ef_database": "DEFRA",
+      "subcategories": ["Direct Electricity Consumption of Sold Appliances", "Fuel Combustion of Sold Engines/Vehicles", "Refrigerant & GHG Propellant Leakage from Sold Products", "Consumables Used with Sold Products"]
+    },
+    "cat_12_end_of_life_treatment": {
+      "ef_method": "activity",
+      "ef_database": "US EPA",
+      "subcategories": {
+        "landfill": ["Mixed MSW", "Plastics", "Metals", "Glass", "Paper/Cardboard", "Textiles", "Electronics"],
+        "recycling": ["Paper/Cardboard Recycling", "Plastic Recycling", "Metal Recycling", "Glass Recycling", "E-Waste Recycling"],
+        "combustion": ["Mixed MSW Combustion", "Plastics Combustion"],
+        "composting": ["Organic Waste Composting"]
+      }
+    },
+    "cat_13_downstream_leased_assets": {
+      "ef_method_with_qty": { "method": "activity", "ef_database": "DEFRA" },
+      "ef_method_without_qty": { "method": "spend", "ef_database": "USEEIO" },
+      "defra_subcategories": ["Commercial Real Estate Leased to Tenants", "Equipment Leased to Third Parties", "Retail Space Leased to Operators"],
+      "useeio_sectors": ["531 - Real Estate", "532 - Rental and Leasing Services"]
+    },
+    "cat_14_franchises": {
+      "ef_method": "spend",
+      "ef_database": "USEEIO",
+      "subcategories": ["Franchised Restaurant Operations", "Franchised Retail Stores", "Franchised Service Centers"],
+      "useeio_sectors": ["722 - Food Services and Drinking Places", "448 - Clothing and Clothing Accessories Stores"]
+    },
+    "cat_15_investments": {
+      "ef_method": "spend",
+      "ef_database": "USEEIO",
+      "subcategories": ["Equity Investments", "Corporate Debt Holdings", "Project Finance", "Commercial Real Estate Investments"],
+      "useeio_sectors": ["523 - Securities and Financial Investments", "522 - Credit Intermediation and Related Activities"]
+    }
+  },
+  "water": {
+    "ef_method": "activity",
+    "subcategories": ["Municipal/Utility Water", "Borewell/Groundwater", "Recycled/Treated Water", "Tanker Water", "Rainwater Harvested"]
+  }
+}

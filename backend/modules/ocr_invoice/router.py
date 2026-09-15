@@ -2,6 +2,8 @@
 OCR Invoice Router - Complete AI-Assisted Emission Entry Workflow
 Handles invoice upload, OCR extraction, review, edit, accept, and import flows.
 """
+import csv
+import io
 import os
 import json
 import uuid
@@ -9,15 +11,20 @@ import logging
 import tempfile
 from datetime import datetime, timezone
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from pydantic import BaseModel
 from anthropic import Anthropic
 
 from modules.auth.dependencies import get_current_user
 from shared.database.mongo import db
 from r2_storage import R2Storage
 from . import invoice_processor
+from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
+from .config import MODES, get_mode
+from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, LineItemEdit as AdvancedLineItemEdit
+from .service import process_upload_batch, save_vendor_override
+from .taxonomy_service import SCOPE3_CATEGORY_NAMES, SCOPE_CATEGORY_NAMES
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -86,6 +93,10 @@ def _get_org(user: dict) -> str:
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     return org_id
+
+
+def _preview_path(upload_id: str, file_index: int) -> str:
+    return f"/api/ocr-invoice/uploads/{upload_id}/files/{file_index}/preview"
 
 
 def _load_mappings() -> dict:
@@ -187,8 +198,7 @@ async def _get_software_units() -> List[str]:
 # API Endpoints
 # ============================================================================
 
-@router.post("/upload")
-async def upload_invoices(
+async def _legacy_upload_invoices(
     files: List[UploadFile] = File(...),
     current_user: dict = Depends(get_current_user)
 ):
@@ -436,6 +446,29 @@ async def upload_invoices(
     }
 
 
+@router.post("/upload")
+async def upload_invoices(
+    files: List[UploadFile] = File(...),
+    mode: str = Form(default="fast"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Extract Scope 1, 2, and 3 activity data using the selected AI workflow."""
+    org_id = _get_org(current_user)
+    if not files:
+        raise HTTPException(status_code=400, detail="Select at least one invoice or spreadsheet.")
+    try:
+        extraction_mode = get_mode(mode)
+        return await process_upload_batch(files, org_id, current_user, extraction_mode)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except RuntimeError as error:
+        logger.error("OCR configuration error", extra={"organization_id": org_id, "mode": mode})
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except Exception as error:
+        logger.exception("Advanced OCR upload failed", extra={"organization_id": org_id, "mode": mode})
+        raise HTTPException(status_code=500, detail="Invoice extraction failed. Please verify the file and try again.") from error
+
+
 @router.get("/uploads")
 async def list_uploads(
     limit: int = Query(default=20, ge=1, le=100),
@@ -480,6 +513,113 @@ async def get_upload(
     }
 
 
+@router.get("/uploads/{upload_id}/files/{file_index}/preview")
+async def preview_upload_file(
+    upload_id: str,
+    file_index: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Stream an OCR source file after organization-level authorization."""
+    org_id = _get_org(current_user)
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"_id": 0, "files": 1},
+    )
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    file_info = next((item for item in upload.get("files", []) if item.get("file_index") == file_index), None)
+    if not file_info or not file_info.get("temp_key"):
+        raise HTTPException(status_code=404, detail="Source file not found")
+    try:
+        content, content_type = await r2_storage.get_file("ocr_temp", file_info["temp_key"])
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Source file is no longer available") from error
+    safe_name = str(file_info.get("filename") or "invoice").replace('"', "")
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=content_type,
+        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
+    )
+
+
+@router.get("/uploads/{upload_id}/export")
+async def export_upload_csv(
+    upload_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Export reviewed OCR rows in an audit-friendly flat CSV."""
+    org_id = _get_org(current_user)
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"_id": 0, "id": 1},
+    )
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    items = await db[OCR_LINE_ITEMS_COLLECTION].find(
+        {"upload_id": upload_id, "organization_id": org_id},
+        {"_id": 0, "current_values": 1, "confidence_score": 1, "needs_review": 1, "status": 1, "filename": 1},
+    ).to_list(5000)
+    fieldnames = [
+        "filename", "invoice_number", "vendor_name", "item_description", "scope", "category",
+        "subcategory", "quantity", "unit", "distance_km", "cost", "currency", "ef_method",
+        "ef_database", "naics_code", "naics_label", "accounting_rationale", "confidence_score",
+        "needs_review", "status",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for item in items:
+        values = item.get("current_values", {})
+        writer.writerow({
+            **{field: values.get(field) for field in fieldnames},
+            "filename": item.get("filename"),
+            "confidence_score": item.get("confidence_score"),
+            "needs_review": item.get("needs_review"),
+            "status": item.get("status"),
+        })
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="ocr-extraction-{upload_id}.csv"'},
+    )
+
+
+@router.get("/configuration")
+async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
+    """Return enabled scopes, available modes, and editable category options."""
+    org_id = _get_org(current_user)
+    capabilities = await resolve_ghg_capabilities(db, org_id)
+    scopes = [
+        scope for scope, enabled in (
+            ("scope1", capabilities.scope1_enabled),
+            ("scope2", capabilities.scope2_enabled),
+            ("scope3", capabilities.scope3_enabled),
+        ) if enabled
+    ]
+    categories = [
+        *({"scope": "scope1", "value": value, "label": value} for value in list(SCOPE_CATEGORY_NAMES.values())[:3]),
+        *({"scope": "scope2", "value": value, "label": value} for value in list(SCOPE_CATEGORY_NAMES.values())[3:]),
+        *(
+            {"scope": "scope3", "value": value, "label": value}
+            for value in SCOPE3_CATEGORY_NAMES.values()
+            if value.split(" - ", 1)[0] not in capabilities.disabled_scope3_sheets
+        ),
+    ]
+    return {
+        "enabled_scopes": scopes,
+        "modes": [
+            {
+                "key": mode.key,
+                "label": mode.label,
+                "vision_model": mode.vision_model,
+                "reasoning_model": mode.reasoning_model,
+            }
+            for mode in MODES.values()
+        ],
+        "categories": categories,
+    }
+
+
 @router.get("/line-items")
 async def list_line_items(
     upload_id: Optional[str] = None,
@@ -507,7 +647,7 @@ async def list_line_items(
 @router.put("/line-items/{item_id}")
 async def edit_line_item(
     item_id: str,
-    edit_data: LineItemEdit,
+    edit_data: AdvancedLineItemEdit,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -531,7 +671,9 @@ async def edit_line_item(
     current_values = item.get("current_values", {})
     edit_changes = {}
     
-    for field, value in edit_data.dict(exclude_unset=True).items():
+    submitted = edit_data.model_dump(exclude_unset=True)
+    remember_override = submitted.pop("remember_override", False)
+    for field, value in submitted.items():
         if value is not None:
             old_value = current_values.get(field)
             if old_value != value:
@@ -568,6 +710,9 @@ async def edit_line_item(
         {"id": item_id},
         {"_id": 0}
     )
+
+    if remember_override:
+        await save_vendor_override(org_id, current_user, current_values)
     
     return {"message": "Line item updated", "line_item": updated_item}
 
@@ -595,11 +740,6 @@ async def accept_line_item(
         raise HTTPException(status_code=400, detail="Line item already imported")
     
     current_values = item.get("current_values", {})
-    
-    # Load mappings and normalize unit before accepting
-    mappings = _load_mappings()
-    if current_values.get("unit"):
-        current_values["unit"] = _normalize_unit(current_values["unit"], mappings)
     
     # Build accepted values (snapshot at time of acceptance)
     accepted_values = {
@@ -652,7 +792,7 @@ async def accept_line_item(
         "responsible_person": current_user.get("name", ""),
         
         # Invoice file for evidence
-        "invoice_file_url": item.get("temp_file_url"),
+        "invoice_file_url": _preview_path(item.get("upload_id"), item.get("file_index", 0)),
         "invoice_file_key": item.get("temp_file_key"),
         "invoice_filename": item.get("filename"),
         
@@ -660,7 +800,19 @@ async def accept_line_item(
         "vendor_name": vendor,
         "invoice_number": invoice_num,
         "cost": current_values.get("cost"),
-        "currency": current_values.get("currency")
+        "currency": current_values.get("currency"),
+        "item_description": current_values.get("item_description"),
+        "category_code": current_values.get("category_code"),
+        "distance_km": current_values.get("distance_km"),
+        "ef_method": current_values.get("ef_method"),
+        "ef_database": current_values.get("ef_database"),
+        "ef_lookup_key": current_values.get("ef_lookup_key"),
+        "naics_code": current_values.get("naics_code"),
+        "naics_label": current_values.get("naics_label"),
+        "accounting_rationale": current_values.get("accounting_rationale"),
+        "calculation_method_scope3": f"{current_values.get('ef_method')}_basis" if current_values.get("scope") == "scope3" and current_values.get("ef_method") else None,
+        "scope3_activity": current_values.get("ef_lookup_key"),
+        "scope3_activity_type": current_values.get("category_key")
     }
     
     return {
@@ -669,15 +821,9 @@ async def accept_line_item(
     }
 
 
-class FinalizeImportRequest(BaseModel):
-    """Request model for finalizing OCR import."""
-    line_item_id: str
-    emission_record_ids: List[str] = []  # Optional - will find by invoice number if empty
-
-
 @router.post("/finalize-import")
 async def finalize_import(
-    request: FinalizeImportRequest,
+    request: AdvancedFinalizeImportRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """

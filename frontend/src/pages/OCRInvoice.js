@@ -1,685 +1,252 @@
-/**
- * OCR Invoice Extractor Page - AI-Assisted Emission Entry Workflow
- * 
- * Workflow:
- * 1. Upload Invoice(s) → 2. OCR Processing → 3. AI Data Extraction
- * 4. Review Line Items → 5. Edit (Optional) → 6. Accept
- * 7. Open Add Emission Form (Pre-filled) → 8. Save Emission Record
- * 9. Invoice stored as Evidence
- */
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { AlertTriangle, Download, FileText, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '../components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
 import { useOCR } from '../contexts/OCRContext';
-import { Card } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue 
-} from '../components/ui/select';
+import { DocumentPreview } from '../modules/ocr/DocumentPreview';
+import { ExtractionModeSelector } from '../modules/ocr/ExtractionModeSelector';
+import { OcrEditDialog } from '../modules/ocr/OcrEditDialog';
+import { OcrReviewTable } from '../modules/ocr/OcrReviewTable';
+import { UploadWorkspace } from '../modules/ocr/UploadWorkspace';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui/dialog';
-import { 
-  Upload, 
-  FileText, 
-  AlertCircle, 
-  CheckCircle2, 
-  Loader2,
-  Edit3,
-  Check,
-  X,
-  Trash2,
-  FileWarning,
-  ExternalLink
-} from 'lucide-react';
-import { toast } from 'sonner';
+  acceptOcrLineItem,
+  deleteOcrUpload,
+  downloadOcrCsv,
+  getOcrConfiguration,
+  loadOcrPreview,
+  updateOcrLineItem,
+  uploadOcrFiles,
+} from '../modules/ocr/ocrApi';
 
-const API = process.env.REACT_APP_BACKEND_URL;
-
-// Status badge configurations
-const STATUS_CONFIG = {
-  pending_review: { label: 'Pending Review', color: 'bg-yellow-100 text-yellow-700', icon: FileWarning },
-  edited: { label: 'Edited', color: 'bg-blue-100 text-blue-700', icon: Edit3 },
-  accepted: { label: 'Accepted', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  imported: { label: 'Imported', color: 'bg-gray-100 text-gray-600', icon: Check }
+const FALLBACK_CONFIGURATION = {
+  enabled_scopes: ['scope1', 'scope2'],
+  modes: [
+    { key: 'fast', label: 'Fast', vision_model: 'Claude Sonnet 4.6', reasoning_model: 'Claude Haiku 4.5' },
+    { key: 'think', label: 'Think', vision_model: 'GPT-5.5', reasoning_model: 'GPT-5.5' },
+  ],
+  categories: [],
 };
+
+const responseMessage = (error, fallback) => error?.response?.data?.detail || error?.response?.data?.message || fallback;
 
 export default function OCRInvoice() {
   const { getAuthHeader } = useAuth();
   const { setOcrAcceptedData } = useOCR();
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
-
-  // Upload state
-  const [isDragActive, setIsDragActive] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-
-  // Results state
-  const [currentUploadId, setCurrentUploadId] = useState(null);
-  const [lineItems, setLineItems] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Edit modal state
-  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [configuration, setConfiguration] = useState(FALLBACK_CONFIGURATION);
+  const [mode, setMode] = useState(() => localStorage.getItem('ocr-extraction-mode') || 'fast');
+  const [files, setFiles] = useState([]);
+  const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [upload, setUpload] = useState(null);
+  const [items, setItems] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [editFormData, setEditFormData] = useState({});
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [acceptingId, setAcceptingId] = useState(null);
+  const [error, setError] = useState('');
 
-  // Accept confirmation state
-  const [acceptModalOpen, setAcceptModalOpen] = useState(false);
-  const [acceptingItem, setAcceptingItem] = useState(null);
-  const [isAccepting, setIsAccepting] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    getOcrConfiguration(getAuthHeader())
+      .then(({ data }) => { if (mounted) setConfiguration(data); })
+      .catch(() => { if (mounted) setError('Organization OCR settings could not be loaded. Default options are shown.'); });
+    return () => { mounted = false; };
+  }, [getAuthHeader]);
 
-  // ============================================================================
-  // Drag & Drop Handlers
-  // ============================================================================
-  
-  const handleDrag = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
+  useEffect(() => {
+    localStorage.setItem('ocr-extraction-mode', mode);
+  }, [mode]);
 
-  const handleDragIn = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(true);
-  }, []);
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
-  const handleDragOut = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-  }, []);
+  const selectedFileItems = useMemo(() => (
+    selectedFile ? items.filter((item) => item.file_index === selectedFile.file_index) : items
+  ), [items, selectedFile]);
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      handleFiles(files);
-    }
-  }, []);
-
-  const handleFileInput = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleFiles(Array.from(e.target.files));
-    }
-  };
-
-  // ============================================================================
-  // File Upload Handler
-  // ============================================================================
-
-  const handleFiles = async (files) => {
-    // Filter valid files
-    const validFiles = files.filter(file => {
-      const ext = file.name.toLowerCase();
-      return ext.endsWith('.pdf') || ext.endsWith('.png') || 
-             ext.endsWith('.jpg') || ext.endsWith('.jpeg');
-    });
-
-    if (validFiles.length === 0) {
-      toast.error('Please upload PDF or image files (PNG, JPG)');
-      return;
-    }
-
-    setError(null);
-    setIsUploading(true);
-    setUploadProgress(10);
-
-    const formData = new FormData();
-    validFiles.forEach(file => {
-      formData.append('files', file);
-    });
-
+  const processFiles = async () => {
+    if (!files.length) return;
+    setProcessing(true);
+    setProgress(8);
+    setError('');
     try {
-      setUploadProgress(30);
-      
-      const response = await axios.post(`${API}/api/ocr-invoice/upload`, formData, {
-        headers: {
-          ...getAuthHeader(),
-          'Content-Type': 'multipart/form-data'
-        },
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round((progressEvent.loaded * 50) / progressEvent.total) + 30;
-          setUploadProgress(Math.min(progress, 80));
-        }
+      const { data } = await uploadOcrFiles(files, mode, getAuthHeader(), (event) => {
+        if (event.total) setProgress(Math.min(60, Math.round((event.loaded / event.total) * 55) + 5));
       });
-
-      setUploadProgress(100);
-
-      if (response.data.line_items) {
-        setCurrentUploadId(response.data.upload_id);
-        setLineItems(response.data.line_items);
-        toast.success(`Extracted ${response.data.total_line_items} line items from ${response.data.file_count} file(s)`);
-      } else {
-        toast.warning('No data extracted from the invoice(s)');
+      setProgress(100);
+      setUpload(data);
+      setItems(data.line_items || []);
+      setSelectedFile(data.files?.[0] || null);
+      setSelectedItem(data.line_items?.[0] || null);
+      setFiles([]);
+      if (data.errors?.length) {
+        setError(`${data.errors.length} file${data.errors.length === 1 ? '' : 's'} could not be processed. Successful files remain available.`);
       }
-    } catch (err) {
-      const errorMsg = err.response?.data?.error || err.message || 'Failed to process invoice';
-      setError(errorMsg);
-      toast.error(errorMsg);
+      toast.success(`Extracted ${data.total_line_items} activity row${data.total_line_items === 1 ? '' : 's'}`);
+    } catch (requestError) {
+      const message = responseMessage(requestError, 'Invoice extraction failed. Please try again.');
+      setError(message);
+      toast.error(message);
     } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
+      setProcessing(false);
+      setTimeout(() => setProgress(0), 500);
     }
   };
 
-  // ============================================================================
-  // Edit Handlers
-  // ============================================================================
-
-  const openEditModal = (item) => {
-    setEditingItem(item);
-    setEditFormData({
-      invoice_number: item.current_values?.invoice_number || '',
-      vendor_name: item.current_values?.vendor_name || '',
-      scope: item.current_values?.scope || 'scope1',
-      category: item.current_values?.category || '',
-      subcategory: item.current_values?.subcategory || '',
-      fuel_name: item.current_values?.fuel_name || '',
-      quantity: item.current_values?.quantity || '',
-      unit: item.current_values?.unit || '',
-      cost: item.current_values?.cost || '',
-      currency: item.current_values?.currency || '',
-      billing_period_start: item.current_values?.billing_period_start || '',
-      billing_period_end: item.current_values?.billing_period_end || '',
-      billing_period_text: item.current_values?.billing_period_text || ''
-    });
-    setEditModalOpen(true);
+  const loadPreview = async () => {
+    if (!upload?.upload_id || !selectedFile) return;
+    setPreviewLoading(true);
+    try {
+      const response = await loadOcrPreview(upload.upload_id, selectedFile.file_index, getAuthHeader());
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(URL.createObjectURL(response.data));
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'Secure preview could not be loaded.'));
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
-  const handleEditSave = async () => {
+  const chooseFile = (file) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setSelectedFile(file);
+    setSelectedItem(items.find((item) => item.file_index === file.file_index) || null);
+  };
+
+  const saveEdit = async (values) => {
     if (!editingItem) return;
-    
-    setIsSavingEdit(true);
+    setSaving(true);
     try {
-      const response = await axios.put(
-        `${API}/api/ocr-invoice/line-items/${editingItem.id}`,
-        editFormData,
-        { headers: getAuthHeader() }
-      );
-
-      // Update local state
-      setLineItems(prev => prev.map(item => 
-        item.id === editingItem.id ? response.data.line_item : item
-      ));
-
-      toast.success('Line item updated');
-      setEditModalOpen(false);
+      const { data } = await updateOcrLineItem(editingItem.id, values, getAuthHeader());
+      setItems((current) => current.map((item) => item.id === editingItem.id ? data.line_item : item));
+      setSelectedItem(data.line_item);
       setEditingItem(null);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to save changes');
+      toast.success(values.remember_override ? 'Changes saved and vendor mapping remembered' : 'Changes saved');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'Changes could not be saved.'));
     } finally {
-      setIsSavingEdit(false);
+      setSaving(false);
     }
   };
 
-  // ============================================================================
-  // Accept Handlers
-  // ============================================================================
-
-  const handleAccept = async (item) => {
-    setAcceptingItem(item);
-    setIsAccepting(true);
-
+  const acceptItem = async (item) => {
+    setAcceptingId(item.id);
     try {
-      const response = await axios.post(
-        `${API}/api/ocr-invoice/line-items/${item.id}/accept`,
-        {},
-        { headers: getAuthHeader() }
-      );
-
-      const prefillData = response.data.prefill_data;
-
-      // Update local state
-      setLineItems(prev => prev.map(li => 
-        li.id === item.id ? { ...li, status: 'accepted' } : li
-      ));
-
-      // Store in OCR context for emission form
-      setOcrAcceptedData(prefillData);
-
-      toast.success('Line item accepted. Opening emission form...');
-
-      // Navigate to GHG emissions page with correct scope route
-      const scopeRoute = prefillData.scope || 'scope1';
-      setTimeout(() => {
-        navigate(`/ghg/${scopeRoute}`, { state: { openAddForm: true, ocrPrefill: prefillData } });
-      }, 500);
-
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to accept line item');
+      const { data } = await acceptOcrLineItem(item.id, getAuthHeader());
+      setItems((current) => current.map((row) => row.id === item.id ? { ...row, status: 'accepted' } : row));
+      setOcrAcceptedData(data.prefill_data);
+      toast.success('Activity accepted. Opening the emissions form.');
+      navigate(`/ghg/${data.prefill_data.scope || 'scope1'}`, { state: { openAddForm: true, ocrPrefill: data.prefill_data } });
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This activity could not be accepted.'));
     } finally {
-      setIsAccepting(false);
-      setAcceptingItem(null);
+      setAcceptingId(null);
     }
   };
 
-  // ============================================================================
-  // Delete Upload Handler
-  // ============================================================================
-
-  const handleDeleteUpload = async () => {
-    if (!currentUploadId) return;
-
+  const exportCsv = async () => {
+    if (!upload?.upload_id) return;
     try {
-      await axios.delete(
-        `${API}/api/ocr-invoice/uploads/${currentUploadId}`,
-        { headers: getAuthHeader() }
-      );
-
-      setCurrentUploadId(null);
-      setLineItems([]);
-      toast.success('Upload deleted');
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete upload');
+      const response = await downloadOcrCsv(upload.upload_id, getAuthHeader());
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ocr-extraction-${upload.upload_id}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('CSV export downloaded');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'CSV export could not be downloaded.'));
     }
   };
 
-  // ============================================================================
-  // Render Helpers
-  // ============================================================================
-
-  const formatPeriod = (item) => {
-    const cv = item.current_values || {};
-    if (cv.billing_period_text) return cv.billing_period_text;
-    if (cv.billing_period_start && cv.billing_period_end) {
-      return `${cv.billing_period_start} - ${cv.billing_period_end}`;
+  const clearUpload = async () => {
+    if (!upload?.upload_id) return;
+    try {
+      await deleteOcrUpload(upload.upload_id, getAuthHeader());
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setUpload(null); setItems([]); setSelectedFile(null); setSelectedItem(null); setPreviewUrl(null); setError('');
+      toast.success('Extraction workspace cleared');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'Workspace could not be cleared.'));
     }
-    if (cv.billing_period_start) return cv.billing_period_start;
-    return 'N/A';
   };
-
-  const renderStatusBadge = (status) => {
-    const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending_review;
-    const Icon = config.icon;
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${config.color}`}>
-        <Icon className="w-3 h-3" />
-        {config.label}
-      </span>
-    );
-  };
-
-  // ============================================================================
-  // Render
-  // ============================================================================
 
   return (
-    <div className="space-y-6" data-testid="ocr-invoice-page">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">
-            AI Invoice Extractor
-          </h1>
-          <p className="text-text-muted mt-1">
-            Upload invoices to auto-fill emission entries. Review, edit, and import with confidence.
-          </p>
-        </div>
-        {lineItems.length > 0 && (
-          <Button 
-            variant="outline" 
-            onClick={handleDeleteUpload}
-            className="text-red-600 hover:bg-red-50"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Clear All
-          </Button>
-        )}
-      </div>
-
-      {/* Upload Zone - Show when no results */}
-      {!isUploading && lineItems.length === 0 && (
-        <Card 
-          className={`p-12 border-2 border-dashed transition-all cursor-pointer ${
-            isDragActive 
-              ? 'border-primary bg-primary/5' 
-              : 'border-border hover:border-primary/50 hover:bg-gray-50'
-          }`}
-          data-testid="ocr-drop-zone"
-          onDragEnter={handleDragIn}
-          onDragLeave={handleDragOut}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <div className="flex flex-col items-center text-center">
-            <div className={`p-4 rounded-full mb-4 ${isDragActive ? 'bg-primary/10' : 'bg-gray-100'}`}>
-              <Upload className={`w-10 h-10 ${isDragActive ? 'text-primary' : 'text-text-muted'}`} />
+    <main className="mx-auto max-w-[1600px] space-y-8 pb-12" data-testid="ocr-invoice-page">
+      <header className="border-b border-slate-200 pb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase text-emerald-700">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Secure organization workspace
             </div>
-            <h2 className="text-lg font-semibold text-text-primary mb-2">
-              Drag & Drop your invoices here
-            </h2>
-            <p className="text-text-muted text-sm mb-4">
-              Supports multiple files: PDF, PNG, JPG (Max 20MB each)
+            <h1 className="mt-3 text-4xl font-heading font-bold text-slate-950 sm:text-5xl lg:text-6xl">Activity extraction</h1>
+            <p className="mt-3 max-w-3xl text-sm text-slate-600 sm:text-base">
+              Convert invoices and ledgers into reviewable Scope 1, 2 and 3 activity data.
             </p>
-            <input 
-              type="file" 
-              ref={fileInputRef}
-              className="hidden" 
-              accept=".pdf,.png,.jpg,.jpeg"
-              multiple
-              onChange={handleFileInput}
-              data-testid="ocr-file-input"
-            />
-            <Button data-testid="ocr-browse-btn">
-              <FileText className="w-4 h-4 mr-2" />
-              Browse Files
-            </Button>
           </div>
-        </Card>
-      )}
+          {upload && (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={exportCsv} data-testid="ocr-export-csv-button"><Download className="mr-2 h-4 w-4" />Export CSV</Button>
+              <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
+            </div>
+          )}
+        </div>
+      </header>
 
-      {/* Error Message */}
       {error && (
-        <Card className="p-4 bg-red-50 border-red-200">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <p className="text-red-700 text-sm flex-1">{error}</p>
-            <Button variant="outline" size="sm" onClick={() => setError(null)}>
-              Dismiss
-            </Button>
-          </div>
-        </Card>
+        <div className="flex items-start gap-3 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="alert" data-testid="ocr-error-alert">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">{error}</span>
+          <button type="button" onClick={() => setError('')} className="font-semibold underline" data-testid="ocr-dismiss-error-button">Dismiss</button>
+        </div>
       )}
 
-      {/* Uploading State */}
-      {isUploading && (
-        <Card className="p-12">
-          <div className="flex flex-col items-center text-center">
-            <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-            <p className="text-text-primary font-medium">Processing invoices with AI...</p>
-            <p className="text-text-muted text-sm mt-1">This may take a few moments</p>
-            <div className="w-64 h-2 bg-gray-200 rounded-full mt-4 overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-          </div>
-        </Card>
+      {!upload ? (
+        <div className="grid gap-8 xl:grid-cols-[22rem_minmax(0,1fr)]">
+          <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} />
+          <UploadWorkspace files={files} onFilesChange={setFiles} onProcess={processFiles} processing={processing} progress={progress} />
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <section className="grid gap-5 xl:grid-cols-[17rem_minmax(0,1fr)]" aria-labelledby="ocr-source-heading" data-testid="ocr-source-workspace">
+            <aside className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h2 id="ocr-source-heading" className="text-sm font-semibold text-slate-900">Source documents</h2>
+                <Button type="button" size="icon" variant="ghost" onClick={clearUpload} aria-label="Start another extraction" data-testid="ocr-start-new-button"><RefreshCw className="h-4 w-4" /></Button>
+              </div>
+              {upload.files.map((file) => (
+                <button key={`${file.file_index}-${file.filename}`} type="button" onClick={() => chooseFile(file)} className={`flex w-full items-start gap-3 border px-3 py-3 text-left transition-colors ${selectedFile?.file_index === file.file_index ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`} data-testid={`ocr-source-file-${file.file_index}`}>
+                  <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-900">{file.filename}</span><span className="mt-1 block text-xs text-slate-500">{file.line_item_count} rows · {file.status}</span></span>
+                </button>
+              ))}
+            </aside>
+            <DocumentPreview file={selectedFile} previewUrl={previewUrl} loading={previewLoading} onLoadPreview={loadPreview} />
+          </section>
+
+          <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={setEditingItem} onAccept={acceptItem} acceptingId={acceptingId} />
+
+          {selectedItem && (
+            <section className="border-l-4 border-emerald-600 bg-slate-50 p-4 lg:hidden" data-testid="ocr-selected-item-actions">
+              <p className="text-sm font-semibold text-slate-900">{selectedItem.current_values?.category}</p>
+              <p className="mt-1 text-xs text-slate-600">{selectedItem.current_values?.accounting_rationale}</p>
+              <div className="mt-4 flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setEditingItem(selectedItem)} data-testid="ocr-mobile-edit-button">Edit</Button>
+                <Button type="button" onClick={() => acceptItem(selectedItem)} disabled={acceptingId === selectedItem.id} data-testid="ocr-mobile-accept-button">Accept activity</Button>
+              </div>
+            </section>
+          )}
+        </div>
       )}
 
-      {/* Results Table */}
-      {lineItems.length > 0 && (
-        <Card className="overflow-hidden" data-testid="ocr-results">
-          <div className="p-4 border-b border-border flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-text-primary">
-                Extracted Line Items
-              </h2>
-              <p className="text-sm text-text-muted">
-                {lineItems.length} item{lineItems.length !== 1 ? 's' : ''} • 
-                {lineItems.filter(i => i.status === 'pending_review' || i.status === 'edited').length} pending • 
-                {lineItems.filter(i => i.status === 'accepted').length} accepted • 
-                {lineItems.filter(i => i.status === 'imported').length} imported
-              </p>
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Add More
-            </Button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Invoice #</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Vendor</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Fuel</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Scope</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Quantity</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Period</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Confidence</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {lineItems.map((item) => {
-                  const cv = item.current_values || {};
-                  const isImported = item.status === 'imported';
-                  
-                  return (
-                    <tr 
-                      key={item.id} 
-                      className={`hover:bg-gray-50 ${item.needs_review && item.status !== 'imported' ? 'bg-yellow-50/50' : ''}`}
-                    >
-                      <td className="px-4 py-3 text-sm">{cv.invoice_number || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm">{cv.vendor_name || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm font-medium">{cv.fuel_name || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm">{cv.category || 'Unknown'}</td>
-                      <td className="px-4 py-3 text-sm capitalize">{cv.scope?.replace('scope', 'Scope ') || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm">
-                        {cv.quantity ? `${cv.quantity} ${cv.unit || ''}` : 'N/A'}
-                        {!cv.unit_matched && cv.unit && (
-                          <span className="block text-xs text-orange-600">Unit needs mapping</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm">{formatPeriod(item)}</td>
-                      <td className="px-4 py-3 text-sm">
-                        {item.confidence_score ? `${item.confidence_score}%` : 'N/A'}
-                      </td>
-                      <td className="px-4 py-3">
-                        {renderStatusBadge(item.status)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {!isImported && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openEditModal(item)}
-                                data-testid={`edit-btn-${item.id}`}
-                              >
-                                <Edit3 className="w-3 h-3 mr-1" />
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleAccept(item)}
-                                disabled={isAccepting && acceptingItem?.id === item.id}
-                                data-testid={`accept-btn-${item.id}`}
-                              >
-                                {isAccepting && acceptingItem?.id === item.id ? (
-                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                ) : (
-                                  <Check className="w-3 h-3 mr-1" />
-                                )}
-                                Accept
-                              </Button>
-                            </>
-                          )}
-                          {isImported && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => navigate('/emissions')}
-                            >
-                              <ExternalLink className="w-3 h-3 mr-1" />
-                              View
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Legend */}
-          <div className="p-4 border-t border-border bg-gray-50 flex gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-yellow-400"></span>
-              <span className="text-text-muted">Pending Review</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-400"></span>
-              <span className="text-text-muted">Edited</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-green-500"></span>
-              <span className="text-text-muted">Accepted</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-gray-400"></span>
-              <span className="text-text-muted">Imported</span>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Edit Modal */}
-      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Line Item</DialogTitle>
-            <DialogDescription>
-              Update the extracted values. Original OCR data is preserved for audit.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="invoice_number">Invoice Number</Label>
-              <Input
-                id="invoice_number"
-                value={editFormData.invoice_number}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, invoice_number: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vendor_name">Vendor</Label>
-              <Input
-                id="vendor_name"
-                value={editFormData.vendor_name}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, vendor_name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="scope">Scope</Label>
-              <Select
-                value={editFormData.scope}
-                onValueChange={(value) => setEditFormData(prev => ({ ...prev, scope: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select scope" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="scope1">Scope 1</SelectItem>
-                  <SelectItem value="scope2">Scope 2</SelectItem>
-                  <SelectItem value="scope3">Scope 3</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                value={editFormData.category}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, category: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="subcategory">Subcategory</Label>
-              <Input
-                id="subcategory"
-                value={editFormData.subcategory}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, subcategory: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="fuel_name">Fuel Name</Label>
-              <Input
-                id="fuel_name"
-                value={editFormData.fuel_name}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, fuel_name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input
-                id="quantity"
-                type="number"
-                step="any"
-                value={editFormData.quantity}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || '' }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="unit">Unit</Label>
-              <Input
-                id="unit"
-                value={editFormData.unit}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, unit: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="billing_period_start">Period Start</Label>
-              <Input
-                id="billing_period_start"
-                type="date"
-                value={editFormData.billing_period_start}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, billing_period_start: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="billing_period_end">Period End</Label>
-              <Input
-                id="billing_period_end"
-                type="date"
-                value={editFormData.billing_period_end}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, billing_period_end: e.target.value }))}
-              />
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label htmlFor="billing_period_text">Period Text (Optional)</Label>
-              <Input
-                id="billing_period_text"
-                placeholder="e.g., Q1 2024, FY 2023-24"
-                value={editFormData.billing_period_text}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, billing_period_text: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditSave} disabled={isSavingEdit}>
-              {isSavingEdit && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) setEditingItem(null); }} configuration={configuration} onSave={saveEdit} saving={saving} />
+    </main>
   );
 }
