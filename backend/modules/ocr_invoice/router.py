@@ -23,10 +23,12 @@ from . import invoice_processor
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MODES, get_mode
 from .factor_options import resolve_factor_options, validate_factor_selection
+from .ghg_save_service import execute_ocr_calculation, resolve_ghg_category, scope3_method
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit, UploadFacilityAssignments
 from .service import build_org_context, process_queued_upload, queue_upload_batch, save_vendor_override
 from .template_service import generate_ocr_template
 from .taxonomy_service import SCOPE3_CATEGORY_NAMES, SCOPE_CATEGORY_NAMES, WATER_CATEGORY_NAMES
+from modules.emissions.contracts import EmissionRecordCreate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1074,6 +1076,112 @@ async def accept_line_item(
         "message": "Line item accepted",
         "prefill_data": prefill_data
     }
+
+
+@router.post("/line-items/{item_id}/save-ghg")
+async def save_line_item_to_ghg(
+    item_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Calculate a reviewed OCR row and persist it through the canonical emissions writer."""
+    org_id = _get_org(current_user)
+    item = await db[OCR_LINE_ITEMS_COLLECTION].find_one(
+        {"id": item_id, "organization_id": org_id},
+        {"_id": 0},
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Line item not found")
+    if item.get("status") == "imported":
+        raise HTTPException(status_code=409, detail="This OCR row has already been saved to GHG records")
+    values = dict(item.get("current_values") or {})
+    if values.get("scope") not in {"scope1", "scope2", "scope3"}:
+        raise HTTPException(status_code=422, detail="Only Scope 1, Scope 2, and Scope 3 OCR rows can be saved directly to GHG records")
+    facility_id = values.get("facility_id")
+    facility = await db.facilities.find_one(
+        {"id": facility_id, "organization_id": org_id, "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
+        {"_id": 0, "id": 1},
+    )
+    if not facility:
+        raise HTTPException(status_code=422, detail="Select an active facility before saving this OCR row to GHG")
+    if not values.get("reporting_period"):
+        raise HTTPException(status_code=422, detail="Select a reporting period before saving this OCR row to GHG")
+    factor_id = values.get("factor_id") or values.get("fuel_id") or values.get("scope3_ef_id")
+    try:
+        if not factor_id:
+            raise ValueError("Select a validated factor before saving this OCR row to GHG")
+        selected_factor = await validate_factor_selection(
+            db,
+            scope=values.get("scope") or "",
+            category=values.get("category") or "",
+            method=values.get("ef_method") or "",
+            factor_id=factor_id,
+            lookup_value=values.get("ef_lookup_key") or values.get("subcategory") or "",
+            unit=values.get("unit") or "",
+            currency=values.get("currency") or "",
+        )
+        values["factor_id"] = selected_factor["id"]
+        values["fuel_id"] = selected_factor["id"] if selected_factor["collection"] == "fuel_database" else None
+        values["scope3_ef_id"] = selected_factor["id"] if selected_factor["collection"] == "scope3_ef" else None
+        category = await resolve_ghg_category(db, values)
+        calculation = await execute_ocr_calculation(db, values, category, org_id)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    method = scope3_method(values.get("ef_method")) if values.get("scope") == "scope3" else None
+    invoice_number = str(values.get("invoice_number") or "").strip()
+    emission_payload = EmissionRecordCreate(
+        facility_id=facility_id,
+        organization_id=org_id,
+        reporting_period=values["reporting_period"],
+        frequency_type="monthly",
+        scope=values["scope"],
+        category=category.get("name") or category.get("category") or values["category"],
+        category_code=category.get("code") or values.get("category_code"),
+        category_id=category["id"],
+        sub_category=values.get("subcategory") or values.get("fuel_name") or values["category"],
+        fuel_type=values.get("fuel_name") or values.get("subcategory"),
+        calculation_methodology=calculation["decision_inputs"].get("calculation_methodology"),
+        calculation_method_scope3=method,
+        spend_currency_conversion_method=calculation["decision_inputs"].get("spend_currency_conversion_method"),
+        scope3_ef_id=values.get("scope3_ef_id"),
+        scope3_activity=values.get("ef_lookup_key") or values.get("subcategory"),
+        scope3_activity_type=values.get("scope3_activity_type"),
+        scope3_subcategory=values.get("scope3_subcategory"),
+        supplier_name=values.get("vendor_name") if values.get("scope") == "scope3" else None,
+        formula_id=calculation["formula_id"],
+        formula_version_id=calculation["formula_version_id"],
+        decision_tree_version_id=calculation["decision_tree_version_id"],
+        formula_snapshot=calculation["formula_snapshot"],
+        dynamic_field_values=calculation["inputs"],
+        outputs=calculation["outputs"],
+        source_of_information=f"Invoice No. {invoice_number}" if invoice_number else "OCR invoice upload",
+        record_source="OCR invoice upload",
+        upload_source="ocr_upload",
+        ocr_upload_id=item["upload_id"],
+        ocr_line_item_id=item_id,
+        ocr_file_index=item.get("file_index"),
+    )
+    from modules.emissions.router import create_emission_record
+    emission = await create_emission_record(emission_payload, current_user)
+    emission_data = emission.model_dump() if hasattr(emission, "model_dump") else emission
+    if calculation.get("audit_log_id") and emission_data.get("id"):
+        await db.ce_calculation_audit_logs.update_one(
+            {"id": calculation["audit_log_id"]},
+            {"$set": {"emission_record_id": emission_data["id"]}},
+        )
+    try:
+        finalization = await finalize_import(
+            AdvancedFinalizeImportRequest(line_item_id=item_id, emission_record_ids=[emission_data["id"]]),
+            current_user,
+        )
+    except Exception:
+        logger.exception("OCR GHG evidence transfer failed", extra={"organization_id": org_id, "line_item_id": item_id, "emission_record_id": emission_data.get("id")})
+        await db[OCR_LINE_ITEMS_COLLECTION].update_one(
+            {"id": item_id, "organization_id": org_id},
+            {"$set": {"status": "ghg_saved_evidence_pending", "emission_record_ids": [emission_data["id"]], "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        return {"message": "GHG entry saved; evidence transfer is pending retry", "emission_record": emission_data, "evidence_attached": False}
+    return {"message": "GHG entry calculated and saved", "emission_record": emission_data, "evidence_attached": True, **finalization}
 
 
 @router.post("/finalize-water-import")

@@ -211,7 +211,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                       <Button type="button" size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setDetailsItem(item); }} data-testid={`ocr-view-more-row-${item.id}`}>View more</Button>
                       <Button type="button" size="icon" variant="ghost" onClick={(event) => { event.stopPropagation(); onEdit(item); }} aria-label="Edit row" data-testid={`ocr-edit-row-${item.id}`}><Edit3 className="h-4 w-4" /></Button>
                       <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={(event) => { event.stopPropagation(); onReject(item); }} disabled={rejectingId === item.id} aria-label="Reject row" data-testid={`ocr-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
-                      <Button type="button" size="icon" onClick={(event) => { event.stopPropagation(); onAccept(item); }} disabled={acceptingId === item.id || item.status === 'imported'} aria-label="Accept row" data-testid={`ocr-accept-row-${item.id}`}><Check className="h-4 w-4" /></Button>
+                      <Button type="button" size="icon" onClick={(event) => { event.stopPropagation(); onAccept(item); }} disabled={acceptingId === item.id || item.status === 'imported'} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-save-ghg-row-${item.id}`}><Check className="h-4 w-4" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -248,7 +248,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                 <Button type="button" size="sm" variant="ghost" onClick={() => setDetailsItem(item)} data-testid={`ocr-mobile-view-more-row-${item.id}`}>View more</Button>
                 <Button type="button" size="icon" variant="ghost" onClick={() => onEdit(item)} aria-label="Edit row" data-testid={`ocr-mobile-edit-row-${item.id}`}><Edit3 className="h-4 w-4" /></Button>
                 <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onReject(item)} disabled={rejectingId === item.id} aria-label="Reject row" data-testid={`ocr-mobile-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
-                <Button type="button" size="icon" onClick={() => onAccept(item)} disabled={acceptingId === item.id || item.status === 'imported'} aria-label="Accept row" data-testid={`ocr-mobile-accept-row-${item.id}`}><Check className="h-4 w-4" /></Button>
+                <Button type="button" size="icon" onClick={() => onAccept(item)} disabled={acceptingId === item.id || item.status === 'imported'} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-mobile-save-ghg-row-${item.id}`}><Check className="h-4 w-4" /></Button>
               </div>
             </article>
           );

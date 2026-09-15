@@ -64,7 +64,6 @@ export default function EmissionDataGrid({
   hideHistoryActions = false,
   handleEdit,
   fetchHistory,
-  onViewEvidence,
   openDeleteConfirm,
   onBulkDelete,
   showFilters,
@@ -553,18 +552,6 @@ export default function EmissionDataGrid({
                 >
                   <Edit className="w-3.5 h-3.5 text-stone-600" />
                 </Button>
-                {emission.evidence_url && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => { e.stopPropagation(); onViewEvidence?.(emission.evidence_url, e); }}
-                    title={`View evidence${emission.evidence_file_name ? `: ${emission.evidence_file_name}` : ''}`}
-                    className="h-7 w-7 p-0"
-                    data-testid={`view-evidence-emission-${emission.id}`}
-                  >
-                    <FileText className="w-3.5 h-3.5 text-blue-600" />
-                  </Button>
-                )}
                 {!isRegularUser && !hideHistoryActions && (
                   <Button
                     size="sm"

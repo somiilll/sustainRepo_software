@@ -3741,7 +3741,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             hideHistoryActions={isSupplierUser}
             handleEdit={handleEdit}
             fetchHistory={fetchHistory}
-            onViewEvidence={handleViewEvidence}
             openDeleteConfirm={openDeleteConfirm}
             onBulkDelete={openBulkDeleteConfirm}
             showFilters={showFilters}

@@ -105,6 +105,10 @@ class EmissionRecordCreate(BaseModel):
     justification: Optional[str] = None
     evidence_url: Optional[str] = None
     submission_batch_id: Optional[str] = None
+    upload_source: Optional[str] = None
+    ocr_upload_id: Optional[str] = None
+    ocr_line_item_id: Optional[str] = None
+    ocr_file_index: Optional[int] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None

@@ -39,6 +39,9 @@ export const assignOcrUploadFacilities = (uploadId, assignments, headers) =>
 export const acceptOcrLineItem = (itemId, headers) =>
   axios.post(`${API}/api/ocr-invoice/line-items/${itemId}/accept`, {}, { headers });
 
+export const saveOcrLineItemToGhg = (itemId, headers) =>
+  axios.post(`${API}/api/ocr-invoice/line-items/${itemId}/save-ghg`, {}, { headers });
+
 export const rejectOcrLineItem = (itemId, headers) =>
   axios.post(`${API}/api/ocr-invoice/line-items/${itemId}/reject`, {}, { headers });
 

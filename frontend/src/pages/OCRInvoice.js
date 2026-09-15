@@ -14,7 +14,6 @@ import {
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
 import { useAuth } from '../contexts/AuthContext';
-import { useOCR } from '../contexts/OCRContext';
 import { DocumentPreview } from '../modules/ocr/DocumentPreview';
 import { ExtractionModeSelector } from '../modules/ocr/ExtractionModeSelector';
 import { OcrEditDialog } from '../modules/ocr/OcrEditDialog';
@@ -31,6 +30,7 @@ import {
   getOcrUpload,
   loadOcrPreview,
   rejectOcrLineItem,
+  saveOcrLineItemToGhg,
   updateOcrLineItem,
   uploadOcrFiles,
 } from '../modules/ocr/ocrApi';
@@ -49,7 +49,6 @@ const responseMessage = (error, fallback) => error?.response?.data?.detail || er
 
 export default function OCRInvoice() {
   const { getAuthHeader } = useAuth();
-  const { setOcrAcceptedData } = useOCR();
   const navigate = useNavigate();
   const [configuration, setConfiguration] = useState(FALLBACK_CONFIGURATION);
   const [mode, setMode] = useState(() => localStorage.getItem('ocr-extraction-mode') || 'fast');
@@ -301,18 +300,28 @@ export default function OCRInvoice() {
   const acceptItem = async (item) => {
     setAcceptingId(item.id);
     try {
-      const { data } = await acceptOcrLineItem(item.id, getAuthHeader());
-      setItems((current) => current.map((row) => row.id === item.id ? { ...row, status: 'accepted' } : row));
-      if (data.prefill_data.scope === 'water') {
+      if (item.current_values?.scope === 'water') {
+        const { data } = await acceptOcrLineItem(item.id, getAuthHeader());
+        setItems((current) => current.map((row) => row.id === item.id ? { ...row, status: 'accepted' } : row));
         toast.success('Water activity accepted. Opening the Water metric form.');
         navigate('/environment/water?tab=add-metric', { state: { openWaterForm: true, ocrWaterPrefill: data.prefill_data } });
       } else {
-        setOcrAcceptedData(data.prefill_data);
-        toast.success('Activity accepted. Opening the emissions form.');
-        navigate(`/ghg/${data.prefill_data.scope || 'scope1'}`, { state: { openAddForm: true, ocrPrefill: data.prefill_data } });
+        const { data: savedData } = await saveOcrLineItemToGhg(item.id, getAuthHeader());
+        const remainingItems = items.filter((row) => row.id !== item.id);
+        setItems(remainingItems);
+        setSelectedItem(remainingItems.find((row) => row.upload_id === item.upload_id && row.file_index === item.file_index) || remainingItems[0] || null);
+        if (savedData.file_completed) {
+          const remainingFiles = (upload?.files || []).filter((file) => !(file.upload_id === item.upload_id && file.file_index === item.file_index));
+          const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
+          setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
+          setSelectedFile(remainingFiles[0] || null);
+          if (remainingUploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
+          else localStorage.removeItem('ocr-active-upload-ids');
+        }
+        toast.success(savedData.evidence_attached ? 'GHG entry calculated and saved' : 'GHG entry saved; evidence transfer is pending retry');
       }
     } catch (requestError) {
-      toast.error(responseMessage(requestError, 'This activity could not be accepted.'));
+      toast.error(responseMessage(requestError, 'This GHG entry could not be calculated and saved.'));
     } finally {
       setAcceptingId(null);
     }
