@@ -10,7 +10,7 @@ MODULE_DIR = Path(__file__).resolve().parent
 MASTER_TAXONOMY_PATH = MODULE_DIR / "master_taxonomy.json"
 NAICS_INDEX_PATH = MODULE_DIR / "useeio_naics_index.json"
 
-ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".csv", ".xlsx", ".xls"}
+ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".avif", ".csv", ".xlsx", ".xls"}
 SPREADSHEET_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 MAX_FILE_BYTES = 20 * 1024 * 1024
 MAX_PDF_PAGES = 15

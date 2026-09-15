@@ -22,10 +22,10 @@ from r2_storage import R2Storage
 from . import invoice_processor
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MODES, get_mode
-from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, LineItemEdit as AdvancedLineItemEdit
-from .service import process_upload_batch, save_vendor_override
+from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit
+from .service import build_org_context, process_upload_batch, save_vendor_override
 from .template_service import generate_ocr_template
-from .taxonomy_service import SCOPE3_CATEGORY_NAMES, SCOPE_CATEGORY_NAMES
+from .taxonomy_service import SCOPE3_CATEGORY_NAMES, SCOPE_CATEGORY_NAMES, WATER_CATEGORY_NAMES
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -671,22 +671,17 @@ async def export_upload_csv(
 async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
     """Return enabled scopes, available modes, and editable category options."""
     org_id = _get_org(current_user)
-    capabilities = await resolve_ghg_capabilities(db, org_id)
-    scopes = [
-        scope for scope, enabled in (
-            ("scope1", capabilities.scope1_enabled),
-            ("scope2", capabilities.scope2_enabled),
-            ("scope3", capabilities.scope3_enabled),
-        ) if enabled
-    ]
+    _, scopes, disabled_scope3_sheets = await build_org_context(org_id)
+    scopes = [scope for scope in ("scope1", "scope2", "scope3") if scope in scopes] + ["water"]
     categories = [
         *({"scope": "scope1", "value": value, "label": value} for value in list(SCOPE_CATEGORY_NAMES.values())[:3]),
         *({"scope": "scope2", "value": value, "label": value} for value in list(SCOPE_CATEGORY_NAMES.values())[3:]),
         *(
             {"scope": "scope3", "value": value, "label": value}
             for value in SCOPE3_CATEGORY_NAMES.values()
-            if value.split(" - ", 1)[0] not in capabilities.disabled_scope3_sheets
+            if value.split(" - ", 1)[0] not in disabled_scope3_sheets
         ),
+        *({"scope": "water", "value": value, "label": value} for value in WATER_CATEGORY_NAMES.values()),
     ]
     return {
         "enabled_scopes": scopes,
@@ -849,6 +844,16 @@ async def accept_line_item(
     invoice_num = current_values.get("invoice_number", "N/A")
     vendor = current_values.get("vendor_name", "Unknown Vendor")
     source_info = f"Invoice No. {invoice_num} | Vendor: {vendor}"
+    facility = None
+    if current_values.get("location"):
+        facility = await db.facilities.find_one(
+            {
+                "organization_id": org_id,
+                "name": current_values["location"],
+                "is_deleted": {"$ne": True},
+            },
+            {"_id": 0, "id": 1},
+        )
     
     # Build response for emission form pre-fill
     prefill_data = {
@@ -882,6 +887,7 @@ async def accept_line_item(
         # Additional context
         "vendor_name": vendor,
         "invoice_number": invoice_num,
+        "facility_id": facility.get("id") if facility else None,
         "cost": current_values.get("cost"),
         "currency": current_values.get("currency"),
         "item_description": current_values.get("item_description"),
@@ -902,6 +908,97 @@ async def accept_line_item(
         "message": "Line item accepted",
         "prefill_data": prefill_data
     }
+
+
+@router.post("/finalize-water-import")
+async def finalize_water_import(
+    request: FinalizeWaterImportRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Attach OCR evidence to a saved Environment > Water record, then resolve its row."""
+    org_id = _get_org(current_user)
+    item = await db[OCR_LINE_ITEMS_COLLECTION].find_one(
+        {"id": request.line_item_id, "organization_id": org_id},
+        {"_id": 0},
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="OCR line item not found")
+    if item.get("current_values", {}).get("scope") != "water":
+        raise HTTPException(status_code=400, detail="This OCR row is not a Water activity")
+    record = await db.esg_records.find_one(
+        {"id": request.esg_record_id, "organization_id": org_id, "section": "environment", "category": "Water"},
+        {"_id": 0, "id": 1},
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Saved Water record not found")
+
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": item.get("upload_id"), "organization_id": org_id},
+        {"_id": 0, "files": 1},
+    ) or {}
+    source_file = next(
+        (file for file in upload.get("files", []) if file.get("file_index") == item.get("file_index", 0)),
+        {},
+    )
+    evidence_url = source_file.get("water_evidence_url")
+    filename = item.get("filename", "water-source")
+    if not evidence_url:
+        try:
+            file_content, source_content_type = await r2_storage.get_file("ocr_temp", item.get("temp_file_key"))
+            org_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1}) or {}
+            evidence_result = await r2_storage.upload_file(
+                file_content=file_content,
+                filename=filename,
+                bucket_type="esg_records_evidence",
+                content_type=source_content_type or "application/octet-stream",
+                org_name=org_doc.get("name") or org_id,
+            )
+            if not evidence_result or not evidence_result.get("key"):
+                raise RuntimeError("Evidence upload did not return a storage key")
+            file_record_id = str(uuid.uuid4())
+            evidence_url = f"/api/files/{file_record_id}"
+            file_record = {
+                "id": file_record_id,
+                "original_filename": filename,
+                "stored_filename": evidence_result["key"],
+                "bucket_name": evidence_result.get("bucket"),
+                "bucket_type": "esg_records_evidence",
+                "r2_key": evidence_result["key"],
+                "file_size": len(file_content),
+                "content_type": source_content_type or "application/octet-stream",
+                "organization_id": org_id,
+                "uploaded_by": current_user.get("id"),
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                "source": "ocr_water",
+            }
+            await db.uploaded_files.insert_one(file_record)
+            await db[OCR_UPLOADS_COLLECTION].update_one(
+                {"id": item.get("upload_id"), "organization_id": org_id},
+                {"$set": {
+                    "files.$[file].water_evidence_url": evidence_url,
+                    "files.$[file].water_evidence_file_id": file_record_id,
+                }},
+                array_filters=[{"file.file_index": item.get("file_index", 0)}],
+            )
+        except Exception as error:
+            logger.exception("OCR Water evidence finalization failed", extra={"organization_id": org_id, "line_item_id": request.line_item_id})
+            raise HTTPException(status_code=502, detail="The Water record was saved, but its source document could not be secured as evidence.") from error
+
+    evidence_file = {
+        "id": source_file.get("water_evidence_file_id") or evidence_url.rsplit("/", 1)[-1],
+        "filename": filename,
+        "file_type": filename.rsplit(".", 1)[-1].lower() if "." in filename else "unknown",
+        "file_size": source_file.get("file_size", 0),
+        "upload_url": evidence_url,
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "uploaded_by": current_user.get("id", ""),
+    }
+    await db.esg_records.update_one(
+        {"id": request.esg_record_id, "organization_id": org_id},
+        {"$addToSet": {"evidence_files": evidence_file}},
+    )
+    resolution = await _resolve_ocr_line_item(item, "saved")
+    return {"message": "Water OCR import finalized", "evidence_url": evidence_url, **resolution}
 
 
 @router.post("/finalize-import")

@@ -18,12 +18,12 @@ import { useOCR } from '../contexts/OCRContext';
 import { DocumentPreview } from '../modules/ocr/DocumentPreview';
 import { ExtractionModeSelector } from '../modules/ocr/ExtractionModeSelector';
 import { OcrEditDialog } from '../modules/ocr/OcrEditDialog';
+import { OcrBatchQueue } from '../modules/ocr/OcrBatchQueue';
 import { OcrReviewTable } from '../modules/ocr/OcrReviewTable';
 import { UploadWorkspace } from '../modules/ocr/UploadWorkspace';
 import {
   acceptOcrLineItem,
   deleteOcrUpload,
-  downloadOcrCsv,
   downloadOcrTemplate,
   getOcrConfiguration,
   getOcrUpload,
@@ -65,6 +65,7 @@ export default function OCRInvoice() {
   const [rejectingItem, setRejectingItem] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [fileQueue, setFileQueue] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -73,24 +74,33 @@ export default function OCRInvoice() {
     getOcrConfiguration(headers)
       .then(({ data }) => { if (mounted) setConfiguration(data); })
       .catch(() => { if (mounted) setError('Organization OCR settings could not be loaded. Default options are shown.'); });
-    const activeUploadId = localStorage.getItem('ocr-active-upload-id');
-    if (activeUploadId) {
-      getOcrUpload(activeUploadId, headers)
-        .then(({ data }) => {
+    const legacyUploadId = localStorage.getItem('ocr-active-upload-id');
+    let activeUploadIds = [];
+    try { activeUploadIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { activeUploadIds = []; }
+    if (!activeUploadIds.length && legacyUploadId) activeUploadIds = [legacyUploadId];
+    if (activeUploadIds.length) {
+      Promise.all(activeUploadIds.map((uploadId) => getOcrUpload(uploadId, headers).then(({ data }) => data).catch(() => null)))
+        .then((records) => {
           if (!mounted) return;
-          const unresolvedItems = data.line_items || [];
+          const activeRecords = records.filter((record) => record?.line_items?.length);
+          const unresolvedItems = activeRecords.flatMap((record) => record.line_items || []);
+          const unresolvedFiles = activeRecords.flatMap((record) => {
+            const fileIndexes = new Set((record.line_items || []).map((item) => item.file_index));
+            return (record.upload?.files || []).filter((file) => fileIndexes.has(file.file_index)).map((file) => ({ ...file, upload_id: record.upload.id }));
+          });
           if (!unresolvedItems.length) {
             localStorage.removeItem('ocr-active-upload-id');
+            localStorage.removeItem('ocr-active-upload-ids');
             return;
           }
-          const unresolvedFileIndexes = new Set(unresolvedItems.map((item) => item.file_index));
-          const unresolvedFiles = (data.upload?.files || []).filter((file) => unresolvedFileIndexes.has(file.file_index));
-          setUpload({ ...data.upload, upload_id: data.upload.id, files: unresolvedFiles });
+          const ids = activeRecords.map((record) => record.upload.id);
+          localStorage.setItem('ocr-active-upload-ids', JSON.stringify(ids));
+          localStorage.removeItem('ocr-active-upload-id');
+          setUpload({ upload_ids: ids, files: unresolvedFiles });
           setItems(unresolvedItems);
           setSelectedFile(unresolvedFiles[0] || null);
           setSelectedItem(unresolvedItems[0] || null);
-        })
-        .catch(() => localStorage.removeItem('ocr-active-upload-id'));
+        });
     }
     return () => { mounted = false; };
   }, [getAuthHeader]);
@@ -104,44 +114,69 @@ export default function OCRInvoice() {
   }, [previewUrl]);
 
   const selectedFileItems = useMemo(() => (
-    selectedFile ? items.filter((item) => item.file_index === selectedFile.file_index) : items
+    selectedFile ? items.filter((item) => item.upload_id === selectedFile.upload_id && item.file_index === selectedFile.file_index) : items
   ), [items, selectedFile]);
 
   const processFiles = async () => {
     if (!files.length) return;
     setProcessing(true);
-    setProgress(8);
+    setProgress(0);
     setError('');
-    try {
-      const { data } = await uploadOcrFiles(files, mode, getAuthHeader(), (event) => {
-        if (event.total) setProgress(Math.min(60, Math.round((event.loaded / event.total) * 55) + 5));
-      });
-      setProgress(100);
-      setUpload(data);
-      localStorage.setItem('ocr-active-upload-id', data.upload_id);
-      setItems(data.line_items || []);
-      setSelectedFile(data.files?.[0] || null);
-      setSelectedItem(data.line_items?.[0] || null);
-      setFiles([]);
-      if (data.errors?.length) {
-        setError(`${data.errors.length} file${data.errors.length === 1 ? '' : 's'} could not be processed. Successful files remain available.`);
+    const queuedFiles = files.map((file, index) => ({ id: `${file.name}-${file.size}-${index}`, file, filename: file.name, status: 'queued' }));
+    const completed = [];
+    const failures = [];
+    let nextIndex = 0;
+    let settled = 0;
+    setFileQueue(queuedFiles.map(({ id, filename, status }) => ({ id, filename, status })));
+    const updateQueue = (id, status) => setFileQueue((current) => current.map((file) => file.id === id ? { ...file, status } : file));
+    const worker = async () => {
+      while (nextIndex < queuedFiles.length) {
+        const queuedFile = queuedFiles[nextIndex++];
+        updateQueue(queuedFile.id, 'processing');
+        try {
+          const { data } = await uploadOcrFiles([queuedFile.file], mode, getAuthHeader());
+          if (!data.files?.length) throw new Error(data.errors?.[0]?.error || 'No extractable activity was returned.');
+          const decoratedFiles = data.files.map((file) => ({ ...file, upload_id: data.upload_id }));
+          completed.push(data);
+          setUpload((current) => ({
+            upload_ids: [...new Set([...(current?.upload_ids || []), data.upload_id])],
+            files: [...(current?.files || []), ...decoratedFiles],
+          }));
+          setItems((current) => [...current, ...(data.line_items || [])]);
+          updateQueue(queuedFile.id, 'completed');
+        } catch (requestError) {
+          failures.push({ filename: queuedFile.filename, message: responseMessage(requestError, 'Could not process this file.') });
+          updateQueue(queuedFile.id, 'failed');
+        } finally {
+          settled += 1;
+          setProgress(Math.round((settled / queuedFiles.length) * 100));
+        }
       }
-      toast.success(`Extracted ${data.total_line_items} activity row${data.total_line_items === 1 ? '' : 's'}`);
-    } catch (requestError) {
-      const message = responseMessage(requestError, 'Invoice extraction failed. Please try again.');
-      setError(message);
-      toast.error(message);
-    } finally {
-      setProcessing(false);
-      setTimeout(() => setProgress(0), 500);
+    };
+    await Promise.all(Array.from({ length: Math.min(3, queuedFiles.length) }, worker));
+    const successfulIds = completed.map((result) => result.upload_id);
+    const successfulFiles = completed.flatMap((result) => result.files.map((file) => ({ ...file, upload_id: result.upload_id })));
+    const successfulItems = completed.flatMap((result) => result.line_items || []);
+    if (successfulIds.length) {
+      localStorage.setItem('ocr-active-upload-ids', JSON.stringify(successfulIds));
+      localStorage.removeItem('ocr-active-upload-id');
+      setSelectedFile(successfulFiles[0] || null);
+      setSelectedItem(successfulItems[0] || null);
+      toast.success(`Extracted ${successfulItems.length} activity row${successfulItems.length === 1 ? '' : 's'}`);
     }
+    if (failures.length) {
+      setError(`${failures.length} file${failures.length === 1 ? '' : 's'} could not be processed. Successful files remain available.`);
+    }
+    setFiles([]);
+    setProcessing(false);
+    setTimeout(() => setProgress(0), 500);
   };
 
   const loadPreview = async () => {
-    if (!upload?.upload_id || !selectedFile) return;
+    if (!selectedFile?.upload_id) return;
     setPreviewLoading(true);
     try {
-      const response = await loadOcrPreview(upload.upload_id, selectedFile.file_index, getAuthHeader());
+      const response = await loadOcrPreview(selectedFile.upload_id, selectedFile.file_index, getAuthHeader());
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(URL.createObjectURL(response.data));
     } catch (requestError) {
@@ -155,7 +190,7 @@ export default function OCRInvoice() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setSelectedFile(file);
-    setSelectedItem(items.find((item) => item.file_index === file.file_index) || null);
+    setSelectedItem(items.find((item) => item.upload_id === file.upload_id && item.file_index === file.file_index) || null);
   };
 
   const saveEdit = async (values) => {
@@ -179,9 +214,14 @@ export default function OCRInvoice() {
     try {
       const { data } = await acceptOcrLineItem(item.id, getAuthHeader());
       setItems((current) => current.map((row) => row.id === item.id ? { ...row, status: 'accepted' } : row));
-      setOcrAcceptedData(data.prefill_data);
-      toast.success('Activity accepted. Opening the emissions form.');
-      navigate(`/ghg/${data.prefill_data.scope || 'scope1'}`, { state: { openAddForm: true, ocrPrefill: data.prefill_data } });
+      if (data.prefill_data.scope === 'water') {
+        toast.success('Water activity accepted. Opening the Water metric form.');
+        navigate('/environment/water?tab=add-metric', { state: { openWaterForm: true, ocrWaterPrefill: data.prefill_data } });
+      } else {
+        setOcrAcceptedData(data.prefill_data);
+        toast.success('Activity accepted. Opening the emissions form.');
+        navigate(`/ghg/${data.prefill_data.scope || 'scope1'}`, { state: { openAddForm: true, ocrPrefill: data.prefill_data } });
+      }
     } catch (requestError) {
       toast.error(responseMessage(requestError, 'This activity could not be accepted.'));
     } finally {
@@ -195,20 +235,17 @@ export default function OCRInvoice() {
     try {
       const { data } = await rejectOcrLineItem(rejectingItem.id, getAuthHeader());
       const remainingItems = items.filter((item) => item.id !== rejectingItem.id);
-      const remainingFileIndexes = new Set(remainingItems.map((item) => item.file_index));
-      const remainingFiles = (upload?.files || []).filter((file) => remainingFileIndexes.has(file.file_index));
       setItems(remainingItems);
-      setSelectedItem(remainingItems.find((item) => item.file_index === rejectingItem.file_index) || remainingItems[0] || null);
+      setSelectedItem(remainingItems.find((item) => item.upload_id === rejectingItem.upload_id && item.file_index === rejectingItem.file_index) || remainingItems[0] || null);
       if (data.file_completed) {
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
-        setUpload((current) => current ? { ...current, files: remainingFiles } : current);
+        const remainingFiles = (upload?.files || []).filter((file) => !(file.upload_id === rejectingItem.upload_id && file.file_index === rejectingItem.file_index));
+        const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
+        setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
         setSelectedFile(remainingFiles[0] || null);
-      }
-      if (data.upload_completed) {
-        localStorage.removeItem('ocr-active-upload-id');
-        setUpload(null);
-        setSelectedFile(null);
+        if (remainingUploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
+        else localStorage.removeItem('ocr-active-upload-ids');
       }
       setRejectingItem(null);
       toast.success(data.upload_completed ? 'All extracted rows have been resolved' : 'Row rejected and removed');
@@ -220,14 +257,18 @@ export default function OCRInvoice() {
   };
 
   const exportCsv = async () => {
-    if (!upload?.upload_id) return;
+    if (!items.length) return;
     try {
-      const response = await downloadOcrCsv(upload.upload_id, getAuthHeader());
-      const url = URL.createObjectURL(response.data);
+      const fields = ['invoice_number', 'date', 'billing_period_text', 'vendor_name', 'location', 'item_description', 'scope', 'category', 'subcategory', 'quantity', 'unit', 'cost', 'currency', 'distance_km', 'origin', 'destination', 'ef_method', 'ef_database', 'accounting_rationale', 'confidence_score', 'needs_review', 'status'];
+      const quote = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const csv = [fields.join(','), ...items.map((item) => fields.map((field) => quote(field in item ? item[field] : item.current_values?.[field])).join(','))].join('\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
       const link = document.createElement('a');
       link.href = url;
-      link.download = `ocr-extraction-${upload.upload_id}.csv`;
+      link.download = 'ocr-extraction.csv';
+      document.body.appendChild(link);
       link.click();
+      link.remove();
       URL.revokeObjectURL(url);
       toast.success('CSV export downloaded');
     } catch (requestError) {
@@ -256,10 +297,11 @@ export default function OCRInvoice() {
   };
 
   const clearUpload = async () => {
-    if (!upload?.upload_id) return;
+    if (!upload?.upload_ids?.length) return;
     try {
-      await deleteOcrUpload(upload.upload_id, getAuthHeader());
+      await Promise.all(upload.upload_ids.map((uploadId) => deleteOcrUpload(uploadId, getAuthHeader())));
       localStorage.removeItem('ocr-active-upload-id');
+      localStorage.removeItem('ocr-active-upload-ids');
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setUpload(null); setItems([]); setSelectedFile(null); setSelectedItem(null); setPreviewUrl(null); setError('');
       toast.success('Extraction workspace cleared');
@@ -303,7 +345,7 @@ export default function OCRInvoice() {
       {!upload ? (
         <div className="grid gap-8 xl:grid-cols-[22rem_minmax(0,1fr)]">
           <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} />
-          <UploadWorkspace files={files} onFilesChange={setFiles} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} />
+          <UploadWorkspace files={files} onFilesChange={setFiles} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={fileQueue} />
         </div>
       ) : (
         <div className="space-y-8">
@@ -314,13 +356,15 @@ export default function OCRInvoice() {
                 <Button type="button" size="icon" variant="ghost" onClick={clearUpload} aria-label="Start another extraction" data-testid="ocr-start-new-button"><RefreshCw className="h-4 w-4" /></Button>
               </div>
               {upload.files.map((file) => (
-                <button key={`${file.file_index}-${file.filename}`} type="button" onClick={() => chooseFile(file)} className={`flex w-full items-start gap-3 border px-3 py-3 text-left transition-colors ${selectedFile?.file_index === file.file_index ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`} data-testid={`ocr-source-file-${file.file_index}`}>
+                <button key={`${file.upload_id}-${file.file_index}-${file.filename}`} type="button" onClick={() => chooseFile(file)} className={`flex w-full items-start gap-3 border px-3 py-3 text-left transition-colors ${selectedFile?.upload_id === file.upload_id && selectedFile?.file_index === file.file_index ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`} data-testid={`ocr-source-file-${file.upload_id}-${file.file_index}`}>
                   <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-900">{file.filename}</span><span className="mt-1 block text-xs text-slate-500">{file.line_item_count} rows · {file.status}</span></span>
                 </button>
               ))}
             </aside>
             <DocumentPreview file={selectedFile} previewUrl={previewUrl} loading={previewLoading} onLoadPreview={loadPreview} />
           </section>
+
+          {processing && <OcrBatchQueue queue={fileQueue} />}
 
           <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={setEditingItem} onAccept={acceptItem} onReject={setRejectingItem} acceptingId={acceptingId} rejectingId={rejectingId} />
 

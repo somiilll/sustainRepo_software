@@ -35,8 +35,8 @@ async def build_org_context(organization_id: str) -> tuple[dict, set[str], set[s
         {"_id": 0, "name": 1, "general_description": 1, "process_description": 1},
     ) or {}
     facilities = await db.facilities.find(
-        {"organization_id": organization_id, "is_deleted": {"$ne": True}},
-        {"_id": 0, "name": 1, "city": 1},
+        {"organization_id": organization_id, "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
+        {"_id": 0, "name": 1, "city": 1, "sector": 1, "sub_sector": 1, "products_services": 1, "process_description": 1},
     ).to_list(1000)
     capabilities = await resolve_ghg_capabilities(db, organization_id)
     enabled_scopes = {
@@ -46,9 +46,10 @@ async def build_org_context(organization_id: str) -> tuple[dict, set[str], set[s
             ("scope3", capabilities.scope3_enabled),
         ) if enabled
     }
+    enabled_scopes.add("water")
     context = {
         "company_name": organization.get("name"),
-        "industry_sector": organization.get("general_description"),
+        "organization_profile": organization.get("general_description"),
         "products": organization.get("process_description"),
         "locations": facilities,
     }

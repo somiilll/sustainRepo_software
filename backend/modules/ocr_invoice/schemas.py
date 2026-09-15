@@ -33,3 +33,8 @@ class LineItemEdit(BaseModel):
 class FinalizeImportRequest(BaseModel):
     line_item_id: str
     emission_record_ids: List[str] = Field(default_factory=list)
+
+
+class FinalizeWaterImportRequest(BaseModel):
+    line_item_id: str
+    esg_record_id: str

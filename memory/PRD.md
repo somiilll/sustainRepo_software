@@ -101,6 +101,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
 ## Latest Change — September 8, 2026
+- **September 10, 2026 — OCR organization context and review upgrades:** OCR classification now receives facility-specific sectors in the form `Facility name — sector — sub-sector`, rather than treating the organization general description as an industry field. Added Water as an OCR activity destination with a prefilled Environment > Water metric handoff and secure OCR-evidence finalization to ESG evidence storage. **NOT RUNTIME-TESTED** per the user’s explicit instruction.
+- **September 10, 2026 — OCR batch and audit-review parity:** Restored a three-file concurrent queue with per-file live status and progressive results, invoice grouping/tabs with spend subtotals, confidence/review-status badges, rationale and transport-route visibility, and AVIF selection/upload support. **NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 - **September 10, 2026 — OCR spreadsheet template restored:** Reintroduced the OCR template download in both the page header and upload workspace. The authenticated `/api/ocr-invoice/template/download` endpoint generates an importer-ready Excel ledger with the current organization’s active facility dropdown and supported currency choices; no spreadsheet template is stored in the application or R2. **NOT RUNTIME-TESTED** per the user’s explicit instruction.
 
 - **September 10, 2026 — Account access support:** Cleared the stored failed-login-attempt/lockout record for the admin account `goyalsomil2001@gmail.com` at the user’s request. No password, user profile, role, organization access, or authentication code was changed. **NOT TESTED** per the user’s explicit instruction.

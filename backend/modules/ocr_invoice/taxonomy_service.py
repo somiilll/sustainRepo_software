@@ -37,6 +37,8 @@ SCOPE_CATEGORY_NAMES = {
     "purchased_heat_steam_cooling": "Purchased Steam/Heat",
 }
 
+WATER_CATEGORY_NAMES = {"water": "Water"}
+
 
 @lru_cache(maxsize=1)
 def load_taxonomy() -> dict:
@@ -55,7 +57,13 @@ def _flat_taxonomy(enabled_scopes: set[str], disabled_scope3_sheets: set[str]) -
     taxonomy = load_taxonomy()
     for scope_key, categories in taxonomy.items():
         normalized_scope = normalize_scope(scope_key)
-        if scope_key == "water" or normalized_scope not in enabled_scopes:
+        if normalized_scope not in enabled_scopes:
+            continue
+        if scope_key == "water":
+            rows.extend(
+                f"water | water | Water | {subcategory}"
+                for subcategory in categories.get("subcategories", [])
+            )
             continue
         for category_key, category_data in categories.items():
             category_name = SCOPE3_CATEGORY_NAMES.get(category_key, SCOPE_CATEGORY_NAMES.get(category_key, category_key))
@@ -74,12 +82,19 @@ def _flat_taxonomy(enabled_scopes: set[str], disabled_scope3_sheets: set[str]) -
 
 
 def _context_text(item: dict, invoice: dict, org_context: dict) -> str:
-    facilities = ", ".join(location.get("name", "") for location in org_context.get("locations", []))
+    facilities = "; ".join(
+        " — ".join(filter(None, [
+            location.get("name"),
+            location.get("sector"),
+            location.get("sub_sector"),
+        ]))
+        for location in org_context.get("locations", [])
+    )
     return "\n".join([
         f"Organization: {org_context.get('company_name') or 'Not specified'}",
-        f"Organization context: {org_context.get('industry_sector') or 'Not specified'}",
+        f"Organization profile: {org_context.get('organization_profile') or 'Not specified'}",
+        f"Facility sectors (facility — sector — sub-sector): {facilities or 'Not specified'}",
         f"Products/processes: {org_context.get('products') or 'Not specified'}",
-        f"Facilities: {facilities or 'Not specified'}",
         f"Vendor: {invoice.get('vendor_name') or 'Unknown'} ({invoice.get('vendor_type') or 'Unknown'})",
         f"Buyer: {invoice.get('buyer_name') or 'Unknown'}",
         f"Item: {item.get('item_description_english') or item.get('item_description') or 'Unknown'}",
@@ -120,6 +135,8 @@ async def _map_naics(gateway: OcrLlmGateway, item_description: str, context: str
 
 def _methodology(scope: str, category_key: str, subcategory: str, item: dict) -> dict:
     has_activity = item.get("quantity") is not None or item.get("distance_km") is not None
+    if scope == "water":
+        return {"ef_method": "activity", "ef_database": "Water activity data", "auto_generate_cat3": False}
     if scope == "scope1":
         return {"ef_method": "activity", "ef_database": "IPCC", "auto_generate_cat3": category_key != "fugitive_emissions"}
     if scope == "scope2":
@@ -154,8 +171,8 @@ async def classify_item(
         f"{context}\n\nAllowed taxonomy:\n" + "\n".join(taxonomy_rows) + "\n\n"
         "Apply GHG Protocol ownership and value-chain boundaries. Inbound freight is Scope 3 C4; outbound freight is C9. "
         "Routine goods/services are C1; long-lived capital equipment is C2; operational waste is C5; business travel is C6. "
-        "Purchased electricity is Scope 2. Fuel burned in owned assets is Scope 1.\n"
-        "Return JSON only with keys scope (scope1/scope2/scope3), category_key, subcategory, rationale, confidence_score.",
+        "Purchased electricity is Scope 2. Fuel burned in owned assets is Scope 1. Water supply, treatment, tanker, borewell, municipal, or rainwater activity is Water.\n"
+        "Return JSON only with keys scope (scope1/scope2/scope3/water), category_key, subcategory, rationale, confidence_score.",
         max_tokens=1200,
     )
     parsed = extract_json(response, {})
@@ -168,7 +185,7 @@ async def classify_item(
     valid_keys = {row.split(" | ")[1] for row in taxonomy_rows}
     if category_key not in valid_keys:
         category_key = next((key for key in valid_keys if key in category_key or category_key in key), "")
-    category_name = SCOPE3_CATEGORY_NAMES.get(category_key, SCOPE_CATEGORY_NAMES.get(category_key, category_key or "Unknown"))
+    category_name = WATER_CATEGORY_NAMES.get(category_key, SCOPE3_CATEGORY_NAMES.get(category_key, SCOPE_CATEGORY_NAMES.get(category_key, category_key or "Unknown")))
     methodology = _methodology(scope, category_key, subcategory, item)
     naics_code = naics_label = None
     if methodology["ef_method"] == "spend" and methodology["ef_database"] == "USEEIO":

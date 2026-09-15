@@ -158,4 +158,4 @@ def normalize_period(start: Any, end: Any, text: Any, invoice_date: Any) -> dict
 
 def normalize_scope(value: Any) -> str:
     compact = re.sub(r"[^a-z0-9]", "", str(value or "").lower())
-    return {"scope1": "scope1", "scope2": "scope2", "scope3": "scope3"}.get(compact, "scope3")
+    return {"scope1": "scope1", "scope2": "scope2", "scope3": "scope3", "water": "water"}.get(compact, "scope3")

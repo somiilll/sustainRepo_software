@@ -2,10 +2,11 @@ import React, { useRef, useState } from 'react';
 import { Download, FileSpreadsheet, FileText, Loader2, UploadCloud, X } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
+import { OcrBatchQueue } from './OcrBatchQueue';
 
-const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.csv,.xlsx,.xls';
+const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.avif,.csv,.xlsx,.xls';
 
-export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate }) => {
+export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate, queue }) => {
   const inputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -45,7 +46,7 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
         </span>
         <h2 id="ocr-upload-heading" className="mt-4 text-lg font-semibold text-slate-950">Add source documents</h2>
         <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-          Invoices, utility bills, receipts, CSV ledgers and Excel workbooks up to 20MB each.
+          Invoices, utility bills, receipts, AVIF images, CSV ledgers and Excel workbooks up to 20MB each.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-3">
           <Button
@@ -119,6 +120,7 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
           </Button>
         </div>
       )}
+      <OcrBatchQueue queue={queue} />
     </section>
   );
 };

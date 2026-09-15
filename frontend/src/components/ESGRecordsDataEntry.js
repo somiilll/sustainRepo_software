@@ -115,7 +115,9 @@ export default function ESGRecordsDataEntry({
   preFilterCategory = '',
   preFilterSubcategory = '',
   preFilterFrequency = '',
-  preFilterPeriodStart = ''
+  preFilterPeriodStart = '',
+  ocrWaterPrefill = null,
+  onOcrWaterImported = null,
 }) {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -219,6 +221,37 @@ export default function ESGRecordsDataEntry({
   });
   const [formErrors, setFormErrors] = useState({});
   const [addFormCategory, setAddFormCategory] = useState(null);
+
+  useEffect(() => {
+    if (mode !== 'add' || !ocrWaterPrefill) return;
+    const periodStart = ocrWaterPrefill.billing_period?.start_date || '';
+    const [year, month] = periodStart.split('-').map(Number);
+    const sourceTypeMap = {
+      'Municipal/Utility Water': 'Municipal',
+      'Borewell/Groundwater': 'Ground Water',
+      'Tanker Water': 'Third Party',
+      'Rainwater Harvested': 'Rainwater',
+    };
+    const normalizedUnit = { l: 'Litres', litre: 'Litres', litres: 'Litres', kl: 'KL', kL: 'KL', m3: 'm³', 'm³': 'm³' }[String(ocrWaterPrefill.unit || '').toLowerCase()] || ocrWaterPrefill.unit || '';
+    setFormData((current) => ({
+      ...current,
+      category: 'Water',
+      subcategory: 'Consumption',
+      facility_id: ocrWaterPrefill.facility_id || '',
+      reporting_type: 'monthly',
+      reporting_year: Number.isFinite(year) ? year : current.reporting_year,
+      reporting_month: Number.isFinite(month) ? String(month) : current.reporting_month,
+      field_values: {
+        ...current.field_values,
+        quantity: ocrWaterPrefill.quantity || '',
+        unit: normalizedUnit,
+        source_type: sourceTypeMap[ocrWaterPrefill.subcategory] || '',
+      },
+      source_of_information: ocrWaterPrefill.source_of_information || current.source_of_information,
+      notes: ocrWaterPrefill.accounting_rationale || current.notes,
+    }));
+    fetchAddFormCategory('Water', 'Consumption');
+  }, [mode, ocrWaterPrefill, categories]);
 
   // Evidence file states
   const [formEvidences, setFormEvidences] = useState([]);
@@ -577,7 +610,14 @@ export default function ESGRecordsDataEntry({
         status: asDraft ? 'draft' : 'completed',  // Send status to backend
       };
 
-      await axios.post(`${API}/api/esg-records/records/${section}`, payload, { headers });
+      const response = await axios.post(`${API}/api/esg-records/records/${section}`, payload, { headers });
+      if (!asDraft && ocrWaterPrefill?.line_item_id && response.data?.record?.id) {
+        await axios.post(`${API}/api/ocr-invoice/finalize-water-import`, {
+          line_item_id: ocrWaterPrefill.line_item_id,
+          esg_record_id: response.data.record.id,
+        }, { headers });
+        onOcrWaterImported?.();
+      }
       
       toast.success(asDraft ? 'Saved as draft' : 'Metric saved');
       
