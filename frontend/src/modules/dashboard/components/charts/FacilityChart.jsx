@@ -24,11 +24,12 @@ function FacilityTooltip({ active, payload, label, activeScope }) {
   const row = payload[0]?.payload || {};
   const scopeName = activeScope.replace('scope', 'Scope ');
   const total = Number(row[activeScope] || 0);
+  if (activeScope !== 'all' && total <= 0) return null;
 
   return (
     <div className="min-w-[190px] rounded-lg border border-stone-200 bg-white p-3 shadow-lg" data-testid="facility-emissions-tooltip">
       <p className="text-xs font-semibold text-stone-800">{label}</p>
-      {activeScope !== 'all' && <p className="mt-1 border-b border-stone-100 pb-2 text-xs font-bold text-emerald-700">Total {scopeName}: {formatEmissions(total)} tCO₂e</p>}
+      {activeScope !== 'all' && total > 0 && <p className="mt-1 border-b border-stone-100 pb-2 text-xs font-bold text-emerald-700">Total {scopeName}: {formatEmissions(total)} tCO₂e</p>}
       <div className="mt-2 space-y-1">
         {payload.filter((item) => Number(item.value || 0) > 0).map((item) => (
           <div key={item.name} className="flex items-center justify-between gap-4 text-[11px] text-stone-600">

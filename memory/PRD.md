@@ -110,6 +110,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Facility/KPI follow-up: selected Scope 1/2/3 facility views now stack every available category instead of combining lower-ranked items into Other. Reduction Target Achieved is one-quarter of the KPI row—matching the Emissions by Scope panel—while the other four KPI cards expand to share the remaining width.
 - Facility-chart simplification: Scope 1/2/3 views now display only the selected scope’s category stacks per facility; the redundant separate total-scope bar has been removed. The All view keeps its grouped high-level comparison bars.
 - Facility-chart hover detail: a selected Scope 1/2/3 category-stack tooltip now shows the full selected-scope total for the hovered facility along with the visible category values.
+- Tooltip refinement: selected-scope hover panels do not render for a facility whose selected-scope total is zero, and zero-value category segments are excluded from visible tooltip rows.
 - The Base Year comparison empty state now provides a **Configure Base Year** action to `/ghg/base-year`. Replaced the separate Scope 3 Hotspots and Emission Categories cards with a filterable `Emissions by Scope & Category` list for All, Scope 1, Scope 2, and Scope 3 categories, including proportional bars, values, percentages, and an emissions-module shortcut.
 - No backend, calculation, target, authorization, or API-contract behavior changed. **NOT RUNTIME-TESTED** per the user’s standing instruction; source-reviewed only.
 
