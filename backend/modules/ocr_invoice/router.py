@@ -11,7 +11,7 @@ import logging
 import tempfile
 from datetime import datetime, timezone
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from anthropic import Anthropic
@@ -24,7 +24,7 @@ from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MODES, get_mode
 from .factor_options import resolve_factor_options, validate_factor_selection
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit, UploadFacilityAssignments
-from .service import build_org_context, process_upload_batch, save_vendor_override
+from .service import build_org_context, process_queued_upload, queue_upload_batch, save_vendor_override
 from .template_service import generate_ocr_template
 from .taxonomy_service import SCOPE3_CATEGORY_NAMES, SCOPE_CATEGORY_NAMES, WATER_CATEGORY_NAMES
 
@@ -516,17 +516,21 @@ async def _legacy_upload_invoices(
 
 @router.post("/upload")
 async def upload_invoices(
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     mode: str = Form(default="fast"),
     current_user: dict = Depends(get_current_user),
 ):
-    """Extract Scope 1, 2, and 3 activity data using the selected AI workflow."""
+    """Stage sources immediately and process Scope 1, 2, and 3 extraction in the background."""
     org_id = _get_org(current_user)
     if not files:
         raise HTTPException(status_code=400, detail="Select at least one invoice or spreadsheet.")
     try:
         extraction_mode = get_mode(mode)
-        return await process_upload_batch(files, org_id, current_user, extraction_mode)
+        result = await queue_upload_batch(files, org_id, current_user, extraction_mode)
+        if result["file_count"]:
+            background_tasks.add_task(process_queued_upload, result["upload_id"], org_id, current_user)
+        return JSONResponse(status_code=202, content=result)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     except RuntimeError as error:

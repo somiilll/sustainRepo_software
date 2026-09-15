@@ -76,6 +76,7 @@ export default function OCRInvoice() {
   const [facilityPreviewFile, setFacilityPreviewFile] = useState(null);
   const [facilityPreviewUrl, setFacilityPreviewUrl] = useState(null);
   const [facilityPreviewLoading, setFacilityPreviewLoading] = useState(false);
+  const [activeExtractionIds, setActiveExtractionIds] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -87,41 +88,75 @@ export default function OCRInvoice() {
     let activeUploadIds = [];
     try { activeUploadIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { activeUploadIds = []; }
     if (!activeUploadIds.length && legacyUploadId) activeUploadIds = [legacyUploadId];
-    if (activeUploadIds.length) {
-      Promise.all(activeUploadIds.map((uploadId) => getOcrUpload(uploadId, headers).then(({ data }) => data).catch(() => null)))
-        .then((records) => {
-          if (!mounted) return;
-          const activeRecords = records.filter((record) => record?.line_items?.length);
-          const unresolvedItems = activeRecords.flatMap((record) => record.line_items || []);
-          const unresolvedFiles = activeRecords.flatMap((record) => {
-            const fileIndexes = new Set((record.line_items || []).map((item) => item.file_index));
-            return (record.upload?.files || []).filter((file) => fileIndexes.has(file.file_index)).map((file) => ({ ...file, upload_id: record.upload.id }));
-          });
-          if (!unresolvedItems.length) {
-            localStorage.removeItem('ocr-active-upload-id');
-            localStorage.removeItem('ocr-active-upload-ids');
-            return;
-          }
-          const ids = activeRecords.map((record) => record.upload.id);
-          localStorage.setItem('ocr-active-upload-ids', JSON.stringify(ids));
-          localStorage.removeItem('ocr-active-upload-id');
-          setUpload({ upload_ids: ids, files: unresolvedFiles });
-          setItems(unresolvedItems);
-          setSelectedFile(unresolvedFiles[0] || null);
-          setSelectedItem(unresolvedItems[0] || null);
-          const unassignedInvoiceFiles = unresolvedFiles.filter((file) => file.preview_supported && !file.facility_id);
-          if (unassignedInvoiceFiles.length) {
-            setFacilityAssignmentFiles(unassignedInvoiceFiles);
-            setFacilityAssignmentOpen(true);
-          }
-        });
-    }
+    if (activeUploadIds.length) setActiveExtractionIds(activeUploadIds);
     return () => { mounted = false; };
   }, [getAuthHeader]);
 
   useEffect(() => {
     localStorage.setItem('ocr-extraction-mode', mode);
   }, [mode]);
+
+  useEffect(() => {
+    if (!activeExtractionIds.length) return undefined;
+    let cancelled = false;
+    let timer;
+    const pollUploads = async () => {
+      const records = await Promise.all(activeExtractionIds.map((uploadId) => (
+        getOcrUpload(uploadId, getAuthHeader()).then(({ data }) => data).catch(() => null)
+      )));
+      if (cancelled) return;
+      const activeRecords = records.filter((record) => record?.upload);
+      setFileQueue(activeRecords.flatMap((record) => (record.upload.files || []).map((file) => ({
+        id: `${record.upload.id}-${file.file_index}`,
+        filename: file.filename,
+        status: file.status || record.upload.status,
+      }))));
+      const terminalRecords = activeRecords.filter((record) => ['completed', 'failed'].includes(record.upload.status));
+      const pendingIds = records.flatMap((record, index) => {
+        if (!record?.upload) return [activeExtractionIds[index]];
+        return ['completed', 'failed', 'resolved'].includes(record.upload.status) ? [] : [record.upload.id];
+      });
+      if (terminalRecords.length) {
+        const completedRecords = terminalRecords.filter((record) => record.upload.status === 'completed');
+        const completedFiles = completedRecords.flatMap((record) => (record.upload.files || [])
+          .filter((file) => file.status === 'completed')
+          .map((file) => ({ ...file, upload_id: record.upload.id })));
+        const completedItems = completedRecords.flatMap((record) => record.line_items || []);
+        if (completedFiles.length) {
+          setUpload((current) => {
+            const filesByKey = new Map((current?.files || []).map((file) => [`${file.upload_id}-${file.file_index}`, file]));
+            completedFiles.forEach((file) => filesByKey.set(`${file.upload_id}-${file.file_index}`, file));
+            return { upload_ids: [...new Set([...(current?.upload_ids || []), ...completedRecords.map((record) => record.upload.id)])], files: Array.from(filesByKey.values()) };
+          });
+          setItems((current) => {
+            const itemsById = new Map(current.map((item) => [item.id, item]));
+            completedItems.forEach((item) => itemsById.set(item.id, item));
+            return Array.from(itemsById.values());
+          });
+          setSelectedFile((current) => current || completedFiles[0]);
+          setSelectedItem((current) => current || completedItems[0] || null);
+          const invoiceFiles = completedFiles.filter((file) => file.preview_supported && !file.facility_id);
+          if (invoiceFiles.length) {
+            setFacilityAssignmentFiles(invoiceFiles);
+            setFacilityAssignmentOpen(true);
+          }
+          toast.success(`Extraction ready: ${completedItems.length} activity row${completedItems.length === 1 ? '' : 's'}`);
+        }
+        terminalRecords.filter((record) => record.upload.status === 'failed').forEach((record) => {
+          toast.error(record.upload.errors?.[0]?.error || 'Invoice extraction could not be completed.');
+        });
+      }
+      const retainedIds = activeRecords
+        .filter((record) => !['failed', 'resolved'].includes(record.upload.status))
+        .map((record) => record.upload.id);
+      if (retainedIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(retainedIds));
+      else localStorage.removeItem('ocr-active-upload-ids');
+      setActiveExtractionIds(pendingIds);
+      if (pendingIds.length) timer = setTimeout(pollUploads, 2000);
+    };
+    pollUploads();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [activeExtractionIds, getAuthHeader]);
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -140,59 +175,26 @@ export default function OCRInvoice() {
     setProcessing(true);
     setProgress(0);
     setError('');
-    const queuedFiles = files.map((file, index) => ({ id: `${file.name}-${file.size}-${index}`, file, filename: file.name, status: 'queued' }));
-    const completed = [];
-    const failures = [];
-    let nextIndex = 0;
-    let settled = 0;
-    setFileQueue(queuedFiles.map(({ id, filename, status }) => ({ id, filename, status })));
-    const updateQueue = (id, status) => setFileQueue((current) => current.map((file) => file.id === id ? { ...file, status } : file));
-    const worker = async () => {
-      while (nextIndex < queuedFiles.length) {
-        const queuedFile = queuedFiles[nextIndex++];
-        updateQueue(queuedFile.id, 'processing');
-        try {
-          const { data } = await uploadOcrFiles([queuedFile.file], mode, getAuthHeader());
-          if (!data.files?.length) throw new Error(data.errors?.[0]?.error || 'No extractable activity was returned.');
-          const decoratedFiles = data.files.map((file) => ({ ...file, upload_id: data.upload_id }));
-          completed.push(data);
-          setUpload((current) => ({
-            upload_ids: [...new Set([...(current?.upload_ids || []), data.upload_id])],
-            files: [...(current?.files || []), ...decoratedFiles],
-          }));
-          setItems((current) => [...current, ...(data.line_items || [])]);
-          updateQueue(queuedFile.id, 'completed');
-        } catch (requestError) {
-          failures.push({ filename: queuedFile.filename, message: responseMessage(requestError, 'Could not process this file.') });
-          updateQueue(queuedFile.id, 'failed');
-        } finally {
-          settled += 1;
-          setProgress(Math.round((settled / queuedFiles.length) * 100));
-        }
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(3, queuedFiles.length) }, worker));
-    const successfulIds = completed.map((result) => result.upload_id);
-    const successfulFiles = completed.flatMap((result) => result.files.map((file) => ({ ...file, upload_id: result.upload_id })));
-    const successfulItems = completed.flatMap((result) => result.line_items || []);
-    if (successfulIds.length) {
-      localStorage.setItem('ocr-active-upload-ids', JSON.stringify(successfulIds));
+    setFileQueue(files.map((file, index) => ({ id: `queued-${index}`, filename: file.name, status: 'queued' })));
+    try {
+      const { data } = await uploadOcrFiles(files, mode, getAuthHeader());
+      if (!data.files?.length) throw new Error(data.errors?.[0]?.error || 'No invoice could be staged securely.');
+      let existingIds = [];
+      try { existingIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { existingIds = []; }
+      const uploadIds = [...new Set([...existingIds, data.upload_id])];
+      localStorage.setItem('ocr-active-upload-ids', JSON.stringify(uploadIds));
       localStorage.removeItem('ocr-active-upload-id');
-      setSelectedFile(successfulFiles[0] || null);
-      setSelectedItem(successfulItems[0] || null);
-      const invoiceFiles = successfulFiles.filter((file) => file.preview_supported);
-      if (invoiceFiles.length) {
-        setFacilityAssignmentFiles(invoiceFiles);
-        setFacilityAssignmentOpen(true);
-      }
-      toast.success(`Extracted ${successfulItems.length} activity row${successfulItems.length === 1 ? '' : 's'}`);
+      setActiveExtractionIds((current) => [...new Set([...current, data.upload_id])]);
+      setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, filename: file.filename, status: file.status })));
+      toast.success(`${data.file_count} source document${data.file_count === 1 ? '' : 's'} queued for extraction.`);
+    } catch (requestError) {
+      setError(responseMessage(requestError, 'Files could not be queued for extraction.'));
+      setFileQueue(files.map((file, index) => ({ id: `failed-${index}`, filename: file.name, status: 'failed' })));
+    } finally {
+      setFiles([]);
+      setProcessing(false);
+      setProgress(0);
     }
-    if (failures.length) {
-      setError(`${failures.length} file${failures.length === 1 ? '' : 's'} could not be processed. Successful files remain available.`);
-    }
-    setFiles([]);
-    setProcessing(false);
-    setTimeout(() => setProgress(0), 500);
   };
 
   const loadPreview = async () => {

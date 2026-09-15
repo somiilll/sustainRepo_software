@@ -13,7 +13,7 @@ from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
 
-from .config import ALLOWED_EXTENSIONS, MAX_FILE_BYTES, SPREADSHEET_EXTENSIONS, ExtractionMode
+from .config import ALLOWED_EXTENSIONS, MAX_FILE_BYTES, SPREADSHEET_EXTENSIONS, ExtractionMode, get_mode
 from .document_processor import process_document
 from .llm_gateway import OcrLlmGateway
 from .normalization import sanitize_json
@@ -219,6 +219,217 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
         "errors": errors,
         "line_items": all_items,
     })
+
+
+async def queue_upload_batch(files, organization_id: str, user: dict, mode: ExtractionMode) -> dict:
+    """Stage sources and create a durable OCR job without waiting for AI extraction."""
+    upload_id = str(uuid.uuid4())
+    storage = get_r2_storage()
+    upload_record = {
+        "id": upload_id,
+        "organization_id": organization_id,
+        "uploaded_by": user.get("id"),
+        "uploaded_by_name": user.get("name", "Unknown"),
+        "mode": mode.key,
+        "vision_model": mode.vision_model,
+        "reasoning_model": mode.reasoning_model,
+        "status": "queued",
+        "files": [],
+        "file_count": 0,
+        "total_line_items": 0,
+        "needs_review_count": 0,
+        "errors": [],
+        "created_at": _now(),
+        "updated_at": _now(),
+    }
+    for file_index, upload_file in enumerate(files):
+        filename = Path(upload_file.filename or "invoice").name
+        extension = Path(filename).suffix.lower()
+        content = await upload_file.read()
+        if extension not in ALLOWED_EXTENSIONS:
+            upload_record["errors"].append({"filename": filename, "error": "Unsupported file type"})
+            continue
+        if len(content) > MAX_FILE_BYTES:
+            upload_record["errors"].append({"filename": filename, "error": "File exceeds the 20MB limit"})
+            continue
+        try:
+            upload_result = await storage.upload_file(
+                file_content=content,
+                filename=filename,
+                bucket_type="ocr_temp",
+                content_type=upload_file.content_type or "application/octet-stream",
+                folder=f"ocr/{organization_id}/{upload_id}",
+                org_name=organization_id,
+            )
+        except Exception:
+            logger.exception("OCR source staging failed", extra={"organization_id": organization_id, "filename": filename})
+            upload_record["errors"].append({"filename": filename, "error": "Secure storage upload failed"})
+            continue
+        if upload_result.get("error"):
+            upload_record["errors"].append({"filename": filename, "error": upload_result["error"]})
+            continue
+        upload_record["files"].append({
+            "filename": filename,
+            "content_type": upload_file.content_type,
+            "temp_key": upload_result["key"],
+            "file_index": file_index,
+            "preview_supported": extension not in SPREADSHEET_EXTENSIONS,
+            "line_item_count": 0,
+            "resolved_count": 0,
+            "saved_count": 0,
+            "rejected_count": 0,
+            "resolution_status": "pending",
+            "status": "queued",
+        })
+    upload_record["file_count"] = len(upload_record["files"])
+    if not upload_record["files"]:
+        upload_record["status"] = "failed"
+    await db.ocr_uploads.insert_one(upload_record.copy())
+    return sanitize_json({
+        "upload_id": upload_id,
+        "file_count": upload_record["file_count"],
+        "total_line_items": 0,
+        "needs_review_count": 0,
+        "status": upload_record["status"],
+        "mode": mode.key,
+        "models": {"vision": mode.vision_model, "reasoning": mode.reasoning_model},
+        "enabled_scopes": [],
+        "files": upload_record["files"],
+        "errors": upload_record["errors"],
+        "line_items": [],
+    })
+
+
+async def process_queued_upload(upload_id: str, organization_id: str, user: dict) -> None:
+    """Process a staged OCR job in the background using its stored R2 files."""
+    claimed = await db.ocr_uploads.update_one(
+        {"id": upload_id, "organization_id": organization_id, "status": "queued"},
+        {"$set": {"status": "processing", "started_at": _now(), "updated_at": _now()}},
+    )
+    if not claimed.modified_count:
+        return
+    upload_record = await db.ocr_uploads.find_one(
+        {"id": upload_id, "organization_id": organization_id},
+        {"_id": 0},
+    )
+    if not upload_record:
+        return
+    try:
+        mode = get_mode(upload_record["mode"])
+        gateway = OcrLlmGateway(mode)
+        org_context, enabled_scopes, disabled_scope3_sheets = await build_org_context(organization_id)
+    except Exception:
+        logger.exception("Queued OCR job setup failed", extra={"organization_id": organization_id, "upload_id": upload_id})
+        await db.ocr_uploads.update_one(
+            {"id": upload_id, "organization_id": organization_id},
+            {"$set": {
+                "status": "failed",
+                "errors": [{"filename": "Batch", "error": "OCR job could not be initialized"}],
+                "completed_at": _now(),
+                "updated_at": _now(),
+            }},
+        )
+        return
+    storage = get_r2_storage()
+    all_items: list[dict] = []
+    errors = list(upload_record.get("errors", []))
+
+    async def find_override(vendor_name: str | None, description: str | None):
+        record = await db.ocr_vendor_overrides.find_one(
+            {
+                "organization_id": organization_id,
+                "vendor_key": _normalize_cache_key(vendor_name),
+                "item_key": _normalize_cache_key(description),
+            },
+            {"_id": 0, "classification": 1},
+        )
+        return record.get("classification") if record else None
+
+    for file_info in upload_record.get("files", []):
+        filename = file_info["filename"]
+        extension = Path(filename).suffix.lower()
+        file_index = file_info["file_index"]
+        await db.ocr_uploads.update_one(
+            {"id": upload_id, "organization_id": organization_id},
+            {"$set": {"files.$[file].status": "processing", "updated_at": _now()}},
+            array_filters=[{"file.file_index": file_index}],
+        )
+        temp_path = None
+        try:
+            content, _ = await storage.get_file("ocr_temp", file_info["temp_key"])
+            if not content:
+                raise RuntimeError("The staged invoice file is unavailable")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=extension) as temp_file:
+                temp_file.write(content)
+                temp_path = temp_file.name
+            rows = await process_document(
+                temp_path,
+                gateway,
+                org_context,
+                enabled_scopes,
+                set(disabled_scope3_sheets),
+                find_override,
+            )
+            file_items = []
+            for row in rows:
+                item_id = str(uuid.uuid4())
+                billing_period = row.pop("billing_period", {})
+                current_values = {
+                    **row,
+                    "billing_period_start": billing_period.get("start_date"),
+                    "billing_period_end": billing_period.get("end_date"),
+                    "billing_period_text": billing_period.get("period_text"),
+                    "reporting_period": _reporting_period_from_date(row.get("date")),
+                    "unit_matched": bool(row.get("unit")),
+                    "mode": mode.key,
+                    "vision_model": mode.vision_model if extension not in SPREADSHEET_EXTENSIONS else "Spreadsheet direct ingestion",
+                    "reasoning_model": mode.reasoning_model,
+                }
+                file_items.append(sanitize_json({
+                    "id": item_id,
+                    "upload_id": upload_id,
+                    "organization_id": organization_id,
+                    "file_index": file_index,
+                    "filename": filename,
+                    "temp_file_key": file_info["temp_key"],
+                    "original_values": current_values.copy(),
+                    "current_values": current_values,
+                    "confidence_score": row.get("confidence_score"),
+                    "needs_review": row.get("needs_review", True),
+                    "status": "pending_review",
+                    "edit_history": [],
+                    "accepted_values": None,
+                    "emission_record_ids": [],
+                    "created_at": _now(),
+                    "updated_at": _now(),
+                }))
+            if file_items:
+                await db.ocr_line_items.insert_many([item.copy() for item in file_items])
+            all_items.extend(file_items)
+            file_info["line_item_count"] = len(file_items)
+            file_info["status"] = "completed"
+        except Exception:
+            logger.exception("Queued OCR file processing failed", extra={"organization_id": organization_id, "filename": filename, "mode": mode.key})
+            file_info["status"] = "failed"
+            file_info["error"] = "Processing failed for this file"
+            errors.append({"filename": filename, "error": "Processing failed for this file"})
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    total_line_items = sum(file.get("line_item_count", 0) for file in upload_record["files"])
+    await db.ocr_uploads.update_one(
+        {"id": upload_id, "organization_id": organization_id},
+        {"$set": {
+            "files": upload_record["files"],
+            "total_line_items": total_line_items,
+            "needs_review_count": sum(1 for item in all_items if item.get("needs_review")),
+            "errors": errors,
+            "status": "completed" if total_line_items else "failed",
+            "completed_at": _now(),
+            "updated_at": _now(),
+        }},
+    )
 
 
 async def save_vendor_override(organization_id: str, user: dict, current_values: dict) -> None:
