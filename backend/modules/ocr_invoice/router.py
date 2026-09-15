@@ -1095,16 +1095,16 @@ async def save_line_item_to_ghg(
         raise HTTPException(status_code=409, detail="This OCR row has already been saved to GHG records")
     values = dict(item.get("current_values") or {})
     if values.get("scope") not in {"scope1", "scope2", "scope3"}:
-        raise HTTPException(status_code=422, detail="Only Scope 1, Scope 2, and Scope 3 OCR rows can be saved directly to GHG records")
+        raise HTTPException(status_code=400, detail="Only Scope 1, Scope 2, and Scope 3 OCR rows can be saved directly to GHG records")
     facility_id = values.get("facility_id")
     facility = await db.facilities.find_one(
         {"id": facility_id, "organization_id": org_id, "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
         {"_id": 0, "id": 1},
     )
     if not facility:
-        raise HTTPException(status_code=422, detail="Select an active facility before saving this OCR row to GHG")
+        raise HTTPException(status_code=400, detail="Select an active facility before saving this OCR row to GHG")
     if not values.get("reporting_period"):
-        raise HTTPException(status_code=422, detail="Select a reporting period before saving this OCR row to GHG")
+        raise HTTPException(status_code=400, detail="Select a reporting period before saving this OCR row to GHG")
     factor_id = values.get("factor_id") or values.get("fuel_id") or values.get("scope3_ef_id")
     try:
         if not factor_id:
@@ -1125,7 +1125,7 @@ async def save_line_item_to_ghg(
         category = await resolve_ghg_category(db, values)
         calculation = await execute_ocr_calculation(db, values, category, org_id)
     except ValueError as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
     method = scope3_method(values.get("ef_method")) if values.get("scope") == "scope3" else None
     invoice_number = str(values.get("invoice_number") or "").strip()

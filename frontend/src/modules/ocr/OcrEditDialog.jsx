@@ -64,7 +64,7 @@ const ExtractedValue = ({ label, value, field }) => (
   </p>
 );
 
-export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave, saving, getAuthHeaders }) => {
+export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave, saving, getAuthHeaders, requiredFields = [] }) => {
   const [values, setValues] = useState(emptyValues);
   const [factors, setFactors] = useState([]);
   const [factorLoading, setFactorLoading] = useState(false);
@@ -158,6 +158,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   );
   const allowedUnits = selectedFactor?.allowed_units || [];
   const isSpend = values.ef_method === 'spend';
+  const isRequiredForGhgSave = (...fields) => fields.some((field) => requiredFields.includes(field));
+  const requiredClassName = (...fields) => isRequiredForGhgSave(...fields) ? 'border-red-500 ring-1 ring-red-200' : '';
   const set = (field, value) => setValues((current) => ({ ...current, [field]: value }));
   const resetFactor = (current, patch) => ({ ...current, ...patch, factor_id: '', fuel_id: '', scope3_ef_id: '', ef_database: '', naics_code: '', naics_label: '' });
 
@@ -224,7 +226,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           <div className="space-y-2">
             <Label data-testid="ocr-edit-facility-label">Facility</Label>
             <Select value={values.facility_id || ''} onValueChange={(facilityId) => set('facility_id', facilityId)}>
-              <SelectTrigger data-testid="ocr-edit-facility-select"><SelectValue placeholder="Select facility" /></SelectTrigger>
+              <SelectTrigger className={requiredClassName('facility_id')} data-testid="ocr-edit-facility-select"><SelectValue placeholder="Select facility" /></SelectTrigger>
               <SelectContent>{(configuration.facilities || []).map((facility) => <SelectItem key={facility.id} value={facility.id} data-testid={`ocr-edit-facility-${facility.id}`}>{facility.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -238,7 +240,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           <div className="space-y-2">
             <Label>Subcategory / lookup</Label>
             <Select value={values.factor_id || ''} onValueChange={changeFactor} disabled={factorLoading || factors.length === 0}>
-              <SelectTrigger data-testid="ocr-edit-subcategory-select"><SelectValue placeholder={factorLoading ? 'Loading factors…' : 'Select a subcategory'} /></SelectTrigger>
+              <SelectTrigger className={requiredClassName('factor_id')} data-testid="ocr-edit-subcategory-select"><SelectValue placeholder={factorLoading ? 'Loading factors…' : 'Select a subcategory'} /></SelectTrigger>
               <SelectContent>{factors.map((factor, index) => <SelectItem key={`${factor.id}-${factor.value}`} value={factor.id} data-testid={`ocr-edit-factor-option-${index}`}>{factor.label} · {factor.database}</SelectItem>)}</SelectContent>
             </Select>
             <ExtractedValue label="subcategory" value={original.ef_lookup_key || original.subcategory} field="subcategory" />
@@ -247,22 +249,22 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             <Label htmlFor="ocr-reporting-period">Reporting period</Label>
             <div className="relative">
               <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" />
-              <Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className="pl-10" aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" />
+              <Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" />
             </div>
             <ExtractedValue label="date" value={original.date} field="date" />
           </div>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-quantity-unit-row">
             <div className="space-y-2">
               <Label htmlFor="ocr-quantity">Quantity</Label>
-              <Input id="ocr-quantity" type="number" value={values.quantity ?? ''} onChange={(event) => set('quantity', event.target.value === '' ? '' : Number(event.target.value))} data-testid="ocr-edit-quantity-input" />
+              <Input id="ocr-quantity" type="number" value={values.quantity ?? ''} onChange={(event) => set('quantity', event.target.value === '' ? '' : Number(event.target.value))} className={requiredClassName('quantity')} data-testid="ocr-edit-quantity-input" />
             </div>
             <div className="space-y-2">
               <Label htmlFor={isSpend ? 'ocr-quantity-unit' : undefined}>Unit of quantity</Label>
               {isSpend ? (
-                <Input id="ocr-quantity-unit" value={values.unit || ''} onChange={(event) => set('unit', event.target.value)} data-testid="ocr-edit-quantity-unit-input" />
+                <Input id="ocr-quantity-unit" value={values.unit || ''} onChange={(event) => set('unit', event.target.value)} className={requiredClassName('unit')} data-testid="ocr-edit-quantity-unit-input" />
               ) : (
                 <Select value={values.unit || ''} onValueChange={(unit) => set('unit', unit)} disabled={!selectedFactor || allowedUnits.length === 0}>
-                  <SelectTrigger data-testid="ocr-edit-unit-select"><SelectValue placeholder="Select a unit" /></SelectTrigger>
+                  <SelectTrigger className={requiredClassName('unit')} data-testid="ocr-edit-unit-select"><SelectValue placeholder="Select a unit" /></SelectTrigger>
                   <SelectContent>{allowedUnits.map((unit, index) => <SelectItem key={unit} value={unit} data-testid={`ocr-edit-unit-option-${index}`}>{unit}</SelectItem>)}</SelectContent>
                 </Select>
               )}
@@ -272,17 +274,17 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-cost-currency-row">
             <div className="space-y-2">
               <Label htmlFor="ocr-cost">Cost</Label>
-              <Input id="ocr-cost" type="number" value={values.cost ?? ''} onChange={(event) => set('cost', event.target.value === '' ? '' : Number(event.target.value))} data-testid="ocr-edit-cost-input" />
+              <Input id="ocr-cost" type="number" value={values.cost ?? ''} onChange={(event) => set('cost', event.target.value === '' ? '' : Number(event.target.value))} className={requiredClassName('cost')} data-testid="ocr-edit-cost-input" />
             </div>
             <div className="space-y-2">
               <Label htmlFor={isSpend ? undefined : 'ocr-currency'}>Currency</Label>
               {isSpend ? (
                 <Select value={values.currency || ''} onValueChange={(currency) => set('currency', currency)} disabled={!selectedFactor || allowedUnits.length === 0}>
-                  <SelectTrigger data-testid="ocr-edit-currency-select"><SelectValue placeholder="Select a currency" /></SelectTrigger>
+                  <SelectTrigger className={requiredClassName('currency')} data-testid="ocr-edit-currency-select"><SelectValue placeholder="Select a currency" /></SelectTrigger>
                   <SelectContent>{allowedUnits.map((currency, index) => <SelectItem key={currency} value={currency} data-testid={`ocr-edit-currency-option-${index}`}>{currency}</SelectItem>)}</SelectContent>
                 </Select>
               ) : (
-                <Input id="ocr-currency" value={values.currency || ''} onChange={(event) => set('currency', event.target.value)} data-testid="ocr-edit-currency-input" />
+                <Input id="ocr-currency" value={values.currency || ''} onChange={(event) => set('currency', event.target.value)} className={requiredClassName('currency')} data-testid="ocr-edit-currency-input" />
               )}
               <ExtractedValue label="currency" value={original.currency} field="currency" />
             </div>
@@ -292,6 +294,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             <Input id="ocr-ef-database" value={values.ef_database || ''} readOnly data-testid="ocr-edit-ef-database-input" />
           </div>
           <div className="space-y-2 sm:col-span-2">
+            {requiredFields.length > 0 && <p className="text-sm font-medium text-red-700" role="alert" data-testid="ocr-edit-ghg-required-fields-alert">Complete the highlighted fields before saving this row to GHG.</p>}
             {factorLoading && <p className="text-sm text-slate-600" data-testid="ocr-edit-factor-loading">Loading factor options…</p>}
             {!factorLoading && !factorError && values.category && factors.length === 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-no-factors">No factors are configured for this category and method. Choose another method or contact the factor administrator.</p>}
             {factorError && <p className="text-sm text-red-700" data-testid="ocr-edit-factor-error">{factorError}</p>}

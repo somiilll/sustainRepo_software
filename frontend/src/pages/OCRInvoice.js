@@ -46,6 +46,21 @@ const FALLBACK_CONFIGURATION = {
 };
 
 const responseMessage = (error, fallback) => error?.response?.data?.detail || error?.response?.data?.message || fallback;
+const directGhgMissingFields = (values = {}) => {
+  const missing = [];
+  const hasValue = (value) => value !== undefined && value !== null && value !== '';
+  if (!values.facility_id) missing.push('facility_id');
+  if (!values.reporting_period) missing.push('reporting_period');
+  if (!(values.factor_id || values.fuel_id || values.scope3_ef_id)) missing.push('factor_id');
+  if (values.scope === 'scope3' && values.ef_method === 'spend') {
+    if (!hasValue(values.cost)) missing.push('cost');
+    if (!values.currency) missing.push('currency');
+  } else {
+    if (!hasValue(values.quantity)) missing.push('quantity');
+    if (!values.unit) missing.push('unit');
+  }
+  return missing;
+};
 
 export default function OCRInvoice() {
   const { getAuthHeader } = useAuth();
@@ -62,6 +77,7 @@ export default function OCRInvoice() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [editingRequiredFields, setEditingRequiredFields] = useState([]);
   const [saving, setSaving] = useState(false);
   const [acceptingId, setAcceptingId] = useState(null);
   const [rejectingItem, setRejectingItem] = useState(null);
@@ -289,6 +305,7 @@ export default function OCRInvoice() {
       setItems((current) => current.map((item) => item.id === editingItem.id ? data.line_item : item));
       setSelectedItem(data.line_item);
       setEditingItem(null);
+      setEditingRequiredFields([]);
       toast.success(values.remember_override ? 'Changes saved and vendor mapping remembered' : 'Changes saved');
     } catch (requestError) {
       toast.error(responseMessage(requestError, 'Changes could not be saved.'));
@@ -306,6 +323,13 @@ export default function OCRInvoice() {
         toast.success('Water activity accepted. Opening the Water metric form.');
         navigate('/environment/water?tab=add-metric', { state: { openWaterForm: true, ocrWaterPrefill: data.prefill_data } });
       } else {
+        const missingFields = directGhgMissingFields(item.current_values);
+        if (missingFields.length) {
+          setEditingRequiredFields(missingFields);
+          setEditingItem(item);
+          toast.error('Complete the highlighted fields before saving this row to GHG.');
+          return;
+        }
         const { data: savedData } = await saveOcrLineItemToGhg(item.id, getAuthHeader());
         const remainingItems = items.filter((row) => row.id !== item.id);
         setItems(remainingItems);
@@ -464,12 +488,12 @@ export default function OCRInvoice() {
 
           {processing && <OcrBatchQueue queue={fileQueue} />}
 
-          <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={setEditingItem} onAccept={acceptItem} onReject={setRejectingItem} acceptingId={acceptingId} rejectingId={rejectingId} />
+      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} acceptingId={acceptingId} rejectingId={rejectingId} />
 
         </div>
       )}
 
-      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) setEditingItem(null); }} configuration={configuration} onSave={saveEdit} saving={saving} getAuthHeaders={getAuthHeader} />
+      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) { setEditingItem(null); setEditingRequiredFields([]); } }} configuration={configuration} onSave={saveEdit} saving={saving} getAuthHeaders={getAuthHeader} requiredFields={editingRequiredFields} />
 
       <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onHidePreview={hideFacilityAssignmentPreview} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
 
