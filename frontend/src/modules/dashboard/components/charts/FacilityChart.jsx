@@ -15,7 +15,7 @@ const ALL_BARS = [
   { key: 'scope3', label: 'Scope 3', color: '#7C3AED' },
 ];
 
-const CATEGORY_COLORS = ['#0F766E', '#14B8A6', '#2563EB', '#7C3AED', '#D97706', '#DB2777', '#64748B'];
+const CATEGORY_COLORS = ['#0F766E', '#14B8A6', '#2563EB', '#7C3AED', '#D97706', '#DB2777', '#64748B', '#0891B2', '#65A30D', '#EA580C', '#BE123C', '#4F46E5', '#0D9488', '#9333EA', '#CA8A04'];
 
 const scopeLabel = (scope) => scope.replace('scope', 'Scope ');
 
@@ -35,9 +35,7 @@ export default function FacilityChart({ facilities = [], height = 400, className
     });
     const rankedCategories = [...categoryTotals.entries()]
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([name], index) => ({ name, key: `category_${index}`, color: CATEGORY_COLORS[index] }));
-    const selectedNames = new Set(rankedCategories.map((category) => category.name));
+      .map(([name], index) => ({ name, key: `category_${index}`, color: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }));
 
     return {
       categoryKeys: rankedCategories,
@@ -46,8 +44,6 @@ export default function FacilityChart({ facilities = [], height = 400, className
         const valuesByName = new Map(categoryValues.map((category) => [category.name, Number(category.value || 0)]));
         const row = { ...facility, scopeTotal: Number(facility[activeScope] || 0) };
         rankedCategories.forEach((category) => { row[category.key] = valuesByName.get(category.name) || 0; });
-        const otherValue = categoryValues.reduce((sum, category) => sum + (selectedNames.has(category.name) ? 0 : Number(category.value || 0)), 0);
-        if (otherValue > 0) row.other_categories = otherValue;
         return row;
       }),
     };
@@ -57,7 +53,6 @@ export default function FacilityChart({ facilities = [], height = 400, className
     return <div className="flex h-48 items-center justify-center text-sm text-stone-400" data-testid="facility-empty">No facility data</div>;
   }
 
-  const hasOtherCategories = selectedScopeData.rows.some((row) => row.other_categories > 0);
   const visibleAllBars = showScope3 ? ALL_BARS : ALL_BARS.filter((bar) => bar.key !== 'scope3');
 
   return (
@@ -78,7 +73,6 @@ export default function FacilityChart({ facilities = [], height = 400, className
             {activeScope === 'all' ? visibleAllBars.map((bar) => <Bar key={bar.key} dataKey={bar.key} name={bar.label} fill={bar.color} radius={[4, 4, 0, 0]} />) : <>
               <Bar dataKey="scopeTotal" name={`Total ${scopeLabel(activeScope)}`} fill={ALL_BARS.find((bar) => bar.key === activeScope)?.color} radius={[4, 4, 0, 0]} />
               {selectedScopeData.categoryKeys.map((category) => <Bar key={category.key} dataKey={category.key} name={category.name} stackId="categories" fill={category.color} radius={[2, 2, 0, 0]} />)}
-              {hasOtherCategories && <Bar dataKey="other_categories" name="Other categories" stackId="categories" fill={CATEGORY_COLORS[6]} radius={[2, 2, 0, 0]} />}
             </>}
           </BarChart>
         </ResponsiveContainer>
