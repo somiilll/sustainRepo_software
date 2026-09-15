@@ -368,17 +368,6 @@ export default function OCRInvoice() {
 
           <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={setEditingItem} onAccept={acceptItem} onReject={setRejectingItem} acceptingId={acceptingId} rejectingId={rejectingId} />
 
-          {selectedItem && (
-            <section className="border-l-4 border-emerald-600 bg-slate-50 p-4 lg:hidden" data-testid="ocr-selected-item-actions">
-              <p className="text-sm font-semibold text-slate-900">{selectedItem.current_values?.category}</p>
-              <p className="mt-1 text-xs text-slate-600">{selectedItem.current_values?.accounting_rationale}</p>
-              <div className="mt-4 flex gap-2">
-                <Button type="button" variant="outline" onClick={() => setEditingItem(selectedItem)} data-testid="ocr-mobile-edit-button">Edit</Button>
-                <Button type="button" variant="outline" className="text-red-700 hover:bg-red-50" onClick={() => setRejectingItem(selectedItem)} data-testid="ocr-mobile-reject-button">Reject</Button>
-                <Button type="button" onClick={() => acceptItem(selectedItem)} disabled={acceptingId === selectedItem.id} data-testid="ocr-mobile-accept-button">Accept activity</Button>
-              </div>
-            </section>
-          )}
         </div>
       )}
 

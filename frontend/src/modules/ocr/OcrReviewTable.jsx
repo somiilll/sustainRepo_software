@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Check, ChevronRight, Edit3, MapPin, Search, XCircle } from 'lucide-react';
+import { Check, ChevronRight, Edit3, Search, XCircle } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -24,6 +24,29 @@ const Confidence = ({ value, itemId }) => {
   );
 };
 
+const hasValue = (value) => value !== null && value !== undefined && value !== '';
+
+const displayValue = (value) => hasValue(value) ? value : '—';
+
+const quantityValue = (values) => hasValue(values.quantity)
+  ? `${values.quantity}${values.unit ? ` ${values.unit}` : ''}`
+  : '—';
+
+const distanceValue = (values) => hasValue(values.distance_km) ? `${values.distance_km} km` : '—';
+
+const costValue = (values) => hasValue(values.cost)
+  ? `${values.currency ? `${values.currency} ` : ''}${values.cost}`
+  : '—';
+
+const MobileField = ({ label, value, itemId, field, wide = false, children }) => (
+  <div className={wide ? 'col-span-2' : ''}>
+    <dt className="text-xs font-medium text-slate-500">{label}</dt>
+    <dd className="mt-1 break-words text-sm text-slate-900" data-testid={`ocr-mobile-${field}-${itemId}`}>
+      {children || displayValue(value)}
+    </dd>
+  </div>
+);
+
 const formatSubtotal = (items) => Object.entries(items.reduce((totals, item) => {
   const values = item.current_values || {};
   const currency = values.currency || 'Unspecified currency';
@@ -31,12 +54,12 @@ const formatSubtotal = (items) => Object.entries(items.reduce((totals, item) => 
   return totals;
 }, {})).filter(([, total]) => total > 0).map(([currency, total]) => `${currency} ${total.toLocaleString()}`).join(' · ') || 'No spend total';
 
-const RowStatus = ({ item }) => {
+const RowStatus = ({ item, testIdPrefix = 'ocr-row-status' }) => {
   const values = item.current_values || {};
   const status = values.missing_values ? ['Missing data', 'bg-red-50 text-red-800 border-red-200']
     : item.needs_review ? ['Needs review', 'bg-amber-50 text-amber-900 border-amber-200']
       : ['Ready', 'bg-emerald-50 text-emerald-800 border-emerald-200'];
-  return <Badge variant="outline" className={status[1]} data-testid={`ocr-row-status-${item.id}`}>{status[0]}</Badge>;
+  return <Badge variant="outline" className={status[1]} data-testid={`${testIdPrefix}-${item.id}`}>{status[0]}</Badge>;
 };
 
 export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, onReject, acceptingId, rejectingId }) => {
@@ -103,11 +126,25 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
       )}
 
       <div className="hidden overflow-x-auto border border-slate-200 bg-white lg:block" data-testid="ocr-review-desktop-table">
-        <Table>
+        <Table className="min-w-[2480px]">
           <TableHeader className="bg-slate-50">
             <TableRow>
-              <TableHead>Vendor / item</TableHead><TableHead>Scope</TableHead><TableHead>Category</TableHead>
-              <TableHead>Activity</TableHead><TableHead>Review status</TableHead><TableHead>Context</TableHead><TableHead>Method</TableHead><TableHead>Confidence</TableHead><TableHead className="text-right">Actions</TableHead>
+              <TableHead>Invoice number</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Vendor</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Extracted item</TableHead>
+              <TableHead>Confidence score</TableHead>
+              <TableHead>Scope</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Accounting rationale</TableHead>
+              <TableHead>Subcategory / sector</TableHead>
+              <TableHead>EF method</TableHead>
+              <TableHead>Qty</TableHead>
+              <TableHead>Distance</TableHead>
+              <TableHead>Cost</TableHead>
+              <TableHead>Review status</TableHead>
+              <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -115,21 +152,24 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               const values = item.current_values || {};
               return (
                 <TableRow key={item.id} className={selectedId === item.id ? 'bg-emerald-50/60' : ''} onClick={() => onSelect(item)} data-testid={`ocr-review-row-${item.id}`}>
-                  <TableCell className="max-w-64">
-                    <p className="truncate font-medium text-slate-900" data-testid={`ocr-row-vendor-${item.id}`}>{values.vendor_name || 'Unknown vendor'}</p>
-                    <p className="mt-1 truncate text-xs text-slate-500" data-testid={`ocr-row-description-${item.id}`}>{values.item_description || values.fuel_name || 'Unspecified activity'}</p>
-                    {(values.low_confidence_fields || []).length > 0 && <p className="mt-1 line-clamp-1 text-xs text-amber-800" data-testid={`ocr-row-review-reasons-${item.id}`}>Review: {values.low_confidence_fields.join(', ')}</p>}
+                  <TableCell className="max-w-44 whitespace-normal break-words" data-testid={`ocr-row-invoice-number-${item.id}`}>{displayValue(values.invoice_number)}</TableCell>
+                  <TableCell className="whitespace-nowrap" data-testid={`ocr-row-date-${item.id}`}>{displayValue(values.date)}</TableCell>
+                  <TableCell className="max-w-52 whitespace-normal break-words font-medium text-slate-900" data-testid={`ocr-row-vendor-${item.id}`}>{values.vendor_name || 'Unknown vendor'}</TableCell>
+                  <TableCell className="max-w-52 whitespace-normal break-words" data-testid={`ocr-row-location-${item.id}`}>{displayValue(values.location)}</TableCell>
+                  <TableCell className="max-w-72 whitespace-normal break-words" data-testid={`ocr-row-description-${item.id}`}>
+                    <p>{values.item_description || values.fuel_name || 'Unspecified activity'}</p>
+                    {(values.low_confidence_fields || []).length > 0 && <p className="mt-1 text-xs text-amber-800" data-testid={`ocr-row-review-reasons-${item.id}`}>Review: {values.low_confidence_fields.join(', ')}</p>}
                   </TableCell>
-                  <TableCell><Badge variant="outline" className={scopeTone[values.scope]} data-testid={`ocr-row-scope-${item.id}`}>{values.scope?.replace('scope', 'Scope ')}</Badge></TableCell>
-                  <TableCell className="max-w-56"><p className="line-clamp-2 text-sm" data-testid={`ocr-row-category-${item.id}`}>{values.category || 'Unknown'}</p></TableCell>
-                  <TableCell data-testid={`ocr-row-activity-${item.id}`}>{values.quantity ? `${values.quantity} ${values.unit || ''}` : values.cost ? `${values.currency || ''} ${values.cost}` : 'Missing'}</TableCell>
-                  <TableCell><RowStatus item={item} /></TableCell>
-                  <TableCell className="max-w-64" data-testid={`ocr-row-context-${item.id}`}>
-                    {(values.origin || values.destination || values.distance_km) && <p className="flex items-center gap-1 text-xs text-slate-700"><MapPin className="h-3 w-3 shrink-0 text-slate-400" />{[values.origin, values.destination].filter(Boolean).join(' → ') || 'Route'}{values.distance_km ? ` · ${values.distance_km} km` : ''}</p>}
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-500" title={values.accounting_rationale || ''}>{values.accounting_rationale || 'No accounting rationale returned.'}</p>
-                  </TableCell>
+                  <TableCell><Confidence value={item.confidence_score ?? values.confidence_score} itemId={item.id} /></TableCell>
+                  <TableCell><Badge variant="outline" className={scopeTone[values.scope]} data-testid={`ocr-row-scope-${item.id}`}>{values.scope?.replace('scope', 'Scope ') || '—'}</Badge></TableCell>
+                  <TableCell className="max-w-60 whitespace-normal break-words" data-testid={`ocr-row-category-${item.id}`}>{values.category || 'Unknown'}</TableCell>
+                  <TableCell className="max-w-96 whitespace-normal break-words text-xs text-slate-700" data-testid={`ocr-row-rationale-${item.id}`}>{values.accounting_rationale || 'No accounting rationale returned.'}</TableCell>
+                  <TableCell className="max-w-72 whitespace-normal break-words" data-testid={`ocr-row-subcategory-${item.id}`}>{displayValue(values.subcategory || values.sector || values.naics_label)}</TableCell>
                   <TableCell><span className="text-xs font-medium uppercase text-slate-600" data-testid={`ocr-row-method-${item.id}`}>{values.ef_method || 'Review'}</span></TableCell>
-                  <TableCell><Confidence value={item.confidence_score} itemId={item.id} /></TableCell>
+                  <TableCell className="whitespace-nowrap" data-testid={`ocr-row-quantity-${item.id}`}>{quantityValue(values)}</TableCell>
+                  <TableCell className="whitespace-nowrap" data-testid={`ocr-row-distance-${item.id}`}>{distanceValue(values)}</TableCell>
+                  <TableCell className="whitespace-nowrap" data-testid={`ocr-row-cost-${item.id}`}>{costValue(values)}</TableCell>
+                  <TableCell><RowStatus item={item} /></TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
                       <Button type="button" size="icon" variant="ghost" onClick={(event) => { event.stopPropagation(); onEdit(item); }} aria-label="Edit row" data-testid={`ocr-edit-row-${item.id}`}><Edit3 className="h-4 w-4" /></Button>
@@ -148,14 +188,34 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
         {filtered.map((item) => {
           const values = item.current_values || {};
           return (
-            <button key={item.id} type="button" onClick={() => onSelect(item)} className="border border-slate-200 bg-white p-4 text-left" data-testid={`ocr-review-card-${item.id}`}>
-              <span className="flex items-start justify-between gap-3">
-                <span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-900">{values.vendor_name || 'Unknown vendor'}</span><span className="mt-1 block line-clamp-2 text-xs text-slate-600">{values.item_description || values.category}</span></span>
+            <article key={item.id} className={`border bg-white p-4 ${selectedId === item.id ? 'border-emerald-600' : 'border-slate-200'}`} data-testid={`ocr-review-card-${item.id}`}>
+              <button type="button" onClick={() => onSelect(item)} className="flex w-full items-center justify-between gap-3 text-left" data-testid={`ocr-mobile-select-row-${item.id}`}>
+                <span className="text-sm font-semibold text-slate-950">Review extracted row</span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-              </span>
-              <span className="mt-3 flex flex-wrap items-center gap-2"><Badge variant="outline" className={scopeTone[values.scope]}>{values.scope?.replace('scope', 'Scope ')}</Badge><RowStatus item={item} /><span className="text-xs text-slate-500">{values.quantity ? `${values.quantity} ${values.unit || ''}` : `${values.currency || ''} ${values.cost || ''}`}</span><span className="ml-auto text-xs font-medium">{item.confidence_score}%</span></span>
-              {(values.origin || values.destination || values.distance_km) && <span className="mt-2 flex items-center gap-1 text-xs text-slate-500" data-testid={`ocr-mobile-route-${item.id}`}><MapPin className="h-3 w-3" />{[values.origin, values.destination].filter(Boolean).join(' → ') || 'Route'}{values.distance_km ? ` · ${values.distance_km} km` : ''}</span>}
-            </button>
+              </button>
+              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4">
+                <MobileField label="Invoice number" value={values.invoice_number} itemId={item.id} field="invoice-number" />
+                <MobileField label="Date" value={values.date} itemId={item.id} field="date" />
+                <MobileField label="Vendor" value={values.vendor_name || 'Unknown vendor'} itemId={item.id} field="vendor" wide />
+                <MobileField label="Location" value={values.location} itemId={item.id} field="location" wide />
+                <MobileField label="Extracted item" value={values.item_description || values.fuel_name || 'Unspecified activity'} itemId={item.id} field="description" wide />
+                <MobileField label="Confidence score" value={`${item.confidence_score ?? values.confidence_score ?? 0}%`} itemId={item.id} field="confidence" />
+                <MobileField label="Scope" itemId={item.id} field="scope"><Badge variant="outline" className={scopeTone[values.scope]}>{values.scope?.replace('scope', 'Scope ') || '—'}</Badge></MobileField>
+                <MobileField label="Category" value={values.category || 'Unknown'} itemId={item.id} field="category" wide />
+                <MobileField label="Accounting rationale" value={values.accounting_rationale || 'No accounting rationale returned.'} itemId={item.id} field="rationale" wide />
+                <MobileField label="Subcategory / sector" value={values.subcategory || values.sector || values.naics_label} itemId={item.id} field="subcategory" wide />
+                <MobileField label="EF method" value={values.ef_method || 'Review'} itemId={item.id} field="method" />
+                <MobileField label="Qty" value={quantityValue(values)} itemId={item.id} field="quantity" />
+                <MobileField label="Distance" value={distanceValue(values)} itemId={item.id} field="distance" />
+                <MobileField label="Cost" value={costValue(values)} itemId={item.id} field="cost" />
+                <MobileField label="Review status" itemId={item.id} field="review-status" wide><RowStatus item={item} testIdPrefix="ocr-mobile-row-status" /></MobileField>
+              </dl>
+              <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-4" data-testid={`ocr-mobile-actions-${item.id}`}>
+                <Button type="button" size="icon" variant="ghost" onClick={() => onEdit(item)} aria-label="Edit row" data-testid={`ocr-mobile-edit-row-${item.id}`}><Edit3 className="h-4 w-4" /></Button>
+                <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onReject(item)} disabled={rejectingId === item.id} aria-label="Reject row" data-testid={`ocr-mobile-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
+                <Button type="button" size="icon" onClick={() => onAccept(item)} disabled={acceptingId === item.id || item.status === 'imported'} aria-label="Accept row" data-testid={`ocr-mobile-accept-row-${item.id}`}><Check className="h-4 w-4" /></Button>
+              </div>
+            </article>
           );
         })}
       </div>
