@@ -41,7 +41,7 @@ MODES = {
         provider="openai",
         vision_model="gpt-5.6-sol",
         reasoning_model="gpt-5.6-terra",
-        api_key_env="OPENAI_API_KEY",
+        api_key_env="OPEN_API_KEY_OCR",
     ),
 }
 
