@@ -127,6 +127,34 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
         if (!active) return;
         const options = data.factors || [];
         setFactors(options);
+        if (options.length === 1 && !values.factor_id) {
+          const selected = options[0];
+          const isSpendMethod = values.ef_method === 'spend';
+          const matchedInput = matchingUnit(selected, isSpendMethod ? values.currency : values.unit);
+          const nextValues = {
+            ...values,
+            facility_id: values.facility_id || factorFacilityId,
+            factor_id: selected.id,
+            fuel_id: selected.collection === 'fuel_database' ? selected.id : '',
+            scope3_ef_id: selected.collection === 'scope3_ef' ? selected.id : '',
+            subcategory: selected.value,
+            fuel_name: selected.value,
+            ef_lookup_key: selected.value,
+            ef_database: selected.database,
+            naics_code: selected.naics_code || (selected.method === 'spend' ? values.naics_code : ''),
+            naics_label: selected.naics_label || (selected.method === 'spend' ? values.naics_label : ''),
+            ...(isSpendMethod ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+          };
+          setValues(nextValues);
+          const automaticMatchKey = `${item?.id}:${factorFacilityId}:${selected.id}`;
+          if (onAutoMatch && automaticMatchRef.current !== automaticMatchKey) {
+            automaticMatchRef.current = automaticMatchKey;
+            onAutoMatch(nextValues).catch(() => {
+              if (active) setFactorError('The matched factor could not be saved. Select it and save changes manually.');
+            });
+          }
+          return;
+        }
         setValues((current) => {
           const storedFactor = options.find((option) => option.id === current.factor_id);
           const automaticFactor = storedFactor

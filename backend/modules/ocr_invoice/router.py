@@ -109,23 +109,25 @@ def _is_spreadsheet_ocr_item(item: dict) -> bool:
 
 
 def _ocr_record_metadata(item: dict, values: dict) -> dict:
-    """Build GHG provenance and preserve extracted business context as notes."""
+    """Build OCR provenance and Scope 1-only extracted context notes."""
     original_values = item.get("original_values") or {}
 
     def field(name: str) -> str:
         return str(values.get(name) or original_values.get(name) or "").strip()
 
     note_parts = []
-    if vendor_name := field("vendor_name"):
-        note_parts.append(f"Vendor: {vendor_name}")
-    if item_description := field("item_description"):
-        note_parts.append(f"Item description: {item_description}")
-    if extracted_notes := field("notes") or field("additional_context"):
-        note_parts.append(f"OCR notes: {extracted_notes}")
+    if values.get("scope") == "scope1":
+        if vendor_name := field("vendor_name"):
+            note_parts.append(f"Vendor: {vendor_name}")
+        if item_description := field("item_description"):
+            note_parts.append(f"Item description: {item_description}")
+        if extracted_notes := field("notes") or field("additional_context"):
+            note_parts.append(f"OCR notes: {extracted_notes}")
     return {
         "is_spreadsheet": _is_spreadsheet_ocr_item(item),
         "source_of_information": "OCR Excel Upload" if _is_spreadsheet_ocr_item(item) else "OCR Invoice Upload",
         "record_source": field("invoice_number"),
+        "vendor_name": field("vendor_name") or None,
         "notes": "\n".join(note_parts),
     }
 
@@ -1235,7 +1237,7 @@ async def save_line_item_to_ghg(
         scope3_activity=values.get("ef_lookup_key") or values.get("subcategory"),
         scope3_activity_type=values.get("scope3_activity_type"),
         scope3_subcategory=values.get("scope3_subcategory"),
-        supplier_name=values.get("vendor_name") if values.get("scope") == "scope3" else None,
+        supplier_name=ocr_metadata["vendor_name"] if values.get("scope") == "scope3" else None,
         formula_id=calculation["formula_id"],
         formula_version_id=calculation["formula_version_id"],
         decision_tree_version_id=calculation["decision_tree_version_id"],
