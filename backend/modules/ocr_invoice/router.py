@@ -49,6 +49,7 @@ OCR_MODEL_DISAMBIGUATION = os.environ.get("OCR_MODEL_DISAMBIGUATION", "claude-ha
 # MongoDB Collections
 OCR_UPLOADS_COLLECTION = "ocr_uploads"
 OCR_LINE_ITEMS_COLLECTION = "ocr_line_items"
+SPREADSHEET_EXTENSIONS = {".csv", ".xls", ".xlsx"}
 
 
 # ============================================================================
@@ -101,6 +102,32 @@ def _get_org(user: dict) -> str:
 
 def _preview_path(upload_id: str, file_index: int) -> str:
     return f"/api/ocr-invoice/uploads/{upload_id}/files/{file_index}/preview"
+
+
+def _is_spreadsheet_ocr_item(item: dict) -> bool:
+    return os.path.splitext(str(item.get("filename") or ""))[1].lower() in SPREADSHEET_EXTENSIONS
+
+
+def _ocr_record_metadata(item: dict, values: dict) -> dict:
+    """Build GHG provenance and preserve extracted business context as notes."""
+    original_values = item.get("original_values") or {}
+
+    def field(name: str) -> str:
+        return str(values.get(name) or original_values.get(name) or "").strip()
+
+    note_parts = []
+    if vendor_name := field("vendor_name"):
+        note_parts.append(f"Vendor: {vendor_name}")
+    if item_description := field("item_description"):
+        note_parts.append(f"Item description: {item_description}")
+    if extracted_notes := field("notes") or field("additional_context"):
+        note_parts.append(f"OCR notes: {extracted_notes}")
+    return {
+        "is_spreadsheet": _is_spreadsheet_ocr_item(item),
+        "source_of_information": "OCR Excel Upload" if _is_spreadsheet_ocr_item(item) else "OCR Invoice Upload",
+        "record_source": field("invoice_number"),
+        "notes": "\n".join(note_parts),
+    }
 
 
 async def _resolve_ocr_line_item(item: dict, outcome: str) -> dict:
@@ -1028,7 +1055,7 @@ async def accept_line_item(
     # rather than copying OCR-only classification metadata into emissions.
     invoice_num = current_values.get("invoice_number", "N/A")
     vendor = current_values.get("vendor_name", "Unknown Vendor")
-    source_info = f"Invoice No. {invoice_num}"
+    ocr_metadata = _ocr_record_metadata(item, current_values)
     facility = None
     if current_values.get("facility_id"):
         facility = await db.facilities.find_one(
@@ -1083,7 +1110,9 @@ async def accept_line_item(
         },
         
         # Source info & evidence
-        "source_of_information": source_info,
+        "source_of_information": ocr_metadata["source_of_information"],
+        "record_source": ocr_metadata["record_source"],
+        "notes": ocr_metadata["notes"],
         "responsible_person": current_user.get("name", ""),
         
         # Invoice file for evidence
@@ -1175,7 +1204,7 @@ async def save_line_item_to_ghg(
         }},
     )
     method = scope3_method(values.get("ef_method")) if values.get("scope") == "scope3" else None
-    invoice_number = str(values.get("invoice_number") or "").strip()
+    ocr_metadata = _ocr_record_metadata(item, values)
     emission_payload = EmissionRecordCreate(
         facility_id=facility_id,
         organization_id=org_id,
@@ -1201,8 +1230,9 @@ async def save_line_item_to_ghg(
         formula_snapshot=calculation["formula_snapshot"],
         dynamic_field_values=calculation["inputs"],
         outputs=calculation["outputs"],
-        source_of_information=f"Invoice No. {invoice_number}" if invoice_number else "OCR invoice upload",
-        record_source="OCR invoice upload",
+        source_of_information=ocr_metadata["source_of_information"],
+        record_source=ocr_metadata["record_source"],
+        notes=ocr_metadata["notes"],
         upload_source="ocr_upload",
         ocr_upload_id=item["upload_id"],
         ocr_line_item_id=item_id,
@@ -1216,6 +1246,14 @@ async def save_line_item_to_ghg(
             {"id": calculation["audit_log_id"]},
             {"$set": {"emission_record_id": emission_data["id"]}},
         )
+    if ocr_metadata["is_spreadsheet"]:
+        resolution = await _resolve_ocr_line_item(item, "saved")
+        return {
+            "message": "GHG entry calculated and saved",
+            "emission_record": emission_data,
+            "evidence_attached": False,
+            **resolution,
+        }
     try:
         finalization = await finalize_import(
             AdvancedFinalizeImportRequest(line_item_id=item_id, emission_record_ids=[emission_data["id"]]),
@@ -1351,6 +1389,16 @@ async def finalize_import(
     if item.get("status") == "imported":
         logger.info(f"[OCR Finalize] Already imported, returning existing evidence_url")
         return {"message": "Already imported", "evidence_url": item.get("evidence_url")}
+
+    if _is_spreadsheet_ocr_item(item):
+        resolution = await _resolve_ocr_line_item(item, "saved")
+        return {
+            "message": "Spreadsheet OCR import finalized without evidence attachment",
+            "evidence_url": "",
+            "emission_record_ids": request.emission_record_ids,
+            "line_item_removed": True,
+            **resolution,
+        }
     
     temp_file_key = item.get("temp_file_key")
     filename = item.get("filename", "invoice.pdf")
@@ -1384,12 +1432,12 @@ async def finalize_import(
         if {record.get("id") for record in linked_records} != set(emission_record_ids):
             raise HTTPException(status_code=422, detail="Each GHG record must belong to your organization before evidence can be attached.")
     if not emission_record_ids and invoice_number:
-        # Search for recently created emissions with this invoice in source_of_information
+        # Search for recently created emissions with this invoice in record_source.
         logger.info(f"[OCR Finalize] Searching for emissions with invoice number: {invoice_number}")
         recent_emissions = await db.emission_records.find(
             {
                 "organization_id": org_id,
-                "source_of_information": {"$regex": invoice_number, "$options": "i"}
+                "record_source": {"$regex": invoice_number, "$options": "i"}
             },
             {"id": 1, "_id": 0}
         ).sort("created_at", -1).limit(10).to_list(10)
@@ -1670,13 +1718,13 @@ async def check_duplicate(
         query["reporting_period"] = reporting_period
     
     # Search for potential duplicates
-    # Match on source_of_information containing invoice number or vendor
+    # Match on the canonical invoice reference or OCR notes.
     potential_duplicates = await db.emission_records.find(
         {
             **query,
             "$or": [
-                {"source_of_information": {"$regex": invoice_number, "$options": "i"}},
-                {"source_of_information": {"$regex": vendor_name, "$options": "i"}}
+                {"record_source": {"$regex": invoice_number, "$options": "i"}},
+                {"notes": {"$regex": vendor_name, "$options": "i"}}
             ]
         },
         {"_id": 0, "id": 1, "scope": 1, "category": 1, "quantity": 1, "quantity_unit": 1, 

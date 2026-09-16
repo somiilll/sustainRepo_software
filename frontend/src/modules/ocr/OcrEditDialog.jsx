@@ -219,6 +219,32 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     }));
   };
 
+  useEffect(() => {
+    if (!open || values.factor_id || factors.length !== 1) return;
+    const factor = factors[0];
+    const factorFacilityId = values.scope === 'scope1' ? resolvedFacilityId : values.facility_id;
+    if (values.scope === 'scope1' && !factorFacilityId) return;
+    const matchedInput = matchingUnit(factor, isSpend ? values.currency : values.unit);
+    const nextValues = {
+      ...values,
+      facility_id: values.facility_id || factorFacilityId,
+      factor_id: factor.id,
+      fuel_id: factor.collection === 'fuel_database' ? factor.id : '',
+      scope3_ef_id: factor.collection === 'scope3_ef' ? factor.id : '',
+      subcategory: factor.value,
+      fuel_name: factor.value,
+      ef_lookup_key: factor.value,
+      ef_database: factor.database,
+      ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+    };
+    const automaticMatchKey = `${item?.id}:${factorFacilityId}:${factor.id}`;
+    automaticMatchRef.current = automaticMatchKey;
+    setValues(nextValues);
+    onAutoMatch?.(nextValues).catch(() => {
+      setFactorError('The matched factor could not be saved. Select it and save changes manually.');
+    });
+  }, [open, values, factors, isSpend, resolvedFacilityId, item?.id, onAutoMatch]);
+
   const selectionComplete = Boolean(values.category && selectedFactor && values.subcategory && (isSpend ? values.currency : values.unit) && !factorError);
 
   return (
