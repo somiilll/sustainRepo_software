@@ -685,7 +685,7 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
             "is_deleted": {"$ne": True},
             "is_active": {"$ne": False},
         },
-        {"_id": 0, "id": 1, "name": 1},
+        {"_id": 0, "id": 1, "name": 1, "sector": 1},
     ).sort("name", 1).to_list(1000)
     scopes = [scope for scope in ("scope1", "scope2", "scope3") if scope in scopes] + ["water"]
     scope_categories = list(SCOPE_CATEGORY_NAMES.items())
@@ -720,17 +720,38 @@ async def get_ocr_factor_options(
     scope: str = Query(..., min_length=1),
     category: str = Query(..., min_length=1),
     method: str = Query(..., min_length=1),
+    facility_id: Optional[str] = Query(default=None),
     current_user: dict = Depends(get_current_user),
 ):
     """Return canonical factor and unit choices for one OCR edit combination."""
-    _get_org(current_user)
-    options = await resolve_factor_options(db, scope, category, method)
+    org_id = _get_org(current_user)
+    facility = None
+    if facility_id:
+        facility = await db.facilities.find_one(
+            {
+                "id": facility_id,
+                "organization_id": org_id,
+                "is_deleted": {"$ne": True},
+                "is_active": {"$ne": False},
+            },
+            {"_id": 0, "id": 1, "sector": 1},
+        )
+        if not facility:
+            raise HTTPException(status_code=422, detail="Choose an active facility from your organization.")
+    options = await resolve_factor_options(
+        db,
+        scope,
+        category,
+        method,
+        facility.get("sector", "") if facility else "",
+    )
     return {
         "scope": scope,
         "category": category,
         "method": method,
         "factors": options,
         "count": len(options),
+        "industry_sector": facility.get("sector", "") if facility else "",
     }
 
 
@@ -872,6 +893,19 @@ async def edit_line_item(
         submitted["location"] = facility.get("name", "")
     if submitted.get("factor_id"):
         candidate = {**current_values, **{key: value for key, value in submitted.items() if value is not None}}
+        candidate_facility = None
+        if candidate.get("facility_id"):
+            candidate_facility = await db.facilities.find_one(
+                {
+                    "id": candidate["facility_id"],
+                    "organization_id": org_id,
+                    "is_deleted": {"$ne": True},
+                    "is_active": {"$ne": False},
+                },
+                {"_id": 0, "sector": 1},
+            )
+            if not candidate_facility:
+                raise HTTPException(status_code=422, detail="Choose an active facility from your organization.")
         try:
             selected_factor = await validate_factor_selection(
                 db,
@@ -882,6 +916,7 @@ async def edit_line_item(
                 lookup_value=candidate.get("ef_lookup_key") or candidate.get("subcategory") or "",
                 unit=candidate.get("unit") or "",
                 currency=candidate.get("currency") or "",
+                industry_sector=candidate_facility.get("sector", "") if candidate_facility else "",
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1099,7 +1134,7 @@ async def save_line_item_to_ghg(
     facility_id = values.get("facility_id")
     facility = await db.facilities.find_one(
         {"id": facility_id, "organization_id": org_id, "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
-        {"_id": 0, "id": 1},
+        {"_id": 0, "id": 1, "sector": 1},
     )
     if not facility:
         raise HTTPException(status_code=400, detail="Select an active facility before saving this OCR row to GHG")
@@ -1118,6 +1153,7 @@ async def save_line_item_to_ghg(
             lookup_value=values.get("ef_lookup_key") or values.get("subcategory") or "",
             unit=values.get("unit") or "",
             currency=values.get("currency") or "",
+            industry_sector=facility.get("sector", ""),
         )
         values["factor_id"] = selected_factor["id"]
         values["fuel_id"] = selected_factor["id"] if selected_factor["collection"] == "fuel_database" else None

@@ -21,6 +21,21 @@ def normalize_method(value: Any) -> str:
     }.get(normalized, normalized)
 
 
+def matches_industry_sector(record: dict, industry_sector: str) -> bool:
+    """Keep unclassified legacy fuels while preferring a facility's exact sector."""
+    requested_sector = normalize_option(industry_sector)
+    if not requested_sector:
+        return True
+    sectors = record.get("industry_sectors") or []
+    if isinstance(sectors, str):
+        sectors = [sectors]
+    sectors = [*sectors, record.get("industry_sector")]
+    configured_sectors = [sector for sector in sectors if str(sector or "").strip()]
+    return not configured_sectors or any(
+        normalize_option(sector) == requested_sector for sector in configured_sectors
+    )
+
+
 def _units(record: dict) -> list[str]:
     values = [str(unit) for unit in (record.get("allowed_units") or []) if str(unit).strip()]
     default = record.get("default_unit")
@@ -70,7 +85,13 @@ def _option(record: dict, *, value_field: str, source_fallback: str, collection:
     }
 
 
-async def resolve_factor_options(db, scope: str, category: str, method: str) -> list[dict]:
+async def resolve_factor_options(
+    db,
+    scope: str,
+    category: str,
+    method: str,
+    industry_sector: str = "",
+) -> list[dict]:
     scope_key = normalize_option(scope)
     category_key = normalize_option(category)
     method_key = normalize_method(method)
@@ -82,10 +103,13 @@ async def resolve_factor_options(db, scope: str, category: str, method: str) -> 
         records = await db.fuel_database.find(
             {"is_active": {"$ne": False}},
             {"_id": 0, "id": 1, "fuel_name": 1, "scope": 1, "category": 1, "categories": 1,
-             "allowed_units": 1, "default_unit": 1, "source": 1, "source_name": 1},
+             "industry_sector": 1, "industry_sectors": 1, "allowed_units": 1, "default_unit": 1,
+             "source": 1, "source_name": 1},
         ).to_list(10000)
         for record in records:
             if normalize_option(record.get("scope")) != scope_key:
+                continue
+            if scope_key == "scope1" and not matches_industry_sector(record, industry_sector):
                 continue
             categories = [record.get("category"), *(record.get("categories") or [])]
             if category_key and not any(normalize_option(value) == category_key for value in categories if value):
@@ -165,8 +189,9 @@ async def validate_factor_selection(
     lookup_value: str,
     unit: str,
     currency: str,
+    industry_sector: str = "",
 ) -> dict:
-    options = await resolve_factor_options(db, scope, category, method)
+    options = await resolve_factor_options(db, scope, category, method, industry_sector)
     selected = next((option for option in options if option["id"] == factor_id), None)
     if selected is None and lookup_value:
         selected = next((option for option in options if normalize_option(option["value"]) == normalize_option(lookup_value)), None)

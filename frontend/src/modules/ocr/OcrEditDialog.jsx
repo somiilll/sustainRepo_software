@@ -113,7 +113,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     let active = true;
     setFactorLoading(true);
     setFactorError('');
-    getOcrFactorOptions(values.scope, values.category, values.ef_method, getAuthHeaders())
+    getOcrFactorOptions(values.scope, values.category, values.ef_method, values.facility_id, getAuthHeaders())
       .then(({ data }) => {
         if (!active) return;
         const options = data.factors || [];
@@ -164,7 +164,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       })
       .finally(() => { if (active) setFactorLoading(false); });
     return () => { active = false; };
-  }, [open, values.scope, values.category, values.ef_method, getAuthHeaders, onAutoMatch, original.ef_lookup_key, original.subcategory, original.unit, original.currency]);
+  }, [open, values.scope, values.category, values.ef_method, values.facility_id, getAuthHeaders, onAutoMatch, original.ef_lookup_key, original.subcategory, original.unit, original.currency]);
 
   const selectedFactor = useMemo(
     () => factors.find((factor) => factor.id === values.factor_id),
