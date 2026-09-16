@@ -23,7 +23,7 @@ from . import invoice_processor
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MODES, get_mode
 from .factor_options import resolve_factor_options, validate_factor_selection
-from .ghg_save_service import execute_ocr_calculation, resolve_ghg_category, scope3_method
+from .ghg_save_service import execute_ocr_calculation, resolve_ghg_category
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit, UploadFacilityAssignments
 from .service import build_org_context, process_queued_upload, queue_upload_batch, save_vendor_override
 from .template_service import generate_ocr_template
@@ -1079,7 +1079,7 @@ async def accept_line_item(
         )
 
     ocr_method = str(current_values.get("ef_method") or "").strip().lower()
-    scope3_method = {
+    prefill_scope3_method = {
         "activity": "activity_basis",
         "activity_basis": "activity_basis",
         "spend": "spend_basis",
@@ -1127,13 +1127,13 @@ async def accept_line_item(
         "currency": current_values.get("currency"),
         "category_code": current_values.get("category_code"),
         "distance_km": current_values.get("distance_km"),
-        "calculation_method_scope3": scope3_method if current_values.get("scope") == "scope3" else None,
+        "calculation_method_scope3": prefill_scope3_method if current_values.get("scope") == "scope3" else None,
         "scope3_activity": current_values.get("ef_lookup_key") or current_values.get("subcategory"),
         "scope3_activity_type": current_values.get("scope3_activity_type"),
         "scope3_subcategory": current_values.get("scope3_subcategory"),
         "supplier_name": vendor if current_values.get("scope") == "scope3" else None,
         "fuel_id": current_values.get("fuel_id") or (current_values.get("factor_id") if current_values.get("scope") in {"scope1", "scope2"} else None),
-        "scope3_ef_id": current_values.get("scope3_ef_id") or (current_values.get("factor_id") if current_values.get("scope") == "scope3" and scope3_method != "supplier_basis" else None),
+        "scope3_ef_id": current_values.get("scope3_ef_id") or (current_values.get("factor_id") if current_values.get("scope") == "scope3" and prefill_scope3_method != "supplier_basis" else None),
     }
     
     return {
@@ -1193,17 +1193,29 @@ async def save_line_item_to_ghg(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
     resolved_decisions = calculation["decision_inputs"]
+    resolved_scope3_method = resolved_decisions.get("calculation_method_scope3") if values.get("scope") == "scope3" else None
+    calculation_inputs = dict(calculation["inputs"])
+    if values.get("scope") == "scope1" and resolved_decisions.get("calculation_methodology"):
+        calculation_inputs["calculation_methodology"] = {
+            "value": resolved_decisions["calculation_methodology"],
+            "unit": "",
+        }
+    if resolved_scope3_method:
+        calculation_inputs["calculation_method_scope3"] = {
+            "value": resolved_scope3_method,
+            "unit": "",
+        }
     await db[OCR_LINE_ITEMS_COLLECTION].update_one(
         {"id": item_id, "organization_id": org_id},
         {"$set": {
             "current_values.spend_currency_conversion_method": resolved_decisions.get("spend_currency_conversion_method"),
             "current_values.calculation_methodology": resolved_decisions.get("calculation_methodology"),
+            "current_values.calculation_method_scope3": resolved_scope3_method,
             "current_values.ef_quantity_basis": resolved_decisions.get("ef_quantity_basis"),
             "current_values.cv_quantity_basis": resolved_decisions.get("cv_quantity_basis"),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }},
     )
-    method = scope3_method(values.get("ef_method")) if values.get("scope") == "scope3" else None
     ocr_metadata = _ocr_record_metadata(item, values)
     emission_payload = EmissionRecordCreate(
         facility_id=facility_id,
@@ -1217,7 +1229,7 @@ async def save_line_item_to_ghg(
         sub_category=values.get("subcategory") or values.get("fuel_name") or values["category"],
         fuel_type=values.get("fuel_name") or values.get("subcategory"),
         calculation_methodology=calculation["decision_inputs"].get("calculation_methodology"),
-        calculation_method_scope3=method,
+        calculation_method_scope3=resolved_scope3_method,
         spend_currency_conversion_method=calculation["decision_inputs"].get("spend_currency_conversion_method"),
         scope3_ef_id=values.get("scope3_ef_id"),
         scope3_activity=values.get("ef_lookup_key") or values.get("subcategory"),
@@ -1228,7 +1240,7 @@ async def save_line_item_to_ghg(
         formula_version_id=calculation["formula_version_id"],
         decision_tree_version_id=calculation["decision_tree_version_id"],
         formula_snapshot=calculation["formula_snapshot"],
-        dynamic_field_values=calculation["inputs"],
+        dynamic_field_values=calculation_inputs,
         outputs=calculation["outputs"],
         source_of_information=ocr_metadata["source_of_information"],
         record_source=ocr_metadata["record_source"],
