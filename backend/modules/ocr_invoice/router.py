@@ -211,7 +211,8 @@ def _match_ocr_factor_option(options: list[dict], item: dict, values: dict) -> d
 
 
 def _preferred_scope3_factor_option(options: list[dict], item: dict, values: dict) -> dict | None:
-    preferences = OCR_SAVE_SCOPE_RULES["scope3"].get("generic_activity_preferences", {})
+    scope3_rules = OCR_SAVE_SCOPE_RULES["scope3"]
+    preferences = scope3_rules.get("generic_activity_preferences", {})
     raw_values = [
         values.get("subcategory"), values.get("fuel_name"), values.get("ef_lookup_key"),
         *(item.get("original_values") or {}).values(),
@@ -221,6 +222,22 @@ def _preferred_scope3_factor_option(options: list[dict], item: dict, values: dic
         if normalize_option(generic_name) not in normalized_values:
             continue
         preferred = next((option for option in options if normalize_option(option.get("value")) == normalize_option(preferred_name)), None)
+        if preferred:
+            return preferred
+    candidate_tokens = {
+        token
+        for value in raw_values
+        if isinstance(value, str)
+        for token in re.findall(r"[a-z0-9]+", value.lower())
+    }
+    category_key = normalize_option(values.get("category"))
+    for preference in scope3_rules.get("fuzzy_activity_preferences", ()):
+        token_groups = preference.get("token_groups", ())
+        if not category_key.startswith(preference.get("category_prefix", "")):
+            continue
+        if not all(any(token in candidate_tokens for token in group) for group in token_groups):
+            continue
+        preferred = next((option for option in options if normalize_option(option.get("value")) == normalize_option(preference["activity"])), None)
         if preferred:
             return preferred
     return None

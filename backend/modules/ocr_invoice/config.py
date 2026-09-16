@@ -23,7 +23,16 @@ OCR_SAVE_SCOPE_RULES = {
         "generic_activity_preferences": {
             "diesel": "Diesel (100% mineral diesel)",
             "petrol": "Petrol (100% mineral petrol)",
+            "wttdiesel": "Diesel (100% mineral diesel)",
+            "wttpetrol": "Petrol (100% mineral petrol)",
         },
+        "fuzzy_activity_preferences": (
+            {
+                "category_prefix": "c4",
+                "token_groups": (("freight",), ("truck", "trucking")),
+                "activity": "Freight Truck Transportation",
+            },
+        ),
     },
 }
 
