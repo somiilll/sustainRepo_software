@@ -53,6 +53,7 @@ import {
   resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import { isMonthlyEntryComplete } from '../modules/ghg/emissions/shared/utils/monthlyCompletion';
+import { normalizeFuelBackedFieldUnits } from '../modules/ghg/emissions/shared/utils/monthlyFieldUnits';
 // Shared GHG configuration layer: resolved config + explicit context -> fields
 import {
   deriveGhgFields,
@@ -1792,57 +1793,43 @@ export default function EmissionEntryForm({
     const allowedUnits = selectedFuel?.allowed_units || [];
     if (allowedUnits.length === 0) return; // No units to validate against
     
-    // Update monthly data units
-    setMonthlyData(prev => {
-      const updated = { ...prev };
-      let hasChanges = false;
-      
-      activeMonths.forEach(month => {
+    // Update monthly data units atomically with the selected fuel. This also
+    // keeps the legacy row-level `unit` alias aligned with the canonical field.
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+      activeMonths.forEach((month) => {
         const monthKey = month.key;
-        const monthData = { ...(updated[monthKey] || {}) };
-        
-        dynamicInputFields.forEach(field => {
-          if (field.unitSource === 'fuel') {
-            const unitKey = `${field.variable}_unit`;
-            const currentUnit = monthData[unitKey];
-            
-            // If current unit is not in allowed units, update to first valid unit
-            if (!currentUnit || !allowedUnits.includes(currentUnit)) {
-              monthData[unitKey] = allowedUnits[0];
-              hasChanges = true;
-            }
-          }
+        const current = previousMonths[monthKey] || {};
+        const normalized = normalizeFuelBackedFieldUnits({
+          data: current,
+          fields: dynamicInputFields,
+          allowedUnits,
+          isProcessEmissions: ghgFormContext.isProcessCategory,
         });
-        
-        if (hasChanges) {
-          updated[monthKey] = monthData;
+        if (normalized !== current) {
+          nextMonths[monthKey] = normalized;
+          changed = true;
         }
       });
-      
-      return hasChanges ? updated : prev;
+      return changed ? nextMonths : previousMonths;
     });
-    
-    // Update yearly data units
-    setYearlyData(prev => {
-      const updated = { ...prev };
-      let hasChanges = false;
-      
-      dynamicInputFields.forEach(field => {
-        if (field.unitSource === 'fuel') {
-          const unitKey = `${field.variable}_unit`;
-          const currentUnit = updated[unitKey];
-          
-          // If current unit is not in allowed units, update to first valid unit
-          if (!currentUnit || !allowedUnits.includes(currentUnit)) {
-            updated[unitKey] = allowedUnits[0];
-            hasChanges = true;
-          }
-        }
-      });
-      
-      return hasChanges ? updated : prev;
-    });
-  }, [fuelId, selectedFuel, dynamicInputFields, activeMonths]);
+
+    setYearlyData((previous) => normalizeFuelBackedFieldUnits({
+      data: previous,
+      fields: dynamicInputFields,
+      allowedUnits,
+      isProcessEmissions: ghgFormContext.isProcessCategory,
+    }));
+  }, [
+    activeMonths,
+    dynamicInputFields,
+    fuelId,
+    ghgFormContext.isProcessCategory,
+    selectedFuel,
+    setMonthlyData,
+    setYearlyData,
+  ]);
 
 
   // Build decision inputs automatically based on which fields have values
@@ -3310,15 +3297,21 @@ export default function EmissionEntryForm({
     };
   }, [decisionFieldValues.calculation_methodology, dynamicInputFields, ghgFormContext.isProcessCategory]);
 
+  const normalizeSubmissionUnits = useCallback((data = {}) => normalizeFuelBackedFieldUnits({
+    data,
+    fields: dynamicInputFields,
+    allowedUnits: selectedFuel?.allowed_units || [],
+    isProcessEmissions: ghgFormContext.isProcessCategory,
+  }), [dynamicInputFields, ghgFormContext.isProcessCategory, selectedFuel]);
   const submissionMonthlyData = useMemo(() => Object.fromEntries(
     Object.entries(monthlyData).map(([monthKey, data]) => [
       monthKey,
-      normalizeCarbonCompositionQuantity(data),
+      normalizeSubmissionUnits(normalizeCarbonCompositionQuantity(data)),
     ]),
-  ), [monthlyData, normalizeCarbonCompositionQuantity]);
+  ), [monthlyData, normalizeCarbonCompositionQuantity, normalizeSubmissionUnits]);
   const submissionYearlyData = useMemo(
-    () => normalizeCarbonCompositionQuantity(yearlyData),
-    [yearlyData, normalizeCarbonCompositionQuantity],
+    () => normalizeSubmissionUnits(normalizeCarbonCompositionQuantity(yearlyData)),
+    [yearlyData, normalizeCarbonCompositionQuantity, normalizeSubmissionUnits],
   );
   const submissionFilledMonthsCount = useMemo(() => (
     Object.values(submissionMonthlyData).filter((monthData) =>

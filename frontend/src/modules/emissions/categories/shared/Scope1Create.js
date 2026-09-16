@@ -22,6 +22,7 @@ import {
   normalizeDensityForCalcEngine,
   prepareDensityAwareCalculationInputs,
 } from '../../../ghg/emissions/shared/utils/unitHelpers';
+import { resolveMonthlySelectableUnit } from '../../../ghg/emissions/shared/utils/monthlyFieldUnits';
 
 // ---------- field unit resolver (Scope 1/2: no scope3_ef branch) ----------
 
@@ -36,13 +37,22 @@ function resolveFieldUnit(field, data, ctx) {
   } else {
     fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
   }
-  return data[`${field.variable}_unit`]
+  const storedUnit = data[`${field.variable}_unit`]
     || data[`${field.fieldKey}_unit`]
-    || field.defaultUnit
+    || (field.unitSource === 'fuel' ? data.unit : '')
+    || '';
+  const configuredUnit = field.defaultUnit
     || field.default_unit
     || field.expectedUnit
-    || fieldUnits[0]
     || '';
+  if (field.unitSource === 'fuel') {
+    return resolveMonthlySelectableUnit({
+      storedUnit,
+      configuredUnit,
+      allowedUnits: fieldUnits,
+    });
+  }
+  return storedUnit || configuredUnit || fieldUnits[0] || '';
 }
 
 const hasNumericValue = (value) => (
