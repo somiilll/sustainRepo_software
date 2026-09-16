@@ -498,7 +498,21 @@
     "cat_9_downstream_transport": {
       "ef_method_with_qty": { "method": "activity", "ef_database": "DEFRA" },
       "ef_method_without_qty": { "method": "spend", "ef_database": "USEEIO" },
-      "defra_subcategories": ["HGV - Rigid", "HGV - Articulated", "Van", "Rail Freight", "Sea Freight - Container", "Air Freight - Domestic", "Air Freight - International"],
+      "defra_subcategories": [
+        "Air - Belly Cargo - Aviation Turbine Fuel", "Air - Dedicated freighter - Aviation Turbine Fuel",
+        "Cargo ship, Bulk carrier - 0–9999 dwt", "Cargo ship, Bulk carrier - 10,000–34,999 dwt", "Cargo ship, Bulk carrier - 100,000–199,999 dwt", "Cargo ship, Bulk carrier - 200,000+ dwt", "Cargo ship, Bulk carrier - 35,000–59,999 dwt", "Cargo ship, Bulk carrier - 60,000–99,999 dwt", "Cargo ship, Bulk carrier - Unknown Size",
+        "Cargo ship, Container ship - 0–999 TEU", "Cargo ship, Container ship - 1000–1999 TEU", "Cargo ship, Container ship - 2000–2999 TEU", "Cargo ship, Container ship - 3000–4999 TEU", "Cargo ship, Container ship - 5000–7999 TEU", "Cargo ship, Container ship - 8000+ TEU", "Cargo ship, Container ship - Unknown Size",
+        "Cargo ship, General cargo - 0–4999 dwt", "Cargo ship, General cargo - 0–4999 dwt 100+ TEU", "Cargo ship, General cargo - 10,000+ dwt", "Cargo ship, General cargo - 10,000+ dwt 100+ TEU", "Cargo ship, General cargo - 5000–9999 dwt", "Cargo ship, General cargo - 5000–9999 dwt 100+ TEU", "Cargo ship, General cargo - Unknown Size", "Cargo ship, Large RoPax ferry - All Size", "Cargo ship, Refrigerated cargo - All sizes",
+        "Cargo ship, RoRo-Ferry - 0–1999 LM", "Cargo ship, RoRo-Ferry - 2000+ LM", "Cargo ship, RoRo-Ferry - Unknown Size", "Cargo ship, Vehicle transport - 0–3999 CEU", "Cargo ship, Vehicle transport - 4000+ CEU", "Cargo ship, Vehicle transport - Unknown Size",
+        "Inland Waterways  - Light Fuel Oil", "Rail freight transport", "Road - HDV (Capacity: 12-16 tonnes) - Diesel", "Road - HDV (Capacity: 16+  tonnes) - Diesel",
+        "Sea tanker, Chemical tanker  - 0–4999 dwt", "Sea tanker, Chemical tanker  - 10,000–19,999 dwt", "Sea tanker, Chemical tanker  - 20,000+ dwt", "Sea tanker, Chemical tanker  - 5000–9999 dwt", "Sea tanker, Chemical tanker  - Unknown Size",
+        "Sea tanker, Crude tanker - 0–9999 dwt", "Sea tanker, Crude tanker - 10,000–59,999 dwt", "Sea tanker, Crude tanker - 120,000–199,999 dwt", "Sea tanker, Crude tanker - 200,000+ dwt", "Sea tanker, Crude tanker - 60,000–79,999 dwt", "Sea tanker, Crude tanker - 80,000–119,999 dwt", "Sea tanker, Crude tanker - Unknown Size",
+        "Sea tanker, LNG tanker - 0–199,999 m3", "Sea tanker, LNG tanker - 200,000+ m3", "Sea tanker, LNG tanker - Unknown Size", "Sea tanker, LPG Tanker - 0–49,999 m3", "Sea tanker, LPG Tanker - 50,000+ m3", "Sea tanker, LPG Tanker - Unknown Size",
+        "Sea tanker, Products tanker  - 0–4999 dwt", "Sea tanker, Products tanker  - 10,000–19,999 dwt", "Sea tanker, Products tanker  - 20,000–59,999 dwt", "Sea tanker, Products tanker  - 5000–9999 dwt", "Sea tanker, Products tanker  - 60,000+ dwt", "Sea tanker, Products tanker  - Unknown Size",
+        "Van, class I (<1.305t) - Battery Electric Vehicle", "Van, class I (<1.305t) - Diesel", "Van, class I (<1.305t) - Petrol", "Van, class II (1.305–1.74t)  - Diesel", "Van, class II (1.305–1.74t) - Battery Electric Vehicle", "Van, class II (1.305–1.74t) - Petrol",
+        "Van, class III (1.74–3.5t) - Battery Electric Vehicle", "Van, class III (1.74–3.5t) - Diesel", "Van, class III (1.74–3.5t) - Petrol", "Van, class III (1.74–3.5t) - Plug-in Hybrid",
+        "Van, unknown capacity - Battery Electric Vehicle", "Van, unknown capacity - CNG", "Van, unknown capacity - Diesel", "Van, unknown capacity - LPG", "Van, unknown capacity - Petrol", "Van, unknown capacity - Plug-in Hybrid", "Van, unknown capacity - Unknown fuel type"
+      ],
       "useeio_sectors": ["484 - Truck Transportation", "482 - Rail Transportation", "483 - Water Transportation", "481 - Air Transportation"]
     },
     "cat_10_processing_of_sold_products": {
