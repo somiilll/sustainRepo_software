@@ -73,11 +73,12 @@ const RowStatus = ({ item, testIdPrefix = 'ocr-row-status' }) => {
 
 const MoreDetailsDialog = ({ item, open, onOpenChange }) => {
   const values = item?.current_values || {};
+  const extractedLocation = item?.original_values?.location || values.invoice_location || values.location;
   const details = [
     ['Accounting rationale', values.accounting_rationale || 'No accounting rationale returned.', 'accounting-rationale'],
     ['Vendor', values.vendor_name || 'Unknown vendor', 'vendor'],
     ['Invoice number', values.invoice_number, 'invoice-number'],
-    ['Location', values.location, 'location'],
+    ['Location', extractedLocation, 'location'],
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
