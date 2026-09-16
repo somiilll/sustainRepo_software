@@ -344,7 +344,13 @@ export default function OCRInvoice() {
           if (remainingUploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
           else localStorage.removeItem('ocr-active-upload-ids');
         }
-        toast.success(savedData.evidence_attached ? 'GHG entry calculated and saved' : 'GHG entry saved; evidence transfer is pending retry');
+        toast.success(
+          savedData.evidence_not_required
+            ? 'GHG entry saved.'
+            : savedData.evidence_attached
+              ? 'GHG entry calculated and saved'
+              : 'GHG entry saved; evidence transfer is pending retry'
+        );
       }
     } catch (requestError) {
       if (requestError?.response?.status === 400) {

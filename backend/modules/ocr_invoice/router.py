@@ -1382,6 +1382,7 @@ async def save_line_item_to_ghg(
             "message": "GHG entry calculated and saved",
             "emission_record": emission_data,
             "evidence_attached": False,
+            "evidence_not_required": True,
             **resolution,
         }
     try:
