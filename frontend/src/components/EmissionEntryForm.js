@@ -327,7 +327,7 @@ export default function EmissionEntryForm({
       if (editingEmission.scope === 'scope3' || 
           (editingEmission.scope === 'biogenic' && hydrated.biogenicScopeSelection === 'scope3')) {
         setScope3Method(hydrated.scope3Method);
-        setSpendCurrencyConversionMethod(hydrated.spendCurrencyConversionMethod || 'ppp_inflation');
+        setSpendCurrencyConversionMethod(hydrated.spendCurrencyConversionMethod || 'standard');
         setScope3ActivityType(hydrated.scope3ActivityType);
         setScope3Subcategory(hydrated.scope3Subcategory);
         setTypeOfProduct(hydrated.typeOfProduct);
@@ -1107,7 +1107,7 @@ export default function EmissionEntryForm({
 
     setCategory(nextCategory);
     setScope3Method(nextScope3Method);
-    setSpendCurrencyConversionMethod('ppp_inflation');
+    setSpendCurrencyConversionMethod('standard');
     setAllocationMethod('');
     setFuelId('');
     setUseCustomFuel(false);
@@ -1135,7 +1135,7 @@ export default function EmissionEntryForm({
     setDecisionFieldValues(nextScope3Method ? {
       calculation_method_scope3: nextScope3Method,
       ...(nextScope3Method === 'spend_basis' && {
-        spend_currency_conversion_method: 'ppp_inflation',
+        spend_currency_conversion_method: 'standard',
       }),
     } : {});
     setMonthlyData({});

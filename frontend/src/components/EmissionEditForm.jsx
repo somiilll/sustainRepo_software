@@ -240,7 +240,7 @@ export default function EmissionEditForm(props) {
   const biogenicScopeSelection = draft.biogenicScopeSelection;
   const selectedCategory = draft.selectedCategory;
   const scope3Method = draft.scope3Method;
-  const spendCurrencyConversionMethod = draft.spendCurrencyConversionMethod || 'ppp_inflation';
+  const spendCurrencyConversionMethod = draft.spendCurrencyConversionMethod || 'standard';
   const scope3ActivityType = draft.scope3ActivityType;
   const scope3Subcategory = draft.scope3Subcategory;
   const scope3ActivityId = draft.scope3ActivityId;

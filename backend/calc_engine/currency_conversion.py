@@ -58,7 +58,7 @@ def extract_currency_period(reporting_period: Optional[str]) -> tuple[Optional[i
 
 
 def normalize_currency_method(method: Optional[str]) -> str:
-    return STANDARD_METHOD if method == STANDARD_METHOD else PPP_INFLATION_METHOD
+    return PPP_INFLATION_METHOD if method == PPP_INFLATION_METHOD else STANDARD_METHOD
 
 
 def currency_record_period(record: Optional[dict]) -> Optional[str]:

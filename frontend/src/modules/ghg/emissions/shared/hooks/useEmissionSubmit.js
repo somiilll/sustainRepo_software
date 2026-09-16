@@ -70,7 +70,7 @@ export function useEmissionSubmit(ctx) {
       facilityId, scope, category, categoryCode, fuelId,
       useCustomFuel, customFuelName, customEmissionFactor, customSource,
       recordSource,
-      isSaving, scope3Method, spendCurrencyConversionMethod = 'ppp_inflation', allocationMethod, scope3ActivityId, scope3ActivityType,
+      isSaving, scope3Method, spendCurrencyConversionMethod = 'standard', allocationMethod, scope3ActivityId, scope3ActivityType,
       scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity, biogenicScopeSelection,
       employees, frequencyType, reportingYearType, reportingYear,
       monthlyData, yearlyData, processNames, responsiblePerson,

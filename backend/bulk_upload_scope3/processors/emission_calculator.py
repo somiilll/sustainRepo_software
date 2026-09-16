@@ -575,7 +575,7 @@ class EmissionCalculator:
         
         # For spend_basis, fetch currency conversion data for ppp and inflation_rate
         currency_conversion = None
-        currency_method = PPP_INFLATION_METHOD
+        currency_method = STANDARD_METHOD
         if method == CalculationMethod.SPEND_BASIS:
             spent_currency = row_data.get("spent_currency") or row_data.get("currency") or "INR"
             reporting_period = normalize_reporting_period(
@@ -818,7 +818,7 @@ class EmissionCalculator:
                            converted_quantity: float, input_unit: str,
                            formula_doc: Dict, ef_data: Dict,
                            currency_conversion: Optional[Dict] = None,
-                           currency_method: str = PPP_INFLATION_METHOD) -> Dict[str, Any]:
+                           currency_method: str = STANDARD_METHOD) -> Dict[str, Any]:
         """
         Build calc_engine inputs with correct variable names based on method and formula requirements.
         

@@ -569,7 +569,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         decisionInputs['allocation_method'] = editDraft.allocationMethod;
       }
       if (scope3Method === 'spend_basis') {
-        decisionInputs['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'ppp_inflation';
+        decisionInputs['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'standard';
       }
     }
     
@@ -2141,7 +2141,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       const scope3ContextPreview = isScope3Like ? {
         calculation_method_scope3: scope3Method,
         ...(scope3Method === 'spend_basis' && {
-          spend_currency_conversion_method: spendCurrencyConversionMethod || 'ppp_inflation',
+          spend_currency_conversion_method: spendCurrencyConversionMethod || 'standard',
         }),
         scope3_ef_id: scope3ActivityId,
         // For supplier_basis with custom activity, use the custom activity name

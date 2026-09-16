@@ -119,7 +119,7 @@ export function validateEditSubmission(ctx) {
   const {
     module,
     scope3Method,
-    spendCurrencyConversionMethod = 'ppp_inflation',
+    spendCurrencyConversionMethod = 'standard',
     allocationMethod,
     scope3ActivityId,
     scope3CustomActivity,
@@ -282,7 +282,7 @@ export function buildEditPayload(ctx) {
     formData,
     editingEmission,
     scope3Method,
-    spendCurrencyConversionMethod = 'ppp_inflation',
+    spendCurrencyConversionMethod = 'standard',
     allocationMethod,
     scope3ActivityId,
     scope3ActivityType,

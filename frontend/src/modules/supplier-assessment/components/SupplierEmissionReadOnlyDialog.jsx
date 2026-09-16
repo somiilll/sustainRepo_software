@@ -31,7 +31,7 @@ const buildReadOnlyDraft = (emission) => {
     },
     frequencyType: emission.frequency_type || 'monthly', biogenicScopeSelection: emission.biogenic_scope_selection || fieldValue(data.biogenic_scope_selection) || 'scope1',
     selectedCategory: emission.category || '', scope3Method: emission.calculation_method_scope3 || fieldValue(data.calculation_method_scope3),
-    spendCurrencyConversionMethod: fieldValue(data.spend_currency_conversion_method) || 'ppp_inflation', scope3ActivityType: fieldValue(data.scope3_activity_type),
+    spendCurrencyConversionMethod: fieldValue(data.spend_currency_conversion_method) || 'standard', scope3ActivityType: fieldValue(data.scope3_activity_type),
     scope3Subcategory: fieldValue(data.scope3_subcategory), scope3ActivityId: emission.scope3_ef_id || fieldValue(data.scope3_ef_id),
     scope3CustomActivity: emission.scope3_activity || fieldValue(data.scope3_activity), useCustomActivity: Boolean(fieldValue(data.use_custom_activity)),
     typeOfProduct: emission.type_of_product || fieldValue(data.type_of_product), calculationMethodology: emission.calculation_methodology || fieldValue(data.calculation_methodology),

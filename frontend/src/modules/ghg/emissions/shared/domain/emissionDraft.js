@@ -91,7 +91,7 @@ export const createEmptyEmissionDraft = (scope = 'scope1') => ({
   selectedCategory: '',
   biogenicScopeSelection: '',
   scope3Method: '',
-  spendCurrencyConversionMethod: 'ppp_inflation',
+  spendCurrencyConversionMethod: 'standard',
   allocationMethod: '',
   scope3ActivityId: '',
   scope3ActivityType: '',

@@ -93,7 +93,7 @@ export default function CurrencyConversion() {
     year_applicable: currentYear,
     financial_year_start: currentYear,
     month_applicable: '',
-    conversion_method: 'ppp_inflation',
+    conversion_method: 'standard',
     purchase_parity: '',
     inflation_factor: '',
     exchange_rate: '',
@@ -174,7 +174,7 @@ export default function CurrencyConversion() {
       year_applicable: config.year_applicable,
       financial_year_start: config.financial_year_start || ((config.financial_year_end || config.year_applicable) - 1),
       month_applicable: config.month_applicable?.toString() || '',
-      conversion_method: config.conversion_method || 'ppp_inflation',
+      conversion_method: config.conversion_method || 'standard',
       purchase_parity: config.purchase_parity?.toString() || '',
       inflation_factor: config.inflation_factor?.toString() || '',
       exchange_rate: config.exchange_rate?.toString() || '',
@@ -211,7 +211,7 @@ export default function CurrencyConversion() {
       year_applicable: currentYear,
       financial_year_start: currentYear,
       month_applicable: '',
-      conversion_method: 'ppp_inflation',
+      conversion_method: 'standard',
       purchase_parity: '',
       inflation_factor: '',
       exchange_rate: '',
@@ -237,7 +237,7 @@ export default function CurrencyConversion() {
         || config.financial_year_end === year;
       if (!matchesYear) return false;
     }
-    if (filterMethod && (config.conversion_method || 'ppp_inflation') !== filterMethod) return false;
+    if (filterMethod && (config.conversion_method || 'standard') !== filterMethod) return false;
     if (filterApplicability && inferApplicabilityType(config) !== filterApplicability) return false;
     return true;
   });
@@ -406,7 +406,7 @@ export default function CurrencyConversion() {
                     {formatApplicablePeriod(config)}
                   </TableCell>
                   <TableCell data-testid={`currency-method-${config.id}`}>
-                    {(config.conversion_method || 'ppp_inflation') === 'standard' ? 'Standard' : 'PPP & Inflation'}
+                    {(config.conversion_method || 'standard') === 'standard' ? 'Standard' : 'PPP & Inflation'}
                   </TableCell>
                   <TableCell className="font-mono">{config.purchase_parity?.toFixed(4)}</TableCell>
                   <TableCell className="font-mono">

@@ -371,7 +371,7 @@ class CurrencyConversionCreate(BaseModel):
     financial_year_end: Optional[int] = None
     month_applicable: Optional[int] = None  # Optional 1-12; blank means annual rate
     effective_from: Optional[str] = None  # YYYY for annual / YYYY-MM for monthly rate
-    conversion_method: str = "ppp_inflation"  # ppp_inflation | standard
+    conversion_method: str = "standard"  # ppp_inflation | standard
     purchase_parity: Optional[float] = None  # PPP (Purchasing Power Parity) factor
     inflation_factor: Optional[float] = None  # Inflation adjustment factor
     exchange_rate: Optional[float] = None  # Optional: market exchange rate

@@ -91,7 +91,7 @@ export const Step1BasicSelection = ({
   requiresAssetName,
   assetName,
   setAssetName,
-  spendCurrencyConversionMethod = 'ppp_inflation',
+  spendCurrencyConversionMethod = 'standard',
   setSpendCurrencyConversionMethod,
   availableScope3Methods,
   getMethodLabel,

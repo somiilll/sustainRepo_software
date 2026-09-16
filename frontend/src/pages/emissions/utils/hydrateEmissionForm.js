@@ -78,7 +78,7 @@ export function hydrateEmissionForm(emission, config = {}) {
     const method = emission.calculation_method_scope3 || dynamicValues.calculation_method_scope3 || '';
     const savedCurrencyMethod = emission.spend_currency_conversion_method
       || dynamicValues.spend_currency_conversion_method
-      || 'ppp_inflation';
+      || 'standard';
     const savedAllocationMethod = emission.allocation_method || dynamicValues.allocation_method || '';
     
     // Handle activityId which may be stored as string or object {value, unit}
@@ -237,7 +237,7 @@ export function hydrateEmissionForm(emission, config = {}) {
       return {
         biogenicScopeSelection: biogenicSelection,
         scope3Method: method,
-        spendCurrencyConversionMethod: 'ppp_inflation',
+        spendCurrencyConversionMethod: 'standard',
         scope3ActivityType: activityType,
         scope3Subcategory: '',
         typeOfProduct: '',
@@ -488,7 +488,7 @@ export function hydrateEmissionForm(emission, config = {}) {
     
     // Scope 3 fields
     scope3Method: scope3Fields.method,
-    spendCurrencyConversionMethod: scope3Fields.spendCurrencyConversionMethod || 'ppp_inflation',
+    spendCurrencyConversionMethod: scope3Fields.spendCurrencyConversionMethod || 'standard',
     allocationMethod: scope3Fields.allocationMethod || '',
     scope3ActivityId: scope3Fields.activityId,
     scope3ActivityType: scope3Fields.activityType,

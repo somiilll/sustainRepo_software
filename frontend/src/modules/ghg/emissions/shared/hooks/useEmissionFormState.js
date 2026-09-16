@@ -40,7 +40,7 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   // SCOPE 3 SPECIFIC STATE
   // ============================================================================
   const [scope3Method, setScope3Method] = useState('');
-  const [spendCurrencyConversionMethod, setSpendCurrencyConversionMethod] = useState('ppp_inflation');
+  const [spendCurrencyConversionMethod, setSpendCurrencyConversionMethod] = useState('standard');
   const [allocationMethod, setAllocationMethod] = useState('');
   const [scope3EFData, setScope3EFData] = useState([]);
   const [scope3ActivityId, setScope3ActivityId] = useState('');
@@ -161,7 +161,7 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
         updated['calculation_method_scope3'] = scope3Method;
       }
       if (scope3Method === 'spend_basis') {
-        updated['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'ppp_inflation';
+        updated['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'standard';
       } else {
         delete updated['spend_currency_conversion_method'];
       }
