@@ -100,20 +100,29 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     });
   }, [configuration.facilities, item]);
 
+  const resolvedFacilityId = useMemo(() => (
+    values.facility_id
+    || configuration.facilities?.find((facility) => facility.name === values.location)?.id
+    || ''
+  ), [configuration.facilities, values.facility_id, values.location]);
+
   const categories = useMemo(
     () => configuration.categories.filter((option) => option.scope === values.scope),
     [configuration.categories, values.scope],
   );
 
   useEffect(() => {
-    if (!open || !values.scope || !values.category || !values.ef_method) {
+    const scope1NeedsFacility = values.scope === 'scope1';
+    const factorFacilityId = scope1NeedsFacility ? resolvedFacilityId : values.facility_id;
+    if (!open || !values.scope || !values.category || !values.ef_method || (scope1NeedsFacility && !factorFacilityId)) {
       setFactors([]);
+      setFactorLoading(false);
       return undefined;
     }
     let active = true;
     setFactorLoading(true);
     setFactorError('');
-    getOcrFactorOptions(values.scope, values.category, values.ef_method, values.facility_id, getAuthHeaders())
+    getOcrFactorOptions(values.scope, values.category, values.ef_method, factorFacilityId, getAuthHeaders())
       .then(({ data }) => {
         if (!active) return;
         const options = data.factors || [];
@@ -122,7 +131,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           const storedFactor = options.find((option) => option.id === current.factor_id);
           const automaticFactor = storedFactor
             ? null
-            : closestFactor(options, [current.ef_lookup_key, current.subcategory, original.ef_lookup_key, original.subcategory]);
+            : options.length === 1
+              ? options[0]
+              : closestFactor(options, [
+                current.ef_lookup_key, current.subcategory, current.fuel_name, current.item_description,
+                original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description,
+              ]);
           const selected = storedFactor || automaticFactor;
           if (!selected) {
             return {
@@ -135,6 +149,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           const matchedInput = matchingUnit(selected, isSpend ? (current.currency || original.currency) : (current.unit || original.unit));
           const nextValues = {
             ...current,
+            facility_id: current.facility_id || factorFacilityId,
             factor_id: selected.id,
             fuel_id: selected.collection === 'fuel_database' ? selected.id : '',
             scope3_ef_id: selected.collection === 'scope3_ef' ? selected.id : '',
@@ -146,7 +161,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_label: selected.naics_label || (selected.method === 'spend' ? current.naics_label : ''),
             ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
           };
-          const automaticMatchKey = automaticFactor ? `${item?.id}:${automaticFactor.id}` : '';
+          const automaticMatchKey = automaticFactor ? `${item?.id}:${factorFacilityId}:${automaticFactor.id}` : '';
           if (automaticFactor && onAutoMatch && automaticMatchRef.current !== automaticMatchKey) {
             automaticMatchRef.current = automaticMatchKey;
             onAutoMatch(nextValues).catch(() => {
@@ -164,7 +179,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       })
       .finally(() => { if (active) setFactorLoading(false); });
     return () => { active = false; };
-  }, [open, values.scope, values.category, values.ef_method, values.facility_id, getAuthHeaders, onAutoMatch, original.ef_lookup_key, original.subcategory, original.unit, original.currency]);
+  }, [open, values.scope, values.category, values.ef_method, values.facility_id, resolvedFacilityId, getAuthHeaders, onAutoMatch, original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description, original.unit, original.currency]);
 
   const selectedFactor = useMemo(
     () => factors.find((factor) => factor.id === values.factor_id),
