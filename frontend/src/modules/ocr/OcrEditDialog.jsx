@@ -11,13 +11,19 @@ import { getOcrFactorOptions } from './ocrApi';
 
 const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', reporting_period: '', remember_override: false };
 const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const words = (value) => String(value || '')
-  .toLowerCase()
-  .replace(/^\s*\d{2,6}\s*[-–—:]\s*/, '')
-  .replace(/[^a-z0-9]+/g, ' ')
-  .trim()
-  .split(/\s+/)
-  .filter((word) => word.length > 1 && !['and', 'the', 'of', 'for', 'to', 'in', 'a', 'an'].includes(word));
+const words = (value) => {
+  const tokens = String(value || '')
+    .toLowerCase()
+    .replace(/^\s*\d{2,6}\s*[-–—:]\s*/, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 1 && !['and', 'the', 'of', 'for', 'to', 'in', 'a', 'an'].includes(word));
+  const expanded = new Set(tokens);
+  if (expanded.has('wastewater')) expanded.add('waste').add('water');
+  if (tokens.some((word, index) => word === 'waste' && tokens[index + 1] === 'water')) expanded.add('wastewater');
+  return [...expanded];
+};
 const variants = (value) => {
   const withoutCode = String(value || '').replace(/^\s*\d{2,6}\s*[-–—:]\s*/, '').trim();
   const suffix = withoutCode.includes(':') ? withoutCode.split(':').slice(1).join(':').trim() : '';

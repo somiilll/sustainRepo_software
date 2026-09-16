@@ -358,7 +358,7 @@ class CalcEngine:
                                     {"id": ef_id_val}, {"_id": 0, "unit": 1, "default_unit": 1}
                                 )
                                 if ef_row:
-                                    target_base = ef_row.get("default_unit") or ef_row.get("unit")
+                                    target_base = ef_row.get("default_unit")
                     elif fm and fm.get("unit_source") == "fuel":
                         # For fuel-based fields (e.g., fugitive emissions in C11)
                         # Try to get target_base from fuel document first
@@ -388,7 +388,7 @@ class CalcEngine:
                                         {"id": ef_id_val}, {"_id": 0, "unit": 1, "default_unit": 1}
                                     )
                                     if ef_row:
-                                        target_base = ef_row.get("default_unit") or ef_row.get("unit")
+                                        target_base = ef_row.get("default_unit")
                 if not target_base:
                     target_base = base_in  # no conversion possible
 

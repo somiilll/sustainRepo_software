@@ -176,7 +176,7 @@ async def execute_ocr_calculation(db, values: dict, category: dict, organization
                 "fuel_name": activity.get("activity"),
                 "activity": activity.get("activity"),
                 "activity_type": activity.get("activity_type"),
-                "scope3_ef_default_unit": activity.get("unit") or activity.get("default_unit"),
+                "scope3_ef_default_unit": activity.get("default_unit"),
             })
     try:
         tree = await get_decision_tree_for_execution(db, category_id, None)

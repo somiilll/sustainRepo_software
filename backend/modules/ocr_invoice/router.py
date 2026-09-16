@@ -149,6 +149,28 @@ def _reporting_period_from_ocr_values(values: dict, upload: dict | None = None) 
 
 
 def _match_ocr_factor_option(options: list[dict], item: dict, values: dict) -> dict | None:
+    def factor_words(value: object) -> set[str]:
+        normalized = re.sub(r"^\s*\d{2,6}\s*[-–—:]\s*", "", str(value or "").lower())
+        raw_words = re.findall(r"[a-z0-9]+", normalized)
+        stop_words = {"and", "the", "of", "for", "to", "in", "a", "an"}
+        tokens = {word for word in raw_words if len(word) > 1 and word not in stop_words}
+        compound_terms = {"wastewater": ("waste", "water")}
+        for compound, terms in compound_terms.items():
+            if compound in tokens:
+                tokens.update(terms)
+            if any("".join(raw_words[index:index + len(terms)]) == compound for index in range(len(raw_words) - len(terms) + 1)):
+                tokens.add(compound)
+        return tokens
+
+    def similarity(left: object, right: object) -> float:
+        left_words, right_words = factor_words(left), factor_words(right)
+        if not left_words or not right_words:
+            return 0.0
+        common = len(left_words & right_words)
+        containment = common / min(len(left_words), len(right_words))
+        dice = (2 * common) / (len(left_words) + len(right_words))
+        return (containment * 0.65) + (dice * 0.35)
+
     original_values = item.get("original_values") or {}
     candidates = [
         values.get("ef_lookup_key"), values.get("subcategory"), values.get("fuel_name"), values.get("item_description"),
@@ -170,7 +192,22 @@ def _match_ocr_factor_option(options: list[dict], item: dict, values: dict) -> d
             for candidate in candidates
         )
     ]
-    return contains_matches[0] if len(contains_matches) == 1 else None
+    if len(contains_matches) == 1:
+        return contains_matches[0]
+
+    ranked = sorted(
+        (
+            (option, max((similarity(candidate, option.get("value")) for candidate in candidates), default=0.0))
+            for option in options
+        ),
+        key=lambda match: match[1],
+        reverse=True,
+    )
+    best_option, best_score = ranked[0] if ranked else (None, 0.0)
+    next_score = ranked[1][1] if len(ranked) > 1 else 0.0
+    if best_option and best_score >= 0.75 and best_score - next_score >= 0.1:
+        return best_option
+    return None
 
 
 def _canonical_option_input(option: dict, raw_value: str, input_field: str) -> str:
@@ -1290,6 +1327,12 @@ async def save_line_item_to_ghg(
         values["factor_id"] = selected_factor["id"]
         values["fuel_id"] = selected_factor["id"] if selected_factor["collection"] == "fuel_database" else None
         values["scope3_ef_id"] = selected_factor["id"] if selected_factor["collection"] == "scope3_ef" else None
+        values["subcategory"] = selected_factor["value"]
+        values["fuel_name"] = selected_factor["value"]
+        values["ef_lookup_key"] = selected_factor["value"]
+        values["ef_database"] = selected_factor["database"]
+        values["naics_code"] = selected_factor.get("naics_code") or (values.get("naics_code") if selected_factor.get("method") == "spend" else "")
+        values["naics_label"] = selected_factor.get("naics_label") or (values.get("naics_label") if selected_factor.get("method") == "spend" else "")
         values["unit"] = selected_factor["selected_input_value"] if selected_factor["selected_input_field"] == "unit" else values.get("unit")
         values["currency"] = selected_factor["selected_input_value"] if selected_factor["selected_input_field"] == "currency" else values.get("currency")
         category = await resolve_ghg_category(db, values)
@@ -1329,6 +1372,8 @@ async def save_line_item_to_ghg(
             "current_values.fuel_name": values.get("fuel_name"),
             "current_values.ef_lookup_key": values.get("ef_lookup_key"),
             "current_values.ef_database": values.get("ef_database"),
+            "current_values.naics_code": values.get("naics_code"),
+            "current_values.naics_label": values.get("naics_label"),
             "current_values.unit": values.get("unit"),
             "current_values.currency": values.get("currency"),
             "current_values.spend_currency_conversion_method": resolved_decisions.get("spend_currency_conversion_method"),
