@@ -39,7 +39,7 @@ def _normalize_cache_key(value: str | None) -> str:
 async def build_org_context(organization_id: str) -> tuple[dict, set[str], set[str]]:
     organization = await db.organizations.find_one(
         {"id": organization_id},
-        {"_id": 0, "name": 1, "general_description": 1, "process_description": 1},
+        {"_id": 0, "name": 1, "general_description": 1, "process_description": 1, "industry_sector": 1, "industry": 1, "sector": 1},
     ) or {}
     facilities = await db.facilities.find(
         {"organization_id": organization_id, "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
@@ -57,6 +57,7 @@ async def build_org_context(organization_id: str) -> tuple[dict, set[str], set[s
     context = {
         "organization_id": organization_id,
         "company_name": organization.get("name"),
+        "industry_sector": organization.get("industry_sector") or organization.get("industry") or organization.get("sector"),
         "organization_profile": organization.get("general_description"),
         "products": organization.get("process_description"),
         "locations": facilities,

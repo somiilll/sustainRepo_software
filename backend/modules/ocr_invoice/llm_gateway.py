@@ -40,7 +40,7 @@ class OcrLlmGateway:
             system_message=system_message,
             prompt=prompt,
             images=images,
-            max_tokens=12000,
+            max_tokens=8192,
         )
 
     async def reason(self, system_message: str, prompt: str, max_tokens: int = 1800) -> str:

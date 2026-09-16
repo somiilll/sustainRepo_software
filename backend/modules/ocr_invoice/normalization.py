@@ -167,18 +167,22 @@ def normalize_unit(value: Any, category: str = "") -> str | None:
 def convert_quantity(quantity: float | None, unit: str | None) -> tuple[float | None, str | None]:
     if quantity is None or not unit:
         return quantity, unit
-    key = unit.lower()
-    conversions = {
-        "g": (0.001, "kg"), "gm": (0.001, "kg"), "gms": (0.001, "kg"), "gram": (0.001, "kg"), "grams": (0.001, "kg"),
-        "ml": (0.001, "Liters"), "milliliter": (0.001, "Liters"), "milliliters": (0.001, "Liters"),
-        "lbs": (0.45359237, "kg"), "lb": (0.45359237, "kg"), "pound": (0.45359237, "kg"), "pounds": (0.45359237, "kg"),
-        "oz": (0.0283495, "kg"), "ounce": (0.0283495, "kg"), "ounces": (0.0283495, "kg"),
-        "gal": (3.78541, "Liters"), "gals": (3.78541, "Liters"), "gallons": (3.78541, "Liters"), "gallon": (3.78541, "Liters"), "us gal": (3.78541, "Liters"),
-    }
-    if key not in conversions:
+    try:
+        numeric_quantity = float(quantity)
+    except (TypeError, ValueError):
         return quantity, unit
-    multiplier, target = conversions[key]
-    return round(quantity * multiplier, 6), target
+    key = str(unit).strip().lower()
+    if key in ("ml", "milliliter", "milliliters"):
+        return round(numeric_quantity / 1000.0, 4), "Liters"
+    if key in ("g", "gm", "gms", "gram", "grams"):
+        return round(numeric_quantity / 1000.0, 4), "kg"
+    if key in ("lb", "lbs", "pound", "pounds"):
+        return round(numeric_quantity * 0.45359237, 2), "kg"
+    if key in ("oz", "ounce", "ounces"):
+        return round(numeric_quantity * 0.0283495, 3), "kg"
+    if key in ("gal", "gals", "gallon", "gallons", "us gal"):
+        return round(numeric_quantity * 3.78541, 2), "Liters"
+    return quantity, unit
 
 
 def normalize_date(value: Any) -> tuple[str | None, bool]:

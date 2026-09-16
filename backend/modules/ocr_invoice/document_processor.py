@@ -29,94 +29,122 @@ from .taxonomy_service import classify_item
 
 
 EXTRACTION_SYSTEM_PROMPT = """You are an expert ESG emissions accounting data extraction assistant.
-Extract transaction details and PHYSICAL ACTIVITY EVENTS from the provided invoice pages into raw JSON. Return only raw JSON without markdown or backticks.
+Extract transaction details and PHYSICAL ACTIVITY EVENTS from the provided invoice(s) into raw JSON format. Return ONLY raw JSON without markdown blocks or backticks.
 
 UNIVERSAL PHYSICAL ACTIVITY EXTRACTION RULES:
 1. MULTI-INVOICE / MULTI-PURCHASE-ORDER DOCUMENTS:
-   - If the document contains multiple invoices, purchase orders, or delivery manifests, return a separate invoice object for each.
-2. HIERARCHICAL LINE-ITEM DE-DUPLICATION:
-   - In SAP/ERP purchase orders and service bills, do not extract summary parent group headers when itemized leaf lines have individual quantities and rates.
-   - If a parent amount equals the sum of child lines, extract only the child lines to prevent double counting.
-3. Identify the primary physical activity items: goods, raw materials, energy, waste, travel, freight, water, and services.
-4. Classify material_nature:
-   - raw_material: homogeneous unprocessed or semi-processed material such as copper rod, steel ingots, plastic granules, or bulk chemicals.
-   - composite_product: manufactured, assembled, or multi-material products such as motors, PCB assemblies, equipment, furniture, valves, or tools.
-   - service: non-physical services such as consulting, SaaS, software licences, or labour-only maintenance.
-   - energy: fuels, electricity, steam, district heating, or cooling.
-   - waste: refuse, scrap, wastewater, recycling, or disposal manifests.
-   - logistics: freight, courier, shipping, or transport services.
-   - travel: flights, rail, hotels, taxis, buses, or rental cars.
-5. For raw_material, specify primary_material such as Copper, Steel, Aluminum, LDPE, Paper, or Synthetic Rubber.
-6. Do not extract fee components such as tipping fees, hauling rates, loading charges, meter fees, fixed demand charges, fuel surcharges, late fees, documentation fees, or taxes as separate activity rows. Capture financial sums in invoice_financials.
-7. PHYSICAL QUANTITY AND PACKAGING NORMALIZATION:
-   - For fuel, gas, liquids, chemicals, and raw materials delivered in cylinders, drums, bottles, bags, barrels, cans, tankers, boxes, EA, Nos, or Pcs, calculate the total net mass or volume when package capacity is printed.
-   - Use standard units: kg or tonnes for mass; Liters, Gallons, m3, or kL for volume; kg or m3 for gases; kWh or MWh for energy; km for distance.
-   - Example: 11 EA of 4 kg becomes quantity 44 kg. Five 4.5 kg CO2 cylinders become quantity 22.5 kg.
-   - Do not use EA, Nos, Pcs, or container count when net capacity is available.
-   - For a pure non-physical service without an activity measurement, return quantity null and unit null.
-8. CONFIDENCE AND CERTAINTY:
-   - Explicit physical quantity and unit: 90-98%.
-   - Explicit spend for purchased goods or services where physical quantity is not applicable: 85-95%.
-   - If all required fields are legible and printed, low_confidence_fields must be empty.
-   - If quantity is printed but unit is inferred, assign 70-75%, add inferred unit, and explain the assumption in additional_context.
-   - If both physical activity and financial expenditure are missing, confidence must be 40% or below and low_confidence_fields must include missing qty & cost.
-   - Do not flag vendor, buyer, addresses, or unit_price as low-confidence fields.
-   - Blurry, truncated, or ambiguous values should score 50-65% and identify the affected field.
-9. BUSINESS TRAVEL AND PASSENGER TICKETS:
-   - Set item_category_hint to Travel and material_nature to travel.
-   - Rail: mode Train; extract origin, destination, and passenger_count; class must be null.
-   - Taxi/car: mode Taxi or Car; extract route and passenger_count; normalize vehicle_type to Small, Medium, Large, or Average, defaulting to Average.
-   - Flights: mode Flight; extract origin, destination, class as Economy, Premium Economy, Business, or First, and passenger_count defaulting to 1. Do not calculate flight distance; leave distance null unless printed.
-   - Hotels: mode Hotel; put the hotel city/country in origin; calculate quantity as rooms multiplied by nights and use unit room_nights.
-10. WASTE:
-   - Extract waste_type and normalize disposal_method to Landfill, Recycling, Composting, Incineration, or Wastewater.
-11. FREIGHT:
-   - Extract mode, shipment weight, origin, destination, and explicitly printed distance. Do not invent distance.
-12. Preserve HSN/SAC when printed because it can strengthen commodity classification."""
+   - If the document contains multiple distinct invoices, purchase orders, or delivery manifests across different pages, return a JSON ARRAY of invoice objects: `[{...}, {...}]`.
+   - If it is a single invoice with 1 or multiple items, return a JSON object `{...}` or an array with 1 object.
+2. HIERARCHICAL LINE ITEM DE-DUPLICATION (CRITICAL):
+   - In SAP/ERP purchase orders and service bills, DO NOT extract summary parent group headers if itemized leaf lines are present with individual quantities and rates.
+   - Example: If a PO has Line 10 "REFILLING OF FIRE EXTINGUISHER Amount: 11075" and then Lines 1-4 list ABC 4KG, ABC 6KG, CO2 4.5KG, CO2 9KG whose amounts sum to 11075:
+     * Extract ONLY the 4 leaf breakdown items!
+     * DROP the parent summary header to prevent double counting.
+3. Identify the PRIMARY PHYSICAL ACTIVITY ITEMS for each invoice (physical goods, raw materials, energy, waste, travel, freight).
+4. Classify `material_nature` for each item:
+   - "raw_material": Single homogeneous unprocessed/semi-processed material (e.g. copper wire rod, steel ingots, plastic granules, bulk chemicals).
+   - "composite_product": Manufactured, assembled, or multi-material finished products (e.g. electrical appliances, electric motors, PCB assemblies, tools, valves, equipment, furniture).
+   - "service": Non-physical services (e.g. legal, consulting, SaaS, software licenses, maintenance labor).
+   - "energy": Fuels, electricity, steam, district heating/cooling.
+   - "waste": Refuse, scrap, wastewater, recycling manifests.
+   - "logistics": Freight, courier, transport services.
+   - "travel": Air tickets, hotel stays, rail tickets, taxi rides.
+5. If item is raw_material, specify `primary_material` (e.g. Copper, Steel, Aluminum, LDPE, Paper).
+6. DO NOT extract itemized fee components (such as tipping fees, hauling rates, loading/handling charges, meter fees, fixed demand charges, fuel surcharges, late fees, documentation fees, or taxes) as separate primary activity items. Capture financial sums in `invoice_financials`.
+7. PHYSICAL QUANTITY & PACKAGING NORMALIZATION:
+   - For any fuel, gas, liquid, chemical, or raw material delivered in packaging, containers, or item counts (cylinders, drums, bottles, bags, barrels, cans, tankers, boxes, EA, Nos, Pcs):
+     * Always calculate and report the TOTAL NET PHYSICAL MASS OR VOLUME in standard canonical units:
+       - Solid / Mass: kg or tonnes (e.g., "11 EA of 4 KG ABC" -> quantity = 44.0, unit = "kg"; "5 EA of 4.5 KG CO2" -> quantity = 22.5, unit = "kg").
+       - Liquid / Volume: Liters, Gallons, m3, kL.
+       - Gas: kg (for CO2, LPG, refrigerants) or m3.
+       - Energy: kWh, MWh.
+       - Distance: km.
+     * DO NOT use EA, Nos, Pcs, or container counts as the unit if capacity is specified.
+     * If an item is a pure non-physical service (e.g. consulting, maintenance labor with no chemical/gas), report quantity = null, unit = null.
+8. CONFIDENCE SCORE & CERTAINTY RULES:
+   - Evaluate confidence based on visual clarity, explicit printing vs. inferences, and emissions calculation feasibility:
+     * EXPLICIT DATA (HIGH CONFIDENCE: 85-98%):
+       - If physical quantity AND explicit unit (e.g., "56 m3", "1000 Liters", "450 kWh") are clearly printed on the document, assign HIGH confidence (90-98%), even if cost is not broken out.
+       - If total financial cost (e.g., "$5,000", "₹1,50,000") is clearly printed for purchased goods/services where physical quantity is not applicable, assign HIGH confidence (85-95%).
+       - When all required fields are explicitly printed and legible, leave low_confidence_fields empty [].
+     * MISSING / INFERRED UNIT (MEDIUM CONFIDENCE: 70-75%):
+       - If a physical quantity number is present (e.g. "70" under Qty in UnE) but the UNIT OF MEASURE IS NOT EXPLICITLY PRINTED on the document and you had to infer/assume it from context (e.g. inferred "Liters" for diesel from forklift equipment context):
+         - Assign a confidence score of 70-75% (Medium confidence).
+         - Add "inferred unit" (or "missing unit" if null) to low_confidence_fields.
+         - In additional_context, explain the assumption (e.g. "Unit was not printed on document; inferred Liters based on diesel fuel in forklift.").
+     * CRITICAL DATA GAP (LOW CONFIDENCE: <= 40%):
+       - If BOTH physical activity (quantity/distance) AND financial expenditure (cost/amount) are missing, score must be <= 40%, and add "missing qty & cost" to low_confidence_fields.
+     * NON-CRITICAL AUXILIARY FIELDS (DO NOT LOWER SCORE):
+       - DO NOT flag vendor_name, vendor_type, vendor_address, buyer details, or unit_price in low_confidence_fields. These auxiliary fields must not lower the score or trigger warning flags.
+      * OCR / LEGIBILITY ISSUES:
+        - If text is blurry, truncated, or digits are ambiguous, assign 50-65% and flag the specific field (e.g. "blurry quantity").
+9. BUSINESS TRAVEL / PASSENGER TICKETS (Scope 3 Category 6):
+   - When extracting tickets, boarding passes, itineraries, or travel bills:
+     * Set `item_category_hint: "Travel"` and `material_nature: "travel"`.
+     * Railways: Extract `travel_details.mode = "Train"`, `origin` (departure station/city), `destination` (arrival station/city), and `passenger_count` (int, default 1). Leave `class: null` (no cabin class for rail).
+     * Road / Cabs / Taxis (Uber, Ola, local taxi, rental): Extract `travel_details.mode = "Taxi"` or `"Car"`, `origin`, `destination`, `passenger_count`, and NORMALIZE vehicle type strictly to DEFRA size brackets in `travel_details.vehicle_type`: "Small", "Medium", "Large", or "Average" (default to "Average" if unspecified).
+     * Aviation / Flights: Extract `travel_details.mode = "Flight"`, `origin` (departure airport code or city), `destination` (arrival airport code or city), `class` ("Economy" | "Premium Economy" | "Business" | "First"), and `passenger_count` (int, default 1). DO NOT calculate point-to-point distance in km; leave `distance_km: null` if not explicitly printed on the ticket.
+     * Hotels / Accommodation: Extract `travel_details.mode = "Hotel"`, `origin` (city/country of hotel), calculate total room nights as `quantity` = (number of rooms) * (number of nights), and set `unit: "room_nights"`.
 
-
-EXTRACTION_SCHEMA_PROMPT = """Extract every invoice in these pages. Return a JSON object with key `invoices`, containing objects shaped as:
+JSON SCHEMA PER INVOICE:
 {
-  "invoice_number": string|null,
-  "date": "YYYY-MM-DD"|null,
-  "billing_period_start": "YYYY-MM-DD"|null,
-  "billing_period_end": "YYYY-MM-DD"|null,
-  "billing_period_text": string|null,
-  "vendor_name": string|null,
-  "vendor_type": string|null,
-  "vendor_address": string|null,
-  "buyer_name": string|null,
-  "buyer_address": string|null,
-  "service_address": string|null,
-  "currency": "INR|USD|EUR|GBP"|null,
-  "grand_total": number|null,
-  "freight_details": {"mode": "Road|Rail|Sea|Air|Courier"|null, "weight_kg": number|null, "distance_km": number|null, "origin": string|null, "destination": string|null},
-  "invoice_financials": {"subtotal": number|null, "tax_amount": number|null, "additional_charges_amount": number|null, "grand_total": number|null, "currency": string|null},
-  "line_items": [{
-    "item_description": string,
-    "item_description_english": string|null,
-    "item_category_hint": "Purchased Goods|Capital Goods|Fuel/Energy|Water|Waste|Travel|Freight/Logistics|Refrigerant|Employee Commute|Other",
-    "material_nature": "raw_material|composite_product|service|energy|waste|logistics|travel",
-    "primary_material": string|null,
-    "hsn_sac_code": string|null,
-    "quantity": number|null,
-    "unit": string|null,
-    "unit_price": number|null,
-    "base_cost": number|null,
-    "total_cost": number|null,
-    "distance_km": number|null,
-    "origin": string|null,
-    "destination": string|null,
-    "waste_details": {"waste_type": string|null, "disposal_method": "Landfill|Recycling|Composting|Incineration|Wastewater"|null},
-    "travel_details": {"mode": "Flight|Train|Taxi|Bus|Car Rental|Hotel"|null, "class": "Economy|Premium Economy|Business|First"|null, "vehicle_type": "Small|Medium|Large|Average"|null, "passenger_count": integer|null, "distance_km": number|null, "origin": string|null, "destination": string|null},
-    "freight_details": {"mode": "Road|Rail|Sea|Air|Courier"|null, "weight_kg": number|null, "distance_km": number|null, "origin": string|null, "destination": string|null},
-    "is_summary_header": boolean,
-    "additional_context": string|null,
-    "confidence_score": integer from 0 to 100,
-    "low_confidence_fields": [string]
-  }]
-}
-If multiple invoice numbers occur, create separate invoice objects. Return JSON only."""
+    "invoice_number": "string or null",
+    "date": "YYYY-MM-DD or null",
+    "billing_period_start": "YYYY-MM-DD or null",
+    "billing_period_end": "YYYY-MM-DD or null",
+    "vendor_name": "string or null",
+    "vendor_type": "Supplier/Vendor | Utility | Waste Management | Travel Agency | Freight/Logistics | Fuel Station | Refrigerant Supplier | Water Utility | Government | Other",
+    "vendor_address": "string or null",
+    "buyer_name": "Name of the client / billed-to entity or null",
+    "buyer_address": "Address of the billed-to entity or null",
+    "service_address": "Full address where service/goods were DELIVERED (the client's destination/plant/facility), NOT the vendor's billing/dispatch office or null",
+    "invoice_financials": {
+        "subtotal": <float or null>,
+        "tax_amount": <float or null>,
+        "additional_charges_amount": <float or null>,
+        "grand_total": <float or null>,
+        "currency": "3-letter code (e.g. INR, USD, EUR) or null"
+    },
+    "primary_activity_items": [
+        {
+            "item_description": "Name of the physical product, service, or activity",
+            "item_description_english": "English translation or standard description",
+            "item_category_hint": "Purchased Goods | Capital Goods | Fuel/Energy | Water | Waste | Travel | Freight/Logistics | Refrigerant | Employee Commute | Other",
+            "material_nature": "raw_material | composite_product | service | energy | waste | logistics | travel",
+            "primary_material": "Dominant raw material if raw_material (e.g. Copper, Steel, Aluminum, LDPE, Paper). null otherwise",
+            "quantity": <float or null>,
+            "unit": "kg | tonnes | Liters | Gallons | kWh | km | miles | nights | room_nights | trips | m3 | kL | null",
+            "unit_price": <float or null>,
+            "base_cost": <float or null>,
+            "waste_details": {
+                "waste_type": "string or null",
+                "disposal_method": "Landfill | Recycling | Composting | Incineration | Wastewater | null"
+            },
+            "travel_details": {
+                "mode": "Flight | Train | Taxi | Bus | Car Rental | Hotel | null",
+                "class": "Economy | Premium Economy | Business | First | null",
+                "vehicle_type": "Small | Medium | Large | Average | null",
+                "passenger_count": <int or null>,
+                "distance_km": <float or null>,
+                "origin": "string or null",
+                "destination": "string or null"
+            },
+            "freight_details": {
+                "mode": "Road | Rail | Sea | Air | Courier | null",
+                "weight_kg": <float or null>,
+                "distance_km": <float or null>,
+                "origin": "string or null",
+                "destination": "string or null"
+            },
+            "additional_context": "any other relevant context from the invoice",
+            "confidence_score": <int 0-100>,
+            "low_confidence_fields": ["array of low confidence keys", "or empty"]
+        }
+    ]
+}"""
+
+
+EXTRACTION_SCHEMA_PROMPT = "Extract the physical activity events and financial breakdown into the requested JSON format."
 
 
 HEADER_ALIASES = {
@@ -153,7 +181,7 @@ def _image_to_base64(image: Image.Image) -> str:
     if image.mode in {"RGBA", "P", "LA"}:
         image = image.convert("RGB")
     buffer = BytesIO()
-    image.save(buffer, format="JPEG", quality=88, optimize=True)
+    image.save(buffer, format="JPEG")
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
