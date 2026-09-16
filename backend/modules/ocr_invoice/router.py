@@ -490,9 +490,11 @@ async def _legacy_upload_invoices(
         "organization_id": org_id,
         "uploaded_by": user_id,
         "uploaded_by_name": current_user.get("name", "Unknown"),
+        "pipeline": "legacy_fuel_taxonomy",
         "file_count": len(valid_files),
         "files": [],
         "status": "processing",
+        "errors": [],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
@@ -559,9 +561,17 @@ async def _legacy_upload_invoices(
             # Store file info
             file_info = {
                 "filename": file.filename,
+                "content_type": file.content_type,
+                "file_index": len(upload_record["files"]),
                 "temp_url": temp_file_url,
                 "temp_key": temp_file_key,
-                "line_item_count": len(results)
+                "line_item_count": len(results),
+                "resolved_count": 0,
+                "saved_count": 0,
+                "rejected_count": 0,
+                "resolution_status": "pending",
+                "preview_supported": True,
+                "status": "completed",
             }
             upload_record["files"].append(file_info)
             
@@ -705,6 +715,9 @@ async def upload_invoices(
     if not files:
         raise HTTPException(status_code=400, detail="Select at least one invoice or spreadsheet.")
     try:
+        _, enabled_scopes, _ = await build_org_context(org_id)
+        if "scope3" not in enabled_scopes:
+            return await _legacy_upload_invoices(files=files, current_user=current_user)
         extraction_mode = get_mode(mode)
         result = await queue_upload_batch(files, org_id, current_user, extraction_mode)
         if result["file_count"]:
