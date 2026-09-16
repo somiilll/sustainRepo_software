@@ -30,6 +30,7 @@ SCOPE3_METHODS = {
 }
 MASS_UNITS = {"g", "gram", "grams", "kg", "kilogram", "kilograms", "t", "tonne", "tonnes", "metricton", "metrictons", "lb", "lbs", "pound", "pounds"}
 VOLUME_UNITS = {"ml", "millilitre", "millilitres", "l", "litre", "litres", "liter", "liters", "kl", "kilolitre", "kilolitres", "kiloliter", "kiloliters", "m3", "m³", "gallon", "gallons", "gal"}
+STANDARD_COMBUSTION_CATEGORY_KEYS = {"stationarycombustion", "mobilecombustion"}
 
 
 def scope3_method(value: Any) -> str | None:
@@ -52,6 +53,21 @@ def quantity_basis(unit: Any) -> str:
     if normalized in VOLUME_UNITS:
         return "volume"
     raise ValueError("The extracted quantity unit must be a recognized mass or volume unit for Stationary or Mobile Combustion.")
+
+
+def is_standard_combustion_category(values: dict, category: dict) -> bool:
+    category_values = (
+        category.get("code"),
+        category.get("name"),
+        category.get("category"),
+        values.get("category_code"),
+        values.get("category"),
+    )
+    return any(
+        "".join(character for character in str(value or "").lower() if character.isalnum())
+        in STANDARD_COMBUSTION_CATEGORY_KEYS
+        for value in category_values
+    )
 
 
 async def resolve_ghg_category(db, values: dict) -> dict:
@@ -96,7 +112,10 @@ def build_decision_inputs(values: dict, category: dict) -> dict:
                 values.get("spend_currency_conversion_method")
             )
     elif scope == "scope1":
-        decisions["calculation_methodology"] = values.get("calculation_methodology") or "using_qty_basis_ef"
+        if is_standard_combustion_category(values, category):
+            decisions["calculation_methodology"] = "using_heat_basis_ncv"
+        else:
+            decisions["calculation_methodology"] = values.get("calculation_methodology") or "using_qty_basis_ef"
         if decisions["calculation_methodology"] in {"using_qty_basis_ef", "using_heat_basis_ncv"}:
             basis_key = "ef_quantity_basis" if decisions["calculation_methodology"] == "using_qty_basis_ef" else "cv_quantity_basis"
             decisions[basis_key] = values.get(basis_key) or quantity_basis(values.get("unit"))
