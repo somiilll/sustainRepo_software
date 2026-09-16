@@ -10,8 +10,9 @@ DEFRA_APPROVED_PATTERNS = (
     r"\bscrap metal\b", r"\bmixed cans?\b", r"\bhdpe\b", r"\bldpe\b", r"\bpet\b",
     r"\bpolypropylene\b", r"\bpp\b", r"\bpolystyrene\b", r"\bps\b", r"\bpvc\b",
     r"\bcardboard\b", r"\bpaper\b", r"\bboard\b", r"\bconcrete\b", r"\baggregates?\b",
-    r"\bbricks?\b", r"\binsulation\b", r"\bwood\b", r"\btimber\b", r"\bglass\b",
-    r"\bconstruction metals?\b", r"\bstructural steel\b",
+    r"\bbricks?\b", r"\binsulation\b", r"\bwood\b", r"\btimber\b",
+    r"\bconstruction metals?\b", r"\bstructural steel\b", r"\basbestos\b", r"\basphalt\b",
+    r"\bsoils\b", r"\bplasterboard\b", r"\baluminium foil\b", r"\blldpe\b",
 )
 
 

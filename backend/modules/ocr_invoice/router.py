@@ -22,7 +22,7 @@ from shared.database.mongo import db
 from r2_storage import R2Storage
 from . import invoice_processor
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
-from .config import MODES, get_mode
+from .config import MODES, OCR_SAVE_SCOPE_RULES, get_mode
 from .factor_options import normalize_method, normalize_option, resolve_factor_options, validate_factor_selection
 from .ghg_save_service import execute_ocr_calculation, resolve_ghg_category
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit, UploadFacilityAssignments
@@ -210,6 +210,22 @@ def _match_ocr_factor_option(options: list[dict], item: dict, values: dict) -> d
     return None
 
 
+def _preferred_scope3_factor_option(options: list[dict], item: dict, values: dict) -> dict | None:
+    preferences = OCR_SAVE_SCOPE_RULES["scope3"].get("generic_activity_preferences", {})
+    raw_values = [
+        values.get("subcategory"), values.get("fuel_name"), values.get("ef_lookup_key"),
+        *(item.get("original_values") or {}).values(),
+    ]
+    normalized_values = {normalize_option(value) for value in raw_values if isinstance(value, str) and value.strip()}
+    for generic_name, preferred_name in preferences.items():
+        if normalize_option(generic_name) not in normalized_values:
+            continue
+        preferred = next((option for option in options if normalize_option(option.get("value")) == normalize_option(preferred_name)), None)
+        if preferred:
+            return preferred
+    return None
+
+
 def _canonical_option_input(option: dict, raw_value: str, input_field: str) -> str:
     allowed_values = option.get("allowed_units") or []
     for allowed_value in allowed_values:
@@ -260,7 +276,8 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
             values.get("ef_method") or "",
             facility.get("sector", ""),
         )
-        matched_factor = _match_ocr_factor_option(options, item, values)
+        matched_factor = _preferred_scope3_factor_option(options, item, values) if scope == "scope3" else None
+        matched_factor = matched_factor or _match_ocr_factor_option(options, item, values)
         if not matched_factor:
             raise ValueError("A unique factor could not be resolved from the extracted OCR values. Review this row before saving.")
         input_field = "currency" if normalize_method(values.get("ef_method")) == "spend" else "unit"
@@ -1323,6 +1340,8 @@ async def save_line_item_to_ghg(
     values = dict(item.get("current_values") or {})
     if values.get("scope") not in {"scope1", "scope2", "scope3"}:
         raise HTTPException(status_code=400, detail="Only Scope 1, Scope 2, and Scope 3 OCR rows can be saved directly to GHG records")
+    if not OCR_SAVE_SCOPE_RULES.get(values["scope"], {}).get("enabled"):
+        raise HTTPException(status_code=400, detail="Saving OCR rows for this scope is disabled by the global OCR save rules")
     try:
         values, facility = await _resolve_direct_ocr_values(item, values, org_id)
         factor_id = values.get("factor_id") or values.get("fuel_id") or values.get("scope3_ef_id")

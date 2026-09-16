@@ -15,6 +15,18 @@ SPREADSHEET_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 MAX_FILE_BYTES = 20 * 1024 * 1024
 MAX_PDF_PAGES = 15
 
+OCR_SAVE_SCOPE_RULES = {
+    "scope1": {"enabled": True},
+    "scope2": {"enabled": True},
+    "scope3": {
+        "enabled": True,
+        "generic_activity_preferences": {
+            "diesel": "Diesel (100% mineral diesel)",
+            "petrol": "Petrol (100% mineral petrol)",
+        },
+    },
+}
+
 
 @dataclass(frozen=True)
 class ExtractionMode:
