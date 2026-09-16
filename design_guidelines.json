@@ -1,140 +1,102 @@
 {
-  "project_title": "SustainRepo ESG Platform - OCR & Dashboard Enhancements Design Blueprint",
-  "archetype": "ORGANIC & EARTHY / PERFORMANCE ESG",
-  "theme": "Light",
-  "file_type": "js",
+  "project_name": "Supplier Portal Dashboard, ESG Modules & OCR Extraction Refactor",
+  "archetype": "ORGANIC & EARTHY WITH PRECISION SaaS DASHBOARD",
+  "theme": "Light mode primary with emerald/slate high-contrast accents",
+  "file_type_extension": ".js / .jsx",
   "typography": {
-    "font_families": {
-      "heading": "Manrope, sans-serif",
-      "body": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
-      "mono": "JetBrains Mono, monospace"
-    },
-    "scale": {
-      "h1": "text-2xl sm:text-3xl lg:text-4xl font-heading font-bold text-text-primary tracking-tight",
-      "h2": "text-xl sm:text-2xl font-heading font-semibold text-text-primary tracking-tight",
-      "h3": "text-lg font-heading font-semibold text-text-primary",
-      "h4": "text-base font-heading font-medium text-text-primary",
-      "body": "text-sm text-text-primary leading-relaxed",
-      "subtext": "text-xs text-text-muted leading-normal",
-      "label": "text-xs font-medium uppercase tracking-wider text-text-muted"
+    "font_family_heading": "Cabinet Grotesk, Outfit, sans-serif",
+    "font_family_body": "Inter, DM Sans, system-ui, sans-serif",
+    "font_family_mono": "JetBrains Mono, Fira Code, monospace",
+    "hierarchy": {
+      "h1": "text-3xl font-bold text-emerald-950 sm:text-4xl lg:text-5xl tracking-tight",
+      "h2": "text-2xl font-semibold text-slate-900 tracking-tight",
+      "h3": "text-xl font-medium text-slate-900",
+      "h4": "text-lg font-medium text-slate-800",
+      "body": "text-sm sm:text-base text-slate-700 leading-relaxed",
+      "small": "text-xs font-medium text-slate-500 uppercase tracking-wider"
     }
   },
   "colors": {
     "primary": {
-      "DEFAULT": "#1A4D2E",
-      "hover": "#143D24",
-      "light": "#E8F0EC",
-      "foreground": "#FFFFFF"
+      "emerald_950": "#022c22",
+      "emerald_800": "#065f46",
+      "emerald_700": "#047857",
+      "emerald_600": "#059669",
+      "emerald_100": "#d1fae5",
+      "emerald_50": "#ecfdf5"
     },
-    "secondary": {
-      "DEFAULT": "#4F6F52",
-      "foreground": "#FFFFFF"
+    "slate": {
+      "950": "#020617",
+      "900": "#0f172a",
+      "700": "#334155",
+      "600": "#475569",
+      "200": "#e2e8f0",
+      "100": "#f1f5f9",
+      "50": "#f8fafc"
     },
-    "accent": {
-      "DEFAULT": "#E85C0D",
-      "hover": "#CF4A00",
-      "foreground": "#FFFFFF"
+    "warning": {
+      "amber_50": "#fffbeb",
+      "amber_200": "#fde68a",
+      "amber_950": "#451a03"
     },
-    "background": "#F5F7F5",
-    "surface": "#FFFFFF",
-    "text": {
-      "primary": "#1A1A1A",
-      "secondary": "#4A4A4A",
-      "muted": "#71717A"
-    },
-    "status": {
-      "pending_review": {
-        "bg": "#FEF3C7",
-        "border": "#FDE68A",
-        "text": "#92400E",
-        "badge": "bg-amber-100 text-amber-800 border-amber-200"
-      },
-      "edited": {
-        "bg": "#E0F2FE",
-        "border": "#BAE6FD",
-        "text": "#075985",
-        "badge": "bg-sky-100 text-sky-800 border-sky-200"
-      },
-      "accepted": {
-        "bg": "#DCFCE7",
-        "border": "#BBF7D0",
-        "text": "#166534",
-        "badge": "bg-emerald-100 text-emerald-800 border-emerald-200"
-      },
-      "imported": {
-        "bg": "#F3F4F6",
-        "border": "#E5E7EB",
-        "text": "#374151",
-        "badge": "bg-slate-100 text-slate-700 border-slate-200"
-      }
-    },
-    "think_mode": {
-      "badge": "bg-purple-100 text-purple-900 border-purple-300",
-      "highlight": "#7E22CE"
-    },
-    "fast_mode": {
-      "badge": "bg-emerald-100 text-emerald-900 border-emerald-300",
-      "highlight": "#059669"
+    "error": {
+      "red_50": "#fef2f2",
+      "red_700": "#b91c1c",
+      "red_800": "#991b1b"
     }
   },
-  "layout_and_spacing": {
-    "container_padding": "p-4 sm:p-6 lg:p-8 space-y-6",
-    "card_padding": "p-5 sm:p-6",
-    "gap_scale": "gap-3 sm:gap-4 lg:gap-6",
-    "border_radius": "rounded-xl border border-slate-200/80 shadow-sm",
-    "responsive_grid": {
-      "ocr_top_bar": "grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch",
-      "mode_selector_span": "col-span-full lg:col-span-4",
-      "dropzone_span": "col-span-full lg:col-span-8",
-      "split_view": "grid grid-cols-1 xl:grid-cols-12 gap-6",
-      "preview_span": "col-span-12 xl:col-span-5",
-      "table_span": "col-span-12 xl:col-span-7"
-    }
+  "layout_and_structure": {
+    "page_container": "mx-auto w-full max-w-[1700px] space-y-6 p-4 sm:p-6 lg:p-8",
+    "grid_system": "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-12",
+    "header_pattern": "ModulePageHeader with title, icon, and aside action controls",
+    "ocr_workspace_layout": "Full width stacked/responsive layout with compact header controls"
   },
-  "ocr_module_specifications": {
-    "mode_selection": {
-      "think_mode": {
-        "name": "Think Mode (OpenAI GPT-5.5)",
-        "description": "Deep multi-pass reasoning for complex, multi-page, or ambiguous invoices & spreadsheets",
-        "icon": "Brain",
-        "badge_text": "High Accuracy / Deep Analysis"
-      },
-      "fast_mode": {
-        "name": "Fast Mode (Anthropic Claude Sonnet 4.6 + Haiku 4.5)",
-        "description": "Sub-second rapid extraction & automated Scope 1/2/3 classification workflow",
-        "icon": "Zap",
-        "badge_text": "Ultra Fast / High Throughput"
-      }
+  "ocr_refactor_requirements": {
+    "page_header": "Use ModulePageHeader with title 'OCR Extraction', icon FileText or Sparkles, and matching Bulk Upload style (data-testid='ocr-invoice-header').",
+    "remove_hero_copy": "COMPLETELY REMOVE the introductory banner block containing 'Secure organization workspace Activity extraction Convert invoices and ledgers into reviewable Scope 1, 2 and 3 activity data.'",
+    "extraction_mode_relocation": "Shift Fast/Think extraction mode selector into the header action area / right-aligned inline toolbar where the Download template button is located.",
+    "extraction_mode_compact_buttons": "Compact the Fast and Think mode buttons by removing the summary text ('Rapid extraction and classification' / 'Deeper reasoning for complex documents'). Display title, model badge, and icon in a clean pill/toggle group.",
+    "full_width_workspace": "Allow source document preview, upload dropzone, batch queue, and line items review table to acquire full width across the grid without unnecessary multi-column sidebars when hero is cleared."
+  },
+  "manual_ghg_create_form_fix": {
+    "state_synchronization_bug": "Fix payload unit mismatch where 'kg' was randomly sent instead of the selected unit (e.g., 'kl' or 'L').",
+    "resolution_rule": "Ensure form state synchronization listens directly to the unit dropdown change handler and updates both internal state and dispatch payload atomically. Validate unit payload prior to POST/PUT API dispatch."
+  },
+  "image_urls": [
+    {
+      "category": "dashboard_analytics",
+      "description": "Analytics dashboard monitor",
+      "url": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHszfHxzdXN0YWluYWJpbGl0eSUyMGRhdGElMjBjbGVhbiUyMHJlcG9ydHxlbnwwfHx8fDE3ODk1NDEzOTF8MA&ixlib=rb-4.1.0&q=85"
     },
-    "supported_file_types": [".pdf", ".png", ".jpg", ".jpeg", ".csv", ".xlsx"],
-    "naics_mapping": "Automated Scope 3 NAICS sector identification & spend factor alignment",
-    "line_item_workflow": [
-      "Upload / Multi-file Drop",
-      "AI OCR Processing & Classification",
-      "Document Preview & Highlighting",
-      "Interactive Review / Field-level Edit",
-      "Vendor Cache Learning & Override",
-      "Accept Line Item → Emission Form Pre-fill",
-      "CSV Data Export"
-    ]
+    {
+      "category": "sustainability_report",
+      "description": "Chart and report trends",
+      "url": "https://images.pexels.com/photos/7947744/pexels-photo-7947744.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    }
+  ],
+  "motion": {
+    "hover_transitions": "transition-colors duration-150 ease-in-out",
+    "button_press": "active:scale-[0.98] transition-transform",
+    "panel_fade": "animate-in fade-in duration-200"
   },
-  "component_guidelines": {
-    "buttons": "Use Shadcn Button component with explicit hover text colors and data-testid tags. Primary action uses bg-[#1A4D2E] hover:bg-[#143D24] text-white.",
-    "cards": "Use Shadcn Card with rounded-xl border border-slate-200/80 bg-white shadow-sm. Internal padding p-5 sm:p-6.",
-    "tables": "Use Shadcn Table with hover:bg-slate-50/80, sticky header for scrolling, and clear visual status indicators.",
-    "dialogs": "Use Shadcn Dialog for Edit Line Item and Accept Confirmation. Must be accessible with keyboard focus trap.",
-    "toasts": "Use Sonner toast notifications for feedback on file upload, edit save, acceptance, and exports."
-  },
-  "accessibility_and_testing": {
-    "data_testid_convention": "All interactive and key status components MUST include data-testid attribute in kebab-case.",
-    "contrast_standard": "All text elements meet WCAG AA (minimum 4.5:1 ratio) against surface backgrounds.",
-    "keyboard_nav": "Full tab index support across tabs, file dropzones, table action buttons, and modal dialogs."
+  "testing": {
+    "data_testid_convention": "kebab-case data-testid on every interactive and key informational element (e.g. data-testid='ocr-mode-fast-button', data-testid='ocr-download-template-button', data-testid='ocr-review-table')",
+    "required": true
   },
   "instructions_to_main_agent": [
-    "Ensure all OCR components are modular, cleanly structured, and importable without circular dependencies.",
-    "Maintain complete compatibility with existing AuthContext, OCRContext, and API routing.",
-    "Preserve prefill behavior when navigating from accepted line item into GHG Scope 1/2/3 emission forms.",
-    "Do not break existing dashboard routes or unrelated module files.",
-    "Always include data-testid on every interactive button, input, tab, select, and status badge."
+    "Refactor frontend/src/pages/OCRInvoice.js and frontend/src/modules/ocr/ExtractionModeSelector.jsx to fulfill all user explicitly requested UI changes.",
+    "Integrate ModulePageHeader in OCRInvoice.js using icon={FileText} or icon={Sparkles} and title='OCR Extraction'.",
+    "Remove legacy hero copy banner from OCRInvoice.js.",
+    "Move Fast/Think mode selector into the ModulePageHeader header action area (aside slot) or header toolbar.",
+    "Reduce Fast/Think selector button sizes by removing the text 'Rapid extraction and classification' and 'Deeper reasoning for complex documents'.",
+    "Expand UploadWorkspace, DocumentPreview, and OcrReviewTable to take full width.",
+    "Verify and fix unit state synchronization in GHG Create form (e.g., DynamicFieldRenderer.js or EmissionEntryForm.js / useEmissionFormState.js) so unit changes like 'kl' or 'L' are accurately reflected in submission payload instead of falling back to 'kg'."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Never use generic centered layouts or unstyled default HTML select/input elements.",
+    "Maintain high APCA contrast across all interactive states; hover states must explicitly declare text color.",
+    "Ensure glassmorphism and header containers always have background opacities (never pure transparent background).",
+    "Attach data-testid attributes to all buttons, inputs, tables, headers, and modal actions.",
+    "Use sonner for toast notifications."
   ]
 }

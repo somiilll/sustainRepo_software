@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Download, FileText, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, Download, FileText, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import {
@@ -21,6 +21,7 @@ import { OcrFacilityAssignmentDialog } from '../modules/ocr/OcrFacilityAssignmen
 import { OcrBatchQueue } from '../modules/ocr/OcrBatchQueue';
 import { OcrReviewTable } from '../modules/ocr/OcrReviewTable';
 import { UploadWorkspace } from '../modules/ocr/UploadWorkspace';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import {
   acceptOcrLineItem,
   assignOcrUploadFacilities,
@@ -445,29 +446,20 @@ export default function OCRInvoice() {
   };
 
   return (
-    <main className="mx-auto max-w-[1600px] space-y-8 pb-12" data-testid="ocr-invoice-page">
-      <header className="border-b border-slate-200 pb-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase text-emerald-700">
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Secure organization workspace
-            </div>
-            <h1 className="mt-3 text-4xl font-heading font-bold text-slate-950 sm:text-5xl lg:text-6xl">Activity extraction</h1>
-            <p className="mt-3 max-w-3xl text-sm text-slate-600 sm:text-base">
-              Convert invoices and ledgers into reviewable Scope 1, 2 and 3 activity data.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={downloadTemplate} disabled={downloadingTemplate} data-testid="ocr-download-template-button">
-                {downloadingTemplate ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Download template
-              </Button>
-            {upload && <>
-              <Button type="button" variant="outline" onClick={exportCsv} data-testid="ocr-export-csv-button"><Download className="mr-2 h-4 w-4" />Export CSV</Button>
-              <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
-            </>}
-          </div>
-        </div>
-      </header>
+    <main className="mx-auto w-full max-w-[1700px] space-y-6 pb-12" data-testid="ocr-invoice-page">
+      <ModulePageHeader
+        title="OCR Extraction"
+        icon={FileText}
+        iconClassName="border-teal-200 bg-teal-50 text-teal-700"
+        testId="ocr-invoice"
+        aside={<div className="flex flex-wrap items-center gap-2" data-testid="ocr-header-actions">
+          <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
+          {upload && <>
+            <Button type="button" variant="outline" onClick={exportCsv} data-testid="ocr-export-csv-button"><Download className="mr-2 h-4 w-4" />Export CSV</Button>
+            <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
+          </>}
+        </div>}
+      />
 
       {error && (
         <div className="flex items-start gap-3 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="alert" data-testid="ocr-error-alert">
@@ -477,23 +469,24 @@ export default function OCRInvoice() {
       )}
 
       {!upload ? (
-        <div className="grid gap-8 xl:grid-cols-[22rem_minmax(0,1fr)]">
-          <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} />
+        <div className="w-full">
           <UploadWorkspace files={files} onFilesChange={setFiles} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={fileQueue} />
         </div>
       ) : (
         <div className="space-y-8">
-          <section className="grid gap-5 xl:grid-cols-[17rem_minmax(0,1fr)]" aria-labelledby="ocr-source-heading" data-testid="ocr-source-workspace">
+          <section className="space-y-5" aria-labelledby="ocr-source-heading" data-testid="ocr-source-workspace">
             <aside className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <h2 id="ocr-source-heading" className="text-sm font-semibold text-slate-900">Source documents</h2>
                 <Button type="button" size="icon" variant="ghost" onClick={clearUpload} aria-label="Start another extraction" data-testid="ocr-start-new-button"><RefreshCw className="h-4 w-4" /></Button>
               </div>
-              {upload.files.map((file) => (
-                <button key={`${file.upload_id}-${file.file_index}-${file.filename}`} type="button" onClick={() => chooseFile(file)} className={`flex w-full items-start gap-3 border px-3 py-3 text-left transition-colors ${selectedFile?.upload_id === file.upload_id && selectedFile?.file_index === file.file_index ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`} data-testid={`ocr-source-file-${file.upload_id}-${file.file_index}`}>
-                  <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-900">{file.filename}</span><span className="mt-1 block text-xs text-slate-500">{file.line_item_count} rows · {file.status}</span></span>
-                </button>
-              ))}
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="ocr-source-file-list">
+                {upload.files.map((file) => (
+                  <button key={`${file.upload_id}-${file.file_index}-${file.filename}`} type="button" onClick={() => chooseFile(file)} className={`flex min-w-0 items-start gap-3 border px-3 py-3 text-left transition-colors ${selectedFile?.upload_id === file.upload_id && selectedFile?.file_index === file.file_index ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`} data-testid={`ocr-source-file-${file.upload_id}-${file.file_index}`}>
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-900">{file.filename}</span><span className="mt-1 block text-xs text-slate-500">{file.line_item_count} rows · {file.status}</span></span>
+                  </button>
+                ))}
+              </div>
             </aside>
             <DocumentPreview file={selectedFile} previewUrl={previewUrl} loading={previewLoading} onLoadPreview={loadPreview} />
           </section>
