@@ -9,6 +9,7 @@ import json
 import uuid
 import logging
 import tempfile
+import re
 from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form, Query
@@ -22,7 +23,7 @@ from r2_storage import R2Storage
 from . import invoice_processor
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MODES, get_mode
-from .factor_options import resolve_factor_options, validate_factor_selection
+from .factor_options import normalize_method, normalize_option, resolve_factor_options, validate_factor_selection
 from .ghg_save_service import execute_ocr_calculation, resolve_ghg_category
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit, UploadFacilityAssignments
 from .service import build_org_context, process_queued_upload, queue_upload_batch, save_vendor_override
@@ -130,6 +131,116 @@ def _ocr_record_metadata(item: dict, values: dict) -> dict:
         "vendor_name": field("vendor_name") or None,
         "notes": "\n".join(note_parts),
     }
+
+
+def _reporting_period_from_ocr_values(values: dict, upload: dict | None = None) -> str:
+    for value in (
+        values.get("reporting_period"),
+        values.get("billing_period_start"),
+        values.get("billing_period_end"),
+        values.get("date"),
+        values.get("billing_period_text"),
+        (upload or {}).get("created_at"),
+    ):
+        match = re.search(r"(\d{4})[-/](0[1-9]|1[0-2])", str(value or ""))
+        if match:
+            return f"{match.group(1)}-{match.group(2)}"
+    return ""
+
+
+def _match_ocr_factor_option(options: list[dict], item: dict, values: dict) -> dict | None:
+    original_values = item.get("original_values") or {}
+    candidates = [
+        values.get("ef_lookup_key"), values.get("subcategory"), values.get("fuel_name"), values.get("item_description"),
+        original_values.get("ef_lookup_key"), original_values.get("subcategory"), original_values.get("fuel_name"), original_values.get("item_description"),
+    ]
+    candidates = [candidate for candidate in candidates if str(candidate or "").strip()]
+    exact_matches = [
+        option for option in options
+        if any(normalize_option(candidate) == normalize_option(option.get("value")) for candidate in candidates)
+    ]
+    if len(exact_matches) == 1:
+        return exact_matches[0]
+    contains_matches = [
+        option for option in options
+        if any(
+            len(normalize_option(candidate)) >= 4
+            and (normalize_option(candidate) in normalize_option(option.get("value"))
+                 or normalize_option(option.get("value")) in normalize_option(candidate))
+            for candidate in candidates
+        )
+    ]
+    return contains_matches[0] if len(contains_matches) == 1 else None
+
+
+def _canonical_option_input(option: dict, raw_value: str, input_field: str) -> str:
+    allowed_values = option.get("allowed_units") or []
+    for allowed_value in allowed_values:
+        aliases = option.get("unit_aliases", {}).get(allowed_value, [allowed_value])
+        if any(normalize_option(alias) == normalize_option(raw_value) for alias in aliases):
+            return allowed_value
+    return ""
+
+
+async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> tuple[dict, dict]:
+    """Resolve unambiguous OCR values so direct Save GHG does not require an edit round-trip."""
+    facility = None
+    facility_id = values.get("facility_id")
+    if facility_id:
+        facility = await db.facilities.find_one(
+            {"id": facility_id, "organization_id": org_id, "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
+            {"_id": 0, "id": 1, "name": 1, "sector": 1},
+        )
+    if not facility and values.get("location"):
+        facilities = await db.facilities.find(
+            {"organization_id": org_id, "name": values["location"], "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
+            {"_id": 0, "id": 1, "name": 1, "sector": 1},
+        ).to_list(2)
+        facility = facilities[0] if len(facilities) == 1 else None
+    if not facility:
+        raise ValueError("Select an active facility before saving this OCR row to GHG")
+    values["facility_id"] = facility["id"]
+    values["location"] = facility.get("name", values.get("location", ""))
+
+    if not values.get("reporting_period"):
+        upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+            {"id": item.get("upload_id"), "organization_id": org_id},
+            {"_id": 0, "created_at": 1},
+        )
+        values["reporting_period"] = _reporting_period_from_ocr_values(values, upload)
+    if not values.get("reporting_period"):
+        raise ValueError("A reporting period could not be resolved from the OCR date, billing period, or upload month")
+
+    scope = values.get("scope") or ""
+    if scope in {"scope1", "scope2"} and not values.get("ef_method"):
+        values["ef_method"] = "activity"
+    factor_id = values.get("factor_id") or values.get("fuel_id") or values.get("scope3_ef_id")
+    if not factor_id:
+        options = await resolve_factor_options(
+            db,
+            scope,
+            values.get("category") or "",
+            values.get("ef_method") or "",
+            facility.get("sector", ""),
+        )
+        matched_factor = _match_ocr_factor_option(options, item, values)
+        if not matched_factor:
+            raise ValueError("A unique factor could not be resolved from the extracted OCR values. Review this row before saving.")
+        input_field = "currency" if normalize_method(values.get("ef_method")) == "spend" else "unit"
+        canonical_input = _canonical_option_input(matched_factor, values.get(input_field) or "", input_field)
+        if not canonical_input:
+            raise ValueError(f"The extracted {input_field} is not allowed for the resolved factor. Review this row before saving.")
+        values.update({
+            "factor_id": matched_factor["id"],
+            "fuel_id": matched_factor["id"] if matched_factor["collection"] == "fuel_database" else None,
+            "scope3_ef_id": matched_factor["id"] if matched_factor["collection"] == "scope3_ef" else None,
+            "subcategory": matched_factor["value"],
+            "fuel_name": matched_factor["value"],
+            "ef_lookup_key": matched_factor["value"],
+            "ef_database": matched_factor["database"],
+            input_field: canonical_input,
+        })
+    return values, facility
 
 
 async def _resolve_ocr_line_item(item: dict, outcome: str) -> dict:
@@ -1162,19 +1273,9 @@ async def save_line_item_to_ghg(
     values = dict(item.get("current_values") or {})
     if values.get("scope") not in {"scope1", "scope2", "scope3"}:
         raise HTTPException(status_code=400, detail="Only Scope 1, Scope 2, and Scope 3 OCR rows can be saved directly to GHG records")
-    facility_id = values.get("facility_id")
-    facility = await db.facilities.find_one(
-        {"id": facility_id, "organization_id": org_id, "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
-        {"_id": 0, "id": 1, "sector": 1},
-    )
-    if not facility:
-        raise HTTPException(status_code=400, detail="Select an active facility before saving this OCR row to GHG")
-    if not values.get("reporting_period"):
-        raise HTTPException(status_code=400, detail="Select a reporting period before saving this OCR row to GHG")
-    factor_id = values.get("factor_id") or values.get("fuel_id") or values.get("scope3_ef_id")
     try:
-        if not factor_id:
-            raise ValueError("Select a validated factor before saving this OCR row to GHG")
+        values, facility = await _resolve_direct_ocr_values(item, values, org_id)
+        factor_id = values.get("factor_id") or values.get("fuel_id") or values.get("scope3_ef_id")
         selected_factor = await validate_factor_selection(
             db,
             scope=values.get("scope") or "",
@@ -1189,6 +1290,8 @@ async def save_line_item_to_ghg(
         values["factor_id"] = selected_factor["id"]
         values["fuel_id"] = selected_factor["id"] if selected_factor["collection"] == "fuel_database" else None
         values["scope3_ef_id"] = selected_factor["id"] if selected_factor["collection"] == "scope3_ef" else None
+        values["unit"] = selected_factor["selected_input_value"] if selected_factor["selected_input_field"] == "unit" else values.get("unit")
+        values["currency"] = selected_factor["selected_input_value"] if selected_factor["selected_input_field"] == "currency" else values.get("currency")
         category = await resolve_ghg_category(db, values)
         calculation = await execute_ocr_calculation(db, values, category, org_id)
     except ValueError as error:
@@ -1210,6 +1313,19 @@ async def save_line_item_to_ghg(
     await db[OCR_LINE_ITEMS_COLLECTION].update_one(
         {"id": item_id, "organization_id": org_id},
         {"$set": {
+            "current_values.facility_id": values.get("facility_id"),
+            "current_values.location": values.get("location"),
+            "current_values.reporting_period": values.get("reporting_period"),
+            "current_values.ef_method": values.get("ef_method"),
+            "current_values.factor_id": values.get("factor_id"),
+            "current_values.fuel_id": values.get("fuel_id"),
+            "current_values.scope3_ef_id": values.get("scope3_ef_id"),
+            "current_values.subcategory": values.get("subcategory"),
+            "current_values.fuel_name": values.get("fuel_name"),
+            "current_values.ef_lookup_key": values.get("ef_lookup_key"),
+            "current_values.ef_database": values.get("ef_database"),
+            "current_values.unit": values.get("unit"),
+            "current_values.currency": values.get("currency"),
             "current_values.spend_currency_conversion_method": resolved_decisions.get("spend_currency_conversion_method"),
             "current_values.calculation_methodology": resolved_decisions.get("calculation_methodology"),
             "current_values.calculation_method_scope3": resolved_scope3_method,
@@ -1220,7 +1336,7 @@ async def save_line_item_to_ghg(
     )
     ocr_metadata = _ocr_record_metadata(item, values)
     emission_payload = EmissionRecordCreate(
-        facility_id=facility_id,
+        facility_id=values["facility_id"],
         organization_id=org_id,
         reporting_period=values["reporting_period"],
         frequency_type="monthly",

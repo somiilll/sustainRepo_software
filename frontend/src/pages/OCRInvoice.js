@@ -332,13 +332,6 @@ export default function OCRInvoice() {
         toast.success('Water activity accepted. Opening the Water metric form.');
         navigate('/environment/water?tab=add-metric', { state: { openWaterForm: true, ocrWaterPrefill: data.prefill_data } });
       } else {
-        const missingFields = directGhgMissingFields(item.current_values);
-        if (missingFields.length) {
-          setEditingRequiredFields(missingFields);
-          setEditingItem(item);
-          toast.error('Complete the highlighted fields before saving this row to GHG.');
-          return;
-        }
         const { data: savedData } = await saveOcrLineItemToGhg(item.id, getAuthHeader());
         const remainingItems = items.filter((row) => row.id !== item.id);
         setItems(remainingItems);
@@ -354,6 +347,10 @@ export default function OCRInvoice() {
         toast.success(savedData.evidence_attached ? 'GHG entry calculated and saved' : 'GHG entry saved; evidence transfer is pending retry');
       }
     } catch (requestError) {
+      if (requestError?.response?.status === 400) {
+        setEditingRequiredFields(directGhgMissingFields(item.current_values));
+        setEditingItem(item);
+      }
       toast.error(responseMessage(requestError, 'This GHG entry could not be calculated and saved.'));
     } finally {
       setAcceptingId(null);
