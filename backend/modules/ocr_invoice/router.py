@@ -827,6 +827,34 @@ async def get_upload(
     }
 
 
+@router.post("/uploads/{upload_id}/cancel")
+async def cancel_upload_processing(
+    upload_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Stop a queued or processing advanced OCR batch before further files are persisted."""
+    org_id = _get_org(current_user)
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"_id": 0, "id": 1, "status": 1, "files": 1},
+    )
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    if upload.get("status") not in {"queued", "processing"}:
+        raise HTTPException(status_code=409, detail="Only queued or processing uploads can be cancelled")
+    files = [
+        {**file, "status": "cancelled" if file.get("status") in {"queued", "processing"} else file.get("status")}
+        for file in upload.get("files", [])
+    ]
+    result = await db[OCR_UPLOADS_COLLECTION].update_one(
+        {"id": upload_id, "organization_id": org_id, "status": {"$in": ["queued", "processing"]}},
+        {"$set": {"status": "cancelled", "files": files, "cancelled_at": datetime.now(timezone.utc).isoformat(), "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if not result.modified_count:
+        raise HTTPException(status_code=409, detail="This upload finished before it could be cancelled")
+    return {"upload_id": upload_id, "status": "cancelled"}
+
+
 @router.get("/uploads/{upload_id}/files/{file_index}/preview")
 async def preview_upload_file(
     upload_id: str,

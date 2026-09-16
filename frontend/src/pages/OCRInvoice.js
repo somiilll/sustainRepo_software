@@ -25,6 +25,7 @@ import { ModulePageHeader } from '../components/ModulePageHeader';
 import {
   acceptOcrLineItem,
   assignOcrUploadFacilities,
+  cancelOcrUpload,
   deleteOcrUpload,
   downloadOcrTemplate,
   getOcrConfiguration,
@@ -92,6 +93,7 @@ export default function OCRInvoice() {
   const [facilityPreviewFile, setFacilityPreviewFile] = useState(null);
   const [facilityPreviewUrl, setFacilityPreviewUrl] = useState(null);
   const [facilityPreviewLoading, setFacilityPreviewLoading] = useState(false);
+  const [cancellingQueue, setCancellingQueue] = useState(false);
   const facilityPreviewRequestRef = useRef(0);
   const [activeExtractionIds, setActiveExtractionIds] = useState([]);
 
@@ -123,15 +125,18 @@ export default function OCRInvoice() {
       )));
       if (cancelled) return;
       const activeRecords = records.filter((record) => record?.upload);
-      setFileQueue(activeRecords.flatMap((record) => (record.upload.files || []).map((file) => ({
-        id: `${record.upload.id}-${file.file_index}`,
-        filename: file.filename,
-        status: file.status || record.upload.status,
-      }))));
-      const terminalRecords = activeRecords.filter((record) => ['completed', 'failed'].includes(record.upload.status));
+      if (activeRecords.length === records.length) {
+        setFileQueue(activeRecords.flatMap((record) => (record.upload.files || []).map((file) => ({
+          id: `${record.upload.id}-${file.file_index}`,
+          uploadId: record.upload.id,
+          filename: file.filename,
+          status: file.status || record.upload.status,
+        }))));
+      }
+      const terminalRecords = activeRecords.filter((record) => ['completed', 'failed', 'cancelled'].includes(record.upload.status));
       const pendingIds = records.flatMap((record, index) => {
         if (!record?.upload) return [activeExtractionIds[index]];
-        return ['completed', 'failed', 'resolved'].includes(record.upload.status) ? [] : [record.upload.id];
+        return ['completed', 'failed', 'cancelled', 'resolved'].includes(record.upload.status) ? [] : [record.upload.id];
       });
       if (terminalRecords.length) {
         const completedRecords = terminalRecords.filter((record) => record.upload.status === 'completed');
@@ -163,9 +168,10 @@ export default function OCRInvoice() {
           toast.error(record.upload.errors?.[0]?.error || 'Invoice extraction could not be completed.');
         });
       }
-      const retainedIds = activeRecords
-        .filter((record) => !['failed', 'resolved'].includes(record.upload.status))
-        .map((record) => record.upload.id);
+      const retainedIds = records.flatMap((record, index) => {
+        if (!record?.upload) return [activeExtractionIds[index]];
+        return ['failed', 'cancelled', 'resolved'].includes(record.upload.status) ? [] : [record.upload.id];
+      });
       if (retainedIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(retainedIds));
       else localStorage.removeItem('ocr-active-upload-ids');
       setActiveExtractionIds(pendingIds);
@@ -202,7 +208,7 @@ export default function OCRInvoice() {
       localStorage.setItem('ocr-active-upload-ids', JSON.stringify(uploadIds));
       localStorage.removeItem('ocr-active-upload-id');
       setActiveExtractionIds((current) => [...new Set([...current, data.upload_id])]);
-      setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, filename: file.filename, status: file.status })));
+      setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, filename: file.filename, status: file.status })));
       toast.success(`${data.file_count} source document${data.file_count === 1 ? '' : 's'} queued for extraction.`);
     } catch (requestError) {
       setError(responseMessage(requestError, 'Files could not be queued for extraction.'));
@@ -211,6 +217,28 @@ export default function OCRInvoice() {
       setFiles([]);
       setProcessing(false);
       setProgress(0);
+    }
+  };
+
+  const cancelProcessing = async () => {
+    if (!activeExtractionIds.length) return;
+    setCancellingQueue(true);
+    try {
+      const results = await Promise.allSettled(activeExtractionIds.map((uploadId) => cancelOcrUpload(uploadId, getAuthHeader())));
+      const cancelledIds = new Set(results.flatMap((result, index) => result.status === 'fulfilled' ? [activeExtractionIds[index]] : []));
+      if (!cancelledIds.size) throw new Error('The queued uploads finished before they could be cancelled.');
+      const remainingIds = activeExtractionIds.filter((uploadId) => !cancelledIds.has(uploadId));
+      if (remainingIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingIds));
+      else localStorage.removeItem('ocr-active-upload-ids');
+      setActiveExtractionIds(remainingIds);
+      setFileQueue((current) => current.map((file) => (
+        cancelledIds.has(file.uploadId) && ['queued', 'processing'].includes(file.status) ? { ...file, status: 'cancelled' } : file
+      )));
+      toast.success(`${cancelledIds.size} OCR batch${cancelledIds.size === 1 ? '' : 'es'} cancelled.`);
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'OCR processing could not be cancelled.'));
+    } finally {
+      setCancellingQueue(false);
     }
   };
 
@@ -470,7 +498,7 @@ export default function OCRInvoice() {
 
       {!upload ? (
         <div className="w-full">
-          <UploadWorkspace files={files} onFilesChange={setFiles} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={fileQueue} />
+          <UploadWorkspace files={files} onFilesChange={setFiles} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} />
         </div>
       ) : (
         <div className="space-y-8">
@@ -491,7 +519,7 @@ export default function OCRInvoice() {
             <DocumentPreview file={selectedFile} previewUrl={previewUrl} loading={previewLoading} onLoadPreview={loadPreview} />
           </section>
 
-          {processing && <OcrBatchQueue queue={fileQueue} />}
+          {processing && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} />}
 
       <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} acceptingId={acceptingId} rejectingId={rejectingId} />
 

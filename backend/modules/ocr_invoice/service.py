@@ -334,6 +334,14 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
     storage = get_r2_storage()
     all_items: list[dict] = []
     errors = list(upload_record.get("errors", []))
+    cancelled = False
+
+    async def is_cancelled() -> bool:
+        record = await db.ocr_uploads.find_one(
+            {"id": upload_id, "organization_id": organization_id},
+            {"_id": 0, "status": 1},
+        )
+        return bool(record and record.get("status") == "cancelled")
 
     async def find_override(vendor_name: str | None, description: str | None):
         record = await db.ocr_vendor_overrides.find_one(
@@ -346,7 +354,13 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
         )
         return record.get("classification") if record else None
 
-    for file_info in upload_record.get("files", []):
+    for file_position, file_info in enumerate(upload_record.get("files", [])):
+        if await is_cancelled():
+            cancelled = True
+            for pending_file in upload_record["files"][file_position:]:
+                if pending_file.get("status") in {"queued", "processing"}:
+                    pending_file["status"] = "cancelled"
+            break
         filename = file_info["filename"]
         extension = Path(filename).suffix.lower()
         file_index = file_info["file_index"]
@@ -371,6 +385,13 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
                 set(disabled_scope3_sheets),
                 find_override,
             )
+            if await is_cancelled():
+                cancelled = True
+                file_info["status"] = "cancelled"
+                for pending_file in upload_record["files"][file_position + 1:]:
+                    if pending_file.get("status") in {"queued", "processing"}:
+                        pending_file["status"] = "cancelled"
+                break
             file_items = []
             for row in rows:
                 item_id = str(uuid.uuid4())
@@ -404,6 +425,13 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
                     "created_at": _now(),
                     "updated_at": _now(),
                 }))
+            if await is_cancelled():
+                cancelled = True
+                file_info["status"] = "cancelled"
+                for pending_file in upload_record["files"][file_position + 1:]:
+                    if pending_file.get("status") in {"queued", "processing"}:
+                        pending_file["status"] = "cancelled"
+                break
             if file_items:
                 await db.ocr_line_items.insert_many([item.copy() for item in file_items])
             all_items.extend(file_items)
@@ -418,9 +446,15 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
             if temp_path and os.path.exists(temp_path):
                 os.unlink(temp_path)
 
+    if cancelled:
+        await db.ocr_uploads.update_one(
+            {"id": upload_id, "organization_id": organization_id, "status": "cancelled"},
+            {"$set": {"files": upload_record["files"], "updated_at": _now()}},
+        )
+        return
     total_line_items = sum(file.get("line_item_count", 0) for file in upload_record["files"])
     await db.ocr_uploads.update_one(
-        {"id": upload_id, "organization_id": organization_id},
+        {"id": upload_id, "organization_id": organization_id, "status": {"$ne": "cancelled"}},
         {"$set": {
             "files": upload_record["files"],
             "total_line_items": total_line_items,

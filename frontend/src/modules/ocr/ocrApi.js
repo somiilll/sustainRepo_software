@@ -20,6 +20,9 @@ export const downloadOcrTemplate = (headers) =>
 export const getOcrUpload = (uploadId, headers) =>
   axios.get(`${API}/api/ocr-invoice/uploads/${uploadId}`, { headers });
 
+export const cancelOcrUpload = (uploadId, headers) =>
+  axios.post(`${API}/api/ocr-invoice/uploads/${uploadId}/cancel`, {}, { headers });
+
 export const uploadOcrFiles = (files, mode, headers, onUploadProgress) => {
   const body = new FormData();
   files.forEach((file) => body.append('files', file));

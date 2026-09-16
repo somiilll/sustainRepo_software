@@ -6,7 +6,7 @@ import { OcrBatchQueue } from './OcrBatchQueue';
 
 const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.avif,.csv,.xlsx,.xls';
 
-export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate, queue }) => {
+export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate, queue, onCancel, canCancelProcessing, cancelling }) => {
   const inputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -120,7 +120,7 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
           </Button>
         </div>
       )}
-      <OcrBatchQueue queue={queue} />
+      <OcrBatchQueue queue={queue} onCancel={onCancel} canCancelProcessing={canCancelProcessing} cancelling={cancelling} />
     </section>
   );
 };
