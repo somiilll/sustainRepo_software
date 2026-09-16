@@ -45,6 +45,7 @@ const FALLBACK_CONFIGURATION = {
   ],
   categories: [],
   facilities: [],
+  save_rules: {},
 };
 
 const responseMessage = (error, fallback) => error?.response?.data?.detail || error?.response?.data?.message || fallback;

@@ -964,6 +964,7 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
         ],
         "categories": categories,
         "facilities": facilities,
+        "save_rules": OCR_SAVE_SCOPE_RULES,
     }
 
 

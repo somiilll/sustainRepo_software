@@ -25,6 +25,7 @@ OCR_SAVE_SCOPE_RULES = {
             "petrol": "Petrol (100% mineral petrol)",
             "wttdiesel": "Diesel (100% mineral diesel)",
             "wttpetrol": "Petrol (100% mineral petrol)",
+            "wttpetrolgasoline": "Petrol (100% mineral petrol)",
         },
         "fuzzy_activity_preferences": (
             {

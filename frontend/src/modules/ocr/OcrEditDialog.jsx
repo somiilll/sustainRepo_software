@@ -50,6 +50,25 @@ const closestFactor = (options, candidates) => {
   if (ranked[0]?.score >= 0.75 && (!ranked[1] || ranked[0].score - ranked[1].score >= 0.1)) return ranked[0].option;
   return null;
 };
+const preferredFactor = (options, candidates, category, saveRules) => {
+  const scope3Rules = saveRules?.scope3;
+  if (!scope3Rules?.enabled) return null;
+  const normalizedValues = new Set(candidates.filter(Boolean).map(normalize));
+  for (const [genericName, preferredName] of Object.entries(scope3Rules.generic_activity_preferences || {})) {
+    if (!normalizedValues.has(normalize(genericName))) continue;
+    const preferred = options.find((option) => normalize(option.value) === normalize(preferredName));
+    if (preferred) return preferred;
+  }
+  const candidateTokens = new Set(candidates.flatMap((candidate) => words(candidate)));
+  const categoryKey = normalize(category);
+  for (const preference of scope3Rules.fuzzy_activity_preferences || []) {
+    if (!categoryKey.startsWith(preference.category_prefix || '')) continue;
+    if (!preference.token_groups?.every((group) => group.some((token) => candidateTokens.has(token)))) continue;
+    const preferred = options.find((option) => normalize(option.value) === normalize(preference.activity));
+    if (preferred) return preferred;
+  }
+  return null;
+};
 const matchingUnit = (factor, value) => (factor?.allowed_units || []).find((unit) => {
   const aliases = factor?.unit_aliases?.[unit] || [unit];
   return aliases.some((alias) => normalize(alias) === normalize(value));
@@ -167,10 +186,14 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             ? null
             : options.length === 1
               ? options[0]
-              : closestFactor(options, [
-                current.ef_lookup_key, current.subcategory, current.fuel_name, current.item_description,
-                original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description,
-              ]);
+              : (() => {
+                const candidates = [
+                  current.ef_lookup_key, current.subcategory, current.fuel_name, current.item_description,
+                  original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description,
+                ];
+                return preferredFactor(options, candidates, current.category, configuration.save_rules)
+                  || closestFactor(options, candidates);
+              })();
           const selected = storedFactor || automaticFactor;
           if (!selected) {
             return {
