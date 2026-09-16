@@ -5,7 +5,7 @@ import os
 import uuid
 from typing import Iterable
 
-from emergentintegrations.llm.chat import ImageContent, LlmChat, UserMessage
+from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 from .config import ExtractionMode
 
@@ -22,17 +22,36 @@ class OcrLlmGateway:
         system_message: str,
         prompt: str,
         images: Iterable[str] | None = None,
-        max_tokens: int = 8192,
+        max_tokens: int | None = 8192,
     ) -> str:
         chat = LlmChat(
             api_key=self.api_key,
             session_id=f"ocr-{uuid.uuid4()}",
             system_message=system_message,
         ).with_model(self.mode.provider, model)
-        token_param = "max_completion_tokens" if self.mode.provider == "openai" else "max_tokens"
-        chat.with_params(**{token_param: max_tokens})
-        files = [ImageContent(image_base64=image) for image in (images or [])]
-        return await chat.send_message(UserMessage(text=prompt, file_contents=files))
+        if max_tokens is not None:
+            token_param = "max_completion_tokens" if self.mode.provider == "openai" else "max_tokens"
+            chat.with_params(**{token_param: max_tokens})
+        image_values = list(images or [])
+        if not image_values:
+            return await chat.send_message(UserMessage(text=prompt))
+
+        messages = await chat.get_messages()
+        if self.mode.provider == "openai":
+            content = [{"type": "text", "text": prompt}]
+            content.extend({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{image}", "detail": "high"},
+            } for image in image_values)
+        else:
+            content = [{
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{image}"},
+            } for image in image_values]
+            content.append({"type": "text", "text": prompt})
+        messages.append({"role": "user", "content": content})
+        response = await chat._execute_completion(messages)
+        return await chat._extract_response_text(response)
 
     async def extract_document(self, system_message: str, prompt: str, images: list[str]) -> str:
         return await self._send(
@@ -40,7 +59,7 @@ class OcrLlmGateway:
             system_message=system_message,
             prompt=prompt,
             images=images,
-            max_tokens=8192,
+            max_tokens=None if self.mode.provider == "openai" else 8192,
         )
 
     async def reason(self, system_message: str, prompt: str, max_tokens: int = 1800) -> str:

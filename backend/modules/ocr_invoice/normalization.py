@@ -23,56 +23,66 @@ MONTH_NAMES = {
 
 
 def extract_json(raw_text: str, default: Any = None) -> Any:
-    text = str(raw_text or "").strip()
-    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"\s*```$", "", text).strip()
-    if not text:
+    if not raw_text:
         return default
-    match = re.search(r"[\[{]", text)
+    text = str(raw_text).strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE).strip()
+    match = re.search(r"(\{|\[)", text)
     if not match:
-        return default
-    candidate = text[match.start():]
-    candidates = [candidate]
-    if candidate.startswith("[") and (last_object := candidate.rfind("}")) >= 0:
-        candidates.append(candidate[:last_object + 1].rstrip().rstrip(",") + "]")
-    if candidate.startswith("{") and (last_object := candidate.rfind("}")) >= 0:
-        prefix = candidate[:last_object + 1].rstrip().rstrip(",")
-        candidates.extend((prefix + "]}", prefix + "}"))
-
-    stack: list[str] = []
-    in_string = False
-    escaped = False
-    for character in candidate:
-        if in_string:
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == '"':
-                in_string = False
-            continue
-        if character == '"':
-            in_string = True
-        elif character in "[{":
-            stack.append(character)
-        elif character in "]}" and stack:
-            expected = "[" if character == "]" else "{"
-            if stack[-1] == expected:
-                stack.pop()
-    if stack and not in_string:
-        repaired = candidate.rstrip().rstrip(",") + "".join("]" if opening == "[" else "}" for opening in reversed(stack))
-        candidates.append(repaired)
-
-    for value in candidates:
         try:
-            return json.loads(value)
-        except json.JSONDecodeError:
-            continue
+            return json.loads(text)
+        except Exception:
+            return default
+    start_index = match.start()
     try:
-        value, _ = json.JSONDecoder().raw_decode(candidate)
+        value, _ = json.JSONDecoder().raw_decode(text[start_index:])
         return value
+    except Exception:
+        try:
+            end_index = text.rfind("}") if match.group(1) == "{" else text.rfind("]")
+            if end_index > start_index:
+                return json.loads(text[start_index:end_index + 1])
+        except Exception:
+            pass
+    return default
+
+
+def repair_extraction_json(raw_text: str) -> Any:
+    text = str(raw_text or "").strip()
+    if text.startswith("```json"):
+        text = text.replace("```json", "").replace("```", "").strip()
+    if text.startswith("```"):
+        text = text.replace("```", "").strip()
+    try:
+        return json.loads(text)
     except json.JSONDecodeError:
-        return default
+        pass
+    if text.startswith("["):
+        last_brace = text.rfind("}")
+        if last_brace != -1:
+            try:
+                return json.loads(text[:last_brace + 1].strip() + "\n]")
+            except Exception:
+                pass
+    if text.startswith("{"):
+        last_brace = text.rfind("}")
+        if last_brace != -1:
+            try:
+                return json.loads(text[:last_brace + 1].strip() + "\n]\n}")
+            except Exception:
+                pass
+            try:
+                return json.loads(text[:last_brace + 1].strip() + "\n}")
+            except Exception:
+                pass
+    json_match = re.search(r"(\[.*\]|\{.*\})", text, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group(1))
+        except Exception:
+            pass
+    return None
 
 
 def sanitize_json(value: Any) -> Any:
@@ -108,20 +118,36 @@ def normalize_confidence_score(value: Any, fallback: Any = None) -> int | None:
     return max(0, min(100, round(score)))
 
 
-def parse_number(value: Any, *, positive: bool = False) -> tuple[float | None, str | None]:
-    if value is None or str(value).strip().lower() in {"", "none", "null", "-", "—"}:
+def parse_number(
+    value: Any,
+    *,
+    field_name: str = "value",
+    allow_zero: bool = True,
+    positive: bool = False,
+) -> tuple[float | None, str | None]:
+    if value is None:
         return None, None
-    cleaned = re.sub(r"(?i)\b(rs\.?|inr|usd|eur|gbp|re)\b|[$₹€£,\s]", "", str(value))
-    try:
-        number = float(cleaned)
-    except (TypeError, ValueError, OverflowError):
-        return None, f"Non-numeric value: {value}"
-    if math.isnan(number) or math.isinf(number):
-        return None, f"Non-numeric value: {value}"
+    if isinstance(value, (int, float)):
+        number = float(value)
+        if math.isnan(number) or math.isinf(number):
+            return None, f"invalid non-numeric {field_name}: '{value}'"
+    else:
+        raw = str(value).strip()
+        if not raw or raw.lower() in {"none", "null", "—", "-"}:
+            return None, None
+        cleaned = re.sub(r"(?i)\b(rs\.?|inr|usd|eur|gbp|re)\b|[$,₹€£\s]", "", raw).replace(",", "")
+        try:
+            number = float(cleaned)
+            if math.isnan(number) or math.isinf(number):
+                return None, f"invalid non-numeric {field_name}: '{raw}'"
+        except (ValueError, OverflowError):
+            return None, f"invalid non-numeric {field_name}: '{raw}'"
     if positive and number <= 0:
-        return number, f"Value must be greater than zero: {value}"
+        return number, f"invalid non-positive {field_name}: '{value}'"
+    if not allow_zero and number == 0:
+        return number, f"invalid zero {field_name}: '{value}'"
     if number < 0:
-        return number, f"Negative value: {value}"
+        return number, f"invalid negative {field_name}: '{value}'"
     return number, None
 
 

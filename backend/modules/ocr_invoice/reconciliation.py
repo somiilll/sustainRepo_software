@@ -49,7 +49,7 @@ def reconcile_invoice_items(invoice: dict) -> list[dict]:
             items = cleaned
 
     total_base = sum(_numeric(item.get("base_cost") or item.get("total_cost")) for item in items)
-    grand_total_number, grand_total_error = parse_number(grand_total)
+    grand_total_number, grand_total_error = parse_number(grand_total, field_name="grand_total")
     if grand_total_number is not None and not grand_total_error and items:
         remaining = float(grand_total_number)
         for index, item in enumerate(items):
@@ -69,15 +69,15 @@ def reconcile_invoice_items(invoice: dict) -> list[dict]:
     return items
 
 
-def prepare_item(item: dict, *, future_date: bool) -> dict:
+def prepare_item(item: dict, *, future_date: bool, invoice_date: str | None = None) -> dict:
     """Normalize one row and apply uploaded confidence, warning, and validation tiers."""
     prepared = dict(item)
     freight = prepared.get("freight_details") or {}
     travel = prepared.get("travel_details") or {}
     raw_distance = freight.get("distance_km") or travel.get("distance_km") or prepared.get("distance_km")
-    quantity, quantity_error = parse_number(prepared.get("quantity"), positive=True)
-    cost, cost_error = parse_number(prepared.get("total_cost"))
-    distance, distance_error = parse_number(raw_distance)
+    quantity, quantity_error = parse_number(prepared.get("quantity"), field_name="quantity", allow_zero=False, positive=True)
+    cost, cost_error = parse_number(prepared.get("total_cost"), field_name="total_cost")
+    distance, distance_error = parse_number(raw_distance, field_name="distance_km")
     unit = normalize_unit(prepared.get("unit"))
     quantity, unit = convert_quantity(quantity, unit)
     has_activity = bool((quantity is not None and quantity > 0) or (distance is not None and distance > 0))
@@ -115,16 +115,20 @@ def prepare_item(item: dict, *, future_date: bool) -> dict:
         if not any("unit" in str(field).lower() for field in low_fields):
             low_fields.append("missing unit" if not unit_value else "inferred unit")
 
-    warnings: list[str] = []
+    audit_warnings: list[str] = []
     if future_date:
-        warnings.append("AUDIT WARNING: Future invoice/transaction date detected. Please verify issue date.")
+        audit_warnings.append(f"⚠️ AUDIT WARNING: Future invoice/transaction date detected ({invoice_date}). Please verify issue date.")
     for error in (quantity_error, cost_error, distance_error):
         if error:
-            warnings.append(f"DATA QUALITY WARNING: {error}.")
+            audit_warnings.append(f"⚠️ DATA QUALITY WARNING: {error}.")
+    warnings: list[str] = []
     if missing_values:
-        warnings.append("DATA GAP: Both physical activity (quantity/distance) and financial cost are missing. Emissions cannot be calculated without input data.")
+        warnings.append("⚠️ DATA GAP: Both physical activity (quantity/distance) and financial cost are missing. Emissions cannot be calculated without input data.")
     elif unit_issue:
-        warnings.append("ASSUMPTION: Physical quantity was extracted without an explicit unit printed on the document. Please verify.")
+        unit_tags = [value for value in low_fields if "unit" in str(value).lower()]
+        tag_label = unit_tags[0] if unit_tags else "inferred unit"
+        warnings.append(f"⚠️ ASSUMPTION ({tag_label}): Physical quantity was extracted without an explicit unit printed on the document. Please verify.")
+    warnings.extend(audit_warnings)
 
     prepared.update(
         quantity=quantity,
@@ -135,6 +139,91 @@ def prepare_item(item: dict, *, future_date: bool) -> dict:
         confidence_score=confidence,
         low_confidence_fields=list(dict.fromkeys(str(value) for value in low_fields)),
         missing_values=missing_values,
+        quality_warnings=warnings,
+    )
+    return prepared
+
+
+def prepare_spreadsheet_item(item: dict, *, future_date: bool, invoice_date: str | None = None) -> dict:
+    prepared = dict(item)
+    freight = prepared.get("freight_details") or {}
+    travel = prepared.get("travel_details") or {}
+    raw_distance = freight.get("distance_km") or travel.get("distance_km") or prepared.get("distance_km")
+    quantity, quantity_error = parse_number(prepared.get("quantity"), field_name="quantity", allow_zero=False, positive=True)
+    cost, cost_error = parse_number(prepared.get("total_cost"), field_name="total_cost")
+    distance, distance_error = parse_number(raw_distance, field_name="distance_km")
+    errors = [error for error in (quantity_error, cost_error, distance_error) if error]
+    penalty = (25 if quantity_error else 0) + (25 if cost_error else 0) + (20 if distance_error else 0) + (30 if future_date else 0)
+    low_fields = list(errors)
+    if future_date:
+        low_fields.append("future date detected")
+    prepared.update(
+        quantity=quantity,
+        total_cost=cost,
+        distance_km=distance,
+        currency=normalize_currency(prepared.get("currency")),
+        low_confidence_fields=low_fields,
+        _numeric_errors=errors,
+        _penalty_score=penalty,
+        _future_date=future_date,
+        _invoice_date=invoice_date,
+    )
+    return prepared
+
+
+def finalize_spreadsheet_item(
+    item: dict,
+    *,
+    category: str,
+    facility_present: bool,
+    reporting_period_present: bool,
+    classification_needs_review: bool,
+) -> dict:
+    prepared = dict(item)
+    unit = normalize_unit(prepared.get("unit"), category)
+    quantity = prepared.get("quantity")
+    distance = prepared.get("distance_km")
+    cost = prepared.get("total_cost")
+    has_activity = bool((quantity is not None and quantity > 0 and unit is not None) or (distance is not None and distance > 0))
+    has_cost = bool(cost is not None and cost > 0)
+    missing_values = not has_activity and not has_cost
+    low_fields = list(prepared.get("low_confidence_fields") or [])
+    confidence = 95 if has_activity or has_cost else 40
+    if not facility_present:
+        low_fields.append("missing facility")
+        confidence = min(confidence, 70)
+    if not reporting_period_present:
+        low_fields.append("missing reporting period / FY")
+        confidence = min(confidence, 70)
+    if missing_values:
+        low_fields.append("missing qty & cost")
+        confidence = min(confidence, 40)
+    elif not unit and quantity is not None and quantity > 0 and distance is None:
+        low_fields.append("missing unit")
+        confidence = min(confidence, 75)
+    penalty = prepared.get("_penalty_score", 0)
+    if penalty > 0:
+        confidence = max(20, confidence - penalty)
+        if prepared.get("_future_date") or prepared.get("_numeric_errors"):
+            confidence = min(confidence, 50)
+    warnings: list[str] = []
+    if prepared.get("_future_date"):
+        warnings.append(f"⚠️ AUDIT WARNING: Future invoice/transaction date detected ({prepared.get('_invoice_date')}). Please verify issue date.")
+    for error in prepared.get("_numeric_errors") or []:
+        warnings.append(f"⚠️ DATA QUALITY WARNING: {error}.")
+    prepared.update(
+        unit=unit,
+        confidence_score=confidence,
+        low_confidence_fields=list(dict.fromkeys(low_fields)),
+        missing_values=missing_values,
+        needs_review=(
+            missing_values
+            or not facility_present
+            or not reporting_period_present
+            or bool(prepared.get("_numeric_errors"))
+            or bool(prepared.get("_future_date"))
+            or classification_needs_review
+        ),
         quality_warnings=warnings,
     )
     return prepared

@@ -18,13 +18,13 @@ from .companion_rows import build_companion_rows
 from .config import MAX_PDF_PAGES
 from .llm_gateway import OcrLlmGateway
 from .normalization import (
-    extract_json,
     normalize_currency,
     normalize_date,
     normalize_period,
     normalize_unit,
+    repair_extraction_json,
 )
-from .reconciliation import prepare_item, reconcile_invoice_items
+from .reconciliation import finalize_spreadsheet_item, prepare_item, prepare_spreadsheet_item, reconcile_invoice_items
 from .taxonomy_service import classify_item
 
 
@@ -254,14 +254,6 @@ def read_spreadsheet(path: str) -> list[dict]:
             continue
         facility = str(value("facility") or "").strip()
         reporting_period = value("reporting_period")
-        low_fields = []
-        confidence = 95
-        if not facility:
-            low_fields.append("missing facility")
-            confidence = min(confidence, 70)
-        if not reporting_period:
-            low_fields.append("missing reporting period / FY")
-            confidence = min(confidence, 70)
         origin = value("origin")
         destination = value("destination")
         distance = value("distance_km")
@@ -270,36 +262,37 @@ def read_spreadsheet(path: str) -> list[dict]:
             "date": value("date"),
             "billing_period_text": reporting_period,
             "vendor_name": str(value("vendor_name") or "Corporate Expenditure"),
+            "vendor_type": "Supplier/Vendor",
             "service_address": facility,
             "currency": value("currency"),
             "line_items": [{
                 "item_description": description,
                 "item_description_english": description,
-                "item_category_hint": value("item_category_hint") or "Other",
-                "material_nature": value("material_nature") or "composite_product",
-                "primary_material": value("primary_material") or "",
-                "hsn_sac_code": value("hsn_sac_code"),
+                "item_category_hint": "Other",
+                "material_nature": "composite_product",
+                "primary_material": "",
                 "quantity": value("quantity"),
                 "unit": value("unit"),
-                "unit_price": value("unit_price"),
                 "total_cost": value("total_cost"),
+                "currency": value("currency"),
                 "distance_km": distance,
                 "origin": origin,
                 "destination": destination,
                 "travel_details": {
-                    "mode": value("travel_mode"), "class": value("travel_class"),
-                    "vehicle_type": value("vehicle_type"), "passenger_count": value("passenger_count") or 1,
+                    "mode": None, "class": value("travel_class"),
+                    "vehicle_type": value("vehicle_type"), "passenger_count": 1,
                     "distance_km": distance, "origin": origin, "destination": destination,
                 },
                 "freight_details": {
-                    "mode": value("freight_mode") or "Road", "distance_km": distance,
+                    "mode": "Road", "distance_km": distance,
                     "origin": origin, "destination": destination,
                 },
-                "waste_details": {"waste_type": value("waste_type"), "disposal_method": value("disposal_method")},
                 "additional_context": value("notes"),
-                "confidence_score": confidence,
-                "low_confidence_fields": low_fields,
+                "confidence_score": None,
+                "low_confidence_fields": [],
             }],
+            "_spreadsheet_facility_present": bool(facility),
+            "_spreadsheet_reporting_period_present": bool(reporting_period),
         })
     return extracted
 
@@ -333,13 +326,16 @@ def _clean_invoice(invoice: dict, org_context: dict) -> tuple[dict, list[dict]]:
         "currency": normalize_currency(financials.get("currency") or invoice.get("currency")),
         "future_date": future_date,
     }
+    if invoice.get("_spreadsheet_facility_present") is not None:
+        metadata["vendor_type"] = invoice.get("vendor_type") or "Supplier/Vendor"
+        metadata["buyer_name"] = invoice.get("buyer_name") or org_context.get("company_name", "")
+        metadata["buyer_address"] = invoice.get("buyer_address") or metadata.get("service_address")
     reconciled = reconcile_invoice_items(invoice)
     invoice_freight = invoice.get("freight_details") or {}
     for item in reconciled:
         if not item.get("freight_details") and invoice_freight:
             item["freight_details"] = invoice_freight
-    items = [prepare_item(item, future_date=future_date) for item in reconciled]
-    return metadata, items
+    return metadata, reconciled
 
 
 async def process_document(
@@ -350,26 +346,31 @@ async def process_document(
     disabled_scope3_sheets: set[str],
     override_lookup,
 ) -> list[dict]:
-    if Path(path).suffix.lower() in {".csv", ".xlsx", ".xls"}:
+    is_spreadsheet = Path(path).suffix.lower() in {".csv", ".xlsx", ".xls"}
+    if is_spreadsheet:
         invoices = read_spreadsheet(path)
     else:
         images = render_document(path)
         response = await gateway.extract_document(EXTRACTION_SYSTEM_PROMPT, EXTRACTION_SCHEMA_PROMPT, images)
-        payload = extract_json(response, {})
-        if isinstance(payload, dict) and "invoices" in payload:
-            invoices = payload.get("invoices") or []
-        elif isinstance(payload, dict):
+        payload = repair_extraction_json(response)
+        if isinstance(payload, dict):
             invoices = [payload]
-        else:
+        elif isinstance(payload, list):
             invoices = payload
-        if isinstance(invoices, dict):
-            invoices = [invoices]
+        else:
+            invoices = []
     rows: list[dict] = []
     for invoice in invoices or []:
         if not isinstance(invoice, dict):
             continue
         metadata, items = _clean_invoice(invoice, org_context)
         for item in items:
+            if is_spreadsheet:
+                item = prepare_spreadsheet_item(
+                    item,
+                    future_date=metadata.get("future_date", False),
+                    invoice_date=metadata.get("date"),
+                )
             override = await override_lookup(metadata.get("vendor_name"), item.get("item_description_english") or item.get("item_description"))
             classification = await classify_item(
                 gateway,
@@ -380,12 +381,28 @@ async def process_document(
                 disabled_scope3_sheets,
                 override,
             )
+            if is_spreadsheet:
+                item = finalize_spreadsheet_item(
+                    item,
+                    category=classification["ghg_category"],
+                    facility_present=bool(invoice.get("_spreadsheet_facility_present")),
+                    reporting_period_present=bool(invoice.get("_spreadsheet_reporting_period_present")),
+                    classification_needs_review=classification["needs_review"],
+                )
+            else:
+                item = prepare_item(
+                    item,
+                    future_date=metadata.get("future_date", False),
+                    invoice_date=metadata.get("date"),
+                )
             confidence = item["confidence_score"]
             freight = item.get("freight_details") or {}
             travel = item.get("travel_details") or {}
             origin = travel.get("origin") or freight.get("origin") or item.get("origin")
             destination = travel.get("destination") or freight.get("destination") or item.get("destination")
             warnings = item.get("quality_warnings") or []
+            if "unit" in classification["accounting_rationale"].lower():
+                warnings = [warning for warning in warnings if "ASSUMPTION" not in warning]
             rationale = " | ".join([*warnings, classification["accounting_rationale"]]) if warnings else classification["accounting_rationale"]
             row = {
                 "invoice_number": metadata.get("invoice_number"),
@@ -425,7 +442,7 @@ async def process_document(
                 "confidence_score": confidence,
                 "classification_confidence_score": classification["confidence_score"],
                 "low_confidence_fields": item.get("low_confidence_fields", []),
-                "needs_review": item.get("missing_values") or classification["needs_review"] or confidence < 70 or bool(item.get("low_confidence_fields")),
+                "needs_review": item.get("needs_review") if is_spreadsheet else (item.get("missing_values") or classification["needs_review"] or confidence < 70 or bool(item.get("low_confidence_fields"))),
                 "missing_values": item.get("missing_values", False),
                 "is_auto_generated": False,
                 "classification_source": classification["classification_source"],

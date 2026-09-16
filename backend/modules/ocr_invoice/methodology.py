@@ -49,44 +49,12 @@ def resolve_methodology(
     description_lower = description.lower()
     primary_material = str(item.get("primary_material") or "")
     material_nature = item.get("material_nature", "composite_product")
-    has_quantity = item.get("quantity") is not None and bool(item.get("unit"))
+    has_quantity = item.get("quantity") is not None and item.get("unit") is not None
     travel = item.get("travel_details") or {}
     freight = item.get("freight_details") or {}
     distance = freight.get("distance_km") or travel.get("distance_km") or item.get("distance_km")
     has_distance = _positive(distance)
     number = _category_number(category_key)
-
-    if scope == "scope1":
-        result.update(ef_method="activity", ef_database="IPCC")
-        is_fugitive = category_key == "fugitive_emissions" or any(
-            token in subcategory.lower() for token in ("refrigerant", "fugitive")
-        )
-        result["accounting_rationale"] = (
-            f"Direct fugitive greenhouse gas emissions from equipment leaks or refrigeration systems ({subcategory})."
-            if is_fugitive else
-            f"Direct fuel combustion in operational assets ({subcategory}) with companion upstream lifecycle tracking."
-        )
-        result["auto_generate_cat3"] = not is_fugitive
-        return result
-
-    if scope == "scope2":
-        result.update(ef_method="activity", auto_generate_cat3=True)
-        is_steam_heat = any(token in f"{category_key} {subcategory}".lower() for token in ("steam", "heat", "cooling", "district"))
-        if is_steam_heat:
-            result["ef_database"] = "DEFRA"
-            result["accounting_rationale"] = f"Purchased heat/steam/cooling for facility operations ({subcategory}) with companion upstream lifecycle tracking."
-        else:
-            result["ef_database"] = "CEA"
-            result["accounting_rationale"] = f"Purchased grid electricity generation under CEA Baseline Database ({subcategory}) with companion upstream lifecycle (DEFRA) and grid loss (NITI Aayog) tracking."
-        return result
-
-    if scope == "water":
-        result.update(
-            ef_method="activity",
-            ef_database="-",
-            accounting_rationale=f"Municipal utility water consumption for facility operations ({subcategory}).",
-        )
-        return result
 
     if number in {1, 2}:
         material_text = f"{primary_material} {description_lower}".lower()
@@ -185,6 +153,33 @@ def resolve_methodology(
                 f"Upstream Well-to-Tank (WTT) fuel and energy lifecycle emissions ({subcategory})."
             ),
         )
+        return result
+
+    if scope in {"scope1", "scope2"} or "water" in scope.lower():
+        result.update(ef_method="activity")
+        if scope == "scope1":
+            result["ef_database"] = "IPCC"
+            is_fugitive = "fugitive" in category_key.lower() or any(
+                token in subcategory.lower() for token in ("refrigerant", "fugitive")
+            )
+            result["accounting_rationale"] = (
+                f"Direct fugitive greenhouse gas emissions from equipment leaks or refrigeration systems ({subcategory})."
+                if is_fugitive else
+                f"Direct fuel combustion in operational assets ({subcategory}) with companion upstream lifecycle tracking."
+            )
+            result["auto_generate_cat3"] = not is_fugitive
+        elif scope == "scope2":
+            is_steam_heat = any(token in f"{category_key} {subcategory}".lower() for token in ("steam", "heat", "cooling", "district"))
+            if is_steam_heat:
+                result["ef_database"] = "DEFRA"
+                result["accounting_rationale"] = f"Purchased heat/steam/cooling for facility operations ({subcategory}) with companion upstream lifecycle tracking."
+            else:
+                result["ef_database"] = "CEA"
+                result["accounting_rationale"] = f"Purchased grid electricity generation under CEA Baseline Database ({subcategory}) with companion upstream lifecycle (DEFRA) and grid loss (NITI Aayog) tracking."
+            result["auto_generate_cat3"] = True
+        else:
+            result["ef_database"] = "-"
+            result["accounting_rationale"] = f"Municipal utility water consumption for facility operations ({subcategory})."
         return result
 
     if number in {8, 13}:

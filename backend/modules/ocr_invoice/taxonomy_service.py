@@ -5,7 +5,6 @@ import json
 import re
 from functools import lru_cache
 
-from .classification_cache import BoundedCache, cache_key
 from .config import MASTER_TAXONOMY_PATH, NAICS_INDEX_PATH
 from .legacy_helpers import forced_scope_result
 from .llm_gateway import OcrLlmGateway
@@ -40,8 +39,8 @@ SCOPE_CATEGORY_NAMES = {
 }
 
 WATER_CATEGORY_NAMES = {"water": "Water"}
-_CLASSIFICATION_CACHE = BoundedCache()
-_USEEIO_CACHE = BoundedCache()
+_CLASSIFICATION_CACHE: dict[str, tuple] = {}
+_USEEIO_CACHE: dict[str, tuple] = {}
 
 
 @lru_cache(maxsize=1)
@@ -61,22 +60,15 @@ def _canonical_scope(value: object) -> str:
     return {"scope1": "scope1", "scope2": "scope2", "scope3": "scope3", "water": "water"}.get(compact, "Unknown")
 
 
-def _flat_taxonomy(enabled_scopes: set[str], disabled_scope3_sheets: set[str]) -> list[str]:
+def _flat_taxonomy() -> list[str]:
     flat: list[str] = []
     for scope, categories in load_taxonomy().items():
-        canonical_scope = _canonical_scope(scope)
-        if canonical_scope not in enabled_scopes:
-            continue
         if scope == "water":
             for sub in categories.get("subcategories", []):
                 flat.append(f"Scope: {scope} | Category: Water | Subcategory: {sub} | DB: {categories.get('ef_database', 'Unknown')}")
             continue
 
         for cat_key, cat_data in categories.items():
-            category_name = SCOPE3_CATEGORY_NAMES.get(cat_key, "")
-            code_match = re.match(r"C(\d+)", category_name)
-            if code_match and f"C{code_match.group(1)}" in disabled_scope3_sheets:
-                continue
             db = cat_data.get("ef_database", "Unknown")
             subs = cat_data.get("subcategories", [])
             if isinstance(subs, list):
@@ -142,18 +134,18 @@ async def _disambiguate_item(
     raw_qty: object,
     raw_unit: object,
 ) -> tuple[str, str, str, object, object]:
-    classification_key = cache_key(
-        "uploaded-disambiguation",
-        organization_id,
-        gateway.mode.reasoning_model,
-        item_desc.strip(),
-        raw_unit,
-        flat_taxonomy,
-        context,
-    )
+    classification_key = f"{item_desc.strip()}::{raw_unit}::{len(flat_taxonomy)}"
     cached = _CLASSIFICATION_CACHE.get(classification_key)
     if cached:
-        return tuple(cached)
+        cached_scope, cached_category, cached_subcategory, cached_quantity, cached_unit = cached
+        if raw_qty is not None and raw_unit:
+            guarded_quantity, guarded_unit = convert_quantity(raw_qty, str(raw_unit))
+            normalized_quantity = guarded_quantity
+            normalized_unit = guarded_unit if guarded_unit != raw_unit else cached_unit
+        else:
+            normalized_quantity = raw_qty
+            normalized_unit = cached_unit
+        return cached_scope, cached_category, cached_subcategory, normalized_quantity, normalized_unit
 
     qty_unit_context = f"\nRaw Quantity: {raw_qty}\nRaw Unit: {raw_unit}" if raw_qty is not None or raw_unit else ""
     prompt = f"""You are an expert ESG emissions accountant following the GHG Protocol Corporate Value Chain (Scope 3) Accounting and Reporting Standard.
@@ -232,7 +224,7 @@ Return ONLY a raw JSON object with keys:
             normalized_unit = "kWh" if is_electricity and str(raw_unit).lower() in ("unit", "units") else "units"
 
     result = (mapped_scope, mapped_category, mapped_subcategory, normalized_quantity, normalized_unit)
-    _CLASSIFICATION_CACHE.set(classification_key, result)
+    _CLASSIFICATION_CACHE[classification_key] = result
     return result
 
 
@@ -241,8 +233,8 @@ async def _map_naics(
     item_description: str,
     context: str,
     organization_id: str,
-) -> tuple[str, str]:
-    mapping_key = cache_key("useeio", organization_id, gateway.mode.reasoning_model, item_description.strip())
+) -> tuple[str, str, str]:
+    mapping_key = item_description.strip()
     cached = _USEEIO_CACHE.get(mapping_key)
     if cached:
         return tuple(cached)
@@ -268,10 +260,12 @@ Return ONLY a raw JSON array of 3 or 4 string codes, e.g. ["331", "332", "339"].
         max_tokens=600 if gateway.mode.provider == "openai" else 150,
     )
     selected = extract_json(stage_one, [])
-    codes = [str(code).strip() for code in selected if str(code).strip() in index] if isinstance(selected, list) else []
+    codes = [str(code).strip() for code in selected] if isinstance(selected, list) else []
     if not codes:
-        codes = [code for code in ("331", "332", "541") if code in index]
-    candidates = [commodity for code in codes for commodity in index[code].get("commodities", [])]
+        codes = ["331", "332", "541"]
+    candidates: list[str] = []
+    for code in codes:
+        candidates.extend(index.get(str(code), {}).get("commodities", []))
     if not candidates:
         candidates = [
             commodity
@@ -300,29 +294,13 @@ Return ONLY a raw JSON object with key "selected_commodity" containing the exact
         max_tokens=600 if gateway.mode.provider == "openai" else 200,
     )
     parsed = extract_json(stage_two, {})
-    commodity = parsed.get("selected_commodity", candidates[0] if candidates else "Unknown USEEIO Sector") if isinstance(parsed, dict) else None
-    if commodity not in candidates:
+    commodity = parsed.get("selected_commodity") if isinstance(parsed, dict) else None
+    if not commodity:
         commodity = candidates[0] if candidates else "Unknown USEEIO Sector"
     code, _, label = commodity.partition(" - ")
-    result = (code.strip(), label.strip() or commodity)
-    _USEEIO_CACHE.set(mapping_key, result)
+    result = (code.strip(), label.strip() or commodity, commodity)
+    _USEEIO_CACHE[mapping_key] = result
     return result
-
-
-def _allowed_category_keys(enabled_scopes: set[str], disabled_scope3_sheets: set[str]) -> set[str]:
-    allowed: set[str] = set()
-    for scope_key, categories in load_taxonomy().items():
-        if _canonical_scope(scope_key) not in enabled_scopes:
-            continue
-        if scope_key == "water":
-            allowed.add("Water")
-            continue
-        for category_key in categories:
-            category_name = SCOPE3_CATEGORY_NAMES.get(category_key, "")
-            code_match = re.match(r"C(\d+)", category_name)
-            if not code_match or f"C{code_match.group(1)}" not in disabled_scope3_sheets:
-                allowed.add(category_key)
-    return allowed
 
 
 async def classify_item(
@@ -353,7 +331,7 @@ async def classify_item(
 
     description = item.get("item_description_english") or item.get("item_description") or "Unknown item"
     context = _context_text(item, invoice, org_context)
-    taxonomy_rows = _flat_taxonomy(enabled_scopes, disabled_scope3_sheets)
+    taxonomy_rows = _flat_taxonomy()
     raw_scope, category_key, subcategory, normalized_quantity, normalized_unit = await _disambiguate_item(
         gateway,
         description,
@@ -370,19 +348,18 @@ async def classify_item(
     scope = _canonical_scope(raw_scope)
     category_key = str(category_key or "Unknown")
     subcategory = str(subcategory or "Unknown")
-    allowed_categories = _allowed_category_keys(enabled_scopes, disabled_scope3_sheets)
-    invalid = scope == "Unknown" or scope not in enabled_scopes or category_key == "Unknown" or category_key not in allowed_categories
+    invalid = str(raw_scope) == "Unknown" or category_key == "Unknown"
     category_name = WATER_CATEGORY_NAMES.get(category_key, SCOPE3_CATEGORY_NAMES.get(category_key, SCOPE_CATEGORY_NAMES.get(category_key, category_key)))
     methodology = resolve_methodology(scope, category_key, subcategory, item, load_taxonomy())
     naics_code = naics_label = None
     if methodology["requires_useeio"]:
-        naics_code, naics_label = await _map_naics(
+        naics_code, naics_label, selected_commodity = await _map_naics(
             gateway,
             description,
             context,
             str(org_context.get("organization_id") or ""),
         )
-        subcategory = f"{naics_code} - {naics_label}"
+        subcategory = selected_commodity
         methodology["subcategory"] = subcategory
         methodology["ef_lookup_key"] = subcategory
 
