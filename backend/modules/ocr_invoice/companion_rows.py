@@ -21,15 +21,26 @@ def build_companion_rows(row: dict) -> list[dict]:
     }
     category_text = f"{row.get('category') or ''} {subcategory}".lower()
     if "electricity" in category_text:
-        canonical_subcategory = "Electricity - T&D losses and Generation"
-        return [{
-            **base,
-            "subcategory": canonical_subcategory,
-            "fuel_name": canonical_subcategory,
-            "ef_database": "DEFRA",
-            "ef_lookup_key": canonical_subcategory,
-            "accounting_rationale": "Grid Transmission & Distribution (T&D) losses and generation for purchased electricity. Financial spend booked on parent transaction to prevent double counting.",
-        }]
+        coal_subcategory = "Coal (electricity generation)"
+        td_subcategory = "Electricity - T&D losses and Generation"
+        return [
+            {
+                **base,
+                "subcategory": coal_subcategory,
+                "fuel_name": coal_subcategory,
+                "ef_database": "DEFRA",
+                "ef_lookup_key": coal_subcategory,
+                "accounting_rationale": "Upstream fuel-cycle emissions for electricity generation from coal. Financial spend booked on parent transaction to prevent double counting.",
+            },
+            {
+                **base,
+                "subcategory": td_subcategory,
+                "fuel_name": td_subcategory,
+                "ef_database": "ICED - Niti Aayog",
+                "ef_lookup_key": td_subcategory,
+                "accounting_rationale": "Grid Transmission & Distribution (T&D) losses and generation for purchased electricity. Financial spend booked on parent transaction to prevent double counting.",
+            },
+        ]
     return [{
         **base,
         "subcategory": subcategory,
