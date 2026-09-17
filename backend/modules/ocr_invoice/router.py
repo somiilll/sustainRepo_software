@@ -1568,6 +1568,8 @@ async def save_line_item_to_ghg(
         scope3_activity_type=values.get("scope3_activity_type"),
         scope3_subcategory=values.get("scope3_subcategory"),
         supplier_name=ocr_metadata["vendor_name"] if values.get("scope") == "scope3" else None,
+        from_location=values.get("origin") or values.get("from_location") or None,
+        to_location=values.get("destination") or values.get("to_location") or None,
         formula_id=calculation["formula_id"],
         formula_version_id=calculation["formula_version_id"],
         decision_tree_version_id=calculation["decision_tree_version_id"],
