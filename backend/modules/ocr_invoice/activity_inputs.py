@@ -44,21 +44,24 @@ def ocr_activity_input_candidates(values: dict) -> dict[str, dict]:
     travel = values.get("travel_details") or {}
     freight = values.get("freight_details") or {}
     dynamic = values.get("dynamic_field_values") or {}
-    candidates = {
-        key: value for key, value in dynamic.items()
-        if isinstance(value, dict) and value.get("value") not in (None, "")
-    }
+    category = str(values.get("category_key") or values.get("category_code") or values.get("category") or "").lower()
+    activity_type = str(values.get("scope3_activity_type") or "").lower()
+    is_freight = category.startswith("cat_4") or category.startswith("cat_9") or category.startswith("c4") or category.startswith("c9")
+    is_business_travel = category.startswith("cat_6") or category.startswith("c6")
+    candidates: dict[str, dict] = {}
 
     def set_if_missing(variable: str, value: Any, unit: str = "") -> None:
-        if variable in candidates:
+        existing = dynamic.get(variable)
+        if isinstance(existing, dict) and existing.get("value") not in (None, ""):
+            candidates[variable] = existing
             return
         payload = _input(value, unit)
         if payload is not None:
             candidates[variable] = payload
 
     distance = _first(values.get("distance_km"), travel.get("distance_km"), freight.get("distance_km"))
-    goods = _first(values.get("quantity_goods"), freight.get("weight_kg"), freight.get("quantity_goods"))
-    goods_unit = _first(values.get("unit_goods"), freight.get("weight_unit"), "kg")
+    goods = _first(values.get("quantity_goods"), freight.get("weight_kg"), freight.get("quantity_goods"), values.get("quantity"))
+    goods_unit = _first(values.get("unit_goods"), freight.get("weight_unit"), values.get("unit"), "kg")
     rooms = _first(values.get("rooms"), travel.get("rooms"), travel.get("room_count"))
     nights = _first(values.get("nights"), travel.get("nights"), travel.get("nights_stayed"))
     if rooms in (None, "") and str(values.get("unit") or "").lower() == "room_nights" and values.get("quantity"):
@@ -66,12 +69,16 @@ def ocr_activity_input_candidates(values: dict) -> dict[str, dict]:
     if nights in (None, "") and str(values.get("unit") or "").lower() == "room_nights":
         nights = values.get("quantity")
 
-    set_if_missing("qty_travelled", _tonnes(goods, goods_unit), "t")
-    set_if_missing("km_travelled", distance, "km")
-    set_if_missing("qty_passenger", _first(values.get("passengers"), travel.get("passenger_count")), "")
-    set_if_missing("qty_days_travelled", _first(values.get("days_travelled"), travel.get("days_travelled")), "")
-    set_if_missing("qty_room", rooms, "")
-    set_if_missing("qty_nights", nights, "")
+    if is_freight:
+        set_if_missing("qty_travelled", _tonnes(goods, goods_unit), "t")
+        set_if_missing("km_travelled", distance, "km")
+    elif is_business_travel and activity_type == "hotel_stay":
+        set_if_missing("qty_room", rooms, "")
+        set_if_missing("qty_nights", nights, "")
+    elif is_business_travel:
+        set_if_missing("qty_passenger", _first(values.get("passengers"), travel.get("passenger_count")), "")
+        set_if_missing("qty_days_travelled", _first(values.get("days_travelled"), travel.get("days_travelled")), "")
+        set_if_missing("km_travelled", distance, "km")
     return candidates
 
 

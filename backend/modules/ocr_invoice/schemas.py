@@ -18,6 +18,8 @@ class LineItemEdit(BaseModel):
     quantity: Optional[float] = None
     unit: Optional[str] = None
     distance_km: Optional[float] = None
+    origin: Optional[str] = None
+    destination: Optional[str] = None
     cost: Optional[float] = None
     currency: Optional[str] = None
     billing_period_start: Optional[str] = None

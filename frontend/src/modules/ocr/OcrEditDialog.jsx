@@ -74,7 +74,7 @@ const preferredFactor = (options, candidates, scope, category, saveRules) => {
 const matchingUnit = (factor, value) => (factor?.allowed_units || []).find((unit) => {
   const aliases = factor?.unit_aliases?.[unit] || [unit];
   return aliases.some((alias) => normalize(alias) === normalize(value));
-});
+}) || factor?.allowed_units?.[0] || '';
 const reportingPeriodFromDate = (value) => {
   const raw = String(value || '').trim();
   const isoMatch = raw.match(/^(\d{4})[-/](0[1-9]|1[0-2])/);
@@ -367,6 +367,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
         categoryId: categoryOption?.id,
         categoryDefinition: { code: values.category_code },
         scope3Method: scope3Method(values.ef_method),
+        scopeId: formConfig.category?.scope_id,
         scope3ActivityType: selectedFactor?.activity_type || values.scope3_activity_type || '',
         scope3Subcategory: values.scope3_subcategory || '',
         decisionFieldValues: { calculation_method_scope3: scope3Method(values.ef_method) },
@@ -388,6 +389,9 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     }));
   };
   const dynamicFieldsComplete = dynamicFields.every((field) => !field.required || dynamicValue(values, field.variable) !== '');
+  const hasStructuredScope3Inputs = values.scope === 'scope3'
+    && /^(c4|c6|c9)\b/i.test(values.category_code || values.category_key || values.category || '')
+    && dynamicFields.some((field) => ['qty_travelled', 'km_travelled', 'qty_passenger', 'qty_days_travelled', 'qty_room', 'qty_nights'].includes(field.variable));
 
   const selectionComplete = Boolean(values.category && selectedFactor && values.subcategory && (isSpend ? values.currency : values.unit) && dynamicFieldsComplete && !factorError);
 
@@ -451,7 +455,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               <Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" />
             </div>
           </div>
-          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-quantity-unit-row">
+          {!hasStructuredScope3Inputs && <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-quantity-unit-row">
             <div className="space-y-2">
               <Label htmlFor="ocr-quantity">Quantity</Label>
               <Input id="ocr-quantity" type="number" value={values.quantity ?? ''} onChange={(event) => set('quantity', event.target.value === '' ? '' : Number(event.target.value))} className={requiredClassName('quantity')} data-testid="ocr-edit-quantity-input" />
@@ -469,6 +473,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               <ExtractedValue label="unit" value={original.unit} field="unit" />
             </div>
           </div>
+          }
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-cost-currency-row">
             <div className="space-y-2">
               <Label htmlFor="ocr-cost">Cost</Label>
@@ -535,6 +540,18 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
                   })}
                 </div>
               )}
+            </div>
+          )}
+          {hasStructuredScope3Inputs && (
+            <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-route-inputs">
+              <div className="space-y-2">
+                <Label htmlFor="ocr-origin" data-testid="ocr-edit-origin-label">From location</Label>
+                <Input id="ocr-origin" value={values.origin || ''} onChange={(event) => set('origin', event.target.value)} data-testid="ocr-edit-origin-input" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ocr-destination" data-testid="ocr-edit-destination-label">To location</Label>
+                <Input id="ocr-destination" value={values.destination || ''} onChange={(event) => set('destination', event.target.value)} data-testid="ocr-edit-destination-input" />
+              </div>
             </div>
           )}
           <div className="space-y-2">

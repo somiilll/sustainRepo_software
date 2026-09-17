@@ -82,9 +82,9 @@ UNIVERSAL PHYSICAL ACTIVITY EXTRACTION RULES:
 9. BUSINESS TRAVEL / PASSENGER TICKETS (Scope 3 Category 6):
    - When extracting tickets, boarding passes, itineraries, or travel bills:
      * Set `item_category_hint: "Travel"` and `material_nature: "travel"`.
-     * Railways: Extract `travel_details.mode = "Train"`, `origin` (departure station/city), `destination` (arrival station/city), and `passenger_count` (int, default 1). Leave `class: null` (no cabin class for rail).
-     * Road / Cabs / Taxis (Uber, Ola, local taxi, rental): Extract `travel_details.mode = "Taxi"` or `"Car"`, `origin`, `destination`, `passenger_count`, and NORMALIZE vehicle type strictly to DEFRA size brackets in `travel_details.vehicle_type`: "Small", "Medium", "Large", or "Average" (default to "Average" if unspecified).
-     * Aviation / Flights: Extract `travel_details.mode = "Flight"`, `origin` (departure airport code or city), `destination` (arrival airport code or city), `class` ("Economy" | "Premium Economy" | "Business" | "First"), and `passenger_count` (int, default 1). DO NOT calculate point-to-point distance in km; leave `distance_km: null` if not explicitly printed on the ticket.
+     * Railways: Extract `travel_details.mode = "Train"`, `origin` (departure station/city), `destination` (arrival station/city), and `passenger_count` only when explicitly stated. Leave `class: null` (no cabin class for rail).
+     * Road / Cabs / Taxis (Uber, Ola, local taxi, rental): Extract `travel_details.mode = "Taxi"` or `"Car"`, `origin`, `destination`, and `passenger_count` only when explicitly stated. NORMALIZE vehicle type strictly to DEFRA size brackets in `travel_details.vehicle_type`: "Small", "Medium", "Large", or "Average" (default to "Average" if unspecified).
+     * Aviation / Flights: Extract `travel_details.mode = "Flight"`, `origin` (departure airport code or city), `destination` (arrival airport code or city), `class` ("Economy" | "Premium Economy" | "Business" | "First"), and `passenger_count` only when explicitly stated. DO NOT calculate point-to-point distance in km; leave `distance_km: null` if not explicitly printed on the ticket.
      * Hotels / Accommodation: Extract `travel_details.mode = "Hotel"`, `origin` (city/country of hotel), `room_count` (integer), and `nights_stayed` (integer). Also calculate total room nights as `quantity` = (number of rooms) * (number of nights), and set `unit: "room_nights"`.
 
 JSON SCHEMA PER INVOICE:
@@ -295,12 +295,13 @@ def read_spreadsheet(path: str) -> list[dict]:
                 "destination": destination,
                 "travel_details": {
                     "mode": value("travel_mode"), "class": value("travel_class"),
-                    "vehicle_type": value("vehicle_type"), "passenger_count": value("passenger_count") or 1,
+                    "vehicle_type": value("vehicle_type"), "passenger_count": value("passenger_count"),
                     "days_travelled": value("days_travelled"), "room_count": value("rooms"), "nights_stayed": value("nights"),
                     "distance_km": distance, "origin": origin, "destination": destination,
                 },
                 "freight_details": {
                     "mode": "Road", "distance_km": distance,
+                    "quantity_goods": value("quantity_goods"), "weight_unit": value("unit_goods"),
                     "origin": origin, "destination": destination,
                 },
                 "additional_context": value("notes"),

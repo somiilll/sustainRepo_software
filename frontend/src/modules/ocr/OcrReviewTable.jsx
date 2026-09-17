@@ -41,20 +41,23 @@ const quantityValue = (values) => hasValue(values.quantity)
   ? `${values.quantity}${values.unit ? ` ${values.unit}` : ''}`
   : '—';
 
-const activityInputsValue = (values) => {
-  const inputs = values.dynamic_field_values || {};
-  const value = (key) => inputs[key]?.value;
-  const details = [
-    hasValue(value('qty_travelled')) && `${value('qty_travelled')} ${inputs.qty_travelled?.unit || 't'}`,
-    hasValue(value('km_travelled')) && `${value('km_travelled')} km`,
-    hasValue(value('qty_passenger')) && `${value('qty_passenger')} passengers`,
-    hasValue(value('qty_room')) && `${value('qty_room')} rooms`,
-    hasValue(value('qty_nights')) && `${value('qty_nights')} nights`,
-  ].filter(Boolean);
-  return details.join(' · ') || quantityValue(values);
+const categoryCode = (values) => String(values.category_code || values.category_key || values.category || '').toLowerCase();
+const isFreight = (values) => /^(c4|c9)\b|^cat_(4|9)/.test(categoryCode(values));
+const isBusinessTravel = (values) => /^(c6)\b|^cat_6/.test(categoryCode(values));
+const dynamicInput = (values, key) => values.dynamic_field_values?.[key] || null;
+const inputValue = (values, key, fallback, unit) => {
+  const input = dynamicInput(values, key);
+  const value = input?.value ?? fallback;
+  if (!hasValue(value)) return '—';
+  const resolvedUnit = input?.unit || unit;
+  return `${value}${resolvedUnit ? ` ${resolvedUnit}` : ''}`;
 };
-
-const distanceValue = (values) => hasValue(values.distance_km) ? `${values.distance_km} km` : '—';
+const goodsTravelledValue = (values) => inputValue(values, 'qty_travelled', values.quantity_goods ?? (isFreight(values) ? values.quantity : ''), values.unit_goods || (isFreight(values) ? values.unit : 't'));
+const travelledDistanceValue = (values) => inputValue(values, 'km_travelled', values.distance_km, 'km');
+const passengersValue = (values) => isBusinessTravel(values) ? inputValue(values, 'qty_passenger', values.passengers, '') : '—';
+const daysTravelledValue = (values) => isBusinessTravel(values) ? inputValue(values, 'qty_days_travelled', values.days_travelled, '') : '—';
+const roomsValue = (values) => isBusinessTravel(values) ? inputValue(values, 'qty_room', values.rooms, '') : '—';
+const nightsValue = (values) => isBusinessTravel(values) ? inputValue(values, 'qty_nights', values.nights, '') : '—';
 
 const costValue = (values) => hasValue(values.cost)
   ? `${values.currency ? `${values.currency} ` : ''}${values.cost}`
@@ -121,9 +124,16 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
   const [invoiceFilter, setInvoiceFilter] = useState('all');
   const [detailsItem, setDetailsItem] = useState(null);
   const showEfMethod = items.some((item) => item.current_values?.scope === 'scope3');
-  const showQuantity = items.some((item) => hasValue(item.current_values?.quantity) || Object.keys(item.current_values?.dynamic_field_values || {}).length > 0);
+  const showQuantity = items.some((item) => !isFreight(item.current_values || {}) && !isBusinessTravel(item.current_values || {}) && hasValue(item.current_values?.quantity));
+  const showGoodsTravelled = items.some((item) => isFreight(item.current_values || {}) && goodsTravelledValue(item.current_values || {}) !== '—');
+  const showDistanceTravelled = items.some((item) => (isFreight(item.current_values || {}) || isBusinessTravel(item.current_values || {})) && travelledDistanceValue(item.current_values || {}) !== '—');
+  const showPassengers = items.some((item) => passengersValue(item.current_values || {}) !== '—');
+  const showDaysTravelled = items.some((item) => daysTravelledValue(item.current_values || {}) !== '—');
+  const showRooms = items.some((item) => roomsValue(item.current_values || {}) !== '—');
+  const showNights = items.some((item) => nightsValue(item.current_values || {}) !== '—');
+  const showFromLocation = items.some((item) => hasValue(item.current_values?.origin));
+  const showToLocation = items.some((item) => hasValue(item.current_values?.destination));
   const showCost = items.some((item) => hasValue(item.current_values?.cost));
-  const showDistance = items.some((item) => hasValue(item.current_values?.distance_km));
   const invoiceGroups = useMemo(() => Object.values(items.reduce((groups, item) => {
     const invoice = item.current_values?.invoice_number || 'Unnumbered invoice';
     groups[invoice] = groups[invoice] || { invoice, items: [] };
@@ -183,7 +193,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
       )}
 
       <div className="hidden overflow-x-auto border border-slate-200 bg-white lg:block" data-testid="ocr-review-desktop-table">
-        <Table className="min-w-[1480px]">
+        <Table className="min-w-[1700px]">
           <TableHeader className="bg-slate-50">
             <TableRow>
               <TableHead data-testid="ocr-ledger-header-facility">Facility</TableHead>
@@ -193,9 +203,16 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               <TableHead data-testid="ocr-ledger-header-category">Category</TableHead>
               <TableHead data-testid="ocr-ledger-header-subcategory">Subcategory</TableHead>
               {showEfMethod && <TableHead data-testid="ocr-ledger-header-ef-method">EF method</TableHead>}
-              {showQuantity && <TableHead data-testid="ocr-ledger-header-quantity">Qty</TableHead>}
+              {showQuantity && <TableHead data-testid="ocr-ledger-header-quantity">Quantity</TableHead>}
+              {showGoodsTravelled && <TableHead data-testid="ocr-ledger-header-goods-travelled">Goods travelled</TableHead>}
+              {showDistanceTravelled && <TableHead data-testid="ocr-ledger-header-distance-travelled">Distance travelled</TableHead>}
+              {showPassengers && <TableHead data-testid="ocr-ledger-header-passengers">Passengers</TableHead>}
+              {showDaysTravelled && <TableHead data-testid="ocr-ledger-header-days-travelled">Days travelled</TableHead>}
+              {showRooms && <TableHead data-testid="ocr-ledger-header-rooms">Number of rooms</TableHead>}
+              {showNights && <TableHead data-testid="ocr-ledger-header-nights">Number of nights</TableHead>}
+              {showFromLocation && <TableHead data-testid="ocr-ledger-header-from-location">From location</TableHead>}
+              {showToLocation && <TableHead data-testid="ocr-ledger-header-to-location">To location</TableHead>}
               {showCost && <TableHead data-testid="ocr-ledger-header-cost">Cost</TableHead>}
-              {showDistance && <TableHead data-testid="ocr-ledger-header-distance">Distance</TableHead>}
               <TableHead data-testid="ocr-ledger-header-confidence">Confidence score</TableHead>
               <TableHead data-testid="ocr-ledger-header-status">Review status</TableHead>
               <TableHead className="text-right" data-testid="ocr-ledger-header-actions">Actions</TableHead>
@@ -216,9 +233,16 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                   <TableCell className="max-w-60 whitespace-normal break-words" data-testid={`ocr-row-category-${item.id}`}>{values.category || 'Unknown'}</TableCell>
                   <TableCell className="max-w-72 whitespace-normal break-words" data-testid={`ocr-row-subcategory-${item.id}`}>{displayValue(values.subcategory || values.sector || values.naics_label)}</TableCell>
                   {showEfMethod && <TableCell><span className="text-xs font-medium uppercase text-slate-600" data-testid={`ocr-row-method-${item.id}`}>{values.scope === 'scope3' ? values.ef_method || 'Review' : '—'}</span></TableCell>}
-                  {showQuantity && <TableCell className="whitespace-normal" data-testid={`ocr-row-quantity-${item.id}`}>{activityInputsValue(values)}</TableCell>}
+                  {showQuantity && <TableCell className="whitespace-normal" data-testid={`ocr-row-quantity-${item.id}`}>{quantityValue(values)}</TableCell>}
+                  {showGoodsTravelled && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-goods-travelled-${item.id}`}>{isFreight(values) ? goodsTravelledValue(values) : '—'}</TableCell>}
+                  {showDistanceTravelled && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-distance-travelled-${item.id}`}>{(isFreight(values) || isBusinessTravel(values)) ? travelledDistanceValue(values) : '—'}</TableCell>}
+                  {showPassengers && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-passengers-${item.id}`}>{passengersValue(values)}</TableCell>}
+                  {showDaysTravelled && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-days-travelled-${item.id}`}>{daysTravelledValue(values)}</TableCell>}
+                  {showRooms && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-rooms-${item.id}`}>{roomsValue(values)}</TableCell>}
+                  {showNights && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-nights-${item.id}`}>{nightsValue(values)}</TableCell>}
+                  {showFromLocation && <TableCell className="whitespace-normal" data-testid={`ocr-row-from-location-${item.id}`}>{displayValue(values.origin)}</TableCell>}
+                  {showToLocation && <TableCell className="whitespace-normal" data-testid={`ocr-row-to-location-${item.id}`}>{displayValue(values.destination)}</TableCell>}
                   {showCost && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-cost-${item.id}`}>{costValue(values)}</TableCell>}
-                  {showDistance && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-distance-${item.id}`}>{distanceValue(values)}</TableCell>}
                   <TableCell><Confidence value={item.confidence_score ?? values.confidence_score} itemId={item.id} /></TableCell>
                   <TableCell><RowStatus item={item} /></TableCell>
                   <TableCell>
@@ -253,9 +277,16 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                 <MobileField label="Category" value={values.category || 'Unknown'} itemId={item.id} field="category" wide />
                 <MobileField label="Subcategory / sector" value={values.subcategory || values.sector || values.naics_label} itemId={item.id} field="subcategory" wide />
                 {showEfMethod && <MobileField label="EF method" value={values.scope === 'scope3' ? values.ef_method || 'Review' : '—'} itemId={item.id} field="method" />}
-                {showQuantity && <MobileField label="Qty" value={activityInputsValue(values)} itemId={item.id} field="quantity" />}
+                {showQuantity && <MobileField label="Quantity" value={quantityValue(values)} itemId={item.id} field="quantity" />}
+                {showGoodsTravelled && <MobileField label="Goods travelled" value={isFreight(values) ? goodsTravelledValue(values) : '—'} itemId={item.id} field="goods-travelled" />}
+                {showDistanceTravelled && <MobileField label="Distance travelled" value={(isFreight(values) || isBusinessTravel(values)) ? travelledDistanceValue(values) : '—'} itemId={item.id} field="distance-travelled" />}
+                {showPassengers && <MobileField label="Passengers" value={passengersValue(values)} itemId={item.id} field="passengers" />}
+                {showDaysTravelled && <MobileField label="Days travelled" value={daysTravelledValue(values)} itemId={item.id} field="days-travelled" />}
+                {showRooms && <MobileField label="Number of rooms" value={roomsValue(values)} itemId={item.id} field="rooms" />}
+                {showNights && <MobileField label="Number of nights" value={nightsValue(values)} itemId={item.id} field="nights" />}
+                {showFromLocation && <MobileField label="From location" value={values.origin} itemId={item.id} field="from-location" />}
+                {showToLocation && <MobileField label="To location" value={values.destination} itemId={item.id} field="to-location" />}
                 {showCost && <MobileField label="Cost" value={costValue(values)} itemId={item.id} field="cost" />}
-                {showDistance && <MobileField label="Distance" value={distanceValue(values)} itemId={item.id} field="distance" />}
                 <MobileField label="Confidence score" value={confidenceLabel(item.confidence_score ?? values.confidence_score)} itemId={item.id} field="confidence" />
                 <MobileField label="Review status" itemId={item.id} field="review-status" wide><RowStatus item={item} testIdPrefix="ocr-mobile-row-status" /></MobileField>
               </dl>

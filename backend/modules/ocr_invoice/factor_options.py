@@ -214,6 +214,13 @@ async def validate_factor_selection(
     allowed_units = selected.get("allowed_units") or []
     input_field = "currency" if normalize_method(method) == "spend" else "unit"
     input_value = currency if input_field == "currency" else unit
+    is_structured_scope3_activity = (
+        scope == "scope3"
+        and normalize_method(method) == "activity"
+        and (str(category or "").lower().startswith(("c4", "c6", "c9")) or bool(selected.get("activity_type")))
+    )
+    if not input_value and is_structured_scope3_activity:
+        input_value = allowed_units[0] if allowed_units else ""
     if not allowed_units:
         raise ValueError(f"No allowed {'currencies' if input_field == 'currency' else 'quantity units'} are configured for '{selected['label']}'")
     if not input_value:
