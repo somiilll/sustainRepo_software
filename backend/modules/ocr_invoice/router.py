@@ -1520,6 +1520,11 @@ async def save_line_item_to_ghg(
             "value": resolved_decisions["spend_currency_conversion_method"],
             "unit": "",
         }
+    if values.get("scope3_activity_type"):
+        calculation_inputs["scope3_activity_type"] = {
+            "value": values["scope3_activity_type"],
+            "unit": "",
+        }
     await db[OCR_LINE_ITEMS_COLLECTION].update_one(
         {"id": item_id, "organization_id": org_id},
         {"$set": {

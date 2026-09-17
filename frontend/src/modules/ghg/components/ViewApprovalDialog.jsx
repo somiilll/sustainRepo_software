@@ -302,6 +302,7 @@ export default function ViewApprovalDialog({
             renderField('Quantity', `${displayedQuantity.value} ${displayedQuantity.unit}`.trim())}
           {snap.calculation_method_scope3 &&
             renderField('Calculation Method', snap.calculation_method_scope3)}
+          {snap.scope3_activity_type && renderField('Activity Type', snap.scope3_activity_type)}
           {snap.supplier_name && renderField('Supplier', snap.supplier_name)}
           {snap.customer_name && renderField('Customer', snap.customer_name)}
           {snap.responsible_person && renderField('Responsible Person', snap.responsible_person)}
