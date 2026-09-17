@@ -29,6 +29,11 @@ OCR_SAVE_SCOPE_RULES = {
         },
         "fuzzy_activity_preferences": (
             {
+                "category_prefix": "c3",
+                "token_groups": (("electricity",),),
+                "activity": "Electricity - T&D losses and Generation",
+            },
+            {
                 "category_prefix": "c4",
                 "token_groups": (("freight",), ("truck", "trucking")),
                 "activity": "Freight Truck Transportation",

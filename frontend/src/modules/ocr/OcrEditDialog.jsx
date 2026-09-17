@@ -10,9 +10,10 @@ import { Textarea } from '../../components/ui/textarea';
 import { getOcrFactorOptions } from './ocrApi';
 
 const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', reporting_period: '', remember_override: false };
-const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const taxonomyMatchValue = (value) => String(value || '').replace(/\s*\((?:non_renewable|renewable|landfill|recycling|composting|combustion)\)\s*$/i, '');
+const normalize = (value) => taxonomyMatchValue(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 const words = (value) => {
-  const tokens = String(value || '')
+  const tokens = taxonomyMatchValue(value)
     .toLowerCase()
     .replace(/^\s*\d{2,6}\s*[-–—:]\s*/, '')
     .replace(/[^a-z0-9]+/g, ' ')

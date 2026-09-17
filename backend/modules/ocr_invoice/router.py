@@ -149,8 +149,16 @@ def _reporting_period_from_ocr_values(values: dict, upload: dict | None = None) 
 
 
 def _match_ocr_factor_option(options: list[dict], item: dict, values: dict) -> dict | None:
+    def taxonomy_match_value(value: object) -> str:
+        return re.sub(
+            r"\s*\((?:non_renewable|renewable|landfill|recycling|composting|combustion)\)\s*$",
+            "",
+            str(value or ""),
+            flags=re.IGNORECASE,
+        )
+
     def factor_words(value: object) -> set[str]:
-        normalized = re.sub(r"^\s*\d{2,6}\s*[-–—:]\s*", "", str(value or "").lower())
+        normalized = re.sub(r"^\s*\d{2,6}\s*[-–—:]\s*", "", taxonomy_match_value(value).lower())
         raw_words = re.findall(r"[a-z0-9]+", normalized)
         stop_words = {"and", "the", "of", "for", "to", "in", "a", "an"}
         tokens = {word for word in raw_words if len(word) > 1 and word not in stop_words}
@@ -179,16 +187,16 @@ def _match_ocr_factor_option(options: list[dict], item: dict, values: dict) -> d
     candidates = [candidate for candidate in candidates if str(candidate or "").strip()]
     exact_matches = [
         option for option in options
-        if any(normalize_option(candidate) == normalize_option(option.get("value")) for candidate in candidates)
+        if any(normalize_option(taxonomy_match_value(candidate)) == normalize_option(option.get("value")) for candidate in candidates)
     ]
     if len(exact_matches) == 1:
         return exact_matches[0]
     contains_matches = [
         option for option in options
         if any(
-            len(normalize_option(candidate)) >= 4
-            and (normalize_option(candidate) in normalize_option(option.get("value"))
-                 or normalize_option(option.get("value")) in normalize_option(candidate))
+            len(normalize_option(taxonomy_match_value(candidate))) >= 4
+            and (normalize_option(taxonomy_match_value(candidate)) in normalize_option(option.get("value"))
+                 or normalize_option(option.get("value")) in normalize_option(taxonomy_match_value(candidate)))
             for candidate in candidates
         )
     ]

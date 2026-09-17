@@ -19,24 +19,22 @@ def build_companion_rows(row: dict) -> list[dict]:
         "is_auto_generated": True,
         "auto_generate_cat3": False,
     }
-    wtt_subcategory = f"WTT - {subcategory}"
-    rows = [{
-        **base,
-        "subcategory": wtt_subcategory,
-        "fuel_name": wtt_subcategory,
-        "ef_database": "DEFRA",
-        "ef_lookup_key": wtt_subcategory,
-        "accounting_rationale": f"Upstream Well-to-Tank (WTT) extraction, refining, and supply chain emissions for consumed {subcategory}. Financial spend booked on parent transaction to prevent double counting.",
-    }]
     category_text = f"{row.get('category') or ''} {subcategory}".lower()
     if "electricity" in category_text:
-        td_subcategory = f"T&D Losses - {subcategory}"
-        rows.append({
+        canonical_subcategory = "Electricity - T&D losses and Generation"
+        return [{
             **base,
-            "subcategory": td_subcategory,
-            "fuel_name": td_subcategory,
-            "ef_database": "NITI Aayog",
-            "ef_lookup_key": td_subcategory,
-            "accounting_rationale": "Grid Transmission & Distribution (T&D) network losses for purchased electricity. Financial spend booked on parent transaction to prevent double counting.",
-        })
-    return rows
+            "subcategory": canonical_subcategory,
+            "fuel_name": canonical_subcategory,
+            "ef_database": "DEFRA",
+            "ef_lookup_key": canonical_subcategory,
+            "accounting_rationale": "Grid Transmission & Distribution (T&D) losses and generation for purchased electricity. Financial spend booked on parent transaction to prevent double counting.",
+        }]
+    return [{
+        **base,
+        "subcategory": subcategory,
+        "fuel_name": subcategory,
+        "ef_database": "DEFRA",
+        "ef_lookup_key": subcategory,
+        "accounting_rationale": f"Upstream fuel-cycle extraction, refining, and supply chain emissions for consumed {subcategory}. Financial spend booked on parent transaction to prevent double counting.",
+    }]
