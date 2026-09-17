@@ -20,6 +20,14 @@ def build_companion_rows(row: dict) -> list[dict]:
         "auto_generate_cat3": False,
     }
     category_text = f"{row.get('category') or ''} {subcategory}".lower()
+    is_renewable_electricity = (
+        "electricity" in category_text
+        and "renewable" in category_text
+        and "non-renewable" not in category_text
+        and "nonrenewable" not in category_text
+    )
+    if is_renewable_electricity:
+        return []
     if "electricity" in category_text:
         coal_subcategory = "Coal (electricity generation)"
         td_subcategory = "Electricity - T&D losses and Generation"
