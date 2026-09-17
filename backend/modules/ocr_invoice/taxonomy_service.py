@@ -41,6 +41,16 @@ SCOPE_CATEGORY_NAMES = {
 WATER_CATEGORY_NAMES = {"water": "Water"}
 _CLASSIFICATION_CACHE: dict[str, tuple] = {}
 _USEEIO_CACHE: dict[str, tuple] = {}
+TRAVEL_BRANCH_ACTIVITY_TYPES = {
+    "air": "air_travel",
+    "rail": "rail_travel",
+    "road": "car_travel",
+    "hotel": "hotel_stay",
+    "bus": "bus_travel",
+    "taxi": "taxi_travel",
+    "bike": "bike_travel",
+    "water": "water_travel",
+}
 
 
 @lru_cache(maxsize=1)
@@ -82,6 +92,39 @@ def _flat_taxonomy() -> list[str]:
                 for sub in cat_data["defra_subcategories"]:
                     flat.append(f"Scope: {scope} | Category: {cat_key} | Subcategory: {sub} | DB: DEFRA (Activity)")
     return list(set(flat))
+
+
+def infer_scope3_activity_type(category: object, activity: object) -> str:
+    """Resolve a Scope 3 activity type from the canonical taxonomy branch.
+
+    The taxonomy owns this relationship. A matched factor's activity type is
+    only retained as a compatibility fallback for legacy records not yet
+    represented in the taxonomy.
+    """
+    category_key = str(category or "").strip()
+    activity_key = re.sub(r"[^a-z0-9]+", "", str(activity or "").lower())
+    if not activity_key:
+        return ""
+    taxonomy = load_taxonomy()
+    categories = taxonomy.get("scope_3", {})
+    matched_category = next(
+        (
+            key for key in categories
+            if category_key == key
+            or category_key.lower() == key.lower()
+            or category_key.lower().startswith(f"c{key.split('_', 2)[1]} ")
+        ),
+        "",
+    )
+    branches = (categories.get(matched_category, {}).get("subcategories") or {})
+    if not isinstance(branches, dict):
+        return ""
+    for branch, subcategories in branches.items():
+        if not isinstance(subcategories, list):
+            continue
+        if any(re.sub(r"[^a-z0-9]+", "", str(value).lower()) == activity_key for value in subcategories):
+            return TRAVEL_BRANCH_ACTIVITY_TYPES.get(branch, "")
+    return ""
 
 
 def _context_text(item: dict, invoice: dict, org_context: dict) -> str:
@@ -370,6 +413,7 @@ async def classify_item(
         "category_key": category_key,
         "category_code": category_name.split(" - ", 1)[0].lower() if category_name.startswith("C") else category_key,
         "ghg_subcategory": methodology["subcategory"],
+        "scope3_activity_type": infer_scope3_activity_type(category_key, methodology["subcategory"]),
         "ef_method": methodology["ef_method"],
         "ef_database": methodology["ef_database"],
         "ef_lookup_key": methodology["ef_lookup_key"],

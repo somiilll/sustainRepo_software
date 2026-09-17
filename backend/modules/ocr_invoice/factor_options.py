@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .taxonomy_service import infer_scope3_activity_type
+
 
 def normalize_option(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
@@ -79,7 +81,7 @@ def _option(record: dict, *, value_field: str, source_fallback: str, collection:
         "allowed_units": _units(record),
         "default_unit": record.get("default_unit"),
         "method": normalize_method(record.get("method") or "activity"),
-        "activity_type": record.get("activity_type") or "",
+        "activity_type": infer_scope3_activity_type(record.get("category"), value) or record.get("activity_type") or "",
         "collection": collection,
         "naics_code": naics_match.group(1) if naics_match else None,
         "naics_label": naics_match.group(2).strip() if naics_match else None,

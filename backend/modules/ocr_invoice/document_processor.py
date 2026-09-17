@@ -442,6 +442,7 @@ async def process_document(
                 "category_code": classification["category_code"],
                 "subcategory": classification["ghg_subcategory"],
                 "fuel_name": classification["ghg_subcategory"],
+                "scope3_activity_type": classification.get("scope3_activity_type") or "",
                 "quantity": item.get("quantity"),
                 "unit": normalize_unit(item.get("unit"), classification["ghg_category"]),
                 "quantity_goods": item.get("quantity_goods") or freight.get("quantity_goods") or freight.get("weight_kg"),
