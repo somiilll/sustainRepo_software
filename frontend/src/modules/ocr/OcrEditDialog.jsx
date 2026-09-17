@@ -493,54 +493,48 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             </div>
           </div>
           {values.scope === 'scope3' && (formConfigLoading || dynamicFields.length > 0) && (
-            <div className="space-y-3 border border-slate-200 bg-slate-50 p-4 sm:col-span-2" data-testid="ocr-edit-dynamic-activity-inputs">
-              <div>
-                <p className="text-sm font-semibold text-slate-950" data-testid="ocr-edit-dynamic-activity-title">Activity inputs</p>
-                <p className="mt-1 text-xs text-slate-600" data-testid="ocr-edit-dynamic-activity-description">Fields follow the selected calculation method and activity.</p>
-              </div>
-              {formConfigLoading ? (
-                <p className="text-sm text-slate-600" data-testid="ocr-edit-dynamic-activity-loading">Loading activity inputs…</p>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2" data-testid="ocr-edit-dynamic-activity-fields">
-                  {dynamicFields.map((field) => {
-                    const fieldValue = dynamicValue(values, field.variable);
-                    const fieldUnit = values.dynamic_field_values?.[field.variable]?.unit || field.expectedUnit || field.allowedUnits?.[0] || '';
-                    const hasUnitSelector = field.unitSource !== 'none' && field.allowedUnits?.length > 1;
-                    return (
-                      <div key={field.id || field.variable} className="space-y-2">
-                        <Label htmlFor={`ocr-dynamic-${field.variable}`} data-testid={`ocr-edit-dynamic-${field.variable}-label`}>
-                          {field.label}{field.required && <span className="ml-1 text-red-500">*</span>}
-                        </Label>
-                        <div className={hasUnitSelector ? 'flex overflow-hidden rounded-md border border-slate-200 bg-white' : ''}>
-                          <Input
-                            id={`ocr-dynamic-${field.variable}`}
-                            type={field.fieldType === 'text' ? 'text' : 'number'}
-                            min={field.fieldType === 'text' ? undefined : '0'}
-                            step={field.unitSource === 'none' ? '1' : 'any'}
-                            value={fieldValue}
-                            placeholder={field.placeholder}
-                            onChange={(event) => updateDynamicValue(field, field.fieldType === 'text' ? event.target.value : (event.target.value === '' ? '' : Number(event.target.value)))}
-                            className={hasUnitSelector ? 'rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : ''}
-                            data-testid={`ocr-edit-dynamic-${field.variable}-input`}
-                          />
-                          {hasUnitSelector && (
-                            <select
-                              value={fieldUnit}
-                              onChange={(event) => updateDynamicValue(field, fieldValue, event.target.value)}
-                              className="min-w-20 border-l border-slate-200 bg-white px-2 text-sm outline-none"
-                              data-testid={`ocr-edit-dynamic-${field.variable}-unit-select`}
-                            >
-                              {field.allowedUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-                            </select>
-                          )}
-                          {!hasUnitSelector && field.unitSource !== 'none' && fieldUnit && <span className="flex items-center border-l border-slate-200 px-3 text-sm text-slate-600" data-testid={`ocr-edit-dynamic-${field.variable}-unit`}>{fieldUnit}</span>}
-                        </div>
+            formConfigLoading ? (
+              <p className="text-sm text-slate-600 sm:col-span-2" data-testid="ocr-edit-dynamic-activity-loading">Loading activity inputs…</p>
+            ) : (
+              <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-dynamic-activity-fields">
+                {dynamicFields.map((field) => {
+                  const fieldValue = dynamicValue(values, field.variable);
+                  const fieldUnit = values.dynamic_field_values?.[field.variable]?.unit || field.expectedUnit || field.allowedUnits?.[0] || '';
+                  const hasUnitSelector = field.unitSource !== 'none' && field.allowedUnits?.length > 1;
+                  return (
+                    <div key={field.id || field.variable} className="space-y-2">
+                      <Label htmlFor={`ocr-dynamic-${field.variable}`} data-testid={`ocr-edit-dynamic-${field.variable}-label`}>
+                        {field.label}{field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <div className={hasUnitSelector ? 'flex overflow-hidden rounded-md border border-slate-200 bg-white' : ''}>
+                        <Input
+                          id={`ocr-dynamic-${field.variable}`}
+                          type={field.fieldType === 'text' ? 'text' : 'number'}
+                          min={field.fieldType === 'text' ? undefined : '0'}
+                          step={field.unitSource === 'none' ? '1' : 'any'}
+                          value={fieldValue}
+                          placeholder={field.placeholder}
+                          onChange={(event) => updateDynamicValue(field, field.fieldType === 'text' ? event.target.value : (event.target.value === '' ? '' : Number(event.target.value)))}
+                          className={hasUnitSelector ? 'rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : ''}
+                          data-testid={`ocr-edit-dynamic-${field.variable}-input`}
+                        />
+                        {hasUnitSelector && (
+                          <select
+                            value={fieldUnit}
+                            onChange={(event) => updateDynamicValue(field, fieldValue, event.target.value)}
+                            className="min-w-20 border-l border-slate-200 bg-white px-2 text-sm outline-none"
+                            data-testid={`ocr-edit-dynamic-${field.variable}-unit-select`}
+                          >
+                            {field.allowedUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                          </select>
+                        )}
+                        {!hasUnitSelector && field.unitSource !== 'none' && fieldUnit && <span className="flex items-center border-l border-slate-200 px-3 text-sm text-slate-600" data-testid={`ocr-edit-dynamic-${field.variable}-unit`}>{fieldUnit}</span>}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           )}
           {hasStructuredScope3Inputs && (
             <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-route-inputs">

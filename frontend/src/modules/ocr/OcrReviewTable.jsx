@@ -236,7 +236,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                   <TableCell className="max-w-60 whitespace-normal break-words" data-testid={`ocr-row-category-${item.id}`}>{values.category || 'Unknown'}</TableCell>
                   <TableCell className="max-w-72 whitespace-normal break-words" data-testid={`ocr-row-subcategory-${item.id}`}>{displayValue(values.subcategory || values.sector || values.naics_label)}</TableCell>
                   {showEfMethod && <TableCell><span className="text-xs font-medium uppercase text-slate-600" data-testid={`ocr-row-method-${item.id}`}>{values.scope === 'scope3' ? values.ef_method || 'Review' : '—'}</span></TableCell>}
-                  {showQuantity && <TableCell className="whitespace-normal" data-testid={`ocr-row-quantity-${item.id}`}>{isFreight(values) || isBusinessTravel(values) ? '' : quantityValue(values)}</TableCell>}
+                  {showQuantity && <TableCell className="whitespace-normal" data-testid={`ocr-row-quantity-${item.id}`}>{isFreight(values) || isBusinessTravel(values) ? '—' : quantityValue(values)}</TableCell>}
                   {showGoodsTravelled && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-goods-travelled-${item.id}`}>{isFreight(values) ? goodsTravelledValue(values) : '—'}</TableCell>}
                   {showDistanceTravelled && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-distance-travelled-${item.id}`}>{(isFreight(values) || isBusinessTravel(values)) ? travelledDistanceValue(values) : '—'}</TableCell>}
                   {showPassengers && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-passengers-${item.id}`}>{passengersValue(values)}</TableCell>}
@@ -280,7 +280,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                 <MobileField label="Category" value={values.category || 'Unknown'} itemId={item.id} field="category" wide />
                 <MobileField label="Subcategory / sector" value={values.subcategory || values.sector || values.naics_label} itemId={item.id} field="subcategory" wide />
                 {showEfMethod && <MobileField label="EF method" value={values.scope === 'scope3' ? values.ef_method || 'Review' : '—'} itemId={item.id} field="method" />}
-                {showQuantity && <MobileField label="Quantity" value={isFreight(values) || isBusinessTravel(values) ? '' : quantityValue(values)} itemId={item.id} field="quantity" />}
+                {showQuantity && <MobileField label="Quantity" value={isFreight(values) || isBusinessTravel(values) ? '—' : quantityValue(values)} itemId={item.id} field="quantity" />}
                 {showGoodsTravelled && <MobileField label="Goods travelled" value={isFreight(values) ? goodsTravelledValue(values) : '—'} itemId={item.id} field="goods-travelled" />}
                 {showDistanceTravelled && <MobileField label="Distance travelled" value={(isFreight(values) || isBusinessTravel(values)) ? travelledDistanceValue(values) : '—'} itemId={item.id} field="distance-travelled" />}
                 {showPassengers && <MobileField label="Passengers" value={passengersValue(values)} itemId={item.id} field="passengers" />}
