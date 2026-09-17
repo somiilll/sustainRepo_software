@@ -171,12 +171,13 @@ async def resolve_factor_options(
             unit: aliases_by_symbol.get(unit, [unit])
             for unit in option.get("allowed_units", [])
         }
+        option_words = set(re.findall(r"[a-z0-9]+", str(option.get("value") or "").lower()))
+        gaseous_terms = {"methane", "hydrogen", "biogas", "biomethane", "cng", "lng"}
+        is_gaseous = ("gas" in option_words and "oil" not in option_words) or bool(option_words & gaseous_terms)
         if (
-            scope_key == "scope1"
-            and category_key == "stationarycombustion"
-            and option.get("collection") == "fuel_database"
-            and normalize_option(option.get("value")) == "naturalgas"
+            option.get("collection") in {"fuel_database", "scope3_ef"}
             and "m3" in option["unit_aliases"]
+            and is_gaseous
         ):
             option["unit_aliases"]["m3"] = list(dict.fromkeys([
                 *option["unit_aliases"]["m3"], "SCM", "standard cubic meter", "standard cubic metre",
