@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, GripVertical, MoreHorizontal } from 'lucide-react';
+import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, MoreHorizontal } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
@@ -135,8 +135,9 @@ export default function EmissionDataGrid({
   // Selection state for bulk delete
   const [selectedIds, setSelectedIds] = useState(new Set());
   const ledgerScrollRef = useRef(null);
-  const topScrollbarRef = useRef(null);
   const [ledgerScrollWidth, setLedgerScrollWidth] = useState(0);
+  const [ledgerViewportWidth, setLedgerViewportWidth] = useState(0);
+  const [ledgerScrollLeft, setLedgerScrollLeft] = useState(0);
   const [columnWidths, setColumnWidths] = useState(() => {
     try {
       return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(localStorage.getItem('emission-log-column-widths-v4') || '{}') };
@@ -151,23 +152,19 @@ export default function EmissionDataGrid({
 
   useEffect(() => {
     const ledger = ledgerScrollRef.current;
-    const topScrollbar = topScrollbarRef.current;
-    if (!ledger || !topScrollbar) return undefined;
-    const syncWidth = () => setLedgerScrollWidth(ledger.scrollWidth);
-    const syncTopScrollbar = () => {
-      if (topScrollbar.scrollLeft !== ledger.scrollLeft) topScrollbar.scrollLeft = ledger.scrollLeft;
+    if (!ledger) return undefined;
+    const syncDimensions = () => {
+      setLedgerScrollWidth(ledger.scrollWidth);
+      setLedgerViewportWidth(ledger.clientWidth);
+      setLedgerScrollLeft(ledger.scrollLeft);
     };
-    const syncLedger = () => {
-      if (ledger.scrollLeft !== topScrollbar.scrollLeft) ledger.scrollLeft = topScrollbar.scrollLeft;
-    };
-    syncWidth();
-    ledger.addEventListener('scroll', syncTopScrollbar, { passive: true });
-    topScrollbar.addEventListener('scroll', syncLedger, { passive: true });
-    const observer = new ResizeObserver(syncWidth);
+    const syncScrollPosition = () => setLedgerScrollLeft(ledger.scrollLeft);
+    syncDimensions();
+    ledger.addEventListener('scroll', syncScrollPosition, { passive: true });
+    const observer = new ResizeObserver(syncDimensions);
     observer.observe(ledger);
     return () => {
-      ledger.removeEventListener('scroll', syncTopScrollbar);
-      topScrollbar.removeEventListener('scroll', syncLedger);
+      ledger.removeEventListener('scroll', syncScrollPosition);
       observer.disconnect();
     };
   }, [activeScope, columnWidths, filteredEmissions.length]);
@@ -206,10 +203,12 @@ export default function EmissionDataGrid({
     setColumnWidths((current) => ({ ...current, [columnKey]: Math.min(420, Math.max(80, Math.round(width))) }));
   };
 
-  const scrollLedgerHorizontally = (direction) => {
+  const handleBottomScrollbarChange = (event) => {
     const ledger = ledgerScrollRef.current;
     if (!ledger) return;
-    ledger.scrollBy({ left: direction * Math.max(240, Math.round(ledger.clientWidth * 0.7)), behavior: 'smooth' });
+    const nextScrollLeft = Number(event.target.value);
+    ledger.scrollLeft = nextScrollLeft;
+    setLedgerScrollLeft(nextScrollLeft);
   };
 
   const columnStyle = (columnKey) => ({ width: columnWidths[columnKey] });
@@ -342,15 +341,7 @@ export default function EmissionDataGrid({
         </div>
       )}
       
-      <div className="sticky top-0 z-30 flex items-center gap-2 border-b border-stone-200 bg-stone-50 px-3 py-2" data-testid="emissions-ledger-horizontal-navigation">
-        <Button type="button" size="icon" variant="ghost" onClick={() => scrollLedgerHorizontally(-1)} className="h-8 w-8 shrink-0" aria-label="Scroll ledger columns left" data-testid="emissions-ledger-scroll-left-button"><ChevronLeft className="h-4 w-4" /></Button>
-        <div ref={topScrollbarRef} className="h-5 min-w-0 flex-1 overflow-x-auto overflow-y-hidden" aria-label="Ledger horizontal scrollbar" data-testid="emissions-ledger-top-scrollbar">
-          <div className="h-px" style={{ width: ledgerScrollWidth }} data-testid="emissions-ledger-top-scrollbar-track" />
-        </div>
-        <Button type="button" size="icon" variant="ghost" onClick={() => scrollLedgerHorizontally(1)} className="h-8 w-8 shrink-0" aria-label="Scroll ledger columns right" data-testid="emissions-ledger-scroll-right-button"><ChevronRight className="h-4 w-4" /></Button>
-      </div>
-
-      <div ref={ledgerScrollRef} className="h-[min(70vh,52rem)] overflow-auto" data-testid="emissions-ledger-scroll-region">
+      <div ref={ledgerScrollRef} className="h-[min(70vh,52rem)] overflow-x-hidden overflow-y-auto" data-testid="emissions-ledger-scroll-region">
       {/* Fixed Header Row */}
       <div className="min-w-max sticky top-0 z-10 bg-stone-50 border-b border-stone-200 px-4 py-3">
         <div className="flex min-w-max items-center gap-2 bg-stone-50 text-xs font-semibold text-stone-600 uppercase tracking-wider">
@@ -690,6 +681,19 @@ export default function EmissionDataGrid({
           </p>
         </div>
       )}
+      </div>
+      <div className="border-t border-stone-200 bg-stone-50 px-4 py-2" data-testid="emissions-ledger-bottom-scrollbar">
+        <input
+          type="range"
+          min="0"
+          max={Math.max(0, ledgerScrollWidth - ledgerViewportWidth)}
+          value={Math.min(ledgerScrollLeft, Math.max(0, ledgerScrollWidth - ledgerViewportWidth))}
+          onChange={handleBottomScrollbarChange}
+          disabled={ledgerScrollWidth <= ledgerViewportWidth}
+          className="emissions-ledger-scrollbar h-3 w-full cursor-ew-resize disabled:cursor-default disabled:opacity-40"
+          aria-label="Scroll ledger columns horizontally"
+          data-testid="emissions-ledger-bottom-scrollbar-track"
+        />
       </div>
     </div>
   );

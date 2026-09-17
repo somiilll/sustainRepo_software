@@ -3,6 +3,38 @@
 [data-testid^="edit-training-due-date-"] { order: 3; }
 [data-testid^="training-overflow-menu-"] { order: 4; }
 [data-testid^="training-overflow-menu-content-"] { background-color: #ffffff !important; opacity: 1 !important; }
+.emissions-ledger-scrollbar {
+  appearance: none;
+  background: transparent;
+}
+.emissions-ledger-scrollbar::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #d6d3d1;
+}
+.emissions-ledger-scrollbar::-webkit-slider-thumb {
+  appearance: none;
+  width: 44px;
+  height: 14px;
+  margin-top: -3px;
+  border: 1px solid #065f46;
+  border-radius: 999px;
+  background: #047857;
+  cursor: ew-resize;
+}
+.emissions-ledger-scrollbar::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #d6d3d1;
+}
+.emissions-ledger-scrollbar::-moz-range-thumb {
+  width: 44px;
+  height: 14px;
+  border: 1px solid #065f46;
+  border-radius: 999px;
+  background: #047857;
+  cursor: ew-resize;
+}
 .App {
   min-height: 100vh;
   background-color: #F5F7F5;
