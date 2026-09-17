@@ -3,7 +3,7 @@
     "stationary_combustion": {
       "ef_method": "activity",
       "ef_database": "IPCC",
-      "subcategories": ["Natural Gas", "Diesel", "LPG", "Coal", "Wood/Biomass", "Fuel Oil", "Kerosene", "Propane", "Anthracite", "Lignite"]
+      "subcategories": ["Natural Gas", "Diesel", "Liquefied Petroleum Gases", "Coal", "Wood/Biomass", "Fuel Oil", "Kerosene", "Propane", "Anthracite", "Lignite"]
     },
     "mobile_combustion": {
       "ef_method": "activity",

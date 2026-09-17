@@ -376,7 +376,6 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" />
               <Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" />
             </div>
-            <ExtractedValue label="reporting period / date" value={original.billing_period_text || original.date} field="reporting-period-date" />
           </div>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-quantity-unit-row">
             <div className="space-y-2">
