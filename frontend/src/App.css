@@ -14,7 +14,7 @@
 }
 .emissions-ledger-scrollbar::-webkit-slider-thumb {
   appearance: none;
-  width: 44px;
+  width: 150px;
   height: 14px;
   margin-top: -3px;
   border: 1px solid #065f46;
@@ -28,12 +28,23 @@
   background: #d6d3d1;
 }
 .emissions-ledger-scrollbar::-moz-range-thumb {
-  width: 44px;
+  width: 150px;
   height: 14px;
   border: 1px solid #065f46;
   border-radius: 999px;
   background: #047857;
   cursor: ew-resize;
+}
+[data-testid^="emission-row-"] > div[style] {
+  min-width: 0;
+  text-align: center;
+}
+[data-testid^="emission-row-"] > div[style].flex {
+  justify-content: center;
+}
+[data-testid^="emission-row-"] > div[style] > p {
+  min-width: 0;
+  text-align: center;
 }
 .App {
   min-height: 100vh;

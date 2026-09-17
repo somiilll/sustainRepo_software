@@ -67,7 +67,7 @@ const ResizableColumnHeader = ({ columnKey, width, onResize, children }) => {
       <button
         type="button"
         onPointerDown={startResize}
-        className="absolute right-0 top-0 z-20 flex h-full w-4 touch-none items-center justify-center border-l border-dashed border-stone-300 bg-stone-50/90 text-stone-400 transition-colors hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 cursor-col-resize"
+        className="absolute right-0 top-0 z-20 flex h-full w-4 touch-none items-center justify-center bg-stone-50/90 text-stone-400 transition-colors hover:bg-emerald-50 hover:text-emerald-700 cursor-col-resize"
         aria-label="Resize column"
         title={`Resize ${columnKey} column`}
         data-testid={`emissions-resize-column-${columnKey}`}
@@ -341,7 +341,7 @@ export default function EmissionDataGrid({
         </div>
       )}
       
-      <div ref={ledgerScrollRef} className="h-[min(70vh,52rem)] overflow-x-hidden overflow-y-auto" data-testid="emissions-ledger-scroll-region">
+      <div ref={ledgerScrollRef} className="h-[min(70vh,52rem)] overflow-auto" data-testid="emissions-ledger-scroll-region">
       {/* Fixed Header Row */}
       <div className="min-w-max sticky top-0 z-10 bg-stone-50 border-b border-stone-200 px-4 py-3">
         <div className="flex min-w-max items-center gap-2 bg-stone-50 text-xs font-semibold text-stone-600 uppercase tracking-wider">
