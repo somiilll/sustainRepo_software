@@ -171,6 +171,16 @@ async def resolve_factor_options(
             unit: aliases_by_symbol.get(unit, [unit])
             for unit in option.get("allowed_units", [])
         }
+        if (
+            scope_key == "scope1"
+            and category_key == "stationarycombustion"
+            and option.get("collection") == "fuel_database"
+            and normalize_option(option.get("value")) == "naturalgas"
+            and "m3" in option["unit_aliases"]
+        ):
+            option["unit_aliases"]["m3"] = list(dict.fromkeys([
+                *option["unit_aliases"]["m3"], "SCM", "standard cubic meter", "standard cubic metre",
+            ]))
 
     unique: dict[str, dict] = {}
     for option in options:

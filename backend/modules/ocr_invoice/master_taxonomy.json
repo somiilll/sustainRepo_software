@@ -99,8 +99,8 @@
       "ef_method": "activity",
       "ef_database": "CEA",
       "subcategories": {
-        "non_renewable": ["Grid Electricity"],
-        "renewable": ["Green Tariff", "Solar PPA", "Wind PPA", "REC-backed"]
+        "non_renewable": ["Non-Renewable Electricity"],
+        "renewable": ["Renewable Electricity"]
       }
     },
     "purchased_heat_steam_cooling": {
