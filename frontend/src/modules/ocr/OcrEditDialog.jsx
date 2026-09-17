@@ -260,20 +260,31 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   const isSpend = values.ef_method === 'spend';
   const isRequiredForGhgSave = (...fields) => fields.some((field) => requiredFields.includes(field));
   const requiredClassName = (...fields) => isRequiredForGhgSave(...fields) ? 'border-red-500 ring-1 ring-red-200' : '';
-  const set = (field, value) => setValues((current) => ({ ...current, [field]: value }));
+  const set = (field, value) => {
+    setValues((current) => ({ ...current, [field]: value }));
+    if (['facility_id', 'unit', 'currency'].includes(field)) setFactorError('');
+  };
   const resetFactor = (current, patch) => ({ ...current, ...patch, factor_id: '', fuel_id: '', scope3_ef_id: '', ef_database: '', naics_code: '', naics_label: '' });
 
-  const changeScope = (scope) => setValues((current) => resetFactor(current, {
-    scope, category: '', category_key: '', category_code: '', ef_method: scope === 'water' ? 'activity' : current.ef_method,
-  }));
+  const changeScope = (scope) => {
+    setFactorError('');
+    setValues((current) => resetFactor(current, {
+      scope, category: '', category_key: '', category_code: '', ef_method: scope === 'water' ? 'activity' : current.ef_method,
+    }));
+  };
   const changeCategory = (category) => {
     const option = categories.find((entry) => entry.value === category);
+    setFactorError('');
     setValues((current) => resetFactor(current, { category, category_key: option?.key || '', category_code: option?.code || '' }));
   };
-  const changeMethod = (ef_method) => setValues((current) => resetFactor(current, { ef_method }));
+  const changeMethod = (ef_method) => {
+    setFactorError('');
+    setValues((current) => resetFactor(current, { ef_method }));
+  };
   const changeFactor = (factorId) => {
     const factor = factors.find((option) => option.id === factorId);
     if (!factor) return;
+    setFactorError('');
     const matchedInput = matchingUnit(factor, isSpend ? values.currency : values.unit);
     setValues((current) => ({
       ...current,
