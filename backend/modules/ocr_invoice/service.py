@@ -129,7 +129,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
                 org_name=organization_id,
             )
         except Exception:
-            logger.exception("OCR source upload failed", extra={"organization_id": organization_id, "filename": filename})
+            logger.exception("OCR source upload failed", extra={"organization_id": organization_id, "ocr_filename": filename})
             errors.append({"filename": filename, "error": "Secure storage upload failed"})
             continue
         if upload_result.get("error"):
@@ -200,7 +200,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
         except Exception:
             logger.exception(
                 "OCR file processing failed",
-                extra={"organization_id": organization_id, "filename": filename, "mode": mode.key},
+                extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key},
             )
             file_info["status"] = "failed"
             file_info["error"] = "Processing failed for this file"
@@ -275,7 +275,7 @@ async def queue_upload_batch(files, organization_id: str, user: dict, mode: Extr
                 org_name=organization_id,
             )
         except Exception:
-            logger.exception("OCR source staging failed", extra={"organization_id": organization_id, "filename": filename})
+            logger.exception("OCR source staging failed", extra={"organization_id": organization_id, "ocr_filename": filename})
             upload_record["errors"].append({"filename": filename, "error": "Secure storage upload failed"})
             continue
         if upload_result.get("error"):
@@ -450,10 +450,10 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
             file_info["line_item_count"] = len(file_items)
             file_info["status"] = "completed"
         except Exception:
-            logger.exception("Queued OCR file processing failed", extra={"organization_id": organization_id, "filename": filename, "mode": mode.key})
+            logger.exception("Queued OCR file processing failed", extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key})
             file_info["status"] = "failed"
-            file_info["error"] = "Processing failed for this file"
-            errors.append({"filename": filename, "error": "Processing failed for this file"})
+            file_info["error"] = "An error occurred. Try again."
+            errors.append({"filename": filename, "error": "An error occurred. Try again."})
         finally:
             if temp_path and os.path.exists(temp_path):
                 os.unlink(temp_path)

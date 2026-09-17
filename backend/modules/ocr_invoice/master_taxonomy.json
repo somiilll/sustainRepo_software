@@ -456,9 +456,9 @@
       "ef_method": "activity",
       "ef_database": "DEFRA",
       "subcategories": {
-        "air": ["Flights, Short-haul -Average passenger", "Flights, Short-haul -Economy class", "Flights, Short-haul -Business class", "Flights, International to/from UK-Average passenger"
+        "air": ["Flights, Short-haul -Average passenger", "Flights, Short-haul -Economy class", "Flights, Short-haul -Business class", "Flights, International to/from UK-Average passenger",
          "Flights, International to/from UK-Economy class", "Flights, International to/from UK-Premium economy class", "Flights, International to/from UK-Business class",
-        "Flights, International to/from UK-First class", "Flights, International -Average passenger", "Flights, International -Economy class", "Flights, International -Premium economy class",
+         "Flights, International to/from UK-First class", "Flights, International -Average passenger", "Flights, International -Economy class", "Flights, International -Premium economy class",
          "Flights, International -Business class", "Flights, International -First class"],
         "rail": ["Railways"],
         "road": [

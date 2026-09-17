@@ -32,6 +32,7 @@ import {
   getOcrUpload,
   loadOcrPreview,
   rejectOcrLineItem,
+  retryOcrUpload,
   saveOcrLineItemToGhg,
   updateOcrLineItem,
   uploadOcrFiles,
@@ -100,6 +101,8 @@ export default function OCRInvoice() {
   const [cancellingQueue, setCancellingQueue] = useState(false);
   const facilityPreviewRequestRef = useRef(0);
   const [activeExtractionIds, setActiveExtractionIds] = useState([]);
+  const [failedExtractionIds, setFailedExtractionIds] = useState([]);
+  const [retryingQueue, setRetryingQueue] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -112,6 +115,12 @@ export default function OCRInvoice() {
     try { activeUploadIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { activeUploadIds = []; }
     if (!activeUploadIds.length && legacyUploadId) activeUploadIds = [legacyUploadId];
     if (activeUploadIds.length) setActiveExtractionIds(activeUploadIds);
+    let failedUploadIds = [];
+    try { failedUploadIds = JSON.parse(localStorage.getItem('ocr-failed-upload-ids') || '[]'); } catch { failedUploadIds = []; }
+    if (failedUploadIds.length) {
+      setFailedExtractionIds(failedUploadIds);
+      setError('An error occurred. Try again.');
+    }
     return () => { mounted = false; };
   }, [getAuthHeader]);
 
@@ -169,8 +178,19 @@ export default function OCRInvoice() {
           toast.success(`Extraction ready: ${completedItems.length} activity row${completedItems.length === 1 ? '' : 's'}`);
         }
         terminalRecords.filter((record) => record.upload.status === 'failed').forEach((record) => {
-          toast.error(record.upload.errors?.[0]?.error || 'Invoice extraction could not be completed.');
+          toast.error('An error occurred. Try again.');
         });
+        const newlyFailedIds = terminalRecords
+          .filter((record) => record.upload.status === 'failed')
+          .map((record) => record.upload.id);
+        if (newlyFailedIds.length) {
+          setFailedExtractionIds((current) => {
+            const next = [...new Set([...current, ...newlyFailedIds])];
+            localStorage.setItem('ocr-failed-upload-ids', JSON.stringify(next));
+            return next;
+          });
+          setError('An error occurred. Try again.');
+        }
       }
       const retainedIds = records.flatMap((record, index) => {
         if (!record?.upload) return [activeExtractionIds[index]];
@@ -243,6 +263,32 @@ export default function OCRInvoice() {
       toast.error(responseMessage(requestError, 'OCR processing could not be cancelled.'));
     } finally {
       setCancellingQueue(false);
+    }
+  };
+
+  const retryFailedProcessing = async () => {
+    if (!failedExtractionIds.length) return;
+    setRetryingQueue(true);
+    try {
+      const results = await Promise.allSettled(failedExtractionIds.map((uploadId) => retryOcrUpload(uploadId, getAuthHeader())));
+      const retriedIds = results.flatMap((result, index) => result.status === 'fulfilled' ? [failedExtractionIds[index]] : []);
+      if (!retriedIds.length) throw new Error('OCR extraction could not be restarted.');
+      const remainingFailedIds = failedExtractionIds.filter((uploadId) => !retriedIds.includes(uploadId));
+      setFailedExtractionIds(remainingFailedIds);
+      if (remainingFailedIds.length) localStorage.setItem('ocr-failed-upload-ids', JSON.stringify(remainingFailedIds));
+      else localStorage.removeItem('ocr-failed-upload-ids');
+      localStorage.setItem('ocr-active-upload-ids', JSON.stringify(retriedIds));
+      setActiveExtractionIds((current) => [...new Set([...current, ...retriedIds])]);
+      setFileQueue((current) => current.map((file) => (
+        retriedIds.includes(file.uploadId) ? { ...file, status: 'queued' } : file
+      )));
+      setError('');
+      toast.success('OCR extraction restarted.');
+    } catch (requestError) {
+      setError(responseMessage(requestError, 'An error occurred. Try again.'));
+      toast.error('An error occurred. Try again.');
+    } finally {
+      setRetryingQueue(false);
     }
   };
 
@@ -496,7 +542,11 @@ export default function OCRInvoice() {
       {error && (
         <div className="flex items-start gap-3 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="alert" data-testid="ocr-error-alert">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">{error}</span>
-          <button type="button" onClick={() => setError('')} className="font-semibold underline" data-testid="ocr-dismiss-error-button">Dismiss</button>
+          {failedExtractionIds.length ? (
+            <Button type="button" size="sm" variant="outline" onClick={retryFailedProcessing} disabled={retryingQueue} data-testid="ocr-retry-failed-button">
+              <RefreshCw className={`mr-2 h-4 w-4 ${retryingQueue ? 'animate-spin' : ''}`} />{retryingQueue ? 'Retrying' : 'Try again'}
+            </Button>
+          ) : <button type="button" onClick={() => setError('')} className="font-semibold underline" data-testid="ocr-dismiss-error-button">Dismiss</button>}
         </div>
       )}
 

@@ -881,6 +881,48 @@ async def cancel_upload_processing(
     return {"upload_id": upload_id, "status": "cancelled"}
 
 
+@router.post("/uploads/{upload_id}/retry")
+async def retry_upload_processing(
+    upload_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """Retry a failed OCR batch from its securely staged source files."""
+    org_id = _get_org(current_user)
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id, "status": "failed"},
+        {"_id": 0, "id": 1, "files": 1},
+    )
+    if not upload:
+        raise HTTPException(status_code=409, detail="Only failed OCR uploads can be retried")
+    retry_files = [
+        {
+            **file,
+            "status": "queued",
+            "error": None,
+            "line_item_count": 0,
+        }
+        for file in upload.get("files", [])
+    ]
+    if not retry_files:
+        raise HTTPException(status_code=409, detail="This OCR upload has no staged source files to retry")
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db[OCR_UPLOADS_COLLECTION].update_one(
+        {"id": upload_id, "organization_id": org_id, "status": "failed"},
+        {"$set": {
+            "status": "queued",
+            "files": retry_files,
+            "errors": [],
+            "retry_requested_at": now,
+            "updated_at": now,
+        }, "$inc": {"retry_count": 1}},
+    )
+    if not result.modified_count:
+        raise HTTPException(status_code=409, detail="This OCR upload could not be queued for retry")
+    background_tasks.add_task(process_queued_upload, upload_id, org_id, current_user)
+    return {"upload_id": upload_id, "status": "queued"}
+
+
 @router.get("/uploads/{upload_id}/files/{file_index}/preview")
 async def preview_upload_file(
     upload_id: str,
