@@ -79,6 +79,7 @@ def _option(record: dict, *, value_field: str, source_fallback: str, collection:
         "allowed_units": _units(record),
         "default_unit": record.get("default_unit"),
         "method": normalize_method(record.get("method") or "activity"),
+        "activity_type": record.get("activity_type") or "",
         "collection": collection,
         "naics_code": naics_match.group(1) if naics_match else None,
         "naics_label": naics_match.group(2).strip() if naics_match else None,
@@ -121,7 +122,7 @@ async def resolve_factor_options(
     elif scope_key == "scope3":
         records = await db.scope3_ef.find(
             {"is_active": {"$ne": False}},
-            {"_id": 0, "id": 1, "category": 1, "activity": 1, "method": 1, "allowed_units": 1,
+            {"_id": 0, "id": 1, "category": 1, "activity": 1, "method": 1, "activity_type": 1, "allowed_units": 1,
              "default_unit": 1, "source": 1, "source_name": 1, "ef_database": 1},
         ).to_list(10000)
         for record in records:

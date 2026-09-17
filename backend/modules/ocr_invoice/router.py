@@ -321,6 +321,8 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
             "ef_database": matched_factor["database"],
             input_field: canonical_input,
         })
+        if matched_factor.get("activity_type"):
+            values["scope3_activity_type"] = matched_factor["activity_type"]
     return values, facility
 
 
@@ -951,15 +953,25 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
     ).sort("name", 1).to_list(1000)
     scopes = [scope for scope in ("scope1", "scope2", "scope3") if scope in scopes] + ["water"]
     scope_categories = list(SCOPE_CATEGORY_NAMES.items())
+    category_documents = await db.emission_categories.find(
+        {"is_active": {"$ne": False}},
+        {"_id": 0, "id": 1, "name": 1, "category": 1, "display_name": 1},
+    ).to_list(200)
+    category_ids = {
+        str(document.get(key)): document.get("id")
+        for document in category_documents
+        for key in ("name", "category", "display_name")
+        if document.get(key) and document.get("id")
+    }
     categories = [
-        *({"scope": "scope1", "value": value, "label": value, "key": key, "code": key} for key, value in scope_categories[:3]),
-        *({"scope": "scope2", "value": value, "label": value, "key": key, "code": key} for key, value in scope_categories[3:]),
+        *({"scope": "scope1", "value": value, "label": value, "key": key, "code": key, "id": category_ids.get(value)} for key, value in scope_categories[:3]),
+        *({"scope": "scope2", "value": value, "label": value, "key": key, "code": key, "id": category_ids.get(value)} for key, value in scope_categories[3:]),
         *(
-            {"scope": "scope3", "value": value, "label": value, "key": key, "code": value.split(" - ", 1)[0].lower()}
+            {"scope": "scope3", "value": value, "label": value, "key": key, "code": value.split(" - ", 1)[0].lower(), "id": category_ids.get(value)}
             for key, value in SCOPE3_CATEGORY_NAMES.items()
             if value.split(" - ", 1)[0] not in disabled_scope3_sheets
         ),
-        *({"scope": "water", "value": value, "label": value, "key": key, "code": key} for key, value in WATER_CATEGORY_NAMES.items()),
+        *({"scope": "water", "value": value, "label": value, "key": key, "code": key, "id": category_ids.get(value)} for key, value in WATER_CATEGORY_NAMES.items()),
     ]
     return {
         "enabled_scopes": scopes,
@@ -1194,6 +1206,8 @@ async def edit_line_item(
             "naics_code": selected_factor.get("naics_code") or (candidate.get("naics_code") if selected_factor.get("method") == "spend" else ""),
             "naics_label": selected_factor.get("naics_label") or (candidate.get("naics_label") if selected_factor.get("method") == "spend" else ""),
         })
+        if selected_factor.get("activity_type"):
+            submitted["scope3_activity_type"] = selected_factor["activity_type"]
         submitted[selected_factor["selected_input_field"]] = selected_factor["selected_input_value"]
     for field, value in submitted.items():
         if value is not None:
@@ -1419,6 +1433,8 @@ async def save_line_item_to_ghg(
         values["fuel_name"] = selected_factor["value"]
         values["ef_lookup_key"] = selected_factor["value"]
         values["ef_database"] = selected_factor["database"]
+        if selected_factor.get("activity_type"):
+            values["scope3_activity_type"] = selected_factor["activity_type"]
         values["naics_code"] = selected_factor.get("naics_code") or (values.get("naics_code") if selected_factor.get("method") == "spend" else "")
         values["naics_label"] = selected_factor.get("naics_label") or (values.get("naics_label") if selected_factor.get("method") == "spend" else "")
         values["unit"] = selected_factor["selected_input_value"] if selected_factor["selected_input_field"] == "unit" else values.get("unit")
@@ -1469,6 +1485,8 @@ async def save_line_item_to_ghg(
             "current_values.calculation_method_scope3": resolved_scope3_method,
             "current_values.ef_quantity_basis": resolved_decisions.get("ef_quantity_basis"),
             "current_values.cv_quantity_basis": resolved_decisions.get("cv_quantity_basis"),
+            "current_values.scope3_activity_type": values.get("scope3_activity_type"),
+            "current_values.dynamic_field_values": values.get("dynamic_field_values") or {},
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }},
     )

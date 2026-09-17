@@ -18,6 +18,7 @@ from calc_engine.versioning import (
     get_decision_tree_for_execution,
     resolve_formula_version_for_tree,
 )
+from .activity_inputs import hydrate_formula_activity_inputs
 
 
 SCOPE3_METHODS = {
@@ -131,13 +132,20 @@ def build_formula_inputs(formula: dict, values: dict) -> dict:
     cost = _number(values.get("cost"))
     distance = _number(values.get("distance_km"))
     inputs: dict[str, dict] = {}
+    dynamic_values = values.get("dynamic_field_values") or {}
     for declaration in formula.get("definition", {}).get("inputs", []):
         variable = declaration.get("variable")
         if not variable:
             continue
         lowered = variable.lower()
         payload = None
-        if "spent" in lowered or "cost" in lowered or "monetary" in lowered:
+        explicit_value = dynamic_values.get(variable)
+        if isinstance(explicit_value, dict) and _number(explicit_value.get("value")) is not None:
+            payload = {
+                "value": _number(explicit_value.get("value")),
+                "unit": explicit_value.get("unit") or declaration.get("expected_unit") or "",
+            }
+        elif "spent" in lowered or "cost" in lowered or "monetary" in lowered:
             if cost is not None:
                 payload = {"value": cost, "unit": values.get("currency") or declaration.get("expected_unit") or ""}
         elif "distance" in lowered or "travel" in lowered or lowered.startswith("km"):
@@ -204,6 +212,7 @@ async def execute_ocr_calculation(db, values: dict, category: dict, organization
     formula = dict(formula_doc["definition"])
     formula.setdefault("id", formula_doc["id"])
     formula.setdefault("version_id", formula_doc.get("version_id"))
+    await hydrate_formula_activity_inputs(db, category_id, formula_doc, values)
     inputs = build_formula_inputs(formula_doc, values)
     overrides = {}
     if decision_inputs.get("calculation_method_scope3") == "spend_basis":

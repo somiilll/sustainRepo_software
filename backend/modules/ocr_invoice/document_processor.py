@@ -26,6 +26,7 @@ from .normalization import (
 )
 from .reconciliation import finalize_spreadsheet_item, prepare_item, prepare_spreadsheet_item, reconcile_invoice_items
 from .taxonomy_service import classify_item
+from .activity_inputs import ocr_activity_input_candidates
 
 
 EXTRACTION_SYSTEM_PROMPT = """You are an expert ESG emissions accounting data extraction assistant.
@@ -84,7 +85,7 @@ UNIVERSAL PHYSICAL ACTIVITY EXTRACTION RULES:
      * Railways: Extract `travel_details.mode = "Train"`, `origin` (departure station/city), `destination` (arrival station/city), and `passenger_count` (int, default 1). Leave `class: null` (no cabin class for rail).
      * Road / Cabs / Taxis (Uber, Ola, local taxi, rental): Extract `travel_details.mode = "Taxi"` or `"Car"`, `origin`, `destination`, `passenger_count`, and NORMALIZE vehicle type strictly to DEFRA size brackets in `travel_details.vehicle_type`: "Small", "Medium", "Large", or "Average" (default to "Average" if unspecified).
      * Aviation / Flights: Extract `travel_details.mode = "Flight"`, `origin` (departure airport code or city), `destination` (arrival airport code or city), `class` ("Economy" | "Premium Economy" | "Business" | "First"), and `passenger_count` (int, default 1). DO NOT calculate point-to-point distance in km; leave `distance_km: null` if not explicitly printed on the ticket.
-     * Hotels / Accommodation: Extract `travel_details.mode = "Hotel"`, `origin` (city/country of hotel), calculate total room nights as `quantity` = (number of rooms) * (number of nights), and set `unit: "room_nights"`.
+     * Hotels / Accommodation: Extract `travel_details.mode = "Hotel"`, `origin` (city/country of hotel), `room_count` (integer), and `nights_stayed` (integer). Also calculate total room nights as `quantity` = (number of rooms) * (number of nights), and set `unit: "room_nights"`.
 
 JSON SCHEMA PER INVOICE:
 {
@@ -125,6 +126,9 @@ JSON SCHEMA PER INVOICE:
                 "class": "Economy | Premium Economy | Business | First | null",
                 "vehicle_type": "Small | Medium | Large | Average | null",
                 "passenger_count": <int or null>,
+                "days_travelled": <int or null>,
+                "room_count": <int or null>,
+                "nights_stayed": <int or null>,
                 "distance_km": <float or null>,
                 "origin": "string or null",
                 "destination": "string or null"
@@ -156,6 +160,8 @@ HEADER_ALIASES = {
     "item_description": ["item_description", "description", "item", "particulars", "material_description", "material_name", "product_name", "product", "activity", "service_description"],
     "quantity": ["quantity", "qty", "billed_qty", "volume", "net_weight", "quantity_used", "units"],
     "unit": ["unit", "uom", "unit_of_measure", "unit_of_quantity", "unit_of_quantity_used", "measure"],
+    "quantity_goods": ["quantity_goods", "quantity_of_goods", "goods_quantity", "weight", "weight_kg", "cargo_weight"],
+    "unit_goods": ["unit_goods", "unit_of_goods", "goods_unit", "weight_unit"],
     "total_cost": ["total_cost", "total_amount", "amount", "cost", "total", "net_amount", "spent_amount", "spent_amount_inr", "spend", "invoice_amount", "value"],
     "currency": ["currency", "curr"],
     "distance_km": ["distance_km", "distance", "dist_km", "dist", "travel_distance", "km", "kms", "route_distance"],
@@ -170,6 +176,9 @@ HEADER_ALIASES = {
     "travel_class": ["travel_class", "class", "cabin_class", "cabin", "booking_class"],
     "vehicle_type": ["vehicle_type", "vehicle", "car_type", "cab_type"],
     "passenger_count": ["passenger_count", "passengers", "pax"],
+    "days_travelled": ["days_travelled", "days_traveled", "no_of_days_travelled", "number_of_days"],
+    "rooms": ["rooms", "room_count", "no_of_rooms", "number_of_rooms"],
+    "nights": ["nights", "nights_stayed", "no_of_nights", "number_of_nights"],
     "freight_mode": ["freight_mode", "shipping_mode", "mode_of_transport"],
     "waste_type": ["waste_type", "waste_material"],
     "disposal_method": ["disposal_method", "treatment_method", "waste_treatment"],
@@ -273,14 +282,21 @@ def read_spreadsheet(path: str) -> list[dict]:
                 "primary_material": "",
                 "quantity": value("quantity"),
                 "unit": value("unit"),
+                "quantity_goods": value("quantity_goods"),
+                "unit_goods": value("unit_goods"),
+                "passengers": value("passenger_count"),
+                "days_travelled": value("days_travelled"),
+                "rooms": value("rooms"),
+                "nights": value("nights"),
                 "total_cost": value("total_cost"),
                 "currency": value("currency"),
                 "distance_km": distance,
                 "origin": origin,
                 "destination": destination,
                 "travel_details": {
-                    "mode": None, "class": value("travel_class"),
-                    "vehicle_type": value("vehicle_type"), "passenger_count": 1,
+                    "mode": value("travel_mode"), "class": value("travel_class"),
+                    "vehicle_type": value("vehicle_type"), "passenger_count": value("passenger_count") or 1,
+                    "days_travelled": value("days_travelled"), "room_count": value("rooms"), "nights_stayed": value("nights"),
                     "distance_km": distance, "origin": origin, "destination": destination,
                 },
                 "freight_details": {
@@ -428,6 +444,12 @@ async def process_document(
                 "fuel_name": classification["ghg_subcategory"],
                 "quantity": item.get("quantity"),
                 "unit": normalize_unit(item.get("unit"), classification["ghg_category"]),
+                "quantity_goods": item.get("quantity_goods") or freight.get("quantity_goods") or freight.get("weight_kg"),
+                "unit_goods": item.get("unit_goods") or freight.get("weight_unit"),
+                "passengers": item.get("passengers") or travel.get("passenger_count"),
+                "days_travelled": item.get("days_travelled") or travel.get("days_travelled"),
+                "rooms": item.get("rooms") or travel.get("room_count") or travel.get("rooms"),
+                "nights": item.get("nights") or travel.get("nights_stayed") or travel.get("nights"),
                 "distance_km": item.get("distance_km"),
                 "origin": origin,
                 "destination": destination,
@@ -448,6 +470,7 @@ async def process_document(
                 "classification_source": classification["classification_source"],
                 "auto_generate_cat3": classification["auto_generate_cat3"],
             }
+            row["dynamic_field_values"] = ocr_activity_input_candidates(row)
             rows.append(row)
             rows.extend(build_companion_rows(row))
     return rows

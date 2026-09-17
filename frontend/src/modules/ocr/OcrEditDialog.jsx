@@ -7,7 +7,8 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Textarea } from '../../components/ui/textarea';
-import { getOcrFactorOptions } from './ocrApi';
+import { deriveGhgFields } from '../ghg/config/deriveGhgFields';
+import { getOcrFactorOptions, getOcrFormConfig } from './ocrApi';
 
 const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', reporting_period: '', remember_override: false };
 const taxonomyMatchValue = (value) => String(value || '').replace(/\s*\((?:non_renewable|renewable|landfill|recycling|composting|combustion)\)\s*$/i, '');
@@ -91,6 +92,11 @@ const reportingPeriodLabel = (value) => {
   return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' })
     .format(new Date(`${value}-01T12:00:00`));
 };
+const scope3Method = (method) => ({ activity: 'activity_basis', spend: 'spend_basis', supplier: 'supplier_basis' }[method] || method || '');
+const dynamicValue = (values, variable) => {
+  const value = values.dynamic_field_values?.[variable];
+  return value && typeof value === 'object' ? value.value : values[variable] ?? '';
+};
 
 const ExtractedValue = ({ label, value, field }) => (
   <p className="text-xs text-slate-500" data-testid={`ocr-edit-extracted-${field}`}>
@@ -103,6 +109,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   const [factors, setFactors] = useState([]);
   const [factorLoading, setFactorLoading] = useState(false);
   const [factorError, setFactorError] = useState('');
+  const [formConfig, setFormConfig] = useState(null);
+  const [formConfigLoading, setFormConfigLoading] = useState(false);
   const automaticMatchRef = useRef('');
   const original = item?.original_values || {};
 
@@ -149,6 +157,24 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     () => configuration.categories.filter((option) => option.scope === values.scope),
     [configuration.categories, values.scope],
   );
+  const categoryOption = useMemo(
+    () => categories.find((category) => category.value === values.category),
+    [categories, values.category],
+  );
+
+  useEffect(() => {
+    if (!open || values.scope !== 'scope3' || !categoryOption?.id) {
+      setFormConfig(null);
+      return undefined;
+    }
+    let active = true;
+    setFormConfigLoading(true);
+    getOcrFormConfig(categoryOption.id, 'scope3', getAuthHeaders())
+      .then(({ data }) => { if (active) setFormConfig(data); })
+      .catch(() => { if (active) setFormConfig(null); })
+      .finally(() => { if (active) setFormConfigLoading(false); });
+    return () => { active = false; };
+  }, [open, values.scope, categoryOption?.id, getAuthHeaders]);
 
   useEffect(() => {
     const scope1NeedsFacility = values.scope === 'scope1';
@@ -182,6 +208,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             ef_database: selected.database,
             naics_code: selected.naics_code || (selected.method === 'spend' ? values.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? values.naics_label : ''),
+            scope3_activity_type: selected.activity_type || values.scope3_activity_type || '',
             ...(isSpendMethod ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
           };
           setValues(nextValues);
@@ -230,6 +257,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             ef_database: selected.database,
             naics_code: selected.naics_code || (selected.method === 'spend' ? current.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? current.naics_label : ''),
+            scope3_activity_type: selected.activity_type || current.scope3_activity_type || '',
             ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
           };
           const automaticMatchKey = automaticFactor ? `${item?.id}:${factorFacilityId}:${automaticFactor.id}` : '';
@@ -297,6 +325,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       ef_database: factor.database,
       naics_code: factor.naics_code || '',
       naics_label: factor.naics_label || '',
+      scope3_activity_type: factor.activity_type || current.scope3_activity_type || '',
       ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
     }));
   };
@@ -317,6 +346,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       fuel_name: factor.value,
       ef_lookup_key: factor.value,
       ef_database: factor.database,
+      scope3_activity_type: factor.activity_type || values.scope3_activity_type || '',
       ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
     };
     const automaticMatchKey = `${item?.id}:${factorFacilityId}:${factor.id}`;
@@ -327,7 +357,39 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     });
   }, [open, values, factors, isSpend, resolvedFacilityId, item?.id, onAutoMatch]);
 
-  const selectionComplete = Boolean(values.category && selectedFactor && values.subcategory && (isSpend ? values.currency : values.unit) && !factorError);
+  const dynamicFields = useMemo(() => {
+    if (values.scope !== 'scope3' || !formConfig) return [];
+    return deriveGhgFields({
+      formConfig,
+      context: {
+        scope: 'scope3',
+        isScope3Like: true,
+        categoryId: categoryOption?.id,
+        categoryDefinition: { code: values.category_code },
+        scope3Method: scope3Method(values.ef_method),
+        scope3ActivityType: selectedFactor?.activity_type || values.scope3_activity_type || '',
+        scope3Subcategory: values.scope3_subcategory || '',
+        decisionFieldValues: { calculation_method_scope3: scope3Method(values.ef_method) },
+        selectedFuel: selectedFactor,
+      },
+    }).fields.filter((field) => !field.presentationOnly);
+  }, [categoryOption?.id, formConfig, selectedFactor, values.category_code, values.ef_method, values.scope, values.scope3_activity_type, values.scope3_subcategory]);
+  const updateDynamicValue = (field, value, unit) => {
+    setValues((current) => ({
+      ...current,
+      dynamic_field_values: {
+        ...(current.dynamic_field_values || {}),
+        [field.variable]: {
+          ...(current.dynamic_field_values?.[field.variable] || {}),
+          value,
+          unit: unit ?? current.dynamic_field_values?.[field.variable]?.unit ?? field.expectedUnit ?? '',
+        },
+      },
+    }));
+  };
+  const dynamicFieldsComplete = dynamicFields.every((field) => !field.required || dynamicValue(values, field.variable) !== '');
+
+  const selectionComplete = Boolean(values.category && selectedFactor && values.subcategory && (isSpend ? values.currency : values.unit) && dynamicFieldsComplete && !factorError);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -425,6 +487,56 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               <ExtractedValue label="currency" value={original.currency} field="currency" />
             </div>
           </div>
+          {values.scope === 'scope3' && (formConfigLoading || dynamicFields.length > 0) && (
+            <div className="space-y-3 border border-slate-200 bg-slate-50 p-4 sm:col-span-2" data-testid="ocr-edit-dynamic-activity-inputs">
+              <div>
+                <p className="text-sm font-semibold text-slate-950" data-testid="ocr-edit-dynamic-activity-title">Activity inputs</p>
+                <p className="mt-1 text-xs text-slate-600" data-testid="ocr-edit-dynamic-activity-description">Fields follow the selected calculation method and activity.</p>
+              </div>
+              {formConfigLoading ? (
+                <p className="text-sm text-slate-600" data-testid="ocr-edit-dynamic-activity-loading">Loading activity inputs…</p>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2" data-testid="ocr-edit-dynamic-activity-fields">
+                  {dynamicFields.map((field) => {
+                    const fieldValue = dynamicValue(values, field.variable);
+                    const fieldUnit = values.dynamic_field_values?.[field.variable]?.unit || field.expectedUnit || field.allowedUnits?.[0] || '';
+                    const hasUnitSelector = field.unitSource !== 'none' && field.allowedUnits?.length > 1;
+                    return (
+                      <div key={field.id || field.variable} className="space-y-2">
+                        <Label htmlFor={`ocr-dynamic-${field.variable}`} data-testid={`ocr-edit-dynamic-${field.variable}-label`}>
+                          {field.label}{field.required && <span className="ml-1 text-red-500">*</span>}
+                        </Label>
+                        <div className={hasUnitSelector ? 'flex overflow-hidden rounded-md border border-slate-200 bg-white' : ''}>
+                          <Input
+                            id={`ocr-dynamic-${field.variable}`}
+                            type={field.fieldType === 'text' ? 'text' : 'number'}
+                            min={field.fieldType === 'text' ? undefined : '0'}
+                            step={field.unitSource === 'none' ? '1' : 'any'}
+                            value={fieldValue}
+                            placeholder={field.placeholder}
+                            onChange={(event) => updateDynamicValue(field, field.fieldType === 'text' ? event.target.value : (event.target.value === '' ? '' : Number(event.target.value)))}
+                            className={hasUnitSelector ? 'rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : ''}
+                            data-testid={`ocr-edit-dynamic-${field.variable}-input`}
+                          />
+                          {hasUnitSelector && (
+                            <select
+                              value={fieldUnit}
+                              onChange={(event) => updateDynamicValue(field, fieldValue, event.target.value)}
+                              className="min-w-20 border-l border-slate-200 bg-white px-2 text-sm outline-none"
+                              data-testid={`ocr-edit-dynamic-${field.variable}-unit-select`}
+                            >
+                              {field.allowedUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                            </select>
+                          )}
+                          {!hasUnitSelector && field.unitSource !== 'none' && fieldUnit && <span className="flex items-center border-l border-slate-200 px-3 text-sm text-slate-600" data-testid={`ocr-edit-dynamic-${field.variable}-unit`}>{fieldUnit}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="ocr-ef-database">Factor database</Label>
             <Input id="ocr-ef-database" value={values.ef_database || ''} readOnly data-testid="ocr-edit-ef-database-input" />
@@ -434,7 +546,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             {factorLoading && <p className="text-sm text-slate-600" data-testid="ocr-edit-factor-loading">Loading factor options…</p>}
             {!factorLoading && !factorError && values.category && factors.length === 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-no-factors">No factors are configured for this category and method. Choose another method or contact the factor administrator.</p>}
             {factorError && <p className="text-sm text-red-700" data-testid="ocr-edit-factor-error">{factorError}</p>}
-            {!selectionComplete && factors.length > 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-selection-required">Select a subcategory and {isSpend ? 'one of its supported currencies' : 'one of its allowed quantity units'} before saving.</p>}
+            {!selectionComplete && factors.length > 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-selection-required">Select a subcategory, {isSpend ? 'one of its supported currencies' : 'one of its allowed quantity units'}, and complete required activity inputs before saving.</p>}
           </div>
           <div className="space-y-2 sm:col-span-2"><Label htmlFor="ocr-rationale">Accounting rationale</Label><Textarea id="ocr-rationale" value={values.accounting_rationale || ''} onChange={(event) => set('accounting_rationale', event.target.value)} rows={3} data-testid="ocr-edit-rationale-input" /></div>
           <label className="flex items-start gap-3 border border-slate-200 bg-slate-50 p-3 sm:col-span-2" data-testid="ocr-remember-override-control">

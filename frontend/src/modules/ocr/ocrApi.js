@@ -11,6 +11,12 @@ export const getOcrFactorOptions = (scope, category, method, facilityId, headers
     params: { scope, category, method, facility_id: facilityId || undefined },
   });
 
+export const getOcrFormConfig = (categoryId, scope, headers) =>
+  axios.get(`${API}/api/calc-engine/form-config/${categoryId}`, {
+    headers,
+    params: { scope },
+  });
+
 export const downloadOcrTemplate = (headers) =>
   axios.get(`${API}/api/ocr-invoice/template/download`, {
     headers,

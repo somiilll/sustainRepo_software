@@ -1,5 +1,5 @@
 """Pydantic contracts for the OCR module."""
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -33,6 +33,8 @@ class LineItemEdit(BaseModel):
     naics_code: Optional[str] = None
     naics_label: Optional[str] = None
     accounting_rationale: Optional[str] = None
+    scope3_activity_type: Optional[str] = None
+    dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = None
     remember_override: bool = Field(default=False)
 
 

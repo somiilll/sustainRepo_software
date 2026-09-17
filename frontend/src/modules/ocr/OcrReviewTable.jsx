@@ -41,6 +41,19 @@ const quantityValue = (values) => hasValue(values.quantity)
   ? `${values.quantity}${values.unit ? ` ${values.unit}` : ''}`
   : '—';
 
+const activityInputsValue = (values) => {
+  const inputs = values.dynamic_field_values || {};
+  const value = (key) => inputs[key]?.value;
+  const details = [
+    hasValue(value('qty_travelled')) && `${value('qty_travelled')} ${inputs.qty_travelled?.unit || 't'}`,
+    hasValue(value('km_travelled')) && `${value('km_travelled')} km`,
+    hasValue(value('qty_passenger')) && `${value('qty_passenger')} passengers`,
+    hasValue(value('qty_room')) && `${value('qty_room')} rooms`,
+    hasValue(value('qty_nights')) && `${value('qty_nights')} nights`,
+  ].filter(Boolean);
+  return details.join(' · ') || quantityValue(values);
+};
+
 const distanceValue = (values) => hasValue(values.distance_km) ? `${values.distance_km} km` : '—';
 
 const costValue = (values) => hasValue(values.cost)
@@ -108,7 +121,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
   const [invoiceFilter, setInvoiceFilter] = useState('all');
   const [detailsItem, setDetailsItem] = useState(null);
   const showEfMethod = items.some((item) => item.current_values?.scope === 'scope3');
-  const showQuantity = items.some((item) => hasValue(item.current_values?.quantity));
+  const showQuantity = items.some((item) => hasValue(item.current_values?.quantity) || Object.keys(item.current_values?.dynamic_field_values || {}).length > 0);
   const showCost = items.some((item) => hasValue(item.current_values?.cost));
   const showDistance = items.some((item) => hasValue(item.current_values?.distance_km));
   const invoiceGroups = useMemo(() => Object.values(items.reduce((groups, item) => {
@@ -203,7 +216,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                   <TableCell className="max-w-60 whitespace-normal break-words" data-testid={`ocr-row-category-${item.id}`}>{values.category || 'Unknown'}</TableCell>
                   <TableCell className="max-w-72 whitespace-normal break-words" data-testid={`ocr-row-subcategory-${item.id}`}>{displayValue(values.subcategory || values.sector || values.naics_label)}</TableCell>
                   {showEfMethod && <TableCell><span className="text-xs font-medium uppercase text-slate-600" data-testid={`ocr-row-method-${item.id}`}>{values.scope === 'scope3' ? values.ef_method || 'Review' : '—'}</span></TableCell>}
-                  {showQuantity && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-quantity-${item.id}`}>{quantityValue(values)}</TableCell>}
+                  {showQuantity && <TableCell className="whitespace-normal" data-testid={`ocr-row-quantity-${item.id}`}>{activityInputsValue(values)}</TableCell>}
                   {showCost && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-cost-${item.id}`}>{costValue(values)}</TableCell>}
                   {showDistance && <TableCell className="whitespace-nowrap" data-testid={`ocr-row-distance-${item.id}`}>{distanceValue(values)}</TableCell>}
                   <TableCell><Confidence value={item.confidence_score ?? values.confidence_score} itemId={item.id} /></TableCell>
@@ -240,7 +253,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                 <MobileField label="Category" value={values.category || 'Unknown'} itemId={item.id} field="category" wide />
                 <MobileField label="Subcategory / sector" value={values.subcategory || values.sector || values.naics_label} itemId={item.id} field="subcategory" wide />
                 {showEfMethod && <MobileField label="EF method" value={values.scope === 'scope3' ? values.ef_method || 'Review' : '—'} itemId={item.id} field="method" />}
-                {showQuantity && <MobileField label="Qty" value={quantityValue(values)} itemId={item.id} field="quantity" />}
+                {showQuantity && <MobileField label="Qty" value={activityInputsValue(values)} itemId={item.id} field="quantity" />}
                 {showCost && <MobileField label="Cost" value={costValue(values)} itemId={item.id} field="cost" />}
                 {showDistance && <MobileField label="Distance" value={distanceValue(values)} itemId={item.id} field="distance" />}
                 <MobileField label="Confidence score" value={confidenceLabel(item.confidence_score ?? values.confidence_score)} itemId={item.id} field="confidence" />
