@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, MoreHorizontal } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../../components/ui/dropdown-menu';
 
 /**
  * EmissionDataGrid
@@ -33,16 +34,16 @@ const SortableHeader = ({ label, sortKey, currentSort, onSort, className = '' })
 };
 
 const DEFAULT_COLUMN_WIDTHS = {
-  facility: 144,
-  period: 96,
-  category: 208,
+  facility: 120,
+  period: 88,
+  category: 180,
   type: 96,
-  activity: 240,
+  activity: 210,
   method: 112,
   emissions: 112,
-  status: 136,
-  updated: 148,
-  actions: 128,
+  status: 120,
+  updated: 130,
+  actions: 40,
 };
 
 const ResizableColumnHeader = ({ columnKey, width, onResize, children }) => {
@@ -66,11 +67,11 @@ const ResizableColumnHeader = ({ columnKey, width, onResize, children }) => {
       <button
         type="button"
         onPointerDown={startResize}
-        className="absolute -right-1 top-0 z-20 h-full w-2 cursor-col-resize touch-none"
+        className="absolute right-0 top-0 z-20 flex h-full w-4 touch-none items-center justify-center border-l border-dashed border-stone-300 bg-stone-50/90 text-stone-400 transition-colors hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 cursor-col-resize"
         aria-label="Resize column"
         title={`Resize ${columnKey} column`}
         data-testid={`emissions-resize-column-${columnKey}`}
-      />
+      ><GripVertical className="h-3.5 w-3.5" /></button>
     </div>
   );
 };
@@ -97,6 +98,19 @@ const StatusCell = ({ emission }) => {
   );
 };
 
+const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, handleEdit, fetchHistory, openDeleteConfirm }) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button type="button" size="icon" variant="ghost" onClick={(event) => event.stopPropagation()} className="h-8 w-8" aria-label={`More actions for emission ${emission.id}`} data-testid={`emission-actions-menu-${emission.id}`}><MoreHorizontal className="h-4 w-4" /></Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" data-testid={`emission-actions-menu-content-${emission.id}`}>
+      <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); handleEdit(emission); }} data-testid={`edit-emission-${emission.id}`}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+      {!isRegularUser && !hideHistoryActions && <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); fetchHistory(emission); }} data-testid={`history-emission-${emission.id}`}><History className="mr-2 h-4 w-4" />View version history</DropdownMenuItem>}
+      <DropdownMenuItem className="text-red-700 focus:text-red-700" onSelect={(event) => { event.stopPropagation(); openDeleteConfirm(emission); }} data-testid={`delete-emission-${emission.id}`}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+);
+
 export default function EmissionDataGrid({
   activeScope,
   filteredEmissions,
@@ -122,14 +136,14 @@ export default function EmissionDataGrid({
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [columnWidths, setColumnWidths] = useState(() => {
     try {
-      return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(localStorage.getItem('emission-log-column-widths-v3') || '{}') };
+      return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(localStorage.getItem('emission-log-column-widths-v4') || '{}') };
     } catch {
       return DEFAULT_COLUMN_WIDTHS;
     }
   });
 
   useEffect(() => {
-    localStorage.setItem('emission-log-column-widths-v3', JSON.stringify(columnWidths));
+    localStorage.setItem('emission-log-column-widths-v4', JSON.stringify(columnWidths));
   }, [columnWidths]);
   
   // Handle sort toggle
@@ -298,7 +312,7 @@ export default function EmissionDataGrid({
       
       {/* Fixed Header Row */}
       <div className="bg-stone-50 border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
-        <div className="flex min-w-max items-center gap-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">
+        <div className="flex min-w-max items-center gap-2 text-xs font-semibold text-stone-600 uppercase tracking-wider">
           {/* Select All Checkbox */}
           <div className="w-8 flex-shrink-0 flex items-center justify-center">
             <Checkbox
@@ -333,7 +347,7 @@ export default function EmissionDataGrid({
               </ResizableColumnHeader>
               <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center">Actions</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="sr-only">More actions</span></ResizableColumnHeader>
             </>
           )}
           {/* Scope 1 & 2 Headers */}
@@ -356,7 +370,7 @@ export default function EmissionDataGrid({
               </ResizableColumnHeader>
               <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center">Actions</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="sr-only">More actions</span></ResizableColumnHeader>
             </>
           )}
           {/* Biogenic Headers */}
@@ -377,15 +391,12 @@ export default function EmissionDataGrid({
               <ResizableColumnHeader columnKey="activity" width={columnWidths.activity} onResize={resizeColumn}>
                 <SortableHeader label="Activity / Fuel" sortKey="activityFuel" currentSort={sort} onSort={handleSort} className="justify-center" />
               </ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="method" width={columnWidths.method} onResize={resizeColumn}>
-                <SortableHeader label="Method" sortKey="method" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </ResizableColumnHeader>
               <ResizableColumnHeader columnKey="emissions" width={columnWidths.emissions} onResize={resizeColumn}>
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </ResizableColumnHeader>
               <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center">Actions</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="sr-only">More actions</span></ResizableColumnHeader>
             </>
           )}
         </div>
@@ -448,7 +459,7 @@ export default function EmissionDataGrid({
           return (
             <div
               key={emission.id}
-              className={`min-w-max px-4 py-3 flex items-center gap-3 hover:bg-green-50/50 transition-colors cursor-pointer group ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
+              className={`min-w-max px-4 py-3 flex items-center gap-2 hover:bg-green-50/50 transition-colors cursor-pointer group ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
               onClick={() => handleSelectRow(emission.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -507,7 +518,7 @@ export default function EmissionDataGrid({
                   </div>
                   <div className="flex-shrink-0 text-left" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
-                      {totalEmissions.toFixed(4)}
+                      {totalEmissions.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2 text-left" style={columnStyle('status')}>
@@ -550,7 +561,7 @@ export default function EmissionDataGrid({
                   </div>
                   <div className="flex-shrink-0 text-left" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
-                      {totalEmissions.toFixed(4)}
+                      {totalEmissions.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2 text-left" style={columnStyle('status')}>
@@ -602,18 +613,9 @@ export default function EmissionDataGrid({
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('method')}>
-                    {biogenicScope === 'scope3' ? (
-                      <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
-                        {methodDisplay}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-stone-400">-</span>
-                    )}
-                  </div>
                   <div className="flex-shrink-0 text-left" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
-                      {totalEmissions.toFixed(4)}
+                      {totalEmissions.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2 text-left" style={columnStyle('status')}>
@@ -625,10 +627,8 @@ export default function EmissionDataGrid({
                 </>
               )}
 
-              <div className="flex flex-shrink-0 items-center justify-center gap-1 opacity-60 transition-opacity group-hover:opacity-100" style={columnStyle('actions')}>
-                <Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); handleEdit(emission); }} title="Edit" className="h-7 w-7 p-0" data-testid={`edit-emission-${emission.id}`}><Edit className="w-3.5 h-3.5 text-stone-600" /></Button>
-                {!isRegularUser && !hideHistoryActions && <Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); fetchHistory(emission); }} title="History" className="h-7 w-7 p-0" data-testid={`history-emission-${emission.id}`}><History className="w-3.5 h-3.5 text-stone-600" /></Button>}
-                <Button size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); openDeleteConfirm(emission); }} title="Delete" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 hover:text-red-700" data-testid={`delete-emission-${emission.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
+              <div className="flex flex-shrink-0 items-center justify-center" style={columnStyle('actions')}>
+                <EmissionRowActions emission={emission} isRegularUser={isRegularUser} hideHistoryActions={hideHistoryActions} handleEdit={handleEdit} fetchHistory={fetchHistory} openDeleteConfirm={openDeleteConfirm} />
               </div>
             </div>
           );
