@@ -23,6 +23,34 @@ def normalize_method(value: Any) -> str:
     }.get(normalized, normalized)
 
 
+def is_structured_scope3_activity(
+    scope: str,
+    category: str,
+    method: str,
+    activity_type: str = "",
+) -> bool:
+    return (
+        normalize_option(scope) == "scope3"
+        and normalize_method(method) == "activity"
+        and (
+            normalize_option(category).startswith(("c4", "c6", "c9"))
+            or bool(str(activity_type or "").strip())
+        )
+    )
+
+
+def validate_structured_activity_units(dynamic_field_values: dict | None) -> None:
+    allowed_units = {
+        "qty_travelled": {"g", "kg", "t", "ton", "tonne", "tons", "tonnes"},
+        "km_travelled": {"km", "kilometer", "kilometers", "kilometre", "kilometres", "mile", "miles", "nauticalmile", "nauticalmiles"},
+    }
+    for variable, allowed in allowed_units.items():
+        input_value = (dynamic_field_values or {}).get(variable) or {}
+        unit = str(input_value.get("unit") or "").strip()
+        if unit and normalize_option(unit) not in {normalize_option(value) for value in allowed}:
+            raise ValueError(f"Unit '{unit}' is not allowed for '{variable}'")
+
+
 def matches_industry_sector(record: dict, industry_sector: str) -> bool:
     """Keep unclassified legacy fuels while preferring a facility's exact sector."""
     requested_sector = normalize_option(industry_sector)
@@ -204,6 +232,7 @@ async def validate_factor_selection(
     unit: str,
     currency: str,
     industry_sector: str = "",
+    dynamic_field_values: dict | None = None,
 ) -> dict:
     options = await resolve_factor_options(db, scope, category, method, industry_sector)
     selected = next((option for option in options if option["id"] == factor_id), None)
@@ -214,13 +243,17 @@ async def validate_factor_selection(
     allowed_units = selected.get("allowed_units") or []
     input_field = "currency" if normalize_method(method) == "spend" else "unit"
     input_value = currency if input_field == "currency" else unit
-    is_structured_scope3_activity = (
-        scope == "scope3"
-        and normalize_method(method) == "activity"
-        and (str(category or "").lower().startswith(("c4", "c6", "c9")) or bool(selected.get("activity_type")))
+    structured_scope3_activity = is_structured_scope3_activity(
+        scope,
+        category,
+        method,
+        selected.get("activity_type") or "",
     )
-    if not input_value and is_structured_scope3_activity:
-        input_value = allowed_units[0] if allowed_units else ""
+    if structured_scope3_activity:
+        validate_structured_activity_units(dynamic_field_values)
+        selected["selected_input_field"] = input_field
+        selected["selected_input_value"] = input_value or ""
+        return selected
     if not allowed_units:
         raise ValueError(f"No allowed {'currencies' if input_field == 'currency' else 'quantity units'} are configured for '{selected['label']}'")
     if not input_value:

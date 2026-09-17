@@ -393,7 +393,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     && /^(c4|c6|c9)\b/i.test(values.category_code || values.category_key || values.category || '')
     && dynamicFields.some((field) => ['qty_travelled', 'km_travelled', 'qty_passenger', 'qty_days_travelled', 'qty_room', 'qty_nights'].includes(field.variable));
 
-  const selectionComplete = Boolean(values.category && selectedFactor && values.subcategory && (isSpend ? values.currency : values.unit) && dynamicFieldsComplete && !factorError);
+  const factorInputComplete = hasStructuredScope3Inputs || Boolean(isSpend ? values.currency : values.unit);
+  const selectionComplete = Boolean(values.category && selectedFactor && values.subcategory && factorInputComplete && dynamicFieldsComplete && !factorError);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -557,7 +558,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             {factorLoading && <p className="text-sm text-slate-600" data-testid="ocr-edit-factor-loading">Loading factor options…</p>}
             {!factorLoading && !factorError && values.category && factors.length === 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-no-factors">No factors are configured for this category and method. Choose another method or contact the factor administrator.</p>}
             {factorError && <p className="text-sm text-red-700" data-testid="ocr-edit-factor-error">{factorError}</p>}
-            {!selectionComplete && factors.length > 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-selection-required">Select a subcategory, {isSpend ? 'one of its supported currencies' : 'one of its allowed quantity units'}, and complete required activity inputs before saving.</p>}
+            {!selectionComplete && factors.length > 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-selection-required">Select a subcategory{hasStructuredScope3Inputs ? '' : `, ${isSpend ? 'one of its supported currencies' : 'one of its allowed quantity units'}`}, and complete required activity inputs before saving.</p>}
           </div>
           <div className="space-y-2 sm:col-span-2"><Label htmlFor="ocr-rationale">Accounting rationale</Label><Textarea id="ocr-rationale" value={values.accounting_rationale || ''} onChange={(event) => set('accounting_rationale', event.target.value)} rows={3} data-testid="ocr-edit-rationale-input" /></div>
           <label className="flex items-start gap-3 border border-slate-200 bg-slate-50 p-3 sm:col-span-2" data-testid="ocr-remember-override-control">

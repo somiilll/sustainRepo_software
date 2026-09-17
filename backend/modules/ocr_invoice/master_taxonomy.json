@@ -456,7 +456,10 @@
       "ef_method": "activity",
       "ef_database": "DEFRA",
       "subcategories": {
-        "air": ["Domestic Flight", "Short-Haul International", "Long-Haul International"],
+        "air": ["Flights, Short-haul -Average passenger", "Flights, Short-haul -Economy class", "Flights, Short-haul -Business class", "Flights, International to/from UK-Average passenger"
+         "Flights, International to/from UK-Economy class", "Flights, International to/from UK-Premium economy class", "Flights, International to/from UK-Business class",
+        "Flights, International to/from UK-First class", "Flights, International -Average passenger", "Flights, International -Economy class", "Flights, International -Premium economy class",
+         "Flights, International -Business class", "Flights, International -First class"],
         "rail": ["Railways"],
         "road": [
           "Cars - Average Size - Battery EV", "Cars - Average Size - CNG", "Cars - Average Size - Diesel", "Cars - Average Size - Hybrid",

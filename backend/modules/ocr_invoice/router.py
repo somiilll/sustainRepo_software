@@ -23,7 +23,7 @@ from r2_storage import R2Storage
 from . import invoice_processor
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MODES, OCR_SAVE_SCOPE_RULES, get_mode
-from .factor_options import normalize_method, normalize_option, resolve_factor_options, validate_factor_selection
+from .factor_options import is_structured_scope3_activity, normalize_method, normalize_option, resolve_factor_options, validate_factor_selection
 from .ghg_save_service import execute_ocr_calculation, resolve_ghg_category
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit, UploadFacilityAssignments
 from .service import build_org_context, process_queued_upload, queue_upload_batch, save_vendor_override
@@ -308,8 +308,22 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
         if not matched_factor:
             raise ValueError("A unique factor could not be resolved from the extracted OCR values. Review this row before saving.")
         input_field = "currency" if normalize_method(values.get("ef_method")) == "spend" else "unit"
-        canonical_input = _canonical_option_input(matched_factor, values.get(input_field) or "", input_field)
-        if not canonical_input:
+        structured_scope3_activity = is_structured_scope3_activity(
+            scope,
+            values.get("category") or "",
+            values.get("ef_method") or "",
+            matched_factor.get("activity_type") or "",
+        )
+        canonical_input = (
+            values.get(input_field) or ""
+            if structured_scope3_activity
+            else _canonical_option_input(
+                matched_factor,
+                values.get(input_field) or "",
+                input_field,
+            )
+        )
+        if not canonical_input and not structured_scope3_activity:
             raise ValueError(f"The extracted {input_field} is not allowed for the resolved factor. Review this row before saving.")
         values.update({
             "factor_id": matched_factor["id"],
@@ -1192,6 +1206,7 @@ async def edit_line_item(
                 unit=candidate.get("unit") or "",
                 currency=candidate.get("currency") or "",
                 industry_sector=candidate_facility.get("sector", "") if candidate_facility else "",
+                dynamic_field_values=candidate.get("dynamic_field_values") or {},
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1425,6 +1440,7 @@ async def save_line_item_to_ghg(
             unit=values.get("unit") or "",
             currency=values.get("currency") or "",
             industry_sector=facility.get("sector", ""),
+            dynamic_field_values=values.get("dynamic_field_values") or {},
         )
         values["factor_id"] = selected_factor["id"]
         values["fuel_id"] = selected_factor["id"] if selected_factor["collection"] == "fuel_database" else None

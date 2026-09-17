@@ -52,13 +52,16 @@ const responseMessage = (error, fallback) => error?.response?.data?.detail || er
 const directGhgMissingFields = (values = {}) => {
   const missing = [];
   const hasValue = (value) => value !== undefined && value !== null && value !== '';
+  const isStructuredScope3Activity = values.scope === 'scope3'
+    && values.ef_method === 'activity'
+    && /^c(?:4|6|9)\b/i.test(String(values.category || '').trim());
   if (!values.facility_id) missing.push('facility_id');
   if (!values.reporting_period) missing.push('reporting_period');
   if (!(values.factor_id || values.fuel_id || values.scope3_ef_id)) missing.push('factor_id');
   if (values.scope === 'scope3' && values.ef_method === 'spend') {
     if (!hasValue(values.cost)) missing.push('cost');
     if (!values.currency) missing.push('currency');
-  } else {
+  } else if (!isStructuredScope3Activity) {
     if (!hasValue(values.quantity)) missing.push('quantity');
     if (!values.unit) missing.push('unit');
   }
