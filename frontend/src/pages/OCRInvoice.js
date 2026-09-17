@@ -536,7 +536,7 @@ export default function OCRInvoice() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reject this extracted row?</AlertDialogTitle>
             <AlertDialogDescription>
-              The row will be removed from the OCR queue. Its shared source file stays temporary until every row from that file is either saved or rejected.
+              The row will be removed from the OCR queue.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
