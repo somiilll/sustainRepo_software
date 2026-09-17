@@ -303,8 +303,8 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
             values.get("ef_method") or "",
             facility.get("sector", ""),
         )
-        matched_factor = _preferred_factor_option(scope, options, item, values)
-        matched_factor = matched_factor or _match_ocr_factor_option(options, item, values)
+        matched_factor = _match_ocr_factor_option(options, item, values)
+        matched_factor = matched_factor or _preferred_factor_option(scope, options, item, values)
         if not matched_factor:
             raise ValueError("A unique factor could not be resolved from the extracted OCR values. Review this row before saving.")
         input_field = "currency" if normalize_method(values.get("ef_method")) == "spend" else "unit"

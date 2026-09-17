@@ -205,8 +205,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
                   current.ef_lookup_key, current.subcategory, current.fuel_name, current.item_description,
                   original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description,
                 ];
-                return preferredFactor(options, candidates, current.scope, current.category, configuration.save_rules)
-                  || closestFactor(options, candidates);
+                return closestFactor(options, candidates)
+                  || preferredFactor(options, candidates, current.scope, current.category, configuration.save_rules);
               })();
           const selected = storedFactor || automaticFactor;
           if (!selected) {
