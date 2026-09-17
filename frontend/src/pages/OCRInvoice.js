@@ -103,6 +103,9 @@ export default function OCRInvoice() {
   const [activeExtractionIds, setActiveExtractionIds] = useState([]);
   const [failedExtractionIds, setFailedExtractionIds] = useState([]);
   const [retryingQueue, setRetryingQueue] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkRejecting, setBulkRejecting] = useState(false);
+  const [bulkRejectRows, setBulkRejectRows] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -469,6 +472,69 @@ export default function OCRInvoice() {
     }
   };
 
+  const removeResolvedRows = (resolvedRows) => {
+    if (!resolvedRows.length) return;
+    const resolvedIds = new Set(resolvedRows.map(({ item }) => item.id));
+    const completedFileKeys = new Set(resolvedRows
+      .filter(({ data }) => data.file_completed)
+      .map(({ item }) => `${item.upload_id}-${item.file_index}`));
+    setItems((current) => current.filter((item) => !resolvedIds.has(item.id)));
+    setSelectedItem((current) => resolvedIds.has(current?.id) ? null : current);
+    setUpload((current) => {
+      if (!current) return current;
+      const files = current.files.filter((file) => !completedFileKeys.has(`${file.upload_id}-${file.file_index}`));
+      const uploadIds = [...new Set(files.map((file) => file.upload_id))];
+      if (uploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(uploadIds));
+      else localStorage.removeItem('ocr-active-upload-ids');
+      return files.length ? { upload_ids: uploadIds, files } : null;
+    });
+  };
+
+  const saveRowsToGhg = async (rows) => {
+    const pendingRows = rows.filter((item) => item.status !== 'imported' && item.current_values?.scope !== 'water');
+    if (!pendingRows.length) return;
+    setBulkSaving(true);
+    const resolvedRows = [];
+    const failedRows = [];
+    for (const item of pendingRows) {
+      try {
+        const { data } = await saveOcrLineItemToGhg(item.id, getAuthHeader());
+        resolvedRows.push({ item, data });
+      } catch (requestError) {
+        failedRows.push(item);
+      }
+    }
+    removeResolvedRows(resolvedRows);
+    if (resolvedRows.length) toast.success(`${resolvedRows.length} row${resolvedRows.length === 1 ? '' : 's'} saved to GHG.`);
+    if (failedRows.length) toast.error(`${failedRows.length} row${failedRows.length === 1 ? '' : 's'} could not be saved. Review them individually.`);
+    setBulkSaving(false);
+  };
+
+  const requestBulkReject = (rows) => {
+    const pendingRows = rows.filter((item) => item.status !== 'imported');
+    if (pendingRows.length) setBulkRejectRows(pendingRows);
+  };
+
+  const rejectRows = async () => {
+    if (!bulkRejectRows.length) return;
+    setBulkRejecting(true);
+    const resolvedRows = [];
+    const failedRows = [];
+    for (const item of bulkRejectRows) {
+      try {
+        const { data } = await rejectOcrLineItem(item.id, getAuthHeader());
+        resolvedRows.push({ item, data });
+      } catch (requestError) {
+        failedRows.push(item);
+      }
+    }
+    removeResolvedRows(resolvedRows);
+    setBulkRejectRows([]);
+    if (resolvedRows.length) toast.success(`${resolvedRows.length} row${resolvedRows.length === 1 ? '' : 's'} rejected.`);
+    if (failedRows.length) toast.error(`${failedRows.length} row${failedRows.length === 1 ? '' : 's'} could not be rejected.`);
+    setBulkRejecting(false);
+  };
+
   const exportCsv = async () => {
     if (!items.length) return;
     try {
@@ -575,7 +641,7 @@ export default function OCRInvoice() {
 
           {processing && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} />}
 
-      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} acceptingId={acceptingId} rejectingId={rejectingId} />
+      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} />
 
         </div>
       )}
@@ -597,6 +663,18 @@ export default function OCRInvoice() {
             <AlertDialogAction onClick={rejectItem} disabled={Boolean(rejectingId)} className="bg-red-700 hover:bg-red-800" data-testid="ocr-reject-confirm-button">
               {rejectingId ? 'Rejecting…' : 'Reject row'}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={bulkRejectRows.length > 0} onOpenChange={(open) => { if (!open && !bulkRejecting) setBulkRejectRows([]); }}>
+        <AlertDialogContent data-testid="ocr-bulk-reject-confirmation-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle data-testid="ocr-bulk-reject-confirmation-title">Reject {bulkRejectRows.length} selected row{bulkRejectRows.length === 1 ? '' : 's'}?</AlertDialogTitle>
+            <AlertDialogDescription data-testid="ocr-bulk-reject-confirmation-description">Rejected rows are removed from this OCR review queue.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkRejecting} data-testid="ocr-bulk-reject-cancel-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={rejectRows} disabled={bulkRejecting} className="bg-red-700 hover:bg-red-800" data-testid="ocr-bulk-reject-confirm-button">{bulkRejecting ? 'Rejecting…' : 'Reject rows'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

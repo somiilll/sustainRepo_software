@@ -77,7 +77,8 @@ def ocr_activity_input_candidates(values: dict) -> dict[str, dict]:
         set_if_missing("qty_nights", nights, "")
     elif is_business_travel:
         set_if_missing("qty_passenger", _first(values.get("passengers"), travel.get("passenger_count")), "")
-        set_if_missing("qty_days_travelled", _first(values.get("days_travelled"), travel.get("days_travelled")), "")
+        days_travelled = _first(values.get("days_travelled"), travel.get("days_travelled"))
+        set_if_missing("qty_days_travelled", 1 if days_travelled in (None, "") else days_travelled, "")
         set_if_missing("km_travelled", distance, "km")
     return candidates
 

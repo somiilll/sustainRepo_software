@@ -375,6 +375,26 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       },
     }).fields.filter((field) => !field.presentationOnly);
   }, [categoryOption?.id, formConfig, selectedFactor, values.category_code, values.ef_method, values.scope, values.scope3_activity_type, values.scope3_subcategory]);
+  useEffect(() => {
+    const isC6 = /^(c6|cat_6)\b/i.test(values.category_code || values.category_key || values.category || '');
+    const daysField = dynamicFields.find((field) => field.variable === 'qty_days_travelled');
+    if (!open || !isC6 || !daysField) return;
+    setValues((current) => {
+      const currentDays = current.dynamic_field_values?.qty_days_travelled;
+      if (currentDays?.value !== undefined && currentDays?.value !== null && currentDays?.value !== '') return current;
+      return {
+        ...current,
+        dynamic_field_values: {
+          ...(current.dynamic_field_values || {}),
+          qty_days_travelled: {
+            ...currentDays,
+            value: 1,
+            unit: currentDays?.unit || daysField.expectedUnit || '',
+          },
+        },
+      };
+    });
+  }, [dynamicFields, open, values.category, values.category_code, values.category_key]);
   const updateDynamicValue = (field, value, unit) => {
     setValues((current) => ({
       ...current,

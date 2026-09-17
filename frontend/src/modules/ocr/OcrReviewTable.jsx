@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Check, ChevronRight, Edit3, Search, XCircle } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
+import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -120,12 +121,13 @@ const MoreDetailsDialog = ({ item, open, onOpenChange }) => {
   );
 };
 
-export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, onReject, acceptingId, rejectingId }) => {
+export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, onReject, onBulkSave, onBulkReject, acceptingId, rejectingId, bulkSaving, bulkRejecting }) => {
   const [query, setQuery] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [reviewFilter, setReviewFilter] = useState('all');
   const [invoiceFilter, setInvoiceFilter] = useState('all');
   const [detailsItem, setDetailsItem] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
   const showEfMethod = items.some((item) => item.current_values?.scope === 'scope3');
   const showQuantity = items.some((item) => !isFreight(item.current_values || {}) && !isBusinessTravel(item.current_values || {}) && hasValue(item.current_values?.quantity));
   const showGoodsTravelled = items.some((item) => isFreight(item.current_values || {}) && goodsTravelledValue(item.current_values || {}) !== '—');
@@ -151,6 +153,23 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
       && (scopeFilter === 'all' || values.scope === scopeFilter)
       && (reviewFilter === 'all' || (reviewFilter === 'review' ? item.needs_review : !item.needs_review));
   }), [items, invoiceFilter, query, scopeFilter, reviewFilter]);
+  const selectableRows = filtered.filter((item) => item.status !== 'imported');
+  const selectedRows = items.filter((item) => selectedIds.includes(item.id) && item.status !== 'imported');
+  const selectedSavableRows = selectedRows.filter((item) => item.current_values?.scope !== 'water');
+  const savableRows = items.filter((item) => item.status !== 'imported' && item.current_values?.scope !== 'water');
+  const allFilteredSelected = selectableRows.length > 0 && selectableRows.every((item) => selectedIds.includes(item.id));
+  const isBulkActionRunning = bulkSaving || bulkRejecting;
+  const toggleRow = (itemId, checked) => {
+    setSelectedIds((current) => checked
+      ? [...new Set([...current, itemId])]
+      : current.filter((id) => id !== itemId));
+  };
+  const toggleAllFiltered = (checked) => {
+    const filteredIds = new Set(selectableRows.map((item) => item.id));
+    setSelectedIds((current) => checked
+      ? [...new Set([...current, ...filteredIds])]
+      : current.filter((id) => !filteredIds.has(id)));
+  };
 
   return (
     <section className="space-y-3" aria-labelledby="ocr-review-heading" data-testid="ocr-review-section">
@@ -184,6 +203,20 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
         </div>
       </div>
 
+      <div className="flex flex-col gap-3 border-y border-slate-200 py-3 xl:flex-row xl:items-center xl:justify-between" data-testid="ocr-bulk-actions-bar">
+        <div className="flex flex-wrap items-center gap-3">
+          <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all rows shown" data-testid="ocr-select-all-visible-checkbox" />
+          <label className="text-sm font-medium text-slate-800" data-testid="ocr-select-all-visible-label">Select all shown</label>
+          <span className="text-sm text-slate-600" data-testid="ocr-selected-row-count">{selectedRows.length} selected</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2" data-testid="ocr-bulk-action-buttons">
+          <Button type="button" size="sm" variant="outline" onClick={() => onBulkSave(selectedSavableRows)} disabled={!selectedSavableRows.length || isBulkActionRunning} data-testid="ocr-save-selected-button"><Check className="mr-2 h-4 w-4" />Save selected</Button>
+          <Button type="button" size="sm" variant="outline" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onBulkReject(selectedRows)} disabled={!selectedRows.length || isBulkActionRunning} data-testid="ocr-reject-selected-button"><XCircle className="mr-2 h-4 w-4" />Reject selected</Button>
+          <Button type="button" size="sm" onClick={() => onBulkSave(savableRows)} disabled={!savableRows.length || isBulkActionRunning} data-testid="ocr-save-all-button"><Check className="mr-2 h-4 w-4" />Save all</Button>
+          <Button type="button" size="sm" variant="destructive" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
+        </div>
+      </div>
+
       {invoiceGroups.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Invoices in this source document" data-testid="ocr-invoice-tabs">
           <button type="button" role="tab" aria-selected={invoiceFilter === 'all'} onClick={() => setInvoiceFilter('all')} className={`shrink-0 border px-3 py-2 text-left text-xs transition-colors ${invoiceFilter === 'all' ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`} data-testid="ocr-invoice-tab-all">All invoices · {items.length} rows</button>
@@ -199,6 +232,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
         <Table className="min-w-[1700px]">
           <TableHeader className="bg-slate-50">
             <TableRow>
+              <TableHead className="w-10" data-testid="ocr-ledger-header-select"><Checkbox checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all visible rows" data-testid="ocr-desktop-select-all-checkbox" /></TableHead>
               <TableHead data-testid="ocr-ledger-header-facility">Facility</TableHead>
               <TableHead data-testid="ocr-ledger-header-extracted-item">Extracted item</TableHead>
               <TableHead data-testid="ocr-ledger-header-reporting-period-date">Reporting period / date</TableHead>
@@ -226,6 +260,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               const values = item.current_values || {};
               return (
                 <TableRow key={item.id} className={selectedId === item.id ? 'bg-emerald-50/60' : ''} onClick={() => onSelect(item)} data-testid={`ocr-review-row-${item.id}`}>
+                  <TableCell onClick={(event) => event.stopPropagation()}><Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => toggleRow(item.id, checked === true)} disabled={item.status === 'imported' || isBulkActionRunning} aria-label={`Select ${values.item_description || 'OCR row'}`} data-testid={`ocr-select-row-${item.id}-checkbox`} /></TableCell>
                   <TableCell className="max-w-48 whitespace-normal break-words" data-testid={`ocr-row-facility-${item.id}`}>{displayValue(values.location)}</TableCell>
                   <TableCell className="max-w-72 whitespace-normal break-words" data-testid={`ocr-row-description-${item.id}`}>
                     <p>{values.item_description || values.fuel_name || 'Unspecified activity'}</p>
@@ -252,8 +287,8 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                     <div className="flex justify-end gap-1">
                       <Button type="button" size="sm" variant="ghost" onClick={(event) => { event.stopPropagation(); setDetailsItem(item); }} data-testid={`ocr-view-more-row-${item.id}`}>View more</Button>
                       <Button type="button" size="icon" variant="ghost" onClick={(event) => { event.stopPropagation(); onEdit(item); }} aria-label="Edit row" data-testid={`ocr-edit-row-${item.id}`}><Edit3 className="h-4 w-4" /></Button>
-                      <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={(event) => { event.stopPropagation(); onReject(item); }} disabled={rejectingId === item.id} aria-label="Reject row" data-testid={`ocr-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
-                      <Button type="button" size="icon" onClick={(event) => { event.stopPropagation(); onAccept(item); }} disabled={acceptingId === item.id || item.status === 'imported'} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-save-ghg-row-${item.id}`}><Check className="h-4 w-4" /></Button>
+                      <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={(event) => { event.stopPropagation(); onReject(item); }} disabled={rejectingId === item.id || isBulkActionRunning} aria-label="Reject row" data-testid={`ocr-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
+                      <Button type="button" size="icon" onClick={(event) => { event.stopPropagation(); onAccept(item); }} disabled={acceptingId === item.id || item.status === 'imported' || isBulkActionRunning} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-save-ghg-row-${item.id}`}><Check className="h-4 w-4" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -268,6 +303,10 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
           const values = item.current_values || {};
           return (
             <article key={item.id} className={`border bg-white p-4 ${selectedId === item.id ? 'border-emerald-600' : 'border-slate-200'}`} data-testid={`ocr-review-card-${item.id}`}>
+              <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => toggleRow(item.id, checked === true)} disabled={item.status === 'imported' || isBulkActionRunning} aria-label={`Select ${values.item_description || 'OCR row'}`} data-testid={`ocr-mobile-select-row-${item.id}-checkbox`} />
+                <span className="text-xs font-medium text-slate-600" data-testid={`ocr-mobile-select-row-${item.id}-label`}>Select this row</span>
+              </div>
               <button type="button" onClick={() => onSelect(item)} className="flex w-full items-center justify-between gap-3 text-left" data-testid={`ocr-mobile-select-row-${item.id}`}>
                 <span className="text-sm font-semibold text-slate-950">Review extracted row</span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
@@ -296,8 +335,8 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-4" data-testid={`ocr-mobile-actions-${item.id}`}>
                 <Button type="button" size="sm" variant="ghost" onClick={() => setDetailsItem(item)} data-testid={`ocr-mobile-view-more-row-${item.id}`}>View more</Button>
                 <Button type="button" size="icon" variant="ghost" onClick={() => onEdit(item)} aria-label="Edit row" data-testid={`ocr-mobile-edit-row-${item.id}`}><Edit3 className="h-4 w-4" /></Button>
-                <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onReject(item)} disabled={rejectingId === item.id} aria-label="Reject row" data-testid={`ocr-mobile-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
-                <Button type="button" size="icon" onClick={() => onAccept(item)} disabled={acceptingId === item.id || item.status === 'imported'} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-mobile-save-ghg-row-${item.id}`}><Check className="h-4 w-4" /></Button>
+                <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onReject(item)} disabled={rejectingId === item.id || isBulkActionRunning} aria-label="Reject row" data-testid={`ocr-mobile-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
+                <Button type="button" size="icon" onClick={() => onAccept(item)} disabled={acceptingId === item.id || item.status === 'imported' || isBulkActionRunning} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-mobile-save-ghg-row-${item.id}`}><Check className="h-4 w-4" /></Button>
               </div>
             </article>
           );
