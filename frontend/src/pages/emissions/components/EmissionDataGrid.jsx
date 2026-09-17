@@ -311,8 +311,8 @@ export default function EmissionDataGrid({
       )}
       
       {/* Fixed Header Row */}
-      <div className="bg-stone-50 border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
-        <div className="flex min-w-max items-center gap-2 text-xs font-semibold text-stone-600 uppercase tracking-wider">
+      <div className="min-w-max bg-stone-50 border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
+        <div className="flex min-w-max items-center gap-2 bg-stone-50 text-xs font-semibold text-stone-600 uppercase tracking-wider">
           {/* Select All Checkbox */}
           <div className="w-8 flex-shrink-0 flex items-center justify-center">
             <Checkbox
