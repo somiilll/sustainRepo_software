@@ -32,6 +32,18 @@ def _reporting_period_from_date(value: object) -> str:
     return f"{match.group(1)}-{match.group(2)}" if match else ""
 
 
+def _reporting_period_from_row(row: dict, billing_period: dict) -> str:
+    for value in (
+        billing_period.get("start_date"),
+        billing_period.get("end_date"),
+        row.get("date"),
+    ):
+        reporting_period = _reporting_period_from_date(value)
+        if reporting_period:
+            return reporting_period
+    return ""
+
+
 def _normalize_cache_key(value: str | None) -> str:
     return " ".join(str(value or "").strip().lower().split())
 
@@ -160,7 +172,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
                     "billing_period_start": billing_period.get("start_date"),
                     "billing_period_end": billing_period.get("end_date"),
                     "billing_period_text": billing_period.get("period_text"),
-                    "reporting_period": _reporting_period_from_date(row.get("date")),
+                    "reporting_period": _reporting_period_from_row(row, billing_period),
                     "unit_matched": bool(row.get("unit")),
                     "mode": mode.key,
                     "vision_model": mode.vision_model if extension not in SPREADSHEET_EXTENSIONS else "Spreadsheet direct ingestion",
@@ -401,7 +413,7 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
                     "billing_period_start": billing_period.get("start_date"),
                     "billing_period_end": billing_period.get("end_date"),
                     "billing_period_text": billing_period.get("period_text"),
-                    "reporting_period": _reporting_period_from_date(row.get("date")),
+                    "reporting_period": _reporting_period_from_row(row, billing_period),
                     "unit_matched": bool(row.get("unit")),
                     "mode": mode.key,
                     "vision_model": mode.vision_model if extension not in SPREADSHEET_EXTENSIONS else "Spreadsheet direct ingestion",

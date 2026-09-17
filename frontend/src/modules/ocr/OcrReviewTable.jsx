@@ -46,6 +46,7 @@ const distanceValue = (values) => hasValue(values.distance_km) ? `${values.dista
 const costValue = (values) => hasValue(values.cost)
   ? `${values.currency ? `${values.currency} ` : ''}${values.cost}`
   : '—';
+const reportingPeriodDateValue = (values) => values.billing_period_text || values.reporting_period || values.date;
 
 const MobileField = ({ label, value, itemId, field, wide = false, children }) => (
   <div className={wide ? 'col-span-2' : ''}>
@@ -174,7 +175,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
             <TableRow>
               <TableHead data-testid="ocr-ledger-header-facility">Facility</TableHead>
               <TableHead data-testid="ocr-ledger-header-extracted-item">Extracted item</TableHead>
-              <TableHead data-testid="ocr-ledger-header-date">Date</TableHead>
+              <TableHead data-testid="ocr-ledger-header-reporting-period-date">Reporting period / date</TableHead>
               <TableHead data-testid="ocr-ledger-header-scope">Scope</TableHead>
               <TableHead data-testid="ocr-ledger-header-category">Category</TableHead>
               <TableHead data-testid="ocr-ledger-header-subcategory">Subcategory</TableHead>
@@ -197,7 +198,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                     <p>{values.item_description || values.fuel_name || 'Unspecified activity'}</p>
                     {(values.low_confidence_fields || []).length > 0 && <p className="mt-1 text-xs text-amber-800" data-testid={`ocr-row-review-reasons-${item.id}`}>Review: {values.low_confidence_fields.join(', ')}</p>}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap" data-testid={`ocr-row-date-${item.id}`}>{displayValue(values.date)}</TableCell>
+                  <TableCell className="whitespace-nowrap" data-testid={`ocr-row-reporting-period-date-${item.id}`}>{displayValue(reportingPeriodDateValue(values))}</TableCell>
                   <TableCell><Badge variant="outline" className={scopeTone[values.scope]} data-testid={`ocr-row-scope-${item.id}`}>{values.scope?.replace('scope', 'Scope ') || '—'}</Badge></TableCell>
                   <TableCell className="max-w-60 whitespace-normal break-words" data-testid={`ocr-row-category-${item.id}`}>{values.category || 'Unknown'}</TableCell>
                   <TableCell className="max-w-72 whitespace-normal break-words" data-testid={`ocr-row-subcategory-${item.id}`}>{displayValue(values.subcategory || values.sector || values.naics_label)}</TableCell>
@@ -234,7 +235,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4">
                 <MobileField label="Facility" value={values.location} itemId={item.id} field="facility" />
                 <MobileField label="Extracted item" value={values.item_description || values.fuel_name || 'Unspecified activity'} itemId={item.id} field="description" wide />
-                <MobileField label="Date" value={values.date} itemId={item.id} field="date" />
+                <MobileField label="Reporting period / date" value={reportingPeriodDateValue(values)} itemId={item.id} field="reporting-period-date" />
                 <MobileField label="Scope" itemId={item.id} field="scope"><Badge variant="outline" className={scopeTone[values.scope]}>{values.scope?.replace('scope', 'Scope ') || '—'}</Badge></MobileField>
                 <MobileField label="Category" value={values.category || 'Unknown'} itemId={item.id} field="category" wide />
                 <MobileField label="Subcategory / sector" value={values.subcategory || values.sector || values.naics_label} itemId={item.id} field="subcategory" wide />

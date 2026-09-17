@@ -74,8 +74,16 @@ const matchingUnit = (factor, value) => (factor?.allowed_units || []).find((unit
   return aliases.some((alias) => normalize(alias) === normalize(value));
 });
 const reportingPeriodFromDate = (value) => {
-  const match = String(value || '').trim().match(/^(\d{4})-(0[1-9]|1[0-2])/);
-  return match ? `${match[1]}-${match[2]}` : '';
+  const raw = String(value || '').trim();
+  const isoMatch = raw.match(/^(\d{4})[-/](0[1-9]|1[0-2])/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
+  const namedMatch = raw.match(/^([a-z]+)[,\s-]+(\d{4})$/i);
+  const month = namedMatch ? {
+    jan: '01', january: '01', feb: '02', february: '02', mar: '03', march: '03', apr: '04', april: '04',
+    may: '05', jun: '06', june: '06', jul: '07', july: '07', aug: '08', august: '08', sep: '09', september: '09',
+    oct: '10', october: '10', nov: '11', november: '11', dec: '12', december: '12',
+  }[namedMatch[1].toLowerCase()] : '';
+  return month ? `${namedMatch[2]}-${month}` : '';
 };
 const reportingPeriodLabel = (value) => {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value || '')) return 'Select month';
@@ -110,7 +118,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
         ...current,
         facility_id: current.facility_id || matchingFacility?.id || '',
         reporting_period: reportingPeriodFromDate(current.reporting_period)
+          || reportingPeriodFromDate(current.billing_period_start)
+          || reportingPeriodFromDate(current.billing_period_end)
           || reportingPeriodFromDate(current.date)
+          || reportingPeriodFromDate(current.billing_period_text)
+          || reportingPeriodFromDate(item.original_values?.billing_period_start)
+          || reportingPeriodFromDate(item.original_values?.billing_period_end)
           || reportingPeriodFromDate(item.original_values?.date),
       });
     }
@@ -363,7 +376,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" />
               <Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" />
             </div>
-            <ExtractedValue label="date" value={original.date} field="date" />
+            <ExtractedValue label="reporting period / date" value={original.billing_period_text || original.date} field="reporting-period-date" />
           </div>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-quantity-unit-row">
             <div className="space-y-2">
