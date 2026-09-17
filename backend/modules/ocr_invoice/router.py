@@ -218,9 +218,11 @@ def _match_ocr_factor_option(options: list[dict], item: dict, values: dict) -> d
     return None
 
 
-def _preferred_scope3_factor_option(options: list[dict], item: dict, values: dict) -> dict | None:
-    scope3_rules = OCR_SAVE_SCOPE_RULES["scope3"]
-    preferences = scope3_rules.get("generic_activity_preferences", {})
+def _preferred_factor_option(scope: str, options: list[dict], item: dict, values: dict) -> dict | None:
+    scope_rules = OCR_SAVE_SCOPE_RULES.get(scope, {})
+    if not scope_rules.get("enabled"):
+        return None
+    preferences = scope_rules.get("generic_activity_preferences", {})
     raw_values = [
         values.get("subcategory"), values.get("fuel_name"), values.get("ef_lookup_key"),
         *(item.get("original_values") or {}).values(),
@@ -239,7 +241,7 @@ def _preferred_scope3_factor_option(options: list[dict], item: dict, values: dic
         for token in re.findall(r"[a-z0-9]+", value.lower())
     }
     category_key = normalize_option(values.get("category"))
-    for preference in scope3_rules.get("fuzzy_activity_preferences", ()):
+    for preference in scope_rules.get("fuzzy_activity_preferences", ()):
         token_groups = preference.get("token_groups", ())
         if not category_key.startswith(preference.get("category_prefix", "")):
             continue
@@ -301,7 +303,7 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
             values.get("ef_method") or "",
             facility.get("sector", ""),
         )
-        matched_factor = _preferred_scope3_factor_option(options, item, values) if scope == "scope3" else None
+        matched_factor = _preferred_factor_option(scope, options, item, values)
         matched_factor = matched_factor or _match_ocr_factor_option(options, item, values)
         if not matched_factor:
             raise ValueError("A unique factor could not be resolved from the extracted OCR values. Review this row before saving.")

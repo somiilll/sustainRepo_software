@@ -51,18 +51,18 @@ const closestFactor = (options, candidates) => {
   if (ranked[0]?.score >= 0.75 && (!ranked[1] || ranked[0].score - ranked[1].score >= 0.1)) return ranked[0].option;
   return null;
 };
-const preferredFactor = (options, candidates, category, saveRules) => {
-  const scope3Rules = saveRules?.scope3;
-  if (!scope3Rules?.enabled) return null;
+const preferredFactor = (options, candidates, scope, category, saveRules) => {
+  const scopeRules = saveRules?.[scope];
+  if (!scopeRules?.enabled) return null;
   const normalizedValues = new Set(candidates.filter(Boolean).map(normalize));
-  for (const [genericName, preferredName] of Object.entries(scope3Rules.generic_activity_preferences || {})) {
+  for (const [genericName, preferredName] of Object.entries(scopeRules.generic_activity_preferences || {})) {
     if (!normalizedValues.has(normalize(genericName))) continue;
     const preferred = options.find((option) => normalize(option.value) === normalize(preferredName));
     if (preferred) return preferred;
   }
   const candidateTokens = new Set(candidates.flatMap((candidate) => words(candidate)));
   const categoryKey = normalize(category);
-  for (const preference of scope3Rules.fuzzy_activity_preferences || []) {
+  for (const preference of scopeRules.fuzzy_activity_preferences || []) {
     if (!categoryKey.startsWith(preference.category_prefix || '')) continue;
     if (!preference.token_groups?.every((group) => group.some((token) => candidateTokens.has(token)))) continue;
     const preferred = options.find((option) => normalize(option.value) === normalize(preference.activity));
@@ -205,7 +205,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
                   current.ef_lookup_key, current.subcategory, current.fuel_name, current.item_description,
                   original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description,
                 ];
-                return preferredFactor(options, candidates, current.category, configuration.save_rules)
+                return preferredFactor(options, candidates, current.scope, current.category, configuration.save_rules)
                   || closestFactor(options, candidates);
               })();
           const selected = storedFactor || automaticFactor;

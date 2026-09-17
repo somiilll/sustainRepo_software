@@ -16,7 +16,13 @@ MAX_FILE_BYTES = 20 * 1024 * 1024
 MAX_PDF_PAGES = 15
 
 OCR_SAVE_SCOPE_RULES = {
-    "scope1": {"enabled": True},
+    "scope1": {
+        "enabled": True,
+        "generic_activity_preferences": {
+            "cng": "Natural Gas",
+            "compressednaturalgas": "Natural Gas",
+        },
+    },
     "scope2": {"enabled": True},
     "scope3": {
         "enabled": True,
@@ -26,6 +32,8 @@ OCR_SAVE_SCOPE_RULES = {
             "wttdiesel": "Diesel (100% mineral diesel)",
             "wttpetrol": "Petrol (100% mineral petrol)",
             "wttpetrolgasoline": "Petrol (100% mineral petrol)",
+            "cng": "Natural Gas",
+            "compressednaturalgas": "Natural Gas",
         },
         "fuzzy_activity_preferences": (
             {
