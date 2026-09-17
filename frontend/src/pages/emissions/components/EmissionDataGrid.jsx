@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, MoreHorizontal } from 'lucide-react';
+import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, GripVertical, MoreHorizontal } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
@@ -103,7 +103,7 @@ const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, handl
     <DropdownMenuTrigger asChild>
       <Button type="button" size="icon" variant="ghost" onClick={(event) => event.stopPropagation()} className="h-8 w-8" aria-label={`More actions for emission ${emission.id}`} data-testid={`emission-actions-menu-${emission.id}`}><MoreHorizontal className="h-4 w-4" /></Button>
     </DropdownMenuTrigger>
-    <DropdownMenuContent align="end" data-testid={`emission-actions-menu-content-${emission.id}`}>
+    <DropdownMenuContent align="end" className="bg-white opacity-100" data-testid={`emission-actions-menu-content-${emission.id}`}>
       <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); handleEdit(emission); }} data-testid={`edit-emission-${emission.id}`}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
       {!isRegularUser && !hideHistoryActions && <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); fetchHistory(emission); }} data-testid={`history-emission-${emission.id}`}><History className="mr-2 h-4 w-4" />View version history</DropdownMenuItem>}
       <DropdownMenuItem className="text-red-700 focus:text-red-700" onSelect={(event) => { event.stopPropagation(); openDeleteConfirm(emission); }} data-testid={`delete-emission-${emission.id}`}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
@@ -134,6 +134,9 @@ export default function EmissionDataGrid({
   
   // Selection state for bulk delete
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const ledgerScrollRef = useRef(null);
+  const topScrollbarRef = useRef(null);
+  const [ledgerScrollWidth, setLedgerScrollWidth] = useState(0);
   const [columnWidths, setColumnWidths] = useState(() => {
     try {
       return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(localStorage.getItem('emission-log-column-widths-v4') || '{}') };
@@ -145,6 +148,29 @@ export default function EmissionDataGrid({
   useEffect(() => {
     localStorage.setItem('emission-log-column-widths-v4', JSON.stringify(columnWidths));
   }, [columnWidths]);
+
+  useEffect(() => {
+    const ledger = ledgerScrollRef.current;
+    const topScrollbar = topScrollbarRef.current;
+    if (!ledger || !topScrollbar) return undefined;
+    const syncWidth = () => setLedgerScrollWidth(ledger.scrollWidth);
+    const syncTopScrollbar = () => {
+      if (topScrollbar.scrollLeft !== ledger.scrollLeft) topScrollbar.scrollLeft = ledger.scrollLeft;
+    };
+    const syncLedger = () => {
+      if (ledger.scrollLeft !== topScrollbar.scrollLeft) ledger.scrollLeft = topScrollbar.scrollLeft;
+    };
+    syncWidth();
+    ledger.addEventListener('scroll', syncTopScrollbar, { passive: true });
+    topScrollbar.addEventListener('scroll', syncLedger, { passive: true });
+    const observer = new ResizeObserver(syncWidth);
+    observer.observe(ledger);
+    return () => {
+      ledger.removeEventListener('scroll', syncTopScrollbar);
+      topScrollbar.removeEventListener('scroll', syncLedger);
+      observer.disconnect();
+    };
+  }, [activeScope, columnWidths, filteredEmissions.length]);
   
   // Handle sort toggle
   const handleSort = (key) => {
@@ -178,6 +204,12 @@ export default function EmissionDataGrid({
 
   const resizeColumn = (columnKey, width) => {
     setColumnWidths((current) => ({ ...current, [columnKey]: Math.min(420, Math.max(80, Math.round(width))) }));
+  };
+
+  const scrollLedgerHorizontally = (direction) => {
+    const ledger = ledgerScrollRef.current;
+    if (!ledger) return;
+    ledger.scrollBy({ left: direction * Math.max(240, Math.round(ledger.clientWidth * 0.7)), behavior: 'smooth' });
   };
 
   const columnStyle = (columnKey) => ({ width: columnWidths[columnKey] });
@@ -290,7 +322,7 @@ export default function EmissionDataGrid({
   }, [filteredEmissions, sort, facilities]);
 
   return (
-    <div className="bg-white rounded-lg border border-stone-200 overflow-x-auto">
+    <div className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="emissions-ledger">
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
@@ -310,8 +342,17 @@ export default function EmissionDataGrid({
         </div>
       )}
       
+      <div className="sticky top-0 z-30 flex items-center gap-2 border-b border-stone-200 bg-stone-50 px-3 py-2" data-testid="emissions-ledger-horizontal-navigation">
+        <Button type="button" size="icon" variant="ghost" onClick={() => scrollLedgerHorizontally(-1)} className="h-8 w-8 shrink-0" aria-label="Scroll ledger columns left" data-testid="emissions-ledger-scroll-left-button"><ChevronLeft className="h-4 w-4" /></Button>
+        <div ref={topScrollbarRef} className="h-5 min-w-0 flex-1 overflow-x-auto overflow-y-hidden" aria-label="Ledger horizontal scrollbar" data-testid="emissions-ledger-top-scrollbar">
+          <div className="h-px" style={{ width: ledgerScrollWidth }} data-testid="emissions-ledger-top-scrollbar-track" />
+        </div>
+        <Button type="button" size="icon" variant="ghost" onClick={() => scrollLedgerHorizontally(1)} className="h-8 w-8 shrink-0" aria-label="Scroll ledger columns right" data-testid="emissions-ledger-scroll-right-button"><ChevronRight className="h-4 w-4" /></Button>
+      </div>
+
+      <div ref={ledgerScrollRef} className="h-[min(70vh,52rem)] overflow-auto" data-testid="emissions-ledger-scroll-region">
       {/* Fixed Header Row */}
-      <div className="min-w-max bg-stone-50 border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
+      <div className="min-w-max sticky top-0 z-10 bg-stone-50 border-b border-stone-200 px-4 py-3">
         <div className="flex min-w-max items-center gap-2 bg-stone-50 text-xs font-semibold text-stone-600 uppercase tracking-wider">
           {/* Select All Checkbox */}
           <div className="w-8 flex-shrink-0 flex items-center justify-center">
@@ -649,6 +690,7 @@ export default function EmissionDataGrid({
           </p>
         </div>
       )}
+      </div>
     </div>
   );
 }
