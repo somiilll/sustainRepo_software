@@ -169,40 +169,46 @@ export const AnalyticsChartCard = ({
     <>
       <section
         data-testid={testId}
-        className={`relative flex flex-col overflow-hidden rounded-lg border border-stone-200 bg-white p-5 shadow-sm hover:shadow-lg ${className}`}
+        className={`relative flex min-w-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white p-5 shadow-sm hover:shadow-lg ${className}`}
       >
         <div
           className="absolute inset-x-0 top-0 h-1"
           style={{ background: accent }}
         />
 
-        <div className="mb-4 flex items-start justify-between">
-          <div>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <h3 className="text-sm font-semibold">{title}</h3>
             <p className="mt-1 text-xs text-stone-500">{subtitle}</p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {headerAction}
 
-            <button
+            {onDrilldown && <button
+              type="button"
               onClick={() => setFullscreen(true)}
               className="rounded-md p-1.5 hover:bg-stone-100"
+              aria-label={`Expand ${title}`}
+              data-testid={`${testId}-fullscreen-button`}
             >
               <Expand className="h-4 w-4" />
-            </button>
+            </button>}
           </div>
         </div>
 
-        <div className="min-h-[280px] flex-1">{chartContent}</div>
+        <div className="min-h-[280px] min-w-0 flex-1">{chartContent}</div>
       </section>
 
       {fullscreen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6">
-          <div className="flex h-[90vh] w-[95vw] flex-col rounded-xl bg-white p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-3 sm:p-6" data-testid={`${testId}-fullscreen-overlay`}>
+          <div className="relative flex h-[90vh] w-full max-w-[1600px] flex-col overflow-hidden rounded-xl bg-white p-4 sm:p-6">
             <button
+              type="button"
               onClick={() => setFullscreen(false)}
-              className="absolute right-8 top-8 rounded-md p-2 hover:bg-stone-100"
+              className="absolute right-3 top-3 z-10 rounded-md p-2 text-stone-600 hover:bg-stone-100"
+              aria-label={`Close expanded ${title}`}
+              data-testid={`${testId}-fullscreen-close-button`}
             >
               <X className="h-5 w-5" />
             </button>
@@ -210,7 +216,7 @@ export const AnalyticsChartCard = ({
             <h2 className="text-lg font-semibold">{title}</h2>
             <p className="mb-5 text-sm text-stone-500">{subtitle}</p>
 
-            <div className="min-h-0 flex-1">{chartContent}</div>
+            <div className="min-h-0 min-w-0 flex-1">{chartContent}</div>
           </div>
         </div>
       )}

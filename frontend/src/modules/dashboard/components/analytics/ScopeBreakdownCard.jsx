@@ -8,6 +8,18 @@ const scopes = [
   { key: 'scope3', label: 'Scope 3', color: '#8B5CF6' }
 ];
 
+const ScopeBreakdownTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const item = payload[0]?.payload;
+  if (!item) return null;
+  return (
+    <div className="rounded-md border border-stone-200 bg-white px-3 py-2 shadow-lg" data-testid="scope-breakdown-tooltip">
+      <p className="text-xs font-semibold text-stone-900">{item.label}</p>
+      <p className="mt-1 text-xs text-stone-600">{Number(item.value).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</p>
+    </div>
+  );
+};
+
 export const ScopeBreakdownCard = ({ 
   className = '', 
   totals, 
@@ -29,14 +41,15 @@ export const ScopeBreakdownCard = ({
         <div>
           <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Scope Breakdown</h3>
         </div>
-        <button
+        {onFullscreen && <button
           type="button"
           onClick={onFullscreen}
           className="rounded-md p-1.5 text-stone-400 transition-colors duration-200 hover:bg-stone-100"
+          aria-label="Expand Scope Breakdown"
           data-testid="scope-breakdown-fullscreen-button"
         >
           <Expand className="h-4 w-4" />
-        </button>
+        </button>}
       </div>
       
       {total ? (
@@ -48,6 +61,7 @@ export const ScopeBreakdownCard = ({
                 <Pie 
                   data={data} 
                   dataKey="value" 
+                  nameKey="label"
                   innerRadius={50} 
                   outerRadius={73} 
                   paddingAngle={3} 
@@ -57,13 +71,7 @@ export const ScopeBreakdownCard = ({
                     <Cell key={item.key} fill={item.color} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  separator="" 
-                  formatter={(value) => [
-                    `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e`, 
-                    ''
-                  ]} 
-                />
+                <Tooltip content={<ScopeBreakdownTooltip />} />
               </PieChart>
             </ResponsiveContainer>
             
