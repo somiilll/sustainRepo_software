@@ -6,6 +6,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
 
@@ -18,11 +19,17 @@ LEDGER_HEADERS = [
     "Item Description",
     "Quantity",
     "Unit",
+    "Quantity of Goods Travelled",
+    "Unit of Goods",
+    "Distance Travelled",
+    "Passengers",
+    "Days Travelled",
+    "Number of Rooms",
+    "Number of Nights",
     "Total Cost",
     "Currency",
-    "Distance (km)",
-    "Origin",
-    "Destination",
+    "From Location",
+    "To Location",
     "Notes",
 ]
 
@@ -61,11 +68,11 @@ async def generate_ocr_template(database, organization_id: str) -> BytesIO:
         cell.fill = PatternFill("solid", fgColor="0F172A")
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ledger.freeze_panes = "A5"
-    ledger.auto_filter.ref = f"A4:{chr(64 + len(LEDGER_HEADERS))}4"
+    ledger.auto_filter.ref = f"A4:{get_column_letter(len(LEDGER_HEADERS))}4"
 
-    widths = [24, 20, 20, 16, 24, 42, 14, 12, 16, 12, 16, 22, 22, 36]
+    widths = [24, 20, 20, 16, 24, 42, 14, 12, 20, 16, 18, 14, 16, 18, 18, 16, 12, 22, 22, 36]
     for index, width in enumerate(widths, start=1):
-        ledger.column_dimensions[chr(64 + index)].width = width
+        ledger.column_dimensions[get_column_letter(index)].width = width
 
     for row in range(5, 505):
         ledger.cell(row=row, column=1).comment = Comment("Choose the facility where this activity occurred.", "SustainRepo")
@@ -94,7 +101,8 @@ async def generate_ocr_template(database, organization_id: str) -> BytesIO:
         allow_blank=True,
     )
     ledger.add_data_validation(currency_validation)
-    currency_validation.add("J5:J504")
+    currency_column = get_column_letter(LEDGER_HEADERS.index("Currency") + 1)
+    currency_validation.add(f"{currency_column}5:{currency_column}504")
 
     ledger.row_dimensions[1].height = 26
     ledger.row_dimensions[4].height = 32
