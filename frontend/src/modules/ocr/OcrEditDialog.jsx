@@ -424,57 +424,59 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           <DialogDescription>The source extraction stays preserved for audit history.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-3 sm:grid-cols-2">
-          {[
-            ['invoice_number', 'Invoice number'], ['vendor_name', 'Vendor'], ['item_description', 'Item description'],
-            ['naics_code', 'NAICS code'], ['naics_label', 'NAICS commodity'],
-          ].map(([field, label]) => (
-            <div key={field} className="space-y-2">
-              <Label htmlFor={`ocr-${field}`}>{label}</Label>
-              <Input id={`ocr-${field}`} type={['quantity', 'cost'].includes(field) ? 'number' : 'text'} value={values[field] ?? ''} onChange={(event) => set(field, ['quantity', 'cost'].includes(field) ? (event.target.value === '' ? '' : Number(event.target.value)) : event.target.value)} data-testid={`ocr-edit-${field}-input`} />
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-primary-row">
+            <div className="space-y-2">
+              <Label data-testid="ocr-edit-facility-label">Facility</Label>
+              <Select value={values.facility_id || ''} onValueChange={(facilityId) => set('facility_id', facilityId)}>
+                <SelectTrigger className={requiredClassName('facility_id')} data-testid="ocr-edit-facility-select"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                <SelectContent>{(configuration.facilities || []).map((facility) => <SelectItem key={facility.id} value={facility.id} data-testid={`ocr-edit-facility-${facility.id}`}>{facility.name}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-          ))}
-          <div className="space-y-2">
-            <Label>Scope</Label>
-            <Select value={values.scope} onValueChange={changeScope}>
-              <SelectTrigger data-testid="ocr-edit-scope-select"><SelectValue /></SelectTrigger>
-              <SelectContent>{configuration.enabled_scopes.map((scope) => <SelectItem key={scope} value={scope} data-testid={`ocr-edit-scope-${scope}`}>{scope === 'water' ? 'Water' : scope.replace('scope', 'Scope ')}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Category</Label>
-            <Select value={values.category || ''} onValueChange={changeCategory}>
-              <SelectTrigger data-testid="ocr-edit-category-select"><SelectValue placeholder="Select category" /></SelectTrigger>
-              <SelectContent>{categories.map((category) => <SelectItem key={category.value} value={category.value} data-testid={`ocr-edit-category-${category.code}`}>{category.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label data-testid="ocr-edit-facility-label">Facility</Label>
-            <Select value={values.facility_id || ''} onValueChange={(facilityId) => set('facility_id', facilityId)}>
-              <SelectTrigger className={requiredClassName('facility_id')} data-testid="ocr-edit-facility-select"><SelectValue placeholder="Select facility" /></SelectTrigger>
-              <SelectContent>{(configuration.facilities || []).map((facility) => <SelectItem key={facility.id} value={facility.id} data-testid={`ocr-edit-facility-${facility.id}`}>{facility.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Calculation method</Label>
-            <Select value={values.ef_method || 'activity'} onValueChange={changeMethod} disabled={values.scope === 'water'}>
-              <SelectTrigger data-testid="ocr-edit-method-select"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="activity" data-testid="ocr-edit-method-activity">Activity</SelectItem><SelectItem value="spend" data-testid="ocr-edit-method-spend">Spend</SelectItem><SelectItem value="supplier" data-testid="ocr-edit-method-supplier">Supplier</SelectItem></SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Subcategory / lookup</Label>
-            <Select value={values.factor_id || ''} onValueChange={changeFactor} disabled={factorLoading || factors.length === 0}>
-              <SelectTrigger className={requiredClassName('factor_id')} data-testid="ocr-edit-subcategory-select"><SelectValue placeholder={factorLoading ? 'Loading factors…' : 'Select a subcategory'} /></SelectTrigger>
-              <SelectContent>{factors.map((factor, index) => <SelectItem key={`${factor.id}-${factor.value}`} value={factor.id} data-testid={`ocr-edit-factor-option-${index}`}>{factor.label} · {factor.database}</SelectItem>)}</SelectContent>
-            </Select>
-            <ExtractedValue label="subcategory" value={original.ef_lookup_key || original.subcategory} field="subcategory" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="ocr-reporting-period">Reporting period</Label>
-            <div className="relative">
-              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" />
-              <Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" />
+            <div className="space-y-2">
+              <Label htmlFor="ocr-reporting-period">Reporting period</Label>
+              <div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" /><Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" /></div>
             </div>
+          </div>
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-method-scope-row">
+            <div className="space-y-2">
+              <Label>Calculation method</Label>
+              <Select value={values.ef_method || 'activity'} onValueChange={changeMethod} disabled={values.scope === 'water'}>
+                <SelectTrigger data-testid="ocr-edit-method-select"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="activity" data-testid="ocr-edit-method-activity">Activity</SelectItem><SelectItem value="spend" data-testid="ocr-edit-method-spend">Spend</SelectItem><SelectItem value="supplier" data-testid="ocr-edit-method-supplier">Supplier</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Scope</Label>
+              <Select value={values.scope} onValueChange={changeScope}>
+                <SelectTrigger data-testid="ocr-edit-scope-select"><SelectValue /></SelectTrigger>
+                <SelectContent>{configuration.enabled_scopes.map((scope) => <SelectItem key={scope} value={scope} data-testid={`ocr-edit-scope-${scope}`}>{scope === 'water' ? 'Water' : scope.replace('scope', 'Scope ')}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-category-subcategory-row">
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={values.category || ''} onValueChange={changeCategory}>
+                <SelectTrigger data-testid="ocr-edit-category-select"><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>{categories.map((category) => <SelectItem key={category.value} value={category.value} data-testid={`ocr-edit-category-${category.code}`}>{category.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Subcategory / lookup</Label>
+              <Select value={values.factor_id || ''} onValueChange={changeFactor} disabled={factorLoading || factors.length === 0}>
+                <SelectTrigger className={requiredClassName('factor_id')} data-testid="ocr-edit-subcategory-select"><SelectValue placeholder={factorLoading ? 'Loading factors…' : 'Select a subcategory'} /></SelectTrigger>
+                <SelectContent>{factors.map((factor, index) => <SelectItem key={`${factor.id}-${factor.value}`} value={factor.id} data-testid={`ocr-edit-factor-option-${index}`}>{factor.label} · {factor.database}</SelectItem>)}</SelectContent>
+              </Select>
+              <ExtractedValue label="subcategory" value={original.ef_lookup_key || original.subcategory} field="subcategory" />
+            </div>
+          </div>
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-description-database-row">
+            <div className="space-y-2"><Label htmlFor="ocr-item-description">Item description</Label><Input id="ocr-item-description" value={values.item_description ?? ''} onChange={(event) => set('item_description', event.target.value)} data-testid="ocr-edit-item-description-input" /></div>
+            <div className="space-y-2"><Label htmlFor="ocr-ef-database">Factor database</Label><Input id="ocr-ef-database" value={values.ef_database || ''} readOnly data-testid="ocr-edit-ef-database-input" /></div>
+          </div>
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-invoice-vendor-row">
+            <div className="space-y-2"><Label htmlFor="ocr-invoice-number">Invoice number</Label><Input id="ocr-invoice-number" value={values.invoice_number ?? ''} onChange={(event) => set('invoice_number', event.target.value)} data-testid="ocr-edit-invoice-number-input" /></div>
+            <div className="space-y-2"><Label htmlFor="ocr-vendor-name">Vendor</Label><Input id="ocr-vendor-name" value={values.vendor_name ?? ''} onChange={(event) => set('vendor_name', event.target.value)} data-testid="ocr-edit-vendor-name-input" /></div>
           </div>
           {!hasStructuredScope3Inputs && <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-quantity-unit-row">
             <div className="space-y-2">
@@ -569,10 +571,6 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               </div>
             </div>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="ocr-ef-database">Factor database</Label>
-            <Input id="ocr-ef-database" value={values.ef_database || ''} readOnly data-testid="ocr-edit-ef-database-input" />
-          </div>
           <div className="space-y-2 sm:col-span-2">
             {requiredFields.length > 0 && <p className="text-sm font-medium text-red-700" role="alert" data-testid="ocr-edit-ghg-required-fields-alert">Complete the highlighted fields before saving this row to GHG.</p>}
             {factorLoading && <p className="text-sm text-slate-600" data-testid="ocr-edit-factor-loading">Loading factor options…</p>}

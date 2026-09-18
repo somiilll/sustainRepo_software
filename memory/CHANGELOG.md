@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Edit Form Order and Green Selection
+- Removed NAICS code and NAICS commodity from the OCR edit UI. Reordered its first rows to: Facility/Reporting Period; Calculation Method/Scope; Category/Subcategory; Item Description/Factor Database; then invoice/vendor and remaining inputs.
+- Selected review rows now receive an emerald highlight and show a simple green tick without the prior checkbox frame.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Header and Default Selection Cleanup
 - Removed the Export CSV action. The compact Fast/Think selector now matches Clear workspace width, with a lightning icon for Fast.
 - OCR completion keeps the **All** source selector active by default so review opens across every invoice and Excel workbook.
