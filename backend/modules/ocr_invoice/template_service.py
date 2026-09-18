@@ -147,7 +147,7 @@ async def generate_ocr_template(database, organization_id: str) -> BytesIO:
         ("Cost", "Enter the spend amount for spend-based activities."),
         ("Currency", "Enter the currency that matches Cost, such as INR, USD, EUR, or GBP."),
         ("Quantity", "Use for fuel consumption, goods purchased, goods transported, waste, water, or any other measurable activity."),
-        ("Units", "Enter the matching unit for Quantity, for example L, kg, tonnes, kWh, m3, or km."),
+        ("Units", "Enter the matching unit for Quantity, for example L, kg, tonnes, kWh or m3."),
         ("Distance Travelled", "Use for passenger travel or goods transport. Enter the travelled distance in km."),
         ("Passengers", "Use No. of Passengers Travelled for passenger travel when applicable."),
         ("Hotel stays", "Number of Rooms and Number of Nights are required only when the activity includes a hotel stay."),

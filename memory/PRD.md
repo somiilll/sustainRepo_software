@@ -654,6 +654,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **OCR Quantity and C6 formula alignment — latest:** Excel freight imports now take transported-goods values exclusively from the generic Quantity and Units columns. C6 OCR no longer creates a `qty_days_travelled` formula input as that field is being removed from the formula. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR template subtitle cleanup — latest:** Removed the in-sheet OCR Ledger subtitle while preserving its title, headers, and dedicated Instructions sheet. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR Excel template redesign — latest:** The OCR workbook now uses the requested 16-column sequence, bordered entry cells, light-blue optional headers, header-only Facility and hotel-stay notes, and an Instructions sheet with field guidance and colour legend. Generic Quantity/Units now also supports fuel, purchased-goods, and transported-goods imports. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **GHG log width reset — latest:** After any manual column resize, GHG logs now provide a compact **Reset widths** control that restores screen-fit column sizing and the leftmost table position. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.

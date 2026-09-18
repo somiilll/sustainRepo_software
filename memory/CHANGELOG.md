@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Quantity and C6 Formula Alignment
+- Excel freight extraction now always maps transported-goods quantity and units from the generic **Quantity** and **Units** columns, rather than legacy goods-specific columns.
+- C6 OCR activity-input creation no longer sends `qty_days_travelled` to formula evaluation; passenger count and distance remain available where mapped.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Template Subtitle Cleanup
 - Removed the instructional subtitle from the OCR Ledger sheet; the workbook title, column headers, and separate Instructions sheet remain unchanged.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
