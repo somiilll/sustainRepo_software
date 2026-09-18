@@ -2321,6 +2321,22 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       return;
     }
 
+    const missingRequiredQuantityField = dynamicInputFields.find((field) => {
+      if (!field.required || field.isOverride || field.presentationOnly) return false;
+      const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`.toLowerCase();
+      if (!/quantity|\bqty\b|activity_value|consum|energy|volume|mass|distance|travelled/.test(identity)) return false;
+      const rawValue = dynamicFieldValues?.[field.variable] ?? dynamicFieldValues?.[field.fieldKey];
+      const value = typeof rawValue === 'object' ? rawValue?.value : rawValue;
+      return value === '' || value === null || value === undefined;
+    });
+    if (missingRequiredQuantityField) {
+      const label = typeof missingRequiredQuantityField.label === 'object'
+        ? missingRequiredQuantityField.label.value
+        : (missingRequiredQuantityField.label || 'Quantity Used');
+      toast.error(`${label} missing.`);
+      return;
+    }
+
     // E3: persistCalcAuditLog moved to ./emissions/utils/persistCalcAuditLog.
     // Thin wrapper binds local state for the dispatch branches below.
     const persistCalcAuditLogLocal = (emissionId) => persistCalcAuditLogShared(emissionId, {
@@ -3506,6 +3522,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 style={{ width: 'calc(100vw - 2rem)', maxWidth: '72rem' }}
                 onInteractOutside={handleInteractOutside}
                 onEscapeKeyDown={handleEscapeKeyDown}
+                onKeyDownCapture={(event) => {
+                  if (event.key === '+' && event.target instanceof HTMLInputElement && event.target.type === 'number') event.preventDefault();
+                }}
+                onPasteCapture={(event) => {
+                  if (event.target instanceof HTMLInputElement && event.target.type === 'number' && event.clipboardData?.getData('text')?.includes('+')) event.preventDefault();
+                }}
                 hideCloseButton={true}
               >
                 <DialogHeader>

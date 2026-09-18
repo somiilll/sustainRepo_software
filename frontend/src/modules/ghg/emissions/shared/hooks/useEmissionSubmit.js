@@ -159,7 +159,7 @@ export function useEmissionSubmit(ctx) {
       submissionEmployees = calculation?.employees || employees;
     }
 
-    const validation = canProceedToStep(5, { employees: submissionEmployees }); // Final validation
+    const validation = canProceedToStep(4, { employees: submissionEmployees }); // Final validation
     if (!validation.valid) {
       toast.error(validation.message);
       setIsSaving(false);

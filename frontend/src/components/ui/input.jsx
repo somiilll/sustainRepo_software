@@ -2,10 +2,23 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-const Input = React.forwardRef(({ className, type, ...props }, ref) => {
+const Input = React.forwardRef(({ className, type, onKeyDown, onPaste, ...props }, ref) => {
+  const handleKeyDown = (event) => {
+    if (type === "number" && event.key === "+") event.preventDefault()
+    onKeyDown?.(event)
+  }
+  const handlePaste = (event) => {
+    if (type === "number" && event.clipboardData?.getData("text")?.includes("+")) {
+      event.preventDefault()
+      return
+    }
+    onPaste?.(event)
+  }
   return (
     <input
       type={type}
+      onKeyDown={handleKeyDown}
+      onPaste={handlePaste}
       className={cn(
         "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         className
