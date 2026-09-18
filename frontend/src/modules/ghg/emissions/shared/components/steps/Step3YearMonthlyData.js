@@ -92,9 +92,25 @@ const isEfField = (field = {}) => {
 
 const isCarbonContentField = (field = {}) => {
   const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
-  return /carbon.*content|composition.*carbon/i.test(identity)
-    || /carbon.*content|composition.*carbon/i.test(field.label || '');
+  return /carbon.*(?:content|composition)|composition.*carbon/i.test(identity)
+    || /carbon.*(?:content|composition)|composition.*carbon/i.test(field.label || '');
 };
+
+const isFloorAreaShareField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
+};
+
+const isInvestmentPercentageField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /investment.*(?:percentage|percent|share)|(?:percentage|percent|share).*investment/i.test(identity);
+};
+
+const isPercentageRangeField = (field = {}) => (
+  isCarbonContentField(field)
+  || isFloorAreaShareField(field)
+  || isInvestmentPercentageField(field)
+);
 
 const hasStoredFieldValue = (data = {}, field = {}) => (
   Object.prototype.hasOwnProperty.call(data, field.variable)
@@ -1120,7 +1136,7 @@ export const Step3YearMonthlyData = ({
                   : undefined;
                 const monthlyFieldMax = monthlyDayLimit
                   ?? field.validationRules?.max
-                  ?? (isCarbonContentField(field) ? 100 : undefined);
+                  ?? (isPercentageRangeField(field) ? 100 : undefined);
                 const monthlyPeriodLabel = MONTHS.find((entry) => entry.key === monthKey)?.name || monthKey;
                 const hideUnit = useCustomFuel && isQtyField;
                 const showCustomFuelQuantityUnit = useCustomFuel && isQtyField;
