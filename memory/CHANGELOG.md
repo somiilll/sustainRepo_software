@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — C6 Compact Trip-Row Layout
+- Moved every C6 trip’s dynamic inputs, Departure, Arrival, and evidence control into one horizontally scrollable in-card row so values remain aligned and scannable.
+- Replaced the text upload control with the same compact upload icon, evidence count badge, hover file list, view links, and removal action used by the standard monthly ledger.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — C6 Add-Trip ReferenceError Fix
 - Declared the missing `testIdSuffix` default parameter in `DynamicFieldRenderer`, resolving the confirmed first-trip render error: `ReferenceError: testIdSuffix is not defined`.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
