@@ -24,11 +24,11 @@ const SortableHeader = ({ label, sortKey, currentSort, onSort, className = '' })
   return (
     <button
       onClick={() => onSort(sortKey)}
-      className={`flex items-center gap-1 hover:text-stone-900 transition-colors ${className}`}
+      className={`flex w-full min-w-0 items-center gap-1 hover:text-stone-900 transition-colors ${className}`}
       data-testid={`emissions-sort-${sortKey}`}
     >
-      <span>{label}</span>
-      <Icon className={`w-3 h-3 ${isActive ? 'text-emerald-600' : 'text-stone-400'}`} />
+      <span className="truncate">{label}</span>
+      <Icon className={`h-3 w-3 shrink-0 ${isActive ? 'text-emerald-600' : 'text-stone-400'}`} />
     </button>
   );
 };
@@ -62,7 +62,7 @@ const ResizableColumnHeader = ({ columnKey, width, onResize, children }) => {
   };
 
   return (
-    <div className="relative flex flex-shrink-0 items-center" style={{ width }} data-testid={`emissions-column-header-${columnKey}`}>
+    <div className="relative flex min-w-0 flex-shrink-0 items-center justify-center" style={{ width }} data-testid={`emissions-column-header-${columnKey}`}>
       {children}
       <button
         type="button"
