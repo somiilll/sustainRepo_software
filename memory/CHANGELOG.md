@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Excel Template Redesign
+- Rebuilt the OCR Ledger into the requested 16-column order and added a bordered 500-row entry area. Facility guidance now appears only on the Facility header; Rooms and Nights headers note that they are required only for hotel stays.
+- Added light-blue optional headers for Invoice Number, Vendor Name, From Location, To Location, and Notes, plus an Instructions sheet with a colour legend and field-by-field guidance.
+- Updated spreadsheet aliases and generic Quantity/Units handling so Quantity supports fuels, purchased goods, and transported goods. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — GHG Log Width Reset
 - Added a **Reset widths** control that appears after a user manually resizes GHG log columns. It clears saved manual widths, returns the grid to screen-fit sizing, and resets horizontal position.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
