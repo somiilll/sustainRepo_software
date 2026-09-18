@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — GHG Log Width Reset
+- Added a **Reset widths** control that appears after a user manually resizes GHG log columns. It clears saved manual widths, returns the grid to screen-fit sizing, and resets horizontal position.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — GHG Logs Grid Responsiveness
 - Active Scope tabs now use the platform emerald active state; the dots-menu column is explicitly labeled **Actions** across Scope 1, Scope 2, Scope 3, and Biogenic logs.
 - Default GHG log column widths now expand to the available screen width. The first manual resize freezes current widths instead of forcing all columns back into the viewport.
