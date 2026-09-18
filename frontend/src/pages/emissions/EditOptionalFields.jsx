@@ -134,7 +134,6 @@ export const EditOptionalFields = ({
             <div className="space-y-4 border-t border-stone-100 pt-6" data-testid="edit-supplier-information-section">
               <div>
                 <h4 className="font-medium text-stone-900">{capabilities.customerCounterparty ? 'Customer' : 'Supplier'} information</h4>
-                <p className="mt-1 text-sm text-stone-500">Optional counterparty reference for this record.</p>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">

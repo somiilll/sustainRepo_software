@@ -278,6 +278,8 @@ export default function EmissionEditForm(props) {
   const setEditEmployees = (value) => setDraftField('employees', value);
   const setOverrideCalorificValue = (value) => setDraftField('overrideCalorificValue', value);
   const setOverrideDensity = (value) => setDraftField('overrideDensity', value);
+  const editSelectClass = 'h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800';
+  const editSelectWithIconClass = `${editSelectClass} pl-10`;
   const setOverrideJustification = (value) => setDraftField('overrideJustification', value);
 
   const ghgUiState = resolveGhgUiState({
@@ -453,7 +455,7 @@ export default function EmissionEditForm(props) {
                               value={selectedCategory}
                               onChange={(e) => handleCategorySelect(e.target.value)}
                               required
-                              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+                              className={editSelectWithIconClass}
                               data-testid="category-select"
                             >
                               <option value="">Select category...</option>
@@ -489,7 +491,7 @@ export default function EmissionEditForm(props) {
                                   }}
                                   required
                                   disabled={!selectedCategory}
-                                  className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
+                                  className={`${editSelectWithIconClass} ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
                                   data-testid="scope3-method-select"
                                 >
                                   <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
@@ -515,7 +517,7 @@ export default function EmissionEditForm(props) {
                                     setDynamicFieldValues({});
                                     markFormDirty();
                                   }}
-                                  className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3"
+                                  className={editSelectClass}
                                   data-testid="edit-scope3-currency-conversion-method-select"
                                 >
                                   <option value="standard">Standard Currency Conversion</option>
@@ -530,7 +532,7 @@ export default function EmissionEditForm(props) {
                                   id="edit-c8-allocation-method-select"
                                   value={allocationMethod}
                                   onChange={(event) => onC8AllocationMethodChange(event.target.value)}
-                                  className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3"
+                                  className={editSelectClass}
                                   data-testid="edit-c8-allocation-method-select"
                                 >
                                   <option value="" data-testid="edit-c8-allocation-method-option-placeholder">Select allocation method...</option>
@@ -555,7 +557,7 @@ export default function EmissionEditForm(props) {
                                       setDynamicFieldValues({});
                                     }}
                                     required
-                                    className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+                                    className={editSelectWithIconClass}
                                     data-testid="scope3-activity-type-filter"
                                   >
                                     <option value="">Select activity type...</option>
@@ -638,7 +640,7 @@ export default function EmissionEditForm(props) {
                               markFormDirty();
                             }}
                           >
-                            <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-process-type-select">
+                                <SelectTrigger className="h-10 bg-stone-50 text-sm text-stone-800" data-testid="edit-process-type-select">
                               <SelectValue placeholder="Select process type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -663,7 +665,7 @@ export default function EmissionEditForm(props) {
                           >
                             <div className="relative">
                               <Calculator className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-                              <SelectTrigger className="h-10 bg-stone-50 pl-10" data-testid="edit-calculation-methodology-select">
+                              <SelectTrigger className="h-10 bg-stone-50 pl-10 text-sm text-stone-800" data-testid="edit-calculation-methodology-select">
                                 <SelectValue placeholder="Select methodology" />
                               </SelectTrigger>
                             </div>
@@ -694,7 +696,7 @@ export default function EmissionEditForm(props) {
                                   setTypeOfProduct(''); // Reset C11 type_of_product
                                 }}
                                 required
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                className={editSelectClass}
                                 data-testid="scope3-subcategory-filter"
                               >
                                 <option value="">Select subcategory...</option>
@@ -722,7 +724,7 @@ export default function EmissionEditForm(props) {
                                     setActivitySearchTerm('');
                                   }}
                                   required
-                                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                  className={editSelectClass}
                                   data-testid="scope3-type-of-product-filter"
                                 >
                                   <option value="">Select type of product...</option>
@@ -1162,7 +1164,7 @@ export default function EmissionEditForm(props) {
                                 value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                 onChange={(e) => updateDynamicFieldValue(field.variable, e.target.value)}
                                 disabled={showOverrideCheckbox && !isOverrideEnabled}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
+                                className={`${editSelectClass} ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                 data-testid={`edit-select-${field.fieldKey}`}
                               >
                                 <option value="">Select {field.label}</option>
