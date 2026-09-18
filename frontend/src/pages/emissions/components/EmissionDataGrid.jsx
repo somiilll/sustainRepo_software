@@ -6,6 +6,7 @@ import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../../components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
 
 /**
  * EmissionDataGrid
@@ -97,6 +98,28 @@ const StatusCell = ({ emission }) => {
     </span>
   );
 };
+
+const OverrideBadge = ({ emissionId }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="cursor-help px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0" tabIndex={0} data-testid={`emission-custom-override-${emissionId}`}>Custom</span>
+      </TooltipTrigger>
+      <TooltipContent data-testid={`emission-custom-override-tooltip-${emissionId}`}><p>Default values overridden.</p><p>View more in Edit.</p></TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+const EvidenceIndicator = ({ emissionId, count }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-help flex-shrink-0" tabIndex={0} data-testid={`emission-evidence-indicator-${emissionId}`}><FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" /></span>
+      </TooltipTrigger>
+      <TooltipContent data-testid={`emission-evidence-tooltip-${emissionId}`}><p>{count} evidence{count === 1 ? '' : 's'} uploaded.</p><p>View more in Edit.</p></TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, handleEdit, fetchHistory, openDeleteConfirm }) => (
   <DropdownMenu>
@@ -194,6 +217,12 @@ export default function EmissionDataGrid({
       }
       return newSet;
     });
+  };
+
+  const selectionModeActive = selectedIds.size > 0;
+  const handleRowSelection = (id) => {
+    if (!selectionModeActive) return;
+    handleSelectRow(id);
   };
   
   // Handle select all
@@ -488,6 +517,9 @@ export default function EmissionDataGrid({
           const facility = facilities.find(f => f.id === emission.facility_id);
           const dfv = emission.dynamic_field_values || {};
           const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
+          const evidenceCount = Number(emission.evidence_count)
+            || (Array.isArray(emission.evidence_urls) ? emission.evidence_urls.length : 0)
+            || (emission.evidence_url ? 1 : 0);
           const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
           const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
 
@@ -539,16 +571,17 @@ export default function EmissionDataGrid({
           return (
             <div
               key={emission.id}
-              className={`min-w-max px-4 py-3 flex items-center gap-2 hover:bg-green-50/50 transition-colors cursor-pointer group ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
-              onClick={() => handleSelectRow(emission.id)}
+              className={`min-w-max px-4 py-3 flex items-center gap-2 transition-colors group ${selectionModeActive ? 'cursor-pointer hover:bg-green-50/50' : 'cursor-default'} ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
+              onClick={() => handleRowSelection(emission.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
-                  handleSelectRow(emission.id);
+                  handleRowSelection(emission.id);
                 }
               }}
               role="checkbox"
               aria-checked={selectedIds.has(emission.id)}
+              aria-disabled={!selectionModeActive}
               tabIndex={0}
               data-testid={`emission-row-${emission.id}`}
             >
@@ -582,14 +615,8 @@ export default function EmissionDataGrid({
                     <p className="min-w-0 text-center text-sm text-text-primary truncate" title={activityDisplay}>
                       {activityDisplay}
                     </p>
-                    {hasOverride && (
-                      <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
-                        Custom
-                      </span>
-                    )}
-                    {emission.evidence_url && (
-                      <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
-                    )}
+                    {hasOverride && <OverrideBadge emissionId={emission.id} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('method')}>
                     <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
@@ -630,14 +657,8 @@ export default function EmissionDataGrid({
                     <p className="min-w-0 text-center text-sm text-text-primary truncate" title={subcategoryDisplay} data-testid={`emission-subcategory-${emission.id}`}>
                       {subcategoryDisplay}
                     </p>
-                    {hasOverride && (
-                      <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
-                        Custom
-                      </span>
-                    )}
-                    {emission.evidence_url && (
-                      <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
-                    )}
+                    {hasOverride && <OverrideBadge emissionId={emission.id} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
@@ -684,14 +705,8 @@ export default function EmissionDataGrid({
                         ? activityDisplay
                         : (emission.fuel_type || emission.sub_category || activityDisplay || '-')}
                     </p>
-                    {hasOverride && (
-                      <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
-                        Custom
-                      </span>
-                    )}
-                    {emission.evidence_url && (
-                      <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
-                    )}
+                    {hasOverride && <OverrideBadge emissionId={emission.id} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
