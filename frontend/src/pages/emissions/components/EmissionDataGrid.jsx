@@ -517,21 +517,21 @@ export default function EmissionDataGrid({
               {/* Scope 3 Row */}
               {activeScope === 'scope3' && (
                 <>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('facility')}>
-                    <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('facility')}>
+                    <p className="w-full text-center text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="flex-shrink-0 text-left text-sm text-text-secondary truncate" style={columnStyle('period')} title={emission.reporting_period}>
+                  <div className="flex-shrink-0 text-center text-sm text-text-secondary truncate" style={columnStyle('period')} title={emission.reporting_period}>
                     {formatReportingPeriod(emission.reporting_period || reportingYear)}
                   </div>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('category')}>
-                    <p className="text-sm text-text-primary truncate" title={emission.category}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('category')}>
+                    <p className="w-full text-center text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2 pl-2 text-left" style={columnStyle('activity')}>
-                    <p className="text-sm text-text-primary truncate" title={activityDisplay}>
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('activity')}>
+                    <p className="min-w-0 text-center text-sm text-text-primary truncate" title={activityDisplay}>
                       {activityDisplay}
                     </p>
                     {hasOverride && (
@@ -543,20 +543,20 @@ export default function EmissionDataGrid({
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('method')}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('method')}>
                     <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
                       {methodDisplay}
                     </span>
                   </div>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('emissions')}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2 text-left" style={columnStyle('status')}>
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
                     <StatusCell emission={emission} />
                   </div>
-                  <div className="flex-shrink-0 text-left text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
+                  <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
                     {formatLastUpdated(emission)}
                   </div>
                 </>
@@ -565,21 +565,21 @@ export default function EmissionDataGrid({
               {/* Scope 1 & 2 Row */}
               {(activeScope === 'scope1' || activeScope === 'scope2') && (
                 <>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('facility')}>
-                    <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('facility')}>
+                    <p className="w-full text-center text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="flex-shrink-0 text-left text-sm text-text-secondary truncate" style={columnStyle('period')} title={emission.reporting_period}>
+                  <div className="flex-shrink-0 text-center text-sm text-text-secondary truncate" style={columnStyle('period')} title={emission.reporting_period}>
                     {formatReportingPeriod(emission.reporting_period || reportingYear)}
                   </div>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('category')}>
-                    <p className="text-sm text-text-primary truncate" title={emission.category}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('category')}>
+                    <p className="w-full text-center text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2 text-left" style={columnStyle('activity')}>
-                    <p className="text-sm text-text-primary truncate" title={subcategoryDisplay} data-testid={`emission-subcategory-${emission.id}`}>
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('activity')}>
+                    <p className="min-w-0 text-center text-sm text-text-primary truncate" title={subcategoryDisplay} data-testid={`emission-subcategory-${emission.id}`}>
                       {subcategoryDisplay}
                     </p>
                     {hasOverride && (
@@ -591,15 +591,15 @@ export default function EmissionDataGrid({
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('emissions')}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2 text-left" style={columnStyle('status')}>
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
                     <StatusCell emission={emission} />
                   </div>
-                  <div className="flex-shrink-0 text-left text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
+                  <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
                     {formatLastUpdated(emission)}
                   </div>
                 </>
@@ -608,26 +608,26 @@ export default function EmissionDataGrid({
               {/* Biogenic Row */}
               {activeScope === 'biogenic' && (
                 <>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('facility')}>
-                    <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('facility')}>
+                    <p className="w-full text-center text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="flex-shrink-0 text-left text-sm text-text-secondary truncate" style={columnStyle('period')} title={emission.reporting_period}>
+                  <div className="flex-shrink-0 text-center text-sm text-text-secondary truncate" style={columnStyle('period')} title={emission.reporting_period}>
                     {formatReportingPeriod(emission.reporting_period || reportingYear)}
                   </div>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('type')}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('type')}>
                     <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
                       {biogenicScope === 'scope1' ? 'Direct' : biogenicScope === 'scope3' ? 'Indirect' : biogenicScope}
                     </span>
                   </div>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('category')}>
-                    <p className="text-sm text-text-primary truncate" title={emission.category}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('category')}>
+                    <p className="w-full text-center text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2 text-left" style={columnStyle('activity')}>
-                    <p className="text-sm text-text-primary truncate" title={
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('activity')}>
+                    <p className="min-w-0 text-center text-sm text-text-primary truncate" title={
                       biogenicScope === 'scope3'
                         ? activityDisplay
                         : (emission.fuel_type || emission.sub_category || activityDisplay || '-')
@@ -645,15 +645,15 @@ export default function EmissionDataGrid({
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="flex-shrink-0 text-left" style={columnStyle('emissions')}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2 text-left" style={columnStyle('status')}>
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
                     <StatusCell emission={emission} />
                   </div>
-                  <div className="flex-shrink-0 text-left text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
+                  <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
                     {formatLastUpdated(emission)}
                   </div>
                 </>
