@@ -1690,7 +1690,7 @@ const YearlyDataEntry = ({
                           }}
                         />
                       ) : (
-                        <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-[minmax(0,1fr)_minmax(7.5rem,9rem)] overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
+                        <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                           <Input
                             type="number"
                             step={isUnitlessCountField ? "1" : "any"}
@@ -1719,7 +1719,7 @@ const YearlyDataEntry = ({
                                 setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                               }
                             }}
-                            className={showUnitSelector || showUnitTextInput ? "h-10 min-w-0 w-full rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0" : "bg-white"}
+                            className="h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
                             data-testid={`yearly-${field.fieldKey || field.variable}-input`}
                           />
                           {showUnitSelector && (
@@ -1732,7 +1732,7 @@ const YearlyDataEntry = ({
                                 ...(showCustomFuelQuantityUnit ? { custom_qty_unit: e.target.value } : {}),
                                 [`${field.variable}_unit`]: e.target.value,
                               }))}
-                              className="h-10 min-w-0 w-full border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
+                              className="h-10 w-32 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
                               data-testid={showCustomFuelQuantityUnit ? 'yearly-custom-qty-unit' : `yearly-${field.fieldKey}-unit`}
                               dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customQuantityUnitOptions : fieldUnits) }}
                             />
@@ -1743,7 +1743,7 @@ const YearlyDataEntry = ({
                               placeholder="Unit"
                               value={displayedUnit}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                              className="h-10 min-w-0 w-full rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0"
+                              className="h-10 w-32 shrink-0 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0"
                               data-testid={`yearly-${field.fieldKey || field.variable}-unit-text`}
                             />
                           )}
@@ -1859,7 +1859,7 @@ const YearlyDataEntry = ({
                           Override Default
                         </label>
                       </div>
-                      <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-[minmax(0,1fr)_minmax(7.5rem,9rem)] overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                         <Input
                           type="number"
                           step={isUnitlessCountField ? "1" : "any"}
@@ -1889,7 +1889,7 @@ const YearlyDataEntry = ({
                             }
                           }}
                           disabled={!isOverrideEnabled}
-                          className={`${showUnitSelector || showUnitTextInput ? "h-10 min-w-0 w-full rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0" : "bg-white"} ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                          className={`h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? "opacity-50" : ""}`}
                           data-testid={`yearly-${field.fieldKey || field.variable}-optional-input`}
                         />
                         {showUnitSelector && (
@@ -1897,7 +1897,7 @@ const YearlyDataEntry = ({
                             value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0] || ''}
                             onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                             disabled={!isOverrideEnabled}
-                            className={`h-10 min-w-0 w-full border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                            className={`h-10 w-32 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? "opacity-50" : ""}`}
                             data-testid={`yearly-${field.fieldKey || field.variable}-optional-unit`}
                             dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
                           />
@@ -1909,7 +1909,7 @@ const YearlyDataEntry = ({
                             value={displayedUnit}
                             onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                             disabled={!isOverrideEnabled}
-                            className={`h-10 min-w-0 w-full rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                            className={`h-10 w-32 shrink-0 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? "opacity-50" : ""}`}
                             data-testid={`yearly-${field.fieldKey || field.variable}-optional-unit-text`}
                           />
                         )}
@@ -2025,7 +2025,7 @@ const YearlyDataEntry = ({
                         )}
                       </div>
                       
-                      <div className={showStandardExpectedUnit || showTextUnitInput ? "grid grid-cols-[minmax(0,1fr)_minmax(7.5rem,9rem)] overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                         <Input
                           type="number"
                           step="any"
@@ -2048,7 +2048,7 @@ const YearlyDataEntry = ({
                               setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                             }
                           }}
-                          className={`${showStandardExpectedUnit || showTextUnitInput ? 'h-10 min-w-0 w-full rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : 'bg-white'} ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                          className={`h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? 'opacity-50' : ''}`}
                           data-testid={`yearly-${field.fieldKey || field.variable}-override-input`}
                         />
                         {showStandardExpectedUnit && (
@@ -2057,12 +2057,12 @@ const YearlyDataEntry = ({
                               value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0] || ''}
                               disabled={!isOverrideEnabled}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                              className={`h-10 min-w-0 w-full border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                              className={`h-10 w-32 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? 'opacity-50' : ''}`}
                               data-testid={`yearly-${field.fieldKey || field.variable}-override-unit`}
                               dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
                             />
                           ) : (
-                            <div className={`flex h-10 min-w-0 w-full items-center border-l border-l-stone-200 bg-stone-100 px-3 text-sm text-stone-600 ${!isOverrideEnabled ? 'opacity-50' : ''}`}>
+                            <div className={`flex h-10 w-32 shrink-0 items-center border-l border-l-stone-200 bg-stone-100 px-3 text-sm text-stone-600 ${!isOverrideEnabled ? 'opacity-50' : ''}`}>
                               <span>{displayedUnit}</span>
                             </div>
                           )
@@ -2077,7 +2077,7 @@ const YearlyDataEntry = ({
                               ...prev,
                               [`${field.variable}_unit`]: e.target.value,
                             }))}
-                            className={`h-10 min-w-0 w-full rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                            className={`h-10 w-32 shrink-0 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? 'opacity-50' : ''}`}
                             data-testid={`yearly-${field.fieldKey || field.variable}-override-unit-text`}
                           />
                         )}
@@ -2094,7 +2094,7 @@ const YearlyDataEntry = ({
             <div className={scope === 'scope2' && !useCustomFuel ? 'grid max-w-3xl grid-cols-1 gap-4 md:grid-cols-2' : useCustomFuel ? '' : 'max-w-xl'}>
               <div className="space-y-2">
                 <Label>Annual Quantity <span className="text-red-500">*</span></Label>
-                <div className="grid grid-cols-[minmax(0,1fr)_minmax(7.5rem,9rem)] overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+                <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                   <Input
                     type="number"
                     step="any"
@@ -2105,7 +2105,7 @@ const YearlyDataEntry = ({
                       const val = e.target.value;
                       if (val === '' || parseFloat(val) >= 0) setYearlyData(prev => ({ ...prev, quantity: val }));
                     }}
-                    className="h-10 min-w-0 w-full rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+                    className="h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
                     data-testid="yearly-quantity"
                   />
                   <select
@@ -2119,7 +2119,7 @@ const YearlyDataEntry = ({
                       ...(useCustomFuel ? { custom_qty_unit: e.target.value } : {}),
                       unit: e.target.value,
                     }))}
-                    className="h-10 min-w-0 w-full border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
+                    className="h-10 w-32 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
                     data-testid={useCustomFuel ? 'yearly-custom-qty-unit' : 'yearly-unit'}
                     dangerouslySetInnerHTML={{
                       __html: useCustomFuel
@@ -2137,15 +2137,15 @@ const YearlyDataEntry = ({
               {scope === 'scope2' && !useCustomFuel && (
                 <div className="space-y-2" data-testid="yearly-scope2-default-factor">
                   <Label>Default Emission Factor</Label>
-                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(7.5rem,9rem)] overflow-hidden rounded-md border border-stone-200 bg-stone-50">
+                  <div className="flex overflow-hidden rounded-md border border-stone-200 bg-stone-50">
                     <Input
                       readOnly
                       value={selectedFuel?.emission_factor_basis_quantity ?? ''}
                       placeholder="Select energy source"
-                      className="h-10 min-w-0 w-full rounded-none border-0 bg-transparent text-stone-700 shadow-none focus-visible:ring-0"
+                      className="h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent text-stone-700 shadow-none focus-visible:ring-0"
                       data-testid="yearly-scope2-default-factor-value"
                     />
-                    <span className="flex h-10 min-w-0 w-full items-center border-l border-l-stone-200 px-3 text-sm text-stone-600" data-testid="yearly-scope2-default-factor-unit">
+                    <span className="flex h-10 w-32 shrink-0 items-center border-l border-l-stone-200 px-3 text-sm text-stone-600" data-testid="yearly-scope2-default-factor-unit">
                       {selectedFuel?.emission_factor_basis_unit || 'tCO₂/MWh'}
                     </span>
                   </div>
