@@ -136,7 +136,11 @@ export default function EmissionDataGrid({
   const [selectedIds, setSelectedIds] = useState(new Set());
   const ledgerScrollRef = useRef(null);
   const bottomScrollbarRef = useRef(null);
+  const scrollDragRef = useRef(null);
   const [ledgerScrollWidth, setLedgerScrollWidth] = useState(0);
+  const [ledgerViewportWidth, setLedgerViewportWidth] = useState(0);
+  const [ledgerScrollLeft, setLedgerScrollLeft] = useState(0);
+  const [bottomScrollbarWidth, setBottomScrollbarWidth] = useState(0);
   const [columnWidths, setColumnWidths] = useState(() => {
     try {
       return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(localStorage.getItem('emission-log-column-widths-v4') || '{}') };
@@ -155,21 +159,18 @@ export default function EmissionDataGrid({
     if (!ledger || !bottomScrollbar) return undefined;
     const syncDimensions = () => {
       setLedgerScrollWidth(ledger.scrollWidth);
+      setLedgerViewportWidth(ledger.clientWidth);
+      setLedgerScrollLeft(ledger.scrollLeft);
+      setBottomScrollbarWidth(bottomScrollbar.clientWidth);
     };
-    const syncBottomScrollbar = () => {
-      if (bottomScrollbar.scrollLeft !== ledger.scrollLeft) bottomScrollbar.scrollLeft = ledger.scrollLeft;
-    };
-    const syncLedger = () => {
-      if (ledger.scrollLeft !== bottomScrollbar.scrollLeft) ledger.scrollLeft = bottomScrollbar.scrollLeft;
-    };
+    const syncLedger = () => setLedgerScrollLeft(ledger.scrollLeft);
     syncDimensions();
-    ledger.addEventListener('scroll', syncBottomScrollbar, { passive: true });
-    bottomScrollbar.addEventListener('scroll', syncLedger, { passive: true });
+    ledger.addEventListener('scroll', syncLedger, { passive: true });
     const observer = new ResizeObserver(syncDimensions);
     observer.observe(ledger);
+    observer.observe(bottomScrollbar);
     return () => {
-      ledger.removeEventListener('scroll', syncBottomScrollbar);
-      bottomScrollbar.removeEventListener('scroll', syncLedger);
+      ledger.removeEventListener('scroll', syncLedger);
       observer.disconnect();
     };
   }, [activeScope, columnWidths, filteredEmissions.length]);
@@ -206,6 +207,46 @@ export default function EmissionDataGrid({
 
   const resizeColumn = (columnKey, width) => {
     setColumnWidths((current) => ({ ...current, [columnKey]: Math.min(420, Math.max(80, Math.round(width))) }));
+  };
+
+  const maxHorizontalScroll = Math.max(0, ledgerScrollWidth - ledgerViewportWidth);
+  const scrollbarThumbWidth = bottomScrollbarWidth
+    ? Math.max(40, Math.min(bottomScrollbarWidth, (ledgerViewportWidth / Math.max(ledgerScrollWidth, 1)) * bottomScrollbarWidth))
+    : 0;
+  const maxThumbTravel = Math.max(0, bottomScrollbarWidth - scrollbarThumbWidth);
+  const scrollbarThumbLeft = maxHorizontalScroll && maxThumbTravel
+    ? (ledgerScrollLeft / maxHorizontalScroll) * maxThumbTravel
+    : 0;
+
+  const setLedgerScrollFromThumbPosition = (thumbLeft) => {
+    const ledger = ledgerScrollRef.current;
+    if (!ledger || !maxThumbTravel || !maxHorizontalScroll) return;
+    ledger.scrollLeft = Math.max(0, Math.min(maxThumbTravel, thumbLeft)) / maxThumbTravel * maxHorizontalScroll;
+  };
+
+  const stopScrollbarDrag = () => {
+    window.removeEventListener('pointermove', moveScrollbarDrag);
+    window.removeEventListener('pointerup', stopScrollbarDrag);
+    scrollDragRef.current = null;
+  };
+
+  const moveScrollbarDrag = (event) => {
+    if (!scrollDragRef.current) return;
+    setLedgerScrollFromThumbPosition(scrollDragRef.current.startThumbLeft + event.clientX - scrollDragRef.current.startX);
+  };
+
+  const startScrollbarDrag = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    scrollDragRef.current = { startX: event.clientX, startThumbLeft: scrollbarThumbLeft };
+    window.addEventListener('pointermove', moveScrollbarDrag);
+    window.addEventListener('pointerup', stopScrollbarDrag);
+  };
+
+  const handleScrollbarTrackClick = (event) => {
+    if (event.target !== event.currentTarget) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setLedgerScrollFromThumbPosition(event.clientX - bounds.left - scrollbarThumbWidth / 2);
   };
 
   const columnStyle = (columnKey) => ({ width: columnWidths[columnKey] });
@@ -679,8 +720,10 @@ export default function EmissionDataGrid({
         </div>
       )}
       </div>
-      <div ref={bottomScrollbarRef} className="h-4 overflow-x-scroll overflow-y-hidden border-t border-stone-200 bg-white" style={{ scrollbarGutter: 'stable' }} aria-label="Scroll ledger columns horizontally" data-testid="emissions-ledger-bottom-scrollbar">
-        <div className="h-px" style={{ width: ledgerScrollWidth }} data-testid="emissions-ledger-bottom-scrollbar-track" />
+      <div className="border-t border-stone-200 bg-white px-4 py-1" data-testid="emissions-ledger-bottom-scrollbar">
+        <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-stone-300" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll ledger columns horizontally" aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerScrollLeft)} data-testid="emissions-ledger-bottom-scrollbar-track">
+          <button type="button" onPointerDown={startScrollbarDrag} className="absolute top-0 h-2 rounded-full bg-stone-500 transition-colors hover:bg-stone-600 active:bg-stone-700" style={{ width: scrollbarThumbWidth, transform: `translateX(${scrollbarThumbLeft}px)` }} aria-label="Drag to scroll ledger columns horizontally" data-testid="emissions-ledger-bottom-scrollbar-thumb" />
+        </div>
       </div>
     </div>
   );
