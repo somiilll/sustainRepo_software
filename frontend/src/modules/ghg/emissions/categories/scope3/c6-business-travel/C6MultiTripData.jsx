@@ -92,6 +92,7 @@ const TripFields = ({ trip, periodKey, frequencyType, dynamicInputFields, update
               updateMonthData={updateField}
               frequencyType={frequencyType}
               testIdSuffix={testIdSuffix}
+              compactTripRow
               compoundSuffix={getCompoundSuffix(field, trip)}
               {...fieldRendererProps}
             />

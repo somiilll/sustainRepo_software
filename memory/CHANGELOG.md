@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — C6 Field Control Consistency
+- Standardized C6 trip fields without a unit selector to use the same visible border, stone fill, height, and focus treatment as fields with unit selectors.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — C6 Evidence Column Spacing
 - Changed the wide-screen C6 trip row from equal grid columns to flexible dynamic-field columns plus a fixed-width evidence column.
 - The upload icon now sits directly after the final input at the right edge, and calculation fields use the released space.

@@ -139,6 +139,7 @@ export const DynamicFieldRenderer = ({
   reportingYear,
   reportingYearType,
   testIdSuffix = '',
+  compactTripRow = false,
   // Compound unit support — when set, dropdown options are suffixed with
   // "/<compoundSuffix>". Computed by the parent from the linked field's unit.
   compoundSuffix = '',
@@ -352,7 +353,11 @@ export const DynamicFieldRenderer = ({
             onChange={handleValueChange}
             onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
             disabled={isDisabled}
-            className={`${(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput) ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : 'bg-stone-50'} ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
+            className={`${(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput)
+              ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0'
+              : compactTripRow
+                ? 'h-10 border-stone-200 bg-stone-50 shadow-none focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100'
+                : 'bg-stone-50'} ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
             data-testid={`input-${field.fieldKey}-${monthKey}${testIdSuffix}`}
           />
           
