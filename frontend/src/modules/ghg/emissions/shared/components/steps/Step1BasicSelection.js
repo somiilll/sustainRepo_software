@@ -729,6 +729,7 @@ export const Step1BasicSelection = ({
                     menuAlign="end"
                     menuClassName="w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
                     wrapOptionLabels
+                    searchMatchMode="word-prefix"
                   />
                 </div>
               )}

@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — Scope 3 Activity Search Precision
+- Replaced cmdk’s default scattered-character fuzzy search only for Scope 3 Activity selection with case-insensitive, normalized word-prefix matching.
+- Every query term must match the start of a genuine activity-name word. Exact phrases/words rank first; valid prefixes follow; no fuzzy fallback remains.
+- Search inputs such as `co`, `comp`, `copp`, `copper`, and multi-term queries now follow the intended semantic behavior without UI, API, data, or selection changes. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per user instruction.
+
 ## September 17, 2026 — Scope 3 Long Activity Names
 - Scope 3 Activity menus now grow leftward from their original right edge to a responsive 34rem maximum when opened.
 - Activity names wrap in the expanded menu rather than truncating. Added in both Add and Edit without changing values or backend behavior. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per user instruction.

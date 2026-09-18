@@ -4,6 +4,20 @@ import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
+const tokenizeSearchText = (value = '') => String(value)
+  .toLocaleLowerCase()
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .split(/[^a-z0-9]+/)
+  .filter(Boolean);
+
+const hasExactTokenPhrase = (optionTokens, searchTokens) => (
+  searchTokens.length <= optionTokens.length
+  && optionTokens.some((_, startIndex) => searchTokens.every(
+    (token, offset) => optionTokens[startIndex + offset] === token,
+  ))
+);
+
 export const SearchableSelect = ({
   value = '',
   options = [],
@@ -16,9 +30,45 @@ export const SearchableSelect = ({
   menuClassName,
   menuAlign = 'start',
   wrapOptionLabels = false,
+  searchMatchMode,
 }) => {
   const [open, setOpen] = React.useState(false);
+  const [searchText, setSearchText] = React.useState('');
   const selectedOption = options.find((option) => option.value === value);
+  const usesWordPrefixSearch = searchMatchMode === 'word-prefix';
+
+  const visibleOptions = React.useMemo(() => {
+    if (!usesWordPrefixSearch) return options;
+
+    const searchTokens = tokenizeSearchText(searchText);
+    if (searchTokens.length === 0) return options;
+
+    return options
+      .map((option, originalIndex) => {
+        const optionTokens = tokenizeSearchText(option.label);
+        const matchingTokenIndexes = searchTokens.map((searchToken) => (
+          optionTokens.findIndex((optionToken) => optionToken.startsWith(searchToken))
+        ));
+
+        if (matchingTokenIndexes.some((index) => index < 0)) return null;
+
+        return {
+          option,
+          originalIndex,
+          exactPhrase: hasExactTokenPhrase(optionTokens, searchTokens),
+          exactWordCount: searchTokens.filter((searchToken) => optionTokens.includes(searchToken)).length,
+          firstMatchIndex: Math.min(...matchingTokenIndexes),
+        };
+      })
+      .filter(Boolean)
+      .sort((left, right) => (
+        Number(right.exactPhrase) - Number(left.exactPhrase)
+        || right.exactWordCount - left.exactWordCount
+        || left.firstMatchIndex - right.firstMatchIndex
+        || left.originalIndex - right.originalIndex
+      ))
+      .map(({ option }) => option);
+  }, [options, searchText, usesWordPrefixSearch]);
 
   return (
     <div className="min-w-0">
@@ -47,8 +97,16 @@ export const SearchableSelect = ({
           )}
           data-testid={`${testId}-menu`}
         >
-          <Command className="!h-auto max-h-[min(22rem,calc(100vh-2rem))] bg-white">
-            <CommandInput placeholder={searchPlaceholder} data-testid={`${testId}-search-input`} />
+          <Command
+            shouldFilter={!usesWordPrefixSearch}
+            className="!h-auto max-h-[min(22rem,calc(100vh-2rem))] bg-white"
+          >
+            <CommandInput
+              value={usesWordPrefixSearch ? searchText : undefined}
+              onValueChange={usesWordPrefixSearch ? setSearchText : undefined}
+              placeholder={searchPlaceholder}
+              data-testid={`${testId}-search-input`}
+            />
             <CommandList
               className="max-h-[min(18rem,calc(100vh-6rem))] min-h-0 overflow-y-scroll overscroll-contain [touch-action:pan-y]"
               onWheelCapture={(event) => event.stopPropagation()}
@@ -57,7 +115,7 @@ export const SearchableSelect = ({
             >
               <CommandEmpty data-testid={`${testId}-empty-state`}>No matching options.</CommandEmpty>
               <CommandGroup>
-                {options.map((option) => (
+                {visibleOptions.map((option) => (
                   <CommandItem
                     key={option.value}
                     value={option.label}
