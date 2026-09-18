@@ -82,21 +82,24 @@ const TripFields = ({ trip, periodKey, frequencyType, dynamicInputFields, update
 
   return (
     <div className="p-4 sm:p-5" data-testid={`c6-trip-${trip.id}-fields`}>
-      <div className="grid grid-cols-1 items-start gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-flow-col xl:auto-cols-fr" data-testid={`c6-trip-${trip.id}-row`}>
+      <div className="grid grid-cols-1 items-start gap-x-5 gap-y-4 md:grid-cols-2 xl:flex xl:gap-x-5" data-testid={`c6-trip-${trip.id}-row`}>
         {dynamicInputFields.map((field) => (
-          <DynamicFieldRenderer
-            key={`${trip.id}-${field.id || field.variable}`}
-            field={field}
-            monthKey={periodKey}
-            data={trip}
-            updateMonthData={updateField}
-            frequencyType={frequencyType}
-            testIdSuffix={testIdSuffix}
-            compoundSuffix={getCompoundSuffix(field, trip)}
-            {...fieldRendererProps}
-          />
+          <div key={`${trip.id}-${field.id || field.variable}`} className="min-w-0 xl:flex-1">
+            <DynamicFieldRenderer
+              field={field}
+              monthKey={periodKey}
+              data={trip}
+              updateMonthData={updateField}
+              frequencyType={frequencyType}
+              testIdSuffix={testIdSuffix}
+              compoundSuffix={getCompoundSuffix(field, trip)}
+              {...fieldRendererProps}
+            />
+          </div>
         ))}
-        <TripEvidence periodKey={periodKey} trip={trip} onUpload={onUploadEvidence} onRemove={onRemoveEvidence} />
+        <div className="xl:shrink-0">
+          <TripEvidence periodKey={periodKey} trip={trip} onUpload={onUploadEvidence} onRemove={onRemoveEvidence} />
+        </div>
       </div>
       {showFlightDetails && (
         <div className="mt-5">

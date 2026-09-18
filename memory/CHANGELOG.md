@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — C6 Evidence Column Spacing
+- Changed the wide-screen C6 trip row from equal grid columns to flexible dynamic-field columns plus a fixed-width evidence column.
+- The upload icon now sits directly after the final input at the right edge, and calculation fields use the released space.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — C6 No-Scroll Trip Inputs
 - Removed the C6 trip-row horizontal scroll container. Dynamic fields and the compact evidence icon stay in one row on wide screens, use two columns at medium widths, and stack on small screens.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
