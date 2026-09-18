@@ -135,9 +135,8 @@ export default function EmissionDataGrid({
   // Selection state for bulk delete
   const [selectedIds, setSelectedIds] = useState(new Set());
   const ledgerScrollRef = useRef(null);
+  const bottomScrollbarRef = useRef(null);
   const [ledgerScrollWidth, setLedgerScrollWidth] = useState(0);
-  const [ledgerViewportWidth, setLedgerViewportWidth] = useState(0);
-  const [ledgerScrollLeft, setLedgerScrollLeft] = useState(0);
   const [columnWidths, setColumnWidths] = useState(() => {
     try {
       return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(localStorage.getItem('emission-log-column-widths-v4') || '{}') };
@@ -152,19 +151,25 @@ export default function EmissionDataGrid({
 
   useEffect(() => {
     const ledger = ledgerScrollRef.current;
-    if (!ledger) return undefined;
+    const bottomScrollbar = bottomScrollbarRef.current;
+    if (!ledger || !bottomScrollbar) return undefined;
     const syncDimensions = () => {
       setLedgerScrollWidth(ledger.scrollWidth);
-      setLedgerViewportWidth(ledger.clientWidth);
-      setLedgerScrollLeft(ledger.scrollLeft);
     };
-    const syncScrollPosition = () => setLedgerScrollLeft(ledger.scrollLeft);
+    const syncBottomScrollbar = () => {
+      if (bottomScrollbar.scrollLeft !== ledger.scrollLeft) bottomScrollbar.scrollLeft = ledger.scrollLeft;
+    };
+    const syncLedger = () => {
+      if (ledger.scrollLeft !== bottomScrollbar.scrollLeft) ledger.scrollLeft = bottomScrollbar.scrollLeft;
+    };
     syncDimensions();
-    ledger.addEventListener('scroll', syncScrollPosition, { passive: true });
+    ledger.addEventListener('scroll', syncBottomScrollbar, { passive: true });
+    bottomScrollbar.addEventListener('scroll', syncLedger, { passive: true });
     const observer = new ResizeObserver(syncDimensions);
     observer.observe(ledger);
     return () => {
-      ledger.removeEventListener('scroll', syncScrollPosition);
+      ledger.removeEventListener('scroll', syncBottomScrollbar);
+      bottomScrollbar.removeEventListener('scroll', syncLedger);
       observer.disconnect();
     };
   }, [activeScope, columnWidths, filteredEmissions.length]);
@@ -201,14 +206,6 @@ export default function EmissionDataGrid({
 
   const resizeColumn = (columnKey, width) => {
     setColumnWidths((current) => ({ ...current, [columnKey]: Math.min(420, Math.max(80, Math.round(width))) }));
-  };
-
-  const handleBottomScrollbarChange = (event) => {
-    const ledger = ledgerScrollRef.current;
-    if (!ledger) return;
-    const nextScrollLeft = Number(event.target.value);
-    ledger.scrollLeft = nextScrollLeft;
-    setLedgerScrollLeft(nextScrollLeft);
   };
 
   const columnStyle = (columnKey) => ({ width: columnWidths[columnKey] });
@@ -682,19 +679,8 @@ export default function EmissionDataGrid({
         </div>
       )}
       </div>
-      <div className="border-t border-stone-200 bg-stone-50 px-4 py-1" data-testid="emissions-ledger-bottom-scrollbar">
-        <input
-          type="range"
-          min="0"
-          max={Math.max(0, ledgerScrollWidth - ledgerViewportWidth)}
-          value={Math.min(ledgerScrollLeft, Math.max(0, ledgerScrollWidth - ledgerViewportWidth))}
-          onChange={handleBottomScrollbarChange}
-          disabled={ledgerScrollWidth <= ledgerViewportWidth}
-          style={{ '--emissions-ledger-scrollbar-thumb-width': `${Math.min(400, Math.max(120, Math.round(ledgerViewportWidth * 0.5)))}px` }}
-          className="emissions-ledger-scrollbar h-2 w-full cursor-ew-resize disabled:cursor-default disabled:opacity-40"
-          aria-label="Scroll ledger columns horizontally"
-          data-testid="emissions-ledger-bottom-scrollbar-track"
-        />
+      <div ref={bottomScrollbarRef} className="h-4 overflow-x-scroll overflow-y-hidden border-t border-stone-200 bg-white" style={{ scrollbarGutter: 'stable' }} aria-label="Scroll ledger columns horizontally" data-testid="emissions-ledger-bottom-scrollbar">
+        <div className="h-px" style={{ width: ledgerScrollWidth }} data-testid="emissions-ledger-bottom-scrollbar-track" />
       </div>
     </div>
   );
