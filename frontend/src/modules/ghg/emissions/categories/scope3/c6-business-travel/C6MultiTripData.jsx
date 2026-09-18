@@ -97,26 +97,6 @@ const TripFields = ({ trip, periodKey, frequencyType, dynamicInputFields, update
             {...fieldRendererProps}
           />
         ))}
-        <div className="w-[220px] space-y-2">
-          <Label htmlFor={`c6-trip-${trip.id}-from-location`} className="flex items-center gap-2 text-sm font-medium"><MapPin className="h-4 w-4 text-emerald-700" />Departure</Label>
-          <Input
-            id={`c6-trip-${trip.id}-from-location`}
-            value={trip.from_location || ''}
-            onChange={(event) => updateTrip(periodKey, trip.id, 'from_location', event.target.value)}
-            placeholder="Enter departure location"
-            data-testid={`c6-trip-${trip.id}-from-location-input`}
-          />
-        </div>
-        <div className="w-[220px] space-y-2">
-          <Label htmlFor={`c6-trip-${trip.id}-to-location`} className="flex items-center gap-2 text-sm font-medium"><MapPin className="h-4 w-4 text-emerald-700" />Arrival</Label>
-          <Input
-            id={`c6-trip-${trip.id}-to-location`}
-            value={trip.to_location || ''}
-            onChange={(event) => updateTrip(periodKey, trip.id, 'to_location', event.target.value)}
-            placeholder="Enter arrival location"
-            data-testid={`c6-trip-${trip.id}-to-location-input`}
-          />
-        </div>
         <TripEvidence periodKey={periodKey} trip={trip} onUpload={onUploadEvidence} onRemove={onRemoveEvidence} />
       </div>
       </div>
@@ -193,9 +173,31 @@ export const C6MultiTripData = ({
             <div className="space-y-4">
               {group.trips.map((trip, index) => (
                 <div key={trip.id} className="border border-stone-200" data-testid={`c6-trip-${trip.id}-card`}>
-                  <div className="flex items-center justify-between gap-3 bg-stone-50 px-4 py-3">
-                    <span className="text-sm font-semibold text-stone-800" data-testid={`c6-trip-${trip.id}-title`}>Trip {index + 1}</span>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveTrip(group.key, trip.id)} aria-label={`Remove trip ${index + 1}`} className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" data-testid={`c6-remove-trip-${trip.id}-button`}><Trash2 className="h-4 w-4" /></Button>
+                  <div className="grid grid-cols-1 items-end gap-3 bg-stone-50 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,240px)_minmax(180px,240px)_auto]">
+                    <span className="pb-2 text-sm font-semibold text-stone-800" data-testid={`c6-trip-${trip.id}-title`}>Trip {index + 1}</span>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`c6-trip-${trip.id}-from-location`} className="flex items-center gap-1.5 text-xs font-medium text-stone-700"><MapPin className="h-3.5 w-3.5 text-emerald-700" />Departure</Label>
+                      <Input
+                        id={`c6-trip-${trip.id}-from-location`}
+                        value={trip.from_location || ''}
+                        onChange={(event) => onUpdateTrip(group.key, trip.id, 'from_location', event.target.value)}
+                        placeholder="Departure location"
+                        className="h-9 bg-white"
+                        data-testid={`c6-trip-${trip.id}-from-location-input`}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`c6-trip-${trip.id}-to-location`} className="flex items-center gap-1.5 text-xs font-medium text-stone-700"><MapPin className="h-3.5 w-3.5 text-emerald-700" />Arrival</Label>
+                      <Input
+                        id={`c6-trip-${trip.id}-to-location`}
+                        value={trip.to_location || ''}
+                        onChange={(event) => onUpdateTrip(group.key, trip.id, 'to_location', event.target.value)}
+                        placeholder="Arrival location"
+                        className="h-9 bg-white"
+                        data-testid={`c6-trip-${trip.id}-to-location-input`}
+                      />
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveTrip(group.key, trip.id)} aria-label={`Remove trip ${index + 1}`} className="h-9 w-9 text-red-600 hover:bg-red-50 hover:text-red-700" data-testid={`c6-remove-trip-${trip.id}-button`}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                   <TripFields
                     trip={trip}

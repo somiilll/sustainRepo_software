@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — C6 Route Fields in Trip Header
+- Moved each trip’s Departure and Arrival inputs from the detail row into the corresponding Trip header, alongside its title and remove action.
+- The detail row remains focused on calculation fields plus the compact ledger-style evidence icon.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — C6 Compact Trip-Row Layout
 - Moved every C6 trip’s dynamic inputs, Departure, Arrival, and evidence control into one horizontally scrollable in-card row so values remain aligned and scannable.
 - Replaced the text upload control with the same compact upload icon, evidence count badge, hover file list, view links, and removal action used by the standard monthly ledger.
