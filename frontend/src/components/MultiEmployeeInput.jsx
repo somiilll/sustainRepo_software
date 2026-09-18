@@ -190,10 +190,24 @@ const MultiEmployeeInput = ({
   
   // State for validation errors per employee
   const [validationErrors, setValidationErrors] = useState({});
+  const [monthlyWorkSchedules, setMonthlyWorkSchedules] = useState({});
 
   // Check if we're in yearly mode
   const isYearlyMode = frequencyType === 'yearly';
   const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
+  const monthlyWorkScheduleFields = fields.filter((field) => (
+    field.variable === 'working_days' || field.variable === 'working_hour_per_day'
+  ));
+  const availableMonthKeys = activeMonths.filter((monthKey) => !isFutureMonth?.(monthKey));
+  const sharedMonthlyDayLimit = availableMonthKeys.length > 0
+    ? Math.min(
+      ...availableMonthKeys.map((monthKey) => getMonthlyReportingPeriodDayLimit(
+        monthKey,
+        reportingYear,
+        reportingYearType,
+      )),
+    )
+    : 31;
 
   // Track selected month for calculation details per employee (format: { employeeId: monthKey })
   const [selectedMonthsForDetails, setSelectedMonthsForDetails] = useState({});
@@ -513,6 +527,57 @@ const MultiEmployeeInput = ({
     });
     onEmployeesChange(updatedEmployees);
   }, [employees, onEmployeesChange, reportingYear, reportingYearType]);
+
+  const handleMonthlyWorkScheduleChange = useCallback((employeeId, variable, value) => {
+    if (value !== '') {
+      const numericValue = Number.parseFloat(value);
+      if (!Number.isFinite(numericValue) || numericValue < 0) return;
+      if (variable === 'working_days' && !Number.isInteger(numericValue)) {
+        toast.error('No. of Working Days must be a whole number');
+        return;
+      }
+      if (variable === 'working_days' && numericValue > sharedMonthlyDayLimit) {
+        toast.error(`No. of Working Days cannot exceed ${sharedMonthlyDayLimit} days when applied to every month`);
+        return;
+      }
+      if (variable === 'working_hour_per_day' && numericValue > 24) {
+        toast.error('Working Hours per Day cannot exceed 24 hours');
+        return;
+      }
+    }
+    setMonthlyWorkSchedules((previous) => ({
+      ...previous,
+      [employeeId]: {
+        ...previous[employeeId],
+        [variable]: value,
+      },
+    }));
+  }, [sharedMonthlyDayLimit]);
+
+  const applyMonthlyWorkSchedule = useCallback((employeeId) => {
+    const schedule = monthlyWorkSchedules[employeeId] || {};
+    const scheduleEntries = Object.entries(schedule).filter(([, value]) => value !== '');
+    if (scheduleEntries.length === 0) return;
+
+    const updatedEmployees = employees.map((employee) => {
+      if (employee.id !== employeeId) return employee;
+
+      const monthlyData = { ...employee.monthly_data };
+      availableMonthKeys.forEach((monthKey) => {
+        const currentMonth = monthlyData[monthKey] || { inputs: {}, emissions: null };
+        const nextInputs = { ...currentMonth.inputs, ...Object.fromEntries(scheduleEntries) };
+        const hasChanged = scheduleEntries.some(([variable, value]) => currentMonth.inputs?.[variable] !== value);
+        monthlyData[monthKey] = {
+          ...currentMonth,
+          inputs: nextInputs,
+          ...(hasChanged ? { emissions: null, calculation_details: null } : {}),
+        };
+      });
+
+      return { ...employee, monthly_data: monthlyData };
+    });
+    onEmployeesChange(updatedEmployees);
+  }, [availableMonthKeys, employees, monthlyWorkSchedules, onEmployeesChange]);
 
   // NEW: Update yearly input value for an employee
   const handleYearlyInputChange = useCallback((employeeId, variable, value) => {
@@ -1190,6 +1255,47 @@ const MultiEmployeeInput = ({
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium text-gray-700">Monthly Data</Label>
                       </div>
+
+                      {monthlyWorkScheduleFields.length > 0 && (
+                        <div className="grid grid-cols-1 items-end gap-3 border-y border-stone-200 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-testid={`employee-${empIndex}-monthly-work-schedule`}>
+                          {monthlyWorkScheduleFields.map((field) => {
+                            const isWorkingDays = field.variable === 'working_days';
+                            return (
+                              <div key={field.variable} className="space-y-1">
+                                <Label className="text-xs text-gray-600" data-testid={`employee-${empIndex}-shared-${field.variable}-label`}>
+                                  {field.label}
+                                </Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max={isWorkingDays ? sharedMonthlyDayLimit : 24}
+                                  step={isWorkingDays ? '1' : 'any'}
+                                  value={monthlyWorkSchedules[employee.id]?.[field.variable] || ''}
+                                  onChange={(event) => handleMonthlyWorkScheduleChange(
+                                    employee.id,
+                                    field.variable,
+                                    event.target.value,
+                                  )}
+                                  placeholder={isWorkingDays ? `Max ${sharedMonthlyDayLimit} days` : 'Max 24 hours'}
+                                  disabled={disabled || availableMonthKeys.length === 0}
+                                  data-testid={`employee-${empIndex}-shared-${field.variable}-input`}
+                                />
+                              </div>
+                            );
+                          })}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => applyMonthlyWorkSchedule(employee.id)}
+                            disabled={disabled || availableMonthKeys.length === 0 || !Object.values(monthlyWorkSchedules[employee.id] || {}).some((value) => value !== '')}
+                            className="w-full sm:w-auto"
+                            data-testid={`employee-${empIndex}-apply-monthly-work-schedule-button`}
+                          >
+                            Apply to all months
+                          </Button>
+                        </div>
+                      )}
                       
                       {/* Ledger Table */}
                       <div className="border border-gray-200 rounded-lg overflow-hidden">
