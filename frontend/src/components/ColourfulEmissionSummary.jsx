@@ -87,6 +87,14 @@ const isRealNormalization = (entry) => (
   && (entry.input.unit !== entry.output.unit || !valuesMatch(entry.input.value, entry.output.value))
 );
 
+const isInrToUsdConversionProperty = (entry = {}) => {
+  const identity = `${entry.property || ''} ${entry.property_label || ''}`.toLowerCase();
+  return identity.includes('exchange_rate')
+    || identity.includes('standard currency exchange rate')
+    || identity.includes('purchase power value')
+    || /\bppp\b/.test(identity);
+};
+
 const conversionsForEntry = ({ entry, kind, auditLog }) => {
   const matchingKey = kind === 'input' ? 'variable' : 'property';
   const entryKey = kind === 'input' ? entry.variable : entry.property;
@@ -167,7 +175,8 @@ export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3L
                     const { Icon, iconClass } = propertyPresentation(entry);
                     const sourceName = entry.source_name || entry.source || '';
                     const conversions = conversionsForEntry({ entry, kind: 'property', auditLog: displayAuditLog });
-                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNormalizedValue(entry.value) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-property-normalized-value-${index}-${conversionIndex}`}>→ {formatNormalizedValue(conversion.output.value)} {conversion.output.unit}</span>)}</p><SourceBadge source={sourceName} testId={`calculation-source-badge-${index}`} /></div>;
+                    const showCurrencyDirection = isInrToUsdConversionProperty(entry);
+                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNormalizedValue(entry.value) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}{showCurrencyDirection && <span className="ml-2 whitespace-nowrap text-xs text-stone-500" data-testid={`calculation-property-currency-direction-${index}`}>INR (Source Currency) → USD (Target Currency)</span>}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-property-normalized-value-${index}-${conversionIndex}`}>→ {formatNormalizedValue(conversion.output.value)} {conversion.output.unit}</span>)}</p><SourceBadge source={sourceName} testId={`calculation-source-badge-${index}`} /></div>;
                   }
                   if (entry.step === 'formula_step') {
                     const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());
