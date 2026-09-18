@@ -138,6 +138,7 @@ export const DynamicFieldRenderer = ({
   frequencyType,
   reportingYear,
   reportingYearType,
+  testIdSuffix = '',
   // Compound unit support — when set, dropdown options are suffixed with
   // "/<compoundSuffix>". Computed by the parent from the linked field's unit.
   compoundSuffix = '',
