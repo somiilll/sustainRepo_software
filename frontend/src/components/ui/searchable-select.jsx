@@ -13,6 +13,9 @@ export const SearchableSelect = ({
   disabled = false,
   testId,
   className,
+  menuClassName,
+  menuAlign = 'start',
+  wrapOptionLabels = false,
 }) => {
   const [open, setOpen] = React.useState(false);
   const selectedOption = options.find((option) => option.value === value);
@@ -36,7 +39,14 @@ export const SearchableSelect = ({
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-stone-400" aria-hidden="true" />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[15rem] max-h-[min(22rem,calc(100vh-2rem))] overflow-hidden bg-white p-0 opacity-100" data-testid={`${testId}-menu`}>
+        <PopoverContent
+          align={menuAlign}
+          className={cn(
+            'w-[var(--radix-popover-trigger-width)] min-w-[15rem] max-h-[min(22rem,calc(100vh-2rem))] overflow-hidden bg-white p-0 opacity-100',
+            menuClassName,
+          )}
+          data-testid={`${testId}-menu`}
+        >
           <Command className="!h-auto max-h-[min(22rem,calc(100vh-2rem))] bg-white">
             <CommandInput placeholder={searchPlaceholder} data-testid={`${testId}-search-input`} />
             <CommandList
@@ -57,8 +67,17 @@ export const SearchableSelect = ({
                     }}
                     data-testid={`${testId}-option-${option.value}`}
                   >
-                    <Check className={cn('h-4 w-4', value === option.value ? 'opacity-100' : 'opacity-0')} aria-hidden="true" />
-                    <span className="truncate">{option.label}</span>
+                    <Check
+                      className={cn(
+                        'h-4 w-4 shrink-0',
+                        wrapOptionLabels && 'mt-0.5',
+                        value === option.value ? 'opacity-100' : 'opacity-0',
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span className={cn(wrapOptionLabels ? 'whitespace-normal break-words leading-5' : 'truncate')}>
+                      {option.label}
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>

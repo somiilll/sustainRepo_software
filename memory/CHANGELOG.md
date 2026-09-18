@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — Scope 3 Long Activity Names
+- Scope 3 Activity menus now grow leftward from their original right edge to a responsive 34rem maximum when opened.
+- Activity names wrap in the expanded menu rather than truncating. Added in both Add and Edit without changing values or backend behavior. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per user instruction.
+
 ## September 17, 2026 — Biogenic Emission-Type Form Alignment
 - Presented the Biogenic emission type label and both radio options in one neutral standard form row, removing the green container/background treatment.
 - Renamed the visible choices to **Direct Emissions** and **Indirect Emissions** while retaining their existing values and all backend behavior.
