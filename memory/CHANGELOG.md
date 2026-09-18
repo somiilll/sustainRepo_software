@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Cancelled-Invoice Assignment Fix
+- Cancelled invoices are now removed immediately from the early facility-assignment dialog and excluded from its polling refresh, so they cannot block or reappear in assignment.
+- Their cancelled status remains visible in the source/processing queue; remaining invoices can be assigned and extracted normally.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Invoice-Level Queue Controls and Early Facility Assignment
 - OCR uploads with invoice documents now pause immediately after secure upload for facility assignment; extraction starts only after the selected facility is saved and is carried into each extracted row.
 - Added invoice-level cancellation in both the assignment dialog and processing queue. Cancelling one invoice does not stop sibling invoices; a late cancellation is checked again immediately before row persistence.

@@ -160,7 +160,11 @@ export default function OCRInvoice() {
           stagedFiles.forEach((file) => filesByKey.set(`${file.upload_id}-${file.file_index}`, file));
           return { upload_ids: [...new Set([...(current?.upload_ids || []), ...awaitingAssignmentRecords.map((record) => record.upload.id)])], files: Array.from(filesByKey.values()) };
         });
-        const invoiceFiles = stagedFiles.filter((file) => file.preview_supported && !file.facility_id);
+        const invoiceFiles = stagedFiles.filter((file) => (
+          file.preview_supported
+          && !file.facility_id
+          && !['cancelled', 'cancel_requested'].includes(file.status)
+        ));
         if (invoiceFiles.length) {
           setFacilityAssignmentFiles((current) => {
             const currentKeys = current.map((file) => `${file.upload_id}-${file.file_index}`).join('|');
@@ -255,7 +259,11 @@ export default function OCRInvoice() {
       setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, fileIndex: file.file_index, filename: file.filename, status: file.status })));
       setUpload({ upload_ids: [data.upload_id], files: stagedFiles });
       setSelectedFile(stagedFiles[0] || null);
-      const invoiceFiles = stagedFiles.filter((file) => file.preview_supported && !file.facility_id);
+      const invoiceFiles = stagedFiles.filter((file) => (
+        file.preview_supported
+        && !file.facility_id
+        && !['cancelled', 'cancel_requested'].includes(file.status)
+      ));
       if (invoiceFiles.length) {
         setFacilityAssignmentFiles(invoiceFiles);
         setFacilityAssignmentOpen(true);
@@ -312,8 +320,8 @@ export default function OCRInvoice() {
           entry.upload_id === uploadId && entry.file_index === fileIndex ? { ...entry, status: data.status } : entry
         )),
       } : current);
-      setFacilityAssignmentFiles((current) => current.map((entry) => (
-        entry.upload_id === uploadId && entry.file_index === fileIndex ? { ...entry, status: data.status } : entry
+      setFacilityAssignmentFiles((current) => current.filter((entry) => !(
+        entry.upload_id === uploadId && entry.file_index === fileIndex
       )));
       if (data.processing_started || data.upload_status === 'cancelled') {
         setFacilityAssignmentOpen(false);
