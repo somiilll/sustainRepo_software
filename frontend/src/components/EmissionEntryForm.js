@@ -33,10 +33,7 @@ import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/uti
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const createC6TripId = () => (
-  globalThis.crypto?.randomUUID?.()
-  || `c6-trip-${Date.now()}-${Math.random().toString(36).slice(2)}`
-);
+const createC6TripId = () => `c6-trip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 // Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {

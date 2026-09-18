@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — C6 Multi-Trip Render Guard
+- Removed the browser-dependent trip-ID call that ran only when **Add trip** was clicked, replacing it with a safe local ID generator.
+- Made the shared dynamic field renderer tolerate temporarily unavailable units/activity reference lists while a new C6 trip mounts.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — C6 Business Travel Multi-Trip Entry
 - C6 Create now supports multiple independently detailed trips within every monthly or yearly reporting period; each trip has its own dynamic calculation inputs, route, applicable airport lookup, and evidence attachments.
 - Every completed trip is calculated and saved as its own emission record in one rollback-protected submission batch. Existing C6 Edit deliberately remains one record/trip at a time.
