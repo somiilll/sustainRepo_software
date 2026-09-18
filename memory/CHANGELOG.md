@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Source File Row Selector
+- Replaced source-type filters with an **All** source card followed by one compact selector per uploaded invoice or Excel workbook.
+- All displays rows across every source; choosing a source displays only that file’s rows. Source-level review hides invoice-number grouping so Excel and combined rows remain directly visible.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Source Card JSX Compile Fix
 - Corrected an extra closing parenthesis in the new Source documents card map that prevented `OCRInvoice.js` from compiling.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.

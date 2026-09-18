@@ -83,7 +83,6 @@ export default function OCRInvoice() {
   const [upload, setUpload] = useState(null);
   const [items, setItems] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [sourceDocumentFilter, setSourceDocumentFilter] = useState('all');
   const [selectedItem, setSelectedItem] = useState(null);
   const [openingSourceFileIds, setOpeningSourceFileIds] = useState([]);
   const [restartingSourceFileIds, setRestartingSourceFileIds] = useState([]);
@@ -241,10 +240,7 @@ export default function OCRInvoice() {
   const selectedFileItems = useMemo(() => (
     selectedFile ? items.filter((item) => item.upload_id === selectedFile.upload_id && item.file_index === selectedFile.file_index) : items
   ), [items, selectedFile]);
-  const sourceFiles = useMemo(() => (upload?.files || []).filter((file) => (
-    sourceDocumentFilter === 'all'
-    || (sourceDocumentFilter === 'invoice' ? file.preview_supported : !file.preview_supported)
-  )), [sourceDocumentFilter, upload]);
+  const sourceFiles = useMemo(() => upload?.files || [], [upload]);
 
   const processFiles = async () => {
     if (!files.length) return;
@@ -264,7 +260,7 @@ export default function OCRInvoice() {
       const stagedFiles = data.files.map((file) => ({ ...file, upload_id: data.upload_id }));
       setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, fileIndex: file.file_index, filename: file.filename, status: file.status, uploadStatus: data.status })));
       setUpload({ upload_ids: [data.upload_id], files: stagedFiles });
-      setSelectedFile(stagedFiles[0] || null);
+      setSelectedFile(null);
       const invoiceFiles = stagedFiles.filter((file) => (
         file.preview_supported
         && !file.facility_id
@@ -780,14 +776,12 @@ export default function OCRInvoice() {
             <aside className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 id="ocr-source-heading" className="text-sm font-semibold text-slate-900">Source documents</h2>
-                <div className="flex items-center gap-2">
-                  <div className="flex overflow-hidden border border-slate-200 bg-white" role="tablist" aria-label="Filter source documents" data-testid="ocr-source-document-filter">
-                    {[['all', 'All'], ['invoice', 'Invoices'], ['excel', 'Excel']].map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={sourceDocumentFilter === value} onClick={() => setSourceDocumentFilter(value)} className={`px-3 py-1.5 text-xs font-medium transition-colors ${sourceDocumentFilter === value ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:bg-slate-50'}`} data-testid={`ocr-source-document-filter-${value}`}>{label}</button>)}
-                  </div>
-                  <Button type="button" size="icon" variant="ghost" onClick={clearUpload} aria-label="Start another extraction" data-testid="ocr-start-new-button"><RefreshCw className="h-4 w-4" /></Button>
-                </div>
+                <Button type="button" size="icon" variant="ghost" onClick={clearUpload} aria-label="Start another extraction" data-testid="ocr-start-new-button"><RefreshCw className="h-4 w-4" /></Button>
               </div>
               <div className="flex flex-wrap gap-3" data-testid="ocr-source-file-list">
+                <button type="button" onClick={() => { setSelectedFile(null); setSelectedItem(null); }} aria-pressed={!selectedFile} className={`flex w-full min-w-0 items-center gap-3 border px-3 py-3 text-left transition-colors sm:w-[12rem] ${!selectedFile ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`} data-testid="ocr-source-file-select-all">
+                  <FileText className="h-4 w-4 shrink-0 text-emerald-700" /><span><span className="block text-sm font-medium text-slate-900">All</span><span className="mt-1 block text-xs text-slate-500">{items.length} rows</span></span>
+                </button>
                 {sourceFiles.map((file) => {
                   const fileId = `${file.upload_id}-${file.file_index}`;
                   const isCancelled = file.status === 'cancelled';
@@ -814,7 +808,7 @@ export default function OCRInvoice() {
 
           {fileQueue.some((file) => ['queued', 'processing', 'cancel_requested'].includes(file.status)) && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} onCancelFile={cancelInvoiceProcessing} onResume={resumeQueuedExtraction} canCancelProcessing={Boolean(activeExtractionIds.length) && !facilityAssignmentOpen} cancelling={cancellingQueue} resuming={resumingQueue} cancellingFileIds={cancellingFileIds} />}
 
-      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} hideInvoiceTabs={Boolean(selectedFile && !selectedFile.preview_supported)} />
+      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} hideInvoiceTabs={Boolean(!selectedFile || !selectedFile.preview_supported)} />
 
         </div>
       )}
