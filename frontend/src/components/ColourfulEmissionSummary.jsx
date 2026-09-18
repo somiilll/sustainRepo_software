@@ -12,6 +12,7 @@ import {
   RefreshCcw,
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const UNIT_LESS_COUNT_FIELDS = new Set([
   'qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms',
@@ -130,9 +131,23 @@ export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3L
         <Leaf className="h-5 w-5 text-emerald-600" aria-hidden="true" />
         <span className="text-sm font-semibold text-stone-800" data-testid="calculated-emissions-heading">Calculated Emissions</span>
         {isCalculating && <span className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700" data-testid="calculated-emissions-updating">Updating…</span>}
-        <span className="ml-auto flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-500" data-testid="calculated-emissions-rounding-note">
-          Values rounded to 4 decimal places <Info className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
-        </span>
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="Rounding information"
+                className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-stone-50 text-stone-400 transition-colors hover:border-emerald-300 hover:text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                data-testid="calculated-emissions-rounding-info-button"
+              >
+                <Info className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs" data-testid="calculated-emissions-rounding-tooltip">
+              Values rounded to 4 decimal places
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {isScope3Like ? (
