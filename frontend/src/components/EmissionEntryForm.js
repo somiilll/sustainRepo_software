@@ -2554,6 +2554,7 @@ export default function EmissionEntryForm({
   const addC6Trip = useCallback((periodKey) => {
     const trip = {
       id: createC6TripId(),
+      qty_days_travelled: 1,
       from_location: fromLocation || '',
       to_location: toLocation || '',
     };
