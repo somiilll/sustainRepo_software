@@ -30,6 +30,11 @@ const isOxidationFactorField = (field = {}) => {
   return /oxidation.*factor|factor.*oxidation/i.test(identity);
 };
 
+const isFloorAreaShareField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
+};
+
 const validateConfiguredFieldRange = (field, value, periodSuffix = '') => {
   if (isBlankValue(value)) return null;
   const parsedValue = Number.parseFloat(value);
@@ -39,6 +44,9 @@ const validateConfiguredFieldRange = (field, value, periodSuffix = '') => {
   }
   if (isOxidationFactorField(field) && (parsedValue < 0 || parsedValue > 1)) {
     return `Oxidation Factor must be between 0 and 1${periodSuffix}`;
+  }
+  if (isFloorAreaShareField(field) && (parsedValue <= 0 || parsedValue > 100)) {
+    return `Floor Area Share % must be greater than 0 and no more than 100${periodSuffix}`;
   }
   return null;
 };

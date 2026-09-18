@@ -323,6 +323,33 @@ const toField = (m, { isQtyBasis, quantityUnits }) => {
   return field;
 };
 
+const isFloorAreaShareField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
+};
+
+const toFloorAreaShareField = (input = {}) => ({
+  id: `c8-${input.variable || 'floor_area_share'}`,
+  variable: input.variable || 'floor_area_share',
+  fieldKey: input.variable || 'floor_area_share',
+  label: 'Floor Area Share %',
+  expectedUnit: input.expected_unit || '',
+  required: input.required !== false,
+  isOverride: false,
+  fieldType: 'number',
+  allowedUnits: [],
+  unitSource: 'none',
+  compoundWithVariable: null,
+  placeholder: 'Enter floor area share',
+  helpText: '',
+  mapsToContext: null,
+  mapsToContextValueWhenFilled: 'true',
+  mapsToContextValueWhenEmpty: 'false',
+  options: [],
+  validationRules: { max: 100 },
+  defaultValue: undefined,
+});
+
 const toPresentationField = (field, index) => ({
   id: field.id || `organization-custom-${field.field_key}-${index}`,
   variable: field.field_key,
@@ -393,6 +420,13 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
     : quantityMapping?.allowed_units || [quantityMapping?.default_unit].filter(Boolean);
 
   const calculationFields = applicableMappings.map((m) => toField(m, { isQtyBasis, quantityUnits }));
+  const c8FloorAreaShareInput = context.categoryDefinition?.code === 'c8'
+    && context.allocationMethod === 'floor_area_share'
+    ? matchedFormula?.inputs?.find(isFloorAreaShareField)
+    : null;
+  if (c8FloorAreaShareInput && !calculationFields.some(isFloorAreaShareField)) {
+    calculationFields.push(toFloorAreaShareField(c8FloorAreaShareInput));
+  }
   // C7 is a dedicated multi-employee workflow with its own serialized input
   // contract. Organization custom fields are intentionally unavailable there.
   const presentationFields = context.categoryDefinition?.code === 'c7'

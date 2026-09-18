@@ -8,7 +8,7 @@
  * The parent (EmissionEntryForm) manages all state and callbacks.
  */
 
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
@@ -443,6 +443,7 @@ export const Step3YearMonthlyData = ({
   // Backend URL for file viewing
   BACKEND_URL,
 }) => {
+  const [sharedFloorAreaShare, setSharedFloorAreaShare] = useState('');
   const isFugitiveCustomFuel = useCustomFuel && String(category || '').toLowerCase().includes('fugitive');
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
@@ -479,6 +480,37 @@ export const Step3YearMonthlyData = ({
     ? `FY ${reportingYear}-${String(Number(reportingYear) + 1).slice(-2)}`
     : `CY${reportingYear}`;
   const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
+  const floorAreaShareField = useMemo(() => dynamicInputFields.find((field) => {
+    const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+    return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
+  }), [dynamicInputFields]);
+  const isC8FloorAreaShareMonthly = scope === 'scope3'
+    && /^c8\b/i.test(category || '')
+    && frequencyType === 'monthly'
+    && Boolean(floorAreaShareField);
+  const applySharedFloorAreaShare = useCallback(() => {
+    const value = Number.parseFloat(sharedFloorAreaShare);
+    if (!Number.isFinite(value) || value <= 0 || value > 100 || !floorAreaShareField) {
+      toast.error('Floor Area Share % must be greater than 0 and no more than 100');
+      return;
+    }
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+      activeMonths.forEach((month) => {
+        const monthKey = month.key || month;
+        if (isFutureMonth(monthKey, reportingYear, reportingYearType)) return;
+        const current = previousMonths[monthKey] || {};
+        if (current[floorAreaShareField.variable] === sharedFloorAreaShare) return;
+        nextMonths[monthKey] = {
+          ...current,
+          [floorAreaShareField.variable]: sharedFloorAreaShare,
+        };
+        changed = true;
+      });
+      return changed ? nextMonths : previousMonths;
+    });
+  }, [activeMonths, floorAreaShareField, isFutureMonth, reportingYear, reportingYearType, setMonthlyData, sharedFloorAreaShare]);
   const resolveSpendDefaultValue = useCallback((field, periodKey) => {
     if (scope3Method !== 'spend_basis') return undefined;
     const isApplicable = spendCurrencyConversionMethod === 'standard'
@@ -753,6 +785,37 @@ export const Step3YearMonthlyData = ({
               <p className="text-sm text-amber-800">
                 <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the &quot;Quantity Used&quot; field.
               </p>
+            </div>
+          )}
+
+          {isC8FloorAreaShareMonthly && (
+            <div className="grid grid-cols-1 items-end gap-3 border-y border-stone-200 py-3 sm:grid-cols-[minmax(0,1fr)_auto]" data-testid="c8-monthly-floor-area-share">
+              <div className="space-y-1">
+                <Label className="text-xs text-stone-600" data-testid="c8-monthly-floor-area-share-label">
+                  {floorAreaShareField.label || 'Floor Area Share %'}
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="any"
+                  value={sharedFloorAreaShare}
+                  onChange={(event) => setSharedFloorAreaShare(event.target.value)}
+                  placeholder="Enter percentage"
+                  data-testid="c8-monthly-floor-area-share-input"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={applySharedFloorAreaShare}
+                disabled={!sharedFloorAreaShare}
+                className="w-full sm:w-auto"
+                data-testid="c8-apply-floor-area-share-all-months-button"
+              >
+                Apply to all months
+              </Button>
             </div>
           )}
 
