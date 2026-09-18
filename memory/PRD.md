@@ -654,6 +654,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **OCR source card JSX compile fix — latest:** Corrected the source-document card map closure that caused the reported `OCRInvoice.js` Babel syntax error. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR source documents simplification — latest:** Removed the embedded preview panel. Source files now have compact cards with All / Invoices / Excel filters, secure new-tab eye viewing for invoice documents only, no Excel invoice grouping, and explicit Process/Delete actions for cancelled files. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR reporting period label — latest:** Simplified the OCR review ledger’s desktop and mobile wording to **Reporting period**. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR review control and ledger cleanup — latest:** OCR review now shows **Select all**, hides selection counts and selected-row actions until needed, uses a compact details icon, and centers desktop ledger headers, values, and actions. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.

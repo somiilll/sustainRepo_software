@@ -807,7 +807,7 @@ export default function OCRInvoice() {
                       </div>
                     </article>
                   );
-                ))}
+                })}
               </div>
             </aside>
           </section>
