@@ -25,6 +25,7 @@ import { ModulePageHeader } from '../components/ModulePageHeader';
 import {
   acceptOcrLineItem,
   assignOcrUploadFacilities,
+  cancelOcrUploadFile,
   cancelOcrUpload,
   deleteOcrUpload,
   downloadOcrTemplate,
@@ -99,6 +100,7 @@ export default function OCRInvoice() {
   const [facilityPreviewUrl, setFacilityPreviewUrl] = useState(null);
   const [facilityPreviewLoading, setFacilityPreviewLoading] = useState(false);
   const [cancellingQueue, setCancellingQueue] = useState(false);
+  const [cancellingFileIds, setCancellingFileIds] = useState([]);
   const facilityPreviewRequestRef = useRef(0);
   const [activeExtractionIds, setActiveExtractionIds] = useState([]);
   const [failedExtractionIds, setFailedExtractionIds] = useState([]);
@@ -145,9 +147,28 @@ export default function OCRInvoice() {
         setFileQueue(activeRecords.flatMap((record) => (record.upload.files || []).map((file) => ({
           id: `${record.upload.id}-${file.file_index}`,
           uploadId: record.upload.id,
+          fileIndex: file.file_index,
           filename: file.filename,
           status: file.status || record.upload.status,
         }))));
+      }
+      const awaitingAssignmentRecords = activeRecords.filter((record) => record.upload.status === 'awaiting_facility_assignment');
+      if (awaitingAssignmentRecords.length) {
+        const stagedFiles = awaitingAssignmentRecords.flatMap((record) => (record.upload.files || []).map((file) => ({ ...file, upload_id: record.upload.id })));
+        setUpload((current) => {
+          const filesByKey = new Map((current?.files || []).map((file) => [`${file.upload_id}-${file.file_index}`, file]));
+          stagedFiles.forEach((file) => filesByKey.set(`${file.upload_id}-${file.file_index}`, file));
+          return { upload_ids: [...new Set([...(current?.upload_ids || []), ...awaitingAssignmentRecords.map((record) => record.upload.id)])], files: Array.from(filesByKey.values()) };
+        });
+        const invoiceFiles = stagedFiles.filter((file) => file.preview_supported && !file.facility_id);
+        if (invoiceFiles.length) {
+          setFacilityAssignmentFiles((current) => {
+            const currentKeys = current.map((file) => `${file.upload_id}-${file.file_index}`).join('|');
+            const incomingKeys = invoiceFiles.map((file) => `${file.upload_id}-${file.file_index}`).join('|');
+            return currentKeys === incomingKeys ? current : invoiceFiles;
+          });
+          setFacilityAssignmentOpen(true);
+        }
       }
       const terminalRecords = activeRecords.filter((record) => ['completed', 'failed', 'cancelled'].includes(record.upload.status));
       const pendingIds = records.flatMap((record, index) => {
@@ -173,11 +194,6 @@ export default function OCRInvoice() {
           });
           setSelectedFile((current) => current || completedFiles[0]);
           setSelectedItem((current) => current || completedItems[0] || null);
-          const invoiceFiles = completedFiles.filter((file) => file.preview_supported && !file.facility_id);
-          if (invoiceFiles.length) {
-            setFacilityAssignmentFiles(invoiceFiles);
-            setFacilityAssignmentOpen(true);
-          }
           toast.success(`Extraction ready: ${completedItems.length} activity row${completedItems.length === 1 ? '' : 's'}`);
         }
         terminalRecords.filter((record) => record.upload.status === 'failed').forEach((record) => {
@@ -235,8 +251,18 @@ export default function OCRInvoice() {
       localStorage.setItem('ocr-active-upload-ids', JSON.stringify(uploadIds));
       localStorage.removeItem('ocr-active-upload-id');
       setActiveExtractionIds((current) => [...new Set([...current, data.upload_id])]);
-      setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, filename: file.filename, status: file.status })));
-      toast.success(`${data.file_count} source document${data.file_count === 1 ? '' : 's'} queued for extraction.`);
+      const stagedFiles = data.files.map((file) => ({ ...file, upload_id: data.upload_id }));
+      setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, fileIndex: file.file_index, filename: file.filename, status: file.status })));
+      setUpload({ upload_ids: [data.upload_id], files: stagedFiles });
+      setSelectedFile(stagedFiles[0] || null);
+      const invoiceFiles = stagedFiles.filter((file) => file.preview_supported && !file.facility_id);
+      if (invoiceFiles.length) {
+        setFacilityAssignmentFiles(invoiceFiles);
+        setFacilityAssignmentOpen(true);
+      }
+      toast.success(data.status === 'awaiting_facility_assignment'
+        ? `${data.file_count} source document${data.file_count === 1 ? '' : 's'} uploaded. Assign invoice facilities to begin extraction.`
+        : `${data.file_count} source document${data.file_count === 1 ? '' : 's'} queued for extraction.`);
     } catch (requestError) {
       setError(responseMessage(requestError, 'Files could not be queued for extraction.'));
       setFileQueue(files.map((file, index) => ({ id: `failed-${index}`, filename: file.name, status: 'failed' })));
@@ -266,6 +292,38 @@ export default function OCRInvoice() {
       toast.error(responseMessage(requestError, 'OCR processing could not be cancelled.'));
     } finally {
       setCancellingQueue(false);
+    }
+  };
+
+  const cancelInvoiceProcessing = async (file) => {
+    const uploadId = file?.uploadId || file?.upload_id;
+    const fileIndex = file?.fileIndex ?? file?.file_index;
+    const queueId = file?.id || `${uploadId}-${fileIndex}`;
+    if (!uploadId || fileIndex === undefined) return;
+    setCancellingFileIds((current) => [...new Set([...current, queueId])]);
+    try {
+      const { data } = await cancelOcrUploadFile(uploadId, fileIndex, getAuthHeader());
+      setFileQueue((current) => current.map((entry) => (
+        entry.id === queueId ? { ...entry, status: data.status } : entry
+      )));
+      setUpload((current) => current ? {
+        ...current,
+        files: current.files.map((entry) => (
+          entry.upload_id === uploadId && entry.file_index === fileIndex ? { ...entry, status: data.status } : entry
+        )),
+      } : current);
+      setFacilityAssignmentFiles((current) => current.map((entry) => (
+        entry.upload_id === uploadId && entry.file_index === fileIndex ? { ...entry, status: data.status } : entry
+      )));
+      if (data.processing_started || data.upload_status === 'cancelled') {
+        setFacilityAssignmentOpen(false);
+        setFacilityAssignmentFiles([]);
+      }
+      toast.success(data.status === 'cancel_requested' ? 'Invoice cancellation requested.' : 'Invoice cancelled.');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This invoice could not be cancelled.'));
+    } finally {
+      setCancellingFileIds((current) => current.filter((id) => id !== queueId));
     }
   };
 
@@ -342,9 +400,18 @@ export default function OCRInvoice() {
     }, {});
     setFacilityAssignmentSaving(true);
     try {
-      await Promise.all(Object.entries(byUpload).map(([uploadId, uploadAssignments]) => (
+      const assignmentRequests = Object.entries(byUpload);
+      const assignmentResponses = await Promise.all(assignmentRequests.map(([uploadId, uploadAssignments]) => (
         assignOcrUploadFacilities(uploadId, uploadAssignments, getAuthHeader())
       )));
+      const startedUploadIds = assignmentResponses
+        .map((response, index) => response.data?.processing_started ? assignmentRequests[index][0] : null)
+        .filter(Boolean);
+      if (startedUploadIds.length) {
+        setFileQueue((current) => current.map((file) => (
+          startedUploadIds.includes(file.uploadId) && file.status === 'queued' ? { ...file, status: 'processing' } : file
+        )));
+      }
       const assignmentByFile = new Map(assignments.map((assignment) => [`${assignment.upload_id}-${assignment.file_index}`, assignment]));
       const applyAssignment = (item) => {
         const assignment = assignmentByFile.get(`${item.upload_id}-${item.file_index}`);
@@ -639,7 +706,7 @@ export default function OCRInvoice() {
             <DocumentPreview file={selectedFile} previewUrl={previewUrl} loading={previewLoading} onLoadPreview={loadPreview} />
           </section>
 
-          {processing && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} />}
+          {fileQueue.some((file) => ['queued', 'processing', 'cancel_requested'].includes(file.status)) && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} onCancelFile={cancelInvoiceProcessing} canCancelProcessing={Boolean(activeExtractionIds.length) && !facilityAssignmentOpen} cancelling={cancellingQueue} cancellingFileIds={cancellingFileIds} />}
 
       <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} />
 
@@ -648,7 +715,7 @@ export default function OCRInvoice() {
 
       <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) { setEditingItem(null); setEditingRequiredFields([]); } }} configuration={configuration} onSave={saveEdit} onAutoMatch={saveAutomaticFactorMatch} saving={saving} getAuthHeaders={getAuthHeader} requiredFields={editingRequiredFields} />
 
-      <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onHidePreview={hideFacilityAssignmentPreview} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
+      <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onHidePreview={hideFacilityAssignmentPreview} onCancelFile={cancelInvoiceProcessing} cancellingFileIds={cancellingFileIds} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
 
       <AlertDialog open={Boolean(rejectingItem)} onOpenChange={(open) => { if (!open && !rejectingId) setRejectingItem(null); }}>
         <AlertDialogContent data-testid="ocr-reject-confirmation-dialog">

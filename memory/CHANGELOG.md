@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Invoice-Level Queue Controls and Early Facility Assignment
+- OCR uploads with invoice documents now pause immediately after secure upload for facility assignment; extraction starts only after the selected facility is saved and is carried into each extracted row.
+- Added invoice-level cancellation in both the assignment dialog and processing queue. Cancelling one invoice does not stop sibling invoices; a late cancellation is checked again immediately before row persistence.
+- Aligned the green “same facility” control and consolidated Preview/Close preview into one toggle button. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Quantity and C6 Formula Alignment
 - Excel freight extraction now always maps transported-goods quantity and units from the generic **Quantity** and **Units** columns, rather than legacy goods-specific columns.
 - C6 OCR activity-input creation no longer sends `qty_days_travelled` to formula evaluation; passenger count and distance remain available where mapped.

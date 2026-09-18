@@ -780,7 +780,7 @@ async def upload_invoices(
             return await _legacy_upload_invoices(files=files, current_user=current_user)
         extraction_mode = get_mode(mode)
         result = await queue_upload_batch(files, org_id, current_user, extraction_mode)
-        if result["file_count"]:
+        if result["file_count"] and result.get("status") == "queued":
             background_tasks.add_task(process_queued_upload, result["upload_id"], org_id, current_user)
         return JSONResponse(status_code=202, content=result)
     except ValueError as error:
@@ -881,6 +881,60 @@ async def cancel_upload_processing(
     return {"upload_id": upload_id, "status": "cancelled"}
 
 
+@router.post("/uploads/{upload_id}/files/{file_index}/cancel")
+async def cancel_upload_file_processing(
+    upload_id: str,
+    file_index: int,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """Cancel one queued or in-flight invoice while allowing sibling invoices to continue."""
+    org_id = _get_org(current_user)
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"_id": 0, "id": 1, "status": 1, "files": 1},
+    )
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    target_file = next((file for file in upload.get("files", []) if file.get("file_index") == file_index), None)
+    if not target_file:
+        raise HTTPException(status_code=404, detail="Invoice file not found")
+    if target_file.get("status") not in {"queued", "processing"}:
+        raise HTTPException(status_code=409, detail="Only queued or processing invoices can be cancelled")
+    status = "cancel_requested" if target_file.get("status") == "processing" else "cancelled"
+    result = await db[OCR_UPLOADS_COLLECTION].update_one(
+        {
+            "id": upload_id,
+            "organization_id": org_id,
+            "files": {"$elemMatch": {"file_index": file_index, "status": {"$in": ["queued", "processing"]}}},
+        },
+        {"$set": {"files.$[file].status": status, "files.$[file].cancel_requested_at": datetime.now(timezone.utc).isoformat(), "updated_at": datetime.now(timezone.utc).isoformat()}},
+        array_filters=[{"file.file_index": file_index}],
+    )
+    if not result.modified_count:
+        raise HTTPException(status_code=409, detail="This invoice finished before it could be cancelled")
+    files_after_cancel = [
+        {**file, "status": status} if file.get("file_index") == file_index else file
+        for file in upload.get("files", [])
+    ]
+    waiting_for_assignment = any(
+        file.get("preview_supported") and file.get("status") not in {"cancelled", "cancel_requested"}
+        for file in files_after_cancel
+    )
+    processing_started = False
+    upload_status = upload.get("status")
+    if upload_status == "awaiting_facility_assignment" and not waiting_for_assignment:
+        queued = await db[OCR_UPLOADS_COLLECTION].update_one(
+            {"id": upload_id, "organization_id": org_id, "status": "awaiting_facility_assignment"},
+            {"$set": {"status": "queued", "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        if queued.modified_count:
+            processing_started = True
+            upload_status = "queued"
+            background_tasks.add_task(process_queued_upload, upload_id, org_id, current_user)
+    return {"upload_id": upload_id, "file_index": file_index, "status": status, "upload_status": upload_status, "processing_started": processing_started}
+
+
 @router.post("/uploads/{upload_id}/retry")
 async def retry_upload_processing(
     upload_id: str,
@@ -933,7 +987,7 @@ async def preview_upload_file(
     org_id = _get_org(current_user)
     upload = await db[OCR_UPLOADS_COLLECTION].find_one(
         {"id": upload_id, "organization_id": org_id},
-        {"_id": 0, "files": 1},
+        {"_id": 0, "status": 1, "files": 1},
     )
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
@@ -1090,6 +1144,7 @@ async def get_ocr_factor_options(
 async def assign_upload_facilities(
     upload_id: str,
     request: UploadFacilityAssignments,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ):
     """Assign each non-spreadsheet source document to an active organization facility."""
@@ -1143,8 +1198,25 @@ async def assign_upload_facilities(
             array_filters=[{"file.file_index": file_index}],
         )
 
+    assignments_cover_invoices = all(
+        file.get("facility_id") or assignments_by_file.get(file.get("file_index"))
+        for file in upload.get("files", [])
+        if file.get("preview_supported") and file.get("status") not in {"cancelled", "cancel_requested"}
+    )
+    processing_started = False
+    if upload.get("status") == "awaiting_facility_assignment" and assignments_cover_invoices:
+        queued = await db[OCR_UPLOADS_COLLECTION].update_one(
+            {"id": upload_id, "organization_id": org_id, "status": "awaiting_facility_assignment"},
+            {"$set": {"status": "queued", "facility_assignment_completed_at": assigned_at, "updated_at": assigned_at}},
+        )
+        if queued.modified_count:
+            processing_started = True
+            background_tasks.add_task(process_queued_upload, upload_id, org_id, current_user)
+
     return {
         "message": "Invoice facilities assigned",
+        "status": "queued" if processing_started else upload.get("status"),
+        "processing_started": processing_started,
         "assignments": [
             {
                 "file_index": file_index,

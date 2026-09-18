@@ -297,6 +297,8 @@ async def queue_upload_batch(files, organization_id: str, user: dict, mode: Extr
     upload_record["file_count"] = len(upload_record["files"])
     if not upload_record["files"]:
         upload_record["status"] = "failed"
+    elif any(file.get("preview_supported") for file in upload_record["files"]):
+        upload_record["status"] = "awaiting_facility_assignment"
     await db.ocr_uploads.insert_one(upload_record.copy())
     return sanitize_json({
         "upload_id": upload_id,
@@ -355,6 +357,14 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
         )
         return bool(record and record.get("status") == "cancelled")
 
+    async def is_file_cancelled(file_index: int) -> bool:
+        record = await db.ocr_uploads.find_one(
+            {"id": upload_id, "organization_id": organization_id},
+            {"_id": 0, "files": 1},
+        )
+        file_record = next((file for file in (record or {}).get("files", []) if file.get("file_index") == file_index), None)
+        return bool(file_record and file_record.get("status") in {"cancelled", "cancel_requested"})
+
     async def find_override(vendor_name: str | None, description: str | None):
         record = await db.ocr_vendor_overrides.find_one(
             {
@@ -376,6 +386,9 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
         filename = file_info["filename"]
         extension = Path(filename).suffix.lower()
         file_index = file_info["file_index"]
+        if await is_file_cancelled(file_index):
+            file_info["status"] = "cancelled"
+            continue
         await db.ocr_uploads.update_one(
             {"id": upload_id, "organization_id": organization_id},
             {"$set": {"files.$[file].status": "processing", "updated_at": _now()}},
@@ -397,6 +410,9 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
                 set(disabled_scope3_sheets),
                 find_override,
             )
+            if await is_file_cancelled(file_index):
+                file_info["status"] = "cancelled"
+                continue
             if await is_cancelled():
                 cancelled = True
                 file_info["status"] = "cancelled"
@@ -410,6 +426,8 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
                 billing_period = row.pop("billing_period", {})
                 current_values = {
                     **row,
+                    "facility_id": file_info.get("facility_id") or row.get("facility_id"),
+                    "location": file_info.get("facility_name") or row.get("location"),
                     "billing_period_start": billing_period.get("start_date"),
                     "billing_period_end": billing_period.get("end_date"),
                     "billing_period_text": billing_period.get("period_text"),
@@ -444,6 +462,9 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
                     if pending_file.get("status") in {"queued", "processing"}:
                         pending_file["status"] = "cancelled"
                 break
+            if await is_file_cancelled(file_index):
+                file_info["status"] = "cancelled"
+                continue
             if file_items:
                 await db.ocr_line_items.insert_many([item.copy() for item in file_items])
             all_items.extend(file_items)
@@ -472,7 +493,7 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
             "total_line_items": total_line_items,
             "needs_review_count": sum(1 for item in all_items if item.get("needs_review")),
             "errors": errors,
-            "status": "completed" if total_line_items else "failed",
+            "status": "cancelled" if upload_record["files"] and all(file.get("status") == "cancelled" for file in upload_record["files"]) else "completed" if total_line_items else "failed",
             "completed_at": _now(),
             "updated_at": _now(),
         }},

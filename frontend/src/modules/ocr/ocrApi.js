@@ -29,6 +29,9 @@ export const getOcrUpload = (uploadId, headers) =>
 export const cancelOcrUpload = (uploadId, headers) =>
   axios.post(`${API}/api/ocr-invoice/uploads/${uploadId}/cancel`, {}, { headers });
 
+export const cancelOcrUploadFile = (uploadId, fileIndex, headers) =>
+  axios.post(`${API}/api/ocr-invoice/uploads/${uploadId}/files/${fileIndex}/cancel`, {}, { headers });
+
 export const retryOcrUpload = (uploadId, headers) =>
   axios.post(`${API}/api/ocr-invoice/uploads/${uploadId}/retry`, {}, { headers });
 
