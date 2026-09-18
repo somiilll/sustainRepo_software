@@ -491,8 +491,8 @@ export const Step3YearMonthlyData = ({
     && Boolean(floorAreaShareField);
   const applySharedFloorAreaShare = useCallback(() => {
     const value = Number.parseFloat(sharedFloorAreaShare);
-    if (!Number.isFinite(value) || value <= 0 || value > 100 || !floorAreaShareField) {
-      toast.error('Floor Area Share % must be greater than 0 and no more than 100');
+    if (!Number.isFinite(value) || value < 0 || value > 100 || !floorAreaShareField) {
+      toast.error('Floor Area Share % must be between 0 and 100');
       return;
     }
     setMonthlyData((previousMonths) => {

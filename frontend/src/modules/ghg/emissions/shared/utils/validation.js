@@ -45,8 +45,8 @@ const validateConfiguredFieldRange = (field, value, periodSuffix = '') => {
   if (isOxidationFactorField(field) && (parsedValue < 0 || parsedValue > 1)) {
     return `Oxidation Factor must be between 0 and 1${periodSuffix}`;
   }
-  if (isFloorAreaShareField(field) && (parsedValue <= 0 || parsedValue > 100)) {
-    return `Floor Area Share % must be greater than 0 and no more than 100${periodSuffix}`;
+  if (isFloorAreaShareField(field) && (parsedValue < 0 || parsedValue > 100)) {
+    return `Floor Area Share % must be between 0 and 100${periodSuffix}`;
   }
   return null;
 };
