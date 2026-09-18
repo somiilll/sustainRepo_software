@@ -52,6 +52,11 @@ const isOxidationFactorField = (field = {}) => {
   return /oxidation.*factor|factor.*oxidation/i.test(identity);
 };
 
+const isCarbonContentField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /carbon.*(?:content|composition)|composition.*carbon/i.test(identity);
+};
+
 const resolveActiveCalculationMethodology = (ctx) => {
   const savedMethodology = ctx.dynamicFieldValues?.calculation_methodology;
   return ctx.editCalcMethodology
@@ -231,19 +236,32 @@ export function validateEditSubmission(ctx) {
     for (const field of dynamicInputFields) {
       if (field.presentationOnly) continue;
       const isOxidationFactor = isOxidationFactorField(field);
+      const isCarbonContent = isCarbonContentField(field);
       if ((!field.required || field.isOverride) && !isOxidationFactor) continue;
       const value = dynamicFieldValues[field.variable];
       if (field.fieldType === 'number' || !field.fieldType) {
         const numValue = parseFloat(value);
+        const isBlank = value === '' || value === undefined || value === null;
+        if (isOxidationFactor && isBlank) {
+          return { valid: false, errorMessage: 'Oxidation Factor is missing' };
+        }
+        if (isCarbonContent && field.required && isBlank) {
+          return { valid: false, errorMessage: 'Carbon Composition is missing' };
+        }
         if (isOxidationFactor && (
           !Number.isFinite(numValue) || numValue < 0 || numValue > 1
         )) {
           return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
         }
+        if (isCarbonContent && (
+          !Number.isFinite(numValue) || numValue < 0 || numValue > 100
+        )) {
+          return { valid: false, errorMessage: 'Carbon Composition must be between 0 and 100' };
+        }
         if (!field.required || field.isOverride) continue;
         if (
           value === '' || value === undefined || value === null || isNaN(numValue)
-          || (!isOxidationFactor && numValue <= 0)
+          || (!isOxidationFactor && !isCarbonContent && numValue <= 0)
         ) {
           return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
         }
@@ -272,25 +290,44 @@ export function validateEditSubmission(ctx) {
 
       const methodology = resolveActiveCalculationMethodology(ctx);
       if (methodology === 'using_heat_basis_ncv') {
+        if (dynamicFieldValues.custom_ef === '' || dynamicFieldValues.custom_ef === null || dynamicFieldValues.custom_ef === undefined) {
+          return { valid: false, errorMessage: 'Emission Factor is missing' };
+        }
         if (!isPositive(dynamicFieldValues.custom_ef)) {
           return { valid: false, errorMessage: 'Emission Factor must be greater than 0' };
+        }
+        if (dynamicFieldValues.custom_cv === '' || dynamicFieldValues.custom_cv === null || dynamicFieldValues.custom_cv === undefined) {
+          return { valid: false, errorMessage: 'Calorific Value is missing' };
         }
         if (!isPositive(dynamicFieldValues.custom_cv)) {
           return { valid: false, errorMessage: 'Calorific Value must be greater than 0' };
         }
       } else if (methodology === 'using_qty_basis_ef') {
+        if (dynamicFieldValues.custom_ef === '' || dynamicFieldValues.custom_ef === null || dynamicFieldValues.custom_ef === undefined) {
+          return { valid: false, errorMessage: 'Emission Factor is missing' };
+        }
         if (!isPositive(dynamicFieldValues.custom_ef)) {
           return { valid: false, errorMessage: 'Emission Factor must be greater than 0' };
         }
       } else if (methodology === 'using_carbon_composition') {
         const carbonContent = numericValue(dynamicFieldValues.custom_carbon_content);
         const oxidationFactor = numericValue(dynamicFieldValues.custom_oxidation_factor);
-        if (!Number.isFinite(carbonContent) || carbonContent <= 0 || carbonContent > 100) {
-          return { valid: false, errorMessage: 'Carbon Content must be greater than 0 and no more than 100' };
+        if (dynamicFieldValues.custom_carbon_content === '' || dynamicFieldValues.custom_carbon_content === null || dynamicFieldValues.custom_carbon_content === undefined) {
+          return { valid: false, errorMessage: 'Carbon Composition is missing' };
+        }
+        if (!Number.isFinite(carbonContent) || carbonContent < 0 || carbonContent > 100) {
+          return { valid: false, errorMessage: 'Carbon Content must be between 0 and 100' };
+        }
+        if (dynamicFieldValues.custom_oxidation_factor === '' || dynamicFieldValues.custom_oxidation_factor === null || dynamicFieldValues.custom_oxidation_factor === undefined) {
+          return { valid: false, errorMessage: 'Oxidation Factor is missing' };
         }
         if (!Number.isFinite(oxidationFactor) || oxidationFactor < 0 || oxidationFactor > 1) {
           return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
         }
+      }
+      if (dynamicFieldValues.density_unit
+        && (dynamicFieldValues.density === '' || dynamicFieldValues.density === null || dynamicFieldValues.density === undefined)) {
+        return { valid: false, errorMessage: 'Density is missing' };
       }
     }
   }
@@ -310,6 +347,18 @@ export function validateEditSubmission(ctx) {
     if (editUseCustomFuel && !editCustomFuelName?.trim()) {
       return { valid: false, errorMessage: 'Please enter custom fuel name' };
     }
+  }
+
+  if (overrideCalorificValue
+    && (formData.calorific_value === '' || formData.calorific_value === null || formData.calorific_value === undefined)) {
+    return { valid: false, errorMessage: 'Calorific Value is missing' };
+  }
+  if (overrideDensity && (formData.density === '' || formData.density === null || formData.density === undefined)) {
+    return { valid: false, errorMessage: 'Density is missing' };
+  }
+  if (overrideEmissionFactorHeat
+    && (formData.emission_factor_heat === '' || formData.emission_factor_heat === null || formData.emission_factor_heat === undefined)) {
+    return { valid: false, errorMessage: 'Custom CO₂ Emission Factor (Heat Basis) is missing' };
   }
 
   // 6. Calc engine must have produced a result
@@ -350,13 +399,22 @@ export function validateEditSubmission(ctx) {
   for (const field of overrideAndOptionalFields) {
     const isCheckboxChecked = dynamicFieldValues[`override_${field.variable}`];
     const value = dynamicFieldValues[field.variable];
-    const hasValue = value !== '' && value !== null && value !== undefined && parseFloat(value) > 0;
+    const parsedValue = parseFloat(value);
+    const hasValue = value !== '' && value !== null && value !== undefined
+      && Number.isFinite(parsedValue)
+      && (isOxidationFactorField(field) || isCarbonContentField(field) ? parsedValue >= 0 : parsedValue > 0);
     if (isCheckboxChecked && !hasValue) {
       const fieldLabel = typeof field.label === 'object' ? field.label.value : field.label || field.variable;
       return {
         valid: false,
-        errorMessage: `Please enter a value for "${fieldLabel}" or uncheck the Override Default checkbox`,
+        errorMessage: `${fieldLabel} is missing`,
       };
+    }
+    if (isCheckboxChecked && isCarbonContentField(field) && (parsedValue < 0 || parsedValue > 100)) {
+      return { valid: false, errorMessage: 'Carbon Composition must be between 0 and 100' };
+    }
+    if (isCheckboxChecked && isOxidationFactorField(field) && (parsedValue < 0 || parsedValue > 1)) {
+      return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
     }
   }
 

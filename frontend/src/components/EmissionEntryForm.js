@@ -1664,8 +1664,9 @@ export default function EmissionEntryForm({
           const hasDefault = field.defaultValue !== undefined
             && field.defaultValue !== null
             && field.defaultValue !== '';
-          const currentValue = currentMonth[field.variable] ?? currentMonth[field.fieldKey];
-          if (!field.required || field.isOverride || field.presentationOnly || !hasDefault || currentValue !== undefined && currentValue !== null && currentValue !== '') return;
+          const hasStoredValue = Object.prototype.hasOwnProperty.call(currentMonth, field.variable)
+            || Object.prototype.hasOwnProperty.call(currentMonth, field.fieldKey);
+          if (!field.required || field.isOverride || field.presentationOnly || !hasDefault || hasStoredValue) return;
           if (nextMonth === currentMonth) nextMonth = { ...currentMonth };
           nextMonth[field.variable] = field.defaultValue;
           changed = true;

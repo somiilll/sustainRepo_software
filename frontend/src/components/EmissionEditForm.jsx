@@ -1174,7 +1174,9 @@ export default function EmissionEditForm(props) {
                                   type={field.fieldType === 'text' ? 'text' : 'number'}
                                   step={field.fieldType === 'number' ? 'any' : undefined}
                                   min={field.fieldType === 'number' ? '0' : undefined}
-                                  max={reportingPeriodDayLimit ?? (isOxidationFactorField(field) ? '1' : undefined)}
+                                  max={reportingPeriodDayLimit
+                                    ?? (isOxidationFactorField(field) ? 1 : undefined)
+                                    ?? (isCarbonContentField(field) ? 100 : undefined)}
                                   placeholder={reportingPeriodDayLimit ? `≤${reportingPeriodDayLimit}` : field.placeholder}
                                   value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                   onChange={(e) => {
@@ -1186,7 +1188,9 @@ export default function EmissionEditForm(props) {
                                     }
                                     const isValidOxidationFactor = !isOxidationFactorField(field)
                                       || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1);
-                                    if (field.fieldType === 'text' || val === '' || (parsedValue >= 0 && isValidOxidationFactor)) {
+                                    const isValidCarbonContent = !isCarbonContentField(field)
+                                      || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 100);
+                                    if (field.fieldType === 'text' || val === '' || (parsedValue >= 0 && isValidOxidationFactor && isValidCarbonContent)) {
                                       updateDynamicFieldValue(field.variable, val);
                                       // Also sync to formData for legacy compatibility
                                       if (isQtyField) {

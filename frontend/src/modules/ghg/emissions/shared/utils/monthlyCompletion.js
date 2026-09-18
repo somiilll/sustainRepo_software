@@ -32,8 +32,10 @@ export const isMonthlyEntryComplete = (data, fields = []) => {
   if (!isMonthlyEntryStarted(data, fields)) return false;
 
   const hasRequiredFields = requiredFields.every((field) => {
+    const hasStoredValue = Object.prototype.hasOwnProperty.call(data, field.variable)
+      || Object.prototype.hasOwnProperty.call(data, field.fieldKey);
     const storedValue = data[field.variable] ?? data[field.fieldKey];
-    return hasValue(storedValue) || hasValue(field.defaultValue);
+    return hasStoredValue ? hasValue(storedValue) : hasValue(field.defaultValue);
   });
   if (!hasRequiredFields) return false;
 

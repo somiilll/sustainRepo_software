@@ -95,6 +95,11 @@ const isCarbonContentField = (field = {}) => {
     || /carbon.*content|composition.*carbon/i.test(field.label || '');
 };
 
+const hasStoredFieldValue = (data = {}, field = {}) => (
+  Object.prototype.hasOwnProperty.call(data, field.variable)
+  || Object.prototype.hasOwnProperty.call(data, field.fieldKey)
+);
+
 const getMonthlyFieldValue = (field = {}, data = {}) => {
   const valueKey = field.valueKey || field.variable || field.fieldKey;
   return data[valueKey] ?? data[field.variable] ?? data[field.fieldKey];
@@ -200,7 +205,7 @@ const EvidenceIconCell = ({
           </TooltipTrigger>
           <TooltipContent side="bottom" align="center" className="max-w-xs bg-white text-stone-900 shadow-lg">
             {count === 0 ? (
-              <span className="text-xs">Upload evidence (PDF, image, Excel, Word)</span>
+              <span className="text-xs">Upload evidence (PDF, Excel, Word)</span>
             ) : (
               <div className="space-y-1.5 text-xs">
                 <span className="font-medium">{count} file{count > 1 ? 's' : ''} attached</span>
@@ -857,8 +862,8 @@ export const Step3YearMonthlyData = ({
                     unitKey: 'custom_cv_unit',
                     units: fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT] || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT],
                   },
-                  'carbon-content': { value: data.custom_carbon_content || '', valueKey: 'custom_carbon_content' },
-                  'oxidation-factor': { value: data.custom_oxidation_factor || '', valueKey: 'custom_oxidation_factor' },
+                  'carbon-content': { value: data.custom_carbon_content ?? '', valueKey: 'custom_carbon_content', max: 100 },
+                  'oxidation-factor': { value: data.custom_oxidation_factor ?? '', valueKey: 'custom_oxidation_factor', max: 1 },
                 }[col.customFuelField];
 
                 return (
@@ -867,9 +872,16 @@ export const Step3YearMonthlyData = ({
                       type="number"
                       step="any"
                       min="0"
+                      max={fieldConfig.max}
                       placeholder="—"
                       value={fieldConfig.value}
-                      onChange={(event) => updateMonthData(monthKey, fieldConfig.valueKey, event.target.value)}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        const parsedValue = Number.parseFloat(value);
+                        if (value === '' || fieldConfig.max === undefined || (Number.isFinite(parsedValue) && parsedValue <= fieldConfig.max)) {
+                          updateMonthData(monthKey, fieldConfig.valueKey, value);
+                        }
+                      }}
                       className={fieldConfig.units ? sharedInputClass : 'h-8 w-full text-sm'}
                       data-testid={`month-${monthKey}-${fieldConfig.valueKey}`}
                     />
@@ -913,7 +925,7 @@ export const Step3YearMonthlyData = ({
                   ?? spendDefaultValue
                   ?? getFieldDefaultValue(field, selectedFuel);
                 const storedValue = data[field.variable] ?? data[field.fieldKey] ?? '';
-                const displayedValue = hasFieldValue(storedValue) ? storedValue : defaultValue;
+                const displayedValue = hasStoredFieldValue(data, field) ? storedValue : defaultValue;
                 const renderOverrideToggle = () => (
                   <label
                     className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-[10px] font-medium text-amber-700"
@@ -979,7 +991,9 @@ export const Step3YearMonthlyData = ({
                 const monthlyDayLimit = isMonthlyDayField
                   ? getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)
                   : undefined;
-                const monthlyFieldMax = monthlyDayLimit ?? field.validationRules?.max;
+                const monthlyFieldMax = monthlyDayLimit
+                  ?? field.validationRules?.max
+                  ?? (isCarbonContentField(field) ? 100 : undefined);
                 const monthlyPeriodLabel = MONTHS.find((entry) => entry.key === monthKey)?.name || monthKey;
                 const hideUnit = useCustomFuel && isQtyField;
                 const showCustomFuelQuantityUnit = useCustomFuel && isQtyField;
@@ -1447,7 +1461,7 @@ const YearlyDataEntry = ({
       let changed = false;
       const next = { ...previous };
       dynamicInputFields.forEach((field) => {
-        if (field.presentationOnly || field.isOverride || hasFieldValue(previous[field.variable])) return;
+        if (field.presentationOnly || field.isOverride || hasStoredFieldValue(previous, field)) return;
         const defaultValue = resolveSpendDefaultValue(field, yearlyReportingPeriod)
           ?? getFieldDefaultValue(field, selectedFuel);
         if (hasFieldValue(defaultValue)) {
@@ -1462,7 +1476,7 @@ const YearlyDataEntry = ({
   useEffect(() => {
     if (!useCustomFuel || calculationMethodology !== 'using_carbon_composition') return;
     setYearlyData((previous) => {
-      if (hasFieldValue(previous.custom_oxidation_factor)) return previous;
+      if (Object.prototype.hasOwnProperty.call(previous, 'custom_oxidation_factor')) return previous;
       const oxidationField = dynamicInputFields.find((field) => /oxidation.*factor|factor.*oxidation/i.test(
         `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`,
       ));
@@ -1561,11 +1575,11 @@ const YearlyDataEntry = ({
                   const isAnnualDayField = isAnnualDayCountField(field);
                   const yearlyFieldMax = isAnnualDayField
                     ? annualDayLimit
-                    : field.validationRules?.max;
+                    : field.validationRules?.max ?? (isCarbonContentField(field) ? 100 : undefined);
                   const defaultValue = resolveSpendDefaultValue(field, yearlyReportingPeriod)
                     ?? getFieldDefaultValue(field, selectedFuel);
-                  const displayedValue = hasFieldValue(yearlyData[field.variable])
-                    ? yearlyData[field.variable]
+                  const displayedValue = hasStoredFieldValue(yearlyData, field)
+                    ? (yearlyData[field.variable] ?? yearlyData[field.fieldKey] ?? '')
                     : defaultValue;
                   const displayedUnit = isSupplierBasis
                     ? (yearlyData[`${field.variable}_unit`] || '')
@@ -1721,10 +1735,10 @@ const YearlyDataEntry = ({
                   const isAnnualDayField = isAnnualDayCountField(field);
                   const yearlyFieldMax = isAnnualDayField
                     ? annualDayLimit
-                    : field.validationRules?.max;
+                    : field.validationRules?.max ?? (isCarbonContentField(field) ? 100 : undefined);
                   const defaultValue = getFieldDefaultValue(field, selectedFuel);
-                  const displayedValue = hasFieldValue(yearlyData[field.variable])
-                    ? yearlyData[field.variable]
+                  const displayedValue = hasStoredFieldValue(yearlyData, field)
+                    ? (yearlyData[field.variable] ?? yearlyData[field.fieldKey] ?? '')
                     : defaultValue;
                   const displayedUnit = isSupplierBasis
                     ? (yearlyData[`${field.variable}_unit`] || '')
@@ -1876,12 +1890,12 @@ const YearlyDataEntry = ({
                   const isAnnualDayField = isAnnualDayCountField(field);
                   const yearlyFieldMax = isAnnualDayField
                     ? annualDayLimit
-                    : field.validationRules?.max;
+                    : field.validationRules?.max ?? (isCarbonContentField(field) ? 100 : undefined);
                   const defaultValue = densityState?.defaultDensity?.value
                     ?? resolveSpendDefaultValue(field, yearlyReportingPeriod)
                     ?? getFieldDefaultValue(field, selectedFuel);
-                  const displayedValue = hasFieldValue(yearlyData[field.variable])
-                    ? yearlyData[field.variable]
+                  const displayedValue = hasStoredFieldValue(yearlyData, field)
+                    ? (yearlyData[field.variable] ?? yearlyData[field.fieldKey] ?? '')
                     : defaultValue;
                   const displayedUnit = densityState
                     ? (yearlyData.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit)

@@ -247,8 +247,14 @@ const CustomFuelMonthFields = ({
             <Input
               type="number" step="any" min="0" max="100"
               required
-              value={data.custom_carbon_content || ''}
-              onChange={(e) => updateMonthData(monthKey, 'custom_carbon_content', e.target.value)}
+              value={data.custom_carbon_content ?? ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                const parsedValue = Number.parseFloat(value);
+                if (value === '' || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 100)) {
+                  updateMonthData(monthKey, 'custom_carbon_content', value);
+                }
+              }}
               placeholder="e.g. 85" className={`bg-white text-sm ${isYearlyEntry ? 'h-10' : 'h-9'}`}
               data-testid={`month-${monthKey}-custom-carbon-content`}
             />

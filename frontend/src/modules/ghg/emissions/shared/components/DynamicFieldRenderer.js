@@ -190,7 +190,9 @@ export const DynamicFieldRenderer = ({
   const monthlyDayLimit = isMonthlyDayCountField
     ? getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)
     : undefined;
-  const inputMax = monthlyDayLimit ?? field.validationRules?.max;
+  const fieldIdentity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  const isCarbonCompositionField = /carbon.*(?:content|composition)|composition.*carbon/i.test(fieldIdentity);
+  const inputMax = monthlyDayLimit ?? field.validationRules?.max ?? (isCarbonCompositionField ? 100 : undefined);
 
   // For Qty Basis EF: density is dynamically required when EF unit denominator
   // dimension mismatches the fuel's quantity unit dimension for this month
@@ -212,7 +214,7 @@ export const DynamicFieldRenderer = ({
     if (field.defaultValue !== undefined && field.defaultValue !== null) {
       const currentValue = data[field.variable];
       // Only apply default if no value exists yet
-      if (currentValue === undefined || currentValue === null || currentValue === '') {
+      if (currentValue === undefined || currentValue === null) {
         updateMonthData(monthKey, field.variable, field.defaultValue);
       }
     }

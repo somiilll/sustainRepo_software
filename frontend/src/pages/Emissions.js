@@ -3584,7 +3584,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                     setIsFormDirty(false);
                     setOcrPrefillData(null);
                     fetchData();
-                    toast.success('Emissions saved successfully');
                   }}
                   onCancel={() => {
                     setOcrPrefillData(null);
