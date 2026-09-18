@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Download, Eye, FileText, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, Eye, FileText, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import {
@@ -201,7 +201,7 @@ export default function OCRInvoice() {
             completedItems.forEach((item) => itemsById.set(item.id, item));
             return Array.from(itemsById.values());
           });
-          setSelectedFile((current) => current || completedFiles[0]);
+          setSelectedFile((current) => current);
           setSelectedItem((current) => current || completedItems[0] || null);
           toast.success(`Extraction ready: ${completedItems.length} activity row${completedItems.length === 1 ? '' : 's'}`);
         }
@@ -686,26 +686,6 @@ export default function OCRInvoice() {
     setBulkRejecting(false);
   };
 
-  const exportCsv = async () => {
-    if (!items.length) return;
-    try {
-      const fields = ['invoice_number', 'date', 'billing_period_text', 'vendor_name', 'location', 'item_description', 'scope', 'category', 'subcategory', 'quantity', 'unit', 'cost', 'currency', 'distance_km', 'origin', 'destination', 'ef_method', 'ef_database', 'accounting_rationale', 'confidence_score', 'needs_review', 'status'];
-      const quote = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-      const csv = [fields.join(','), ...items.map((item) => fields.map((field) => quote(field in item ? item[field] : item.current_values?.[field])).join(','))].join('\n');
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'ocr-extraction.csv';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      toast.success('CSV export downloaded');
-    } catch (requestError) {
-      toast.error(responseMessage(requestError, 'CSV export could not be downloaded.'));
-    }
-  };
-
   const downloadTemplate = async () => {
     setDownloadingTemplate(true);
     try {
@@ -749,7 +729,6 @@ export default function OCRInvoice() {
         aside={<div className="flex flex-wrap items-center gap-2" data-testid="ocr-header-actions">
           <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
           {upload && <>
-            <Button type="button" variant="outline" onClick={exportCsv} data-testid="ocr-export-csv-button"><Download className="mr-2 h-4 w-4" />Export CSV</Button>
             <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
           </>}
         </div>}

@@ -1,8 +1,8 @@
 import React from 'react';
-import { BrainCircuit, Gauge, Sparkles } from 'lucide-react';
+import { BrainCircuit, Sparkles, Zap } from 'lucide-react';
 
 const MODE_CONTENT = {
-  fast: { icon: Gauge, title: 'Fast' },
+  fast: { icon: Zap, title: 'Fast' },
   think: { icon: BrainCircuit, title: 'Think' },
 };
 
@@ -14,7 +14,7 @@ export const ExtractionModeSelector = ({ modes, value, onChange, disabled, compa
         <h2 id="ocr-mode-heading" className="text-sm font-semibold text-slate-900">Extraction mode</h2>
       </div>
     )}
-    <div className={compact ? 'flex rounded-md border border-slate-200 bg-slate-50 p-1' : 'grid gap-3 sm:grid-cols-2'} role="radiogroup" aria-label="Extraction mode">
+    <div className={compact ? 'flex w-[164px] rounded-md border border-slate-200 bg-slate-50 p-1' : 'grid gap-3 sm:grid-cols-2'} role="radiogroup" aria-label="Extraction mode">
       {modes.map((mode) => {
         const content = MODE_CONTENT[mode.key] || MODE_CONTENT.fast;
         const Icon = content.icon;
@@ -28,7 +28,7 @@ export const ExtractionModeSelector = ({ modes, value, onChange, disabled, compa
             disabled={disabled}
             onClick={() => onChange(mode.key)}
             className={compact
-              ? `flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${active ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-700 hover:bg-white'}`
+              ? `flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${active ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-700 hover:bg-white'}`
               : `flex min-h-20 items-center gap-3 border p-4 text-left transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${active ? 'border-emerald-600 bg-emerald-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-400'}`
             }
             data-testid={`ocr-mode-${mode.key}-button`}

@@ -654,6 +654,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **OCR header and default selection cleanup — latest:** Removed Export CSV, matched the compact Fast/Think selector width to Clear workspace, changed Fast to a lightning icon, and retained the **All** source selector as the default after extraction completes. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR source file row selector — latest:** Source documents now start with an **All** selector, followed by one compact file selector per invoice or Excel workbook. All combines every extracted row; choosing a source limits review to that file without invoice-number grouping. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR source card JSX compile fix — latest:** Corrected the source-document card map closure that caused the reported `OCRInvoice.js` Babel syntax error. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR source documents simplification — latest:** Removed the embedded preview panel. Source files now have compact cards with All / Invoices / Excel filters, secure new-tab eye viewing for invoice documents only, no Excel invoice grouping, and explicit Process/Delete actions for cancelled files. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
