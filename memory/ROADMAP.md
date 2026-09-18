@@ -20,6 +20,7 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+- Fix Scope 3 Category 3 Activity Based Add-form unit defaults: keep the selected `scope3_ef.allowed_units` as valid choices, but initialize new monthly/yearly quantity rows from that activity's `default_unit` (for example, Diesel (average biofuel blend) defaults to `L`, not the first allowed unit `m3`). Preserve valid explicit OCR/spreadsheet units, manual user selections, saved Edit units, and historical records; do not broaden the change to other Scope 3 categories or methods.
 - Configure the C8 `floor_area_share` input-field mapping (Decision Tree version 11 and Activity Based/Supplier Method formulas are published). Bulk Upload is deferred.
 - Persist Repo Pilot Data Retrieval and Internal Data AI chats with unified conversation sessions, then expose retrievable history in Repo Pilot.
 - Add multi-organization membership/context for suppliers that are also standalone customer organizations.
