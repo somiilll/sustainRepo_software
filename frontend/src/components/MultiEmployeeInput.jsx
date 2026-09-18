@@ -55,6 +55,7 @@ const EmployeeEvidenceCell = ({
   onEvidenceRemove,
   onEvidenceDownload,
   backendUrl,
+  showLabel = false,
 }) => {
   const testIdPrefix = `employee-${employeeIndex}-${periodKey}-evidence`;
   const inputId = `${testIdPrefix}-input`;
@@ -62,7 +63,10 @@ const EmployeeEvidenceCell = ({
   if (!onEvidenceUpload) return null;
 
   return (
-    <div className="flex min-w-[4.5rem] items-center justify-end gap-1" data-testid={`${testIdPrefix}-cell`}>
+    <div
+      className={`flex min-w-[4.5rem] items-center gap-1 ${showLabel ? 'justify-center' : 'justify-end'}`}
+      data-testid={`${testIdPrefix}-cell`}
+    >
       <input
         id={inputId}
         type="file"
@@ -87,11 +91,14 @@ const EmployeeEvidenceCell = ({
         htmlFor={inputId}
         title="Upload evidence"
         aria-label="Upload evidence"
-        className={`relative inline-flex h-8 w-8 items-center justify-center rounded border border-stone-200 bg-white text-stone-600 transition-colors ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-emerald-500 hover:text-emerald-700'}`}
+        className={`relative inline-flex items-center justify-center rounded border border-stone-200 bg-white text-stone-600 transition-colors ${showLabel ? 'h-10 gap-2 px-3 text-sm font-medium' : 'h-8 w-8'} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-emerald-500 hover:text-emerald-700'}`}
         data-testid={`${testIdPrefix}-upload-trigger`}
       >
         <Upload className="h-4 w-4" />
-        {evidences.length > 0 && (
+        {showLabel && (
+          <span>{evidences.length > 0 ? `${evidences.length} file${evidences.length > 1 ? 's' : ''} attached` : 'Upload Evidence'}</span>
+        )}
+        {!showLabel && evidences.length > 0 && (
           <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[10px] font-bold text-white" data-testid={`${testIdPrefix}-count`}>
             {evidences.length}
           </span>
@@ -1088,7 +1095,10 @@ const MultiEmployeeInput = ({
                           )})}
                         </div>
                         {onEvidenceUpload && (
-                          <div className="border-t border-stone-200 pt-3">
+                          <div className="border-t border-stone-200 pt-4" data-testid={`employee-${empIndex}-yearly-evidence-field`}>
+                            <Label className="mb-2 block text-center text-xs text-gray-600" data-testid={`employee-${empIndex}-yearly-evidence-label`}>
+                              Evidence <span className="font-normal text-stone-500">(Optional)</span>
+                            </Label>
                             <EmployeeEvidenceCell
                               employeeId={employee.id}
                               employeeIndex={empIndex}
@@ -1097,8 +1107,9 @@ const MultiEmployeeInput = ({
                               disabled={disabled}
                               onEvidenceUpload={onEvidenceUpload}
                               onEvidenceRemove={onEvidenceRemove}
-                            onEvidenceDownload={onEvidenceDownload}
+                              onEvidenceDownload={onEvidenceDownload}
                               backendUrl={evidenceBackendUrl}
+                              showLabel
                             />
                           </div>
                         )}
