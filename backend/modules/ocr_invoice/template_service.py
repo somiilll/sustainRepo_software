@@ -70,10 +70,6 @@ async def generate_ocr_template(database, organization_id: str) -> BytesIO:
     ledger["A1"].font = Font(bold=True, size=14, color="FFFFFF")
     ledger["A1"].fill = PatternFill("solid", fgColor="047857")
     ledger.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(LEDGER_HEADERS))
-    ledger["A2"] = "Add one purchased activity or invoice line per row, then upload this workbook to OCR Activity Extraction."
-    ledger["A2"].font = Font(italic=True, color="475569")
-    ledger.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(LEDGER_HEADERS))
-
     for column, header in enumerate(LEDGER_HEADERS, start=1):
         cell = ledger.cell(row=4, column=column, value=header)
         is_optional = header in OPTIONAL_HEADERS

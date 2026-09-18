@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Template Subtitle Cleanup
+- Removed the instructional subtitle from the OCR Ledger sheet; the workbook title, column headers, and separate Instructions sheet remain unchanged.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Excel Template Redesign
 - Rebuilt the OCR Ledger into the requested 16-column order and added a bordered 500-row entry area. Facility guidance now appears only on the Facility header; Rooms and Nights headers note that they are required only for hotel stays.
 - Added light-blue optional headers for Invoice Number, Vendor Name, From Location, To Location, and Notes, plus an Instructions sheet with a colour legend and field-by-field guidance.
