@@ -8,28 +8,28 @@
   background: transparent;
 }
 .emissions-ledger-scrollbar::-webkit-slider-runnable-track {
-  height: 8px;
+  height: 5px;
   border-radius: 999px;
   background: #d6d3d1;
 }
 .emissions-ledger-scrollbar::-webkit-slider-thumb {
   appearance: none;
   width: var(--emissions-ledger-scrollbar-thumb-width, 150px);
-  height: 14px;
-  margin-top: -3px;
+  height: 10px;
+  margin-top: -2px;
   border: 1px solid #065f46;
   border-radius: 999px;
   background: #047857;
   cursor: ew-resize;
 }
 .emissions-ledger-scrollbar::-moz-range-track {
-  height: 8px;
+  height: 5px;
   border-radius: 999px;
   background: #d6d3d1;
 }
 .emissions-ledger-scrollbar::-moz-range-thumb {
   width: var(--emissions-ledger-scrollbar-thumb-width, 150px);
-  height: 14px;
+  height: 10px;
   border: 1px solid #065f46;
   border-radius: 999px;
   background: #047857;

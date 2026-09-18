@@ -682,7 +682,7 @@ export default function EmissionDataGrid({
         </div>
       )}
       </div>
-      <div className="border-t border-stone-200 bg-stone-50 px-4 py-2" data-testid="emissions-ledger-bottom-scrollbar">
+      <div className="border-t border-stone-200 bg-stone-50 px-4 py-1" data-testid="emissions-ledger-bottom-scrollbar">
         <input
           type="range"
           min="0"
@@ -691,7 +691,7 @@ export default function EmissionDataGrid({
           onChange={handleBottomScrollbarChange}
           disabled={ledgerScrollWidth <= ledgerViewportWidth}
           style={{ '--emissions-ledger-scrollbar-thumb-width': `${Math.min(400, Math.max(120, Math.round(ledgerViewportWidth * 0.5)))}px` }}
-          className="emissions-ledger-scrollbar h-3 w-full cursor-ew-resize disabled:cursor-default disabled:opacity-40"
+          className="emissions-ledger-scrollbar h-2 w-full cursor-ew-resize disabled:cursor-default disabled:opacity-40"
           aria-label="Scroll ledger columns horizontally"
           data-testid="emissions-ledger-bottom-scrollbar-track"
         />
