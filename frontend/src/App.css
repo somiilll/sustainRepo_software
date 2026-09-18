@@ -37,14 +37,15 @@
 }
 [data-testid^="emission-row-"] > div[style] {
   min-width: 0;
-  text-align: center;
+  text-align: center !important;
 }
 [data-testid^="emission-row-"] > div[style].flex {
-  justify-content: center;
+  justify-content: center !important;
 }
 [data-testid^="emission-row-"] > div[style] > p {
+  width: 100%;
   min-width: 0;
-  text-align: center;
+  text-align: center !important;
 }
 .App {
   min-height: 100vh;
