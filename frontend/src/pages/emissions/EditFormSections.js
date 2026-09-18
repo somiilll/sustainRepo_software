@@ -108,9 +108,9 @@ export const BiogenicScopeSection = ({
   if (formData.scope !== 'biogenic') return null;
   
   return (
-    <div className="space-y-1.5 p-3 bg-green-50 rounded-lg border border-green-200">
-      <Label className="text-green-800">Select Biogenic Emission Type *</Label>
-      <div className="flex gap-4 h-10 items-center">
+    <div className="flex min-h-10 flex-wrap items-center gap-6">
+      <Label className="shrink-0" data-testid="biogenic-emission-type-label">Select Biogenic Emission Type *</Label>
+      <div className="flex min-h-10 flex-wrap items-center gap-6">
         <label className="flex items-center gap-2">
           <input
             type="radio"
@@ -124,7 +124,7 @@ export const BiogenicScopeSection = ({
             className="h-4 w-4 accent-emerald-600"
             data-testid="biogenic-scope-radio-scope1"
           />
-          <span className="text-green-800">Direct Biogenic</span>
+          <span className="text-sm">Direct Emissions</span>
         </label>
         <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : ''}`}>
           <input
@@ -140,7 +140,7 @@ export const BiogenicScopeSection = ({
             className="h-4 w-4 accent-emerald-600"
             data-testid="biogenic-scope-radio-scope3"
           />
-          <span className="text-green-800">Indirect Biogenic</span>
+          <span className="text-sm">Indirect Emissions</span>
           {!hasScope3Access && (
             <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
               Not Available
@@ -149,7 +149,7 @@ export const BiogenicScopeSection = ({
         </label>
       </div>
       {loadingBiogenicCategories && (
-        <p className="text-xs text-green-600">Loading biogenic categories...</p>
+        <p className="text-xs text-stone-500" data-testid="biogenic-categories-loading">Loading biogenic categories...</p>
       )}
     </div>
   );

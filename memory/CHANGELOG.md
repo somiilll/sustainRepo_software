@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — Biogenic Emission-Type Form Alignment
+- Presented the Biogenic emission type label and both radio options in one neutral standard form row, removing the green container/background treatment.
+- Renamed the visible choices to **Direct Emissions** and **Indirect Emissions** while retaining their existing values and all backend behavior.
+- Applied the same visual/label treatment to Edit for consistency. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per user instruction.
+
 ## September 8, 2026 — Scope 3 Bulk Spend Currency Inference
 - Spent Amount without PPP/Inflation values now defaults Bulk Upload to Standard Currency Conversion.
 - Providing Purchase Power Value or Inflation Rate selects PPP and Inflation Rate; when both are present, both are retained as overrides.
