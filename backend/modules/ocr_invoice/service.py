@@ -377,6 +377,8 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
         return record.get("classification") if record else None
 
     for file_position, file_info in enumerate(upload_record.get("files", [])):
+        if file_info.get("status") in {"completed", "failed", "cancelled"}:
+            continue
         if await is_cancelled():
             cancelled = True
             for pending_file in upload_record["files"][file_position:]:

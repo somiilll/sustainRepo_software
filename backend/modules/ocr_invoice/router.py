@@ -955,6 +955,79 @@ async def cancel_upload_file_processing(
     return {"upload_id": upload_id, "file_index": file_index, "status": status, "upload_status": upload_status, "processing_started": processing_started}
 
 
+@router.post("/uploads/{upload_id}/files/{file_index}/resume")
+async def resume_cancelled_upload_file(
+    upload_id: str,
+    file_index: int,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """Requeue one cancelled invoice after the rest of its batch has settled."""
+    org_id = _get_org(current_user)
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"_id": 0, "id": 1, "status": 1, "files": 1},
+    )
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    if upload.get("status") == "processing":
+        raise HTTPException(status_code=409, detail="Wait for the current OCR processing to finish before restarting this invoice")
+    target_file = next((file for file in upload.get("files", []) if file.get("file_index") == file_index), None)
+    if not target_file:
+        raise HTTPException(status_code=404, detail="Invoice file not found")
+    if target_file.get("status") != "cancelled":
+        raise HTTPException(status_code=409, detail="Only cancelled invoices can be processed again")
+    resumed_at = datetime.now(timezone.utc).isoformat()
+    needs_facility_assignment = bool(target_file.get("preview_supported") and not target_file.get("facility_id"))
+    next_upload_status = "awaiting_facility_assignment" if needs_facility_assignment else "queued"
+    updated = await db[OCR_UPLOADS_COLLECTION].update_one(
+        {"id": upload_id, "organization_id": org_id, "files": {"$elemMatch": {"file_index": file_index, "status": "cancelled"}}},
+        {"$set": {"status": next_upload_status, "files.$[file].status": "queued", "files.$[file].resumed_at": resumed_at, "updated_at": resumed_at}},
+        array_filters=[{"file.file_index": file_index}],
+    )
+    if not updated.modified_count:
+        raise HTTPException(status_code=409, detail="This invoice could not be restarted")
+    if not needs_facility_assignment:
+        background_tasks.add_task(process_queued_upload, upload_id, org_id, current_user)
+    return {"upload_id": upload_id, "file_index": file_index, "status": "queued", "awaiting_facility_assignment": needs_facility_assignment}
+
+
+@router.delete("/uploads/{upload_id}/files/{file_index}")
+async def delete_cancelled_upload_file(
+    upload_id: str,
+    file_index: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove an unprocessed cancelled invoice from the OCR workspace."""
+    org_id = _get_org(current_user)
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"_id": 0, "files": 1},
+    )
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    target_file = next((file for file in upload.get("files", []) if file.get("file_index") == file_index), None)
+    if not target_file:
+        raise HTTPException(status_code=404, detail="Invoice file not found")
+    if target_file.get("status") != "cancelled":
+        raise HTTPException(status_code=409, detail="Only cancelled invoices can be deleted")
+    await db[OCR_UPLOADS_COLLECTION].update_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"$pull": {"files": {"file_index": file_index}}, "$inc": {"file_count": -1}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    await db[OCR_LINE_ITEMS_COLLECTION].delete_many(
+        {"upload_id": upload_id, "organization_id": org_id, "file_index": file_index},
+    )
+    remaining = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"_id": 0, "files": 1},
+    )
+    if remaining and not remaining.get("files"):
+        await db[OCR_UPLOADS_COLLECTION].delete_one({"id": upload_id, "organization_id": org_id})
+        return {"upload_id": upload_id, "file_index": file_index, "upload_deleted": True}
+    return {"upload_id": upload_id, "file_index": file_index, "upload_deleted": False}
+
+
 @router.post("/uploads/{upload_id}/retry")
 async def retry_upload_processing(
     upload_id: str,

@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Source Documents Simplification
+- Removed the embedded secure-preview panel. Source documents now use compact cards with All / Invoices / Excel filters; invoice documents open through a secure eye action in a new tab, while Excel has no eye control.
+- Excel review no longer shows invoice-number grouping. Cancelled source documents now provide Process and Delete actions; processing one safely requeues only that file and requests a facility assignment again when needed.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Reporting Period Label
 - Simplified the OCR review ledger label from **Reporting period / date** to **Reporting period** on desktop and mobile.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.

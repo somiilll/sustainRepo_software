@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Download, FileText, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, Download, Eye, FileText, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import {
@@ -14,7 +14,6 @@ import {
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
 import { useAuth } from '../contexts/AuthContext';
-import { DocumentPreview } from '../modules/ocr/DocumentPreview';
 import { ExtractionModeSelector } from '../modules/ocr/ExtractionModeSelector';
 import { OcrEditDialog } from '../modules/ocr/OcrEditDialog';
 import { OcrFacilityAssignmentDialog } from '../modules/ocr/OcrFacilityAssignmentDialog';
@@ -27,7 +26,9 @@ import {
   assignOcrUploadFacilities,
   cancelOcrUploadFile,
   cancelOcrUpload,
+  deleteOcrUploadFile,
   resumeOcrUpload,
+  resumeOcrUploadFile,
   deleteOcrUpload,
   downloadOcrTemplate,
   getOcrConfiguration,
@@ -82,9 +83,11 @@ export default function OCRInvoice() {
   const [upload, setUpload] = useState(null);
   const [items, setItems] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [sourceDocumentFilter, setSourceDocumentFilter] = useState('all');
   const [selectedItem, setSelectedItem] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
+  const [openingSourceFileIds, setOpeningSourceFileIds] = useState([]);
+  const [restartingSourceFileIds, setRestartingSourceFileIds] = useState([]);
+  const [deletingSourceFileIds, setDeletingSourceFileIds] = useState([]);
   const [editingItem, setEditingItem] = useState(null);
   const [editingRequiredFields, setEditingRequiredFields] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -232,16 +235,16 @@ export default function OCRInvoice() {
   }, [activeExtractionIds, getAuthHeader]);
 
   useEffect(() => () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-  }, [previewUrl]);
-
-  useEffect(() => () => {
     if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
   }, [facilityPreviewUrl]);
 
   const selectedFileItems = useMemo(() => (
     selectedFile ? items.filter((item) => item.upload_id === selectedFile.upload_id && item.file_index === selectedFile.file_index) : items
   ), [items, selectedFile]);
+  const sourceFiles = useMemo(() => (upload?.files || []).filter((file) => (
+    sourceDocumentFilter === 'all'
+    || (sourceDocumentFilter === 'invoice' ? file.preview_supported : !file.preview_supported)
+  )), [sourceDocumentFilter, upload]);
 
   const processFiles = async () => {
     if (!files.length) return;
@@ -353,6 +356,60 @@ export default function OCRInvoice() {
     }
   };
 
+  const resumeCancelledSourceFile = async (file) => {
+    const fileId = `${file.upload_id}-${file.file_index}`;
+    setRestartingSourceFileIds((current) => [...new Set([...current, fileId])]);
+    try {
+      const { data } = await resumeOcrUploadFile(file.upload_id, file.file_index, getAuthHeader());
+      const resumedFile = { ...file, status: 'queued' };
+      setUpload((current) => current ? {
+        ...current,
+        files: current.files.map((entry) => (
+          entry.upload_id === file.upload_id && entry.file_index === file.file_index ? resumedFile : entry
+        )),
+      } : current);
+      setFileQueue((current) => {
+        const next = current.map((entry) => (
+          entry.uploadId === file.upload_id && entry.fileIndex === file.file_index ? { ...entry, status: 'queued', uploadStatus: data.awaiting_facility_assignment ? 'awaiting_facility_assignment' : 'queued' } : entry
+        ));
+        return next.some((entry) => entry.id === fileId) ? next : [...next, { id: fileId, uploadId: file.upload_id, fileIndex: file.file_index, filename: file.filename, status: 'queued', uploadStatus: data.awaiting_facility_assignment ? 'awaiting_facility_assignment' : 'queued' }];
+      });
+      let storedIds = [];
+      try { storedIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { storedIds = []; }
+      localStorage.setItem('ocr-active-upload-ids', JSON.stringify([...new Set([...storedIds, file.upload_id])]));
+      setActiveExtractionIds((current) => [...new Set([...current, file.upload_id])]);
+      if (data.awaiting_facility_assignment) {
+        setFacilityAssignmentFiles([resumedFile]);
+        setFacilityAssignmentOpen(true);
+      }
+      toast.success(data.awaiting_facility_assignment ? 'Invoice restored. Assign its facility to begin extraction.' : 'Invoice queued for extraction.');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This cancelled invoice could not be processed.'));
+    } finally {
+      setRestartingSourceFileIds((current) => current.filter((id) => id !== fileId));
+    }
+  };
+
+  const deleteCancelledSourceFile = async (file) => {
+    const fileId = `${file.upload_id}-${file.file_index}`;
+    setDeletingSourceFileIds((current) => [...new Set([...current, fileId])]);
+    try {
+      const { data } = await deleteOcrUploadFile(file.upload_id, file.file_index, getAuthHeader());
+      const remainingFiles = (upload?.files || []).filter((entry) => !(entry.upload_id === file.upload_id && entry.file_index === file.file_index));
+      setUpload(remainingFiles.length ? { upload_ids: [...new Set(remainingFiles.map((entry) => entry.upload_id))], files: remainingFiles } : null);
+      setFileQueue((current) => current.filter((entry) => entry.id !== fileId));
+      setSelectedFile((current) => current?.upload_id === file.upload_id && current?.file_index === file.file_index ? remainingFiles[0] || null : current);
+      if (data.upload_deleted) {
+        setActiveExtractionIds((current) => current.filter((uploadId) => uploadId !== file.upload_id));
+      }
+      toast.success('Cancelled invoice removed.');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This cancelled invoice could not be deleted.'));
+    } finally {
+      setDeletingSourceFileIds((current) => current.filter((id) => id !== fileId));
+    }
+  };
+
   const retryFailedProcessing = async () => {
     if (!failedExtractionIds.length) return;
     setRetryingQueue(true);
@@ -379,17 +436,26 @@ export default function OCRInvoice() {
     }
   };
 
-  const loadPreview = async () => {
-    if (!selectedFile?.upload_id) return;
-    setPreviewLoading(true);
+  const openSourceDocument = async (file) => {
+    if (!file.preview_supported) return;
+    const fileId = `${file.upload_id}-${file.file_index}`;
+    const previewWindow = window.open('', '_blank');
+    if (!previewWindow) {
+      toast.error('Allow pop-ups to view this source document.');
+      return;
+    }
+    previewWindow.opener = null;
+    setOpeningSourceFileIds((current) => [...new Set([...current, fileId])]);
     try {
-      const response = await loadOcrPreview(selectedFile.upload_id, selectedFile.file_index, getAuthHeader());
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(URL.createObjectURL(response.data));
+      const response = await loadOcrPreview(file.upload_id, file.file_index, getAuthHeader());
+      const sourceUrl = URL.createObjectURL(response.data);
+      previewWindow.location.href = sourceUrl;
+      window.setTimeout(() => URL.revokeObjectURL(sourceUrl), 60000);
     } catch (requestError) {
-      toast.error(responseMessage(requestError, 'Secure preview could not be loaded.'));
+      previewWindow.close();
+      toast.error(responseMessage(requestError, 'Source document could not be opened.'));
     } finally {
-      setPreviewLoading(false);
+      setOpeningSourceFileIds((current) => current.filter((id) => id !== fileId));
     }
   };
 
@@ -466,8 +532,6 @@ export default function OCRInvoice() {
   };
 
   const chooseFile = (file) => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
     setSelectedFile(file);
     setSelectedItem(items.find((item) => item.upload_id === file.upload_id && item.file_index === file.file_index) || null);
   };
@@ -547,8 +611,6 @@ export default function OCRInvoice() {
       setItems(remainingItems);
       setSelectedItem(remainingItems.find((item) => item.upload_id === rejectingItem.upload_id && item.file_index === rejectingItem.file_index) || remainingItems[0] || null);
       if (data.file_completed) {
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
         const remainingFiles = (upload?.files || []).filter((file) => !(file.upload_id === rejectingItem.upload_id && file.file_index === rejectingItem.file_index));
         const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
         setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
@@ -674,8 +736,7 @@ export default function OCRInvoice() {
       await Promise.all(upload.upload_ids.map((uploadId) => deleteOcrUpload(uploadId, getAuthHeader())));
       localStorage.removeItem('ocr-active-upload-id');
       localStorage.removeItem('ocr-active-upload-ids');
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setUpload(null); setItems([]); setSelectedFile(null); setSelectedItem(null); setPreviewUrl(null); setError('');
+      setUpload(null); setItems([]); setSelectedFile(null); setSelectedItem(null); setError('');
       toast.success('Extraction workspace cleared');
     } catch (requestError) {
       toast.error(responseMessage(requestError, 'Workspace could not be cleared.'));
@@ -717,24 +778,43 @@ export default function OCRInvoice() {
         <div className="space-y-8">
           <section className="space-y-5" aria-labelledby="ocr-source-heading" data-testid="ocr-source-workspace">
             <aside className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 id="ocr-source-heading" className="text-sm font-semibold text-slate-900">Source documents</h2>
-                <Button type="button" size="icon" variant="ghost" onClick={clearUpload} aria-label="Start another extraction" data-testid="ocr-start-new-button"><RefreshCw className="h-4 w-4" /></Button>
+                <div className="flex items-center gap-2">
+                  <div className="flex overflow-hidden border border-slate-200 bg-white" role="tablist" aria-label="Filter source documents" data-testid="ocr-source-document-filter">
+                    {[['all', 'All'], ['invoice', 'Invoices'], ['excel', 'Excel']].map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={sourceDocumentFilter === value} onClick={() => setSourceDocumentFilter(value)} className={`px-3 py-1.5 text-xs font-medium transition-colors ${sourceDocumentFilter === value ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:bg-slate-50'}`} data-testid={`ocr-source-document-filter-${value}`}>{label}</button>)}
+                  </div>
+                  <Button type="button" size="icon" variant="ghost" onClick={clearUpload} aria-label="Start another extraction" data-testid="ocr-start-new-button"><RefreshCw className="h-4 w-4" /></Button>
+                </div>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-testid="ocr-source-file-list">
-                {upload.files.map((file) => (
-                  <button key={`${file.upload_id}-${file.file_index}-${file.filename}`} type="button" onClick={() => chooseFile(file)} className={`flex min-w-0 items-start gap-3 border px-3 py-3 text-left transition-colors ${selectedFile?.upload_id === file.upload_id && selectedFile?.file_index === file.file_index ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`} data-testid={`ocr-source-file-${file.upload_id}-${file.file_index}`}>
-                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-900">{file.filename}</span><span className="mt-1 block text-xs text-slate-500">{file.line_item_count} rows · {file.status}</span></span>
-                  </button>
+              <div className="flex flex-wrap gap-3" data-testid="ocr-source-file-list">
+                {sourceFiles.map((file) => {
+                  const fileId = `${file.upload_id}-${file.file_index}`;
+                  const isCancelled = file.status === 'cancelled';
+                  const isOpening = openingSourceFileIds.includes(fileId);
+                  const isRestarting = restartingSourceFileIds.includes(fileId);
+                  const isDeleting = deletingSourceFileIds.includes(fileId);
+                  const isSelected = selectedFile?.upload_id === file.upload_id && selectedFile?.file_index === file.file_index;
+                  return (
+                    <article key={`${fileId}-${file.filename}`} className={`flex w-full min-w-0 items-center gap-3 border px-3 py-3 sm:w-[19rem] ${isSelected ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white'}`} data-testid={`ocr-source-file-${fileId}`}>
+                      <button type="button" onClick={() => chooseFile(file)} className="flex min-w-0 flex-1 items-start gap-3 text-left" aria-pressed={isSelected} data-testid={`ocr-source-file-select-${fileId}`}>
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-900">{file.filename}</span><span className={`mt-1 block text-xs ${isCancelled ? 'text-red-700' : 'text-slate-500'}`}>{file.line_item_count || 0} rows · {file.status}</span></span>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {file.preview_supported && <Button type="button" size="icon" variant="ghost" onClick={() => openSourceDocument(file)} disabled={isOpening} aria-label={`View ${file.filename}`} data-testid={`ocr-source-file-view-${fileId}`}>{isOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}</Button>}
+                        {isCancelled && <Button type="button" size="sm" variant="ghost" onClick={() => resumeCancelledSourceFile(file)} disabled={isRestarting || isDeleting} className="h-8 px-2 text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800" data-testid={`ocr-source-file-process-${fileId}`}>{isRestarting ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}Process</Button>}
+                        {isCancelled && <Button type="button" size="icon" variant="ghost" onClick={() => deleteCancelledSourceFile(file)} disabled={isRestarting || isDeleting} aria-label={`Delete ${file.filename}`} className="text-red-700 hover:bg-red-50 hover:text-red-800" data-testid={`ocr-source-file-delete-${fileId}`}>{isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</Button>}
+                      </div>
+                    </article>
+                  );
                 ))}
               </div>
             </aside>
-            <DocumentPreview file={selectedFile} previewUrl={previewUrl} loading={previewLoading} onLoadPreview={loadPreview} />
           </section>
 
           {fileQueue.some((file) => ['queued', 'processing', 'cancel_requested'].includes(file.status)) && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} onCancelFile={cancelInvoiceProcessing} onResume={resumeQueuedExtraction} canCancelProcessing={Boolean(activeExtractionIds.length) && !facilityAssignmentOpen} cancelling={cancellingQueue} resuming={resumingQueue} cancellingFileIds={cancellingFileIds} />}
 
-      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} />
+      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} hideInvoiceTabs={Boolean(selectedFile && !selectedFile.preview_supported)} />
 
         </div>
       )}

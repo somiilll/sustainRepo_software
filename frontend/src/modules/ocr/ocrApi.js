@@ -35,6 +35,12 @@ export const resumeOcrUpload = (uploadId, headers) =>
 export const cancelOcrUploadFile = (uploadId, fileIndex, headers) =>
   axios.post(`${API}/api/ocr-invoice/uploads/${uploadId}/files/${fileIndex}/cancel`, {}, { headers });
 
+export const resumeOcrUploadFile = (uploadId, fileIndex, headers) =>
+  axios.post(`${API}/api/ocr-invoice/uploads/${uploadId}/files/${fileIndex}/resume`, {}, { headers });
+
+export const deleteOcrUploadFile = (uploadId, fileIndex, headers) =>
+  axios.delete(`${API}/api/ocr-invoice/uploads/${uploadId}/files/${fileIndex}`, { headers });
+
 export const retryOcrUpload = (uploadId, headers) =>
   axios.post(`${API}/api/ocr-invoice/uploads/${uploadId}/retry`, {}, { headers });
 

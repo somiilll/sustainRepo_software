@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronRight, Edit3, MoreHorizontal, Search, XCircle } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -142,13 +142,16 @@ const MoreDetailsDialog = ({ item, open, onOpenChange }) => {
   );
 };
 
-export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, onReject, onBulkSave, onBulkReject, acceptingId, rejectingId, bulkSaving, bulkRejecting }) => {
+export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, onReject, onBulkSave, onBulkReject, acceptingId, rejectingId, bulkSaving, bulkRejecting, hideInvoiceTabs = false }) => {
   const [query, setQuery] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [reviewFilter, setReviewFilter] = useState('all');
   const [invoiceFilter, setInvoiceFilter] = useState('all');
   const [detailsItem, setDetailsItem] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  useEffect(() => {
+    if (hideInvoiceTabs) setInvoiceFilter('all');
+  }, [hideInvoiceTabs]);
   const showEfMethod = items.some((item) => item.current_values?.scope === 'scope3');
   const showQuantity = items.some((item) => !isFreight(item.current_values || {}) && !isBusinessTravel(item.current_values || {}) && hasValue(item.current_values?.quantity));
   const showGoodsTravelled = items.some((item) => isFreight(item.current_values || {}) && goodsTravelledValue(item.current_values || {}) !== '—');
@@ -240,7 +243,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
         </div>
       </div>
 
-      {invoiceGroups.length > 1 && (
+      {!hideInvoiceTabs && invoiceGroups.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Invoices in this source document" data-testid="ocr-invoice-tabs">
           <button type="button" role="tab" aria-selected={invoiceFilter === 'all'} onClick={() => setInvoiceFilter('all')} className={`shrink-0 border px-3 py-2 text-left text-xs transition-colors ${invoiceFilter === 'all' ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`} data-testid="ocr-invoice-tab-all">All invoices · {items.length} rows</button>
           {invoiceGroups.map((group) => (
