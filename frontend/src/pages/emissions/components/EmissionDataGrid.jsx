@@ -44,7 +44,14 @@ const DEFAULT_COLUMN_WIDTHS = {
   emissions: 112,
   status: 120,
   updated: 130,
-  actions: 40,
+  actions: 84,
+};
+
+const SCOPE_COLUMN_KEYS = {
+  scope1: ['facility', 'period', 'category', 'activity', 'emissions', 'status', 'updated', 'actions'],
+  scope2: ['facility', 'period', 'category', 'activity', 'emissions', 'status', 'updated', 'actions'],
+  scope3: ['facility', 'period', 'category', 'activity', 'method', 'emissions', 'status', 'updated', 'actions'],
+  biogenic: ['facility', 'period', 'type', 'category', 'activity', 'emissions', 'status', 'updated', 'actions'],
 };
 
 const ResizableColumnHeader = ({ columnKey, width, onResize, children }) => {
@@ -164,39 +171,56 @@ export default function EmissionDataGrid({
   const [ledgerViewportWidth, setLedgerViewportWidth] = useState(0);
   const [ledgerScrollLeft, setLedgerScrollLeft] = useState(0);
   const [bottomScrollbarWidth, setBottomScrollbarWidth] = useState(0);
-  const [columnWidths, setColumnWidths] = useState(() => {
+  const [manualColumnWidths, setColumnWidths] = useState(() => {
     try {
-      return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(localStorage.getItem('emission-log-column-widths-v4') || '{}') };
+      return JSON.parse(localStorage.getItem('emission-log-column-widths-v5') || '{}');
     } catch {
-      return DEFAULT_COLUMN_WIDTHS;
+      return {};
     }
   });
 
   useEffect(() => {
-    localStorage.setItem('emission-log-column-widths-v4', JSON.stringify(columnWidths));
-  }, [columnWidths]);
+    localStorage.setItem('emission-log-column-widths-v5', JSON.stringify(manualColumnWidths));
+  }, [manualColumnWidths]);
+
+  const visibleColumnKeys = SCOPE_COLUMN_KEYS[activeScope] || SCOPE_COLUMN_KEYS.scope1;
+  const effectiveColumnWidths = useMemo(() => {
+    if (Object.keys(manualColumnWidths).length > 0) {
+      return { ...DEFAULT_COLUMN_WIDTHS, ...manualColumnWidths };
+    }
+    const baseWidth = visibleColumnKeys.reduce((total, key) => total + DEFAULT_COLUMN_WIDTHS[key], 0);
+    const gapWidth = visibleColumnKeys.length * 8;
+    const tableChromeWidth = 32 + 32 + gapWidth;
+    const availableColumnWidth = Math.max(0, ledgerViewportWidth - tableChromeWidth);
+    const scale = baseWidth > 0 ? Math.max(1, availableColumnWidth / baseWidth) : 1;
+    return Object.fromEntries(visibleColumnKeys.map((key) => [
+      key,
+      Math.round(DEFAULT_COLUMN_WIDTHS[key] * scale),
+    ]));
+  }, [activeScope, ledgerViewportWidth, manualColumnWidths, visibleColumnKeys]);
+  const columnWidths = effectiveColumnWidths;
 
   useEffect(() => {
     const ledger = ledgerScrollRef.current;
     const bottomScrollbar = bottomScrollbarRef.current;
-    if (!ledger || !bottomScrollbar) return undefined;
+    if (!ledger) return undefined;
     const syncDimensions = () => {
       setLedgerScrollWidth(ledger.scrollWidth);
       setLedgerViewportWidth(ledger.clientWidth);
       setLedgerScrollLeft(ledger.scrollLeft);
-      setBottomScrollbarWidth(bottomScrollbar.clientWidth);
+      setBottomScrollbarWidth(bottomScrollbar?.clientWidth || ledger.clientWidth);
     };
     const syncLedger = () => setLedgerScrollLeft(ledger.scrollLeft);
     syncDimensions();
     ledger.addEventListener('scroll', syncLedger, { passive: true });
     const observer = new ResizeObserver(syncDimensions);
     observer.observe(ledger);
-    observer.observe(bottomScrollbar);
+    if (bottomScrollbar) observer.observe(bottomScrollbar);
     return () => {
       ledger.removeEventListener('scroll', syncLedger);
       observer.disconnect();
     };
-  }, [activeScope, columnWidths, filteredEmissions.length]);
+  }, [activeScope, effectiveColumnWidths, filteredEmissions.length]);
   
   // Handle sort toggle
   const handleSort = (key) => {
@@ -235,7 +259,10 @@ export default function EmissionDataGrid({
   };
 
   const resizeColumn = (columnKey, width) => {
-    setColumnWidths((current) => ({ ...current, [columnKey]: Math.min(420, Math.max(80, Math.round(width))) }));
+    setColumnWidths((current) => ({
+      ...(Object.keys(current).length > 0 ? current : effectiveColumnWidths),
+      [columnKey]: Math.min(420, Math.max(80, Math.round(width))),
+    }));
   };
 
   const maxHorizontalScroll = Math.max(0, ledgerScrollWidth - ledgerViewportWidth);
@@ -243,6 +270,7 @@ export default function EmissionDataGrid({
     ? Math.max(40, Math.min(bottomScrollbarWidth, (ledgerViewportWidth / Math.max(ledgerScrollWidth, 1)) * bottomScrollbarWidth))
     : 0;
   const maxThumbTravel = Math.max(0, bottomScrollbarWidth - scrollbarThumbWidth);
+  const hasHorizontalOverflow = maxHorizontalScroll > 1;
   const scrollbarThumbLeft = maxHorizontalScroll && maxThumbTravel
     ? (ledgerScrollLeft / maxHorizontalScroll) * maxThumbTravel
     : 0;
@@ -288,7 +316,7 @@ export default function EmissionDataGrid({
     ledger.scrollLeft = nextScrollLeft;
   };
 
-  const columnStyle = (columnKey) => ({ width: columnWidths[columnKey] });
+  const columnStyle = (columnKey) => ({ width: effectiveColumnWidths[columnKey] || DEFAULT_COLUMN_WIDTHS[columnKey] });
 
   const formatReportingPeriod = (period) => {
     if (!period) return '-';
@@ -456,7 +484,7 @@ export default function EmissionDataGrid({
               </ResizableColumnHeader>
               <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="sr-only">More actions</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center" data-testid="emissions-actions-column-label">Actions</span></ResizableColumnHeader>
             </>
           )}
           {/* Scope 1 & 2 Headers */}
@@ -479,7 +507,7 @@ export default function EmissionDataGrid({
               </ResizableColumnHeader>
               <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="sr-only">More actions</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center" data-testid="emissions-actions-column-label">Actions</span></ResizableColumnHeader>
             </>
           )}
           {/* Biogenic Headers */}
@@ -505,7 +533,7 @@ export default function EmissionDataGrid({
               </ResizableColumnHeader>
               <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="sr-only">More actions</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center" data-testid="emissions-actions-column-label">Actions</span></ResizableColumnHeader>
             </>
           )}
         </div>
@@ -745,11 +773,13 @@ export default function EmissionDataGrid({
         </div>
       )}
       </div>
-      <div className="border-t border-stone-200 bg-stone-50 px-4 py-1" data-testid="emissions-ledger-bottom-scrollbar">
-        <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-stone-200" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll ledger columns horizontally" aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerScrollLeft)} data-testid="emissions-ledger-bottom-scrollbar-track">
-          <button type="button" onPointerDown={startScrollbarDrag} className="absolute top-0 h-2 rounded-full bg-stone-400 transition-colors hover:bg-stone-500 active:bg-stone-600" style={{ width: scrollbarThumbWidth, transform: `translateX(${scrollbarThumbLeft}px)` }} aria-label="Drag to scroll ledger columns horizontally" data-testid="emissions-ledger-bottom-scrollbar-thumb" />
+      {hasHorizontalOverflow && (
+        <div className="border-t border-stone-200 bg-stone-50 px-4 py-1" data-testid="emissions-ledger-bottom-scrollbar">
+          <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-stone-200" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll ledger columns horizontally" aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerScrollLeft)} data-testid="emissions-ledger-bottom-scrollbar-track">
+            <button type="button" onPointerDown={startScrollbarDrag} className="absolute top-0 h-2 rounded-full bg-stone-400 transition-colors hover:bg-stone-500 active:bg-stone-600" style={{ width: scrollbarThumbWidth, transform: `translateX(${scrollbarThumbLeft}px)` }} aria-label="Drag to scroll ledger columns horizontally" data-testid="emissions-ledger-bottom-scrollbar-thumb" />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

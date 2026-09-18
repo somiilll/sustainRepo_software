@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — GHG Logs Grid Responsiveness
+- Active Scope tabs now use the platform emerald active state; the dots-menu column is explicitly labeled **Actions** across Scope 1, Scope 2, Scope 3, and Biogenic logs.
+- Default GHG log column widths now expand to the available screen width. The first manual resize freezes current widths instead of forcing all columns back into the viewport.
+- The custom bottom horizontal scrollbar only appears when resized columns actually overflow. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — C6 Default Travel Days
 - New C6 trips now initialize `No. of Days Travelled` (`qty_days_travelled`) at 1, while existing trips and saved records remain unchanged.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.

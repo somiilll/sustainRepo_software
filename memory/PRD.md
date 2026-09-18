@@ -654,6 +654,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **GHG logs grid responsiveness — latest:** Active Scope tabs now display emerald green, the dots-menu column is labeled **Actions**, default columns auto-fit the available screen width, manual resizing preserves user widths, and the bottom scrollbar appears only for real horizontal overflow. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **C6 default travel days — latest:** Newly added C6 trips now start with `No. of Days Travelled` set to 1. Existing trips and saved emission records are unchanged. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **C6 field control consistency — latest:** Unitless C6 trip fields now use the same visual input frame, fill, height, and focus treatment as unit-bearing fields. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **C6 evidence column spacing — latest:** Dynamic fields now flex across the available wide-screen trip row, while the ledger-style evidence icon occupies only its compact fixed-width control space at the right edge. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.

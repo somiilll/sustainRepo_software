@@ -3736,7 +3736,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 key={s.code}
                 value={s.code}
                 disabled={isDisabled}
-                className={isDisabled ? 'relative cursor-not-allowed opacity-60 text-stone-400' : ''}
+                className={`${isDisabled ? 'relative cursor-not-allowed opacity-60 text-stone-400' : 'data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-emerald-700'}`}
                 data-testid={`scope-tab-${s.code}`}
               >
                 {s.name}
