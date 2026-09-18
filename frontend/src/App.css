@@ -14,7 +14,7 @@
 }
 .emissions-ledger-scrollbar::-webkit-slider-thumb {
   appearance: none;
-  width: 150px;
+  width: var(--emissions-ledger-scrollbar-thumb-width, 150px);
   height: 14px;
   margin-top: -3px;
   border: 1px solid #065f46;
@@ -28,7 +28,7 @@
   background: #d6d3d1;
 }
 .emissions-ledger-scrollbar::-moz-range-thumb {
-  width: 150px;
+  width: var(--emissions-ledger-scrollbar-thumb-width, 150px);
   height: 14px;
   border: 1px solid #065f46;
   border-radius: 999px;
