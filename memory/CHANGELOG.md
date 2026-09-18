@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Review Control and Ledger Cleanup
+- Renamed **Select all shown** to **Select all**. The selected count plus Save selected/Reject selected controls now appear only after at least one row is selected.
+- Replaced text-based View more actions with a compact, tooltip-labeled details icon and centered all desktop ledger headers, values, and action controls.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Queued Batch Recovery
 - Fixed the facility-assignment launch guard by including the upload status in its MongoDB projection, allowing assigned invoices to actually start their background OCR worker.
 - Added an atomic worker claim and a **Resume queued** control/API for batches left queued by the earlier launch failure; only one worker can claim and process a batch.
