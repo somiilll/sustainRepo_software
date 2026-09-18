@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Clock3, Loader2, StopCircle, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock3, Loader2, Play, StopCircle, XCircle } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 
 const statusIcon = {
@@ -20,14 +20,18 @@ const statusTone = {
   cancelled: 'text-amber-700',
 };
 
-export const OcrBatchQueue = ({ queue, onCancel, onCancelFile, canCancelProcessing, cancelling, cancellingFileIds = [] }) => {
+export const OcrBatchQueue = ({ queue, onCancel, onCancelFile, onResume, canCancelProcessing, cancelling, resuming, cancellingFileIds = [] }) => {
   if (!queue?.length) return null;
   const canCancel = canCancelProcessing && queue.some((file) => ['queued', 'processing'].includes(file.status));
+  const resumableUploadId = queue.find((file) => file.uploadStatus === 'queued')?.uploadId;
   return (
     <section className="border border-slate-200 bg-white" aria-label="Batch processing status" data-testid="ocr-batch-queue">
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2" data-testid="ocr-batch-queue-heading">
         <span className="text-xs font-semibold uppercase text-slate-600" data-testid="ocr-batch-queue-title">Batch queue</span>
-        {canCancel && onCancel ? <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={cancelling} data-testid="ocr-cancel-processing-button">{cancelling ? 'Cancelling' : 'Cancel processing'}</Button> : null}
+        <div className="flex items-center gap-2">
+          {resumableUploadId && onResume ? <Button type="button" size="sm" variant="outline" onClick={() => onResume(resumableUploadId)} disabled={resuming} data-testid="ocr-resume-queued-upload-button">{resuming ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}Resume queued</Button> : null}
+          {canCancel && onCancel ? <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={cancelling} data-testid="ocr-cancel-processing-button">{cancelling ? 'Cancelling' : 'Cancel processing'}</Button> : null}
+        </div>
       </div>
       <div className="divide-y divide-slate-100">
         {queue.map((file) => {

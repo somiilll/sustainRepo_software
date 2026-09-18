@@ -881,6 +881,26 @@ async def cancel_upload_processing(
     return {"upload_id": upload_id, "status": "cancelled"}
 
 
+@router.post("/uploads/{upload_id}/resume")
+async def resume_queued_upload(
+    upload_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """Safely restart a queued OCR batch that was interrupted before its worker began."""
+    org_id = _get_org(current_user)
+    upload = await db[OCR_UPLOADS_COLLECTION].find_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"_id": 0, "id": 1, "status": 1},
+    )
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    if upload.get("status") != "queued":
+        raise HTTPException(status_code=409, detail="Only queued OCR uploads can be resumed")
+    background_tasks.add_task(process_queued_upload, upload_id, org_id, current_user)
+    return {"upload_id": upload_id, "status": "queued", "resume_requested": True}
+
+
 @router.post("/uploads/{upload_id}/files/{file_index}/cancel")
 async def cancel_upload_file_processing(
     upload_id: str,
@@ -1151,7 +1171,7 @@ async def assign_upload_facilities(
     org_id = _get_org(current_user)
     upload = await db[OCR_UPLOADS_COLLECTION].find_one(
         {"id": upload_id, "organization_id": org_id},
-        {"_id": 0, "files": 1},
+        {"_id": 0, "status": 1, "files": 1},
     )
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")

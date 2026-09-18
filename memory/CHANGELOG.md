@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Queued Batch Recovery
+- Fixed the facility-assignment launch guard by including the upload status in its MongoDB projection, allowing assigned invoices to actually start their background OCR worker.
+- Added an atomic worker claim and a **Resume queued** control/API for batches left queued by the earlier launch failure; only one worker can claim and process a batch.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Cancelled-Invoice Assignment Fix
 - Cancelled invoices are now removed immediately from the early facility-assignment dialog and excluded from its polling refresh, so they cannot block or reappear in assignment.
 - Their cancelled status remains visible in the source/processing queue; remaining invoices can be assigned and extracted normally.

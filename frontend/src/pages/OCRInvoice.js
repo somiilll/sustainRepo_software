@@ -27,6 +27,7 @@ import {
   assignOcrUploadFacilities,
   cancelOcrUploadFile,
   cancelOcrUpload,
+  resumeOcrUpload,
   deleteOcrUpload,
   downloadOcrTemplate,
   getOcrConfiguration,
@@ -100,6 +101,7 @@ export default function OCRInvoice() {
   const [facilityPreviewUrl, setFacilityPreviewUrl] = useState(null);
   const [facilityPreviewLoading, setFacilityPreviewLoading] = useState(false);
   const [cancellingQueue, setCancellingQueue] = useState(false);
+  const [resumingQueue, setResumingQueue] = useState(false);
   const [cancellingFileIds, setCancellingFileIds] = useState([]);
   const facilityPreviewRequestRef = useRef(0);
   const [activeExtractionIds, setActiveExtractionIds] = useState([]);
@@ -150,6 +152,7 @@ export default function OCRInvoice() {
           fileIndex: file.file_index,
           filename: file.filename,
           status: file.status || record.upload.status,
+          uploadStatus: record.upload.status,
         }))));
       }
       const awaitingAssignmentRecords = activeRecords.filter((record) => record.upload.status === 'awaiting_facility_assignment');
@@ -256,7 +259,7 @@ export default function OCRInvoice() {
       localStorage.removeItem('ocr-active-upload-id');
       setActiveExtractionIds((current) => [...new Set([...current, data.upload_id])]);
       const stagedFiles = data.files.map((file) => ({ ...file, upload_id: data.upload_id }));
-      setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, fileIndex: file.file_index, filename: file.filename, status: file.status })));
+      setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, fileIndex: file.file_index, filename: file.filename, status: file.status, uploadStatus: data.status })));
       setUpload({ upload_ids: [data.upload_id], files: stagedFiles });
       setSelectedFile(stagedFiles[0] || null);
       const invoiceFiles = stagedFiles.filter((file) => (
@@ -300,6 +303,21 @@ export default function OCRInvoice() {
       toast.error(responseMessage(requestError, 'OCR processing could not be cancelled.'));
     } finally {
       setCancellingQueue(false);
+    }
+  };
+
+  const resumeQueuedExtraction = async (uploadId) => {
+    setResumingQueue(true);
+    try {
+      await resumeOcrUpload(uploadId, getAuthHeader());
+      setFileQueue((current) => current.map((file) => (
+        file.uploadId === uploadId ? { ...file, uploadStatus: 'processing' } : file
+      )));
+      toast.success('Queued OCR extraction resumed.');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This queued extraction could not be resumed.'));
+    } finally {
+      setResumingQueue(false);
     }
   };
 
@@ -714,7 +732,7 @@ export default function OCRInvoice() {
             <DocumentPreview file={selectedFile} previewUrl={previewUrl} loading={previewLoading} onLoadPreview={loadPreview} />
           </section>
 
-          {fileQueue.some((file) => ['queued', 'processing', 'cancel_requested'].includes(file.status)) && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} onCancelFile={cancelInvoiceProcessing} canCancelProcessing={Boolean(activeExtractionIds.length) && !facilityAssignmentOpen} cancelling={cancellingQueue} cancellingFileIds={cancellingFileIds} />}
+          {fileQueue.some((file) => ['queued', 'processing', 'cancel_requested'].includes(file.status)) && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} onCancelFile={cancelInvoiceProcessing} onResume={resumeQueuedExtraction} canCancelProcessing={Boolean(activeExtractionIds.length) && !facilityAssignmentOpen} cancelling={cancellingQueue} resuming={resumingQueue} cancellingFileIds={cancellingFileIds} />}
 
       <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} />
 
