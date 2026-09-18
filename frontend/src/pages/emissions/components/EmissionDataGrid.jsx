@@ -249,6 +249,16 @@ export default function EmissionDataGrid({
     setLedgerScrollFromThumbPosition(event.clientX - bounds.left - scrollbarThumbWidth / 2);
   };
 
+  const handleLedgerWheel = (event) => {
+    if (!event.deltaX) return;
+    const ledger = ledgerScrollRef.current;
+    if (!ledger) return;
+    const nextScrollLeft = Math.max(0, Math.min(maxHorizontalScroll, ledger.scrollLeft + event.deltaX));
+    if (nextScrollLeft === ledger.scrollLeft) return;
+    event.preventDefault();
+    ledger.scrollLeft = nextScrollLeft;
+  };
+
   const columnStyle = (columnKey) => ({ width: columnWidths[columnKey] });
 
   const formatReportingPeriod = (period) => {
@@ -379,7 +389,7 @@ export default function EmissionDataGrid({
         </div>
       )}
       
-      <div ref={ledgerScrollRef} className="h-[min(70vh,52rem)] overflow-auto" data-testid="emissions-ledger-scroll-region">
+      <div ref={ledgerScrollRef} onWheel={handleLedgerWheel} className="h-[min(70vh,52rem)] overflow-x-hidden overflow-y-auto" data-testid="emissions-ledger-scroll-region">
       {/* Fixed Header Row */}
       <div className="min-w-max sticky top-0 z-10 bg-stone-50 border-b border-stone-200 px-4 py-3">
         <div className="flex min-w-max items-center gap-2 bg-stone-50 text-xs font-semibold text-stone-600 uppercase tracking-wider">
@@ -720,9 +730,9 @@ export default function EmissionDataGrid({
         </div>
       )}
       </div>
-      <div className="border-t border-stone-200 bg-white px-4 py-1" data-testid="emissions-ledger-bottom-scrollbar">
-        <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-stone-300" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll ledger columns horizontally" aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerScrollLeft)} data-testid="emissions-ledger-bottom-scrollbar-track">
-          <button type="button" onPointerDown={startScrollbarDrag} className="absolute top-0 h-2 rounded-full bg-stone-500 transition-colors hover:bg-stone-600 active:bg-stone-700" style={{ width: scrollbarThumbWidth, transform: `translateX(${scrollbarThumbLeft}px)` }} aria-label="Drag to scroll ledger columns horizontally" data-testid="emissions-ledger-bottom-scrollbar-thumb" />
+      <div className="border-t border-stone-200 bg-stone-50 px-4 py-1" data-testid="emissions-ledger-bottom-scrollbar">
+        <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-stone-200" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll ledger columns horizontally" aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerScrollLeft)} data-testid="emissions-ledger-bottom-scrollbar-track">
+          <button type="button" onPointerDown={startScrollbarDrag} className="absolute top-0 h-2 rounded-full bg-stone-400 transition-colors hover:bg-stone-500 active:bg-stone-600" style={{ width: scrollbarThumbWidth, transform: `translateX(${scrollbarThumbLeft}px)` }} aria-label="Drag to scroll ledger columns horizontally" data-testid="emissions-ledger-bottom-scrollbar-thumb" />
         </div>
       </div>
     </div>
