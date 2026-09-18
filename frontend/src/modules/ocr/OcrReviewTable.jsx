@@ -258,7 +258,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               <TableHead className="w-10" data-testid="ocr-ledger-header-select"><Checkbox checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all visible rows" data-testid="ocr-desktop-select-all-checkbox" /></TableHead>
               <TableHead data-testid="ocr-ledger-header-facility">Facility</TableHead>
               <TableHead data-testid="ocr-ledger-header-extracted-item">Extracted item</TableHead>
-              <TableHead data-testid="ocr-ledger-header-reporting-period-date">Reporting period / date</TableHead>
+              <TableHead data-testid="ocr-ledger-header-reporting-period-date">Reporting period</TableHead>
               <TableHead data-testid="ocr-ledger-header-scope">Scope</TableHead>
               <TableHead data-testid="ocr-ledger-header-category">Category</TableHead>
               <TableHead data-testid="ocr-ledger-header-subcategory">Subcategory</TableHead>
@@ -337,7 +337,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4">
                 <MobileField label="Facility" value={values.location} itemId={item.id} field="facility" />
                 <MobileField label="Extracted item" value={values.item_description || values.fuel_name || 'Unspecified activity'} itemId={item.id} field="description" wide />
-                <MobileField label="Reporting period / date" value={reportingPeriodDateValue(values)} itemId={item.id} field="reporting-period-date" />
+                <MobileField label="Reporting period" value={reportingPeriodDateValue(values)} itemId={item.id} field="reporting-period-date" />
                 <MobileField label="Scope" itemId={item.id} field="scope"><Badge variant="outline" className={scopeTone[values.scope]}>{values.scope?.replace('scope', 'Scope ') || '—'}</Badge></MobileField>
                 <MobileField label="Category" value={values.category || 'Unknown'} itemId={item.id} field="category" wide />
                 <MobileField label="Subcategory / sector" value={values.subcategory || values.sector || values.naics_label} itemId={item.id} field="subcategory" wide />

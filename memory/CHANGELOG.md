@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Reporting Period Label
+- Simplified the OCR review ledger label from **Reporting period / date** to **Reporting period** on desktop and mobile.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Review Control and Ledger Cleanup
 - Renamed **Select all shown** to **Select all**. The selected count plus Save selected/Reject selected controls now appear only after at least one row is selected.
 - Replaced text-based View more actions with a compact, tooltip-labeled details icon and centered all desktop ledger headers, values, and action controls.
