@@ -82,8 +82,7 @@ const TripFields = ({ trip, periodKey, frequencyType, dynamicInputFields, update
 
   return (
     <div className="p-4 sm:p-5" data-testid={`c6-trip-${trip.id}-fields`}>
-      <div className="overflow-x-auto pb-1" data-testid={`c6-trip-${trip.id}-row-scroll`}>
-        <div className="grid min-w-max grid-flow-col auto-cols-[minmax(220px,1fr)] items-start gap-x-5" data-testid={`c6-trip-${trip.id}-row`}>
+      <div className="grid grid-cols-1 items-start gap-x-5 gap-y-4 md:grid-cols-2 xl:grid-flow-col xl:auto-cols-fr" data-testid={`c6-trip-${trip.id}-row`}>
         {dynamicInputFields.map((field) => (
           <DynamicFieldRenderer
             key={`${trip.id}-${field.id || field.variable}`}
@@ -98,7 +97,6 @@ const TripFields = ({ trip, periodKey, frequencyType, dynamicInputFields, update
           />
         ))}
         <TripEvidence periodKey={periodKey} trip={trip} onUpload={onUploadEvidence} onRemove={onRemoveEvidence} />
-      </div>
       </div>
       {showFlightDetails && (
         <div className="mt-5">

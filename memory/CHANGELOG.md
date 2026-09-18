@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — C6 No-Scroll Trip Inputs
+- Removed the C6 trip-row horizontal scroll container. Dynamic fields and the compact evidence icon stay in one row on wide screens, use two columns at medium widths, and stack on small screens.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — C6 Route Fields in Trip Header
 - Moved each trip’s Departure and Arrival inputs from the detail row into the corresponding Trip header, alongside its title and remove action.
 - The detail row remains focused on calculation fields plus the compact ledger-style evidence icon.

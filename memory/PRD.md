@@ -654,6 +654,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **C6 no-scroll trip inputs — latest:** Removed horizontal scrolling from the C6 dynamic-input row. Fields and the ledger-style evidence icon align in one row on wide screens, then respond to the available width without page or row overflow. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **C6 route fields in trip header — latest:** Each trip’s Departure and Arrival inputs now appear directly in its Trip header. The detail row is reserved for the calculation fields and compact ledger-style evidence control. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **C6 compact trip-row layout — latest:** Every C6 trip now places its dynamic calculation inputs and compact ledger-style evidence icon in one horizontally scrollable row. The evidence icon retains the standard badge, upload, file-view, and removal behavior. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **C6 Add-trip ReferenceError — latest:** Resolved the confirmed first-trip render failure by declaring the missing default `testIdSuffix` parameter in `DynamicFieldRenderer`. This is a frontend-only correction with no database, payload, or emission-record impact. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
