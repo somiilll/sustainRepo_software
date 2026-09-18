@@ -328,6 +328,11 @@ const isFloorAreaShareField = (field = {}) => {
   return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
 };
 
+const isInvestmentPercentageField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /investment.*(?:percentage|percent|share)|(?:percentage|percent|share).*investment/i.test(identity);
+};
+
 const toFloorAreaShareField = (input = {}) => ({
   id: `c8-${input.variable || 'floor_area_share'}`,
   variable: input.variable || 'floor_area_share',
@@ -341,6 +346,28 @@ const toFloorAreaShareField = (input = {}) => ({
   unitSource: 'none',
   compoundWithVariable: null,
   placeholder: 'Enter floor area share',
+  helpText: '',
+  mapsToContext: null,
+  mapsToContextValueWhenFilled: 'true',
+  mapsToContextValueWhenEmpty: 'false',
+  options: [],
+  validationRules: { max: 100 },
+  defaultValue: undefined,
+});
+
+const toInvestmentPercentageField = (input = {}) => ({
+  id: `c15-${input.variable || 'investment_percentage'}`,
+  variable: input.variable || 'investment_percentage',
+  fieldKey: input.variable || 'investment_percentage',
+  label: 'Investment Percentage',
+  expectedUnit: input.expected_unit || '',
+  required: input.required !== false,
+  isOverride: false,
+  fieldType: 'number',
+  allowedUnits: [],
+  unitSource: 'none',
+  compoundWithVariable: null,
+  placeholder: 'Enter investment percentage',
   helpText: '',
   mapsToContext: null,
   mapsToContextValueWhenFilled: 'true',
@@ -426,6 +453,12 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
     : null;
   if (c8FloorAreaShareInput && !calculationFields.some(isFloorAreaShareField)) {
     calculationFields.push(toFloorAreaShareField(c8FloorAreaShareInput));
+  }
+  const c15InvestmentPercentageInput = context.categoryDefinition?.code === 'c15'
+    ? matchedFormula?.inputs?.find(isInvestmentPercentageField)
+    : null;
+  if (c15InvestmentPercentageInput && !calculationFields.some(isInvestmentPercentageField)) {
+    calculationFields.push(toInvestmentPercentageField(c15InvestmentPercentageInput));
   }
   // C7 is a dedicated multi-employee workflow with its own serialized input
   // contract. Organization custom fields are intentionally unavailable there.

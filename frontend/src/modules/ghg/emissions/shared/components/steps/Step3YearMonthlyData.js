@@ -445,6 +445,7 @@ export const Step3YearMonthlyData = ({
   BACKEND_URL,
 }) => {
   const [sharedFloorAreaShare, setSharedFloorAreaShare] = useState('');
+  const [sharedInvestmentPercentage, setSharedInvestmentPercentage] = useState('');
   const isFugitiveCustomFuel = useCustomFuel && String(category || '').toLowerCase().includes('fugitive');
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
@@ -489,6 +490,14 @@ export const Step3YearMonthlyData = ({
     && /^c8\b/i.test(category || '')
     && frequencyType === 'monthly'
     && Boolean(floorAreaShareField);
+  const investmentPercentageField = useMemo(() => dynamicInputFields.find((field) => {
+    const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+    return /investment.*(?:percentage|percent|share)|(?:percentage|percent|share).*investment/i.test(identity);
+  }), [dynamicInputFields]);
+  const isC15InvestmentPercentageMonthly = scope === 'scope3'
+    && /^c15\b/i.test(category || '')
+    && frequencyType === 'monthly'
+    && Boolean(investmentPercentageField);
   const applySharedFloorAreaShare = useCallback(() => {
     const value = Number.parseFloat(sharedFloorAreaShare);
     if (!Number.isFinite(value) || value < 0 || value > 100 || !floorAreaShareField) {
@@ -512,6 +521,29 @@ export const Step3YearMonthlyData = ({
       return changed ? nextMonths : previousMonths;
     });
   }, [activeMonths, floorAreaShareField, isFutureMonth, reportingYear, reportingYearType, setMonthlyData, sharedFloorAreaShare]);
+  const applySharedInvestmentPercentage = useCallback(() => {
+    const value = Number.parseFloat(sharedInvestmentPercentage);
+    if (!Number.isFinite(value) || value <= 0 || value > 100 || !investmentPercentageField) {
+      toast.error('Investment Percentage must be greater than 0 and no more than 100');
+      return;
+    }
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+      activeMonths.forEach((month) => {
+        const monthKey = month.key || month;
+        if (isFutureMonth(monthKey, reportingYear, reportingYearType)) return;
+        const current = previousMonths[monthKey] || {};
+        if (current[investmentPercentageField.variable] === sharedInvestmentPercentage) return;
+        nextMonths[monthKey] = {
+          ...current,
+          [investmentPercentageField.variable]: sharedInvestmentPercentage,
+        };
+        changed = true;
+      });
+      return changed ? nextMonths : previousMonths;
+    });
+  }, [activeMonths, investmentPercentageField, isFutureMonth, reportingYear, reportingYearType, setMonthlyData, sharedInvestmentPercentage]);
   const resolveSpendDefaultValue = useCallback((field, periodKey) => {
     if (scope3Method !== 'spend_basis') return undefined;
     const isApplicable = spendCurrencyConversionMethod === 'standard'
@@ -814,6 +846,37 @@ export const Step3YearMonthlyData = ({
                 disabled={!sharedFloorAreaShare}
                 className="w-full sm:w-auto"
                 data-testid="c8-apply-floor-area-share-all-months-button"
+              >
+                Apply to all months
+              </Button>
+            </div>
+          )}
+
+          {isC15InvestmentPercentageMonthly && (
+            <div className="grid grid-cols-1 items-end gap-3 border-y border-stone-200 py-3 sm:grid-cols-[minmax(0,1fr)_auto]" data-testid="c15-monthly-investment-percentage">
+              <div className="space-y-1">
+                <Label className="text-xs text-stone-600" data-testid="c15-monthly-investment-percentage-label">
+                  {investmentPercentageField.label || 'Investment Percentage'}
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="any"
+                  value={sharedInvestmentPercentage}
+                  onChange={(event) => setSharedInvestmentPercentage(event.target.value)}
+                  placeholder="Enter percentage"
+                  data-testid="c15-monthly-investment-percentage-input"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={applySharedInvestmentPercentage}
+                disabled={!sharedInvestmentPercentage}
+                className="w-full sm:w-auto"
+                data-testid="c15-apply-investment-percentage-all-months-button"
               >
                 Apply to all months
               </Button>

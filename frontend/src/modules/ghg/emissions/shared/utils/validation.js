@@ -35,6 +35,11 @@ const isFloorAreaShareField = (field = {}) => {
   return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
 };
 
+const isInvestmentPercentageField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /investment.*(?:percentage|percent|share)|(?:percentage|percent|share).*investment/i.test(identity);
+};
+
 const validateConfiguredFieldRange = (field, value, periodSuffix = '') => {
   if (isBlankValue(value)) return null;
   const parsedValue = Number.parseFloat(value);
@@ -47,6 +52,9 @@ const validateConfiguredFieldRange = (field, value, periodSuffix = '') => {
   }
   if (isFloorAreaShareField(field) && (parsedValue < 0 || parsedValue > 100)) {
     return `Floor Area Share % must be between 0 and 100${periodSuffix}`;
+  }
+  if (isInvestmentPercentageField(field) && (parsedValue <= 0 || parsedValue > 100)) {
+    return `Investment Percentage must be greater than 0 and no more than 100${periodSuffix}`;
   }
   return null;
 };
