@@ -20,6 +20,7 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+- Add category-specific display labels within a single GHG input-field mapping. Start with `km_travelled`: retain one technical key / formula variable and default label, then allow label overrides scoped by category (for example, C4/C9: “Distance Travelled”; C6/C7: “Distance Travelled per Day”). Implement this consistently in the Super Admin field-mapping editor, shared Add/Edit field derivation, Version History label resolution, and new audit-label generation. Do not migrate emission values or allow overlapping duplicate mappings; decide explicitly whether historical audit snapshots preserve original wording or use current display overrides.
 - Fix Scope 3 Category 3 Activity Based Add-form unit defaults: keep the selected `scope3_ef.allowed_units` as valid choices, but initialize new monthly/yearly quantity rows from that activity's `default_unit` (for example, Diesel (average biofuel blend) defaults to `L`, not the first allowed unit `m3`). Preserve valid explicit OCR/spreadsheet units, manual user selections, saved Edit units, and historical records; do not broaden the change to other Scope 3 categories or methods.
 - Configure the C8 `floor_area_share` input-field mapping (Decision Tree version 11 and Activity Based/Supplier Method formulas are published). Bulk Upload is deferred.
 - Persist Repo Pilot Data Retrieval and Internal Data AI chats with unified conversation sessions, then expose retrievable history in Repo Pilot.
