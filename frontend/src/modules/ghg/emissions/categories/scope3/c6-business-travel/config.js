@@ -14,6 +14,7 @@ export const config = {
   supportsMonthly: true,
   supportsYearly: true,
   multiEmployee: false, // C6 doesn't use multi-employee (unlike C7)
+  multiTrip: true,
   methods: ['activity_basis', 'spend_basis', 'supplier_basis'],
   description: 'Emissions from business travel by employees',
   helpText: {

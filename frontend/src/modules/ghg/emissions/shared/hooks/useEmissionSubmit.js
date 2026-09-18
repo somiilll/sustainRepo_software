@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { categoryRegistry } from '../../../../emissions';
 import { MONTHS } from '../constants/emission-form-constants';
 import { resolveDensityFieldState } from '../utils/unitHelpers';
+import { isMonthlyEntryStarted } from '../utils/monthlyCompletion';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -84,6 +85,8 @@ export function useEmissionSubmit(ctx) {
       decisionFieldValues,
       capabilities,
       calculateC7EmployeesForSave,
+      isC6MultiTrip = false,
+      c6Trips = { monthly: {}, yearly: [] },
       // Optional supplier context
       supplierContext = null,
       assignedReportingPeriod = null,
@@ -159,7 +162,27 @@ export function useEmissionSubmit(ctx) {
       submissionEmployees = calculation?.employees || employees;
     }
 
-    const validation = canProceedToStep(4, { employees: submissionEmployees }); // Final validation
+    const c6TripRows = isC6MultiTrip
+      ? (frequencyType === 'yearly'
+        ? (c6Trips.yearly || []).map((data, index) => ({
+          data,
+          periodKey: 'yearly',
+          tripNumber: index + 1,
+          frequency: 'yearly',
+        }))
+        : Object.entries(c6Trips.monthly || {}).flatMap(([periodKey, trips]) => (
+          (trips || []).map((data, index) => ({
+            data,
+            periodKey,
+            tripNumber: index + 1,
+            frequency: 'monthly',
+          }))
+        )))
+      : [];
+    const validation = canProceedToStep(4, {
+      employees: submissionEmployees,
+      multiTripRows: c6TripRows,
+    }); // Final validation
     if (!validation.valid) {
       toast.error(validation.message);
       setIsSaving(false);
@@ -171,7 +194,9 @@ export function useEmissionSubmit(ctx) {
     // fuels, and future categories share the same validation contract.
     const isProcessCategory = isProcessEmissions || categoryCode === 'process_emissions';
     if (dynamicInputFields.length > 0) {
-      const rowsToValidate = frequencyType === 'yearly'
+      const rowsToValidate = isC6MultiTrip
+        ? c6TripRows.map(({ periodKey, data }) => [periodKey, data])
+        : frequencyType === 'yearly'
         ? [['yearly', yearlyData]]
         : Object.entries(monthlyData || {});
       for (const [periodKey, data] of rowsToValidate) {
@@ -313,6 +338,113 @@ export function useEmissionSubmit(ctx) {
 
     try {
       const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
+
+      // C6 Business Travel: each trip uses the existing scoped calculation and
+      // payload contract, then persists as its own record. A shared batch ID
+      // preserves all-or-nothing behavior across every trip in this submission.
+      if (isC6MultiTrip) {
+        const c6Module = resolveDispatchModule();
+        if (!c6Module) {
+          toast.error('Business Travel is not available for direct submission. Please reload the page.');
+          setIsSaving(false);
+          return;
+        }
+
+        const startedTrips = c6TripRows.filter(({ data }) => (
+          isMonthlyEntryStarted(data, dynamicInputFields)
+        ));
+        if (startedTrips.length === 0) {
+          toast.error('Please enter data for at least one business travel trip');
+          setIsSaving(false);
+          return;
+        }
+
+        const submissionBatchId = createSubmissionBatchId();
+        const preparedTrips = [];
+        const errors = [];
+        for (const tripRow of startedTrips) {
+          const { data, periodKey, tripNumber, frequency } = tripRow;
+          const reportingPeriod = frequency === 'yearly'
+            ? (assignedReportingPeriod?.reporting_period || (reportingYearType === 'financial'
+              ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
+              : `CY${reportingYear}`))
+            : `${getActualYearForMonth(periodKey)}-${periodKey}`;
+          const baseCtx = {
+            scope, category, categoryCode, capabilities, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+            recordSource, biogenicScopeSelection, scope3Method, spendCurrencyConversionMethod, allocationMethod, scope3ActivityId,
+            scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
+            supplierName, supplierCode, employeeName, employeeId, assetName,
+            fromLocation: data.from_location || fromLocation,
+            toLocation: data.to_location || toLocation,
+            notes, responsiblePerson, responsiblePersonDesignation, responsiblePersonContact,
+            validProcesses, dynamicInputFields, filteredScope3Activities, requiresSubcategory, centralizedUnits,
+            defaultUnit, buildDecisionInputs, frequencyType: frequency,
+            isOverrideCV: !!data.overrideCalorificValue,
+            isOverrideDensity: !!data.overrideDensity,
+            overrideEmissionFactorHeat: !!data.overrideEmissionFactorHeat,
+            overrideJustification: data.calorificValueJustification || data.densityJustification || data.emissionFactorHeatJustification || '',
+            calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
+            resolvedFormulaId: null, formulaVersionId: null, decisionTreeVersionId: null, reportingPeriod,
+          };
+          const calculation = await calculateModuleRow({ activeModule: c6Module, data, baseCtx });
+          if (calculation.error) {
+            const periodLabel = frequency === 'yearly'
+              ? 'annual entry'
+              : (MONTHS.find((month) => month.key === periodKey)?.name || periodKey);
+            errors.push(`Trip ${tripNumber} in ${periodLabel}: ${calculation.error}`);
+            continue;
+          }
+          preparedTrips.push({
+            tripRow,
+            calculation,
+            payload: applyOcrEmissionMetadata({
+              ...c6Module.buildCreatePayload(data, { ...baseCtx, ...calculation }),
+              ...(frequency === 'yearly' && { frequency_type: 'yearly' }),
+              submission_batch_id: submissionBatchId,
+            }, ocrPrefillData),
+          });
+        }
+
+        if (errors.length > 0) {
+          toast.error(`Nothing was saved. ${errors.join(' • ')}. Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
+        }
+
+        const savedEmissionIds = [];
+        let saveError = null;
+        for (const { tripRow, calculation, payload } of preparedTrips) {
+          try {
+            const response = await axios.post(apiBase, payload, { headers: getAuthHeader() });
+            if (response.data?.id) {
+              savedEmissionIds.push(response.data.id);
+              linkAuditLog(calculation.auditLogId, response.data.id);
+            }
+          } catch (error) {
+            const periodLabel = tripRow.frequency === 'yearly'
+              ? 'annual entry'
+              : (MONTHS.find((month) => month.key === tripRow.periodKey)?.name || tripRow.periodKey);
+            saveError = `Trip ${tripRow.tripNumber} in ${periodLabel}: ${getApiErrorMessage(error, 'Unable to save this record')}`;
+            break;
+          }
+        }
+
+        if (saveError) {
+          const rollback = await rollbackSubmissionBatch(submissionBatchId);
+          const rollbackMessage = rollback.error
+            ? `Rollback issue: ${rollback.error}`
+            : `${rollback.rolledBackCount} saved trip(s) were reverted.`;
+          toast.error(`Nothing was saved. ${saveError}. ${rollbackMessage} Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
+        }
+
+        if (savedEmissionIds.length > 0) await finalizeOcrImport(savedEmissionIds);
+        toast.success(`Created ${preparedTrips.length} business travel trip${preparedTrips.length === 1 ? '' : 's'}`);
+        onSuccess?.();
+        setIsSaving(false);
+        return;
+      }
       
       // ===========================================
       // C7 EMPLOYEE COMMUTING HANDLING (Phase F: module dispatch)

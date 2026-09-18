@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — C6 Business Travel Multi-Trip Entry
+- C6 Create now supports multiple independently detailed trips within every monthly or yearly reporting period; each trip has its own dynamic calculation inputs, route, applicable airport lookup, and evidence attachments.
+- Every completed trip is calculated and saved as its own emission record in one rollback-protected submission batch. Existing C6 Edit deliberately remains one record/trip at a time.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — Scope 3 Activity Search Precision
 - Replaced cmdk’s default scattered-character fuzzy search only for Scope 3 Activity selection with case-insensitive, normalized word-prefix matching.
 - Every query term must match the start of a genuine activity-name word. Exact phrases/words rank first; valid prefixes follow; no fuzzy fallback remains.

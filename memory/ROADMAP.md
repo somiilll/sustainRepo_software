@@ -20,6 +20,7 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+- Add inline Save validation errors to the monthly ledger so every affected field is shown at once rather than returning one toast at a time.
 - Add category-specific display labels within a single GHG input-field mapping. Start with `km_travelled`: retain one technical key / formula variable and default label, then allow label overrides scoped by category (for example, C4/C9: “Distance Travelled”; C6/C7: “Distance Travelled per Day”). Implement this consistently in the Super Admin field-mapping editor, shared Add/Edit field derivation, Version History label resolution, and new audit-label generation. Do not migrate emission values or allow overlapping duplicate mappings; decide explicitly whether historical audit snapshots preserve original wording or use current display overrides.
 - Fix Scope 3 Category 3 Activity Based Add-form unit defaults: keep the selected `scope3_ef.allowed_units` as valid choices, but initialize new monthly/yearly quantity rows from that activity's `default_unit` (for example, Diesel (average biofuel blend) defaults to `L`, not the first allowed unit `m3`). Preserve valid explicit OCR/spreadsheet units, manual user selections, saved Edit units, and historical records; do not broaden the change to other Scope 3 categories or methods.
 - Configure the C8 `floor_area_share` input-field mapping (Decision Tree version 11 and Activity Based/Supplier Method formulas are published). Bulk Upload is deferred.
@@ -68,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- C6 Business Travel multi-trip entry: the Create form now supports multiple independently detailed trips for each monthly or yearly period. Every trip owns its dynamic inputs, route, air-travel airport details, and evidence attachments; completed trips are calculated and saved as individual emission records in one rollback-protected submission batch. Existing C6 Edit remains one record/trip at a time. **NOT TESTED** per the user’s explicit instruction; implementation was source-reviewed only.
 - Added Scope 3 Bulk Upload currency-method inference: spend-only rows use Standard Currency Conversion, while supplied PPP/Inflation values select PPP and Inflation Rate and remain overrides.
 - Aligned Scope 1 Bulk Upload Carbon Content, Oxidation Factor, and Quantity Basis EF persistence with manual entry by removing incorrect `is_override` metadata while preserving genuine override fields.
 - Added immutable formula and decision-tree version pinning for all new manual/C7/Bulk Upload emissions, historical edit calculation, canonical formula snapshots, and server-side guards against silent upgrades. Older unversioned records remain untouched pending the approved migration design.

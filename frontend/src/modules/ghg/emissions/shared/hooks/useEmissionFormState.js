@@ -75,6 +75,11 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   const [c7FormulaId, setC7FormulaId] = useState(null);
   const [c7FormulaName, setC7FormulaName] = useState('');
 
+  // C6 Business Travel supports several independently saved trips in the
+  // same reporting period. Edit mode continues to hydrate the standard
+  // single-record monthly/yearly state.
+  const [c6Trips, setC6Trips] = useState({ monthly: {}, yearly: [] });
+
   // ============================================================================
   // DECISION TREE STATE
   // ============================================================================
@@ -273,6 +278,7 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
     isCalculatingEmployee, setIsCalculatingEmployee,
     c7FormulaId, setC7FormulaId,
     c7FormulaName, setC7FormulaName,
+    c6Trips, setC6Trips,
 
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,

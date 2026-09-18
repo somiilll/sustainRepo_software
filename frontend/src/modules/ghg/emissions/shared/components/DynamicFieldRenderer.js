@@ -61,6 +61,7 @@ export const getFieldUnits = ({
   frequencyType,
   reportingYear,
   reportingYearType,
+  testIdSuffix = '',
 }) => {
   const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
   let fieldUnits = [];
@@ -290,7 +291,7 @@ export const DynamicFieldRenderer = ({
                     type="button"
                     aria-label={`${field.label} info`}
                     className="inline-flex items-center justify-center w-4 h-4 rounded-full text-stone-400 hover:text-emerald-600 transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                    data-testid={`field-help-${field.variable}`}
+                    data-testid={`field-help-${field.variable}${testIdSuffix}`}
                   >
                     <Info className="w-3.5 h-3.5" />
                   </button>
@@ -311,11 +312,11 @@ export const DynamicFieldRenderer = ({
           <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-amber-700">
             <input
               type="checkbox"
-              id={`override-${field.variable}-${monthKey}`}
+              id={`override-${field.variable}-${monthKey}${testIdSuffix}`}
               checked={data[`override_${field.variable}`] || false}
               onChange={handleOverrideChange}
               className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-              data-testid={`override-${field.fieldKey}-${monthKey}`}
+              data-testid={`override-${field.fieldKey}-${monthKey}${testIdSuffix}`}
             />
             Override Default
           </label>
@@ -329,7 +330,7 @@ export const DynamicFieldRenderer = ({
           onChange={(e) => updateMonthData(monthKey, field.variable, e.target.value)}
           disabled={isDisabled}
           className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-          data-testid={`select-${field.fieldKey}-${monthKey}`}
+          data-testid={`select-${field.fieldKey}-${monthKey}${testIdSuffix}`}
           dangerouslySetInnerHTML={{
             __html: buildNativeOptionsHtml(field.options, {
               placeholder: `Select ${field.label}`,
@@ -351,7 +352,7 @@ export const DynamicFieldRenderer = ({
             onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
             disabled={isDisabled}
             className={`${(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput) ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : 'bg-stone-50'} ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-            data-testid={`input-${field.fieldKey}-${monthKey}`}
+            data-testid={`input-${field.fieldKey}-${monthKey}${testIdSuffix}`}
           />
           
           {/* Unit dropdown selector */}
@@ -372,7 +373,7 @@ export const DynamicFieldRenderer = ({
               }}
               disabled={isDisabled}
               className={`h-10 min-w-24 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-              data-testid={`unit-${field.fieldKey}-${monthKey}`}
+              data-testid={`unit-${field.fieldKey}-${monthKey}${testIdSuffix}`}
               dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
             />
           )}
@@ -393,7 +394,7 @@ export const DynamicFieldRenderer = ({
               onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
               disabled={isDisabled}
               className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-              data-testid={`unit-text-${field.fieldKey}-${monthKey}`}
+              data-testid={`unit-text-${field.fieldKey}-${monthKey}${testIdSuffix}`}
             />
           )}
 
@@ -406,7 +407,7 @@ export const DynamicFieldRenderer = ({
               onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
               disabled={isDisabled}
               className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-              data-testid={`unit-text-input-${field.fieldKey}-${monthKey}`}
+              data-testid={`unit-text-input-${field.fieldKey}-${monthKey}${testIdSuffix}`}
             />
           )}
         </div>

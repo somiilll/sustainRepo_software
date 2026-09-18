@@ -199,6 +199,7 @@ export const validateStep3 = ({
   reportingYear,
   reportingYearType,
   useCustomFuel,
+  multiTripRows = [],
 }) => {
   // For C7 Employee Commuting
   if (isC7EmployeeCommuting) {
@@ -306,6 +307,80 @@ export const validateStep3 = ({
       }
     }
     return { valid: true };
+  }
+
+  // C6 Business Travel creates a separate record for every trip while keeping
+  // the same field contract as a standard monthly/yearly record. Validate each
+  // started trip independently before any calculation or persistence begins.
+  if (multiTripRows.length > 0) {
+    const requiredFields = dynamicInputFields.filter((field) => field.required && !field.isOverride);
+    let startedTrips = 0;
+
+    for (const tripRow of multiTripRows) {
+      const { data = {}, periodKey, tripNumber, frequency } = tripRow;
+      if (!isMonthlyEntryStarted(data, dynamicInputFields)) continue;
+      startedTrips += 1;
+      const periodLabel = frequency === 'yearly'
+        ? 'the annual entry'
+        : (MONTHS.find((month) => month.key === periodKey)?.name || periodKey);
+      const tripSuffix = ` for Trip ${tripNumber} in ${periodLabel}`;
+
+      for (const field of requiredFields) {
+        const value = data[field.variable] ?? data[field.fieldKey];
+        if (isBlankValue(value)) {
+          return { valid: false, message: `${getFieldLabel(field)} is missing${tripSuffix}` };
+        }
+        const rangeError = validateConfiguredFieldRange(field, value, tripSuffix);
+        if (rangeError) return { valid: false, message: rangeError };
+      }
+
+      const maxDays = frequency === 'yearly'
+        ? getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType)
+        : getMonthlyReportingPeriodDayLimit(periodKey, reportingYear, reportingYearType);
+      for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+        const value = Number.parseFloat(data[field.variable] ?? data[field.fieldKey]);
+        if (Number.isFinite(value) && value > maxDays) {
+          return { valid: false, message: `${field.label} cannot exceed ${maxDays} days${tripSuffix}` };
+        }
+      }
+
+      if (scope3Method === 'supplier_basis') {
+        for (const field of requiredFields) {
+          const value = data[field.variable] ?? data[field.fieldKey];
+          const unit = data[`${field.variable}_unit`];
+          if (value && field.unitSource !== 'none' && (!unit || !String(unit).trim())) {
+            return { valid: false, message: `Please enter unit for "${getFieldLabel(field)}"${tripSuffix}` };
+          }
+        }
+      }
+
+      for (const field of dynamicInputFields.filter((field) => field.isOverride || (!field.required && !field.isOverride))) {
+        const overrideKey = `override_${field.variable}`;
+        const value = data[field.variable] ?? data[field.fieldKey];
+        if (data[overrideKey] && isBlankValue(value)) {
+          return { valid: false, message: `${getFieldLabel(field)} is missing${tripSuffix}` };
+        }
+        if (data[overrideKey]) {
+          const rangeError = validateConfiguredFieldRange(field, value, tripSuffix);
+          if (rangeError) return { valid: false, message: rangeError };
+        }
+      }
+
+      const densityState = resolveDensityFieldState({
+        calculationMethodology: data?.calculation_methodology || calculationMethodology,
+        fields: dynamicInputFields,
+        data,
+        selectedFuel,
+        centralizedUnits,
+      });
+      if (densityState.visible && !densityState.effectiveDensity) {
+        return { valid: false, message: `Please enter Density (${densityState.densityUnit})${tripSuffix} because the quantity and factor units use different dimensions` };
+      }
+    }
+
+    return startedTrips > 0
+      ? { valid: true }
+      : { valid: false, message: 'Please enter data for at least one business travel trip' };
   }
 
   // For yearly mode (non-C7)

@@ -362,6 +362,7 @@ import { resolveMonthlySelectableUnit } from '../../utils/monthlyFieldUnits';
 // Import FlightDetailsSection for C6 air travel per-month airport selection
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
 import { ReportingPeriodControls } from '../ReportingPeriodControls';
+import { C6MultiTripData } from '../../../categories/scope3/c6-business-travel/C6MultiTripData';
 
 const DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS = resolveStandardGhgFieldOptions();
 
@@ -456,6 +457,12 @@ export const Step3YearMonthlyData = ({
   removeEvidence,
   onC7EvidenceUpload,
   onC7EvidenceRemove,
+  // Business travel (C6) multi-trip entry
+  isC6MultiTrip = false,
+  c6Trips = { monthly: {}, yearly: [] },
+  addC6Trip,
+  removeC6Trip,
+  updateC6Trip,
   
   // Backend URL for file viewing
   BACKEND_URL,
@@ -814,8 +821,40 @@ export const Step3YearMonthlyData = ({
         </>
       )}
 
+      {isC6MultiTrip && (
+        <C6MultiTripData
+          frequencyType={frequencyType}
+          reportingYear={reportingYear}
+          reportingYearType={reportingYearType}
+          activeMonths={activeMonths}
+          isFutureMonth={isFutureMonth}
+          c6Trips={c6Trips}
+          onAddTrip={addC6Trip}
+          onRemoveTrip={removeC6Trip}
+          onUpdateTrip={updateC6Trip}
+          onUploadEvidence={handleEvidenceUpload}
+          onRemoveEvidence={removeEvidence}
+          dynamicInputFields={dynamicInputFields}
+          scope3ActivityType={scope3ActivityType}
+          capabilities={capabilities}
+          fieldRendererProps={{
+            scope,
+            scope3Method,
+            scope3ActivityId,
+            requiresSubcategory,
+            selectedFuel,
+            filteredScope3Activities,
+            centralizedUnits,
+            biogenicScopeSelection,
+            useCustomFuel,
+            reportingYear,
+            reportingYearType,
+          }}
+        />
+      )}
+
       {/* Monthly Data Entry - Hidden when C7 Employee Commuting */}
-      {!isC7EmployeeCommuting && frequencyType === 'monthly' && (
+      {!isC7EmployeeCommuting && !isC6MultiTrip && frequencyType === 'monthly' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold">
@@ -1502,7 +1541,7 @@ export const Step3YearMonthlyData = ({
       )}
 
       {/* YEARLY Data Entry (non-C7) */}
-      {!isC7EmployeeCommuting && frequencyType === 'yearly' && (
+      {!isC7EmployeeCommuting && !isC6MultiTrip && frequencyType === 'yearly' && (
         <YearlyDataEntry
           reportingYearType={reportingYearType}
           reportingYear={reportingYear}

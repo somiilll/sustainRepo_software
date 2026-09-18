@@ -33,6 +33,11 @@ import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/uti
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+const createC6TripId = () => (
+  globalThis.crypto?.randomUUID?.()
+  || `c6-trip-${Date.now()}-${Math.random().toString(36).slice(2)}`
+);
+
 // Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {
   const unitDef = centralizedUnits.find(u => u.symbol?.toLowerCase() === unit?.toLowerCase());
@@ -190,6 +195,7 @@ export default function EmissionEntryForm({
     isCalculatingEmployee, setIsCalculatingEmployee,
     c7FormulaId, setC7FormulaId,
     c7FormulaName, setC7FormulaName,
+    c6Trips, setC6Trips,
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
     // Dynamic Form Config (Calc Engine)
@@ -1016,6 +1022,12 @@ export default function EmissionEntryForm({
   const isC7EmployeeCommuting = useMemo(() => {
     return scope === 'scope3' && Boolean(category) && resolvedCapabilities.multiEmployee;
   }, [scope, category, resolvedCapabilities]);
+
+  // C6 Create supports multiple independent trips in one reporting period.
+  // Existing records continue through the standard single-record Edit flow.
+  const isC6MultiTrip = useMemo(() => (
+    !editingEmission && !ocrPrefillData && scope === 'scope3' && /^c6\b/i.test(category || '')
+  ), [category, editingEmission, ocrPrefillData, scope]);
   
   // Check if current category requires subcategory
   // Note: Biogenic Scope 3 does NOT require subcategory - it uses direct activity selection like C3
@@ -1077,8 +1089,8 @@ export default function EmissionEntryForm({
 
   // Check if current category shows From/To Location fields.
   const showsLocationFields = useMemo(() => {
-    return scope === 'scope3' && Boolean(category) && resolvedCapabilities.journeyLocations;
-  }, [scope, category, resolvedCapabilities]);
+    return !isC6MultiTrip && scope === 'scope3' && Boolean(category) && resolvedCapabilities.journeyLocations;
+  }, [isC6MultiTrip, scope, category, resolvedCapabilities]);
 
   // Reset location fields when category changes away from C4/C6/C9
   useEffect(() => {
@@ -1132,6 +1144,7 @@ export default function EmissionEntryForm({
     setEmployeeYearlyTotal({});
     setC7FormulaId(null);
     setC7FormulaName('');
+    setC6Trips({ monthly: {}, yearly: [] });
     setDecisionFieldValues(nextScope3Method ? {
       calculation_method_scope3: nextScope3Method,
       ...(nextScope3Method === 'spend_basis' && {
@@ -1153,6 +1166,7 @@ export default function EmissionEntryForm({
     setAssetName,
     setC7FormulaId,
     setC7FormulaName,
+    setC6Trips,
     setCalcEngineResult,
     setCategory,
     setCustomEmissionFactor,
@@ -1437,8 +1451,17 @@ export default function EmissionEntryForm({
       Object.entries(previousMonths).map(([monthKey, data]) => [monthKey, clearUnits(data)]),
     ));
     setYearlyData((previous) => clearUnits(previous));
+    setC6Trips((previous) => ({
+      yearly: (previous.yearly || []).map(clearUnits),
+      monthly: Object.fromEntries(
+        Object.entries(previous.monthly || {}).map(([monthKey, trips]) => [
+          monthKey,
+          (trips || []).map(clearUnits),
+        ]),
+      ),
+    }));
     supplierBasisUnitResetRef.current = true;
-  }, [dynamicInputFields, editingEmission, scope3Method, setMonthlyData, setYearlyData]);
+  }, [dynamicInputFields, editingEmission, scope3Method, setC6Trips, setMonthlyData, setYearlyData]);
   const spendValueField = dynamicInputFields.find((field) => field.variable === 'spent_value');
   const spendSourceCurrency = yearlyData.spent_value_unit
     || Object.values(monthlyData).find((data) => data?.spent_value_unit)?.spent_value_unit
@@ -2531,8 +2554,73 @@ export default function EmissionEntryForm({
     }));
   };
 
+  const addC6Trip = useCallback((periodKey) => {
+    const trip = {
+      id: createC6TripId(),
+      from_location: fromLocation || '',
+      to_location: toLocation || '',
+    };
+    setC6Trips((previous) => (
+      periodKey === 'yearly'
+        ? { ...previous, yearly: [...(previous.yearly || []), trip] }
+        : {
+          ...previous,
+          monthly: {
+            ...previous.monthly,
+            [periodKey]: [...(previous.monthly?.[periodKey] || []), trip],
+          },
+        }
+    ));
+  }, [fromLocation, setC6Trips, toLocation]);
+
+  const updateC6Trip = useCallback((periodKey, tripId, field, value) => {
+    const updateTrip = (trip) => {
+      if (trip.id !== tripId) return trip;
+      const nextValue = typeof value === 'function' ? value(trip[field]) : value;
+      return { ...trip, [field]: nextValue };
+    };
+    setC6Trips((previous) => (
+      periodKey === 'yearly'
+        ? { ...previous, yearly: (previous.yearly || []).map(updateTrip) }
+        : {
+          ...previous,
+          monthly: {
+            ...previous.monthly,
+            [periodKey]: (previous.monthly?.[periodKey] || []).map(updateTrip),
+          },
+        }
+    ));
+  }, [setC6Trips]);
+
+  const removeC6Trip = useCallback((periodKey, tripId) => {
+    const withoutTrip = (trips = []) => trips.filter((trip) => trip.id !== tripId);
+    setC6Trips((previous) => (
+      periodKey === 'yearly'
+        ? { ...previous, yearly: withoutTrip(previous.yearly) }
+        : {
+          ...previous,
+          monthly: {
+            ...previous.monthly,
+            [periodKey]: withoutTrip(previous.monthly?.[periodKey]),
+          },
+        }
+    ));
+  }, [setC6Trips]);
+
+  const resetC6TripsForReportingYear = useCallback(() => {
+    setC6Trips({ monthly: {}, yearly: [] });
+  }, [setC6Trips]);
+
+  const resetC6TripsForFrequency = useCallback((nextFrequency) => {
+    setC6Trips((previous) => (
+      nextFrequency === 'monthly'
+        ? { ...previous, yearly: [] }
+        : { ...previous, monthly: {} }
+    ));
+  }, [setC6Trips]);
+
   // Handle evidence upload for a monthly or yearly entry
-  const handleEvidenceUpload = async (periodKey, file) => {
+  const handleEvidenceUpload = async (periodKey, file, tripId = null) => {
     if (!file) return;
 
     const sizeErr = validateFileSize(file);
@@ -2560,7 +2648,9 @@ export default function EmissionEntryForm({
           file_id: response.data.file_id,
           uploaded_at: new Date().toISOString()
         };
-        if (periodKey === 'yearly') {
+        if (tripId) {
+          updateC6Trip(periodKey, tripId, 'evidences', (evidences = []) => [...evidences, uploadedFile]);
+        } else if (periodKey === 'yearly') {
           setYearlyData(prev => ({
             ...prev,
             evidences: [...(prev.evidences || []), uploadedFile]
@@ -2577,7 +2667,9 @@ export default function EmissionEntryForm({
             };
           });
         }
-        const periodLabel = periodKey === 'yearly'
+        const periodLabel = tripId
+          ? 'trip'
+          : periodKey === 'yearly'
           ? 'annual data'
           : MONTHS.find((month) => month.key === periodKey)?.name;
         toast.success(`Evidence uploaded for ${periodLabel}`);
@@ -2665,8 +2757,17 @@ export default function EmissionEntryForm({
     toast.success('Evidence removed');
   };
 
-  const removeEvidence = async (periodKey, evidenceIndex) => {
-    const evidences = periodKey === 'yearly'
+  const removeEvidence = async (periodKey, evidenceIndexOrTripId, maybeEvidenceIndex = null) => {
+    const tripId = maybeEvidenceIndex === null ? null : evidenceIndexOrTripId;
+    const evidenceIndex = maybeEvidenceIndex === null ? evidenceIndexOrTripId : maybeEvidenceIndex;
+    const trip = tripId
+      ? (periodKey === 'yearly'
+        ? c6Trips.yearly?.find((entry) => entry.id === tripId)
+        : c6Trips.monthly?.[periodKey]?.find((entry) => entry.id === tripId))
+      : null;
+    const evidences = tripId
+      ? trip?.evidences || []
+      : periodKey === 'yearly'
       ? yearlyData.evidences || []
       : monthlyData[periodKey]?.evidences || [];
     const evidence = evidences[evidenceIndex];
@@ -2678,6 +2779,10 @@ export default function EmissionEntryForm({
         toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
         return;
       }
+    }
+    if (tripId) {
+      updateC6Trip(periodKey, tripId, 'evidences', (items = []) => items.filter((_, index) => index !== evidenceIndex));
+      return;
     }
     if (periodKey === 'yearly') {
       setYearlyData(prev => ({
@@ -2762,6 +2867,14 @@ export default function EmissionEntryForm({
 
   // Count filled months
   const filledMonthsCount = useMemo(() => {
+    if (isC6MultiTrip) {
+      if (frequencyType === 'yearly') {
+        return (c6Trips.yearly || []).filter((trip) => isMonthlyEntryComplete(trip, dynamicInputFields)).length;
+      }
+      return Object.values(c6Trips.monthly || {}).filter((trips) => (
+        trips.some((trip) => isMonthlyEntryComplete(trip, dynamicInputFields))
+      )).length;
+    }
     // For yearly mode, return 1 if there's yearly data, 0 otherwise
     if (frequencyType === 'yearly') {
       // For C7 Employee Commuting yearly mode
@@ -2803,7 +2916,13 @@ export default function EmissionEntryForm({
     
     // No dynamic fields loaded yet - return 0
     return 0;
-  }, [monthlyData, yearlyData, frequencyType, dynamicInputFields, isC7EmployeeCommuting, employees]);
+  }, [c6Trips, dynamicInputFields, employees, frequencyType, isC6MultiTrip, isC7EmployeeCommuting, monthlyData, yearlyData]);
+
+  const c6TripCount = useMemo(() => (
+    frequencyType === 'yearly'
+      ? (c6Trips.yearly || []).length
+      : Object.values(c6Trips.monthly || {}).reduce((total, trips) => total + trips.length, 0)
+  ), [c6Trips, frequencyType]);
 
   // F4: Validation dispatcher delegates to extracted utils.
   // The util `canProceedToStep` covers cases 2/3/4 (legacy case 5 default-true preserved).
@@ -2822,6 +2941,7 @@ export default function EmissionEntryForm({
     yearlyData: submissionYearlyData,
     monthlyData: submissionMonthlyData,
     filledMonthsCount: submissionFilledMonthsCount,
+    multiTripRows: overrides.multiTripRows || [],
     updateMonthData,
     calculationMethodology: decisionFieldValues.calculation_methodology,
     selectedFuel,
@@ -3338,6 +3458,8 @@ export default function EmissionEntryForm({
     isProcessEmissions: ghgFormContext.isProcessCategory,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     matchedFormula: dynamicInputFieldsResult?.matchedFormula,
+    isC6MultiTrip,
+    c6Trips,
     // Helpers
     canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
     buildDecisionInputs,
@@ -3495,6 +3617,8 @@ export default function EmissionEntryForm({
           setYearlyData={setYearlyData}
           setExpandedMonths={setExpandedMonths}
           assignedReportingPeriod={assignedReportingPeriod}
+          onReportingYearChange={resetC6TripsForReportingYear}
+          onFrequencyChange={resetC6TripsForFrequency}
         />
       </EmissionFormSection>
 
@@ -3558,6 +3682,11 @@ export default function EmissionEntryForm({
           removeEvidence={removeEvidence}
           onC7EvidenceUpload={handleC7EmployeeEvidenceUpload}
           onC7EvidenceRemove={handleC7EmployeeEvidenceRemove}
+          isC6MultiTrip={isC6MultiTrip}
+          c6Trips={c6Trips}
+          addC6Trip={addC6Trip}
+          removeC6Trip={removeC6Trip}
+          updateC6Trip={updateC6Trip}
           BACKEND_URL={BACKEND_URL}
           isProcessEmissions={ghgFormContext.isProcessCategory}
           category={category}
@@ -3647,7 +3776,7 @@ export default function EmissionEntryForm({
           {isSaving ? (
             <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Saving...</>
           ) : (
-            <><Check className="mr-1 h-4 w-4" />{frequencyType === 'yearly' ? 'Save annual emissions' : `Save emissions (${filledMonthsCount} months)`}</>
+            <><Check className="mr-1 h-4 w-4" />{isC6MultiTrip ? `Save ${c6TripCount} business travel trip${c6TripCount === 1 ? '' : 's'}` : frequencyType === 'yearly' ? 'Save annual emissions' : `Save emissions (${filledMonthsCount} months)`}</>
           )}
         </Button>
       </div>

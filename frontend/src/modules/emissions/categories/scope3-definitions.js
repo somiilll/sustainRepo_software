@@ -104,6 +104,7 @@ const CATEGORY_METADATA = {
     name: 'C6 - Business Travel',
     description: 'Emissions from transportation of employees for business-related activities',
     methods: ['activity_basis', 'spend_basis', 'supplier_basis'],
+    supportsMultiTrip: true,
   },
   c8: {
     id: 'c8',

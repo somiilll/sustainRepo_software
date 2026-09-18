@@ -13,6 +13,8 @@ export const ReportingPeriodControls = ({
   setYearlyData,
   setExpandedMonths,
   assignedReportingPeriod = null,
+  onReportingYearChange = null,
+  onFrequencyChange = null,
 }) => {
   const yearOptionsHtml = useMemo(() => assignedReportingPeriod
     ? `<option value="${assignedReportingPeriod.reporting_year}">${assignedReportingPeriod.reporting_period}</option>`
@@ -36,6 +38,7 @@ export const ReportingPeriodControls = ({
           onChange={(event) => {
             setReportingYear(event.target.value);
             setMonthlyData({});
+            onReportingYearChange?.(event.target.value);
           }}
           disabled={Boolean(assignedReportingPeriod)}
           className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
@@ -62,6 +65,7 @@ export const ReportingPeriodControls = ({
               setMonthlyData({});
               setExpandedMonths([]);
             }
+            onFrequencyChange?.(nextFrequency);
           }}
           disabled={Boolean(editingEmission)}
           className="h-10 w-full border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
