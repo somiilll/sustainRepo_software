@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Formula Inputs Hidden by Scope/Category
+- Frontend-only visibility rule: formula-derived edit inputs are hidden for Scope 1, Scope 2, and Scope 3 categories C1, C2, C3, and C5.
+- Hidden formula inputs no longer prevent edit-form save readiness; other Scope 3 categories retain their applicable inputs.
+- **NOT TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Facility Review Warning Cleanup
 - Saving a valid facility now removes only the stale `missing facility` review reason from that row’s current values.
 - Unrelated review warnings remain intact, so a corrected facility no longer displays `Review: missing facility` after save.

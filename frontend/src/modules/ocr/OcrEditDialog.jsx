@@ -379,6 +379,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       },
     }).fields.filter((field) => !field.presentationOnly);
   }, [categoryOption?.id, formConfig, selectedFactor, values.category_code, values.ef_method, values.scope, values.scope3_activity_type, values.scope3_subcategory]);
+  const hideFormulaDerivedInputs = values.scope !== 'scope3'
+    || /^(c[1235]|cat_[1235])(?:\b|_)/i.test(values.category_code || values.category_key || values.category || '');
   useEffect(() => {
     const isC6 = /^(c6|cat_6)\b/i.test(values.category_code || values.category_key || values.category || '');
     const daysField = dynamicFields.find((field) => field.variable === 'qty_days_travelled');
@@ -412,7 +414,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       },
     }));
   };
-  const dynamicFieldsComplete = dynamicFields.every((field) => !field.required || dynamicValue(values, field.variable) !== '');
+  const dynamicFieldsComplete = hideFormulaDerivedInputs || dynamicFields.every((field) => !field.required || dynamicValue(values, field.variable) !== '');
   const hasStructuredScope3Inputs = values.scope === 'scope3'
     && /^(c4|c6|c9)\b/i.test(values.category_code || values.category_key || values.category || '')
     && dynamicFields.some((field) => ['qty_travelled', 'km_travelled', 'qty_passenger', 'qty_days_travelled', 'qty_room', 'qty_nights'].includes(field.variable));
@@ -519,7 +521,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               <ExtractedValue label="currency" value={original.currency} field="currency" />
             </div>
           </div>
-          {values.scope === 'scope3' && (formConfigLoading || dynamicFields.length > 0) && (
+          {!hideFormulaDerivedInputs && (formConfigLoading || dynamicFields.length > 0) && (
             formConfigLoading ? (
               <p className="text-sm text-slate-600 sm:col-span-2" data-testid="ocr-edit-dynamic-activity-loading">Loading activity inputs…</p>
             ) : (
@@ -580,7 +582,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             {factorLoading && <p className="text-sm text-slate-600" data-testid="ocr-edit-factor-loading">Loading factor options…</p>}
             {!factorLoading && !factorError && values.category && factors.length === 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-no-factors">No factors are configured for this category and method. Choose another method or contact the factor administrator.</p>}
             {factorError && <p className="text-sm text-red-700" data-testid="ocr-edit-factor-error">{factorError}</p>}
-            {!selectionComplete && factors.length > 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-selection-required">Select a subcategory{hasStructuredScope3Inputs ? '' : `, ${isSpend ? 'one of its supported currencies' : 'one of its allowed quantity units'}`}, and complete required activity inputs before saving.</p>}
+            {!selectionComplete && factors.length > 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-selection-required">Select a subcategory{hasStructuredScope3Inputs ? '' : `, ${isSpend ? 'one of its supported currencies' : 'one of its allowed quantity units'}`}{hideFormulaDerivedInputs ? '' : ', and complete required activity inputs'} before saving.</p>}
           </div>
           <div className="space-y-2 sm:col-span-2"><Label htmlFor="ocr-rationale">Accounting rationale</Label><Textarea id="ocr-rationale" value={values.accounting_rationale || ''} onChange={(event) => set('accounting_rationale', event.target.value)} rows={3} data-testid="ocr-edit-rationale-input" /></div>
           <label className="flex items-start gap-3 border border-slate-200 bg-slate-50 p-3 sm:col-span-2" data-testid="ocr-remember-override-control">
