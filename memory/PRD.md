@@ -654,6 +654,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **OCR Scope 1/2 calculation method optional — latest:** Scope 1 and Scope 2 OCR edit flows no longer require Calculation method; they use the internal Activity factor path while Scope 3 retains method selection and validation. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
+- **OCR tick styling full revert — latest:** Restored original selection checkboxes and original Accept/Save buttons in desktop and mobile review actions; all custom bright-green tick styling is removed. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
+- **OCR Accept/Save tick placement correction — latest:** Restored normal ledger selection checkboxes. The bold standalone bright-green tick is now used only for the Actions-column Accept/Save action, on desktop and mobile. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR bold green ledger tick — latest:** OCR row selection now uses a larger, thick, bright-green standalone tick with a slight hand-drawn tilt and no surrounding frame. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR frameless selection tick correction — latest:** Replaced the underlying checkbox primitive with a custom frameless green tick in the OCR ledger. Selected rows retain their emerald highlight without a square frame. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR upload control label — latest:** Renamed the OCR file-picker action to **Upload Files**. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.

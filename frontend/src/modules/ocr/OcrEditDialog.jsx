@@ -179,7 +179,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   useEffect(() => {
     const scope1NeedsFacility = values.scope === 'scope1';
     const factorFacilityId = scope1NeedsFacility ? resolvedFacilityId : values.facility_id;
-    if (!open || !values.scope || !values.category || !values.ef_method || (scope1NeedsFacility && !factorFacilityId)) {
+    const factorMethod = values.scope === 'scope3' ? values.ef_method : 'activity';
+    if (!open || !values.scope || !values.category || !factorMethod || (scope1NeedsFacility && !factorFacilityId)) {
       setFactors([]);
       setFactorLoading(false);
       return undefined;
@@ -187,14 +188,14 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     let active = true;
     setFactorLoading(true);
     setFactorError('');
-    getOcrFactorOptions(values.scope, values.category, values.ef_method, factorFacilityId, getAuthHeaders())
+    getOcrFactorOptions(values.scope, values.category, factorMethod, factorFacilityId, getAuthHeaders())
       .then(({ data }) => {
         if (!active) return;
         const options = data.factors || [];
         setFactors(options);
         if (options.length === 1 && !values.factor_id) {
           const selected = options[0];
-          const isSpendMethod = values.ef_method === 'spend';
+          const isSpendMethod = values.scope === 'scope3' && factorMethod === 'spend';
           const matchedInput = matchingUnit(selected, isSpendMethod ? values.currency : values.unit);
           const nextValues = {
             ...values,
@@ -240,10 +241,10 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             return {
               ...current,
               factor_id: '', fuel_id: '', scope3_ef_id: '', subcategory: '', fuel_name: '', ef_lookup_key: '', ef_database: '',
-              ...(current.ef_method === 'spend' ? { currency: '' } : { unit: '' }),
+              ...(current.scope === 'scope3' && current.ef_method === 'spend' ? { currency: '' } : { unit: '' }),
             };
           }
-          const isSpend = current.ef_method === 'spend';
+          const isSpend = current.scope === 'scope3' && current.ef_method === 'spend';
           const matchedInput = matchingUnit(selected, isSpend ? (current.currency || original.currency) : (current.unit || original.unit));
           const nextValues = {
             ...current,
@@ -285,8 +286,11 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     [factors, values.factor_id],
   );
   const allowedUnits = selectedFactor?.allowed_units || [];
-  const isSpend = values.ef_method === 'spend';
-  const isRequiredForGhgSave = (...fields) => fields.some((field) => requiredFields.includes(field));
+  const isSpend = values.scope === 'scope3' && values.ef_method === 'spend';
+  const applicableRequiredFields = values.scope === 'scope3'
+    ? requiredFields
+    : requiredFields.filter((field) => !['ef_method', 'calculation_method'].includes(field));
+  const isRequiredForGhgSave = (...fields) => fields.some((field) => applicableRequiredFields.includes(field));
   const requiredClassName = (...fields) => isRequiredForGhgSave(...fields) ? 'border-red-500 ring-1 ring-red-200' : '';
   const set = (field, value) => {
     setValues((current) => ({ ...current, [field]: value }));
@@ -297,7 +301,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   const changeScope = (scope) => {
     setFactorError('');
     setValues((current) => resetFactor(current, {
-      scope, category: '', category_key: '', category_code: '', ef_method: scope === 'water' ? 'activity' : current.ef_method,
+      scope, category: '', category_key: '', category_code: '', ef_method: scope === 'scope3' ? current.ef_method || 'activity' : 'activity',
     }));
   };
   const changeCategory = (category) => {
@@ -439,8 +443,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           </div>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-method-scope-row">
             <div className="space-y-2">
-              <Label>Calculation method</Label>
-              <Select value={values.ef_method || 'activity'} onValueChange={changeMethod} disabled={values.scope === 'water'}>
+              <Label>Calculation method {values.scope !== 'scope3' && <span className="font-normal text-slate-500">(Scope 3 only)</span>}</Label>
+              <Select value={values.ef_method || 'activity'} onValueChange={changeMethod} disabled={values.scope !== 'scope3'}>
                 <SelectTrigger data-testid="ocr-edit-method-select"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="activity" data-testid="ocr-edit-method-activity">Activity</SelectItem><SelectItem value="spend" data-testid="ocr-edit-method-spend">Spend</SelectItem><SelectItem value="supplier" data-testid="ocr-edit-method-supplier">Supplier</SelectItem></SelectContent>
               </Select>
@@ -572,7 +576,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             </div>
           )}
           <div className="space-y-2 sm:col-span-2">
-            {requiredFields.length > 0 && <p className="text-sm font-medium text-red-700" role="alert" data-testid="ocr-edit-ghg-required-fields-alert">Complete the highlighted fields before saving this row to GHG.</p>}
+            {applicableRequiredFields.length > 0 && <p className="text-sm font-medium text-red-700" role="alert" data-testid="ocr-edit-ghg-required-fields-alert">Complete the highlighted fields before saving this row to GHG.</p>}
             {factorLoading && <p className="text-sm text-slate-600" data-testid="ocr-edit-factor-loading">Loading factor options…</p>}
             {!factorLoading && !factorError && values.category && factors.length === 0 && <p className="text-sm text-amber-700" data-testid="ocr-edit-no-factors">No factors are configured for this category and method. Choose another method or contact the factor administrator.</p>}
             {factorError && <p className="text-sm text-red-700" data-testid="ocr-edit-factor-error">{factorError}</p>}

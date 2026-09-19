@@ -1,5 +1,20 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Scope 1/2 Calculation Method Optional
+- Scope 1 and Scope 2 edit flows now use the internal Activity factor path without requiring Calculation method; Scope 3 retains method selection and validation.
+- Scope changes into Scope 1/2 reset the internal method to Activity, preventing hidden spend-method state from affecting factor lookup or required-field feedback.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Tick Styling Full Revert
+- Restored the original standard checkbox selection controls and original green Accept/Save buttons in desktop and mobile review actions.
+- Removed all custom thick bright-green tick styling.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Accept/Save Tick Placement Correction
+- Restored standard selection checkboxes and removed selection-row tick styling.
+- Applied the large, thick, bright-green standalone check exclusively to the Actions-column Accept/Save control on desktop and mobile.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Bold Green Ledger Tick
 - Updated the OCR selection marker to a larger, thick, bright-green standalone check mark with a slight hand-drawn tilt and no surrounding frame.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
