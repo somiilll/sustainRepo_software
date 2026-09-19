@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronRight, Edit3, MoreHorizontal, Search, XCircle } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -36,7 +35,19 @@ const Confidence = ({ value, itemId }) => {
 };
 
 const hasValue = (value) => value !== null && value !== undefined && value !== '';
-const selectionCheckboxClass = 'h-5 w-5 rounded-none border-0 bg-transparent shadow-none data-[state=checked]:bg-transparent data-[state=checked]:text-emerald-700 [&_svg]:h-5 [&_svg]:w-5';
+const SelectionTick = ({ checked, onChange, disabled, label, testId }) => (
+  <button
+    type="button"
+    onClick={() => onChange(!checked)}
+    disabled={disabled}
+    aria-label={label}
+    aria-pressed={checked}
+    className="grid h-6 w-6 place-items-center text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
+    data-testid={testId}
+  >
+    {checked ? <Check className="h-5 w-5 stroke-[3]" aria-hidden="true" /> : <span className="h-5 w-5" aria-hidden="true" />}
+  </button>
+);
 
 const displayValue = (value) => hasValue(value) ? value : '—';
 
@@ -230,7 +241,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
 
       <div className="flex flex-col gap-3 border-y border-slate-200 py-3 xl:flex-row xl:items-center xl:justify-between" data-testid="ocr-bulk-actions-bar">
         <div className="flex flex-wrap items-center gap-3">
-          <Checkbox className={selectionCheckboxClass} checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all rows shown" data-testid="ocr-select-all-visible-checkbox" />
+          <SelectionTick checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} label="Select all rows shown" testId="ocr-select-all-visible-checkbox" />
           <label className="text-sm font-medium text-slate-800" data-testid="ocr-select-all-visible-label">Select all</label>
           {selectedRows.length > 0 && <span className="text-sm text-slate-600" data-testid="ocr-selected-row-count">{selectedRows.length} selected</span>}
         </div>
@@ -259,7 +270,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
         <Table className="min-w-[1700px]">
           <TableHeader className="bg-slate-50 [&_th]:text-center">
             <TableRow>
-              <TableHead className="w-10" data-testid="ocr-ledger-header-select"><Checkbox className={selectionCheckboxClass} checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all visible rows" data-testid="ocr-desktop-select-all-checkbox" /></TableHead>
+              <TableHead className="w-10" data-testid="ocr-ledger-header-select"><SelectionTick checked={allFilteredSelected} onChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} label="Select all visible rows" testId="ocr-desktop-select-all-checkbox" /></TableHead>
               <TableHead data-testid="ocr-ledger-header-facility">Facility</TableHead>
               <TableHead data-testid="ocr-ledger-header-extracted-item">Extracted item</TableHead>
               <TableHead data-testid="ocr-ledger-header-reporting-period-date">Reporting period</TableHead>
@@ -287,7 +298,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               const values = item.current_values || {};
               return (
                 <TableRow key={item.id} className={selectedIds.includes(item.id) || selectedId === item.id ? 'bg-emerald-50/60' : ''} onClick={() => onSelect(item)} data-testid={`ocr-review-row-${item.id}`}>
-                  <TableCell onClick={(event) => event.stopPropagation()}><Checkbox className={selectionCheckboxClass} checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => toggleRow(item.id, checked === true)} disabled={item.status === 'imported' || isBulkActionRunning} aria-label={`Select ${values.item_description || 'OCR row'}`} data-testid={`ocr-select-row-${item.id}-checkbox`} /></TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}><SelectionTick checked={selectedIds.includes(item.id)} onChange={(checked) => toggleRow(item.id, checked)} disabled={item.status === 'imported' || isBulkActionRunning} label={`Select ${values.item_description || 'OCR row'}`} testId={`ocr-select-row-${item.id}-checkbox`} /></TableCell>
                   <TableCell className="max-w-48 whitespace-normal break-words" data-testid={`ocr-row-facility-${item.id}`}>{displayValue(values.location)}</TableCell>
                   <TableCell className="max-w-72 whitespace-normal break-words" data-testid={`ocr-row-description-${item.id}`}>
                     <p>{values.item_description || values.fuel_name || 'Unspecified activity'}</p>
@@ -331,7 +342,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
           return (
             <article key={item.id} className={`border bg-white p-4 ${selectedIds.includes(item.id) || selectedId === item.id ? 'border-emerald-600 bg-emerald-50/60' : 'border-slate-200'}`} data-testid={`ocr-review-card-${item.id}`}>
               <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Checkbox className={selectionCheckboxClass} checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => toggleRow(item.id, checked === true)} disabled={item.status === 'imported' || isBulkActionRunning} aria-label={`Select ${values.item_description || 'OCR row'}`} data-testid={`ocr-mobile-select-row-${item.id}-checkbox`} />
+                <SelectionTick checked={selectedIds.includes(item.id)} onChange={(checked) => toggleRow(item.id, checked)} disabled={item.status === 'imported' || isBulkActionRunning} label={`Select ${values.item_description || 'OCR row'}`} testId={`ocr-mobile-select-row-${item.id}-checkbox`} />
                 <span className="text-xs font-medium text-slate-600" data-testid={`ocr-mobile-select-row-${item.id}-label`}>Select this row</span>
               </div>
               <button type="button" onClick={() => onSelect(item)} className="flex w-full items-center justify-between gap-3 text-left" data-testid={`ocr-mobile-select-row-${item.id}`}>

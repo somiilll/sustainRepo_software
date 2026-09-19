@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Frameless Selection Tick Correction
+- Replaced the shared checkbox primitive in the OCR ledger with a custom frameless green tick control. Selected rows retain the emerald highlight; no checkbox square is rendered.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Upload Control Label
 - Renamed the OCR upload-control label from **Browse files** to **Upload Files** without changing behavior.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
