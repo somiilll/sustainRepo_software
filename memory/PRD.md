@@ -654,6 +654,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **OCR bold green ledger tick — latest:** OCR row selection now uses a larger, thick, bright-green standalone tick with a slight hand-drawn tilt and no surrounding frame. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR frameless selection tick correction — latest:** Replaced the underlying checkbox primitive with a custom frameless green tick in the OCR ledger. Selected rows retain their emerald highlight without a square frame. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR upload control label — latest:** Renamed the OCR file-picker action to **Upload Files**. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR edit form order and green selection — latest:** Removed NAICS fields from OCR edit UI and reordered classification controls into the requested Facility/Reporting, Method/Scope, Category/Subcategory, and Item Description/Factor Database rows. Selected ledger rows use an emerald highlight and frameless green tick. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.

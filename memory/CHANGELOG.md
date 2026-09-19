@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Bold Green Ledger Tick
+- Updated the OCR selection marker to a larger, thick, bright-green standalone check mark with a slight hand-drawn tilt and no surrounding frame.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Frameless Selection Tick Correction
 - Replaced the shared checkbox primitive in the OCR ledger with a custom frameless green tick control. Selected rows retain the emerald highlight; no checkbox square is rendered.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.

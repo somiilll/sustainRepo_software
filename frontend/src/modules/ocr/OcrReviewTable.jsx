@@ -42,10 +42,10 @@ const SelectionTick = ({ checked, onChange, disabled, label, testId }) => (
     disabled={disabled}
     aria-label={label}
     aria-pressed={checked}
-    className="grid h-6 w-6 place-items-center text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
+    className="grid h-8 w-8 place-items-center text-[#12c900] transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
     data-testid={testId}
   >
-    {checked ? <Check className="h-5 w-5 stroke-[3]" aria-hidden="true" /> : <span className="h-5 w-5" aria-hidden="true" />}
+    {checked ? <Check className="h-8 w-8 -rotate-6 stroke-[5]" aria-hidden="true" /> : <span className="h-8 w-8" aria-hidden="true" />}
   </button>
 );
 
