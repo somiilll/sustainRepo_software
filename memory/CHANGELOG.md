@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Upload Control Label
+- Renamed the OCR upload-control label from **Browse files** to **Upload Files** without changing behavior.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Edit Form Order and Green Selection
 - Removed NAICS code and NAICS commodity from the OCR edit UI. Reordered its first rows to: Facility/Reporting Period; Calculation Method/Scope; Category/Subcategory; Item Description/Factor Database; then invoice/vendor and remaining inputs.
 - Selected review rows now receive an emerald highlight and show a simple green tick without the prior checkbox frame.

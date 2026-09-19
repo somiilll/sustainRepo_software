@@ -57,7 +57,7 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
             data-testid="ocr-browse-files-button"
           >
             <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-            Browse files
+            Upload Files
           </Button>
           <Button
             type="button"

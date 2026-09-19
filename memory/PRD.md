@@ -654,6 +654,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **OCR upload control label — latest:** Renamed the OCR file-picker action to **Upload Files**. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR edit form order and green selection — latest:** Removed NAICS fields from OCR edit UI and reordered classification controls into the requested Facility/Reporting, Method/Scope, Category/Subcategory, and Item Description/Factor Database rows. Selected ledger rows use an emerald highlight and frameless green tick. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR header and default selection cleanup — latest:** Removed Export CSV, matched the compact Fast/Think selector width to Clear workspace, changed Fast to a lightning icon, and retained the **All** source selector as the default after extraction completes. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR source file row selector — latest:** Source documents now start with an **All** selector, followed by one compact file selector per invoice or Excel workbook. All combines every extracted row; choosing a source limits review to that file without invoice-number grouping. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
