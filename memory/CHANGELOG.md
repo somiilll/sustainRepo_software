@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Scope 1/2 Calculation Method Hidden
+- Calculation method now renders only for Scope 3 in the OCR edit dialog. Scope 1/2 show Scope across the full row instead.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Scope 1/2 Calculation Method Optional
 - Scope 1 and Scope 2 edit flows now use the internal Activity factor path without requiring Calculation method; Scope 3 retains method selection and validation.
 - Scope changes into Scope 1/2 reset the internal method to Activity, preventing hidden spend-method state from affecting factor lookup or required-field feedback.

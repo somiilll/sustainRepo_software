@@ -442,14 +442,14 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             </div>
           </div>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-method-scope-row">
-            <div className="space-y-2">
-              <Label>Calculation method {values.scope !== 'scope3' && <span className="font-normal text-slate-500">(Scope 3 only)</span>}</Label>
+            {values.scope === 'scope3' && <div className="space-y-2">
+              <Label>Calculation method</Label>
               <Select value={values.ef_method || 'activity'} onValueChange={changeMethod} disabled={values.scope !== 'scope3'}>
                 <SelectTrigger data-testid="ocr-edit-method-select"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="activity" data-testid="ocr-edit-method-activity">Activity</SelectItem><SelectItem value="spend" data-testid="ocr-edit-method-spend">Spend</SelectItem><SelectItem value="supplier" data-testid="ocr-edit-method-supplier">Supplier</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
+            </div>}
+            <div className={`space-y-2 ${values.scope !== 'scope3' ? 'sm:col-span-2' : ''}`}>
               <Label>Scope</Label>
               <Select value={values.scope} onValueChange={changeScope}>
                 <SelectTrigger data-testid="ocr-edit-scope-select"><SelectValue /></SelectTrigger>
