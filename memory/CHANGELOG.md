@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Facility Review Warning Cleanup
+- Saving a valid facility now removes only the stale `missing facility` review reason from that row’s current values.
+- Unrelated review warnings remain intact, so a corrected facility no longer displays `Review: missing facility` after save.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Scope 1/2 Calculation Method Hidden
 - Calculation method now renders only for Scope 3 in the OCR edit dialog. Scope 1/2 show Scope across the full row instead.
 - **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.

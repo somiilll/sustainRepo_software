@@ -1387,6 +1387,17 @@ async def edit_line_item(
         if not facility:
             raise HTTPException(status_code=422, detail="Choose an active facility from your organization.")
         submitted["location"] = facility.get("name", "")
+        previous_review_reasons = list(current_values.get("low_confidence_fields") or [])
+        remaining_review_reasons = [
+            reason for reason in previous_review_reasons
+            if str(reason).strip().lower() != "missing facility"
+        ]
+        if remaining_review_reasons != previous_review_reasons:
+            edit_changes["low_confidence_fields"] = {
+                "old": previous_review_reasons,
+                "new": remaining_review_reasons,
+            }
+            current_values["low_confidence_fields"] = remaining_review_reasons
     if submitted.get("factor_id"):
         candidate = {**current_values, **{key: value for key, value in submitted.items() if value is not None}}
         candidate_facility = None

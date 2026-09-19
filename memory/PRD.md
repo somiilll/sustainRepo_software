@@ -654,6 +654,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **NOT TESTED** per the user’s explicit instruction.
 
 ## Current Priorities
+- **OCR facility review warning cleanup — latest:** Saving a valid facility removes only the stale `missing facility` review reason from that row while retaining unrelated warnings, so the ledger no longer shows `Review: missing facility` after correction. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR Scope 1/2 calculation method hidden — latest:** The Calculation method field now renders only for Scope 3. Scope 1/2 edit dialogs show Scope across the full row. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR Scope 1/2 calculation method optional — latest:** Scope 1 and Scope 2 OCR edit flows no longer require Calculation method; they use the internal Activity factor path while Scope 3 retains method selection and validation. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
 - **OCR tick styling full revert — latest:** Restored original selection checkboxes and original Accept/Save buttons in desktop and mobile review actions; all custom bright-green tick styling is removed. **NOT RUNTIME-TESTED** per the user’s explicit instruction; source-reviewed only.
