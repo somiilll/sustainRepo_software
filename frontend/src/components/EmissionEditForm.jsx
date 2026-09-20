@@ -798,7 +798,8 @@ export default function EmissionEditForm(props) {
                                   disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
                                   testId="scope3-activity-select"
                                   menuAlign="end"
-                                  menuClassName="w-[min(34rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]"
+                                  menuClassName="max-w-[calc(100vw-2rem)]"
+                                  autoSizeMenuToOptions
                                   wrapOptionLabels
                                   searchMatchMode="word-prefix"
                                 />

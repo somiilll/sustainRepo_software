@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — Adaptive Scope 3 Activity Menu Width
+- Replaced the fixed 34rem Scope 3 Activity dropdown width with a shared, measured behavior in Add and Edit. Menus retain the trigger width when all current activity labels fit, otherwise they expand only by the measured space required for the longest label, check icon, gap, and padding.
+- Menus continue to grow from the right-aligned trigger toward the left, never exceed 34rem or the mobile viewport safe width, and wrap only labels that cannot fit within that cap. Selection data, search behavior, and emission payloads are unchanged.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — C4/C9 Manual Distance Label Fix
 - Corrected the frontend category matcher to recognize the canonical manual-entry codes for C4 and C9, so their `km_travelled` field now displays **Distance Travelled** instead of **Distance Travelled per Day** in Add and Edit.
 - Kept the change display-only; calculation variables, formulas, payloads, OCR behavior, and stored emission values are unchanged. Generated placeholders now use the same resolved label.

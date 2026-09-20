@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Scope 3 Activity menus now use measured, adaptive dropdown widths in both Add and Edit: short activity lists retain the control width, while long labels expand the right-aligned menu only as far as required (up to the viewport-safe 34rem cap). **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - C6 Business Travel multi-trip entry: the Create form now supports multiple independently detailed trips for each monthly or yearly period. Every trip owns its dynamic inputs, route, air-travel airport details, and evidence attachments; completed trips are calculated and saved as individual emission records in one rollback-protected submission batch. Existing C6 Edit remains one record/trip at a time. **NOT TESTED** per the user’s explicit instruction; implementation was source-reviewed only.
 - Added Scope 3 Bulk Upload currency-method inference: spend-only rows use Standard Currency Conversion, while supplied PPP/Inflation values select PPP and Inflation Rate and remain overrides.
 - Aligned Scope 1 Bulk Upload Carbon Content, Oxidation Factor, and Quantity Basis EF persistence with manual entry by removing incorrect `is_override` metadata while preserving genuine override fields.

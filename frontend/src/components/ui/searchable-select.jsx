@@ -31,9 +31,12 @@ export const SearchableSelect = ({
   menuAlign = 'start',
   wrapOptionLabels = false,
   searchMatchMode,
+  autoSizeMenuToOptions = false,
 }) => {
   const [open, setOpen] = React.useState(false);
   const [searchText, setSearchText] = React.useState('');
+  const [autoMenuWidth, setAutoMenuWidth] = React.useState(null);
+  const triggerRef = React.useRef(null);
   const selectedOption = options.find((option) => option.value === value);
   const usesWordPrefixSearch = searchMatchMode === 'word-prefix';
 
@@ -70,11 +73,51 @@ export const SearchableSelect = ({
       .map(({ option }) => option);
   }, [options, searchText, usesWordPrefixSearch]);
 
+  React.useLayoutEffect(() => {
+    if (!open || !autoSizeMenuToOptions || !triggerRef.current) {
+      setAutoMenuWidth(null);
+      return undefined;
+    }
+
+    const syncMenuWidth = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+
+      const triggerWidth = trigger.getBoundingClientRect().width;
+      const maxWidth = Math.min(544, Math.max(triggerWidth, window.innerWidth - 32));
+      const computedStyle = window.getComputedStyle(trigger);
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context) return;
+
+      context.font = [
+        computedStyle.fontStyle,
+        computedStyle.fontVariant,
+        computedStyle.fontWeight,
+        computedStyle.fontSize,
+        computedStyle.fontFamily,
+      ].filter(Boolean).join(' ');
+
+      const longestOptionWidth = options.reduce(
+        (largestWidth, option) => Math.max(largestWidth, context.measureText(option.label || '').width),
+        0,
+      );
+      // Command item padding, selection icon, gap, and group padding.
+      const requiredWidth = Math.ceil(longestOptionWidth + 56);
+      setAutoMenuWidth(requiredWidth > triggerWidth ? Math.min(requiredWidth, maxWidth) : null);
+    };
+
+    syncMenuWidth();
+    window.addEventListener('resize', syncMenuWidth);
+    return () => window.removeEventListener('resize', syncMenuWidth);
+  }, [autoSizeMenuToOptions, open, options]);
+
   return (
     <div className="min-w-0">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
+            ref={triggerRef}
             type="button"
             disabled={disabled}
             className={cn(
@@ -95,6 +138,7 @@ export const SearchableSelect = ({
             'w-[var(--radix-popover-trigger-width)] min-w-[15rem] max-h-[min(22rem,calc(100vh-2rem))] overflow-hidden bg-white p-0 opacity-100',
             menuClassName,
           )}
+          style={autoMenuWidth ? { width: `${autoMenuWidth}px` } : undefined}
           data-testid={`${testId}-menu`}
         >
           <Command
