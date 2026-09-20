@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — C6 Bulk Upload Travel-Day Exclusion
+- Removed **No. of Days Travelled** from the C6 Business Travel workbook schema. Legacy C6 workbook values under either the template or formula key are stripped before validation, calculation, and persistence.
+- C6 no longer includes `qty_days_travelled` in calculation inputs or saved `dynamic_field_values`; C7 keeps its existing travel-day support. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — Adaptive Scope 3 Activity Menu Width
 - Replaced the fixed 34rem Scope 3 Activity dropdown width with a shared, measured behavior in Add and Edit. Menus retain the trigger width when all current activity labels fit, otherwise they expand only by the measured space required for the longest label, check icon, gap, and padding.
 - Menus continue to grow from the right-aligned trigger toward the left, never exceed 34rem or the mobile viewport safe width, and wrap only labels that cannot fit within that cap. Selection data, search behavior, and emission payloads are unchanged.

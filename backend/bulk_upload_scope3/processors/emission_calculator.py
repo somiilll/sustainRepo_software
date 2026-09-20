@@ -599,6 +599,7 @@ class EmissionCalculator:
         # Build calc_engine inputs based on method and formula requirements
         # Map method to correct variable names based on ce_input_field_mappings and formula definitions
         calc_inputs = self._build_calc_inputs(
+            category_code=category_code,
             method=method,
             row_data=row_data,
             converted_quantity=converted_quantity,
@@ -814,7 +815,7 @@ class EmissionCalculator:
         
         return 0.0, None
     
-    def _build_calc_inputs(self, method: CalculationMethod, row_data: Dict,
+    def _build_calc_inputs(self, category_code: str, method: CalculationMethod, row_data: Dict,
                            converted_quantity: float, input_unit: str,
                            formula_doc: Dict, ef_data: Dict,
                            currency_conversion: Optional[Dict] = None,
@@ -1028,10 +1029,9 @@ class EmissionCalculator:
             
             # C6/C7 Passengers and distance (air, water, taxi, bus, rail travel)
             elif "qty_passenger" in expected_variables and "km_travelled" in expected_variables:
-                # Template columns: passengers, distance_travelled, days_travelled
+                # Template columns: passengers, distance_travelled
                 passengers_raw = row_data.get("passengers") or row_data.get("qty_passenger")
                 distance_raw = row_data.get("distance_travelled")
-                days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
                 
                 if passengers_raw is not None and passengers_raw != "":
                     calc_inputs["qty_passenger"] = {"value": float(passengers_raw), "unit": ""}
@@ -1040,23 +1040,24 @@ class EmissionCalculator:
                     km_unit = row_data.get("distance_unit") or "km"
                     calc_inputs["km_travelled"] = {"value": float(distance_raw), "unit": km_unit}
                 
-                # C6 Business Travel formulas require qty_days_travelled
-                if "qty_days_travelled" in expected_variables:
+                # C7 retains its travel-day input; C6 deliberately excludes it.
+                if category_code == "C7" and "qty_days_travelled" in expected_variables:
+                    days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
                     if days_raw is not None and days_raw != "":
                         calc_inputs["qty_days_travelled"] = {"value": float(days_raw), "unit": ""}
             
-            # C6/C7 Car/Bike travel - km only (+ days for C6)
+            # C6/C7 Car/Bike travel - km only
             elif "km_travelled" in expected_variables and "qty_passenger" not in expected_variables and "qty_travelled" not in expected_variables:
-                # Template columns: distance_travelled, days_travelled
+                # Template column: distance_travelled
                 distance_raw = row_data.get("distance_travelled")
-                days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
                 
                 if distance_raw is not None and distance_raw != "":
                     km_unit = row_data.get("distance_unit") or "km"
                     calc_inputs["km_travelled"] = {"value": float(distance_raw), "unit": km_unit}
                 
-                # C6 Business Travel formulas require qty_days_travelled
-                if "qty_days_travelled" in expected_variables:
+                # C7 retains its travel-day input; C6 deliberately excludes it.
+                if category_code == "C7" and "qty_days_travelled" in expected_variables:
+                    days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
                     if days_raw is not None and days_raw != "":
                         calc_inputs["qty_days_travelled"] = {"value": float(days_raw), "unit": ""}
             
@@ -1220,7 +1221,7 @@ class EmissionCalculator:
                     "unit": row_data.get("distance_unit", "km")
                 }
             
-            # C6/C7 with passengers: qty_passenger + km_travelled + qty_days_travelled (C6)
+            # C6/C7 with passengers: qty_passenger + km_travelled
             elif row_data.get("passengers") and row_data.get("distance_travelled"):
                 dynamic_field_values["qty_passenger"] = {
                     "value": float(row_data.get("passengers")),
@@ -1230,21 +1231,21 @@ class EmissionCalculator:
                     "value": float(row_data.get("distance_travelled")),
                     "unit": row_data.get("distance_unit", "km")
                 }
-                # C6 Business Travel requires qty_days_travelled
-                if row_data.get("days_travelled"):
+                # Travel days remain a C7-only bulk field.
+                if category_code == "C7" and row_data.get("days_travelled"):
                     dynamic_field_values["qty_days_travelled"] = {
                         "value": float(row_data.get("days_travelled")),
                         "unit": ""
                     }
             
-            # C6/C7 Car/Bike: km_travelled + qty_days_travelled (C6)
+            # C6/C7 Car/Bike: km_travelled
             elif row_data.get("distance_travelled") and not row_data.get("passengers") and not row_data.get("quantity_goods"):
                 dynamic_field_values["km_travelled"] = {
                     "value": float(row_data.get("distance_travelled")),
                     "unit": row_data.get("distance_unit", "km")
                 }
-                # C6 Business Travel requires qty_days_travelled
-                if row_data.get("days_travelled"):
+                # Travel days remain a C7-only bulk field.
+                if category_code == "C7" and row_data.get("days_travelled"):
                     dynamic_field_values["qty_days_travelled"] = {
                         "value": float(row_data.get("days_travelled")),
                         "unit": ""

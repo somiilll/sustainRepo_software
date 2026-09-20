@@ -62,6 +62,12 @@ class RowProcessor:
         """
         config = CATEGORY_COLUMNS.get(category_code, {})
         sheet_name = config.get("sheet_name", category_code)
+
+        # C6 no longer accepts travel-day input. Drop values from legacy
+        # workbooks before any validation, calculation, or record building.
+        if category_code == "C6":
+            row_data.pop("days_travelled", None)
+            row_data.pop("qty_days_travelled", None)
         
         errors: List[ValidationError] = []
         warnings: List[ValidationError] = []
@@ -259,7 +265,6 @@ class RowProcessor:
             ("supplier_quantity", "Supplier Quantity"),
             ("supplier_ef", "Supplier Emission Factor"),
             ("passengers", "Passengers"),
-            ("days_travelled", "No. of Days Travelled"),  # C6 Business Travel
             ("rooms", "Rooms"),
             ("nights", "Nights"),
             ("working_days", "Working Days"),
@@ -271,6 +276,8 @@ class RowProcessor:
             ("units_produced", "No. of products Manufactured"),
             ("products_expected_usage", "Lifetime Expected Usage of the product"),
         ]
+        if category_code == "C7":
+            numeric_fields.append(("days_travelled", "No. of Days Travelled"))
         
         for field_key, field_name in numeric_fields:
             if row_data.get(field_key):
@@ -387,7 +394,12 @@ class RowProcessor:
                 
                 if formula:
                     formula_validation = self.formula_validator.validate_formula_inputs(
-                        row_data, formula, method, row_num, sheet_name
+                        row_data,
+                        formula,
+                        method,
+                        row_num,
+                        sheet_name,
+                        ignored_input_variables={"qty_days_travelled"} if category_code == "C6" else None,
                     )
                     
                     if not formula_validation.valid:
