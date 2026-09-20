@@ -294,12 +294,28 @@ const isMappingApplicable = ({
   return true;
 };
 
-const toField = (m, { isQtyBasis, quantityUnits }) => {
+const C4_C9_CATEGORY_CODES = new Set([
+  'upstream_transportation_distribution',
+  'downstream_transportation_and_distribution',
+]);
+
+const resolveCategoryDisplayLabel = (mapping, categoryIdentity) => {
+  const normalizedCategory = String(categoryIdentity || '').trim().toLowerCase();
+  const isTransportCategory = C4_C9_CATEGORY_CODES.has(normalizedCategory)
+    || /^(?:c[49]|cat_[49])(?:\b|_)/i.test(normalizedCategory);
+  if (isTransportCategory && mapping.maps_to_variable === 'km_travelled') {
+    return 'Distance Travelled';
+  }
+  return mapping.field_label;
+};
+
+const toField = (m, { isQtyBasis, quantityUnits, categoryCode }) => {
+  const displayLabel = resolveCategoryDisplayLabel(m, categoryCode);
   const field = {
     id: m.id,
     variable: m.maps_to_variable,
     fieldKey: m.field_key,
-    label: m.field_label,
+    label: displayLabel,
     expectedUnit: m.default_unit,
     required: m.is_required,
     isOverride: m.is_override || false,
@@ -307,7 +323,7 @@ const toField = (m, { isQtyBasis, quantityUnits }) => {
     allowedUnits: m.allowed_units || [],
     unitSource: m.unit_source || 'static',
     compoundWithVariable: m.compound_with_variable || null,
-    placeholder: m.placeholder || `Enter ${m.field_label}`,
+    placeholder: m.placeholder || `Enter ${displayLabel}`,
     helpText: m.help_text || '',
     mapsToContext: m.maps_to_context,
     mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
@@ -446,7 +462,11 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
     ? context.selectedFuel.allowed_units
     : quantityMapping?.allowed_units || [quantityMapping?.default_unit].filter(Boolean);
 
-  const calculationFields = applicableMappings.map((m) => toField(m, { isQtyBasis, quantityUnits }));
+  const calculationFields = applicableMappings.map((m) => toField(m, {
+    isQtyBasis,
+    quantityUnits,
+    categoryCode: context.categoryDefinition?.code,
+  }));
   const c8FloorAreaShareInput = context.categoryDefinition?.code === 'c8'
     && context.allocationMethod === 'floor_area_share'
     ? matchedFormula?.inputs?.find(isFloorAreaShareField)

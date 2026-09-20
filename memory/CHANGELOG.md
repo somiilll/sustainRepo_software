@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — C4/C9 Manual Distance Label Fix
+- Corrected the frontend category matcher to recognize the canonical manual-entry codes for C4 and C9, so their `km_travelled` field now displays **Distance Travelled** instead of **Distance Travelled per Day** in Add and Edit.
+- Kept the change display-only; calculation variables, formulas, payloads, OCR behavior, and stored emission values are unchanged. Generated placeholders now use the same resolved label.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Formula Inputs Hidden by Scope/Category
 - Frontend-only visibility rule: formula-derived edit inputs are hidden for Scope 1, Scope 2, and Scope 3 categories C1, C2, C3, and C5.
 - Hidden formula inputs no longer prevent edit-form save readiness; other Scope 3 categories retain their applicable inputs.
