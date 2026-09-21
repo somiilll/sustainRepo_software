@@ -2,6 +2,7 @@
 
 ## September 21, 2026 — Scope 3 Grid Power Label
 - Changed the shared Scope 3 Subcategory display label from **Energy** to **Grid Power** for C8, C10, C11, C13, and C14. The stored `energy` value, factor matching, calculations, decision trees, and historical records are unchanged.
+- Aligned Super Admin Scope 3 EF presentation: the table, factor details, and editor display **Grid Power** while continuing to save `energy`.
 - **SOURCE-REVIEWED ONLY; NO FUNCTIONAL ADD/EDIT TESTING** per the user’s instruction.
 
 ## September 21, 2026 — Emissions Reset Widths Placement
