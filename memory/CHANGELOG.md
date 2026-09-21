@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — C4/C9 Mapping Label Authority
+- Removed the C4/C9 frontend exception that changed the `km_travelled` mapped label to **Distance Travelled**. The shared GHG field resolver now uses `ce_input_field_mappings.field_label` directly for all categories, so a configured **Distance Travelled per day** label remains intact in both Add and Edit.
+- **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+
 ## September 21, 2026 — Staging Connection Cleanup
 - Removed the temporary staging MongoDB URI and database-name settings from `backend/.env` after the approved migration/reset work.
 - Removed the target-specific bootstrap/reset utilities and restored the C3 migration to its standard local environment behavior. The retained generic catalog migration has no embedded staging URI or database name; it accepts target values only at runtime.

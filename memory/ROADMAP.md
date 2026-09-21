@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- C4/C9 now honor the configured calculation-field label for `km_travelled`; the category-specific **Distance Travelled** override was removed. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Approved staging GHG reset: emissions, GHG histories, pending GHG approvals, calculation audits, Scope 3 upload traces, Base Year data/history, and GHG supplier submissions are cleared from staging under a restorable backup manifest. R2 objects and `uploaded_files` metadata intentionally remain untouched; organization, facility, supplier, benchmarking, target, sink, and ESG records are preserved. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Staging calculation catalog baseline: current formulas were already version-linked; the missing decision-tree version snapshots and formula-version maps are now present. The 32-factor C3 Activity Type classification was also applied to staging. Existing GHG records and their histories were left untouched. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - C3 Add/Edit now uses canonical **Fuel**, **Electricity**, and **Steam** Activity Type filtering. A backed-up data migration classified 32 non-biogenic C3 factors in `scope3_ef`; legacy emission records and calculation history remain unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s explicit instruction.

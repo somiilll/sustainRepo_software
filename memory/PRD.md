@@ -34,6 +34,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Preserve source values while normalizing valid reverse unit conversions before calculations reach the frozen engine.
 - Scope 3 Activity menus retain a viewport-safe adaptive width for readable selection.
 - Scope 3 Category 3 requires a canonical Activity Type of **Fuel**, **Electricity**, or **Steam** before Activity selection; the type limits visible C3 factors without changing calculations or historical emission records.
+- C4 and C9 calculation-field labels are configuration-driven; the UI must not override a mapped variable label based on category.
 
 ### GHG Period Row Allowance
 - `entitlements.environment.ghg.monthly_rows_allowed` is an organization-wide allowance per distinct monthly period.
@@ -102,6 +103,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - The approved staging MongoDB-only GHG reset removed 7,070 emissions, history, pending approval, calculation audit, Scope 3 bulk-upload, supplier-GHG, and Base Year records/traces. The backup is `/app/.emergent/backups/staging-ghg-reset-20260921T065543Z`. Organizations, facilities, users, supplier accounts/relationships/programs, peer benchmarking, targets, sinks, ESG records, `uploaded_files`, and all R2 objects were preserved.
 - `CORS_ORIGINS` explicitly includes the approved staging frontend origin and the hosted release origin. No wildcard origin is enabled.
 - The temporary staging MongoDB URI, database-name configuration, and target-specific reset/bootstrap utilities were removed after the completed staging work. The retained generic catalog migration accepts target connection values only from runtime environment variables and contains no staging URI or database name.
+- Removed the C4/C9 `km_travelled` frontend label override. Add and Edit now use `ce_input_field_mappings.field_label` directly, including a configured **Distance Travelled per day** label.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.

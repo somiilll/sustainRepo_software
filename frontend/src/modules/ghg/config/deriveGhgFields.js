@@ -294,23 +294,8 @@ const isMappingApplicable = ({
   return true;
 };
 
-const C4_C9_CATEGORY_CODES = new Set([
-  'upstream_transportation_distribution',
-  'downstream_transportation_and_distribution',
-]);
-
-const resolveCategoryDisplayLabel = (mapping, categoryIdentity) => {
-  const normalizedCategory = String(categoryIdentity || '').trim().toLowerCase();
-  const isTransportCategory = C4_C9_CATEGORY_CODES.has(normalizedCategory)
-    || /^(?:c[49]|cat_[49])(?:\b|_)/i.test(normalizedCategory);
-  if (isTransportCategory && mapping.maps_to_variable === 'km_travelled') {
-    return 'Distance Travelled';
-  }
-  return mapping.field_label;
-};
-
-const toField = (m, { isQtyBasis, quantityUnits, categoryCode }) => {
-  const displayLabel = resolveCategoryDisplayLabel(m, categoryCode);
+const toField = (m, { isQtyBasis, quantityUnits }) => {
+  const displayLabel = m.field_label;
   const field = {
     id: m.id,
     variable: m.maps_to_variable,
@@ -465,7 +450,6 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
   const calculationFields = applicableMappings.map((m) => toField(m, {
     isQtyBasis,
     quantityUnits,
-    categoryCode: context.categoryDefinition?.code,
   }));
   const c8FloorAreaShareInput = context.categoryDefinition?.code === 'c8'
     && context.allocationMethod === 'floor_area_share'
