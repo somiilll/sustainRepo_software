@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Expanded OCR History into a wide file-and-row audit view. Non-cancelled files show extracted item, scope, category, subcategory, reporting period, and per-row Saved/Rejected/Pending Review outcome; resolved rows are retained as safe snapshots for future audits. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR History now records uploader names from user `full_name` for new uploads and backfills legacy display names from stored uploader IDs. It labels file outcomes as Saved, Partially Saved, Rejected All, Event Cancelled, and Error, with Processing/Pending Review retained for open work. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Added OCR History at the OCR Extraction page header. It lists each organization file upload with filename, uploader, timestamp, and status; workspace cleanup now preserves this safe metadata while removing source files and OCR review rows. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - The Emissions Reset widths control is now visible only when at least one column differs from its responsive default width; restoring defaults hides it again. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

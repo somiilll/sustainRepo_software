@@ -117,6 +117,20 @@ def _client_safe_upload(upload: dict) -> dict:
     }
 
 
+def _history_line_item(item: dict, outcome: str) -> dict:
+    values = item.get("current_values") or {}
+    row_status = {"saved": "Saved", "rejected": "Rejected"}.get(outcome, "Pending Review")
+    return {
+        "id": item.get("id"),
+        "item_description": values.get("item_description") or values.get("fuel_name") or item.get("filename") or "Untitled item",
+        "scope": values.get("scope") or "",
+        "category": values.get("category") or "",
+        "subcategory": values.get("subcategory") or "",
+        "reporting_period": values.get("reporting_period") or values.get("billing_period_start") or values.get("billing_period_end") or "",
+        "status": row_status,
+    }
+
+
 def _is_spreadsheet_ocr_item(item: dict) -> bool:
     return os.path.splitext(str(item.get("filename") or ""))[1].lower() in SPREADSHEET_EXTENSIONS
 
@@ -364,6 +378,7 @@ async def _resolve_ocr_line_item(item: dict, outcome: str) -> dict:
     })
     now = datetime.now(timezone.utc).isoformat()
     counter_field = "saved_count" if outcome == "saved" else "rejected_count"
+    history_row = _history_line_item(item, outcome)
     await db[OCR_UPLOADS_COLLECTION].update_one(
         {"id": upload_id, "organization_id": org_id},
         {
@@ -371,6 +386,7 @@ async def _resolve_ocr_line_item(item: dict, outcome: str) -> dict:
                 "files.$[file].resolved_count": 1,
                 f"files.$[file].{counter_field}": 1,
             },
+            "$push": {"files.$[file].history_rows": history_row},
             "$set": {
                 "files.$[file].last_resolved_at": now,
                 "updated_at": now,
@@ -859,6 +875,15 @@ async def list_upload_history(
         user["id"]: user.get("full_name") or user.get("email") or "Unknown"
         for user in users if user.get("id")
     }
+    upload_ids = [upload.get("id") for upload in uploads if upload.get("id")]
+    active_items = await db[OCR_LINE_ITEMS_COLLECTION].find(
+        {"organization_id": org_id, "upload_id": {"$in": upload_ids}},
+        {"_id": 0, "id": 1, "upload_id": 1, "file_index": 1, "filename": 1, "current_values": 1},
+    ).sort("created_at", 1).to_list(5000) if upload_ids else []
+    active_rows_by_file = {}
+    for item in active_items:
+        file_key = f"{item.get('upload_id')}-{item.get('file_index', 0)}"
+        active_rows_by_file.setdefault(file_key, []).append(_history_line_item(item, "pending"))
     history = []
     for upload in uploads:
         for file in upload.get("files", []):
@@ -891,6 +916,10 @@ async def list_upload_history(
                 "uploaded_at": upload.get("created_at"),
                 "status": file_status,
                 "mode": upload.get("mode"),
+                "rows": [
+                    *[row for row in file.get("history_rows", []) if isinstance(row, dict)],
+                    *active_rows_by_file.get(f"{upload.get('id')}-{file.get('file_index', 0)}", []),
+                ],
             })
     return {"history": history}
 
