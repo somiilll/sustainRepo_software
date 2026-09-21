@@ -19,6 +19,7 @@ from calc_engine.versioning import (
     resolve_formula_version_for_tree,
 )
 from .activity_inputs import hydrate_formula_activity_inputs
+from .normalization import canonicalize_calc_engine_unit
 
 
 SCOPE3_METHODS = {
@@ -143,7 +144,7 @@ def build_formula_inputs(formula: dict, values: dict) -> dict:
         if isinstance(explicit_value, dict) and _number(explicit_value.get("value")) is not None:
             payload = {
                 "value": _number(explicit_value.get("value")),
-                "unit": explicit_value.get("unit") or declaration.get("expected_unit") or "",
+                "unit": canonicalize_calc_engine_unit(explicit_value.get("unit") or declaration.get("expected_unit") or ""),
             }
         elif "spent" in lowered or "cost" in lowered or "monetary" in lowered:
             if cost is not None:
@@ -153,9 +154,9 @@ def build_formula_inputs(formula: dict, values: dict) -> dict:
                 payload = {"value": distance, "unit": "km"}
         elif any(token in lowered for token in ("activity", "quantity", "qty", "consumption", "energy", "volume", "mass")):
             if quantity is not None:
-                payload = {"value": quantity, "unit": values.get("unit") or declaration.get("expected_unit") or ""}
+                payload = {"value": quantity, "unit": canonicalize_calc_engine_unit(values.get("unit") or declaration.get("expected_unit") or "")}
         elif _number(values.get(variable)) is not None:
-            payload = {"value": _number(values[variable]), "unit": values.get(f"{variable}_unit") or declaration.get("expected_unit") or ""}
+            payload = {"value": _number(values[variable]), "unit": canonicalize_calc_engine_unit(values.get(f"{variable}_unit") or declaration.get("expected_unit") or "")}
         if payload is not None:
             inputs[variable] = payload
         elif declaration.get("required", True):

@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .normalization import canonicalize_calc_engine_unit
 from .taxonomy_service import infer_scope3_activity_type
 
 
@@ -67,10 +68,11 @@ def matches_industry_sector(record: dict, industry_sector: str) -> bool:
 
 
 def _units(record: dict) -> list[str]:
-    values = [str(unit) for unit in (record.get("allowed_units") or []) if str(unit).strip()]
+    values = [canonicalize_calc_engine_unit(unit) for unit in (record.get("allowed_units") or []) if str(unit).strip()]
     default = record.get("default_unit")
-    if default and str(default) not in values:
-        values.append(str(default))
+    canonical_default = canonicalize_calc_engine_unit(default)
+    if canonical_default and canonical_default not in values:
+        values.append(canonical_default)
     return list(dict.fromkeys(values))
 
 
@@ -252,21 +254,25 @@ async def validate_factor_selection(
     if structured_scope3_activity:
         validate_structured_activity_units(dynamic_field_values)
         selected["selected_input_field"] = input_field
-        selected["selected_input_value"] = input_value or ""
+        selected["selected_input_value"] = (
+            canonicalize_calc_engine_unit(input_value)
+            if input_field == "unit" else input_value or ""
+        )
         return selected
     if not allowed_units:
         raise ValueError(f"No allowed {'currencies' if input_field == 'currency' else 'quantity units'} are configured for '{selected['label']}'")
     if not input_value:
         raise ValueError(f"Select a {'currency' if input_field == 'currency' else 'quantity unit'} for the chosen factor")
-    matched_value = next((value for value in allowed_units if value == input_value), None)
+    canonical_input = canonicalize_calc_engine_unit(input_value)
+    matched_value = next((value for value in allowed_units if value == canonical_input), None)
     if matched_value is None:
         for value in allowed_units:
             aliases = selected.get("unit_aliases", {}).get(value, [value])
-            if any(normalize_option(alias) == normalize_option(input_value) for alias in aliases):
+            if any(normalize_option(alias) == normalize_option(input_value) for alias in aliases) or canonicalize_calc_engine_unit(value) == canonical_input:
                 matched_value = value
                 break
     if matched_value is None:
         raise ValueError(f"{'Currency' if input_field == 'currency' else 'Unit'} '{input_value}' is not allowed for '{selected['label']}'")
     selected["selected_input_field"] = input_field
-    selected["selected_input_value"] = matched_value or input_value
+    selected["selected_input_value"] = canonicalize_calc_engine_unit(matched_value or input_value)
     return selected

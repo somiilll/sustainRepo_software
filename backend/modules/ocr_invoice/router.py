@@ -25,6 +25,7 @@ from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
 from .config import MAX_FILES_PER_BATCH, MODES, OCR_SAVE_SCOPE_RULES, get_mode
 from .factor_options import is_structured_scope3_activity, normalize_method, normalize_option, resolve_factor_options, validate_factor_selection
 from .ghg_save_service import execute_ocr_calculation, resolve_ghg_category
+from .normalization import canonicalize_calculation_units, canonicalize_calc_engine_unit
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit, UploadFacilityAssignments
 from .service import build_org_context, process_queued_upload, queue_upload_batch, save_vendor_override
 from .template_service import generate_ocr_template
@@ -1387,6 +1388,7 @@ async def edit_line_item(
     edit_changes = {}
     
     submitted = edit_data.model_dump(exclude_unset=True)
+    submitted = canonicalize_calculation_units(submitted)
     remember_override = submitted.pop("remember_override", False)
     if submitted.get("facility_id"):
         facility = await db.facilities.find_one(
@@ -1455,7 +1457,7 @@ async def edit_line_item(
         })
         if selected_factor.get("activity_type"):
             submitted["scope3_activity_type"] = selected_factor["activity_type"]
-        submitted[selected_factor["selected_input_field"]] = selected_factor["selected_input_value"]
+        submitted[selected_factor["selected_input_field"]] = canonicalize_calc_engine_unit(selected_factor["selected_input_value"])
     for field, value in submitted.items():
         if value is not None:
             old_value = current_values.get(field)
@@ -1524,7 +1526,7 @@ async def accept_line_item(
     if item.get("status") == "imported":
         raise HTTPException(status_code=400, detail="Line item already imported")
     
-    current_values = item.get("current_values", {})
+    current_values = canonicalize_calculation_units(item.get("current_values", {}))
     
     # Build accepted values (snapshot at time of acceptance)
     accepted_values = {
@@ -1654,7 +1656,7 @@ async def save_line_item_to_ghg(
         raise HTTPException(status_code=404, detail="Line item not found")
     if item.get("status") == "imported":
         raise HTTPException(status_code=409, detail="This OCR row has already been saved to GHG records")
-    values = dict(item.get("current_values") or {})
+    values = canonicalize_calculation_units(item.get("current_values") or {})
     if values.get("scope") not in {"scope1", "scope2", "scope3"}:
         raise HTTPException(status_code=400, detail="Only Scope 1, Scope 2, and Scope 3 OCR rows can be saved directly to GHG records")
     if not OCR_SAVE_SCOPE_RULES.get(values["scope"], {}).get("enabled"):

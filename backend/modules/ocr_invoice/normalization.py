@@ -166,6 +166,36 @@ def normalize_currency(value: Any) -> str:
     return code if len(code) == 3 else "INR"
 
 
+def canonicalize_calc_engine_unit(value: Any) -> str:
+    """Return the Calc Engine symbol for common mass and volume aliases."""
+    raw = str(value or "").strip()
+    if not raw:
+        return raw
+    key = raw.lower().replace(" ", "")
+    aliases = {
+        "ton": "t", "tons": "t", "tonne": "t", "tonnes": "t", "mt": "t",
+        "metricton": "t", "metrictons": "t", "metrictonne": "t", "metrictonnes": "t",
+        "l": "L", "ltr": "L", "ltrs": "L", "litre": "L", "litres": "L",
+        "liter": "L", "liters": "L",
+    }
+    return aliases.get(key, raw)
+
+
+def canonicalize_calculation_units(values: dict) -> dict:
+    """Normalize main and dynamic activity units before they enter Calc Engine."""
+    normalized = dict(values or {})
+    if "unit" in normalized:
+        normalized["unit"] = canonicalize_calc_engine_unit(normalized.get("unit"))
+    dynamic_values = normalized.get("dynamic_field_values")
+    if isinstance(dynamic_values, dict):
+        normalized["dynamic_field_values"] = {
+            key: {**value, "unit": canonicalize_calc_engine_unit(value.get("unit"))}
+            if isinstance(value, dict) else value
+            for key, value in dynamic_values.items()
+        }
+    return normalized
+
+
 def normalize_unit(value: Any, category: str = "") -> str | None:
     raw = str(value or "").strip()
     if not raw or raw.lower() in {"none", "null", "undefined", "n/a", "-", "—"}:
@@ -175,10 +205,10 @@ def normalize_unit(value: Any, category: str = "") -> str | None:
         return "kWh"
     units = {
         "kg": "kg", "kgs": "kg", "kilogram": "kg", "kilograms": "kg",
-        "g": "g", "gm": "g", "gms": "g", "gram": "g", "grams": "g", "ton": "tonnes", "tons": "tonnes",
-        "tonne": "tonnes", "tonnes": "tonnes", "mt": "tonnes", "l": "Liters",
-        "ltr": "Liters", "ltrs": "Liters", "litre": "Liters", "litres": "Liters", "liter": "Liters",
-        "liters": "Liters", "kl": "kL", "kilolitre": "kL", "kiloliter": "kL", "kiloliters": "kL",
+        "g": "g", "gm": "g", "gms": "g", "gram": "g", "grams": "g", "ton": "t", "tons": "t",
+        "tonne": "t", "tonnes": "t", "mt": "t", "l": "L",
+        "ltr": "L", "ltrs": "L", "litre": "L", "litres": "L", "liter": "L",
+        "liters": "L", "kl": "kL", "kilolitre": "kL", "kiloliter": "kL", "kiloliters": "kL",
         "m3": "m3", "m³": "m3", "cu.m": "m3", "cum": "m3", "gal": "Gallons", "gals": "Gallons", "gallon": "Gallons", "gallons": "Gallons",
         "kwh": "kWh", "kwhr": "kWh", "kw-h": "kWh", "mwh": "MWh", "mwhr": "MWh", "mw-h": "MWh",
         "gj": "GJ", "gigajoule": "GJ", "mj": "MJ", "megajoule": "MJ", "tj": "TJ",
@@ -187,7 +217,7 @@ def normalize_unit(value: Any, category: str = "") -> str | None:
         "room_night": "room_nights", "room_nights": "room_nights", "trip": "trips", "trips": "trips",
         "passenger": "passengers", "passengers": "passengers", "pax": "passengers", "unit": "units", "units": "units",
     }
-    return units.get(key, raw)
+    return canonicalize_calc_engine_unit(units.get(key, raw))
 
 
 def convert_quantity(quantity: float | None, unit: str | None) -> tuple[float | None, str | None]:
@@ -199,7 +229,7 @@ def convert_quantity(quantity: float | None, unit: str | None) -> tuple[float | 
         return quantity, unit
     key = str(unit).strip().lower()
     if key in ("ml", "milliliter", "milliliters"):
-        return round(numeric_quantity / 1000.0, 4), "Liters"
+        return round(numeric_quantity / 1000.0, 4), "L"
     if key in ("g", "gm", "gms", "gram", "grams"):
         return round(numeric_quantity / 1000.0, 4), "kg"
     if key in ("lb", "lbs", "pound", "pounds"):
@@ -207,7 +237,7 @@ def convert_quantity(quantity: float | None, unit: str | None) -> tuple[float | 
     if key in ("oz", "ounce", "ounces"):
         return round(numeric_quantity * 0.0283495, 3), "kg"
     if key in ("gal", "gals", "gallon", "gallons", "us gal"):
-        return round(numeric_quantity * 3.78541, 2), "Liters"
+        return round(numeric_quantity * 3.78541, 2), "L"
     return quantity, unit
 
 
