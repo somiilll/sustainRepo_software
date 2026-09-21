@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EmissionFilters from './emissions/EmissionFilters';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Plus, Filter, X, Search, Cloud } from 'lucide-react';
+import { Plus, Filter, X, Search, Cloud, RotateCcw } from 'lucide-react';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { LoadErrorState } from '../components/LoadErrorState';
 import { toast } from 'sonner';
@@ -197,6 +197,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // Initial data hydrated from useEmissionsCoreData (so dropdowns work for Edit
   // dialog regardless of whether user has touched the Add form / scope tab).
   const [scope3EFData, setScope3EFData] = useState([]);
+  const emissionDataGridRef = useRef(null);
   const scope3Method = editDraft.scope3Method;
   const setScope3Method = useCallback((value) => setDraftField('scope3Method', value), [setDraftField]);
   const spendCurrencyConversionMethod = editDraft.spendCurrencyConversionMethod;
@@ -3724,7 +3725,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           setBiogenicScopeSelection('');
         }
       }} className="w-full">
-        <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(visibleScopes.length, 1)}, minmax(0, 1fr))` }}>
+        <div className="flex items-center gap-3">
+        <TabsList className="grid min-w-0 flex-1 max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(visibleScopes.length, 1)}, minmax(0, 1fr))` }}>
           {visibleScopes.map(s => {
             const isScope3 = s.code === 'scope3';
             // Check both organization-level and KPI assignment-level access
@@ -3750,10 +3752,15 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             );
           })}
         </TabsList>
+        <Button type="button" variant="ghost" size="sm" onClick={() => emissionDataGridRef.current?.resetColumnWidths()} className="h-9 shrink-0 gap-1.5 text-xs text-stone-600 hover:bg-emerald-50 hover:text-emerald-700" data-testid="emissions-reset-column-widths-button">
+          <RotateCcw className="h-3.5 w-3.5" />Reset widths
+        </Button>
+        </div>
 
         <TabsContent value={activeScope} className="mt-6">
           {/* Enterprise Data Grid Layout */}
           <EmissionDataGrid
+            ref={emissionDataGridRef}
             activeScope={activeScope}
             filteredEmissions={filteredEmissions}
             facilities={facilities}

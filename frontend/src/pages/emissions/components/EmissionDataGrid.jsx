@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, MoreHorizontal, RotateCcw } from 'lucide-react';
+import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, MoreHorizontal } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
@@ -141,7 +141,7 @@ const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, handl
   </DropdownMenu>
 );
 
-export default function EmissionDataGrid({
+const EmissionDataGrid = forwardRef(({
   activeScope,
   filteredEmissions,
   facilities,
@@ -158,7 +158,7 @@ export default function EmissionDataGrid({
   filterDateRange,
   filterCategory,
   filterFrequency,
-}) {
+}, ref) => {
   // Sorting state
   const [sort, setSort] = useState({ key: null, direction: 'desc' });
   
@@ -270,6 +270,7 @@ export default function EmissionDataGrid({
     const ledger = ledgerScrollRef.current;
     if (ledger) ledger.scrollLeft = 0;
   };
+  useImperativeHandle(ref, () => ({ resetColumnWidths }), [resetColumnWidths]);
 
   const maxHorizontalScroll = Math.max(0, ledgerScrollWidth - ledgerViewportWidth);
   const scrollbarThumbWidth = bottomScrollbarWidth
@@ -448,20 +449,6 @@ export default function EmissionDataGrid({
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Delete Selected
-          </Button>
-        </div>
-      )}
-      {Object.keys(manualColumnWidths).length > 0 && (
-        <div className="flex justify-end border-b border-stone-100 bg-white px-4 py-2" data-testid="emissions-column-width-controls">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={resetColumnWidths}
-            className="h-8 gap-1.5 text-xs text-stone-600 hover:bg-emerald-50 hover:text-emerald-700"
-            data-testid="emissions-reset-column-widths-button"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />Reset widths
           </Button>
         </div>
       )}
@@ -802,4 +789,6 @@ export default function EmissionDataGrid({
       )}
     </div>
   );
-}
+});
+
+export default EmissionDataGrid;

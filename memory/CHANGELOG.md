@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Emissions Reset Widths Placement
+- Moved **Reset widths** from the Emissions grid toolbar to the right side of the Scope tabs row. The grid exposes the same reset action through a ref, so it still clears manual column widths and returns the ledger scroll position to the start.
+- **SOURCE-REVIEWED ONLY; NO FUNCTIONAL UI TESTING** per the user’s instruction.
+
 ## September 21, 2026 — C3/C5 Bulk Activity Type Persistence
 - Aligned Bulk Upload with Manual Add/Edit and OCR: after resolving an exact Scope 3 factor, C3/C5 records now persist the matched factor’s canonical `activity_type` into both top-level `scope3_activity_type` and `dynamic_field_values.scope3_activity_type`.
 - Explicit spreadsheet Activity Type remains authoritative for C6/C7, preserving existing template behavior. C3/C5 need no new spreadsheet column, formula, EF, or decision-tree change. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL BULK-UPLOAD TESTING** per the user’s instruction.
