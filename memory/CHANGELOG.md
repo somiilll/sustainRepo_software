@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Stale Failure Banner Recovery
+- A newly and successfully queued OCR upload now removes the previous run’s persisted `ocr-failed-upload-ids` marker and clears the associated generic failure banner.
+- Failures from the newly queued batch remain visible through the existing polling and retry behavior. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — C6 Bulk Upload Travel-Day Exclusion
 - Removed **No. of Days Travelled** from the C6 Business Travel workbook schema. Legacy C6 workbook values under either the template or formula key are stripped before validation, calculation, and persistence.
 - C6 no longer includes `qty_days_travelled` in calculation inputs or saved `dynamic_field_values`; C7 keeps its existing travel-day support. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.

@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- OCR uploads now clear stale browser-stored failed-batch IDs when a replacement batch queues successfully, preventing an earlier provider/configuration failure from incorrectly persisting as the generic OCR error after recovery. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - C6 Business Travel Bulk Upload no longer exposes **No. of Days Travelled**. Any modern or legacy C6 travel-day value is discarded before validation, calculation, and record persistence, while C7 retains the field. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - Scope 3 Activity menus now use measured, adaptive dropdown widths in both Add and Edit: short activity lists retain the control width, while long labels expand the right-aligned menu only as far as required (up to the viewport-safe 34rem cap). **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - C6 Business Travel multi-trip entry: the Create form now supports multiple independently detailed trips for each monthly or yearly period. Every trip owns its dynamic inputs, route, air-travel airport details, and evidence attachments; completed trips are calculated and saved as individual emission records in one rollback-protected submission batch. Existing C6 Edit remains one record/trip at a time. **NOT TESTED** per the user’s explicit instruction; implementation was source-reviewed only.

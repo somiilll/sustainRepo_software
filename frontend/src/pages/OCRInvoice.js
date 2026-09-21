@@ -251,6 +251,10 @@ export default function OCRInvoice() {
     try {
       const { data } = await uploadOcrFiles(files, mode, getAuthHeader());
       if (!data.files?.length) throw new Error(data.errors?.[0]?.error || 'No invoice could be staged securely.');
+      // A successfully queued replacement upload supersedes any stale failure
+      // banner restored from a previous batch in local storage.
+      localStorage.removeItem('ocr-failed-upload-ids');
+      setFailedExtractionIds([]);
       let existingIds = [];
       try { existingIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { existingIds = []; }
       const uploadIds = [...new Set([...existingIds, data.upload_id])];
