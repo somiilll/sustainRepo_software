@@ -503,8 +503,6 @@ def run(apply: bool) -> Dict[str, Any]:
     target_db_name = os.environ.get("STAGING_DB_NAME")
     if not source_uri or not source_db_name or not target_uri or not target_db_name:
         raise RuntimeError("MONGO_URL, DB_NAME, STAGING_MONGO_URL, and STAGING_DB_NAME are required")
-    if target_db_name != "sustainrepo_staging":
-        raise RuntimeError("Target database must be sustainrepo_staging")
 
     source_client = MongoClient(source_uri, serverSelectionTimeoutMS=15000)
     target_client = MongoClient(target_uri, serverSelectionTimeoutMS=15000, retryWrites=True)

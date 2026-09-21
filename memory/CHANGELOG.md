@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Staging Connection Cleanup
+- Removed the temporary staging MongoDB URI and database-name settings from `backend/.env` after the approved migration/reset work.
+- Removed the target-specific bootstrap/reset utilities and restored the C3 migration to its standard local environment behavior. The retained generic catalog migration has no embedded staging URI or database name; it accepts target values only at runtime.
+
 ## September 21, 2026 — Approved Staging GHG Reset (MongoDB Only)
 - Added and applied `reset_staging_ghg_data.py`, a target-locked, transaction-backed reset with a complete JSON backup manifest at `/app/.emergent/backups/staging-ghg-reset-20260921T065543Z`.
 - Deleted 7,070 staging-only GHG records/traces: 658 emission records, 1,825 emission-history rows, 17 pending records, 1,415 calculation audit logs, 122 Scope 3 bulk jobs, 900 pending bulk rows, 2,082 bulk errors, 8 Base Year records, 11 Base Year deletion records, 19 emission approval requests, and 13 emission approval-history rows. Supplier-GHG submissions and Base Year history events were already empty.
