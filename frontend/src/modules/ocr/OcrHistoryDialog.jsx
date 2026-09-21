@@ -3,13 +3,13 @@ import { History, Loader2, X } from 'lucide-react';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 
 const statusStyle = (status) => ({
-  saved: 'bg-emerald-100 text-emerald-800',
-  resolved: 'bg-teal-100 text-teal-800',
-  rejected: 'bg-stone-200 text-stone-700',
-  failed: 'bg-red-100 text-red-800',
-  processing: 'bg-sky-100 text-sky-800',
-  queued: 'bg-amber-100 text-amber-800',
-  cleared: 'bg-slate-100 text-slate-700',
+  Saved: 'bg-emerald-100 text-emerald-800',
+  'Partially Saved': 'bg-teal-100 text-teal-800',
+  'Rejected All': 'bg-stone-200 text-stone-700',
+  Error: 'bg-red-100 text-red-800',
+  Processing: 'bg-sky-100 text-sky-800',
+  'Event Cancelled': 'bg-slate-100 text-slate-700',
+  'Pending Review': 'bg-amber-100 text-amber-800',
 }[status] || 'bg-stone-100 text-stone-700');
 
 const formatUploadedAt = (value) => (value ? new Date(value).toLocaleString(undefined, {
@@ -37,7 +37,7 @@ export const OcrHistoryDialog = ({ open, onOpenChange, history, loading, error }
             <p className="truncate text-sm font-medium text-stone-900" data-testid={`ocr-history-file-${entry.id}`}>{entry.filename}</p>
             <p className="mt-1 text-xs text-stone-500" data-testid={`ocr-history-uploaded-by-${entry.id}`}>Uploaded by {entry.uploaded_by_name} · {formatUploadedAt(entry.uploaded_at)}</p>
           </div>
-          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusStyle(entry.status)}`} data-testid={`ocr-history-status-${entry.id}`}>{entry.status}</span>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyle(entry.status)}`} data-testid={`ocr-history-status-${entry.id}`}>{entry.status}</span>
         </div>)}
       </div>
     </DialogContent>

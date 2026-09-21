@@ -561,7 +561,7 @@ async def _legacy_upload_invoices(
         "id": upload_id,
         "organization_id": org_id,
         "uploaded_by": user_id,
-        "uploaded_by_name": current_user.get("name", "Unknown"),
+        "uploaded_by_name": current_user.get("full_name") or current_user.get("name") or current_user.get("email") or "Unknown",
         "pipeline": "legacy_fuel_taxonomy",
         "file_count": len(valid_files),
         "files": [],
@@ -850,21 +850,44 @@ async def list_upload_history(
         {"organization_id": org_id},
         {"_id": 0, "id": 1, "uploaded_by": 1, "uploaded_by_name": 1, "created_at": 1, "status": 1, "mode": 1, "files": 1},
     ).sort("created_at", -1).limit(limit).to_list(limit)
+    uploader_ids = list({str(upload.get("uploaded_by")) for upload in uploads if upload.get("uploaded_by")})
+    users = await db.users.find(
+        {"id": {"$in": uploader_ids}},
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1},
+    ).to_list(len(uploader_ids)) if uploader_ids else []
+    uploader_names = {
+        user["id"]: user.get("full_name") or user.get("email") or "Unknown"
+        for user in users if user.get("id")
+    }
     history = []
     for upload in uploads:
         for file in upload.get("files", []):
             saved_count = int(file.get("saved_count") or 0)
             rejected_count = int(file.get("rejected_count") or 0)
-            if file.get("resolution_status") == "resolved":
-                file_status = "saved" if saved_count and not rejected_count else "rejected" if rejected_count and not saved_count else "resolved"
-            elif upload.get("status") == "cleared":
-                file_status = "cleared"
+            total_resolved = saved_count + rejected_count
+            line_item_count = int(file.get("line_item_count") or 0)
+            raw_status = file.get("status") or upload.get("status") or "unknown"
+            is_final = file.get("resolution_status") == "resolved" or (line_item_count > 0 and total_resolved >= line_item_count)
+            if raw_status == "failed" or upload.get("status") == "failed":
+                file_status = "Error"
+            elif raw_status in {"cancelled", "cancel_requested"} or upload.get("status") == "cleared":
+                file_status = "Event Cancelled"
+            elif saved_count and rejected_count:
+                file_status = "Partially Saved"
+            elif is_final and saved_count:
+                file_status = "Saved"
+            elif is_final and rejected_count:
+                file_status = "Rejected All"
+            elif saved_count or rejected_count:
+                file_status = "Partially Saved"
+            elif raw_status in {"queued", "processing", "awaiting_facility_assignment"}:
+                file_status = "Processing"
             else:
-                file_status = file.get("status") or upload.get("status") or "unknown"
+                file_status = "Pending Review"
             history.append({
                 "id": f"{upload.get('id')}-{file.get('file_index', 0)}",
                 "filename": file.get("filename") or "Untitled source",
-                "uploaded_by_name": upload.get("uploaded_by_name") or "Unknown",
+                "uploaded_by_name": upload.get("uploaded_by_name") if upload.get("uploaded_by_name") not in {None, "", "Unknown"} else uploader_names.get(str(upload.get("uploaded_by")), "Unknown"),
                 "uploaded_at": upload.get("created_at"),
                 "status": file_status,
                 "mode": upload.get("mode"),

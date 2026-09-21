@@ -137,6 +137,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - OCR workspace cleanup now clears Batch Queue state when Clear Workspace succeeds. When the final source file’s rows are all saved to GHG or rejected—individually or in bulk—the workspace automatically returns to the empty upload state.
 - The Emissions ledger now hides Reset widths until a column has an actual manual width override. Resetting removes the override and hides the control again.
 - OCR Extraction now includes a header-level History dialog with one row per uploaded source file, showing filename, uploader name, upload timestamp, and safe processing/resolution status. Clearing a workspace removes its source files and review rows but retains this audit metadata; History does not reopen source documents.
+- OCR History now stores `full_name` (email fallback) for new uploads and resolves legacy `Unknown` entries through the stored uploader ID. File outcomes are labeled Saved, Partially Saved, Rejected All, Event Cancelled, or Error; active/unresolved entries retain truthful Processing or Pending Review states.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.
