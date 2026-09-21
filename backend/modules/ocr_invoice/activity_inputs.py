@@ -100,12 +100,19 @@ async def hydrate_formula_activity_inputs(db, category_id: str, formula_doc: dic
                 {"applies_to_categories": category_id},
             ],
         },
-        {"_id": 0, "maps_to_variable": 1, "default_unit": 1},
+        {"_id": 0, "maps_to_variable": 1, "default_unit": 1, "activity_formula_group_id": 1},
     ).to_list(100)
-    mapping_units = {
-        mapping.get("maps_to_variable"): mapping.get("default_unit") or ""
-        for mapping in mappings if mapping.get("maps_to_variable")
-    }
+    group_id = formula_doc.get("activity_formula_group_id")
+    mapping_units: dict[str, str] = {}
+    for mapping in mappings:
+        variable = mapping.get("maps_to_variable")
+        if variable and not mapping.get("activity_formula_group_id"):
+            mapping_units.setdefault(variable, mapping.get("default_unit") or "")
+    if group_id:
+        for mapping in mappings:
+            variable = mapping.get("maps_to_variable")
+            if variable and mapping.get("activity_formula_group_id") == group_id:
+                mapping_units[variable] = mapping.get("default_unit") or ""
     candidates = ocr_activity_input_candidates(values)
     dynamic = dict(values.get("dynamic_field_values") or {})
     for variable, declaration in formula_inputs.items():

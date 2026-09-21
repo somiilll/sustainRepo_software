@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Group-aware Bulk Upload/OCR alignment: resolved Scope 3 activity formulas now carry their formula-group identity into calculation execution, and OCR hydration selects group-owned mapping defaults. Workbook columns and non-activity methods remain unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Formula Groups editor, formula-impact preview, and independent clone action are now available to Super Admins. Formula Builder warns about active branch impact before publishing; Input Field Mapping identifies group-owned/inactive-history records. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Scope 3 activity-basis formula/configuration isolation: local `test_database` now has the approved ten group-owned formula families and 31 group-owned field mappings. C10/C13/C14 share C10’s canonical activity branch; C6/C8/C11 retain isolated branch families. A non-destructive repair deactivated only duplicate nested migration clones, with all source/current records retained. **STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - C4/C9 now honor the configured calculation-field label for `km_travelled`; the category-specific **Distance Travelled** override was removed. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

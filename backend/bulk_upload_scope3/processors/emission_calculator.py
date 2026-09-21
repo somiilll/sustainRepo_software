@@ -627,6 +627,8 @@ class EmissionCalculator:
             "method": method.value,
             "reporting_period": reporting_period,  # For currency conversion year lookup
         }
+        if formula_doc.get("activity_formula_group_id"):
+            context["activity_formula_group_id"] = formula_doc["activity_formula_group_id"]
         
         # Build user_overrides for property values (inflation_rate, ppp)
         # These are properties in the formula, not inputs, so they go in user_overrides
@@ -668,6 +670,7 @@ class EmissionCalculator:
             formula_def = dict(formula_doc.get("definition", {}))
             formula_def.setdefault("id", formula_doc["id"])
             formula_def.setdefault("version_id", formula_doc.get("version_id"))
+            formula_def.setdefault("activity_formula_group_id", formula_doc.get("activity_formula_group_id"))
             
             logger.info(f"[BULK_CALC] Executing formula={formula_doc.get('name')}, id={formula_doc['id']}")
             logger.info(f"[BULK_CALC] user_overrides={user_overrides}")

@@ -212,6 +212,9 @@ async def execute_ocr_calculation(db, values: dict, category: dict, organization
     formula = dict(formula_doc["definition"])
     formula.setdefault("id", formula_doc["id"])
     formula.setdefault("version_id", formula_doc.get("version_id"))
+    formula.setdefault("activity_formula_group_id", formula_doc.get("activity_formula_group_id"))
+    if formula_doc.get("activity_formula_group_id"):
+        context["activity_formula_group_id"] = formula_doc["activity_formula_group_id"]
     await hydrate_formula_activity_inputs(db, category_id, formula_doc, values)
     inputs = build_formula_inputs(formula_doc, values)
     overrides = {}

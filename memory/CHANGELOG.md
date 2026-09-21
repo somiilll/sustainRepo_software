@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Group-Aware Bulk Upload and OCR
+- Scope 3 Bulk Upload now passes the resolved formula’s `activity_formula_group_id` through calculation context and formula definition, allowing Calc Engine to use the matching group-owned field mapping for default-unit and allowed-unit validation.
+- OCR GHG-save now carries the resolved formula group to execution and prioritizes that group’s mapping while hydrating activity inputs. Legacy mappings remain the fallback for non-group formulas and spend/supplier flows.
+- Workbook column names, Bulk Upload templates, formula definitions, emission-factor records, spend-basis, and supplier-basis logic were not changed. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL BULK/OCR TESTING** per the user’s instruction.
+
 ## September 21, 2026 — Formula Group Editor and Impact Guardrails
 - Added `/super-admin/formula-groups`, listing every active activity-basis group with its owned categories, formula count, field-configuration count, and active decision-tree branch impact. Each formula has a clone action that creates an independent record in a chosen target group without silently changing a decision tree.
 - Formula Builder now loads an impact panel before an existing formula is published, listing every active category/branch that references it and warning when it is group-owned. The Input Field Mapping table identifies group-owned rows and inactive historical duplicates using unique test IDs.
