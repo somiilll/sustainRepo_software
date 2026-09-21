@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- C5 Add/Edit disposal filtering is now backed by a canonical factor taxonomy: all 184 C5 factors retain their original IDs/activity strings and add base Activity + normalized disposal type fields. Composted and Other preserve full catalog coverage. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Formula Builder clone destinations now include direct Scope 1 and Scope 2 categories/subcategories alongside approved Scope 3 groups. The clone is independent and never changes a decision tree automatically. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Group-aware Bulk Upload/OCR alignment: resolved Scope 3 activity formulas now carry their formula-group identity into calculation execution, and OCR hydration selects group-owned mapping defaults. Workbook columns and non-activity methods remain unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Formula Builder now includes formula-impact preview and an independent clone action; both Formula Builder and Input Field Mapping support category filters. Formula Builder warns about active branch impact before publishing; Input Field Mapping identifies group-owned/inactive-history records. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

@@ -37,6 +37,17 @@ export const C3_ACTIVITY_TYPE_OPTIONS = Object.freeze([
   { value: 'steam', label: 'Steam' },
 ]);
 
+/** Canonical disposal methods for Scope 3 Category 5 factor grouping. */
+export const C5_ACTIVITY_TYPE_OPTIONS = Object.freeze([
+  { value: 'landfilled', label: 'Landfilled' },
+  { value: 'recycled', label: 'Recycled' },
+  { value: 'combusted', label: 'Combusted' },
+  { value: 'anaerobically_digested_wet_digestate_with_curing', label: 'Anaerobically Digested (Wet Digestate with Curing)' },
+  { value: 'anaerobically_digested_dry_digestate_with_curing', label: 'Anaerobically Digested (Dry Digestate with Curing)' },
+  { value: 'composted', label: 'Composted' },
+  { value: 'other', label: 'Other' },
+]);
+
 export const STANDARD_PROCESS_TYPE_OPTIONS = Object.freeze([
   { value: 'venting', label: 'Venting' },
   { value: 'n2o_overall_combustion', label: 'N2O from Overall Combustion' },
@@ -54,7 +65,7 @@ export const STANDARD_TYPE_OF_PRODUCT_OPTIONS = Object.freeze([
 ]);
 
 export const getStandardActivityTypeLabel = (value) => (
-  [...STANDARD_ACTIVITY_TYPE_OPTIONS, ...C3_ACTIVITY_TYPE_OPTIONS]
+  [...STANDARD_ACTIVITY_TYPE_OPTIONS, ...C3_ACTIVITY_TYPE_OPTIONS, ...C5_ACTIVITY_TYPE_OPTIONS]
     .find((option) => option.value === value)?.label
   || String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 );

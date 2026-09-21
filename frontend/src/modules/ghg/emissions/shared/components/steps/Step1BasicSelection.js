@@ -709,7 +709,7 @@ export const Step1BasicSelection = ({
                 <div className="mt-2 min-w-0">
                   <SearchableSelect
                     value={scope3ActivityId}
-                    options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity }))}
+                    options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity_name || activity.activity }))}
                     onValueChange={(value) => {
                       setScope3ActivityId(value);
                       setFuelSearchTerm('');

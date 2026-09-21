@@ -147,7 +147,9 @@ class Scope3EFCreate(BaseModel):
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None
-    activity_type: Optional[str] = None  # Activity type for C3/C6/C7 (e.g., "fuel", "hotel_stay")
+    activity_name: Optional[str] = None  # Display base activity for factor taxonomies (e.g., "Copper Wire")
+    activity_type: Optional[str] = None  # Activity type for C3/C5/C6/C7 (e.g., "landfilled", "hotel_stay")
+    activity_type_label: Optional[str] = None  # Human-readable Activity Type label
     subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14 (e.g., "stationary_combustion", "mobile_combustion", "electricity")
     sub_scope: Optional[str] = None  # Sub-scope for fuel type (e.g., "biogenic", "fossil")
 
@@ -168,7 +170,9 @@ class Scope3EFResponse(BaseModel):
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None
-    activity_type: Optional[str] = None  # Activity type for C3/C6/C7 (e.g., "fuel", "hotel_stay")
+    activity_name: Optional[str] = None
+    activity_type: Optional[str] = None  # Activity type for C3/C5/C6/C7
+    activity_type_label: Optional[str] = None
     subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14
     sub_scope: Optional[str] = None  # Sub-scope for fuel type (e.g., "biogenic", "fossil")
     created_by: Optional[str] = None

@@ -1,4 +1,4 @@
-import { C3_ACTIVITY_TYPE_OPTIONS, getStandardActivityTypeLabel } from './standardGhgFormConfig';
+import { C3_ACTIVITY_TYPE_OPTIONS, C5_ACTIVITY_TYPE_OPTIONS, getStandardActivityTypeLabel } from './standardGhgFormConfig';
 
 const METHOD_ORDER = Object.freeze(['spend_basis', 'activity_basis', 'supplier_basis']);
 
@@ -10,13 +10,19 @@ const matchesCategory = (entry, category) => (
 const uniqueSorted = (values) => Array.from(new Set(values.filter(Boolean))).sort();
 
 const isC3Category = (category = '') => /^c3\b/i.test(String(category).trim());
+const isC5Category = (category = '') => /^c5\b/i.test(String(category).trim());
 
 const orderActivityTypes = (types, category) => {
-  if (!isC3Category(category)) return uniqueSorted(types);
   const available = new Set(types.filter(Boolean));
-  return C3_ACTIVITY_TYPE_OPTIONS
-    .map((option) => option.value)
-    .filter((value) => available.has(value));
+  if (isC3Category(category)) {
+    return C3_ACTIVITY_TYPE_OPTIONS
+      .map((option) => option.value)
+      .filter((value) => available.has(value));
+  }
+  if (isC5Category(category)) {
+    return C5_ACTIVITY_TYPE_OPTIONS.map((option) => option.value).filter((value) => available.has(value));
+  }
+  return uniqueSorted(types);
 };
 
 export const resolveScope3MethodsForCategory = ({

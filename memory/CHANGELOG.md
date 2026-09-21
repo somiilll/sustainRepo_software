@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — C5 Disposal Taxonomy and Add/Edit Filtering
+- Added the C5 Activity Type capability and shared selector support. C5 users select a disposal method first, then a base Activity; the selected factor ID remains the exact existing EF record.
+- Applied `migrate_c5_activity_taxonomy.py` to all 184 local C5 factor records. It preserved every original `activity` string and factor ID while adding `activity_name`, normalized `activity_type`, and `activity_type_label`. Copper Wire now presents as one Activity with Combusted, Landfilled, and Recycled types. Backup: `/app/.emergent/backups/c5-activity-taxonomy-20260921T090000Z`.
+- Added **Composted** and **Other** to preserve all current C5 records, including Waste Water Treatment. The migration normalizes legacy double-spacing in the Wet Digestate display label without altering the original stored Activity string. Structural validation found zero records missing taxonomy fields. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL ADD/EDIT TESTING** per the user’s instruction.
+
 ## September 21, 2026 — Scope 1/2 Formula Clone Destinations
 - Formula Builder’s clone dialog now offers approved Scope 3 formula-group destinations plus every configured Scope 1 and Scope 2 category/subcategory.
 - Direct Scope 1/2 cloning creates an independent formula record with the target category/scope assignment and source-formula traceability; it intentionally does not alter any decision tree. Backend validation rejects direct destinations outside Scope 1/2, preserving Scope 3 group governance.
