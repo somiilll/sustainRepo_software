@@ -334,6 +334,7 @@ export default function EmissionHistoryDialog({
               // Get record's frequency type from version history context (use newValues/oldValues already extracted)
               const recordFrequencyType = newValues?.frequency_type || oldValues?.frequency_type;
               const isC7Record = newValues?.category?.includes('C7') || oldValues?.category?.includes('C7');
+              const isC5Record = newValues?.category?.includes('C5') || oldValues?.category?.includes('C5');
 
               // Fields to skip in version history (internal IDs, metadata, individual gases for Scope 3)
               const skipFields = [
@@ -356,6 +357,9 @@ export default function EmissionHistoryDialog({
               // For C7 records, skip aggregate total_emissions (we show per-employee instead)
               if (isC7Record) {
                 skipFields.push('total_emissions');
+              }
+              if (isC5Record) {
+                skipFields.push('scope3_activity_type', 'activity_type');
               }
 
               // For Scope 2 records, hide the "Activity" field (sub_category /
