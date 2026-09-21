@@ -7,6 +7,7 @@
 - Updated C5-only Add/Edit layout: base Activity appears first with duplicate material names collapsed, followed by Activity Type. All other Scope 3 categories retain Type-before-Activity flow. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - C5 Activity Type now lists only disposal methods available for the selected base Activity. Factors classified as `other`, including Waste Water Treatment, do not show an unnecessary Activity Type field. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Fixed the C5 selector regression where selecting one Activity Type caused the menu to show only that same type. Add/Edit now derive available C5 disposal types from the complete C5 catalog for the selected base Activity. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- Fixed the C5 selection-state collision: Add/Edit now keep base material separately for presentation and reserve `scope3_ef_id` for the exact Activity + Activity Type factor. Changing type resolves the matching factor without clearing Activity; selecting a typed material clears only the stale factor until a valid type is chosen. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 
 ## September 21, 2026 — Scope 1/2 Formula Clone Destinations
 - Formula Builder’s clone dialog now offers approved Scope 3 formula-group destinations plus every configured Scope 1 and Scope 2 category/subcategory.

@@ -117,6 +117,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Revised the C5 Add/Edit interaction to show the deduplicated base Activity selector before Activity Type; other Scope 3 categories retain their existing Type-before-Activity behavior.
 - Refined C5 further: Activity Type options now filter to the selected base Activity, and the field is omitted for `other` taxonomy records such as Waste Water Treatment.
 - Corrected C5 type-option derivation to use the complete matching C5 catalog rather than the already type-filtered Activity list. Users can now switch among all valid disposal types for the selected material.
+- Corrected the C5 selector state model: the visible base Activity is now independent from the saved exact `scope3_ef_id`. Choosing a disposal type resolves the factor ID without clearing the selected material, while choosing a material does not retain an incompatible factor ID.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.

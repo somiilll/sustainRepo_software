@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { SearchableSelect } from './ui/searchable-select';
@@ -247,6 +247,7 @@ export default function EmissionEditForm(props) {
   const scope3ActivityId = draft.scope3ActivityId;
   const scope3CustomActivity = draft.scope3CustomActivity;
   const isC5Category = /^c5\b/i.test(selectedCategory?.code || selectedCategory?.name || formData.category || '');
+  const [c5BaseActivity, setC5BaseActivity] = useState('');
   const c5CatalogActivities = scope3EFData.filter((activity) => (
     isC5Category
     && activity.category === (formData.category || selectedCategory?.name)
@@ -256,10 +257,14 @@ export default function EmissionEditForm(props) {
   const c5ActivityOptions = isC5Category
     ? Array.from(new Map(c5CatalogActivities.map((activity) => [activity.activity_name || activity.activity, activity])).values())
     : [];
-  const c5SelectedActivity = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
+  useEffect(() => {
+    if (!isC5Category || !scope3ActivityId) return;
+    const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
+    if (selected) setC5BaseActivity(selected.activity_name || selected.activity);
+  }, [c5CatalogActivities, isC5Category, scope3ActivityId]);
   const c5ActivityTypes = Array.from(new Set(
     c5CatalogActivities
-      .filter((activity) => (activity.activity_name || activity.activity) === (c5SelectedActivity?.activity_name || c5SelectedActivity?.activity))
+      .filter((activity) => (activity.activity_name || activity.activity) === c5BaseActivity)
       .map((activity) => activity.activity_type)
       .filter((type) => type && type !== 'other'),
   ));
@@ -796,11 +801,18 @@ export default function EmissionEditForm(props) {
                             ) : (
                               <div className="mt-1.5 min-w-0">
                                 <SearchableSelect
-                                  value={scope3ActivityId}
-                                  options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: activity.id, label: activity.activity_name || activity.activity }))}
+                                  value={isC5Category ? c5BaseActivity : scope3ActivityId}
+                                  options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: isC5Category ? (activity.activity_name || activity.activity) : activity.id, label: activity.activity_name || activity.activity }))}
                                   onValueChange={(value) => {
-                                    setScope3ActivityId(value);
-                                    if (isC5Category) setScope3ActivityType('');
+                                    if (isC5Category) {
+                                      setC5BaseActivity(value);
+                                      setScope3ActivityType('');
+                                      const matches = c5CatalogActivities.filter((activity) => (activity.activity_name || activity.activity) === value);
+                                      const untyped = matches.find((activity) => activity.activity_type === 'other');
+                                      setScope3ActivityId(untyped?.id || '');
+                                    } else {
+                                      setScope3ActivityId(value);
+                                    }
                                     setActivitySearchTerm('');
                                     markFormDirty();
                                   }}
@@ -829,7 +841,7 @@ export default function EmissionEditForm(props) {
                               <p className="text-xs text-blue-600 mt-1">Loading activities...</p>
                             )}
                           </div>
-                          {isC5Category && scope3ActivityId && c5ActivityTypes.length > 0 && (
+                          {isC5Category && c5BaseActivity && c5ActivityTypes.length > 0 && (
                             <div className="space-y-1.5" data-testid="edit-c5-activity-type-section">
                               <Label htmlFor="edit-c5-activity-type-select">Activity Type *</Label>
                               <select
@@ -837,9 +849,8 @@ export default function EmissionEditForm(props) {
                                 value={scope3ActivityType}
                                 onChange={(e) => {
                                   const nextType = e.target.value;
-                                  const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
                                   const matching = c5CatalogActivities.find((activity) => (
-                                    (activity.activity_name || activity.activity) === (selected?.activity_name || selected?.activity)
+                                    (activity.activity_name || activity.activity) === c5BaseActivity
                                     && activity.activity_type === nextType
                                   ));
                                   setScope3ActivityType(nextType);

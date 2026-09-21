@@ -4,7 +4,7 @@
  * This is a large step component (~700 lines extracted from EmissionEntryForm.js)
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { SearchableSelect } from '../../../../../../components/ui/searchable-select';
@@ -161,6 +161,7 @@ export const Step1BasicSelection = ({
   const CategoryIcon = getCategoryIcon(category);
   const isC8Category = scope === 'scope3' && /^c8\b/i.test(category || '');
   const isC5Category = scope === 'scope3' && /^c5\b/i.test(category || '');
+  const [c5BaseActivity, setC5BaseActivity] = useState('');
   const c5CatalogActivities = useMemo(() => scope3EFData.filter((activity) => (
     isC5Category
     && activity.category === category
@@ -176,10 +177,12 @@ export const Step1BasicSelection = ({
     });
     return Array.from(byName.values());
   }, [c5CatalogActivities, isC5Category]);
-  const c5SelectedActivityName = useMemo(() => {
+  useEffect(() => {
+    if (!isC5Category || !scope3ActivityId) return;
     const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
-    return selected?.activity_name || selected?.activity || '';
-  }, [c5CatalogActivities, scope3ActivityId]);
+    if (selected) setC5BaseActivity(selected.activity_name || selected.activity);
+  }, [c5CatalogActivities, isC5Category, scope3ActivityId]);
+  const c5SelectedActivityName = c5BaseActivity;
   const c5ActivityTypes = useMemo(() => Array.from(new Set(
     c5CatalogActivities
       .filter((activity) => (activity.activity_name || activity.activity) === c5SelectedActivityName)
@@ -735,11 +738,18 @@ export const Step1BasicSelection = ({
               ) : (
                 <div className="mt-2 min-w-0">
                   <SearchableSelect
-                    value={scope3ActivityId}
-                    options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: activity.id, label: activity.activity_name || activity.activity }))}
+                    value={isC5Category ? c5BaseActivity : scope3ActivityId}
+                    options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: isC5Category ? (activity.activity_name || activity.activity) : activity.id, label: activity.activity_name || activity.activity }))}
                     onValueChange={(value) => {
-                      setScope3ActivityId(value);
-                      if (isC5Category) setScope3ActivityType('');
+                      if (isC5Category) {
+                        setC5BaseActivity(value);
+                        setScope3ActivityType('');
+                        const matches = c5CatalogActivities.filter((activity) => (activity.activity_name || activity.activity) === value);
+                        const untyped = matches.find((activity) => activity.activity_type === 'other');
+                        setScope3ActivityId(untyped?.id || '');
+                      } else {
+                        setScope3ActivityId(value);
+                      }
                       setFuelSearchTerm('');
                     }}
                     placeholder={
@@ -768,16 +778,15 @@ export const Step1BasicSelection = ({
             </div>
           )}
 
-          {scope3Method && isC5Category && scope3ActivityId && c5ActivityTypes.length > 0 && (
+          {scope3Method && isC5Category && c5BaseActivity && c5ActivityTypes.length > 0 && (
             <div className="min-w-0 space-y-2" data-testid="c5-activity-type-section">
               <Label>Activity Type <span className="text-red-500">*</span></Label>
               <select
                 value={scope3ActivityType}
                 onChange={(e) => {
                   const nextType = e.target.value;
-                  const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
                   const matching = c5CatalogActivities.find((activity) => (
-                    (activity.activity_name || activity.activity) === (selected?.activity_name || selected?.activity)
+                    (activity.activity_name || activity.activity) === c5BaseActivity
                     && activity.activity_type === nextType
                   ));
                   setScope3ActivityType(nextType);
