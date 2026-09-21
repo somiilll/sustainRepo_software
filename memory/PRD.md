@@ -133,6 +133,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - OCR upload guidance now lists invoices, utility bills, receipts, CSV ledgers, and Excel workbooks, with an enforced 20-file batch limit, 20MB per-file limit, and first-15-PDF-pages processing behavior. Think is now the non-persistent default mode in both UI and API; Fast/Think uses a white shell with dark-teal selection.
 - The scrollable OCR selected-files container uses rounded-2xl corners for a softer visual boundary.
 - OCR now canonicalizes common Calc Engine mass and volume aliases before persistence and calculation: tonne variants become `t`, and litre variants become `L`. This normalization covers extracted values, factor selection, edit auto-save, direct GHG save payloads, and dynamic calculation inputs so the ledger retains canonical units.
+- Added British-spelling unit coverage: `kilolitres` now normalizes to `kL`, while `millilitre` and `millilitres` convert their quantity to litres (`L`) before OCR calculation persistence.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.

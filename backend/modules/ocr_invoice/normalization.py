@@ -177,6 +177,7 @@ def canonicalize_calc_engine_unit(value: Any) -> str:
         "metricton": "t", "metrictons": "t", "metrictonne": "t", "metrictonnes": "t",
         "l": "L", "ltr": "L", "ltrs": "L", "litre": "L", "litres": "L",
         "liter": "L", "liters": "L",
+        "kl": "kL", "kilolitre": "kL", "kilolitres": "kL", "kiloliter": "kL", "kiloliters": "kL",
     }
     return aliases.get(key, raw)
 
@@ -208,7 +209,8 @@ def normalize_unit(value: Any, category: str = "") -> str | None:
         "g": "g", "gm": "g", "gms": "g", "gram": "g", "grams": "g", "ton": "t", "tons": "t",
         "tonne": "t", "tonnes": "t", "mt": "t", "l": "L",
         "ltr": "L", "ltrs": "L", "litre": "L", "litres": "L", "liter": "L",
-        "liters": "L", "kl": "kL", "kilolitre": "kL", "kiloliter": "kL", "kiloliters": "kL",
+        "liters": "L", "ml": "ml", "millilitre": "ml", "millilitres": "ml", "milliliter": "ml", "milliliters": "ml",
+        "kl": "kL", "kilolitre": "kL", "kilolitres": "kL", "kiloliter": "kL", "kiloliters": "kL",
         "m3": "m3", "m³": "m3", "cu.m": "m3", "cum": "m3", "gal": "Gallons", "gals": "Gallons", "gallon": "Gallons", "gallons": "Gallons",
         "kwh": "kWh", "kwhr": "kWh", "kw-h": "kWh", "mwh": "MWh", "mwhr": "MWh", "mw-h": "MWh",
         "gj": "GJ", "gigajoule": "GJ", "mj": "MJ", "megajoule": "MJ", "tj": "TJ",
@@ -228,7 +230,7 @@ def convert_quantity(quantity: float | None, unit: str | None) -> tuple[float | 
     except (TypeError, ValueError):
         return quantity, unit
     key = str(unit).strip().lower()
-    if key in ("ml", "milliliter", "milliliters"):
+    if key in ("ml", "millilitre", "millilitres", "milliliter", "milliliters"):
         return round(numeric_quantity / 1000.0, 4), "L"
     if key in ("g", "gm", "gms", "gram", "grams"):
         return round(numeric_quantity / 1000.0, 4), "kg"
