@@ -100,7 +100,7 @@ export const resolveGhgScope3Options = ({
   const subcategories = requiresSubcategory && scope3Method
     ? (fieldOptions.scope3_subcategory || []).map((option) => ({
       ...option,
-      label: configLabels[option.value] || option.label,
+      label: option.value === 'energy' ? 'Grid Power' : (configLabels[option.value] || option.label),
     }))
     : [];
 

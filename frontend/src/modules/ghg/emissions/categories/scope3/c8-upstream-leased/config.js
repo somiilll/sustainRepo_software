@@ -7,7 +7,7 @@
 export const SUBCATEGORY_OPTIONS = [
   { value: 'stationary_combustion', label: 'Stationary Combustion' },
   { value: 'mobile_combustion', label: 'Mobile Combustion' },
-  { value: 'energy', label: 'Energy' },
+  { value: 'energy', label: 'Grid Power' },
   { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
   { value: 'process_emissions', label: 'Process Emissions' },
 ];

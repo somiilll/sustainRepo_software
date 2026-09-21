@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Scope 3 C8/C10/C11/C13/C14 now display Subcategory **Grid Power** while retaining the existing `energy` decision value and factor filtering. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Emissions **Reset widths** now sits beside the Scope tabs and keeps the same column-width/scroll reset behavior. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - C3/C5 Bulk Upload now persists resolved factor Activity Type exactly as Manual Add/Edit and OCR do, while preserving C6/C7 spreadsheet-supplied types. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - C5 Add/Edit disposal filtering is now backed by a canonical factor taxonomy: all 184 C5 factors retain their original IDs/activity strings and add base Activity + normalized disposal type fields. C5 presents base Activity before only its valid Activity Type options; `other` factors such as Waste Water Treatment omit the type field. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

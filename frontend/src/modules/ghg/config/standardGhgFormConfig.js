@@ -13,7 +13,7 @@ export const STANDARD_SUBCATEGORY_OPTIONS = Object.freeze([
   { value: 'stationary_combustion', label: 'Stationary Combustion' },
   { value: 'mobile_combustion', label: 'Mobile Combustion' },
   { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-  { value: 'energy', label: 'Energy' },
+  { value: 'energy', label: 'Grid Power' },
 ]);
 
 /** Shared display options for the active Create and Edit selection UI. */

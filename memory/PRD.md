@@ -123,6 +123,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - C5 Edit recognizes the canonical `waste_generated_in_operations` category code in addition to display labels. Waste Water Treatment is classified as `other`, so its Activity Type control is suppressed.
 - C5 Version History suppresses Activity Type change rows as display-only noise; audit values remain stored and other categories retain their Activity Type history.
 - The Emissions **Reset widths** action sits at the right edge of the Scope 1 / Scope 2 / Scope 3 / Biogenic tab row and resets the same resizable ledger columns without affecting filters or records.
+- For Scope 3 C8, C10, C11, C13, and C14, the Subcategory value remains `energy` for decision trees and factor filtering while its user-facing label is **Grid Power**.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.

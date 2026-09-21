@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Scope 3 Grid Power Label
+- Changed the shared Scope 3 Subcategory display label from **Energy** to **Grid Power** for C8, C10, C11, C13, and C14. The stored `energy` value, factor matching, calculations, decision trees, and historical records are unchanged.
+- **SOURCE-REVIEWED ONLY; NO FUNCTIONAL ADD/EDIT TESTING** per the user’s instruction.
+
 ## September 21, 2026 — Emissions Reset Widths Placement
 - Moved **Reset widths** from the Emissions grid toolbar to the right side of the Scope tabs row. The grid exposes the same reset action through a ref, so it still clears manual column widths and returns the ledger scroll position to the start.
 - **SOURCE-REVIEWED ONLY; NO FUNCTIONAL UI TESTING** per the user’s instruction.
