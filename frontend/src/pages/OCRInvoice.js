@@ -106,6 +106,7 @@ export default function OCRInvoice() {
   const [resumingQueue, setResumingQueue] = useState(false);
   const [cancellingFileIds, setCancellingFileIds] = useState([]);
   const facilityPreviewRequestRef = useRef(0);
+  const sessionUploadIdsRef = useRef(new Set());
   const [activeExtractionIds, setActiveExtractionIds] = useState([]);
   const [failedExtractionIds, setFailedExtractionIds] = useState([]);
   const [retryingQueue, setRetryingQueue] = useState(false);
@@ -124,12 +125,9 @@ export default function OCRInvoice() {
     try { activeUploadIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { activeUploadIds = []; }
     if (!activeUploadIds.length && legacyUploadId) activeUploadIds = [legacyUploadId];
     if (activeUploadIds.length) setActiveExtractionIds(activeUploadIds);
-    let failedUploadIds = [];
-    try { failedUploadIds = JSON.parse(localStorage.getItem('ocr-failed-upload-ids') || '[]'); } catch { failedUploadIds = []; }
-    if (failedUploadIds.length) {
-      setFailedExtractionIds(failedUploadIds);
-      setError('An error occurred. Try again.');
-    }
+    // Failed batches from earlier browser sessions must not surface as a
+    // current workspace error. Failures are now kept only for this session.
+    localStorage.removeItem('ocr-failed-upload-ids');
     return () => { mounted = false; };
   }, [getAuthHeader]);
 
@@ -205,17 +203,14 @@ export default function OCRInvoice() {
           setSelectedItem((current) => current || completedItems[0] || null);
           toast.success(`Extraction ready: ${completedItems.length} activity row${completedItems.length === 1 ? '' : 's'}`);
         }
-        terminalRecords.filter((record) => record.upload.status === 'failed').forEach((record) => {
-          toast.error('An error occurred. Try again.');
-        });
         const newlyFailedIds = terminalRecords
           .filter((record) => record.upload.status === 'failed')
-          .map((record) => record.upload.id);
+          .map((record) => record.upload.id)
+          .filter((uploadId) => sessionUploadIdsRef.current.has(uploadId));
         if (newlyFailedIds.length) {
+          toast.error('An error occurred. Try again.');
           setFailedExtractionIds((current) => {
-            const next = [...new Set([...current, ...newlyFailedIds])];
-            localStorage.setItem('ocr-failed-upload-ids', JSON.stringify(next));
-            return next;
+            return [...new Set([...current, ...newlyFailedIds])];
           });
           setError('An error occurred. Try again.');
         }
@@ -247,14 +242,13 @@ export default function OCRInvoice() {
     setProcessing(true);
     setProgress(0);
     setError('');
+    setFailedExtractionIds([]);
+    localStorage.removeItem('ocr-failed-upload-ids');
     setFileQueue(files.map((file, index) => ({ id: `queued-${index}`, filename: file.name, status: 'queued' })));
     try {
       const { data } = await uploadOcrFiles(files, mode, getAuthHeader());
       if (!data.files?.length) throw new Error(data.errors?.[0]?.error || 'No invoice could be staged securely.');
-      // A successfully queued replacement upload supersedes any stale failure
-      // banner restored from a previous batch in local storage.
-      localStorage.removeItem('ocr-failed-upload-ids');
-      setFailedExtractionIds([]);
+      sessionUploadIdsRef.current.add(data.upload_id);
       let existingIds = [];
       try { existingIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { existingIds = []; }
       const uploadIds = [...new Set([...existingIds, data.upload_id])];
@@ -313,6 +307,7 @@ export default function OCRInvoice() {
     setResumingQueue(true);
     try {
       await resumeOcrUpload(uploadId, getAuthHeader());
+      sessionUploadIdsRef.current.add(uploadId);
       setFileQueue((current) => current.map((file) => (
         file.uploadId === uploadId ? { ...file, uploadStatus: 'processing' } : file
       )));
@@ -361,6 +356,7 @@ export default function OCRInvoice() {
     setRestartingSourceFileIds((current) => [...new Set([...current, fileId])]);
     try {
       const { data } = await resumeOcrUploadFile(file.upload_id, file.file_index, getAuthHeader());
+      sessionUploadIdsRef.current.add(file.upload_id);
       const resumedFile = { ...file, status: 'queued' };
       setUpload((current) => current ? {
         ...current,
@@ -419,8 +415,7 @@ export default function OCRInvoice() {
       if (!retriedIds.length) throw new Error('OCR extraction could not be restarted.');
       const remainingFailedIds = failedExtractionIds.filter((uploadId) => !retriedIds.includes(uploadId));
       setFailedExtractionIds(remainingFailedIds);
-      if (remainingFailedIds.length) localStorage.setItem('ocr-failed-upload-ids', JSON.stringify(remainingFailedIds));
-      else localStorage.removeItem('ocr-failed-upload-ids');
+      retriedIds.forEach((uploadId) => sessionUploadIdsRef.current.add(uploadId));
       localStorage.setItem('ocr-active-upload-ids', JSON.stringify(retriedIds));
       setActiveExtractionIds((current) => [...new Set([...current, ...retriedIds])]);
       setFileQueue((current) => current.map((file) => (

@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 17, 2026 — OCR Session-Scoped Failure Banner
+- OCR no longer restores prior-session failed-upload IDs into a fresh workspace. Legacy failure storage is cleared when the page opens and before a new upload begins.
+- Only an upload started or retried in the active session can show the generic failure banner and its retry action; current upload failures retain the existing retry behavior. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Stale Failure Banner Recovery
 - A newly and successfully queued OCR upload now removes the previous run’s persisted `ocr-failed-upload-ids` marker and clears the associated generic failure banner.
 - Failures from the newly queued batch remain visible through the existing polling and retry behavior. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
