@@ -105,6 +105,17 @@ def _preview_path(upload_id: str, file_index: int) -> str:
     return f"/api/ocr-invoice/uploads/{upload_id}/files/{file_index}/preview"
 
 
+def _client_safe_upload(upload: dict) -> dict:
+    """Keep internal OCR provider diagnostics out of customer API responses."""
+    return {
+        **upload,
+        "files": [
+            {key: value for key, value in file.items() if key != "provider_diagnostic"}
+            for file in upload.get("files", [])
+        ],
+    }
+
+
 def _is_spreadsheet_ocr_item(item: dict) -> bool:
     return os.path.splitext(str(item.get("filename") or ""))[1].lower() in SPREADSHEET_EXTENSIONS
 
@@ -822,7 +833,7 @@ async def list_uploads(
         {"_id": 0}
     ).sort("created_at", -1).limit(limit).to_list(limit)
     
-    return {"uploads": uploads}
+    return {"uploads": [_client_safe_upload(upload) for upload in uploads]}
 
 
 @router.get("/uploads/{upload_id}")
@@ -848,7 +859,7 @@ async def get_upload(
     ).to_list(1000)
     
     return {
-        "upload": upload,
+        "upload": _client_safe_upload(upload),
         "line_items": line_items
     }
 
@@ -1042,15 +1053,16 @@ async def retry_upload_processing(
     )
     if not upload:
         raise HTTPException(status_code=409, detail="Only failed OCR uploads can be retried")
-    retry_files = [
-        {
+    retry_files = []
+    for file in upload.get("files", []):
+        retry_file = {
             **file,
             "status": "queued",
             "error": None,
             "line_item_count": 0,
         }
-        for file in upload.get("files", [])
-    ]
+        retry_file.pop("provider_diagnostic", None)
+        retry_files.append(retry_file)
     if not retry_files:
         raise HTTPException(status_code=409, detail="This OCR upload has no staged source files to retry")
     now = datetime.now(timezone.utc).isoformat()

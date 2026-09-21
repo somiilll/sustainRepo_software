@@ -8,6 +8,7 @@ from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 
 from .config import ExtractionMode
+from .provider_diagnostics import OcrProviderError
 
 
 class OcrLlmGateway:
@@ -62,7 +63,10 @@ class OcrLlmGateway:
         if system_message:
             request["system"] = system_message
 
-        response = await self.anthropic_client.messages.create(**request)
+        try:
+            response = await self.anthropic_client.messages.create(**request)
+        except Exception as error:
+            raise OcrProviderError("anthropic", error) from None
         response_text = "".join(
             block.text
             for block in response.content
@@ -104,7 +108,10 @@ class OcrLlmGateway:
         if max_tokens is not None:
             request["max_completion_tokens"] = max_tokens
 
-        response = await self.openai_client.chat.completions.create(**request)
+        try:
+            response = await self.openai_client.chat.completions.create(**request)
+        except Exception as error:
+            raise OcrProviderError("openai", error) from None
         response_text = response.choices[0].message.content or ""
         if not response_text.strip():
             raise RuntimeError("OpenAI returned an empty OCR response.")

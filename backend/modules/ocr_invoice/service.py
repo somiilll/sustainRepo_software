@@ -17,6 +17,7 @@ from .config import ALLOWED_EXTENSIONS, MAX_FILE_BYTES, SPREADSHEET_EXTENSIONS, 
 from .document_processor import process_document
 from .llm_gateway import OcrLlmGateway
 from .normalization import sanitize_json
+from .provider_diagnostics import get_provider_diagnostic
 
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,33 @@ def _reporting_period_from_row(row: dict, billing_period: dict) -> str:
 
 def _normalize_cache_key(value: str | None) -> str:
     return " ".join(str(value or "").strip().lower().split())
+
+
+def _record_provider_failure(error: BaseException, *, organization_id: str, upload_id: str, filename: str, mode: ExtractionMode) -> dict | None:
+    diagnostic = get_provider_diagnostic(error)
+    if not diagnostic:
+        return None
+    logger.error(
+        "OCR provider request failed | provider=%s request_id=%s category=%s status_code=%s upload_id=%s filename=%s mode=%s",
+        diagnostic["provider"],
+        diagnostic["request_id"] or "none",
+        diagnostic["category"],
+        diagnostic["status_code"] if diagnostic["status_code"] is not None else "none",
+        upload_id,
+        filename,
+        mode.key,
+        extra={
+            "organization_id": organization_id,
+            "upload_id": upload_id,
+            "ocr_filename": filename,
+            "mode": mode.key,
+            "ocr_provider": diagnostic["provider"],
+            "ocr_provider_request_id": diagnostic["request_id"],
+            "ocr_provider_error_category": diagnostic["category"],
+            "ocr_provider_status_code": diagnostic["status_code"],
+        },
+    )
+    return diagnostic
 
 
 async def build_org_context(organization_id: str) -> tuple[dict, set[str], set[str]]:
@@ -197,13 +225,23 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
                     "updated_at": _now(),
                 }
                 all_items.append(sanitize_json(line_item))
-        except Exception:
-            logger.exception(
-                "OCR file processing failed",
-                extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key},
+        except Exception as error:
+            diagnostic = _record_provider_failure(
+                error,
+                organization_id=organization_id,
+                upload_id=upload_id,
+                filename=filename,
+                mode=mode,
             )
+            if not diagnostic:
+                logger.exception(
+                    "OCR file processing failed",
+                    extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key},
+                )
             file_info["status"] = "failed"
             file_info["error"] = "Processing failed for this file"
+            if diagnostic:
+                file_info["provider_diagnostic"] = diagnostic
             errors.append({"filename": filename, "error": "Processing failed for this file"})
         finally:
             if temp_path and os.path.exists(temp_path):
@@ -228,7 +266,10 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
         "mode": mode.key,
         "models": {"vision": mode.vision_model, "reasoning": mode.reasoning_model},
         "enabled_scopes": sorted(enabled_scopes),
-        "files": upload_record["files"],
+        "files": [
+            {key: value for key, value in file.items() if key != "provider_diagnostic"}
+            for file in upload_record["files"]
+        ],
         "errors": errors,
         "line_items": all_items,
     })
@@ -472,10 +513,20 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
             all_items.extend(file_items)
             file_info["line_item_count"] = len(file_items)
             file_info["status"] = "completed"
-        except Exception:
-            logger.exception("Queued OCR file processing failed", extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key})
+        except Exception as error:
+            diagnostic = _record_provider_failure(
+                error,
+                organization_id=organization_id,
+                upload_id=upload_id,
+                filename=filename,
+                mode=mode,
+            )
+            if not diagnostic:
+                logger.exception("Queued OCR file processing failed", extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key})
             file_info["status"] = "failed"
             file_info["error"] = "An error occurred. Try again."
+            if diagnostic:
+                file_info["provider_diagnostic"] = diagnostic
             errors.append({"filename": filename, "error": "An error occurred. Try again."})
         finally:
             if temp_path and os.path.exists(temp_path):

@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 20, 2026 — Safe OCR Provider Failure Diagnostics
+- Advanced Fast (Anthropic) and Think (OpenAI) OCR now convert provider request failures into bounded diagnostics stored only on the failed file job and emitted through structured server logs: provider, validated provider request ID when present, categorized failure, HTTP status, and timestamp.
+- Categories distinguish quota/credit exhaustion, rate limiting, authentication, permissions, invalid request, overload, timeout, network, provider-server, response validation, and unknown failures. Raw exception messages, provider response bodies, prompts, document content, authorization data, headers, and API keys are not persisted or logged. Existing customer-safe error and retry behavior is unchanged; customer OCR API responses omit the internal diagnostic fields. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 20, 2026 — Native OpenAI Think OCR and Emergent Dependency Removal
 - Replaced Think OCR's `emergentintegrations.LlmChat`/LiteLLM path with the official `AsyncOpenAI` Chat Completions client, preserving `gpt-5.6-sol`, `gpt-5.6-terra`, `OPEN_API_KEY_OCR`, prompt content, high-detail JPEG images, and reasoning token limits.
 - Removed `emergentintegrations` and LiteLLM from the installed backend and generated requirements. Repository-wide source/config review found no other consumers and no `sk-emergent-` literal or configured key prefix.
