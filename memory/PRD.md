@@ -104,6 +104,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET /api/organizations/my`, `PUT /api/organizations/my`
 
 ## Current Status — September 21, 2026
+- **P1 planned:** retire the overlapping broad Scope 3 `subcategory_selection` mapping for C8/C10/C11/C13/C14 after group-owned resolver precedence and legacy-formula verification are in place.
 - C3 Activity Type filtering and 32-factor canonical classification are complete. A rollback backup is stored at `/app/.emergent/backups/c3-activity-types-20260921T060449Z.json`.
 - Staging catalog baseline migration is complete: all 31 staging formulas were already version-linked; 3 missing decision-tree snapshots and formula-version maps for all 23 current trees were written without modifying historical emissions. Staging C3 classification was also applied to 32 factors. Backups are stored at `/app/.emergent/backups/staging-version-baseline-20260921T063336Z` and `/app/.emergent/backups/c3-activity-types-20260921T063346Z.json`.
 - The approved staging MongoDB-only GHG reset removed 7,070 emissions, history, pending approval, calculation audit, Scope 3 bulk-upload, supplier-GHG, and Base Year records/traces. The backup is `/app/.emergent/backups/staging-ghg-reset-20260921T065543Z`. Organizations, facilities, users, supplier accounts/relationships/programs, peer benchmarking, targets, sinks, ESG records, `uploaded_files`, and all R2 objects were preserved.

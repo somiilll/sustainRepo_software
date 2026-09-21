@@ -20,6 +20,7 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+- Retire the overlapping broad Scope 3 `subcategory_selection` mapping for C8/C10/C11/C13/C14: prefer the formula-group-owned C8, C10/C13/C14, and C11 mappings, preserve the broad mapping only while a verified legacy formula version requires it, then archive/delete it.
 - Add inline Save validation errors to the monthly ledger so every affected field is shown at once rather than returning one toast at a time.
 - Add controlled decision-tree rebind and mapping-clone workflows to Formula Builder/Input Field Mapping, including a mandatory preview of affected category branches before applying either action.
 - Fix Scope 3 Category 3 Activity Based Add-form unit defaults: keep the selected `scope3_ef.allowed_units` as valid choices, but initialize new monthly/yearly quantity rows from that activity's `default_unit` (for example, Diesel (average biofuel blend) defaults to `L`, not the first allowed unit `m3`). Preserve valid explicit OCR/spreadsheet units, manual user selections, saved Edit units, and historical records; do not broaden the change to other Scope 3 categories or methods.
