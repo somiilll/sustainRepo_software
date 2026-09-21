@@ -3568,6 +3568,7 @@ export default function EmissionEntryForm({
           typeOfProduct={typeOfProduct}
           setTypeOfProduct={setTypeOfProduct}
           scope3ActivityId={scope3ActivityId}
+          scope3EFData={scope3EFData}
           filteredScope3Activities={filteredScope3Activities}
           useCustomActivity={useCustomActivity}
           setUseCustomActivity={setUseCustomActivity}

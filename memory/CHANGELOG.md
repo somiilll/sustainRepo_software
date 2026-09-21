@@ -6,6 +6,7 @@
 - Added **Composted** and **Other** to preserve all current C5 records, including Waste Water Treatment. The migration normalizes legacy double-spacing in the Wet Digestate display label without altering the original stored Activity string. Structural validation found zero records missing taxonomy fields. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL ADD/EDIT TESTING** per the user’s instruction.
 - Updated C5-only Add/Edit layout: base Activity appears first with duplicate material names collapsed, followed by Activity Type. All other Scope 3 categories retain Type-before-Activity flow. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - C5 Activity Type now lists only disposal methods available for the selected base Activity. Factors classified as `other`, including Waste Water Treatment, do not show an unnecessary Activity Type field. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- Fixed the C5 selector regression where selecting one Activity Type caused the menu to show only that same type. Add/Edit now derive available C5 disposal types from the complete C5 catalog for the selected base Activity. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 
 ## September 21, 2026 — Scope 1/2 Formula Clone Destinations
 - Formula Builder’s clone dialog now offers approved Scope 3 formula-group destinations plus every configured Scope 1 and Scope 2 category/subcategory.

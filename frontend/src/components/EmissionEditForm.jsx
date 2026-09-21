@@ -190,6 +190,7 @@ export default function EmissionEditForm(props) {
     fieldOptions = {},
     requiresSubcategory,
     availableSubcategories,
+    scope3EFData = [],
     filteredScope3Activities,
     availableQuantityUnits,
 
@@ -246,12 +247,18 @@ export default function EmissionEditForm(props) {
   const scope3ActivityId = draft.scope3ActivityId;
   const scope3CustomActivity = draft.scope3CustomActivity;
   const isC5Category = /^c5\b/i.test(selectedCategory?.code || selectedCategory?.name || formData.category || '');
+  const c5CatalogActivities = scope3EFData.filter((activity) => (
+    isC5Category
+    && activity.category === (formData.category || selectedCategory?.name)
+    && activity.method === scope3Method
+    && activity.sub_scope !== 'biogenic'
+  ));
   const c5ActivityOptions = isC5Category
-    ? Array.from(new Map(filteredScope3Activities.map((activity) => [activity.activity_name || activity.activity, activity])).values())
+    ? Array.from(new Map(c5CatalogActivities.map((activity) => [activity.activity_name || activity.activity, activity])).values())
     : [];
-  const c5SelectedActivity = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+  const c5SelectedActivity = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
   const c5ActivityTypes = Array.from(new Set(
-    filteredScope3Activities
+    c5CatalogActivities
       .filter((activity) => (activity.activity_name || activity.activity) === (c5SelectedActivity?.activity_name || c5SelectedActivity?.activity))
       .map((activity) => activity.activity_type)
       .filter((type) => type && type !== 'other'),
@@ -830,8 +837,8 @@ export default function EmissionEditForm(props) {
                                 value={scope3ActivityType}
                                 onChange={(e) => {
                                   const nextType = e.target.value;
-                                  const selected = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
-                                  const matching = filteredScope3Activities.find((activity) => (
+                                  const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
+                                  const matching = c5CatalogActivities.find((activity) => (
                                     (activity.activity_name || activity.activity) === (selected?.activity_name || selected?.activity)
                                     && activity.activity_type === nextType
                                   ));

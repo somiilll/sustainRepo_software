@@ -111,6 +111,7 @@ export const Step1BasicSelection = ({
   
   // Activity props
   scope3ActivityId,
+  scope3EFData = [],
   filteredScope3Activities,
   useCustomActivity,
   setUseCustomActivity,
@@ -160,25 +161,31 @@ export const Step1BasicSelection = ({
   const CategoryIcon = getCategoryIcon(category);
   const isC8Category = scope === 'scope3' && /^c8\b/i.test(category || '');
   const isC5Category = scope === 'scope3' && /^c5\b/i.test(category || '');
+  const c5CatalogActivities = useMemo(() => scope3EFData.filter((activity) => (
+    isC5Category
+    && activity.category === category
+    && activity.method === scope3Method
+    && activity.sub_scope !== 'biogenic'
+  )), [category, isC5Category, scope3EFData, scope3Method]);
   const c5ActivityOptions = useMemo(() => {
     if (!isC5Category) return [];
     const byName = new Map();
-    filteredScope3Activities.forEach((activity) => {
+    c5CatalogActivities.forEach((activity) => {
       const name = activity.activity_name || activity.activity;
       if (!byName.has(name)) byName.set(name, activity);
     });
     return Array.from(byName.values());
-  }, [filteredScope3Activities, isC5Category]);
+  }, [c5CatalogActivities, isC5Category]);
   const c5SelectedActivityName = useMemo(() => {
-    const selected = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+    const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
     return selected?.activity_name || selected?.activity || '';
-  }, [filteredScope3Activities, scope3ActivityId]);
+  }, [c5CatalogActivities, scope3ActivityId]);
   const c5ActivityTypes = useMemo(() => Array.from(new Set(
-    filteredScope3Activities
+    c5CatalogActivities
       .filter((activity) => (activity.activity_name || activity.activity) === c5SelectedActivityName)
       .map((activity) => activity.activity_type)
       .filter((type) => type && type !== 'other'),
-  )), [c5SelectedActivityName, filteredScope3Activities]);
+  )), [c5CatalogActivities, c5SelectedActivityName]);
   const isC8AllocationApplicable = isC8Category
     && ['activity_basis', 'supplier_basis'].includes(scope3Method);
   const usesDirectFuelLayout = scope === 'scope1'
@@ -768,8 +775,8 @@ export const Step1BasicSelection = ({
                 value={scope3ActivityType}
                 onChange={(e) => {
                   const nextType = e.target.value;
-                  const selected = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
-                  const matching = filteredScope3Activities.find((activity) => (
+                  const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
+                  const matching = c5CatalogActivities.find((activity) => (
                     (activity.activity_name || activity.activity) === (selected?.activity_name || selected?.activity)
                     && activity.activity_type === nextType
                   ));

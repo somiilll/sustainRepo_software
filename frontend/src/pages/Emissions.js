@@ -3637,6 +3637,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   fieldOptions={editGhgFieldOptions}
                   requiresSubcategory={requiresSubcategory}
                   availableSubcategories={availableSubcategories}
+                  scope3EFData={scope3EFData}
                   filteredScope3Activities={filteredScope3Activities}
                   availableQuantityUnits={availableQuantityUnits}
                   // ---------- handlers ----------
