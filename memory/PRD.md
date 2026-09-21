@@ -125,6 +125,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - The Emissions **Reset widths** action sits at the right edge of the Scope 1 / Scope 2 / Scope 3 / Biogenic tab row and resets the same resizable ledger columns without affecting filters or records.
 - For Scope 3 C8, C10, C11, C13, and C14, the Subcategory value remains `energy` for decision trees and factor filtering while its user-facing label is **Grid Power**.
 - The Super Admin Scope 3 EF table, factor detail view, and edit selector use the same **Grid Power** display label for stored `energy` subcategories.
+- Restored native Think OCR configuration parity with the uploaded standalone processor: the OpenAI Think provider now reads `OPENAI_API_KEY`, matching the native `OpenAI` SDK contract. The prior `OPEN_API_KEY_OCR` variable prevented Think mode from initializing after the wrapper removal. Source reviewed only; no functional testing was run by user instruction.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.
