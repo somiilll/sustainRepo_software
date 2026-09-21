@@ -3726,8 +3726,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           setBiogenicScopeSelection('');
         }
       }} className="w-full">
-        <div className="flex items-center gap-3">
-        <TabsList className="grid min-w-0 flex-1 max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(visibleScopes.length, 1)}, minmax(0, 1fr))` }}>
+        <div className="flex flex-wrap items-center gap-3">
+        <TabsList className="inline-grid w-fit min-w-0 gap-1 rounded-full border border-emerald-950/15 bg-white p-1 shadow-sm" style={{ gridTemplateColumns: `repeat(${Math.max(visibleScopes.length, 1)}, minmax(78px, 112px))` }}>
           {visibleScopes.map(s => {
             const isScope3 = s.code === 'scope3';
             // Check both organization-level and KPI assignment-level access
@@ -3740,7 +3740,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 key={s.code}
                 value={s.code}
                 disabled={isDisabled}
-                className={`${isDisabled ? 'relative cursor-not-allowed opacity-60 text-stone-400' : 'data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-emerald-700'}`}
+                className={`rounded-full px-4 transition-[background-color,color,box-shadow] duration-200 ${isDisabled ? 'relative cursor-not-allowed opacity-60 text-stone-400' : 'text-stone-600 hover:bg-emerald-50 hover:text-emerald-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-emerald-900'}`}
                 data-testid={`scope-tab-${s.code}`}
               >
                 {s.name}

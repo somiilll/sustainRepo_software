@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Refined Emissions scope navigation into compact rounded pills with a dark-emerald active state and mobile-safe wrapping. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR History Rejected and Rejected All badges now use a consistent orange audit-status color. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Expanded OCR History into a wide file-and-row audit view. Non-cancelled files show extracted item, scope, category, subcategory, reporting period, and per-row Saved/Rejected/Pending Review outcome; resolved rows are retained as safe snapshots for future audits. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR History now records uploader names from user `full_name` for new uploads and backfills legacy display names from stored uploader IDs. It labels file outcomes as Saved, Partially Saved, Rejected All, Event Cancelled, and Error, with Processing/Pending Review retained for open work. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
