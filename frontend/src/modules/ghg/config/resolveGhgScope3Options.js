@@ -1,4 +1,4 @@
-import { getStandardActivityTypeLabel } from './standardGhgFormConfig';
+import { C3_ACTIVITY_TYPE_OPTIONS, getStandardActivityTypeLabel } from './standardGhgFormConfig';
 
 const METHOD_ORDER = Object.freeze(['spend_basis', 'activity_basis', 'supplier_basis']);
 
@@ -8,6 +8,16 @@ const matchesCategory = (entry, category) => (
 );
 
 const uniqueSorted = (values) => Array.from(new Set(values.filter(Boolean))).sort();
+
+const isC3Category = (category = '') => /^c3\b/i.test(String(category).trim());
+
+const orderActivityTypes = (types, category) => {
+  if (!isC3Category(category)) return uniqueSorted(types);
+  const available = new Set(types.filter(Boolean));
+  return C3_ACTIVITY_TYPE_OPTIONS
+    .map((option) => option.value)
+    .filter((value) => available.has(value));
+};
 
 export const resolveScope3MethodsForCategory = ({
   scope,
@@ -73,12 +83,12 @@ export const resolveGhgScope3Options = ({
   });
 
   const activityTypes = scope === 'scope3' && capabilities.activityType
-    ? uniqueSorted([
+    ? orderActivityTypes([
       ...categoryRecords
         .filter((entry) => !scope3Method || scope3Method === 'supplier_basis' || entry.method === scope3Method)
         .map((entry) => entry.activity_type),
       ...(scope3Method === 'supplier_basis' && capabilities.supplierBasisOtherActivity ? ['others'] : []),
-    ])
+    ], category)
     : [];
 
   const subcategories = requiresSubcategory && scope3Method

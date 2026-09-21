@@ -1627,7 +1627,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       filtered = filtered.filter(ef => ef.method === scope3Method);
     }
     
-    // Filter by activity_type (for C6/C7)
+    // Filter by activity_type for categories that expose an Activity Type selector.
     if (scope3ActivityType) {
       filtered = filtered.filter(ef => ef.activity_type === scope3ActivityType);
     }

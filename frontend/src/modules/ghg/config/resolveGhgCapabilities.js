@@ -27,6 +27,7 @@ const directFuel = (caps = {}) => ({
 });
 
 export const STANDARD_GHG_CAPABILITIES = Object.freeze({
+  'fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2|scope3': scope3({ activityType: true }),
   'upstream_transportation_distribution|scope3': scope3({ journeyLocations: true }),
   'business_travel|scope3': scope3({ activityType: true, journeyLocations: true, flightDetails: true, supplierBasisOtherActivity: true }),
   'employee_commuting|scope3': scope3({ activityType: true, multiEmployee: true }),

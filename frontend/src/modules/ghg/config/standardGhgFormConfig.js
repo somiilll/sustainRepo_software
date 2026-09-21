@@ -30,6 +30,13 @@ export const STANDARD_ACTIVITY_TYPE_OPTIONS = Object.freeze([
   { value: 'others', label: 'Others' },
 ]);
 
+/** Canonical Activity Type values for Scope 3 Category 3 factor grouping. */
+export const C3_ACTIVITY_TYPE_OPTIONS = Object.freeze([
+  { value: 'fuel', label: 'Fuel' },
+  { value: 'electricity', label: 'Electricity' },
+  { value: 'steam', label: 'Steam' },
+]);
+
 export const STANDARD_PROCESS_TYPE_OPTIONS = Object.freeze([
   { value: 'venting', label: 'Venting' },
   { value: 'n2o_overall_combustion', label: 'N2O from Overall Combustion' },
@@ -47,7 +54,8 @@ export const STANDARD_TYPE_OF_PRODUCT_OPTIONS = Object.freeze([
 ]);
 
 export const getStandardActivityTypeLabel = (value) => (
-  STANDARD_ACTIVITY_TYPE_OPTIONS.find((option) => option.value === value)?.label
+  [...STANDARD_ACTIVITY_TYPE_OPTIONS, ...C3_ACTIVITY_TYPE_OPTIONS]
+    .find((option) => option.value === value)?.label
   || String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 );
 

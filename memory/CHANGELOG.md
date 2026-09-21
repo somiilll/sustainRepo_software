@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — C3 Canonical Activity Type Filtering
+- Enabled the existing shared Scope 3 Activity Type → Activity filtering flow for C3 in both Add and Edit. C3 now presents **Fuel**, **Electricity**, and **Steam** in that order and requires a type before a factor can be selected.
+- Added durable `scope3_ef.activity_type` data for 32 non-biogenic C3 factors: coal-electricity generation and electricity T&D are `electricity`; Heat/Steam loss and generation is `steam`; remaining C3 factors are `fuel`. The controlled migration created `/app/.emergent/backups/c3-activity-types-20260921T060449Z.json` before applying its updates. Existing emission records, formulas, calculations, and histories were unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s explicit instruction.
+
 ## September 20, 2026 — Supplier Assessment Correlated Logging
 - Added structured, customer-safe business events for Document publishing/assignment/response/reopen/archive, Training creation/assignment/archive/viewer/consumption, multipart upload lifecycle, Questionnaire authoring/assignment/changes/manual review/reopen/response, revenue actions, and supplier evidence operations.
 - Events inherit the platform `request_id` and `operation_id` and retain only safe entity IDs, counts, outcomes, and stable error codes. Background training media preparation is now observable; scoring fallback no longer uses `print`. Raw request data, content, notes, filenames, URLs, credentials, and exception text are excluded. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
