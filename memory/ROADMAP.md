@@ -70,6 +70,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Reordered 20 liquid-volume C3 Fuel Scope 3 EF `allowed_units` arrays to `L`, `kl`, `ml`, `m3`, `cm3`; preserved every factor’s unit set and `default_unit`, while leaving 8 mass-only Fuel factors untouched. Backup: `/app/.emergent/backups/c3-fuel-allowed-units-order-20260921T121758Z.json`. **DATABASE CHANGE ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Deleted 30 inactive duplicate Calc Engine input-field mapping records after a cross-scope audit confirmed active same-category replacements and no formula, decision-tree, emission-record, or history references. Active configurations and stored active data were preserved. **DATABASE AUDIT ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Refined Emissions scope navigation into compact rounded pills with a dark-emerald active state and mobile-safe wrapping. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR History Rejected and Rejected All badges now use a consistent orange audit-status color. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
