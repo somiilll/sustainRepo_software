@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Approved Staging GHG Reset (MongoDB Only)
+- Added and applied `reset_staging_ghg_data.py`, a target-locked, transaction-backed reset with a complete JSON backup manifest at `/app/.emergent/backups/staging-ghg-reset-20260921T065543Z`.
+- Deleted 7,070 staging-only GHG records/traces: 658 emission records, 1,825 emission-history rows, 17 pending records, 1,415 calculation audit logs, 122 Scope 3 bulk jobs, 900 pending bulk rows, 2,082 bulk errors, 8 Base Year records, 11 Base Year deletion records, 19 emission approval requests, and 13 emission approval-history rows. Supplier-GHG submissions and Base Year history events were already empty.
+- R2 objects and `uploaded_files` metadata were deliberately left untouched by the user’s decision. Organizations, facilities, users, supplier relationships/programs, peer benchmarking, targets, sinks, and ESG records were not changed. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+
 ## September 21, 2026 — Staging GHG Catalog Version Baseline
 - Added and applied a staging-only, backup-first baseline migration for immutable calculation metadata. It found all 31 staging formulas already linked to formula versions, then created 3 missing decision-tree snapshots and populated formula-version maps for all 23 current trees. Structural validation completed with no errors; `emission_records` and `emission_history` were not queried for writes or changed.
 - Applied the C3 canonical Activity Type migration to staging: 32 non-biogenic factors now carry `fuel`, `electricity`, or `steam`. Backups are stored at `/app/.emergent/backups/staging-version-baseline-20260921T063336Z` and `/app/.emergent/backups/c3-activity-types-20260921T063346Z.json`.
