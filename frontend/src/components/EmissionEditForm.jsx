@@ -239,16 +239,23 @@ export default function EmissionEditForm(props) {
   const editFrequencyType = draft.frequencyType;
   const biogenicScopeSelection = draft.biogenicScopeSelection;
   const selectedCategory = draft.selectedCategory;
-  const isC5Category = /^c5\b/i.test(selectedCategory?.code || selectedCategory?.name || formData.category || '');
-  const c5ActivityOptions = isC5Category
-    ? Array.from(new Map(filteredScope3Activities.map((activity) => [activity.activity_name || activity.activity, activity])).values())
-    : [];
   const scope3Method = draft.scope3Method;
   const spendCurrencyConversionMethod = draft.spendCurrencyConversionMethod || 'standard';
   const scope3ActivityType = draft.scope3ActivityType;
   const scope3Subcategory = draft.scope3Subcategory;
   const scope3ActivityId = draft.scope3ActivityId;
   const scope3CustomActivity = draft.scope3CustomActivity;
+  const isC5Category = /^c5\b/i.test(selectedCategory?.code || selectedCategory?.name || formData.category || '');
+  const c5ActivityOptions = isC5Category
+    ? Array.from(new Map(filteredScope3Activities.map((activity) => [activity.activity_name || activity.activity, activity])).values())
+    : [];
+  const c5SelectedActivity = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+  const c5ActivityTypes = Array.from(new Set(
+    filteredScope3Activities
+      .filter((activity) => (activity.activity_name || activity.activity) === (c5SelectedActivity?.activity_name || c5SelectedActivity?.activity))
+      .map((activity) => activity.activity_type)
+      .filter((type) => type && type !== 'other'),
+  ));
   const useCustomActivity = draft.useCustomActivity;
   const typeOfProduct = draft.typeOfProduct;
   const editCalcMethodology = draft.calculationMethodology;
@@ -786,6 +793,7 @@ export default function EmissionEditForm(props) {
                                   options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: activity.id, label: activity.activity_name || activity.activity }))}
                                   onValueChange={(value) => {
                                     setScope3ActivityId(value);
+                                    if (isC5Category) setScope3ActivityType('');
                                     setActivitySearchTerm('');
                                     markFormDirty();
                                   }}
@@ -814,7 +822,7 @@ export default function EmissionEditForm(props) {
                               <p className="text-xs text-blue-600 mt-1">Loading activities...</p>
                             )}
                           </div>
-                          {isC5Category && scope3ActivityId && availableScope3ActivityTypes.length > 0 && (
+                          {isC5Category && scope3ActivityId && c5ActivityTypes.length > 0 && (
                             <div className="space-y-1.5" data-testid="edit-c5-activity-type-section">
                               <Label htmlFor="edit-c5-activity-type-select">Activity Type *</Label>
                               <select
@@ -836,7 +844,7 @@ export default function EmissionEditForm(props) {
                                 data-testid="edit-c5-activity-type-select"
                               >
                                 <option value="">Select activity type...</option>
-                                {availableScope3ActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+                                {c5ActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
                               </select>
                             </div>
                           )}

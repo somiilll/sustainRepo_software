@@ -169,6 +169,16 @@ export const Step1BasicSelection = ({
     });
     return Array.from(byName.values());
   }, [filteredScope3Activities, isC5Category]);
+  const c5SelectedActivityName = useMemo(() => {
+    const selected = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+    return selected?.activity_name || selected?.activity || '';
+  }, [filteredScope3Activities, scope3ActivityId]);
+  const c5ActivityTypes = useMemo(() => Array.from(new Set(
+    filteredScope3Activities
+      .filter((activity) => (activity.activity_name || activity.activity) === c5SelectedActivityName)
+      .map((activity) => activity.activity_type)
+      .filter((type) => type && type !== 'other'),
+  )), [c5SelectedActivityName, filteredScope3Activities]);
   const isC8AllocationApplicable = isC8Category
     && ['activity_basis', 'supplier_basis'].includes(scope3Method);
   const usesDirectFuelLayout = scope === 'scope1'
@@ -722,6 +732,7 @@ export const Step1BasicSelection = ({
                     options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: activity.id, label: activity.activity_name || activity.activity }))}
                     onValueChange={(value) => {
                       setScope3ActivityId(value);
+                      if (isC5Category) setScope3ActivityType('');
                       setFuelSearchTerm('');
                     }}
                     placeholder={
@@ -750,7 +761,7 @@ export const Step1BasicSelection = ({
             </div>
           )}
 
-          {scope3Method && isC5Category && scope3ActivityId && availableScope3ActivityTypes.length > 0 && (
+          {scope3Method && isC5Category && scope3ActivityId && c5ActivityTypes.length > 0 && (
             <div className="min-w-0 space-y-2" data-testid="c5-activity-type-section">
               <Label>Activity Type <span className="text-red-500">*</span></Label>
               <select
@@ -767,8 +778,10 @@ export const Step1BasicSelection = ({
                 }}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                 data-testid="c5-activity-type-select"
-                dangerouslySetInnerHTML={{ __html: activityTypeOptionsHtml }}
-              />
+              >
+                <option value="">Select activity type...</option>
+                {c5ActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+              </select>
             </div>
           )}
 
