@@ -9,10 +9,6 @@ const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_FILES_PER_BATCH = 20;
 const fileKey = (file) => `${file.name}-${file.size}`;
 const formatFileSize = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
-const formatAddedAt = (timestamp) => new Date(timestamp).toLocaleString(undefined, {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
 const validationError = (file, index) => {
   if (index >= MAX_FILES_PER_BATCH) return `Upload up to ${MAX_FILES_PER_BATCH} files at once`;
   const extension = `.${file.name.split('.').pop().toLowerCase()}`;
@@ -24,21 +20,12 @@ const validationError = (file, index) => {
 export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate, queue, onCancel, canCancelProcessing, cancelling }) => {
   const inputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
-  const [fileAddedAt, setFileAddedAt] = useState({});
   const [validationErrors, setValidationErrors] = useState({});
 
   const addFiles = (incoming) => {
-    const addedAt = Date.now();
     const incomingFiles = Array.from(incoming);
     const existing = new Map(files.map((file) => [fileKey(file), file]));
     incomingFiles.forEach((file) => existing.set(fileKey(file), file));
-    setFileAddedAt((current) => {
-      const next = { ...current };
-      incomingFiles.forEach((file) => {
-        if (!next[fileKey(file)]) next[fileKey(file)] = addedAt;
-      });
-      return next;
-    });
     setValidationErrors((current) => {
       const next = { ...current };
       Array.from(existing.values()).forEach((file, index) => {
@@ -52,11 +39,6 @@ export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProce
   };
 
   const removeFile = (target) => {
-    setFileAddedAt((current) => {
-      const next = { ...current };
-      delete next[fileKey(target)];
-      return next;
-    });
     setValidationErrors((current) => {
       const next = { ...current };
       delete next[fileKey(target)];
@@ -108,11 +90,10 @@ export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProce
           </div>
         </> : <div className="w-full max-w-4xl space-y-4 text-left" data-testid="ocr-selected-files-list">
           <h2 id="ocr-upload-heading" className="sr-only">Selected source documents</h2>
-          <div className="max-h-80 divide-y divide-slate-200 overflow-y-auto rounded-lg border border-slate-200 bg-white px-4" data-testid="ocr-selected-files-scroll-container">
+          <div className="max-h-80 divide-y divide-slate-200 overflow-y-auto rounded-2xl border border-slate-200 bg-white px-4" data-testid="ocr-selected-files-scroll-container">
             {files.map((file) => {
               const spreadsheet = /\.(csv|xlsx|xls)$/i.test(file.name);
               const Icon = spreadsheet ? FileSpreadsheet : FileText;
-              const addedAt = fileAddedAt[fileKey(file)];
               const error = validationErrors[fileKey(file)] || fileErrors[fileKey(file)];
               return (
                 <div key={fileKey(file)} className="flex min-w-0 items-center gap-3 py-4" data-testid={`ocr-selected-file-${file.name}`}>
@@ -121,7 +102,6 @@ export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProce
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                       <p className="max-w-full truncate font-medium text-slate-900" data-testid={`ocr-selected-file-name-${file.name}`}>{file.name}</p>
                       <span data-testid={`ocr-selected-file-size-${file.name}`}>Size {formatFileSize(file.size)}</span>
-                      {addedAt && <time dateTime={new Date(addedAt).toISOString()} className="text-slate-500" data-testid={`ocr-selected-file-uploaded-at-${file.name}`}>Uploaded at {formatAddedAt(addedAt)}</time>}
                       {error && <span className="font-medium text-red-700" role="alert" data-testid={`ocr-selected-file-error-${file.name}`}>{error}</span>}
                     </div>
                   </div>
