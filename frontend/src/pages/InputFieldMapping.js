@@ -65,6 +65,7 @@ export default function InputFieldMapping() {
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
 
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -101,13 +102,15 @@ export default function InputFieldMapping() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return mappings;
-    return mappings.filter((m) =>
-      m.field_key.toLowerCase().includes(term) ||
-      (m.field_label || '').toLowerCase().includes(term) ||
-      (m.maps_to_variable || '').toLowerCase().includes(term)
-    );
-  }, [mappings, search]);
+    return mappings.filter((m) => {
+      const matchesSearch = !term || m.field_key.toLowerCase().includes(term)
+        || (m.field_label || '').toLowerCase().includes(term)
+        || (m.maps_to_variable || '').toLowerCase().includes(term);
+      const mappingCategories = m.applies_to_categories || [];
+      const matchesCategory = filterCategory === 'all' || !mappingCategories.length || mappingCategories.includes(filterCategory);
+      return matchesSearch && matchesCategory;
+    });
+  }, [mappings, search, filterCategory]);
 
   // Variables that can be mapped to input fields:
   // - All input variables
@@ -259,6 +262,13 @@ export default function InputFieldMapping() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fields…" className="pl-9 bg-stone-50" />
         </div>
+        <Select value={filterCategory} onValueChange={setFilterCategory}>
+          <SelectTrigger className="w-[240px]" data-testid="mapping-category-filter"><SelectValue placeholder="All categories" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {categories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="ml-auto text-sm text-text-muted">{filtered.length} mappings</div>
       </Card>
 

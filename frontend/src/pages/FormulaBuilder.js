@@ -58,6 +58,10 @@ export default function FormulaBuilder() {
   const [saving, setSaving] = useState(false);
   const [expandedFormula, setExpandedFormula] = useState(null);
   const [impact, setImpact] = useState(null);
+  const [formulaGroups, setFormulaGroups] = useState([]);
+  const [cloneSource, setCloneSource] = useState(null);
+  const [cloneTargetGroup, setCloneTargetGroup] = useState('');
+  const [cloning, setCloning] = useState(false);
 
   // Search & filter
   const [search, setSearch] = useState('');
@@ -180,6 +184,35 @@ export default function FormulaBuilder() {
       .catch(() => setImpact(null));
   };
 
+  const openClone = async (formulaToClone) => {
+    try {
+      const response = await axios.get(`${API}/super-admin/calc-engine/formula-groups`, { headers: getAuthHeader() });
+      setFormulaGroups(response.data || []);
+      setCloneSource(formulaToClone);
+      setCloneTargetGroup('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Unable to load clone targets');
+    }
+  };
+
+  const cloneFormula = async () => {
+    if (!cloneSource || !cloneTargetGroup) return;
+    setCloning(true);
+    try {
+      await axios.post(`${API}/super-admin/calc-engine/formula-groups/${cloneTargetGroup}/clone-formula`, {
+        formula_id: cloneSource.id,
+      }, { headers: getAuthHeader() });
+      toast.success('Independent formula clone created. Rebind a decision-tree branch when ready.');
+      setCloneSource(null);
+      setCloneTargetGroup('');
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Formula clone failed');
+    } finally {
+      setCloning(false);
+    }
+  };
+
   const updateDef = (path, value) => {
     setFormula((prev) => {
       const next = { ...prev, definition: { ...prev.definition } };
@@ -298,7 +331,7 @@ export default function FormulaBuilder() {
           </SelectContent>
         </Select>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-[220px]"><SelectValue placeholder="All categories" /></SelectTrigger>
+          <SelectTrigger className="w-[220px]" data-testid="formula-category-filter"><SelectValue placeholder="All categories" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
             {filteredCategoriesForFilter.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -343,6 +376,9 @@ export default function FormulaBuilder() {
                   <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">v{f.version_number || 1}</Badge>
                   <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEdit(f); }} data-testid={`edit-formula-${f.id}`}>
                     <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openClone(f); }} data-testid={`clone-formula-${f.id}`}>
+                    <Copy className="w-4 h-4" />
                   </Button>
                   <Button size="sm" variant="ghost" className="text-red-500" onClick={(e) => { e.stopPropagation(); deleteFormula(f.id); }}>
                     <Trash2 className="w-4 h-4" />
@@ -689,6 +725,26 @@ export default function FormulaBuilder() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(cloneSource)} onOpenChange={(open) => !open && setCloneSource(null)}>
+        <DialogContent data-testid="formula-builder-clone-dialog">
+          <DialogHeader>
+            <DialogTitle>Create independent formula clone</DialogTitle>
+            <DialogDescription>The formula will be owned by the selected activity group. No decision-tree branch changes automatically.</DialogDescription>
+          </DialogHeader>
+          <Select value={cloneTargetGroup} onValueChange={setCloneTargetGroup}>
+            <SelectTrigger data-testid="formula-clone-target-group-select"><SelectValue placeholder="Select target group" /></SelectTrigger>
+            <SelectContent>
+              {formulaGroups.filter((group) => group.id !== cloneSource?.activity_formula_group_id).map((group) => (
+                <SelectItem key={group.id} value={group.id}>{group.id.replace('scope3_activity_', '').replaceAll('_', ' / ').toUpperCase()}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={cloneFormula} disabled={!cloneTargetGroup || cloning} data-testid="confirm-formula-builder-clone-button">
+            <Copy className="mr-2 h-4 w-4" />{cloning ? 'Creating clone…' : 'Create independent clone'}
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

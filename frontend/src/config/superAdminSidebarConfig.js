@@ -38,7 +38,6 @@ const superAdminSidebarConfig = [
           { key: 'sa-var-reg', label: 'Variable Registry', path: '/super-admin/variable-registry', icon: 'Variable' },
           { key: 'sa-prop-src', label: 'Property Sources', path: '/super-admin/property-sources', icon: 'Link2' },
           { key: 'sa-formula', label: 'Formula Builder', path: '/super-admin/formula-builder', icon: 'Code2' },
-          { key: 'sa-formula-groups', label: 'Formula Groups', path: '/super-admin/formula-groups', icon: 'GitBranch' },
           { key: 'sa-decision', label: 'Decision Trees', path: '/super-admin/decision-trees', icon: 'GitFork' },
           { key: 'sa-input-map', label: 'Input Field Mapping', path: '/super-admin/input-field-mapping', icon: 'FormInput' },
           { key: 'sa-sandbox', label: 'Calculation Sandbox', path: '/super-admin/calc-sandbox', icon: 'Beaker' },

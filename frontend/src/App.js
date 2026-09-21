@@ -34,7 +34,6 @@ import CalculationSandbox from './pages/CalculationSandbox';
 import VariableRegistry from './pages/VariableRegistry';
 import PropertySourceMapping from './pages/PropertySourceMapping';
 import FormulaBuilder from './pages/FormulaBuilder';
-import FormulaGroups from './pages/FormulaGroups';
 import DecisionTreeEditor from './pages/DecisionTreeEditor';
 import CalcEngineUnits from './pages/CalcEngineUnits';
 import InputFieldMapping from './pages/InputFieldMapping';
@@ -253,11 +252,6 @@ const AppRoutes = () => {
             <Route path="formula-builder" element={
               <SuperAdminRoute>
                 <FormulaBuilder />
-              </SuperAdminRoute>
-            } />
-            <Route path="formula-groups" element={
-              <SuperAdminRoute>
-                <FormulaGroups />
               </SuperAdminRoute>
             } />
             <Route path="decision-trees" element={
