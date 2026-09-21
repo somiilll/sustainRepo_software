@@ -14,6 +14,7 @@ ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".avif", ".csv",
 SPREADSHEET_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 MAX_FILE_BYTES = 20 * 1024 * 1024
 MAX_PDF_PAGES = 15
+MAX_FILES_PER_BATCH = 20
 
 OCR_SAVE_SCOPE_RULES = {
     "scope1": {
@@ -82,7 +83,7 @@ MODES = {
 
 
 def get_mode(mode_key: str) -> ExtractionMode:
-    normalized = str(mode_key or "fast").strip().lower()
+    normalized = str(mode_key or "think").strip().lower()
     if normalized not in MODES:
         raise ValueError("Extraction mode must be 'fast' or 'think'.")
     mode = MODES[normalized]

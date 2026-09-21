@@ -22,7 +22,7 @@ from shared.database.mongo import db
 from r2_storage import R2Storage
 from . import invoice_processor
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
-from .config import MODES, OCR_SAVE_SCOPE_RULES, get_mode
+from .config import MAX_FILES_PER_BATCH, MODES, OCR_SAVE_SCOPE_RULES, get_mode
 from .factor_options import is_structured_scope3_activity, normalize_method, normalize_option, resolve_factor_options, validate_factor_selection
 from .ghg_save_service import execute_ocr_calculation, resolve_ghg_category
 from .schemas import FinalizeImportRequest as AdvancedFinalizeImportRequest, FinalizeWaterImportRequest, LineItemEdit as AdvancedLineItemEdit, UploadFacilityAssignments
@@ -778,13 +778,15 @@ async def _legacy_upload_invoices(
 async def upload_invoices(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
-    mode: str = Form(default="fast"),
+    mode: str = Form(default="think"),
     current_user: dict = Depends(get_current_user),
 ):
     """Stage sources immediately and process Scope 1, 2, and 3 extraction in the background."""
     org_id = _get_org(current_user)
     if not files:
         raise HTTPException(status_code=400, detail="Select at least one invoice or spreadsheet.")
+    if len(files) > MAX_FILES_PER_BATCH:
+        raise HTTPException(status_code=400, detail=f"Select up to {MAX_FILES_PER_BATCH} files per batch.")
     try:
         _, enabled_scopes, _ = await build_org_context(org_id)
         if "scope3" not in enabled_scopes:

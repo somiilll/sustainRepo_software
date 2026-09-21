@@ -83,7 +83,7 @@ export default function OCRInvoice() {
   const { getAuthHeader } = useAuth();
   const navigate = useNavigate();
   const [configuration, setConfiguration] = useState(FALLBACK_CONFIGURATION);
-  const [mode, setMode] = useState(() => localStorage.getItem('ocr-extraction-mode') || 'fast');
+  const [mode, setMode] = useState('think');
   const [files, setFiles] = useState([]);
   const [stagedFileErrors, setStagedFileErrors] = useState({});
   const [processing, setProcessing] = useState(false);
@@ -138,10 +138,6 @@ export default function OCRInvoice() {
     localStorage.removeItem('ocr-failed-upload-ids');
     return () => { mounted = false; };
   }, [getAuthHeader]);
-
-  useEffect(() => {
-    localStorage.setItem('ocr-extraction-mode', mode);
-  }, [mode]);
 
   useEffect(() => {
     if (!activeExtractionIds.length) return undefined;

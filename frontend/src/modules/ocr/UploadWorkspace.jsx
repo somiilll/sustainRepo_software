@@ -6,13 +6,15 @@ import { OcrBatchQueue } from './OcrBatchQueue';
 
 const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.avif,.csv,.xlsx,.xls';
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_FILES_PER_BATCH = 20;
 const fileKey = (file) => `${file.name}-${file.size}`;
 const formatFileSize = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 const formatAddedAt = (timestamp) => new Date(timestamp).toLocaleString(undefined, {
   dateStyle: 'medium',
   timeStyle: 'short',
 });
-const validationError = (file) => {
+const validationError = (file, index) => {
+  if (index >= MAX_FILES_PER_BATCH) return `Upload up to ${MAX_FILES_PER_BATCH} files at once`;
   const extension = `.${file.name.split('.').pop().toLowerCase()}`;
   if (!ACCEPTED.split(',').includes(extension)) return 'Unsupported file type';
   if (file.size > MAX_FILE_BYTES) return 'File exceeds the 20MB limit';
@@ -39,8 +41,8 @@ export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProce
     });
     setValidationErrors((current) => {
       const next = { ...current };
-      incomingFiles.forEach((file) => {
-        const error = validationError(file);
+      Array.from(existing.values()).forEach((file, index) => {
+        const error = validationError(file, index);
         if (error) next[fileKey(file)] = error;
         else delete next[fileKey(file)];
       });
@@ -94,7 +96,7 @@ export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProce
           </span>
           <h2 id="ocr-upload-heading" className="mt-4 text-lg font-semibold text-slate-950">Add source documents</h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-            Invoices, utility bills, receipts, AVIF images, CSV ledgers and Excel workbooks up to 20MB each.
+            Invoices, utility bills, receipts, CSV ledgers and Excel workbooks. Upload up to 20 files at once; the first 15 pages of each PDF are processed, with a 20MB limit per file.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={processing} data-testid="ocr-browse-files-button">
