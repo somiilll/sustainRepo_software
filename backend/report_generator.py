@@ -4100,7 +4100,7 @@ class GHGReportGenerator:
             data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Calorific Value × Emission Factor (Heat Basis) × Density (if applicable)'])
             data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Emission Factor (Quantity Basis)'])
             if uses_carbon_content:
-                data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Carbon Content (%) / 100 × Oxidation Factor'])
+                data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Carbon Content (%) / 100 × Oxidation Factor × 44/12'])
             data.append(['Scope 1', 'Fugitive Emissions', '-', 'Emissions = Quantity of Gas Consumed × GWP'])
             
             # Scope 2 methodology
@@ -4217,7 +4217,7 @@ class GHGReportGenerator:
                 p = doc.add_paragraph()
                 run = p.add_run("Carbon Content - Based Approach")
                 run.bold = True
-                doc.add_paragraph("Emissions = Quantity of Fuel Consumed × Carbon Content (%) / 100 × Oxidation Factor")
+                doc.add_paragraph("Emissions = Quantity of Fuel Consumed × Carbon Content (%) / 100 × Oxidation Factor × 44/12")
                 doc.add_paragraph("Where:")
                 for point in [
                     "Quantity of Fuel Consumed refers to the measured amount of fuel used.",

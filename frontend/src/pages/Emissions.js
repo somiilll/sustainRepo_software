@@ -198,6 +198,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // dialog regardless of whether user has touched the Add form / scope tab).
   const [scope3EFData, setScope3EFData] = useState([]);
   const emissionDataGridRef = useRef(null);
+  const [hasCustomizedColumnWidths, setHasCustomizedColumnWidths] = useState(false);
   const scope3Method = editDraft.scope3Method;
   const setScope3Method = useCallback((value) => setDraftField('scope3Method', value), [setDraftField]);
   const spendCurrencyConversionMethod = editDraft.spendCurrencyConversionMethod;
@@ -3752,9 +3753,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             );
           })}
         </TabsList>
-        <Button type="button" variant="ghost" size="sm" onClick={() => emissionDataGridRef.current?.resetColumnWidths()} className="h-9 shrink-0 gap-1.5 text-xs text-stone-600 hover:bg-emerald-50 hover:text-emerald-700" data-testid="emissions-reset-column-widths-button">
+        {hasCustomizedColumnWidths && <Button type="button" variant="ghost" size="sm" onClick={() => { emissionDataGridRef.current?.resetColumnWidths(); setHasCustomizedColumnWidths(false); }} className="h-9 shrink-0 gap-1.5 text-xs text-stone-600 hover:bg-emerald-50 hover:text-emerald-700" data-testid="emissions-reset-column-widths-button">
           <RotateCcw className="h-3.5 w-3.5" />Reset widths
-        </Button>
+        </Button>}
         </div>
 
         <TabsContent value={activeScope} className="mt-6">
@@ -3762,6 +3763,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           <EmissionDataGrid
             ref={emissionDataGridRef}
             activeScope={activeScope}
+            onColumnWidthsCustomizedChange={setHasCustomizedColumnWidths}
             filteredEmissions={filteredEmissions}
             facilities={facilities}
             filteredScope3Activities={filteredScope3Activities}

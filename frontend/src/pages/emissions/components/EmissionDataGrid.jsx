@@ -158,6 +158,7 @@ const EmissionDataGrid = forwardRef(({
   filterDateRange,
   filterCategory,
   filterFrequency,
+  onColumnWidthsCustomizedChange,
 }, ref) => {
   // Sorting state
   const [sort, setSort] = useState({ key: null, direction: 'desc' });
@@ -184,10 +185,7 @@ const EmissionDataGrid = forwardRef(({
   }, [manualColumnWidths]);
 
   const visibleColumnKeys = SCOPE_COLUMN_KEYS[activeScope] || SCOPE_COLUMN_KEYS.scope1;
-  const effectiveColumnWidths = useMemo(() => {
-    if (Object.keys(manualColumnWidths).length > 0) {
-      return { ...DEFAULT_COLUMN_WIDTHS, ...manualColumnWidths };
-    }
+  const automaticColumnWidths = useMemo(() => {
     const baseWidth = visibleColumnKeys.reduce((total, key) => total + DEFAULT_COLUMN_WIDTHS[key], 0);
     const gapWidth = visibleColumnKeys.length * 8;
     const tableChromeWidth = 32 + 32 + gapWidth;
@@ -197,8 +195,19 @@ const EmissionDataGrid = forwardRef(({
       key,
       Math.round(DEFAULT_COLUMN_WIDTHS[key] * scale),
     ]));
-  }, [activeScope, ledgerViewportWidth, manualColumnWidths, visibleColumnKeys]);
+  }, [activeScope, ledgerViewportWidth, visibleColumnKeys]);
+  const effectiveColumnWidths = useMemo(() => ({
+    ...automaticColumnWidths,
+    ...manualColumnWidths,
+  }), [automaticColumnWidths, manualColumnWidths]);
   const columnWidths = effectiveColumnWidths;
+  const hasCustomizedColumnWidths = Object.entries(manualColumnWidths).some(([key, width]) => (
+    automaticColumnWidths[key] !== undefined && Math.round(width) !== automaticColumnWidths[key]
+  ));
+
+  useEffect(() => {
+    onColumnWidthsCustomizedChange?.(hasCustomizedColumnWidths);
+  }, [hasCustomizedColumnWidths, onColumnWidthsCustomizedChange]);
 
   useEffect(() => {
     const ledger = ledgerScrollRef.current;
@@ -259,10 +268,13 @@ const EmissionDataGrid = forwardRef(({
   };
 
   const resizeColumn = (columnKey, width) => {
-    setColumnWidths((current) => ({
-      ...(Object.keys(current).length > 0 ? current : effectiveColumnWidths),
-      [columnKey]: Math.min(420, Math.max(80, Math.round(width))),
-    }));
+    const nextWidth = Math.min(420, Math.max(80, Math.round(width)));
+    setColumnWidths((current) => {
+      const next = { ...current };
+      if (nextWidth === automaticColumnWidths[columnKey]) delete next[columnKey];
+      else next[columnKey] = nextWidth;
+      return next;
+    });
   };
 
   const resetColumnWidths = () => {

@@ -135,6 +135,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - OCR now canonicalizes common Calc Engine mass and volume aliases before persistence and calculation: tonne variants become `t`, and litre variants become `L`. This normalization covers extracted values, factor selection, edit auto-save, direct GHG save payloads, and dynamic calculation inputs so the ledger retains canonical units.
 - Added British-spelling unit coverage: `kilolitres` now normalizes to `kL`, while `millilitre` and `millilitres` convert their quantity to litres (`L`) before OCR calculation persistence.
 - OCR workspace cleanup now clears Batch Queue state when Clear Workspace succeeds. When the final source file’s rows are all saved to GHG or rejected—individually or in bulk—the workspace automatically returns to the empty upload state.
+- The Emissions ledger now hides Reset widths until a column has an actual manual width override. Resetting removes the override and hides the control again.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.
