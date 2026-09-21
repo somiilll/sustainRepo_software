@@ -40,6 +40,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Super Admins can inspect activity formula groups, category ownership, active mappings, formula counts, and decision-tree impact. Before publishing a formula change, Formula Builder shows every active category/branch affected; group-owned formulas direct admins to clone rather than reuse across groups.
 - Formula Builder cloning supports two destination types: approved Scope 3 activity formula groups, and direct Scope 1 or Scope 2 categories/subcategories. Direct clones are independent records and never rebind a decision tree automatically.
 - Scope 3 Bulk Upload and OCR GHG-save preserve the resolved activity formula’s group ID into Calc Engine execution. OCR activity-input hydration now prefers the matching group-owned mapping before legacy fallback; Bulk Upload receives matching group-owned default-unit and allowed-unit validation without changing workbook column names or unrelated method logic.
+- C3/C5 Bulk Upload, OCR, and Manual Add/Edit persist the resolved factor’s canonical `scope3_activity_type`. Bulk preserves explicit C6/C7 spreadsheet values first, then falls back to the matched factor type for C3/C5; no new spreadsheet columns are required.
 
 ### GHG Period Row Allowance
 - `entitlements.environment.ghg.monthly_rows_allowed` is an organization-wide allowance per distinct monthly period.

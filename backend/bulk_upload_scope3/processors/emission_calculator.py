@@ -1333,9 +1333,11 @@ class EmissionCalculator:
         
         # Add scope3 metadata fields to dynamic_field_values for edit dialog restoration
         # This ensures consistency with manual entry records (especially for C8, C10, C11, C13, C14)
-        activity_type_normalized = row_data.get("activity_type", "")
-        if activity_type_normalized:
-            activity_type_normalized = activity_type_normalized.lower().replace(" ", "_")
+        uploaded_activity_type = row_data.get("activity_type", "")
+        matched_factor_activity_type = (calculated_emissions.get("calculation_context") or {}).get("activity_type", "")
+        activity_type_normalized = uploaded_activity_type or matched_factor_activity_type
+        if uploaded_activity_type:
+            activity_type_normalized = uploaded_activity_type.lower().replace(" ", "_")
             # Map display names to internal values
             activity_type_map = {"work_from_home": "wfh"}
             activity_type_normalized = activity_type_map.get(activity_type_normalized, activity_type_normalized)

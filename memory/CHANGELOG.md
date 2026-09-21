@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — C3/C5 Bulk Activity Type Persistence
+- Aligned Bulk Upload with Manual Add/Edit and OCR: after resolving an exact Scope 3 factor, C3/C5 records now persist the matched factor’s canonical `activity_type` into both top-level `scope3_activity_type` and `dynamic_field_values.scope3_activity_type`.
+- Explicit spreadsheet Activity Type remains authoritative for C6/C7, preserving existing template behavior. C3/C5 need no new spreadsheet column, formula, EF, or decision-tree change. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL BULK-UPLOAD TESTING** per the user’s instruction.
+
 ## September 21, 2026 — C5 Disposal Taxonomy and Add/Edit Filtering
 - Added the C5 Activity Type capability and shared selector support. C5 users select a disposal method first, then a base Activity; the selected factor ID remains the exact existing EF record.
 - Applied `migrate_c5_activity_taxonomy.py` to all 184 local C5 factor records. It preserved every original `activity` string and factor ID while adding `activity_name`, normalized `activity_type`, and `activity_type_label`. Copper Wire now presents as one Activity with Combusted, Landfilled, and Recycled types. Backup: `/app/.emergent/backups/c5-activity-taxonomy-20260921T090000Z`.

@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- C3/C5 Bulk Upload now persists resolved factor Activity Type exactly as Manual Add/Edit and OCR do, while preserving C6/C7 spreadsheet-supplied types. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - C5 Add/Edit disposal filtering is now backed by a canonical factor taxonomy: all 184 C5 factors retain their original IDs/activity strings and add base Activity + normalized disposal type fields. C5 presents base Activity before only its valid Activity Type options; `other` factors such as Waste Water Treatment omit the type field. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Formula Builder clone destinations now include direct Scope 1 and Scope 2 categories/subcategories alongside approved Scope 3 groups. The clone is independent and never changes a decision tree automatically. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Group-aware Bulk Upload/OCR alignment: resolved Scope 3 activity formulas now carry their formula-group identity into calculation execution, and OCR hydration selects group-owned mapping defaults. Workbook columns and non-activity methods remain unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
