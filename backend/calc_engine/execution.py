@@ -98,6 +98,32 @@ class CalcEngine:
 
     # ---------- Unit validation ----------
 
+    async def _input_mapping_for_context(
+        self,
+        variable_key: str,
+        context: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        group_id = context.get("activity_formula_group_id")
+        if group_id:
+            scoped = await self.db.ce_input_field_mappings.find_one(
+                {
+                    "maps_to_variable": variable_key,
+                    "activity_formula_group_id": group_id,
+                    "is_active": True,
+                },
+                {"_id": 0},
+            )
+            if scoped:
+                return scoped
+        return await self.db.ce_input_field_mappings.find_one(
+            {
+                "maps_to_variable": variable_key,
+                "activity_formula_group_id": {"$exists": False},
+                "is_active": True,
+            },
+            {"_id": 0},
+        )
+
     async def validate_input_unit(
         self,
         variable_key: str,
@@ -117,10 +143,7 @@ class CalcEngine:
             return  # No unit to validate
         
         # Find input field mapping for this variable
-        mapping = await self.db.ce_input_field_mappings.find_one(
-            {"maps_to_variable": variable_key, "is_active": True},
-            {"_id": 0}
-        )
+        mapping = await self._input_mapping_for_context(variable_key, context)
         
         if not mapping:
             return  # No mapping = no validation (allow any unit)
@@ -257,7 +280,9 @@ class CalcEngine:
         org_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Run a formula end-to-end and return outputs + audit trail."""
-        context = context or {}
+        context = {**(context or {})}
+        if formula.get("activity_formula_group_id"):
+            context["activity_formula_group_id"] = formula["activity_formula_group_id"]
         user_overrides = user_overrides or {}
         audit = AuditTrail()
 

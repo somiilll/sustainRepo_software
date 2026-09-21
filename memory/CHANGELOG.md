@@ -1,5 +1,11 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Scope 3 Activity-Basis Formula Groups
+- Applied the approved ten-group isolation architecture to local `test_database`: **C1/C2**, **C3**, **C4/C9**, **C5/C12**, **C6**, **C7**, **C8**, **C10/C13/C14**, **C11**, and **C15**. It created 20 new immutable formula records, 31 mutable group-owned field mappings, and re-published 15 decision trees. Activity branches now resolve only to their group’s formula family; spend-basis, supplier-basis, and Scope 3 emission-factor records were not changed.
+- C10’s activity branch is the canonical configuration for C10/C13/C14, as required by the shared group definition. C6, C8, and C11 retain their multiple existing activity branches, now as exclusive formula families within their respective group.
+- A repeated migration invocation briefly produced nested duplicate clones. No formula or mapping was deleted: the repair re-bound all trees to first-generation group clones and deactivated only the 20 duplicate formulas and 30 duplicate mappings. Backups: `/app/.emergent/backups/scope3-activity-groups-20260921T073204Z`, `/app/.emergent/backups/scope3-activity-groups-20260921T073300Z`, and `/app/.emergent/backups/scope3-activity-group-repair-20260921T073406Z`.
+- Structural ownership validation confirms 20 active group formulas, 31 active group mappings, and zero nested active clones. **NO FUNCTIONAL BROWSER OR CALCULATION TESTING** per the user’s instruction.
+
 ## September 21, 2026 — C4/C9 Mapping Label Authority
 - Removed the C4/C9 frontend exception that changed the `km_travelled` mapped label to **Distance Travelled**. The shared GHG field resolver now uses `ce_input_field_mappings.field_label` directly for all categories, so a configured **Distance Travelled per day** label remains intact in both Add and Edit.
 - **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

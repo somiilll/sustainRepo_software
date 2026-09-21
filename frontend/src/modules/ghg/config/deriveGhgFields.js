@@ -243,12 +243,24 @@ const isMappingApplicable = ({
   decisionFieldNames,
 }) => {
   const { categoryId, scopeId, useCustomFuel, selectedFuel, decisionFieldValues } = context;
+  const isActivityBasis = context.scope3Method === 'activity_basis';
+  const formulaGroupId = matchedFormula?.activity_formula_group_id;
 
   const appliesToCategory =
     !m.applies_to_categories?.length || m.applies_to_categories.includes(categoryId);
   const appliesToScope =
     !m.applies_to_scopes?.length || m.applies_to_scopes.includes(scopeId);
   if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
+  if (m.applies_to_methods?.length && !m.applies_to_methods.includes(context.scope3Method)) return false;
+  if (isActivityBasis && m.activity_formula_group_id && m.activity_formula_group_id !== formulaGroupId) return false;
+  if (!isActivityBasis && m.activity_formula_group_id) return false;
+  if (isActivityBasis && !m.activity_formula_group_id && formulaGroupId) {
+    const hasGroupReplacement = formConfig.input_field_mappings?.some((candidate) => (
+      candidate.activity_formula_group_id === formulaGroupId
+      && candidate.source_mapping_id === m.id
+    ));
+    if (hasGroupReplacement) return false;
+  }
 
   if (useCustomFuel && HANDLED_BY_CUSTOM_FUEL.includes(m.maps_to_variable)) return false;
 

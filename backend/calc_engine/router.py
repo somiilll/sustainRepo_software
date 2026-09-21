@@ -763,6 +763,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         definition = dict(formula_doc["definition"])
         definition.setdefault("id", formula_doc["id"])
         definition.setdefault("version_id", formula_doc.get("version_id"))
+        definition.setdefault("activity_formula_group_id", formula_doc.get("activity_formula_group_id"))
 
         # Merge any fugitive emissions properties from enriched_context into user_overrides
         # so the property resolver can find them
@@ -946,6 +947,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                         "id": formula_doc["id"],
                         "name": formula_doc.get("name"),
                         "version_id": formula_doc.get("version_id"),
+                        "activity_formula_group_id": formula_doc.get("activity_formula_group_id"),
                         "inputs": formula_doc.get("definition", {}).get("inputs", []),
                         "outputs": formula_doc.get("definition", {}).get("outputs", []),
                         "properties": formula_doc.get("definition", {}).get("properties", []),
@@ -968,6 +970,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 formulas_info.append({
                     "id": formula_doc["id"],
                     "name": formula_doc.get("name"),
+                    "activity_formula_group_id": formula_doc.get("activity_formula_group_id"),
                     "inputs": formula_doc.get("definition", {}).get("inputs", []),
                     "outputs": formula_doc.get("definition", {}).get("outputs", []),
                     "properties": formula_doc.get("definition", {}).get("properties", []),
@@ -1947,6 +1950,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         definition = dict(formula_doc["definition"])
         definition.setdefault("id", formula_doc["id"])
         definition.setdefault("version_id", formula_doc.get("version_id"))
+        definition.setdefault("activity_formula_group_id", formula_doc.get("activity_formula_group_id"))
 
         try:
             result = await engine.execute(
@@ -1978,6 +1982,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         definition = dict(formula_doc["definition"])
         definition.setdefault("id", formula_doc["id"])
         definition.setdefault("version_id", formula_doc.get("version_id"))
+        definition.setdefault("activity_formula_group_id", formula_doc.get("activity_formula_group_id"))
         try:
             result = await engine.execute(
                 formula=definition, inputs=req.inputs, context=req.context,
