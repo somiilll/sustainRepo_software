@@ -4,6 +4,7 @@
 - Added the C5 Activity Type capability and shared selector support. C5 users select a disposal method first, then a base Activity; the selected factor ID remains the exact existing EF record.
 - Applied `migrate_c5_activity_taxonomy.py` to all 184 local C5 factor records. It preserved every original `activity` string and factor ID while adding `activity_name`, normalized `activity_type`, and `activity_type_label`. Copper Wire now presents as one Activity with Combusted, Landfilled, and Recycled types. Backup: `/app/.emergent/backups/c5-activity-taxonomy-20260921T090000Z`.
 - Added **Composted** and **Other** to preserve all current C5 records, including Waste Water Treatment. The migration normalizes legacy double-spacing in the Wet Digestate display label without altering the original stored Activity string. Structural validation found zero records missing taxonomy fields. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL ADD/EDIT TESTING** per the user’s instruction.
+- Updated C5-only Add/Edit layout: base Activity appears first with duplicate material names collapsed, followed by Activity Type. All other Scope 3 categories retain Type-before-Activity flow. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 
 ## September 21, 2026 — Scope 1/2 Formula Clone Destinations
 - Formula Builder’s clone dialog now offers approved Scope 3 formula-group destinations plus every configured Scope 1 and Scope 2 category/subcategory.

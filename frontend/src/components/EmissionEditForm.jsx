@@ -239,6 +239,10 @@ export default function EmissionEditForm(props) {
   const editFrequencyType = draft.frequencyType;
   const biogenicScopeSelection = draft.biogenicScopeSelection;
   const selectedCategory = draft.selectedCategory;
+  const isC5Category = /^c5\b/i.test(selectedCategory?.code || selectedCategory?.name || formData.category || '');
+  const c5ActivityOptions = isC5Category
+    ? Array.from(new Map(filteredScope3Activities.map((activity) => [activity.activity_name || activity.activity, activity])).values())
+    : [];
   const scope3Method = draft.scope3Method;
   const spendCurrencyConversionMethod = draft.spendCurrencyConversionMethod || 'standard';
   const scope3ActivityType = draft.scope3ActivityType;
@@ -541,7 +545,7 @@ export default function EmissionEditForm(props) {
                                 </select>
                               </div>
                             )}
-                            {availableScope3ActivityTypes.length > 0 && (
+                            {!isC5Category && availableScope3ActivityTypes.length > 0 && (
                               <div className="space-y-1.5" data-testid="scope3-activity-type-section">
                                 <Label htmlFor="scope3_activity_type_filter">Activity Type *</Label>
                                 <div className="relative">
@@ -779,7 +783,7 @@ export default function EmissionEditForm(props) {
                               <div className="mt-1.5 min-w-0">
                                 <SearchableSelect
                                   value={scope3ActivityId}
-                                  options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity_name || activity.activity }))}
+                                  options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: activity.id, label: activity.activity_name || activity.activity }))}
                                   onValueChange={(value) => {
                                     setScope3ActivityId(value);
                                     setActivitySearchTerm('');
@@ -788,14 +792,14 @@ export default function EmissionEditForm(props) {
                                   placeholder={
                                     !scope3Method
                                       ? 'Select method first'
-                                      : availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                                      : !isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType
                                         ? 'Select activity type first'
                                         : requiresSubcategory && !scope3Subcategory
                                           ? 'Select subcategory first'
                                           : 'Search or select activity'
                                   }
                                   searchPlaceholder="Search activities..."
-                                  disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                  disabled={!scope3Method || (!isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
                                   testId="scope3-activity-select"
                                   menuAlign="end"
                                   menuClassName="max-w-[calc(100vw-2rem)]"
@@ -810,6 +814,32 @@ export default function EmissionEditForm(props) {
                               <p className="text-xs text-blue-600 mt-1">Loading activities...</p>
                             )}
                           </div>
+                          {isC5Category && scope3ActivityId && availableScope3ActivityTypes.length > 0 && (
+                            <div className="space-y-1.5" data-testid="edit-c5-activity-type-section">
+                              <Label htmlFor="edit-c5-activity-type-select">Activity Type *</Label>
+                              <select
+                                id="edit-c5-activity-type-select"
+                                value={scope3ActivityType}
+                                onChange={(e) => {
+                                  const nextType = e.target.value;
+                                  const selected = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+                                  const matching = filteredScope3Activities.find((activity) => (
+                                    (activity.activity_name || activity.activity) === (selected?.activity_name || selected?.activity)
+                                    && activity.activity_type === nextType
+                                  ));
+                                  setScope3ActivityType(nextType);
+                                  setScope3ActivityId(matching?.id || '');
+                                  markFormDirty();
+                                }}
+                                required
+                                className={editSelectClass}
+                                data-testid="edit-c5-activity-type-select"
+                              >
+                                <option value="">Select activity type...</option>
+                                {availableScope3ActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+                              </select>
+                            </div>
+                          )}
                           {showsAssetName && (
                             <div className="min-w-0 space-y-1.5" data-testid="edit-asset-name-section">
                               <Label htmlFor="asset_name">Asset Name *</Label>

@@ -159,6 +159,16 @@ export const Step1BasicSelection = ({
   });
   const CategoryIcon = getCategoryIcon(category);
   const isC8Category = scope === 'scope3' && /^c8\b/i.test(category || '');
+  const isC5Category = scope === 'scope3' && /^c5\b/i.test(category || '');
+  const c5ActivityOptions = useMemo(() => {
+    if (!isC5Category) return [];
+    const byName = new Map();
+    filteredScope3Activities.forEach((activity) => {
+      const name = activity.activity_name || activity.activity;
+      if (!byName.has(name)) byName.set(name, activity);
+    });
+    return Array.from(byName.values());
+  }, [filteredScope3Activities, isC5Category]);
   const isC8AllocationApplicable = isC8Category
     && ['activity_basis', 'supplier_basis'].includes(scope3Method);
   const usesDirectFuelLayout = scope === 'scope1'
@@ -607,7 +617,7 @@ export const Step1BasicSelection = ({
           )}
 
           {/* Activity Type Filter (only for C6/C7) */}
-          {scope3Method && availableScope3ActivityTypes.length > 0 && (
+          {scope3Method && !isC5Category && availableScope3ActivityTypes.length > 0 && (
             <div className="min-w-0 space-y-2">
               <Label>Activity Type <span className="text-red-500">*</span></Label>
               <select
@@ -709,13 +719,13 @@ export const Step1BasicSelection = ({
                 <div className="mt-2 min-w-0">
                   <SearchableSelect
                     value={scope3ActivityId}
-                    options={filteredScope3Activities.map((activity) => ({ value: activity.id, label: activity.activity_name || activity.activity }))}
+                    options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: activity.id, label: activity.activity_name || activity.activity }))}
                     onValueChange={(value) => {
                       setScope3ActivityId(value);
                       setFuelSearchTerm('');
                     }}
                     placeholder={
-                      availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                      !isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType
                         ? 'Select activity type first'
                         : requiresSubcategory && !scope3Subcategory
                           ? 'Select sub-category first'
@@ -724,7 +734,7 @@ export const Step1BasicSelection = ({
                             : 'Search or select activity'
                     }
                     searchPlaceholder="Search activities..."
-                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
+                    disabled={(!isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
                     testId="scope3-activity-select"
                     menuAlign="end"
                     menuClassName="max-w-[calc(100vw-2rem)]"
@@ -737,6 +747,28 @@ export const Step1BasicSelection = ({
               {loadingScope3EF && (
                 <p className="text-xs text-blue-600">Loading activities...</p>
               )}
+            </div>
+          )}
+
+          {scope3Method && isC5Category && scope3ActivityId && availableScope3ActivityTypes.length > 0 && (
+            <div className="min-w-0 space-y-2" data-testid="c5-activity-type-section">
+              <Label>Activity Type <span className="text-red-500">*</span></Label>
+              <select
+                value={scope3ActivityType}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  const selected = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+                  const matching = filteredScope3Activities.find((activity) => (
+                    (activity.activity_name || activity.activity) === (selected?.activity_name || selected?.activity)
+                    && activity.activity_type === nextType
+                  ));
+                  setScope3ActivityType(nextType);
+                  setScope3ActivityId(matching?.id || '');
+                }}
+                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                data-testid="c5-activity-type-select"
+                dangerouslySetInnerHTML={{ __html: activityTypeOptionsHtml }}
+              />
             </div>
           )}
 
