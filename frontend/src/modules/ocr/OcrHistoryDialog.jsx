@@ -5,12 +5,12 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 const statusStyle = (status) => ({
   Saved: 'bg-emerald-100 text-emerald-800',
   'Partially Saved': 'bg-teal-100 text-teal-800',
-  'Rejected All': 'bg-stone-200 text-stone-700',
+  'Rejected All': 'bg-orange-100 text-orange-800',
   Error: 'bg-red-100 text-red-800',
   Processing: 'bg-sky-100 text-sky-800',
   'Event Cancelled': 'bg-slate-100 text-slate-700',
   'Pending Review': 'bg-amber-100 text-amber-800',
-  Rejected: 'bg-stone-200 text-stone-700',
+  Rejected: 'bg-orange-100 text-orange-800',
 }[status] || 'bg-stone-100 text-stone-700');
 
 const formatUploadedAt = (value) => (value ? new Date(value).toLocaleString(undefined, {
