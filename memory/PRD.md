@@ -102,7 +102,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `GET /api/organizations/my`, `PUT /api/organizations/my`
 - `GET`, `POST /api/organization/yearly-data/{year}`
 
-## Latest Change — September 17, 2026
+## Latest Change — September 20, 2026
+- **September 20, 2026 — Native Anthropic Fast-mode OCR transport:** Advanced Fast OCR now uses the official asynchronous Anthropic client for both document vision extraction and reasoning, matching the uploaded working processor's provider-native request semantics. Image messages use Anthropic `image`/Base64 source blocks followed by the extraction prompt; text reasoning uses a direct user prompt. Existing Fast model IDs and `ANTHROPIC_API_KEY` remain unchanged, while Think mode retains its existing OpenAI gateway. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s standing instruction.
 - **September 17, 2026 — OCR current-session error state:** OCR failure banners and retry targets are now held only for batches started or retried in the active browser session. Legacy `ocr-failed-upload-ids` storage is removed on page load and before a new submission, so no prior batch can show **“An error occurred. Try again.”** in an empty OCR workspace. A genuine failure from the current upload still shows the banner and Try again action. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s standing instruction.
 - **September 17, 2026 — OCR stale-error recovery:** A successfully queued OCR upload now clears stale `ocr-failed-upload-ids` browser storage left by an earlier failed batch. This removes the misleading **“An error occurred. Try again.”** banner once the corrected Fast configuration has accepted a new upload, while any failure in the newly queued batch is still captured by the existing polling path. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s standing instruction.
 - **September 17, 2026 — C6 Bulk Upload travel-day exclusion:** Removed **No. of Days Travelled** from the C6 template and made the upload pipeline discard both modern and legacy travel-day keys before C6 validation, calculation, and persistence. C6 no longer sends `qty_days_travelled` in calc inputs or `dynamic_field_values`; C7’s separate travel-day behavior remains unchanged. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s standing instruction.
@@ -775,4 +776,4 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## Third-Party Integrations
 - Cloudflare R2 private object storage — user credentials required.
 - Resend email delivery — user credentials required.
-- OpenAI/Anthropic through the configured platform integration.
+- Anthropic Fast OCR through the native asynchronous Anthropic SDK; OpenAI Think OCR through the configured platform integration.

@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Advanced Fast OCR now calls Anthropic through the native asynchronous SDK, matching the uploaded working processor's provider request format while leaving model IDs, prompts, queue behavior, and Think mode unchanged. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - OCR failure banners are now session-scoped: stale failed-batch storage is cleaned when the workspace opens or a new upload starts, while a current-session upload failure still shows a retry action. This prevents generic OCR errors in an otherwise empty workspace. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - OCR uploads now clear stale browser-stored failed-batch IDs when a replacement batch queues successfully, preventing an earlier provider/configuration failure from incorrectly persisting as the generic OCR error after recovery. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - C6 Business Travel Bulk Upload no longer exposes **No. of Days Travelled**. Any modern or legacy C6 travel-day value is discarded before validation, calculation, and record persistence, while C7 retains the field. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.

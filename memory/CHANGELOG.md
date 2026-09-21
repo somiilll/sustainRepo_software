@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 20, 2026 — Native Anthropic Fast OCR Transport
+- Replaced the advanced Fast pipeline's Emergent/LiteLLM adapter call with the official `AsyncAnthropic` client already installed in the backend.
+- Fast vision requests now send Anthropic-native Base64 image blocks followed by the extraction prompt; Fast reasoning requests send the prompt directly. Existing `claude-sonnet-5`, `claude-haiku-4-5`, prompts, API-key environment variable, queue workflow, and OCR accounting logic are preserved.
+- Think mode remains on its existing OpenAI gateway. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 17, 2026 — OCR Session-Scoped Failure Banner
 - OCR no longer restores prior-session failed-upload IDs into a fresh workspace. Legacy failure storage is cleared when the page opens and before a new upload begins.
 - Only an upload started or retried in the active session can show the generic failure banner and its retry action; current upload failures retain the existing retry behavior. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
