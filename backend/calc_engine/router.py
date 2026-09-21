@@ -1546,6 +1546,32 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         }})
         return await db.ce_formulas.find_one({"id": clone["id"]}, {"_id": 0})
 
+    @router.post("/super-admin/calc-engine/formulas/{formula_id}/clone-to-category")
+    async def clone_formula_to_category(formula_id: str, payload: Dict[str, Any], current_user: dict = Depends(get_super_admin_user)):
+        """Clone a formula for a direct Scope 1 or Scope 2 category destination."""
+        target_category_id = payload.get("target_category_id")
+        source = await db.ce_formulas.find_one({"id": formula_id, "is_active": True}, {"_id": 0})
+        target = await db.emission_categories.find_one({"id": target_category_id, "is_active": {"$ne": False}}, {"_id": 0})
+        if not source:
+            raise HTTPException(status_code=404, detail="Active source formula not found")
+        if not target:
+            raise HTTPException(status_code=404, detail="Active target category not found")
+        target_scope = await db.scopes.find_one({"id": target.get("scope_id")}, {"_id": 0, "id": 1, "code": 1})
+        if (target_scope or {}).get("code") not in {"scope1", "scope2"}:
+            raise HTTPException(status_code=400, detail="Direct cloning is limited to Scope 1 and Scope 2 categories. Use a Scope 3 formula group destination instead.")
+        clone = await create_formula(
+            db,
+            name=payload.get("name") or f"{target.get('code', target['id'])} — clone of {source.get('name', formula_id)}",
+            description=payload.get("description") or f"Independent clone of {formula_id} for {target.get('name', target['id'])}",
+            scope_ids=[target_scope["id"]],
+            category_ids=[target["id"]],
+            category_id=target["id"],
+            definition=deepcopy(source["definition"]),
+            created_by=current_user.get("id", "super_admin"),
+        )
+        await db.ce_formulas.update_one({"id": clone["id"]}, {"$set": {"source_formula_id": formula_id}})
+        return await db.ce_formulas.find_one({"id": clone["id"]}, {"_id": 0})
+
     # --- Input Field Mappings CRUD ---
 
     @router.post("/super-admin/calc-engine/input-field-mappings")

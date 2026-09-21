@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Formula Builder clone destinations now include direct Scope 1 and Scope 2 categories/subcategories alongside approved Scope 3 groups. The clone is independent and never changes a decision tree automatically. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Group-aware Bulk Upload/OCR alignment: resolved Scope 3 activity formulas now carry their formula-group identity into calculation execution, and OCR hydration selects group-owned mapping defaults. Workbook columns and non-activity methods remain unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Formula Builder now includes formula-impact preview and an independent clone action; both Formula Builder and Input Field Mapping support category filters. Formula Builder warns about active branch impact before publishing; Input Field Mapping identifies group-owned/inactive-history records. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Scope 3 activity-basis formula/configuration isolation: local `test_database` now has the approved ten group-owned formula families and 31 group-owned field mappings. C10/C13/C14 share C10’s canonical activity branch; C6/C8/C11 retain isolated branch families. A non-destructive repair deactivated only duplicate nested migration clones, with all source/current records retained. **STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

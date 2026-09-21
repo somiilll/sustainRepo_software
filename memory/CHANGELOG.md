@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Scope 1/2 Formula Clone Destinations
+- Formula Builder’s clone dialog now offers approved Scope 3 formula-group destinations plus every configured Scope 1 and Scope 2 category/subcategory.
+- Direct Scope 1/2 cloning creates an independent formula record with the target category/scope assignment and source-formula traceability; it intentionally does not alter any decision tree. Backend validation rejects direct destinations outside Scope 1/2, preserving Scope 3 group governance.
+- **SOURCE-REVIEWED ONLY; NO FUNCTIONAL UI OR API TESTING** per the user’s instruction.
+
 ## September 21, 2026 — Group-Aware Bulk Upload and OCR
 - Scope 3 Bulk Upload now passes the resolved formula’s `activity_formula_group_id` through calculation context and formula definition, allowing Calc Engine to use the matching group-owned field mapping for default-unit and allowed-unit validation.
 - OCR GHG-save now carries the resolved formula group to execution and prioritizes that group’s mapping while hydrating activity inputs. Legacy mappings remain the fallback for non-group formulas and spend/supplier flows.

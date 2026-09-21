@@ -60,7 +60,7 @@ export default function FormulaBuilder() {
   const [impact, setImpact] = useState(null);
   const [formulaGroups, setFormulaGroups] = useState([]);
   const [cloneSource, setCloneSource] = useState(null);
-  const [cloneTargetGroup, setCloneTargetGroup] = useState('');
+  const [cloneTarget, setCloneTarget] = useState('');
   const [cloning, setCloning] = useState(false);
 
   // Search & filter
@@ -189,22 +189,25 @@ export default function FormulaBuilder() {
       const response = await axios.get(`${API}/super-admin/calc-engine/formula-groups`, { headers: getAuthHeader() });
       setFormulaGroups(response.data || []);
       setCloneSource(formulaToClone);
-      setCloneTargetGroup('');
+      setCloneTarget('');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Unable to load clone targets');
     }
   };
 
   const cloneFormula = async () => {
-    if (!cloneSource || !cloneTargetGroup) return;
+    if (!cloneSource || !cloneTarget) return;
     setCloning(true);
     try {
-      await axios.post(`${API}/super-admin/calc-engine/formula-groups/${cloneTargetGroup}/clone-formula`, {
-        formula_id: cloneSource.id,
-      }, { headers: getAuthHeader() });
+      const [targetType, targetId] = cloneTarget.split(':');
+      if (targetType === 'group') {
+        await axios.post(`${API}/super-admin/calc-engine/formula-groups/${targetId}/clone-formula`, { formula_id: cloneSource.id }, { headers: getAuthHeader() });
+      } else {
+        await axios.post(`${API}/super-admin/calc-engine/formulas/${cloneSource.id}/clone-to-category`, { target_category_id: targetId }, { headers: getAuthHeader() });
+      }
       toast.success('Independent formula clone created. Rebind a decision-tree branch when ready.');
       setCloneSource(null);
-      setCloneTargetGroup('');
+      setCloneTarget('');
       await load();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Formula clone failed');
@@ -732,17 +735,16 @@ export default function FormulaBuilder() {
         <DialogContent data-testid="formula-builder-clone-dialog">
           <DialogHeader>
             <DialogTitle>Create independent formula clone</DialogTitle>
-            <DialogDescription>The formula will be owned by the selected activity group. No decision-tree branch changes automatically.</DialogDescription>
+          <DialogDescription>Choose a Scope 3 formula group or a direct Scope 1/2 category. No decision-tree branch changes automatically.</DialogDescription>
           </DialogHeader>
-          <Select value={cloneTargetGroup} onValueChange={setCloneTargetGroup}>
-            <SelectTrigger data-testid="formula-clone-target-group-select"><SelectValue placeholder="Select target group" /></SelectTrigger>
+          <Select value={cloneTarget} onValueChange={setCloneTarget}>
+            <SelectTrigger data-testid="formula-clone-target-select"><SelectValue placeholder="Select clone destination" /></SelectTrigger>
             <SelectContent>
-              {formulaGroups.filter((group) => group.id !== cloneSource?.activity_formula_group_id).map((group) => (
-                <SelectItem key={group.id} value={group.id}>{group.id.replace('scope3_activity_', '').replaceAll('_', ' / ').toUpperCase()}</SelectItem>
-              ))}
+              {formulaGroups.filter((group) => group.id !== cloneSource?.activity_formula_group_id).map((group) => <SelectItem key={group.id} value={`group:${group.id}`}>Scope 3 group · {group.id.replace('scope3_activity_', '').replaceAll('_', ' / ').toUpperCase()}</SelectItem>)}
+              {categories.filter((category) => ['scope1', 'scope2'].includes(scopes.find((scope) => scope.id === category.scope_id)?.code)).map((category) => <SelectItem key={category.id} value={`category:${category.id}`}>{scopes.find((scope) => scope.id === category.scope_id)?.name} · {category.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button onClick={cloneFormula} disabled={!cloneTargetGroup || cloning} data-testid="confirm-formula-builder-clone-button">
+          <Button onClick={cloneFormula} disabled={!cloneTarget || cloning} data-testid="confirm-formula-builder-clone-button">
             <Copy className="mr-2 h-4 w-4" />{cloning ? 'Creating clone…' : 'Create independent clone'}
           </Button>
         </DialogContent>
