@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- OCR Extraction’s initial upload state is now centered in the page without a surrounding card or dashed border. File selection, drag-and-drop, template download, selected-file controls, and all existing test IDs are unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Native Think OCR configuration parity: the OpenAI Think path now uses `OPENAI_API_KEY`, matching the uploaded standalone processor and the native OpenAI SDK initialization path. This removes the stale `OPEN_API_KEY_OCR` configuration mismatch introduced during wrapper removal. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Scope 3 C8/C10/C11/C13/C14 now display Subcategory **Grid Power** while retaining the existing `energy` decision value and factor filtering. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Emissions **Reset widths** now sits beside the Scope tabs and keeps the same column-width/scroll reset behavior. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

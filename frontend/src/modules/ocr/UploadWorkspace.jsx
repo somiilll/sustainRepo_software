@@ -23,8 +23,10 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
   return (
     <section className="space-y-4" aria-labelledby="ocr-upload-heading" data-testid="ocr-upload-section">
       <div
-        className={`border-2 border-dashed px-6 py-10 text-center transition-[border-color,background-color] duration-200 ${
-          dragActive ? 'border-emerald-600 bg-emerald-50' : 'border-slate-300 bg-slate-50/70 hover:border-slate-500'
+        className={`flex w-full flex-col items-center justify-center px-6 text-center transition-[background-color] duration-200 ${
+          files.length ? 'py-10' : 'min-h-[calc(100vh-14rem)] py-10'
+        } ${
+          dragActive ? 'bg-emerald-50' : 'bg-transparent'
         }`}
         onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }}
         onDragOver={(event) => event.preventDefault()}
@@ -41,7 +43,7 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
           onChange={(event) => addFiles(event.target.files)}
           data-testid="ocr-file-input"
         />
-        <span className="mx-auto grid h-12 w-12 place-items-center bg-slate-900 text-white">
+        <span className="grid h-12 w-12 place-items-center bg-slate-900 text-white">
           <UploadCloud className="h-5 w-5" aria-hidden="true" />
         </span>
         <h2 id="ocr-upload-heading" className="mt-4 text-lg font-semibold text-slate-950">Add source documents</h2>
