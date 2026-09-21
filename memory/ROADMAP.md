@@ -70,6 +70,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Reordered 100 C10/C11/C13/C14 Scope 3 EF factors that already allowed `L` to `L`, `kl`, `ml`, `m3`, `cm3`, preserving each unit set/default and leaving all 64 non-`L` factors untouched. Backup: `/app/.emergent/backups/c10-c11-c13-c14-existing-l-allowed-units-order-20260921T123020Z.json`. **DATABASE CHANGE ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Reordered 25 C8 Scope 3 EF factors that already allowed `L` to `L`, `kl`, `ml`, `m3`, `cm3`, preserving each unit set/default and leaving all 16 non-`L` C8 factors untouched. Backup: `/app/.emergent/backups/c8-existing-l-allowed-units-order-20260921T122837Z.json`. **DATABASE CHANGE ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Reordered 20 liquid-volume C3 Fuel Scope 3 EF `allowed_units` arrays to `L`, `kl`, `ml`, `m3`, `cm3`; preserved every factor’s unit set and `default_unit`, while leaving 8 mass-only Fuel factors untouched. Backup: `/app/.emergent/backups/c3-fuel-allowed-units-order-20260921T121758Z.json`. **DATABASE CHANGE ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Deleted 30 inactive duplicate Calc Engine input-field mapping records after a cross-scope audit confirmed active same-category replacements and no formula, decision-tree, emission-record, or history references. Active configurations and stored active data were preserved. **DATABASE AUDIT ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
