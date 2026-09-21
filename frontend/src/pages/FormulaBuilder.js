@@ -57,6 +57,7 @@ export default function FormulaBuilder() {
   const [validationErrors, setValidationErrors] = useState([]);
   const [saving, setSaving] = useState(false);
   const [expandedFormula, setExpandedFormula] = useState(null);
+  const [impact, setImpact] = useState(null);
 
   // Search & filter
   const [search, setSearch] = useState('');
@@ -158,6 +159,7 @@ export default function FormulaBuilder() {
     setFormula(JSON.parse(JSON.stringify(EMPTY_FORMULA)));
     setEditingId(null);
     setValidationErrors([]);
+    setImpact(null);
     setEditorOpen(true);
   };
 
@@ -173,6 +175,9 @@ export default function FormulaBuilder() {
     setEditingId(f.id);
     setValidationErrors([]);
     setEditorOpen(true);
+    axios.get(`${API}/super-admin/calc-engine/formulas/${f.id}/impact`, { headers: getAuthHeader() })
+      .then((response) => setImpact(response.data))
+      .catch(() => setImpact(null));
   };
 
   const updateDef = (path, value) => {
@@ -393,6 +398,19 @@ export default function FormulaBuilder() {
           </DialogHeader>
 
           <div className="space-y-6">
+            {impact && (
+              <Card className="border-amber-200 bg-amber-50 p-4" data-testid="formula-impact-panel">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                  <div className="min-w-0">
+                    <div className="font-heading font-bold text-amber-950">Formula impact before publishing</div>
+                    <p className="mt-1 text-sm text-amber-900" data-testid="formula-impact-summary">This formula is used by {impact.usage_count} active decision-tree branch{impact.usage_count === 1 ? '' : 'es'}.</p>
+                    {impact.formula.activity_formula_group_id && <p className="mt-1 text-xs font-medium text-amber-800" data-testid="formula-group-warning">Group-owned: {impact.formula.activity_formula_group_id}. Clone it in Formula Groups before adapting it for another group.</p>}
+                    <div className="mt-2 flex flex-wrap gap-1.5">{impact.uses.map((use, index) => <Badge key={`${use.decision_tree_id}-${use.branch_path}-${index}`} variant="outline" className="border-amber-300 bg-white text-amber-900" data-testid={`formula-impact-use-${index}`}>{use.category_code || use.category_name} · {use.branch_path}</Badge>)}</div>
+                  </div>
+                </div>
+              </Card>
+            )}
             {/* Metadata */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">

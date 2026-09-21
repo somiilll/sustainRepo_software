@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Formula Group Editor and Impact Guardrails
+- Added `/super-admin/formula-groups`, listing every active activity-basis group with its owned categories, formula count, field-configuration count, and active decision-tree branch impact. Each formula has a clone action that creates an independent record in a chosen target group without silently changing a decision tree.
+- Formula Builder now loads an impact panel before an existing formula is published, listing every active category/branch that references it and warning when it is group-owned. The Input Field Mapping table identifies group-owned rows and inactive historical duplicates using unique test IDs.
+- Added protected Super Admin APIs for group inventory, per-formula impact, and formula cloning. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL UI OR API TESTING** per the user’s instruction.
+
 ## September 21, 2026 — Scope 3 Activity-Basis Formula Groups
 - Applied the approved ten-group isolation architecture to local `test_database`: **C1/C2**, **C3**, **C4/C9**, **C5/C12**, **C6**, **C7**, **C8**, **C10/C13/C14**, **C11**, and **C15**. It created 20 new immutable formula records, 31 mutable group-owned field mappings, and re-published 15 decision trees. Activity branches now resolve only to their group’s formula family; spend-basis, supplier-basis, and Scope 3 emission-factor records were not changed.
 - C10’s activity branch is the canonical configuration for C10/C13/C14, as required by the shared group definition. C6, C8, and C11 retain their multiple existing activity branches, now as exclusive formula families within their respective group.

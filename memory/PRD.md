@@ -36,6 +36,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Scope 3 Category 3 requires a canonical Activity Type of **Fuel**, **Electricity**, or **Steam** before Activity selection; the type limits visible C3 factors without changing calculations or historical emission records.
 - C4 and C9 calculation-field labels are configuration-driven; the UI must not override a mapped variable label based on category.
 - Scope 3 `activity_basis` formulas and input-field configurations are isolated by these ten formula groups: **C1/C2**, **C3**, **C4/C9**, **C5/C12**, **C6**, **C7**, **C8**, **C10/C13/C14**, **C11**, and **C15**. A group owns its activity-branch formula family and mutable field mappings; no active formula or mapping is shared across groups. Spend-basis, supplier-basis, and factor records remain unchanged.
+- Super Admins can inspect activity formula groups, category ownership, active mappings, formula counts, and decision-tree impact. Before publishing a formula change, Formula Builder shows every active category/branch affected; group-owned formulas direct admins to clone rather than reuse across groups.
 
 ### GHG Period Row Allowance
 - `entitlements.environment.ghg.monthly_rows_allowed` is an organization-wide allowance per distinct monthly period.
@@ -106,6 +107,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - The temporary staging MongoDB URI, database-name configuration, and target-specific reset/bootstrap utilities were removed after the completed staging work. The retained generic catalog migration accepts target connection values only from runtime environment variables and contains no staging URI or database name.
 - Removed the C4/C9 `km_travelled` frontend label override. Add and Edit now use `ce_input_field_mappings.field_label` directly, including a configured **Distance Travelled per day** label.
 - Applied the local `test_database` Scope 3 activity-group migration: 20 new versioned group-owned activity formulas, 31 group-owned input-field mappings, and 15 decision-tree rebinds were added without deleting any legacy formula or mapping. C10 became the canonical activity branch for the required C10/C13/C14 group. A non-destructive repair then re-bound first-generation clones and deactivated 20 nested duplicate formulas plus 30 nested duplicate mappings created by a repeated migration invocation; all records are retained in backups.
+- Added the Super Admin Formula Groups editor (`/super-admin/formula-groups`), a Formula Builder impact panel, and a safe clone action that creates an independent formula without changing any decision tree. Input Field Mapping now visibly identifies group-owned and inactive-history rows.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.

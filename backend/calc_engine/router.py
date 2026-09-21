@@ -10,6 +10,7 @@ expose them for the Superadmin sandbox + external tests).
 from __future__ import annotations
 
 import uuid
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -64,6 +65,19 @@ def extract_year_from_reporting_period(reporting_period: str) -> Optional[int]:
     Returns None if unable to parse.
     """
     return extract_currency_period(reporting_period)[0]
+
+
+def _formula_paths(node: Any, formula_id: str, path: str = "") -> List[str]:
+    paths: List[str] = []
+    if isinstance(node, dict):
+        if node.get("formula_id") == formula_id:
+            paths.append(path or "root")
+        for key, value in node.items():
+            paths.extend(_formula_paths(value, formula_id, f"{path}.{key}" if path else key))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            paths.extend(_formula_paths(value, formula_id, f"{path}[{index}]"))
+    return paths
 
 
 # ---------- Pydantic schemas ----------
@@ -1451,6 +1465,86 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=404, detail="Compound unit not found")
         await db.ce_compound_units.delete_one({"id": unit_id})
         return {"message": f"Compound unit '{unit['key']}' deleted"}
+
+    # --- Scope 3 activity formula groups ---
+
+    async def _formula_impact(formula_id: str) -> dict:
+        formula = await db.ce_formulas.find_one({"id": formula_id}, {"_id": 0})
+        if not formula:
+            raise HTTPException(status_code=404, detail="Formula not found")
+        categories = await db.emission_categories.find({}, {"_id": 0, "id": 1, "code": 1, "name": 1}).to_list(None)
+        category_by_id = {category["id"]: category for category in categories}
+        trees = await db.ce_decision_trees.find({"is_active": True}, {"_id": 0, "id": 1, "category_id": 1, "tree": 1}).to_list(None)
+        uses = []
+        for tree in trees:
+            for path in _formula_paths(tree.get("tree") or {}, formula_id):
+                category = category_by_id.get(tree.get("category_id"), {})
+                uses.append({
+                    "decision_tree_id": tree["id"],
+                    "category_id": tree.get("category_id"),
+                    "category_code": category.get("code"),
+                    "category_name": category.get("name"),
+                    "branch_path": path,
+                })
+        return {"formula": formula, "uses": uses, "usage_count": len(uses)}
+
+    @router.get("/super-admin/calc-engine/formulas/{formula_id}/impact")
+    async def formula_impact(formula_id: str, current_user: dict = Depends(get_super_admin_user)):
+        """Show every active decision-tree branch affected by a formula change."""
+        return await _formula_impact(formula_id)
+
+    @router.get("/super-admin/calc-engine/formula-groups")
+    async def list_formula_groups(current_user: dict = Depends(get_super_admin_user)):
+        """List activity-basis group ownership, formulas, mappings, and active tree impact."""
+        formulas = await db.ce_formulas.find({"activity_formula_group_id": {"$exists": True}}, {"_id": 0}).to_list(None)
+        mappings = await db.ce_input_field_mappings.find({"activity_formula_group_id": {"$exists": True}}, {"_id": 0}).to_list(None)
+        categories = await db.emission_categories.find({}, {"_id": 0, "id": 1, "code": 1, "name": 1}).to_list(None)
+        category_by_id = {category["id"]: category for category in categories}
+        group_ids = sorted({row.get("activity_formula_group_id") for row in formulas + mappings if row.get("activity_formula_group_id")})
+        result = []
+        for group_id in group_ids:
+            group_formulas = [row for row in formulas if row.get("activity_formula_group_id") == group_id and row.get("is_active", True)]
+            group_mappings = [row for row in mappings if row.get("activity_formula_group_id") == group_id and row.get("is_active", True)]
+            category_ids = sorted({category_id for row in group_formulas + group_mappings for category_id in (row.get("category_ids") or row.get("applies_to_categories") or [])})
+            impacts = []
+            for formula in group_formulas:
+                impact = await _formula_impact(formula["id"])
+                impacts.extend([{**use, "formula_id": formula["id"], "formula_name": formula.get("name")} for use in impact["uses"]])
+            result.append({
+                "id": group_id,
+                "categories": [category_by_id[category_id] for category_id in category_ids if category_id in category_by_id],
+                "formulas": group_formulas,
+                "mappings": group_mappings,
+                "impacts": impacts,
+            })
+        return result
+
+    @router.post("/super-admin/calc-engine/formula-groups/{group_id}/clone-formula")
+    async def clone_formula_to_group(group_id: str, payload: Dict[str, Any], current_user: dict = Depends(get_super_admin_user)):
+        """Clone a formula into a group without changing any decision-tree branch."""
+        source_id = payload.get("formula_id")
+        source = await db.ce_formulas.find_one({"id": source_id, "is_active": True}, {"_id": 0})
+        if not source:
+            raise HTTPException(status_code=404, detail="Active source formula not found")
+        group_members = await db.ce_formulas.find_one({"activity_formula_group_id": group_id, "is_active": True}, {"_id": 0})
+        if not group_members:
+            raise HTTPException(status_code=404, detail="Formula group not found")
+        category_ids = group_members.get("category_ids") or []
+        clone = await create_formula(
+            db,
+            name=payload.get("name") or f"{group_id} — clone of {source.get('name', source_id)}",
+            description=payload.get("description") or f"Independent clone of {source_id} for {group_id}",
+            scope_ids=source.get("scope_ids") or [],
+            category_ids=category_ids,
+            category_id=None,
+            definition=deepcopy(source["definition"]),
+            created_by=current_user.get("id", "super_admin"),
+        )
+        await db.ce_formulas.update_one({"id": clone["id"]}, {"$set": {
+            "activity_formula_group_id": group_id,
+            "source_formula_id": source_id,
+        }})
+        return await db.ce_formulas.find_one({"id": clone["id"]}, {"_id": 0})
 
     # --- Input Field Mappings CRUD ---
 
