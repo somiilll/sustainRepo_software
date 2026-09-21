@@ -760,6 +760,7 @@ export default function EmissionEditForm(props) {
                           })()}
                           
                           {/* Activity Selection */}
+                          <div className={isC5Category ? 'col-span-full grid grid-cols-1 gap-4 md:grid-cols-2' : 'contents'} data-testid={isC5Category ? 'edit-c5-activity-row' : undefined}>
                           <div className="relative min-w-0 space-y-1.5" data-testid="scope3-activity-section">
                             <Label htmlFor="scope3_activity_select">Activity *</Label>
                             {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
@@ -866,6 +867,7 @@ export default function EmissionEditForm(props) {
                               </select>
                             </div>
                           )}
+                          </div>
                           {showsAssetName && (
                             <div className="min-w-0 space-y-1.5" data-testid="edit-asset-name-section">
                               <Label htmlFor="asset_name">Asset Name *</Label>
