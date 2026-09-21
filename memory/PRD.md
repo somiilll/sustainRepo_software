@@ -98,6 +98,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ## Current Status — September 21, 2026
 - C3 Activity Type filtering and 32-factor canonical classification are complete. A rollback backup is stored at `/app/.emergent/backups/c3-activity-types-20260921T060449Z.json`.
+- Staging catalog baseline migration is complete: all 31 staging formulas were already version-linked; 3 missing decision-tree snapshots and formula-version maps for all 23 current trees were written without modifying historical emissions. Staging C3 classification was also applied to 32 factors. Backups are stored at `/app/.emergent/backups/staging-version-baseline-20260921T063336Z` and `/app/.emergent/backups/c3-activity-types-20260921T063346Z.json`.
+- `CORS_ORIGINS` explicitly includes the approved staging frontend origin and the hosted release origin. No wildcard origin is enabled.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.

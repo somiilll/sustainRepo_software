@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 from bson import json_util
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from motor.motor_asyncio import AsyncIOMotorClient
 
 
@@ -32,10 +32,18 @@ def c3_activity_type(activity: object) -> str | None:
     return "fuel"
 
 
-async def migrate(*, apply: bool) -> None:
-    load_dotenv("/app/backend/.env")
-    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db = client[os.environ["DB_NAME"]]
+async def migrate(*, apply: bool, staging: bool) -> None:
+    settings = dotenv_values("/app/backend/.env")
+    uri_key = "STAGING_MONGO_URL" if staging else "MONGO_URL"
+    db_key = "STAGING_DB_NAME" if staging else "DB_NAME"
+    uri = os.environ.get(uri_key) or settings.get(uri_key)
+    db_name = os.environ.get(db_key) or settings.get(db_key)
+    if not uri or not db_name:
+        raise RuntimeError(f"{uri_key} and {db_key} are required")
+    if staging and db_name != "sustainrepo_staging":
+        raise RuntimeError("Staging target database must be sustainrepo_staging")
+    client = AsyncIOMotorClient(uri)
+    db = client[db_name]
     query = {
         "category": {"$regex": r"^C3(?:\s|\-|$)", "$options": "i"},
         "sub_scope": {"$ne": "biogenic"},
@@ -90,5 +98,6 @@ async def migrate(*, apply: bool) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Assign C3 Fuel, Electricity, and Steam Activity Type values.")
     parser.add_argument("--apply", action="store_true", help="Persist the migration; default is dry run.")
+    parser.add_argument("--staging", action="store_true", help="Use STAGING_MONGO_URL and STAGING_DB_NAME.")
     args = parser.parse_args()
-    asyncio.run(migrate(apply=args.apply))
+    asyncio.run(migrate(apply=args.apply, staging=args.staging))

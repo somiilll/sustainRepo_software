@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Staging GHG Catalog Version Baseline
+- Added and applied a staging-only, backup-first baseline migration for immutable calculation metadata. It found all 31 staging formulas already linked to formula versions, then created 3 missing decision-tree snapshots and populated formula-version maps for all 23 current trees. Structural validation completed with no errors; `emission_records` and `emission_history` were not queried for writes or changed.
+- Applied the C3 canonical Activity Type migration to staging: 32 non-biogenic factors now carry `fuel`, `electricity`, or `steam`. Backups are stored at `/app/.emergent/backups/staging-version-baseline-20260921T063336Z` and `/app/.emergent/backups/c3-activity-types-20260921T063346Z.json`.
+- Added explicit credential-safe CORS origins for the preview, approved staging frontend, hosted release, and local development; wildcard CORS remains rejected. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL GHG OR BROWSER TESTING** per the user’s instruction.
+
 ## September 21, 2026 — C3 Canonical Activity Type Filtering
 - Enabled the existing shared Scope 3 Activity Type → Activity filtering flow for C3 in both Add and Edit. C3 now presents **Fuel**, **Electricity**, and **Steam** in that order and requires a type before a factor can be selected.
 - Added durable `scope3_ef.activity_type` data for 32 non-biogenic C3 factors: coal-electricity generation and electricity T&D are `electricity`; Heat/Steam loss and generation is `steam`; remaining C3 factors are `fuel`. The controlled migration created `/app/.emergent/backups/c3-activity-types-20260921T060449Z.json` before applying its updates. Existing emission records, formulas, calculations, and histories were unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s explicit instruction.
