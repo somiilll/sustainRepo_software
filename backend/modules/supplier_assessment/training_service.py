@@ -4,6 +4,7 @@ import json
 import subprocess
 import tempfile
 import uuid
+import logging
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,9 @@ from shared.database.mongo import db
 from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.programs import get_or_create_program_revision, resolve_program_context
 from modules.sustainability_config import service as sustainability_config_service
+from app.logging import get_logger, log_event
+
+logger = get_logger(__name__)
 
 TRAINING_BUCKET = "supplier_assessment"
 TRAINING_FOLDER = "training"
@@ -179,6 +183,7 @@ async def prepare_multipart_training_media(version_id: str) -> None:
     version = await db.supplier_training_versions.find_one({"id": version_id, "viewer_processing_status": "processing"}, {"_id": 0})
     if not version or (version.get("viewer_manifest") or {}).get("viewer_type") not in {"audio", "video"}:
         return
+    log_event(logger, logging.INFO, "supplier_assessment.training.media.prepare.started", action="supplier_assessment.training.media.prepare", outcome="started", context={"training_version_id": version_id})
     suffix = Path(version["original_filename"]).suffix.lower()
     with tempfile.TemporaryDirectory() as temp_dir:
         source = Path(temp_dir) / f"source{suffix}"
@@ -186,8 +191,10 @@ async def prepare_multipart_training_media(version_id: str) -> None:
             await asyncio.to_thread(get_r2_storage().download_to_path, version["bucket_type"], version["r2_key"], str(source))
             duration = await asyncio.to_thread(_probe_media_duration_from_path, source)
             await db.supplier_training_versions.update_one({"id": version_id}, {"$set": {"viewer_manifest.duration_seconds": duration, "viewer_processing_status": "ready", "viewer_prepared_at": _now()}})
+            log_event(logger, logging.INFO, "supplier_assessment.training.media.prepare.completed", action="supplier_assessment.training.media.prepare", outcome="succeeded", context={"training_version_id": version_id})
         except Exception:
             await db.supplier_training_versions.update_one({"id": version_id}, {"$set": {"viewer_processing_status": "failed"}})
+            log_event(logger, logging.ERROR, "supplier_assessment.training.media.prepare.failed", action="supplier_assessment.training.media.prepare", outcome="failed", error_code="TRAINING_MEDIA_PREPARATION_FAILED", context={"training_version_id": version_id})
 
 async def supplier_trainings(relationship: Dict[str, Any]):
     assignments = await db.supplier_training_assignments.find({"supplier_relationship_id":relationship["id"],"is_active":True},{"_id":0}).to_list(200)

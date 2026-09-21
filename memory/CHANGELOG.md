@@ -1,5 +1,9 @@
 # ESG Platform Changelog
 
+## September 20, 2026 — Supplier Assessment Correlated Logging
+- Added structured, customer-safe business events for Document publishing/assignment/response/reopen/archive, Training creation/assignment/archive/viewer/consumption, multipart upload lifecycle, Questionnaire authoring/assignment/changes/manual review/reopen/response, revenue actions, and supplier evidence operations.
+- Events inherit the platform `request_id` and `operation_id` and retain only safe entity IDs, counts, outcomes, and stable error codes. Background training media preparation is now observable; scoring fallback no longer uses `print`. Raw request data, content, notes, filenames, URLs, credentials, and exception text are excluded. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 20, 2026 — Safe OCR Provider Failure Diagnostics
 - Advanced Fast (Anthropic) and Think (OpenAI) OCR now convert provider request failures into bounded diagnostics stored only on the failed file job and emitted through structured server logs: provider, validated provider request ID when present, categorized failure, HTTP status, and timestamp.
 - Categories distinguish quota/credit exhaustion, rate limiting, authentication, permissions, invalid request, overload, timeout, network, provider-server, response validation, and unknown failures. Raw exception messages, provider response bodies, prompts, document content, authorization data, headers, and API keys are not persisted or logged. Existing customer-safe error and retry behavior is unchanged; customer OCR API responses omit the internal diagnostic fields. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.

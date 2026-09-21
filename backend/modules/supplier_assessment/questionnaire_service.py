@@ -1,5 +1,6 @@
 """Questionnaire authoring, response, evidence, and manual-review operations."""
 import uuid
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -7,6 +8,9 @@ from r2_storage import get_r2_storage
 from shared.database.mongo import db
 from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.programs import resolve_program_context
+from app.logging import get_logger, log_event
+
+logger = get_logger(__name__)
 
 # ========================================================================
 # Questionnaire Management (Customer Admin)
@@ -823,9 +827,16 @@ async def _calculate_questionnaire_score(
                 reporting_period=(await self.get_supplier(supplier_relationship_id) if supplier_relationship_id else {}).get("reporting_period") if supplier_relationship_id else None,
             )
             return breakdown.esg_score.overall_score, breakdown.model_dump()
-        except Exception as e:
-            # Log error and fall back to legacy
-            print(f"New scoring engine error: {e}, falling back to legacy")
+        except Exception:
+            log_event(
+                logger,
+                logging.WARNING,
+                "supplier_assessment.questionnaire.scoring.fallback",
+                action="supplier_assessment.questionnaire.scoring",
+                outcome="degraded",
+                error_code="QUESTIONNAIRE_SCORING_FALLBACK",
+                context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id},
+            )
     
     # Legacy scoring for backward compatibility
     return await self._calculate_legacy_score(questionnaire, questions, answers), None
